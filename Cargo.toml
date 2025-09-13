@@ -1,0 +1,45 @@
+[package]
+name = "brainwires-scraper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# MCP protocol
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# HTML parsing
+scraper = "0.20"
+html5ever = "0.27"
+kuchikiki = "0.8"
+
+# CSS parsing and layout
+lightningcss = "1.0.0-alpha.67"
+taffy = "0.5"
+
+# JavaScript engine (pure Rust)
+boa_engine = "0.20"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# URL handling
+url = "2.5"
+
+# Async utilities
+futures = "0.3"
+
+# STDIO handling
+tokio-util = { version = "0.7", features = ["codec"] }
+
+# Regex for JavaScript processing
+regex = "1.10"
