@@ -39,8 +39,26 @@ pub struct WebScraper {
 
 impl WebScraper {
     pub fn new() -> Self {
+        let mut headers = reqwest::header::HeaderMap::new();
+        
+        // Chrome-like headers to appear as a real browser
+        headers.insert("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".parse().unwrap());
+        headers.insert("Accept-Language", "en-US,en;q=0.9".parse().unwrap());
+        headers.insert("Accept-Encoding", "gzip, deflate, br".parse().unwrap());
+        headers.insert("Cache-Control", "no-cache".parse().unwrap());
+        headers.insert("Pragma", "no-cache".parse().unwrap());
+        headers.insert("Sec-Ch-Ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"".parse().unwrap());
+        headers.insert("Sec-Ch-Ua-Mobile", "?0".parse().unwrap());
+        headers.insert("Sec-Ch-Ua-Platform", "\"macOS\"".parse().unwrap());
+        headers.insert("Sec-Fetch-Dest", "document".parse().unwrap());
+        headers.insert("Sec-Fetch-Mode", "navigate".parse().unwrap());
+        headers.insert("Sec-Fetch-Site", "none".parse().unwrap());
+        headers.insert("Sec-Fetch-User", "?1".parse().unwrap());
+        headers.insert("Upgrade-Insecure-Requests", "1".parse().unwrap());
+
         let client = reqwest::Client::builder()
-            .user_agent("Synaptic/0.1.0 (Pure Rust headless browser for AI models)")
+            .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .default_headers(headers)
             .build()
             .unwrap();
 
@@ -61,6 +79,13 @@ impl WebScraper {
         let parsed_url = Url::parse(url)?;
         
         let response = self.client.get(url).send().await?;
+        
+        // Check if response is successful
+        if !response.status().is_success() {
+            return Err(anyhow!("HTTP request failed with status: {}", response.status()));
+        }
+        
+        // Get the response content with proper encoding handling
         let html_content = response.text().await?;
 
         let processed_html = if wait_for_js {
