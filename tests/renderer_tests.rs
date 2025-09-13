@@ -1,4 +1,4 @@
-use brainwires_scraper::renderer::{RustRenderer, CssProcessor, LayoutEngine};
+use synaptic::renderer::{RustRenderer, CssProcessor, LayoutEngine};
 
 #[tokio::test]
 async fn test_javascript_safety_filtering() {

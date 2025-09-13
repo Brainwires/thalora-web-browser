@@ -1,0 +1,785 @@
+use anyhow::{anyhow, Result};
+use scraper::{Html, Selector};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use url::Url;
+use reqwest::header::CONTENT_TYPE;
+use reqwest::cookie::CookieStore;
+
+use crate::renderer::RustRenderer;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScrapedData {
+    pub url: String,
+    pub title: Option<String>,
+    pub content: String,
+    pub links: Vec<Link>,
+    pub images: Vec<Image>,
+    pub metadata: HashMap<String, String>,
+    pub extracted_data: Option<Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Link {
+    pub url: String,
+    pub text: String,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Image {
+    pub src: String,
+    pub alt: Option<String>,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FormField {
+    pub name: String,
+    pub field_type: String,
+    pub value: Option<String>,
+    pub required: bool,
+    pub placeholder: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Form {
+    pub action: String,
+    pub method: String,
+    pub fields: Vec<FormField>,
+    pub submit_buttons: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InteractionResponse {
+    pub url: String,
+    pub status_code: u16,
+    pub content: String,
+    pub cookies: HashMap<String, String>,
+    pub scraped_data: Option<ScrapedData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserStorage {
+    pub local_storage: HashMap<String, String>,
+    pub session_storage: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuthContext {
+    pub bearer_token: Option<String>,
+    pub csrf_token: Option<String>,
+    pub custom_headers: HashMap<String, String>,
+    pub storage: BrowserStorage,
+}
+
+pub struct HeadlessWebBrowser {
+    client: reqwest::Client,
+    renderer: RustRenderer,
+    cookie_jar: Arc<reqwest::cookie::Jar>,
+    storage: Arc<Mutex<BrowserStorage>>,
+    auth_context: Arc<Mutex<AuthContext>>,
+}
+
+impl HeadlessWebBrowser {
+    pub fn new() -> Self {
+        let mut headers = reqwest::header::HeaderMap::new();
+        
+        // Chrome-like headers to appear as a real browser
+        headers.insert("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".parse().unwrap());
+        headers.insert("Accept-Language", "en-US,en;q=0.9".parse().unwrap());
+        headers.insert("Accept-Encoding", "gzip, deflate, br".parse().unwrap());
+        headers.insert("Cache-Control", "no-cache".parse().unwrap());
+        headers.insert("Pragma", "no-cache".parse().unwrap());
+        headers.insert("Sec-Ch-Ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"".parse().unwrap());
+        headers.insert("Sec-Ch-Ua-Mobile", "?0".parse().unwrap());
+        headers.insert("Sec-Ch-Ua-Platform", "\"macOS\"".parse().unwrap());
+        headers.insert("Sec-Fetch-Dest", "document".parse().unwrap());
+        headers.insert("Sec-Fetch-Mode", "navigate".parse().unwrap());
+        headers.insert("Sec-Fetch-Site", "none".parse().unwrap());
+        headers.insert("Sec-Fetch-User", "?1".parse().unwrap());
+        headers.insert("Upgrade-Insecure-Requests", "1".parse().unwrap());
+
+        let cookie_jar = Arc::new(reqwest::cookie::Jar::default());
+        
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .default_headers(headers)
+            .cookie_provider(Arc::clone(&cookie_jar))
+            .build()
+            .unwrap();
+
+        let storage = Arc::new(Mutex::new(BrowserStorage {
+            local_storage: HashMap::new(),
+            session_storage: HashMap::new(),
+        }));
+
+        let auth_context = Arc::new(Mutex::new(AuthContext {
+            bearer_token: None,
+            csrf_token: None,
+            custom_headers: HashMap::new(),
+            storage: BrowserStorage {
+                local_storage: HashMap::new(),
+                session_storage: HashMap::new(),
+            },
+        }));
+
+        Self {
+            client,
+            renderer: RustRenderer::new(),
+            cookie_jar,
+            storage,
+            auth_context,
+        }
+    }
+
+    pub async fn scrape(
+        &mut self,
+        url: &str,
+        wait_for_js: bool,
+        selector: Option<&str>,
+        extract_links: bool,
+        extract_images: bool,
+    ) -> Result<ScrapedData> {
+        let parsed_url = Url::parse(url)?;
+        
+        let response = self.client.get(url).send().await?;
+        
+        // Check if response is successful
+        if !response.status().is_success() {
+            return Err(anyhow!("HTTP request failed with status: {}", response.status()));
+        }
+        
+        // Get the response content with proper encoding handling
+        let html_content = response.text().await?;
+
+        let processed_html = if wait_for_js {
+            self.renderer.render_with_js(&html_content, url).await?
+        } else {
+            html_content
+        };
+
+        let document = Html::parse_document(&processed_html);
+        
+        let title = document
+            .select(&Selector::parse("title").unwrap())
+            .next()
+            .map(|el| el.text().collect::<Vec<_>>().join("").trim().to_string());
+
+        let content = if let Some(sel) = selector {
+            let selector = Selector::parse(sel)
+                .map_err(|e| anyhow!("Invalid CSS selector: {}", e))?;
+            document
+                .select(&selector)
+                .map(|el| el.text().collect::<Vec<_>>().join(" "))
+                .collect::<Vec<_>>()
+                .join("\n")
+        } else {
+            document
+                .select(&Selector::parse("body").unwrap())
+                .next()
+                .map(|el| el.text().collect::<Vec<_>>().join(" "))
+                .unwrap_or_default()
+        };
+
+        let links = if extract_links {
+            self.extract_links(&document, &parsed_url)?
+        } else {
+            Vec::new()
+        };
+
+        let images = if extract_images {
+            self.extract_images(&document, &parsed_url)?
+        } else {
+            Vec::new()
+        };
+
+        let metadata = self.extract_metadata(&document)?;
+
+        Ok(ScrapedData {
+            url: url.to_string(),
+            title,
+            content: content.trim().to_string(),
+            links,
+            images,
+            metadata,
+            extracted_data: None,
+        })
+    }
+
+    pub async fn extract_data(
+        &self,
+        html: &str,
+        selectors: &Map<String, Value>,
+    ) -> Result<Value> {
+        let document = Html::parse_document(html);
+        let mut result = serde_json::Map::new();
+
+        for (field_name, selector_value) in selectors {
+            let selector_str = selector_value
+                .as_str()
+                .ok_or_else(|| anyhow!("Selector for field '{}' must be a string", field_name))?;
+
+            let selector = Selector::parse(selector_str)
+                .map_err(|e| anyhow!("Invalid CSS selector for field '{}': {}", field_name, e))?;
+
+            let values: Vec<String> = document
+                .select(&selector)
+                .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
+                .collect();
+
+            let field_value = match values.len() {
+                0 => Value::Null,
+                1 => Value::String(values[0].clone()),
+                _ => Value::Array(values.into_iter().map(Value::String).collect()),
+            };
+
+            result.insert(field_name.clone(), field_value);
+        }
+
+        Ok(Value::Object(result))
+    }
+
+    fn extract_links(&self, document: &Html, base_url: &Url) -> Result<Vec<Link>> {
+        let link_selector = Selector::parse("a[href]").unwrap();
+        let mut links = Vec::new();
+
+        for element in document.select(&link_selector) {
+            if let Some(href) = element.value().attr("href") {
+                if let Ok(absolute_url) = base_url.join(href) {
+                    let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                    let title = element.value().attr("title").map(|s| s.to_string());
+
+                    links.push(Link {
+                        url: absolute_url.to_string(),
+                        text,
+                        title,
+                    });
+                }
+            }
+        }
+
+        Ok(links)
+    }
+
+    fn extract_images(&self, document: &Html, base_url: &Url) -> Result<Vec<Image>> {
+        let img_selector = Selector::parse("img[src]").unwrap();
+        let mut images = Vec::new();
+
+        for element in document.select(&img_selector) {
+            if let Some(src) = element.value().attr("src") {
+                if let Ok(absolute_url) = base_url.join(src) {
+                    let alt = element.value().attr("alt").map(|s| s.to_string());
+                    let title = element.value().attr("title").map(|s| s.to_string());
+
+                    images.push(Image {
+                        src: absolute_url.to_string(),
+                        alt,
+                        title,
+                    });
+                }
+            }
+        }
+
+        Ok(images)
+    }
+
+    fn extract_metadata(&self, document: &Html) -> Result<HashMap<String, String>> {
+        let mut metadata = HashMap::new();
+
+        let meta_selector = Selector::parse("meta").unwrap();
+        for element in document.select(&meta_selector) {
+            let attrs = element.value();
+            
+            if let Some(name) = attrs.attr("name") {
+                if let Some(content) = attrs.attr("content") {
+                    metadata.insert(name.to_string(), content.to_string());
+                }
+            }
+            
+            if let Some(property) = attrs.attr("property") {
+                if let Some(content) = attrs.attr("content") {
+                    metadata.insert(property.to_string(), content.to_string());
+                }
+            }
+        }
+
+        let description_selector = Selector::parse("meta[name='description']").unwrap();
+        if let Some(desc) = document.select(&description_selector).next() {
+            if let Some(content) = desc.value().attr("content") {
+                metadata.insert("description".to_string(), content.to_string());
+            }
+        }
+
+        let keywords_selector = Selector::parse("meta[name='keywords']").unwrap();
+        if let Some(keywords) = document.select(&keywords_selector).next() {
+            if let Some(content) = keywords.value().attr("content") {
+                metadata.insert("keywords".to_string(), content.to_string());
+            }
+        }
+
+        Ok(metadata)
+    }
+
+    pub fn extract_forms(&self, html: &str, base_url: &Url) -> Result<Vec<Form>> {
+        let document = Html::parse_document(html);
+        let form_selector = Selector::parse("form").unwrap();
+        let mut forms = Vec::new();
+
+        for form_element in document.select(&form_selector) {
+            let action = form_element
+                .value()
+                .attr("action")
+                .unwrap_or("")
+                .to_string();
+            
+            let absolute_action = if action.is_empty() {
+                base_url.to_string()
+            } else {
+                base_url.join(&action).map(|u| u.to_string()).unwrap_or(action)
+            };
+
+            let method = form_element
+                .value()
+                .attr("method")
+                .unwrap_or("get")
+                .to_lowercase();
+
+            let mut fields = Vec::new();
+            let mut submit_buttons = Vec::new();
+
+            // Extract input fields
+            let input_selector = Selector::parse("input").unwrap();
+            for input in form_element.select(&input_selector) {
+                let input_type = input.value().attr("type").unwrap_or("text").to_lowercase();
+                let name = input.value().attr("name").unwrap_or("").to_string();
+                
+                if input_type == "submit" || input_type == "button" {
+                    let value = input.value().attr("value").unwrap_or("Submit").to_string();
+                    submit_buttons.push(value);
+                } else if !name.is_empty() {
+                    fields.push(FormField {
+                        name,
+                        field_type: input_type,
+                        value: input.value().attr("value").map(|s| s.to_string()),
+                        required: input.value().attr("required").is_some(),
+                        placeholder: input.value().attr("placeholder").map(|s| s.to_string()),
+                    });
+                }
+            }
+
+            // Extract textarea fields
+            let textarea_selector = Selector::parse("textarea").unwrap();
+            for textarea in form_element.select(&textarea_selector) {
+                if let Some(name) = textarea.value().attr("name") {
+                    fields.push(FormField {
+                        name: name.to_string(),
+                        field_type: "textarea".to_string(),
+                        value: Some(textarea.text().collect::<String>()),
+                        required: textarea.value().attr("required").is_some(),
+                        placeholder: textarea.value().attr("placeholder").map(|s| s.to_string()),
+                    });
+                }
+            }
+
+            // Extract select fields
+            let select_selector = Selector::parse("select").unwrap();
+            for select in form_element.select(&select_selector) {
+                if let Some(name) = select.value().attr("name") {
+                    let option_selector = Selector::parse("option").unwrap();
+                    let selected_value = select
+                        .select(&option_selector)
+                        .find(|opt| opt.value().attr("selected").is_some())
+                        .and_then(|opt| opt.value().attr("value"))
+                        .map(|s| s.to_string());
+
+                    fields.push(FormField {
+                        name: name.to_string(),
+                        field_type: "select".to_string(),
+                        value: selected_value,
+                        required: select.value().attr("required").is_some(),
+                        placeholder: None,
+                    });
+                }
+            }
+
+            // Extract button elements (for <button> tags)
+            let button_selector = Selector::parse("button").unwrap();
+            for button in form_element.select(&button_selector) {
+                let button_type = button.value().attr("type").unwrap_or("submit").to_lowercase();
+                if button_type == "submit" || button_type == "button" {
+                    let value = if let Some(attr_value) = button.value().attr("value") {
+                        attr_value.to_string()
+                    } else {
+                        button.text().collect::<String>().trim().to_string()
+                    };
+                    submit_buttons.push(value);
+                }
+            }
+
+            forms.push(Form {
+                action: absolute_action,
+                method,
+                fields,
+                submit_buttons,
+            });
+        }
+
+        Ok(forms)
+    }
+
+    pub async fn submit_form(
+        &mut self,
+        form: &Form,
+        form_data: HashMap<String, String>,
+        wait_for_js: bool,
+    ) -> Result<InteractionResponse> {
+        let url = Url::parse(&form.action)?;
+        
+        let response = if form.method.to_lowercase() == "post" {
+            // Create form-encoded data
+            let mut form_params = Vec::new();
+            for (key, value) in &form_data {
+                form_params.push((key.as_str(), value.as_str()));
+            }
+
+            self.client
+                .post(&form.action)
+                .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .form(&form_params)
+                .send()
+                .await?
+        } else {
+            // GET request with query parameters
+            let mut url_with_params = url.clone();
+            {
+                let mut query_pairs = url_with_params.query_pairs_mut();
+                for (key, value) in &form_data {
+                    query_pairs.append_pair(key, value);
+                }
+            }
+
+            self.client
+                .get(url_with_params)
+                .send()
+                .await?
+        };
+
+        let status_code = response.status().as_u16();
+        let final_url = response.url().to_string();
+        let html_content = response.text().await?;
+
+        // Process with JavaScript if requested
+        let processed_html = if wait_for_js {
+            self.renderer.render_with_js(&html_content, &final_url).await?
+        } else {
+            html_content.clone()
+        };
+
+        // Extract cookies
+        let mut cookies = HashMap::new();
+        if let Ok(cookie_url) = Url::parse(&final_url) {
+            if let Some(cookie_header) = self.cookie_jar.cookies(&cookie_url) {
+                if let Ok(cookie_str) = cookie_header.to_str() {
+                    for cookie in cookie_str.split(';') {
+                        if let Some((key, value)) = cookie.trim().split_once('=') {
+                            cookies.insert(key.to_string(), value.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Generate scraped data
+        let scraped_data = if processed_html != html_content || !processed_html.is_empty() {
+            let document = Html::parse_document(&processed_html);
+            let parsed_url = Url::parse(&final_url)?;
+            
+            let title = document
+                .select(&Selector::parse("title").unwrap())
+                .next()
+                .map(|el| el.text().collect::<Vec<_>>().join("").trim().to_string());
+
+            let content = document
+                .select(&Selector::parse("body").unwrap())
+                .next()
+                .map(|el| el.text().collect::<Vec<_>>().join(" "))
+                .unwrap_or_default();
+
+            let links = self.extract_links(&document, &parsed_url)?;
+            let images = self.extract_images(&document, &parsed_url)?;
+            let metadata = self.extract_metadata(&document)?;
+
+            Some(ScrapedData {
+                url: final_url.clone(),
+                title,
+                content: content.trim().to_string(),
+                links,
+                images,
+                metadata,
+                extracted_data: None,
+            })
+        } else {
+            None
+        };
+
+        Ok(InteractionResponse {
+            url: final_url,
+            status_code,
+            content: processed_html,
+            cookies,
+            scraped_data,
+        })
+    }
+
+    pub async fn click_link(&mut self, base_url: &str, link_selector: &str, wait_for_js: bool) -> Result<InteractionResponse> {
+        // First scrape the page to find the link
+        let scraped = self.scrape(base_url, false, None, true, false).await?;
+        let document = Html::parse_document(&scraped.content);
+        
+        let selector = Selector::parse(link_selector)
+            .map_err(|e| anyhow!("Invalid CSS selector: {}", e))?;
+        
+        let link_element = document
+            .select(&selector)
+            .next()
+            .ok_or_else(|| anyhow!("Link not found with selector: {}", link_selector))?;
+
+        let href = link_element
+            .value()
+            .attr("href")
+            .ok_or_else(|| anyhow!("Link has no href attribute"))?;
+
+        let base = Url::parse(base_url)?;
+        let target_url = base.join(href)?;
+
+        // Navigate to the link
+        let response = self.client.get(target_url.as_str()).send().await?;
+        let status_code = response.status().as_u16();
+        let final_url = response.url().to_string();
+        let html_content = response.text().await?;
+
+        let processed_html = if wait_for_js {
+            self.renderer.render_with_js(&html_content, &final_url).await?
+        } else {
+            html_content.clone()
+        };
+
+        // Extract cookies
+        let mut cookies = HashMap::new();
+        if let Ok(cookie_url) = Url::parse(&final_url) {
+            if let Some(cookie_header) = self.cookie_jar.cookies(&cookie_url) {
+                if let Ok(cookie_str) = cookie_header.to_str() {
+                    for cookie in cookie_str.split(';') {
+                        if let Some((key, value)) = cookie.trim().split_once('=') {
+                            cookies.insert(key.to_string(), value.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(InteractionResponse {
+            url: final_url,
+            status_code,
+            content: processed_html,
+            cookies,
+            scraped_data: None,
+        })
+    }
+
+    pub fn get_cookies(&self, url: &str) -> Result<HashMap<String, String>> {
+        let mut cookies = HashMap::new();
+        if let Ok(parsed_url) = Url::parse(url) {
+            if let Some(cookie_header) = self.cookie_jar.cookies(&parsed_url) {
+                if let Ok(cookie_str) = cookie_header.to_str() {
+                    for cookie in cookie_str.split(';') {
+                        if let Some((key, value)) = cookie.trim().split_once('=') {
+                            cookies.insert(key.to_string(), value.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        Ok(cookies)
+    }
+
+    // localStorage/sessionStorage methods
+    pub fn set_local_storage(&self, key: &str, value: &str) -> Result<()> {
+        let mut storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        storage.local_storage.insert(key.to_string(), value.to_string());
+        
+        // Also update auth context storage
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.storage.local_storage.insert(key.to_string(), value.to_string());
+        
+        Ok(())
+    }
+
+    pub fn get_local_storage(&self, key: &str) -> Result<Option<String>> {
+        let storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        Ok(storage.local_storage.get(key).cloned())
+    }
+
+    pub fn set_session_storage(&self, key: &str, value: &str) -> Result<()> {
+        let mut storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        storage.session_storage.insert(key.to_string(), value.to_string());
+        
+        // Also update auth context storage
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.storage.session_storage.insert(key.to_string(), value.to_string());
+        
+        Ok(())
+    }
+
+    pub fn get_session_storage(&self, key: &str) -> Result<Option<String>> {
+        let storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        Ok(storage.session_storage.get(key).cloned())
+    }
+
+    pub fn clear_session_storage(&self) -> Result<()> {
+        let mut storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        storage.session_storage.clear();
+        
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.storage.session_storage.clear();
+        
+        Ok(())
+    }
+
+    // Authentication methods
+    pub fn set_bearer_token(&self, token: &str) -> Result<()> {
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.bearer_token = Some(token.to_string());
+        Ok(())
+    }
+
+    pub fn get_bearer_token(&self) -> Result<Option<String>> {
+        let auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        Ok(auth.bearer_token.clone())
+    }
+
+    pub fn set_csrf_token(&self, token: &str) -> Result<()> {
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.csrf_token = Some(token.to_string());
+        Ok(())
+    }
+
+    pub fn get_csrf_token(&self) -> Result<Option<String>> {
+        let auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        Ok(auth.csrf_token.clone())
+    }
+
+    pub fn set_custom_header(&self, name: &str, value: &str) -> Result<()> {
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.custom_headers.insert(name.to_string(), value.to_string());
+        Ok(())
+    }
+
+    pub fn get_custom_headers(&self) -> Result<HashMap<String, String>> {
+        let auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        Ok(auth.custom_headers.clone())
+    }
+
+    pub fn extract_csrf_token(&self, html: &str) -> Result<Option<String>> {
+        let document = Html::parse_document(html);
+        
+        // Common CSRF token patterns
+        let selectors = [
+            "meta[name='csrf-token']",
+            "meta[name='_token']",
+            "input[name='_token']",
+            "input[name='csrf_token']",
+            "input[name='authenticity_token']",
+        ];
+
+        for selector_str in &selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(element) = document.select(&selector).next() {
+                    if let Some(content) = element.value().attr("content").or_else(|| element.value().attr("value")) {
+                        return Ok(Some(content.to_string()));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub async fn submit_json(&mut self, url: &str, json_data: &Value) -> Result<InteractionResponse> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::CONTENT_TYPE, "application/json".parse().unwrap());
+        
+        // Add auth headers
+        if let Ok(Some(token)) = self.get_bearer_token() {
+            headers.insert(reqwest::header::AUTHORIZATION, format!("Bearer {}", token).parse().unwrap());
+        }
+
+        // Add custom headers
+        if let Ok(custom_headers) = self.get_custom_headers() {
+            for (name, value) in custom_headers {
+                if let (Ok(header_name), Ok(header_value)) = (
+                    name.parse::<reqwest::header::HeaderName>(), 
+                    value.parse::<reqwest::header::HeaderValue>()
+                ) {
+                    headers.insert(header_name, header_value);
+                }
+            }
+        }
+
+        let response = self.client
+            .post(url)
+            .headers(headers)
+            .json(json_data)
+            .send()
+            .await?;
+
+        let status_code = response.status().as_u16();
+        let final_url = response.url().to_string();
+        let content = response.text().await?;
+
+        // Extract and store any new tokens
+        if let Ok(Some(csrf_token)) = self.extract_csrf_token(&content) {
+            let _ = self.set_csrf_token(&csrf_token);
+        }
+
+        // Extract cookies
+        let mut cookies = HashMap::new();
+        if let Ok(cookie_url) = Url::parse(&final_url) {
+            if let Some(cookie_header) = self.cookie_jar.cookies(&cookie_url) {
+                if let Ok(cookie_str) = cookie_header.to_str() {
+                    for cookie in cookie_str.split(';') {
+                        if let Some((key, value)) = cookie.trim().split_once('=') {
+                            cookies.insert(key.to_string(), value.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(InteractionResponse {
+            url: final_url,
+            status_code,
+            content,
+            cookies,
+            scraped_data: None,
+        })
+    }
+
+    pub fn get_storage_state(&self) -> Result<BrowserStorage> {
+        let storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        Ok(storage.clone())
+    }
+
+    pub fn restore_storage_state(&self, storage_state: BrowserStorage) -> Result<()> {
+        let mut storage = self.storage.lock().map_err(|e| anyhow!("Storage lock error: {}", e))?;
+        *storage = storage_state.clone();
+        
+        let mut auth = self.auth_context.lock().map_err(|e| anyhow!("Auth context lock error: {}", e))?;
+        auth.storage = storage_state;
+        
+        Ok(())
+    }
+}

@@ -1,6 +1,5 @@
-use brainwires_scraper::{WebScraper, ScrapedData};
-use serde_json::{json, Map, Value};
-use tokio_test;
+use synaptic::{HeadlessWebBrowser, ScrapedData};
+use serde_json::{json, Map};
 use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -27,7 +26,7 @@ async fn test_basic_html_scraping() {
         .mount(&mock_server)
         .await;
 
-    let mut scraper = WebScraper::new();
+    let mut scraper = HeadlessWebBrowser::new();
     let result = scraper.scrape(
         &mock_server.uri(),
         false, // don't wait for JS
@@ -69,7 +68,7 @@ async fn test_css_selector_extraction() {
         .mount(&mock_server)
         .await;
 
-    let mut scraper = WebScraper::new();
+    let mut scraper = HeadlessWebBrowser::new();
     let result = scraper.scrape(
         &mock_server.uri(),
         false,
@@ -101,7 +100,7 @@ async fn test_data_extraction_with_selectors() {
     </html>
     "#;
 
-    let scraper = WebScraper::new();
+    let scraper = HeadlessWebBrowser::new();
     let mut selectors = Map::new();
     selectors.insert("titles".to_string(), json!(".title"));
     selectors.insert("prices".to_string(), json!(".price"));
@@ -128,7 +127,7 @@ async fn test_empty_response() {
         .mount(&mock_server)
         .await;
 
-    let mut scraper = WebScraper::new();
+    let mut scraper = HeadlessWebBrowser::new();
     let result = scraper.scrape(&mock_server.uri(), false, None, false, false).await.unwrap();
 
     assert_eq!(result.title, None);
@@ -155,7 +154,7 @@ async fn test_malformed_html() {
         .mount(&mock_server)
         .await;
 
-    let mut scraper = WebScraper::new();
+    let mut scraper = HeadlessWebBrowser::new();
     let result = scraper.scrape(&mock_server.uri(), false, None, false, false).await;
 
     // Should handle malformed HTML gracefully
@@ -167,7 +166,7 @@ async fn test_malformed_html() {
 
 #[tokio::test]
 async fn test_invalid_url() {
-    let mut scraper = WebScraper::new();
+    let mut scraper = HeadlessWebBrowser::new();
     let result = scraper.scrape("not-a-valid-url", false, None, false, false).await;
     
     assert!(result.is_err());
@@ -175,7 +174,7 @@ async fn test_invalid_url() {
 
 #[tokio::test]
 async fn test_network_error() {
-    let mut scraper = WebScraper::new();
+    let mut scraper = HeadlessWebBrowser::new();
     // Try to connect to a non-existent server
     let result = scraper.scrape("http://localhost:99999", false, None, false, false).await;
     
@@ -184,7 +183,7 @@ async fn test_network_error() {
 
 #[test]
 fn test_link_and_image_structures() {
-    use brainwires_scraper::{Link, Image};
+    use synaptic::{Link, Image};
     
     let link = Link {
         url: "https://example.com".to_string(),

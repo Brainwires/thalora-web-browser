@@ -1,4 +1,4 @@
-use brainwires_scraper::mcp::{McpRequest, McpResponse, ToolCall};
+use synaptic::mcp::{McpRequest, McpResponse, ToolCall};
 use serde_json::{json, Value};
 
 #[test]

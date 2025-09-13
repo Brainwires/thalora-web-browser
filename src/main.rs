@@ -4,12 +4,12 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tracing::{error, info};
 
 mod mcp;
-mod scraper;
+mod browser;
 mod renderer;
 mod react_processor;
 
 use mcp::{McpRequest, McpResponse};
-use scraper::WebScraper;
+use browser::HeadlessWebBrowser;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -23,13 +23,13 @@ async fn main() -> Result<()> {
 }
 
 struct McpServer {
-    scraper: WebScraper,
+    browser: HeadlessWebBrowser,
 }
 
 impl McpServer {
     fn new() -> Self {
         Self {
-            scraper: WebScraper::new(),
+            browser: HeadlessWebBrowser::new(),
         }
     }
 
@@ -174,7 +174,7 @@ impl McpServer {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        match self.scraper.scrape(url, wait_for_js, selector, extract_links, extract_images).await {
+        match self.browser.scrape(url, wait_for_js, selector, extract_links, extract_images).await {
             Ok(result) => McpResponse::ToolResult {
                 content: vec![serde_json::json!({
                     "type": "text",
@@ -203,7 +203,7 @@ impl McpServer {
             },
         };
 
-        match self.scraper.extract_data(html, selectors).await {
+        match self.browser.extract_data(html, selectors).await {
             Ok(result) => McpResponse::ToolResult {
                 content: vec![serde_json::json!({
                     "type": "text", 
