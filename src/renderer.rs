@@ -104,7 +104,7 @@ impl RustRenderer {
         true
     }
 
-    async fn execute_javascript_safely(&mut self, js_code: &str) -> Result<boa_engine::JsValue> {
+    pub async fn execute_javascript_safely(&mut self, js_code: &str) -> Result<boa_engine::JsValue> {
         let sandboxed_code = format!(
             r#"
             (function() {{

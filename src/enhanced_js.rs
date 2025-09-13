@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use boa_engine::{
     builtins::promise::PromiseState, Context, JsError, JsObject, JsValue, NativeFunction, Source,
+    js_string, property::Attribute,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -52,7 +53,7 @@ impl EnhancedJavaScriptEngine {
         let console_obj = JsObject::default();
         
         // Console.log
-        let log_fn = NativeFunction::from_fn_ptr(|_, args, context| {
+        let log_fn = NativeFunction::from_closure(Box::new(|_, args, context| {
             let message = args
                 .iter()
                 .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
@@ -60,11 +61,11 @@ impl EnhancedJavaScriptEngine {
                 .join(" ");
             tracing::info!("JS Console: {}", message);
             Ok(JsValue::undefined())
-        });
-        console_obj.set(js_string!("log"), log_fn, false, context)?;
+        }));
+        console_obj.set(js_string!("log"), log_fn, Attribute::WRITABLE | Attribute::CONFIGURABLE, context)?;
 
         // Console.error
-        let error_fn = NativeFunction::from_fn_ptr(|_, args, _| {
+        let error_fn = NativeFunction::from_closure(Box::new(|_, args, context| {
             let message = args
                 .iter()
                 .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
@@ -72,72 +73,83 @@ impl EnhancedJavaScriptEngine {
                 .join(" ");
             tracing::error!("JS Console Error: {}", message);
             Ok(JsValue::undefined())
-        });
-        console_obj.set("error", error_fn, false, context)?;
+        }));
+        console_obj.set(js_string!("error"), error_fn, Attribute::WRITABLE | Attribute::CONFIGURABLE, context)?;
 
-        context.register_global_property("console", console_obj, boa_engine::property::Attribute::all())?;
+        context.register_global_property(js_string!("console"), console_obj, Attribute::all(), context)?;
 
         // Enhanced setTimeout with real timing
         let timers_clone = timers.clone();
         let timer_id_clone = next_timer_id.clone();
-        let set_timeout_fn = NativeFunction::from_fn_ptr(move |_, args, _| {
-            if args.len() < 2 {
-                return Err(JsError::from_native("setTimeout requires callback and delay"));
-            }
-
-            let callback = args[0].clone();
-            let delay_ms = args[1].to_number(context)? as u64;
-            
-            let rt = tokio::runtime::Handle::current();
-            let timers = timers_clone.clone();
-            let timer_id_ref = timer_id_clone.clone();
-            
-            rt.spawn(async move {
-                let timer_id = {
-                    let mut id_guard = timer_id_ref.lock().await;
-                    let id = *id_guard;
-                    *id_guard += 1;
-                    id
-                };
-
-                let timer = TimerHandle {
-                    id: timer_id,
-                    callback: callback.clone(),
-                    interval: None,
-                    created_at: Instant::now(),
-                };
-
-                {
-                    let mut timers_guard = timers.lock().await;
-                    timers_guard.insert(timer_id, timer);
+        let set_timeout_fn = NativeFunction::from_copy_closure_with_captures(
+            move |_, args, captures, context| {
+                if args.len() < 2 {
+                    return Err(JsError::from_native(
+                        boa_engine::JsNativeError::typ()
+                            .with_message("setTimeout requires callback and delay")
+                    ));
                 }
 
-                sleep(Duration::from_millis(delay_ms)).await;
+                let callback = args[0].clone();
+                let delay_ms = args[1].to_number(context)? as u64;
+                let (timers_clone, timer_id_clone) = captures;
+            
+                let rt = tokio::runtime::Handle::current();
+                let timers = timers_clone.clone();
+                let timer_id_ref = timer_id_clone.clone();
+            
+                rt.spawn(async move {
+                    let timer_id = {
+                        let mut id_guard = timer_id_ref.lock().await;
+                        let id = *id_guard;
+                        *id_guard += 1;
+                        id
+                    };
 
-                // Execute callback (simplified - would need proper context handling)
-                tracing::debug!("Timer {} fired after {}ms", timer_id, delay_ms);
+                    let timer = TimerHandle {
+                        id: timer_id,
+                        callback: callback.clone(),
+                        interval: None,
+                        created_at: Instant::now(),
+                    };
+
+                    {
+                        let mut timers_guard = timers.lock().await;
+                        timers_guard.insert(timer_id, timer);
+                    }
+
+                    sleep(Duration::from_millis(delay_ms)).await;
+
+                    // Execute callback (simplified - would need proper context handling)
+                    tracing::debug!("Timer {} fired after {}ms", timer_id, delay_ms);
                 
-                {
-                    let mut timers_guard = timers.lock().await;
-                    timers_guard.remove(&timer_id);
-                }
-            });
+                    {
+                        let mut timers_guard = timers.lock().await;
+                        timers_guard.remove(&timer_id);
+                    }
+                });
 
-            Ok(JsValue::from(1)) // Return dummy timer ID
-        });
-        context.register_global_callable("setTimeout", 2, set_timeout_fn)?;
+                Ok(JsValue::from(timer_id))
+            },
+            (timers_clone, timer_id_clone),
+        );
+        context.register_global_property(js_string!("setTimeout"), set_timeout_fn, Attribute::all(), context)?;
 
         // Performance.now() for timing
         let start_time = Instant::now();
-        let performance_now_fn = NativeFunction::from_fn_ptr(move |_, _, _| {
-            let elapsed = start_time.elapsed();
-            let ms = elapsed.as_secs_f64() * 1000.0;
-            Ok(JsValue::from(ms))
-        });
+        let performance_now_fn = NativeFunction::from_copy_closure_with_captures(
+            move |_, _, captures, _context| {
+                let start_time = captures;
+                let elapsed = start_time.elapsed();
+                let ms = elapsed.as_secs_f64() * 1000.0;
+                Ok(JsValue::from(ms))
+            },
+            start_time,
+        );
         
         let performance_obj = JsObject::default();
-        performance_obj.set("now", performance_now_fn, false, context)?;
-        context.register_global_property("performance", performance_obj, boa_engine::property::Attribute::all())?;
+        performance_obj.set(js_string!("now"), performance_now_fn, Attribute::WRITABLE | Attribute::CONFIGURABLE, context)?;
+        context.register_global_property(js_string!("performance"), performance_obj, Attribute::all(), context)?;
 
         // Date.now() override for consistency
         context.eval(Source::from_bytes(
@@ -145,15 +157,18 @@ impl EnhancedJavaScriptEngine {
         ))?;
 
         // Enhanced fetch API (simplified implementation)
-        let fetch_fn = NativeFunction::from_fn_ptr(|_, args, context| {
+        let fetch_fn = NativeFunction::from_fn_ptr(|_, args, _context| {
             if args.is_empty() {
-                return Err(JsError::from_native("fetch requires a URL"));
+                return Err(JsError::from_native(
+                    boa_engine::JsNativeError::typ()
+                        .with_message("fetch requires a URL")
+                ));
             }
 
-            let url = args[0].to_string(context)?.to_std_string_escaped();
+            let url = args[0].to_string(_context)?.to_std_string_escaped();
             
             // Create a Promise (simplified - would need proper Promise implementation)
-            let promise = context.eval(Source::from_bytes(&format!(
+            let promise = _context.eval(Source::from_bytes(&format!(
                 r#"
                 new Promise((resolve, reject) => {{
                     // Simulate fetch response
@@ -173,7 +188,7 @@ impl EnhancedJavaScriptEngine {
 
             Ok(promise)
         });
-        context.register_global_callable("fetch", 1, fetch_fn)?;
+        context.register_global_property(js_string!("fetch"), fetch_fn, Attribute::all(), context)?;
 
         // URL Constructor
         let url_constructor = NativeFunction::from_fn_ptr(|_, args, context| {

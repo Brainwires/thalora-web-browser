@@ -2,6 +2,7 @@
 name = "brainwires-scraper"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [dependencies]
 # MCP protocol
@@ -13,11 +14,11 @@ tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
 # HTML parsing
-scraper = "0.20"
+scraper = "0.24"
 html5ever = "0.27"
 kuchikiki = "0.8"
 
-# CSS parsing and layout
+# CSS parsing and layout  
 lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
 
@@ -44,11 +45,11 @@ tokio-util = { version = "0.7", features = ["codec"] }
 # Regex for JavaScript processing
 regex = "1.10"
 
-# Enhanced JavaScript and parsing support
-swc_core = "0.104"
-swc_common = "0.36"
-swc_ecma_parser = "0.145"
-swc_ecma_ast = "0.115"
+# Enhanced JavaScript and parsing support - using compatible versions
+swc_core = { version = "0.96", features = ["__ecma", "__parser", "ecma_ast"] }
+swc_common = "0.34" 
+swc_ecma_parser = "0.142"
+swc_ecma_ast = "0.112"
 
 # HTML escaping
 html-escape = "0.2"
@@ -56,3 +57,7 @@ html-escape = "0.2"
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
+
+# Resolver to handle dependency conflicts
+[package.metadata.docs.rs]
+all-features = true
