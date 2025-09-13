@@ -4,9 +4,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
 use url::Url;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::cookie::CookieStore;
+use rand::{thread_rng, Rng};
 
 use crate::renderer::RustRenderer;
 
@@ -81,6 +84,59 @@ pub struct HeadlessWebBrowser {
     cookie_jar: Arc<reqwest::cookie::Jar>,
     storage: Arc<Mutex<BrowserStorage>>,
     auth_context: Arc<Mutex<AuthContext>>,
+    pub stealth_config: StealthConfig,
+    request_history: Arc<Mutex<Vec<RequestTiming>>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StealthConfig {
+    pub viewport_width: u32,
+    pub viewport_height: u32,
+    pub device_pixel_ratio: f32,
+    pub languages: Vec<String>,
+    pub timezone: String,
+    pub webgl_vendor: String,
+    pub webgl_renderer: String,
+    pub platform: String,
+    pub hardware_concurrency: u8,
+    pub memory: u32,
+    pub screen_width: u32,
+    pub screen_height: u32,
+    pub color_depth: u8,
+    pub random_delays: bool,
+    pub mouse_movements: bool,
+    pub keyboard_patterns: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct RequestTiming {
+    pub url: String,
+    pub timestamp: Instant,
+    pub duration: Duration,
+    pub user_agent_used: String,
+}
+
+impl Default for StealthConfig {
+    fn default() -> Self {
+        Self {
+            viewport_width: 1920,
+            viewport_height: 1080,
+            device_pixel_ratio: 1.0,
+            languages: vec!["en-US".to_string(), "en".to_string()],
+            timezone: "America/New_York".to_string(),
+            webgl_vendor: "Google Inc. (Apple)".to_string(),
+            webgl_renderer: "ANGLE (Apple, Apple M1 Pro, OpenGL 4.1)".to_string(),
+            platform: "MacIntel".to_string(),
+            hardware_concurrency: 8,
+            memory: 8,
+            screen_width: 1920,
+            screen_height: 1080,
+            color_depth: 24,
+            random_delays: true,
+            mouse_movements: false, // Disabled for headless
+            keyboard_patterns: false, // Disabled for headless
+        }
+    }
 }
 
 impl HeadlessWebBrowser {
@@ -108,6 +164,15 @@ impl HeadlessWebBrowser {
             .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             .default_headers(headers)
             .cookie_provider(Arc::clone(&cookie_jar))
+            .tls_sni(true)
+            .use_rustls_tls()
+            .https_only(false)
+            .redirect(reqwest::redirect::Policy::limited(10))
+            .timeout(std::time::Duration::from_secs(30))
+            .http2_prior_knowledge()
+            .http2_adaptive_window(true)
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .pool_max_idle_per_host(32)
             .build()
             .unwrap();
 
@@ -132,7 +197,162 @@ impl HeadlessWebBrowser {
             cookie_jar,
             storage,
             auth_context,
+            stealth_config: StealthConfig::default(),
+            request_history: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    // Anti-detection methods for modern browser support
+    async fn add_human_timing_delay(&self) -> Result<()> {
+        if self.stealth_config.random_delays {
+            let mut rng = thread_rng();
+            // Simulate human-like delays between requests (100ms to 2s)
+            let delay_ms = rng.gen_range(100..2000);
+            sleep(Duration::from_millis(delay_ms)).await;
+        }
+        Ok(())
+    }
+
+    fn generate_realistic_user_agents(&self) -> Vec<String> {
+        vec![
+            // Chrome variants (most common)
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
+            // Firefox variants
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0".to_string(),
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0".to_string(),
+            // Safari variants
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Safari/605.1.15".to_string(),
+            // Edge variants
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0".to_string(),
+        ]
+    }
+
+    pub fn get_random_user_agent(&self) -> String {
+        let user_agents = self.generate_realistic_user_agents();
+        let mut rng = thread_rng();
+        user_agents[rng.gen_range(0..user_agents.len())].clone()
+    }
+
+    pub fn create_stealth_headers(&self, url: &str) -> reqwest::header::HeaderMap {
+        let mut headers = reqwest::header::HeaderMap::new();
+        let mut rng = thread_rng();
+
+        // Randomize header order and values slightly for more realism
+        headers.insert("Accept", 
+            if rng.gen_bool(0.8) {
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8".parse().unwrap()
+            } else {
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".parse().unwrap()
+            }
+        );
+
+        // Vary Accept-Language slightly
+        let languages = vec![
+            "en-US,en;q=0.9",
+            "en-US,en;q=0.8,fr;q=0.6",
+            "en-US,en;q=0.9,es;q=0.8",
+            "en-US,en;q=0.7"
+        ];
+        headers.insert("Accept-Language", languages[rng.gen_range(0..languages.len())].parse().unwrap());
+
+        headers.insert("Accept-Encoding", "gzip, deflate, br, zstd".parse().unwrap());
+        headers.insert("Cache-Control", "max-age=0".parse().unwrap());
+        
+        // Modern Chrome security headers with slight randomization
+        let chrome_versions = vec!["131", "130", "129"];
+        let chrome_version = chrome_versions[rng.gen_range(0..chrome_versions.len())];
+        
+        headers.insert("Sec-Ch-Ua", 
+            format!("\"Google Chrome\";v=\"{}\", \"Chromium\";v=\"{}\", \"Not_A Brand\";v=\"24\"", 
+                chrome_version, chrome_version).parse().unwrap()
+        );
+        headers.insert("Sec-Ch-Ua-Mobile", "?0".parse().unwrap());
+        headers.insert("Sec-Ch-Ua-Platform", "\"macOS\"".parse().unwrap());
+        
+        // Dynamic Sec-Fetch headers based on request context
+        if url.contains("api") || url.contains("json") {
+            headers.insert("Sec-Fetch-Dest", "empty".parse().unwrap());
+            headers.insert("Sec-Fetch-Mode", "cors".parse().unwrap());
+        } else {
+            headers.insert("Sec-Fetch-Dest", "document".parse().unwrap());
+            headers.insert("Sec-Fetch-Mode", "navigate".parse().unwrap());
+        }
+        
+        headers.insert("Sec-Fetch-Site", "cross-site".parse().unwrap());
+        headers.insert("Sec-Fetch-User", "?1".parse().unwrap());
+        headers.insert("Upgrade-Insecure-Requests", "1".parse().unwrap());
+        
+        // Add DNT header randomly (some users have it, some don't)
+        if rng.gen_bool(0.3) {
+            headers.insert("DNT", "1".parse().unwrap());
+        }
+
+        headers
+    }
+
+    pub fn simulate_canvas_fingerprint(&self) -> String {
+        // Simulate a realistic canvas fingerprint that varies slightly
+        let mut rng = thread_rng();
+        let base_fingerprint = "a1b2c3d4e5f6g7h8i9j0";
+        let variance: u32 = rng.gen_range(1000..9999);
+        format!("{}{}", base_fingerprint, variance)
+    }
+
+    pub fn simulate_webgl_fingerprint(&self) -> (String, String) {
+        // Return realistic WebGL vendor and renderer info
+        let vendors = vec![
+            ("Google Inc. (Apple)", "ANGLE (Apple, Apple M1 Pro, OpenGL 4.1)"),
+            ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(TM) Xe Graphics, OpenGL 4.1)"),
+            ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080, OpenGL 4.1)"),
+        ];
+        let mut rng = thread_rng();
+        let (vendor, renderer) = vendors[rng.gen_range(0..vendors.len())];
+        (vendor.to_string(), renderer.to_string())
+    }
+
+    async fn track_request_timing(&self, url: &str, duration: Duration) -> Result<()> {
+        let mut history = self.request_history.lock().unwrap();
+        history.push(RequestTiming {
+            url: url.to_string(),
+            timestamp: Instant::now(),
+            duration,
+            user_agent_used: self.get_random_user_agent(),
+        });
+
+        // Keep only last 100 requests to prevent memory bloat
+        if history.len() > 100 {
+            history.drain(0..50);
+        }
+        Ok(())
+    }
+
+    pub fn detect_automation_evasion_needed(&self, html: &str) -> bool {
+        // Detect common automation detection patterns
+        let detection_patterns = vec![
+            "webdriver",
+            "selenium",
+            "navigator.webdriver",
+            "window.chrome",
+            "__nightmare",
+            "_phantomjs",
+            "callPhantomjs",
+            "_selenium",
+            "webdriver-evaluate",
+            "webdriverCommand",
+            "bot-detected",
+            "automation-detected",
+            "please enable javascript",
+            "captcha",
+            "recaptcha",
+            "hcaptcha",
+            "cloudflare",
+            "challenge-platform"
+        ];
+
+        let html_lower = html.to_lowercase();
+        detection_patterns.iter().any(|pattern| html_lower.contains(pattern))
     }
 
     pub async fn scrape(
@@ -144,8 +364,20 @@ impl HeadlessWebBrowser {
         extract_images: bool,
     ) -> Result<ScrapedData> {
         let parsed_url = Url::parse(url)?;
+        let start_time = Instant::now();
         
-        let response = self.client.get(url).send().await?;
+        // Add human-like delays to avoid detection
+        self.add_human_timing_delay().await?;
+        
+        // Use stealth headers and random user agent for enhanced evasion
+        let stealth_headers = self.create_stealth_headers(url);
+        let random_user_agent = self.get_random_user_agent();
+        
+        let response = self.client.get(url)
+            .headers(stealth_headers)
+            .header("User-Agent", random_user_agent.clone())
+            .send()
+            .await?;
         
         // Check if response is successful
         if !response.status().is_success() {
@@ -155,8 +387,9 @@ impl HeadlessWebBrowser {
         // Get the response content with proper encoding handling
         let html_content = response.text().await?;
 
-        let processed_html = if wait_for_js {
-            self.renderer.render_with_js(&html_content, url).await?
+        let processed_html = if wait_for_js || self.is_challenge_page(&html_content) {
+            // Handle JavaScript challenges automatically
+            self.handle_challenge_page(&html_content, url).await?
         } else {
             html_content
         };
@@ -197,6 +430,10 @@ impl HeadlessWebBrowser {
         };
 
         let metadata = self.extract_metadata(&document)?;
+
+        // Track request timing for behavioral analysis
+        let total_duration = start_time.elapsed();
+        self.track_request_timing(url, total_duration).await?;
 
         Ok(ScrapedData {
             url: url.to_string(),
@@ -781,5 +1018,83 @@ impl HeadlessWebBrowser {
         auth.storage = storage_state;
         
         Ok(())
+    }
+
+    fn is_challenge_page(&self, html: &str) -> bool {
+        let challenge_indicators = [
+            "httpservice/retry/enablejs",
+            "Please click here if you are not redirected",
+            "google.tick",
+            "trustedTypes",
+            "createPolicy",
+            "sctm&&google.tick",
+        ];
+
+        let html_lower = html.to_lowercase();
+        for indicator in &challenge_indicators {
+            if html_lower.contains(&indicator.to_lowercase()) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    async fn handle_challenge_page(&mut self, html: &str, url: &str) -> Result<String> {
+        tracing::info!("🧩 Detected JavaScript challenge page, solving...");
+
+        // Add random delay to mimic human behavior (100-300ms)
+        let delay = 100 + (rand::random::<u64>() % 200);
+        tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+        
+        // First, execute any JavaScript in the page
+        let processed_html = self.renderer.render_with_js(html, url).await?;
+        
+        // Look for meta refresh redirect
+        let document = Html::parse_document(&processed_html);
+        
+        if let Some(meta_refresh) = self.extract_meta_refresh(&document) {
+            tracing::info!("🔄 Following challenge redirect: {}", meta_refresh);
+            
+            // Follow the redirect with a realistic delay (500-1000ms)
+            let redirect_delay = 500 + (rand::random::<u64>() % 500);
+            tokio::time::sleep(tokio::time::Duration::from_millis(redirect_delay)).await;
+            
+            let redirect_url = if meta_refresh.starts_with('/') {
+                let base = Url::parse(url)?;
+                base.join(&meta_refresh)?.to_string()
+            } else if meta_refresh.starts_with("http") {
+                meta_refresh
+            } else {
+                let base = Url::parse(url)?;
+                base.join(&meta_refresh)?.to_string()
+            };
+
+            // Make the redirect request
+            let response = self.client.get(&redirect_url).send().await?;
+            let redirect_content = response.text().await?;
+            
+            // Process JavaScript on the redirect page too
+            return self.renderer.render_with_js(&redirect_content, &redirect_url).await;
+        }
+        
+        Ok(processed_html)
+    }
+
+    fn extract_meta_refresh(&self, document: &Html) -> Option<String> {
+        let meta_selector = Selector::parse("meta[http-equiv='refresh']").unwrap();
+        
+        for element in document.select(&meta_selector) {
+            if let Some(content) = element.value().attr("content") {
+                // Parse content like "0;url=/httpservice/retry/enablejs?sei=..."
+                if let Some(url_part) = content.split(';').nth(1) {
+                    if let Some(url) = url_part.strip_prefix("url=") {
+                        return Some(url.to_string());
+                    }
+                }
+            }
+        }
+        
+        None
     }
 }
