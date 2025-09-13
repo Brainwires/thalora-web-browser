@@ -1,8 +1,8 @@
-# Claude Development Guide: Brainwires Scraper
+# Claude Development Guide: Synaptic
 
 ## 🎯 **Project Context & Mission**
 
-This is a **pure Rust web scraper** designed as both a library and MCP (Model Context Protocol) tool. The goal is to provide **secure, fast web scraping without Chrome/Chromium dependencies** while handling modern JavaScript applications.
+**Synaptic** is a **pure Rust headless browser** designed specifically for AI models through MCP (Model Context Protocol) integration. The goal is to provide **neural connections between AI and the web** - secure, fast web content extraction without Chrome/Chromium dependencies while handling modern JavaScript applications.
 
 ### **Key Constraint**: 
 - **Pure Rust Only** - No Chrome, Chromium, or external browser binaries

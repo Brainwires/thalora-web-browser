@@ -40,7 +40,7 @@ pub struct WebScraper {
 impl WebScraper {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
-            .user_agent("Brainwires-Scraper/1.0")
+            .user_agent("Synaptic/0.1.0 (Pure Rust headless browser for AI models)")
             .build()
             .unwrap();
 

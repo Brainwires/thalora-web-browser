@@ -337,37 +337,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "brainwires-scraper"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "boa_engine",
- "futures",
- "html-escape",
- "html5ever 0.27.0",
- "kuchikiki",
- "lightningcss",
- "regex",
- "reqwest",
- "scraper",
- "serde",
- "serde_json",
- "swc_common 0.34.4",
- "swc_core",
- "swc_ecma_ast 0.112.6",
- "swc_ecma_parser 0.142.2",
- "taffy",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "url",
- "wiremock",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2980,6 +2949,9 @@ version = "0.96.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de60918c09a10e55b659b4e70029d283da815e3107b22f79ec9fac280d4d8843"
 dependencies = [
+ "swc_atoms",
+ "swc_ecma_ast 0.115.1",
+ "swc_ecma_parser 0.146.12",
  "swc_ecma_transforms_base",
  "vergen",
 ]
@@ -3200,6 +3172,37 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "synaptic"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "boa_engine",
+ "futures",
+ "html-escape",
+ "html5ever 0.27.0",
+ "kuchikiki",
+ "lightningcss",
+ "regex",
+ "reqwest",
+ "scraper",
+ "serde",
+ "serde_json",
+ "swc_common 0.34.4",
+ "swc_core",
+ "swc_ecma_ast 0.112.6",
+ "swc_ecma_parser 0.142.2",
+ "taffy",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "wiremock",
 ]
 
 [[package]]

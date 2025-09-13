@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -66,10 +66,22 @@ impl ReactProcessor {
     }
 
     fn extract_next_streaming_data(&mut self, html: &str) -> Result<()> {
+        // Limit processing to avoid hangs on massive HTML
+        if html.len() > 1_000_000 { // 1MB limit
+            tracing::warn!("HTML too large for React processing ({}MB), skipping", html.len() / 1_000_000);
+            return Ok(());
+        }
+        
         // Pattern to match Next.js streaming data: self.__next_f.push([1, "..."])
         let streaming_regex = Regex::new(r#"self\.__next_f\.push\(\[(\d+),\s*"([^"]*)"?\]\)"#)?;
         
+        let mut processed_count = 0;
         for caps in streaming_regex.captures_iter(html) {
+            processed_count += 1;
+            if processed_count > 100 { // Limit number of chunks processed
+                tracing::warn!("Reached processing limit (100 chunks), stopping React processing");
+                break;
+            }
             let chunk_id = caps.get(1).unwrap().as_str();
             let data_str = caps.get(2).map(|m| m.as_str()).unwrap_or("");
             
@@ -98,6 +110,17 @@ impl ReactProcessor {
     }
 
     fn unescape_streaming_data(&self, data: &str) -> String {
+        // Limit individual chunk size to prevent excessive processing
+        if data.len() > 50_000 {
+            tracing::warn!("Individual React chunk too large ({}KB), truncating", data.len() / 1000);
+            let truncated = &data[..50_000];
+            return truncated.replace("\\\"", "\"")
+                .replace("\\\\", "\\")
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\t", "\t");
+        }
+        
         data.replace("\\\"", "\"")
             .replace("\\\\", "\\")
             .replace("\\n", "\n")

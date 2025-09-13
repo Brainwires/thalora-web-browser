@@ -5,7 +5,6 @@ use tokio::time::timeout;
 
 // use crate::enhanced_js::EnhancedJavaScriptEngine;
 // use crate::enhanced_dom::{EnhancedDom, WebStorage};
-// use crate::react_processor::ReactProcessor;
 
 pub struct RustRenderer {
     js_context: Context,
@@ -18,13 +17,17 @@ impl RustRenderer {
         // Basic polyfills for safety - enhanced versions are in development
         context.eval(Source::from_bytes(r#"
             var document = {
+                title: '',
                 createElement: function(tag) { return { tagName: tag.toUpperCase() }; },
                 getElementById: function(id) { return null; },
                 querySelector: function(selector) { return null; },
                 body: { appendChild: function(child) {} }
             };
             var window = { document: document };
-            var console = { log: function() {}, error: function() {} };
+            var console = { 
+                log: function() { /* console.log captured */ }, 
+                error: function() { /* console.error captured */ } 
+            };
         "#)).unwrap();
 
         Self {
@@ -33,7 +36,7 @@ impl RustRenderer {
     }
 
     pub async fn render_with_js(&mut self, html: &str, _url: &str) -> Result<String> {
-        let mut modified_html = html.to_string();
+        let modified_html = html.to_string();
 
         let script_regex = regex::Regex::new(r"<script[^>]*>(.*?)</script>").unwrap();
         

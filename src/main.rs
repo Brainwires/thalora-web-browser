@@ -6,6 +6,7 @@ use tracing::{error, info};
 mod mcp;
 mod scraper;
 mod renderer;
+mod react_processor;
 
 use mcp::{McpRequest, McpResponse};
 use scraper::WebScraper;
@@ -13,6 +14,9 @@ use scraper::WebScraper;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+    
+    tracing::info!("🧠 Synaptic v0.1.0 - Pure Rust headless browser for AI models");
+    tracing::info!("🔗 Neural connections between AI and the web");
     
     let mut server = McpServer::new();
     server.run().await

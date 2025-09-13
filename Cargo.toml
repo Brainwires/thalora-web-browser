@@ -1,8 +1,14 @@
 [package]
-name = "brainwires-scraper"
+name = "synaptic"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
+description = "Pure Rust headless browser for AI models - fast, secure web content extraction with MCP integration"
+authors = ["Brainwires Team"]
+license = "MIT"
+repository = "https://github.com/brainwires/synaptic"
+keywords = ["headless-browser", "ai", "mcp", "web-scraping", "rust"]
+categories = ["web-programming", "parsing"]
 
 [dependencies]
 # MCP protocol
