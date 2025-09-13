@@ -43,3 +43,16 @@ tokio-util = { version = "0.7", features = ["codec"] }
 
 # Regex for JavaScript processing
 regex = "1.10"
+
+# Enhanced JavaScript and parsing support
+swc_core = "0.104"
+swc_common = "0.36"
+swc_ecma_parser = "0.145"
+swc_ecma_ast = "0.115"
+
+# HTML escaping
+html-escape = "0.2"
+
+[dev-dependencies]
+tokio-test = "0.4"
+wiremock = "0.6"

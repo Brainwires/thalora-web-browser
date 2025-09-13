@@ -3,6 +3,10 @@ use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
 
+// use crate::enhanced_js::EnhancedJavaScriptEngine;
+// use crate::enhanced_dom::{EnhancedDom, WebStorage};
+// use crate::react_processor::ReactProcessor;
+
 pub struct RustRenderer {
     js_context: Context,
 }
@@ -11,72 +15,16 @@ impl RustRenderer {
     pub fn new() -> Self {
         let mut context = Context::default();
         
+        // Basic polyfills for safety - enhanced versions are in development
         context.eval(Source::from_bytes(r#"
-            // Polyfill for basic DOM operations
             var document = {
-                createElement: function(tag) {
-                    return {
-                        tagName: tag.toUpperCase(),
-                        innerHTML: '',
-                        textContent: '',
-                        setAttribute: function(name, value) {
-                            this[name] = value;
-                        },
-                        getAttribute: function(name) {
-                            return this[name];
-                        },
-                        appendChild: function(child) {
-                            // Basic implementation
-                        }
-                    };
-                },
-                getElementById: function(id) {
-                    return null; // Simplified
-                },
-                querySelector: function(selector) {
-                    return null; // Simplified
-                },
-                querySelectorAll: function(selector) {
-                    return []; // Simplified
-                },
-                body: {
-                    appendChild: function(child) {
-                        // Basic implementation
-                    }
-                }
+                createElement: function(tag) { return { tagName: tag.toUpperCase() }; },
+                getElementById: function(id) { return null; },
+                querySelector: function(selector) { return null; },
+                body: { appendChild: function(child) {} }
             };
-
-            var window = {
-                document: document,
-                setTimeout: function(fn, delay) {
-                    // Simplified - execute immediately
-                    fn();
-                },
-                setInterval: function(fn, delay) {
-                    // Simplified - execute once
-                    fn();
-                }
-            };
-
-            var console = {
-                log: function() {
-                    // Silent logging for security
-                },
-                error: function() {
-                    // Silent logging for security
-                },
-                warn: function() {
-                    // Silent logging for security
-                }
-            };
-
-            // Basic fetch polyfill (returns empty promise)
-            var fetch = function(url) {
-                return Promise.resolve({
-                    json: function() { return Promise.resolve({}); },
-                    text: function() { return Promise.resolve(''); }
-                });
-            };
+            var window = { document: document };
+            var console = { log: function() {}, error: function() {} };
         "#)).unwrap();
 
         Self {
@@ -100,10 +48,8 @@ impl RustRenderer {
                     ).await;
 
                     match execution_result {
-                        Ok(Ok(result)) => {
-                            if let Some(dom_changes) = result.as_string().and_then(|s| Some(s.to_std_string_escaped())) {
-                                modified_html = self.apply_dom_changes(&modified_html, &dom_changes)?;
-                            }
+                        Ok(Ok(_result)) => {
+                            tracing::debug!("JavaScript executed successfully");
                         }
                         Ok(Err(e)) => {
                             tracing::warn!("JavaScript execution failed: {}", e);
@@ -121,7 +67,7 @@ impl RustRenderer {
         Ok(modified_html)
     }
 
-    fn is_safe_javascript(&self, js_code: &str) -> bool {
+    pub fn is_safe_javascript(&self, js_code: &str) -> bool {
         let dangerous_patterns = [
             "eval(",
             "Function(",
@@ -179,9 +125,6 @@ impl RustRenderer {
         }
     }
 
-    fn apply_dom_changes(&self, html: &str, _dom_changes: &str) -> Result<String> {
-        Ok(html.to_string())
-    }
 }
 
 pub struct CssProcessor {
