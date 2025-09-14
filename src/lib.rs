@@ -8,6 +8,7 @@ pub mod websocket;
 pub mod challenge_solver;
 pub mod fingerprinting;
 pub mod enhanced_web_apis;
+pub mod cdp;
 // pub mod web_apis;
 // pub mod webgl;
 // pub mod service_worker;
@@ -22,6 +23,7 @@ pub use websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, Web
 pub use challenge_solver::{ChallengeSolver, ChallengeType, ChallengeResult, SolverConfig, ChallengePatterns};
 pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use enhanced_web_apis::EnhancedWebApis;
+pub use cdp::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
 // pub use web_apis::WebApiManager;
 // pub use webgl::WebGLManager;
 // pub use service_worker::ServiceWorkerManager;

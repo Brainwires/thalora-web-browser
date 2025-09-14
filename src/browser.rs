@@ -171,7 +171,8 @@ impl HeadlessWebBrowser {
             .https_only(false)
             .redirect(reqwest::redirect::Policy::limited(10))
             .timeout(std::time::Duration::from_secs(30))
-            .http2_prior_knowledge()
+            // Remove http2_prior_knowledge() to allow ALPN negotiation
+            .http1_title_case_headers()
             .http2_adaptive_window(true)
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(32)
