@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
+use crate::enhanced_web_apis::EnhancedWebApis;
 // use crate::enhanced_dom::{DomManager, DomElement, DomMutation};
 
 // use crate::enhanced_js::EnhancedJavaScriptEngine;
@@ -601,6 +602,29 @@ impl RustRenderer {
         } else {
             Err(anyhow!("Not a recognized Google challenge"))
         }
+    }
+
+    /// Evaluate JavaScript code and return the result as a string (for testing)
+    pub fn evaluate_javascript(&mut self, js_code: &str) -> Result<String> {
+        if self.is_safe_javascript(js_code) {
+            match self.js_context.eval(Source::from_bytes(js_code)) {
+                Ok(result) => {
+                    let result_str = result.to_string(&mut self.js_context)
+                        .map_err(|e| anyhow!("Failed to convert result to string: {}", e))?;
+                    Ok(result_str.to_std_string_escaped())
+                },
+                Err(e) => Err(anyhow!("JavaScript evaluation failed: {}", e))
+            }
+        } else {
+            Err(anyhow!("Unsafe JavaScript code detected"))
+        }
+    }
+
+    /// Setup enhanced web APIs for better Chrome compliance
+    pub fn setup_enhanced_web_apis(&mut self) -> Result<()> {
+        // Use the enhanced web APIs from enhanced_web_apis.rs module
+        EnhancedWebApis::setup_enhanced_apis(&mut self.js_context)?;
+        Ok(())
     }
 
 }

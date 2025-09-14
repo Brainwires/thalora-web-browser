@@ -7,6 +7,10 @@ pub mod react_processor;
 pub mod websocket;
 pub mod challenge_solver;
 pub mod fingerprinting;
+pub mod enhanced_web_apis;
+// pub mod web_apis;
+// pub mod webgl;
+// pub mod service_worker;
 
 pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
@@ -17,3 +21,7 @@ pub use react_processor::{ReactProcessor, ReactElement, ProcessedReactData};
 pub use websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
 pub use challenge_solver::{ChallengeSolver, ChallengeType, ChallengeResult, SolverConfig, ChallengePatterns};
 pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
+pub use enhanced_web_apis::EnhancedWebApis;
+// pub use web_apis::WebApiManager;
+// pub use webgl::WebGLManager;
+// pub use service_worker::ServiceWorkerManager;
