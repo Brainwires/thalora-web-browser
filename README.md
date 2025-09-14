@@ -157,32 +157,34 @@ Synaptic exposes 17 comprehensive tools through the Model Context Protocol:
 ```
 synaptic/
 ├── src/
-│   ├── main.rs               # Application entry point
-│   ├── mcp_server.rs        # MCP protocol server
-│   ├── memory_tools.rs      # AI Memory operations
-│   ├── cdp_tools.rs        # Chrome DevTools Protocol
-│   ├── ai_memory.rs        # Persistent storage system
-│   ├── browser.rs          # Web browser engine
-│   └── ...                 # Additional modules
-└── examples/
-    └── ai_memory_demo.rs   # Usage demonstration
+│   ├── engine/              # Core browser engine
+│   ├── apis/                # Web standards & APIs
+│   ├── features/            # Advanced capabilities
+│   ├── protocols/           # Communication protocols
+│   ├── main.rs             # Application entry point
+│   └── lib.rs              # Public API exports
+└── tests/                  # Comprehensive test suite
+    ├── engine/             # Core engine tests
+    ├── apis/               # Web API tests
+    ├── features/           # Feature tests
+    └── protocols/          # Protocol tests
 ```
 
 ### Key Components
 
-**🧠 AI Memory Heap** (`src/ai_memory.rs`)
+**🧠 AI Memory Heap** (`src/features/ai_memory.rs`)
 - Persistent JSON storage (~/.synaptic/ai_memory.json)
 - Encrypted credential storage with XOR encryption
 - Full-text search across all categories
 - Session tracking for long-term project continuity
 
-**🔍 Chrome DevTools Protocol** (`src/cdp.rs`)  
+**🔍 Chrome DevTools Protocol** (`src/protocols/cdp.rs`)
 - Runtime domain for JavaScript execution
 - Debugger domain for breakpoint management
 - DOM inspection capabilities
 - Network monitoring and response capture
 
-**🌐 Browser Engine** (`src/browser.rs`)
+**🌐 Browser Engine** (`src/engine/browser.rs`)
 - HTTP/2 client with cookie persistence
 - JavaScript execution via Boa engine
 - Stealth capabilities and bot detection evasion
