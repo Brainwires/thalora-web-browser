@@ -1,14 +1,13 @@
 use anyhow::{anyhow, Result};
 use boa_engine::JsResult;
 use boa_engine::{
-    Context, JsError, JsFunction, JsObject, JsValue, NativeFunction, Source,
+    Context, JsError, JsNativeError, JsObject, JsValue, NativeFunction, Source,
     js_string, property::Attribute,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
-use tokio::time::{sleep, timeout};
 
 pub struct EnhancedJavaScriptEngine {
     context: Context,
@@ -53,7 +52,7 @@ impl EnhancedJavaScriptEngine {
         let console_obj = JsObject::default();
         
         // Console.log
-        let log_fn = NativeFunction::from_closure(Box::new(|_, args, context| {
+        let log_fn = NativeFunction::from_fn_ptr(|_, args, context| {
             let message = args
                 .iter()
                 .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
@@ -61,11 +60,11 @@ impl EnhancedJavaScriptEngine {
                 .join(" ");
             tracing::info!("JS Console: {}", message);
             Ok(JsValue::undefined())
-        }));
+        });
         console_obj.set(js_string!("log"), log_fn, false, context)?;
 
         // Console.error
-        let error_fn = NativeFunction::from_closure(Box::new(|_, args, context| {
+        let error_fn = NativeFunction::from_fn_ptr(|_, args, context| {
             let message = args
                 .iter()
                 .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
@@ -73,16 +72,16 @@ impl EnhancedJavaScriptEngine {
                 .join(" ");
             tracing::error!("JS Console Error: {}", message);
             Ok(JsValue::undefined())
-        }));
-        console_obj.set(js_string!("error"), error_fn, Attribute::WRITABLE | Attribute::CONFIGURABLE, context)?;
+        });
+        console_obj.set(js_string!("error"), error_fn, false, context)?;
 
-        context.register_global_property(js_string!("console"), console_obj, Attribute::all(), context)?;
+        context.register_global_property(js_string!("console"), console_obj, Attribute::all())?;
 
         // Enhanced setTimeout (simplified for thread safety)
         let set_timeout_fn = NativeFunction::from_fn_ptr(|_, args, context| {
             if args.len() < 2 {
                 return Err(JsError::from_native(
-                    boa_engine::JsNativeError::typ()
+                    JsNativeError::typ()
                         .with_message("setTimeout requires callback and delay")
                 ));
             }
@@ -95,23 +94,21 @@ impl EnhancedJavaScriptEngine {
 
             Ok(JsValue::from(1u32)) // Return dummy timer ID
         });
-        context.register_global_property(js_string!("setTimeout"), JsValue::from(JsFunction::from(set_timeout_fn)), Attribute::all())?;
+        context.register_global_property(js_string!("setTimeout"), set_timeout_fn, Attribute::all())?;
 
         // Performance.now() for timing
-        let start_time = Instant::now();
-        let performance_now_fn = NativeFunction::from_copy_closure_with_captures(
-            move |_, _, captures, _context| {
-                let start_time = captures;
-                let elapsed = start_time.elapsed();
-                let ms = elapsed.as_secs_f64() * 1000.0;
-                Ok(JsValue::from(ms))
-            },
-            start_time,
-        );
+        let performance_now_fn = NativeFunction::from_fn_ptr(|_, _, _context| {
+            // Return current timestamp in milliseconds since epoch
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default();
+            let ms = now.as_secs_f64() * 1000.0 + now.subsec_nanos() as f64 / 1_000_000.0;
+            Ok(JsValue::from(ms))
+        });
         
         let performance_obj = JsObject::default();
-        performance_obj.set(js_string!("now"), performance_now_fn, Attribute::WRITABLE | Attribute::CONFIGURABLE, context)?;
-        context.register_global_property(js_string!("performance"), performance_obj, Attribute::all(), context)?;
+        performance_obj.set(js_string!("now"), performance_now_fn, false, context)?;
+        context.register_global_property(js_string!("performance"), performance_obj, Attribute::all())?;
 
         // Date.now() override for consistency
         context.eval(Source::from_bytes(
@@ -122,7 +119,7 @@ impl EnhancedJavaScriptEngine {
         let fetch_fn = NativeFunction::from_fn_ptr(|_, args, _context| {
             if args.is_empty() {
                 return Err(JsError::from_native(
-                    boa_engine::JsNativeError::typ()
+                    JsNativeError::typ()
                         .with_message("fetch requires a URL")
                 ));
             }
@@ -150,26 +147,27 @@ impl EnhancedJavaScriptEngine {
 
             Ok(promise)
         });
-        context.register_global_property(js_string!("fetch"), fetch_fn, Attribute::all(), context)?;
+        context.register_global_property(js_string!("fetch"), fetch_fn, Attribute::all())?;
 
         // URL Constructor
         let url_constructor = NativeFunction::from_fn_ptr(|_, args, context| {
             if args.is_empty() {
-                return Err(JsError::from_native("URL constructor requires a URL string"));
+                return Err(JsError::from_native(
+                    JsNativeError::typ()
+                        .with_message("URL constructor requires a URL string")
+                ));
             }
 
             let url_str = args[0].to_string(context)?.to_std_string_escaped();
             
             // Basic URL parsing (would use a proper URL parser in practice)
             let url_obj = JsObject::default();
-            url_obj.set("href", JsValue::from(url_str.clone()), false, context)?;
-            url_obj.set("toString", NativeFunction::from_fn_ptr(move |_, _, _| {
-                Ok(JsValue::from(url_str.clone()))
-            }), false, context)?;
+            url_obj.set(js_string!("href"), JsValue::from(js_string!(url_str.clone())), false, context)?;
+            url_obj.set(js_string!("toString"), JsValue::from(js_string!(url_str.clone())), false, context)?;
 
             Ok(JsValue::from(url_obj))
         });
-        context.register_global_class(url_constructor)?;
+        context.register_global_property(js_string!("URL"), url_constructor, Attribute::all())?;
 
         // JSON enhancements
         context.eval(Source::from_bytes(r#"
@@ -191,7 +189,7 @@ impl EnhancedJavaScriptEngine {
         // Pre-process the code to handle modern JS patterns
         let processed_code = self.preprocess_modern_js(code)?;
 
-        let execution_timeout = Duration::from_secs(10);
+        let _execution_timeout = Duration::from_secs(10);
         
         // Execute synchronously for now due to Boa thread safety constraints
         let result = self.context.eval(Source::from_bytes(&processed_code))
@@ -217,7 +215,7 @@ impl EnhancedJavaScriptEngine {
         );
 
         let lexer = Lexer::new(
-            Syntax::es(Default::default()),
+            Syntax::Es(Default::default()),
             Default::default(),
             StringInput::from(&*fm),
             None,

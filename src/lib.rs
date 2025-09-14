@@ -1,7 +1,7 @@
 pub mod mcp;
 pub mod renderer;
 pub mod browser;
-// pub mod enhanced_js;
+pub mod enhanced_js_v2;
 pub mod enhanced_dom; 
 pub mod react_processor;
 pub mod websocket;
@@ -20,7 +20,7 @@ pub mod cdp_tools;
 pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
 pub use mcp::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};
-// pub use enhanced_js::EnhancedJavaScriptEngine;
+pub use enhanced_js_v2::EnhancedJavaScriptEngine;
 pub use enhanced_dom::{DomManager, DomElement, DomMutation, EventListener, WebStorage};
 pub use react_processor::{ReactProcessor, ReactElement, ProcessedReactData};
 pub use websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};

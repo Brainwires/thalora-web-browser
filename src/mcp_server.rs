@@ -113,6 +113,10 @@ impl McpServer {
             "cdp_enable_network" => self.cdp_tools.enable_network(arguments, &mut self.cdp_server).await,
             "cdp_get_response_body" => self.cdp_tools.get_response_body(arguments, &mut self.cdp_server).await,
             
+            // Web scraping tools
+            "scrape_url" => self.scrape_url(arguments).await,
+            "google_search" => self.google_search(arguments).await,
+            
             _ => McpResponse::Error {
                 error: format!("Unknown tool: {}", name),
             },
@@ -471,8 +475,297 @@ impl McpServer {
                         },
                         "required": ["request_id"]
                     }
+                }),
+                // Web scraping tools
+                serde_json::json!({
+                    "name": "scrape_url",
+                    "description": "Scrape a web page and extract content, links, images, and metadata",
+                    "inputSchema": {
+                        "type": "object", 
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to scrape"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to execute JavaScript before scraping",
+                                "default": true
+                            },
+                            "selector": {
+                                "type": "string",
+                                "description": "Optional CSS selector to focus on specific content"
+                            },
+                            "extract_links": {
+                                "type": "boolean", 
+                                "description": "Whether to extract links from the page",
+                                "default": true
+                            },
+                            "extract_images": {
+                                "type": "boolean",
+                                "description": "Whether to extract images from the page", 
+                                "default": true
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "google_search",
+                    "description": "Perform a Google search by submitting a query and returning search results",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Search query to submit to Google"
+                            },
+                            "num_results": {
+                                "type": "integer",
+                                "description": "Maximum number of search results to return",
+                                "default": 10,
+                                "minimum": 1,
+                                "maximum": 100
+                            }
+                        },
+                        "required": ["query"]
+                    }
                 })
             ]
         }
     }
+
+    async fn scrape_url(&mut self, arguments: Value) -> McpResponse {
+        let url = match arguments.get("url").and_then(|v| v.as_str()) {
+            Some(url) => url,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "Missing required parameter: url"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        let wait_for_js = arguments.get("wait_for_js")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        
+        let selector = arguments.get("selector").and_then(|v| v.as_str());
+        
+        let extract_links = arguments.get("extract_links")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+            
+        let extract_images = arguments.get("extract_images")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        match self.browser.scrape(url, wait_for_js, selector, extract_links, extract_images).await {
+            Ok(scraped_data) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&scraped_data).unwrap_or_else(|_| "Failed to serialize scraped data".to_string())
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text", 
+                        "text": format!("Failed to scrape URL {}: {}", url, e)
+                    })],
+                    is_error: true,
+                }
+            }
+        }
+    }
+
+    async fn google_search(&mut self, arguments: Value) -> McpResponse {
+        let query = match arguments.get("query").and_then(|v| v.as_str()) {
+            Some(query) => query,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "Missing required parameter: query"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        let num_results = arguments.get("num_results")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(10) as usize;
+
+        match self.perform_google_search(query, num_results).await {
+            Ok(results) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&results).unwrap_or_else(|_| "Failed to serialize search results".to_string())
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("Failed to perform Google search for '{}': {}", query, e)
+                    })],
+                    is_error: true,
+                }
+            }
+        }
+    }
+
+    async fn perform_google_search(&mut self, query: &str, num_results: usize) -> anyhow::Result<SearchResults> {
+        use tokio::time::{sleep, Duration};
+        use rand::Rng;
+        
+        // Step 1: First visit Google homepage to establish session
+        let _home_data = self.browser.scrape("https://www.google.com", true, None, false, false).await?;
+        
+        // Wait a bit to simulate human behavior
+        sleep(Duration::from_millis(1000 + rand::thread_rng().gen_range(500..2000))).await;
+        
+        // Step 2: Build search URL with proper parameters
+        let search_url = format!(
+            "https://www.google.com/search?q={}&num={}&hl=en&safe=off&filter=0&pws=0",
+            query.replace(' ', "+"),
+            num_results
+        );
+        
+        // Step 3: Perform the search with JavaScript enabled to handle any challenges
+        let mut search_data = self.browser.scrape(&search_url, true, None, true, false).await?;
+        
+        // Step 4: Check if we got a challenge/redirect page
+        if search_data.content.contains("enablejs") || search_data.content.contains("unusual traffic") {
+            
+            // Extract the redirect URL from the challenge page
+            if let Some(redirect_start) = search_data.content.find("/httpservice/retry/enablejs") {
+                if let Some(redirect_end) = search_data.content[redirect_start..].find("\"") {
+                    let redirect_path = &search_data.content[redirect_start..redirect_start + redirect_end];
+                    let redirect_url = format!("https://www.google.com{}", redirect_path);
+                    
+                    // Wait to simulate human behavior when facing a challenge
+                    sleep(Duration::from_millis(2000 + rand::thread_rng().gen_range(1000..3000))).await;
+                    
+                    // Execute the JavaScript challenge by visiting the redirect
+                    let _challenge_response = self.browser.scrape(&redirect_url, true, None, true, false).await?;
+                    
+                    // Wait again after challenge
+                    sleep(Duration::from_millis(1000 + rand::thread_rng().gen_range(500..2000))).await;
+                    
+                    // Now retry the original search
+                    search_data = self.browser.scrape(&search_url, true, None, true, false).await?;
+                    
+                    // If still getting challenges, try one more approach with different parameters
+                    if search_data.content.contains("enablejs") {
+                        sleep(Duration::from_millis(5000)).await; // Wait longer
+                        let simple_search_url = format!("https://www.google.com/search?q={}", query.replace(' ', "+"));
+                        search_data = self.browser.scrape(&simple_search_url, true, None, true, false).await?;
+                    }
+                } else {
+                    // Fallback: wait and retry with minimal parameters
+                    sleep(Duration::from_millis(5000)).await;
+                    let simple_search_url = format!("https://www.google.com/search?q={}", query.replace(' ', "+"));
+                    search_data = self.browser.scrape(&simple_search_url, true, None, true, false).await?;
+                }
+            }
+        }
+        
+        // Step 5: Parse the search results
+        let mut results = self.parse_google_search_results(&search_data.content, num_results).await?;
+        results.query = query.to_string();
+        Ok(results)
+    }
+
+    async fn parse_google_search_results(&self, html: &str, num_results: usize) -> anyhow::Result<SearchResults> {
+        use scraper::{Html, Selector};
+        
+        let document = Html::parse_document(html);
+        
+        // Google search result selectors
+        let result_selector = Selector::parse("div.g, div.MjjYud").map_err(|e| anyhow::anyhow!("Invalid CSS selector: {:?}", e))?;
+        let title_selector = Selector::parse("h3").map_err(|e| anyhow::anyhow!("Invalid CSS selector: {:?}", e))?;
+        let link_selector = Selector::parse("a").map_err(|e| anyhow::anyhow!("Invalid CSS selector: {:?}", e))?;
+        let snippet_selector = Selector::parse(".VwiC3b, .s3v9rd, .st").map_err(|e| anyhow::anyhow!("Invalid CSS selector: {:?}", e))?;
+
+        let mut results = Vec::new();
+        
+        for result_elem in document.select(&result_selector).take(num_results) {
+            // Extract title
+            let title = result_elem.select(&title_selector)
+                .next()
+                .map(|elem| elem.text().collect::<String>())
+                .unwrap_or_default();
+
+            if title.is_empty() {
+                continue; // Skip results without titles
+            }
+
+            // Extract URL - look for the first link in the result
+            let url = result_elem.select(&link_selector)
+                .next()
+                .and_then(|elem| elem.value().attr("href"))
+                .map(|href| {
+                    if href.starts_with("/url?") {
+                        // Google redirects - extract the actual URL
+                        if let Ok(parsed) = url::Url::parse(&format!("https://google.com{}", href)) {
+                            if let Some(actual_url) = parsed.query_pairs().find(|(key, _)| key == "url") {
+                                return actual_url.1.to_string();
+                            }
+                        }
+                        href.to_string()
+                    } else if href.starts_with("http") {
+                        href.to_string()
+                    } else {
+                        format!("https://google.com{}", href)
+                    }
+                })
+                .unwrap_or_default();
+
+            // Extract snippet
+            let snippet = result_elem.select(&snippet_selector)
+                .next()
+                .map(|elem| elem.text().collect::<Vec<_>>().join(" "))
+                .unwrap_or_default();
+
+            if !url.is_empty() {
+                results.push(SearchResult {
+                    title,
+                    url,
+                    snippet,
+                });
+            }
+        }
+
+        let total_results = results.len();
+        Ok(SearchResults {
+            query: "".to_string(), // We'll set this in the calling function
+            results,
+            total_results,
+        })
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+struct SearchResults {
+    query: String,
+    results: Vec<SearchResult>,
+    total_results: usize,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct SearchResult {
+    title: String,
+    url: String,
+    snippet: String,
 }
