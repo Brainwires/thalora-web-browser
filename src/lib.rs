@@ -9,6 +9,10 @@ pub mod challenge_solver;
 pub mod fingerprinting;
 pub mod enhanced_web_apis;
 pub mod cdp;
+pub mod ai_memory;
+pub mod mcp_server;
+pub mod memory_tools;
+pub mod cdp_tools;
 // pub mod web_apis;
 // pub mod webgl;
 // pub mod service_worker;
@@ -24,6 +28,7 @@ pub use challenge_solver::{ChallengeSolver, ChallengeType, ChallengeResult, Solv
 pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use enhanced_web_apis::EnhancedWebApis;
 pub use cdp::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
+pub use ai_memory::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 // pub use web_apis::WebApiManager;
 // pub use webgl::WebGLManager;
 // pub use service_worker::ServiceWorkerManager;
