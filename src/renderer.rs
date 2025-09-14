@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
-use crate::enhanced_web_apis::EnhancedWebApis;
 // use crate::enhanced_dom::{DomManager, DomElement, DomMutation};
 
 // use crate::enhanced_js::EnhancedJavaScriptEngine;
@@ -620,12 +619,6 @@ impl RustRenderer {
         }
     }
 
-    /// Setup enhanced web APIs for better Chrome compliance
-    pub fn setup_enhanced_web_apis(&mut self) -> Result<()> {
-        // Use the enhanced web APIs from enhanced_web_apis.rs module
-        EnhancedWebApis::setup_enhanced_apis(&mut self.js_context)?;
-        Ok(())
-    }
 
 }
 
