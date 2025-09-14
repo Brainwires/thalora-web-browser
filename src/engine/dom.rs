@@ -103,9 +103,10 @@ impl EnhancedDom {
 
         // Detect common DOM manipulation patterns
         if js_code.contains("appendChild") {
-            mutations.push(DomMutation::ChildAdded {
+            mutations.push(DomMutation::ElementAdded {
+                element_id: "new-element".to_string(),
                 parent_id: "body".to_string(),
-                child_element: DomElement {
+                element: DomElement {
                     tag_name: "div".to_string(),
                     attributes: HashMap::new(),
                     text_content: "Dynamically added content".to_string(),
@@ -126,7 +127,7 @@ impl EnhancedDom {
         if js_code.contains("className") || js_code.contains("classList") {
             mutations.push(DomMutation::AttributeChanged {
                 element_id: "main".to_string(),
-                attribute_name: "class".to_string(),
+                attribute: "class".to_string(),
                 new_value: "dynamic-class".to_string(),
             });
         }

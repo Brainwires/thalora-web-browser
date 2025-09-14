@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, JsObject, JsValue, NativeFunction, property::Attribute, js_string};
+use boa_engine::{Context, JsObject, JsValue, NativeFunction, JsString};
 use std::collections::HashMap;
 
 /// WebGL implementation for realistic canvas fingerprinting and 3D graphics support
@@ -269,10 +269,10 @@ impl WebGLManager {
                 let vao_obj = JsObject::default();
                 Ok(JsValue::from(vao_obj))
             });
-            gl_context.set("createVertexArray", create_vertex_array_fn, false, context)?;
+            gl_context.set(JsString::from("createVertexArray"), JsValue::from(create_vertex_array_fn), false, context)?;
             
             let bind_vertex_array_fn = NativeFunction::from_fn_ptr(|_, args, _context| Ok(JsValue::undefined()));
-            gl_context.set("bindVertexArray", bind_vertex_array_fn, false, context)?;
+            gl_context.set(JsString::from("bindVertexArray"), JsValue::from(bind_vertex_array_fn), false, context)?;
         }
         
         Ok(JsValue::from(gl_context))

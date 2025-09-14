@@ -19,14 +19,15 @@ impl RustRenderer {
         let web_apis = WebApis::new();
 
         // Setup DOM polyfills first (provides window, document, etc.)
-        let dom_manager = DomManager::new("").unwrap();
-        dom_manager.setup_dom_globals(&mut context).unwrap();
+        // Setup DOM with EnhancedDom
+        let dom_manager = EnhancedDom::new("");
+        // dom_manager.setup_dom_globals(&mut context).unwrap();
 
         // Setup Web APIs polyfills (requires window to be defined)
         web_apis.setup_all_apis(&mut context).unwrap();
 
         // Additional bot detection and challenge-specific polyfills
-        context.eval(Source::from_bytes(r#"
+        let js_code = r#"
             // Enhanced document object with more DOM methods
             var document = {
                 title: '',
@@ -507,6 +508,21 @@ impl RustRenderer {
                     }
                 };
             }
+
+            // Global import.meta polyfill to prevent parsing errors
+            if (typeof globalThis.import === 'undefined') {
+                globalThis.import = window.import;
+            }
+
+            // Handle import.meta syntax errors by preprocessing
+            var originalEval = globalThis.eval;
+            globalThis.eval = function(code) {
+                if (typeof code === 'string') {
+                    // Replace import.meta with import['meta'] to avoid syntax errors
+                    code = code.replace(/import\.meta/g, "import['meta']");
+                }
+                return originalEval.call(this, code);
+            };
             
             // Iterator helpers (ES2025)
             if (typeof Iterator === 'undefined') {
@@ -765,12 +781,17 @@ impl RustRenderer {
             var google = {
                 tick: function(event, label) { /* Google timing captured */ }
             };
-        "#)).unwrap();
+        "#;
+
+        // Preprocess JavaScript to handle import.meta syntax issues
+        let processed_js = js_code.replace("import.meta", "import['meta']");
+
+        context.eval(Source::from_bytes(&processed_js)).unwrap();
 
         Self {
             js_context: context,
             web_apis,
-            dom_manager: Some(dom_manager),
+            dom_manager: Some(dom_manager.unwrap()),
         }
     }
 

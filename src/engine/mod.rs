@@ -8,4 +8,5 @@ pub mod dom;
 pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
 pub use engine::JavaScriptEngine;
-pub use dom::{DomElement, EnhancedDom, EventListener, DomMutation};
+pub use dom::{DomElement, EnhancedDom, DomMutation};
+pub use crate::apis::events::EventListener;

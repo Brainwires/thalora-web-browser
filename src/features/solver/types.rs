@@ -96,7 +96,7 @@ pub struct ChallengeSolver {
     /// JavaScript execution context
     pub context: Context,
     /// Challenge detection patterns
-    pub patterns: crate::challenge_solver::ChallengePatterns,
+    pub patterns: super::patterns::ChallengePatterns,
     /// Cache for solved challenges
     pub cache: HashMap<String, ChallengeResult>,
     /// Solver configuration

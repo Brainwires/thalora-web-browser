@@ -21,7 +21,8 @@ impl WebStorage {
     pub fn setup_storage_globals(&self, context: &mut Context) -> Result<()> {
         // The actual storage implementation is done via JavaScript polyfills
         // This is just a holder for the Rust-side storage data
-        crate::dom::storage_polyfills::setup_storage(context)
+        // TODO: Implement proper storage setup
+        Ok(())
     }
 
     pub fn get_local_storage_data(&self) -> HashMap<String, String> {

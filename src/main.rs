@@ -1,10 +1,11 @@
 use anyhow::Result;
 use tracing::info;
 
-mod engine;
-mod apis;
-mod features;
-mod protocols;
+// Core modules organized by functionality
+pub mod engine;
+pub mod apis;
+pub mod features;
+pub mod protocols;
 
 use protocols::mcp_server::McpServer;
 

@@ -30,8 +30,7 @@ impl JavaScriptEngine {
         let timers = Arc::new(Mutex::new(HashMap::new()));
         let next_timer_id = Arc::new(Mutex::new(1));
 
-        setup_enhanced_globals(&mut context)
-            .map_err(|e| anyhow!("Failed to setup enhanced globals: {}", e))?;
+        crate::features::solver::browser_globals::setup_browser_globals(&mut context);
 
         Ok(Self {
             context,
