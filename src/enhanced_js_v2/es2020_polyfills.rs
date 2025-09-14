@@ -121,7 +121,7 @@ pub fn setup_es2020_polyfills(context: &mut Context) -> JsResult<()> {
         // import.meta (basic support)
         if (typeof global !== 'undefined' && !global.import) {
             global.import = function() {};
-            global.import.meta = {
+            global.import['meta'] = {
                 url: 'file://unknown'
             };
         }

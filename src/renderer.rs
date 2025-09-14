@@ -4,7 +4,6 @@ use std::time::Duration;
 use tokio::time::timeout;
 // use crate::enhanced_dom::{DomManager, DomElement, DomMutation};
 
-// use crate::enhanced_js::EnhancedJavaScriptEngine;
 
 pub struct RustRenderer {
     js_context: Context,
@@ -481,13 +480,20 @@ impl RustRenderer {
             this.eval = eval;
             
             // ECMAScript 2025 Features - JSON import support
-            if (typeof import === 'undefined') {
+            if (typeof window.import === 'undefined') {
                 window.import = function(specifier, options) {
                     if (options && options.type === 'json') {
                         // Mock JSON import for ES2025 compatibility
                         return Promise.resolve({});
                     }
                     return Promise.reject(new Error('Dynamic import not supported'));
+                };
+                // Add import.meta support using bracket notation to avoid parser issues
+                window.import['meta'] = {
+                    url: 'about:blank',
+                    resolve: function(specifier) {
+                        return new URL(specifier, 'about:blank').href;
+                    }
                 };
             }
             
