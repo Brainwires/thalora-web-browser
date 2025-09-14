@@ -348,15 +348,15 @@ impl BrowserFingerprint {
 
     // Canvas fingerprint generators
     fn generate_chrome_canvas() -> String {
-        format!("chrome_canvas_{}", rand::thread_rng().gen::<u32>())
+        format!("chrome_canvas_{}", rand::thread_rng().r#gen::<u32>())
     }
 
     fn generate_firefox_canvas() -> String {
-        format!("firefox_canvas_{}", rand::thread_rng().gen::<u32>())
+        format!("firefox_canvas_{}", rand::thread_rng().r#gen::<u32>())
     }
 
     fn generate_safari_canvas() -> String {
-        format!("safari_canvas_{}", rand::thread_rng().gen::<u32>())
+        format!("safari_canvas_{}", rand::thread_rng().r#gen::<u32>())
     }
 
     // WebGL fingerprint generators

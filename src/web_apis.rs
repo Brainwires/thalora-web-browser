@@ -1,12 +1,12 @@
 use anyhow::Result;
 use boa_engine::{Context, Source};
 
-/// Enhanced Web APIs for better Chrome compatibility in headless browsing
-pub struct EnhancedWebApis;
+/// Web APIs for better Chrome compatibility in headless browsing
+pub struct WebApis;
 
-impl EnhancedWebApis {
+impl WebApis {
     /// Setup critical missing web APIs as JavaScript globals
-    pub fn setup_enhanced_apis(context: &mut Context) -> Result<()> {
+    pub fn setup_apis(context: &mut Context) -> Result<()> {
         let enhanced_js = r#"
             // Enhanced Fetch API with proper Promise support
             if (!window.fetch) {

@@ -2,19 +2,25 @@ use anyhow::{anyhow, Result};
 use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
-// use crate::enhanced_dom::{DomManager, DomElement, DomMutation};
+use crate::web_polyfills::WebPolyfills;
+use crate::dom::{DomManager, DomElement, DomMutation};
 
 
 pub struct RustRenderer {
     js_context: Context,
-    // dom_manager: Option<DomManager>,
+    polyfills: WebPolyfills,
+    dom_manager: Option<DomManager>,
 }
 
 impl RustRenderer {
     pub fn new() -> Self {
         let mut context = Context::default();
-        
-        // Enhanced polyfills for modern web APIs and anti-bot challenge support
+        let polyfills = WebPolyfills::new();
+
+        // Setup comprehensive Web API polyfills
+        polyfills.setup_all_polyfills(&mut context).unwrap();
+
+        // Additional bot detection and challenge-specific polyfills
         context.eval(Source::from_bytes(r#"
             // Enhanced document object with more DOM methods
             var document = {
@@ -758,7 +764,8 @@ impl RustRenderer {
 
         Self {
             js_context: context,
-            // dom_manager: None,
+            polyfills,
+            dom_manager: None,
         }
     }
 
@@ -1016,6 +1023,14 @@ impl RustRenderer {
                 tracing::warn!("JavaScript execution failed: {}", e);
                 Err(anyhow!("JavaScript execution error: {}", e))
             }
+        }
+    }
+
+    /// Helper method to convert JsValue to string safely
+    pub fn js_value_to_string(&mut self, value: boa_engine::JsValue) -> String {
+        match value.to_string(&mut self.js_context) {
+            Ok(js_string) => js_string.to_std_string_escaped(),
+            Err(_) => format!("{:?}", value),
         }
     }
 

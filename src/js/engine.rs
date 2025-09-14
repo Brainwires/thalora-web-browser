@@ -7,7 +7,7 @@ use tokio::sync::Mutex;
 
 use super::{setup_enhanced_globals, SyntaxTransformer};
 
-pub struct EnhancedJavaScriptEngine {
+pub struct JavaScriptEngine {
     context: Context,
     timers: Arc<Mutex<HashMap<u32, TimerHandle>>>,
     next_timer_id: Arc<Mutex<u32>>,
@@ -24,7 +24,7 @@ struct TimerHandle {
     created_at: Instant,
 }
 
-impl EnhancedJavaScriptEngine {
+impl JavaScriptEngine {
     pub fn new() -> Result<Self> {
         let mut context = Context::default();
         let timers = Arc::new(Mutex::new(HashMap::new()));

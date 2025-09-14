@@ -6,7 +6,7 @@ use tracing::{error, info};
 use crate::mcp::{McpRequest, McpResponse};
 use crate::browser::HeadlessWebBrowser;
 use crate::websocket::WebSocketManager;
-use crate::enhanced_dom::DomManager;
+use crate::dom::DomManager;
 use crate::ai_memory::AiMemoryHeap;
 use crate::cdp::CdpServer;
 use crate::memory_tools::MemoryTools;

@@ -53,7 +53,7 @@ pub fn generate_canvas_fingerprint() -> String {
     let mut fingerprint = String::new();
     
     for _ in 0..32 {
-        fingerprint.push_str(&format!("{:02x}", rng.gen::<u8>()));
+        fingerprint.push_str(&format!("{:02x}", rng.r#gen::<u8>()));
     }
     
     fingerprint

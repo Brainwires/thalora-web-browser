@@ -14,7 +14,7 @@ pub mod timers;
 pub mod web_apis;
 pub mod engine;
 
-pub use engine::EnhancedJavaScriptEngine;
+pub use engine::JavaScriptEngine;
 pub use syntax_transformer::SyntaxTransformer;
 
 use boa_engine::{Context, JsResult, Source};
