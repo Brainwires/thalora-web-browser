@@ -1,20 +1,12 @@
 use anyhow::Result;
 use tracing::info;
 
-mod mcp;
-mod browser;
-mod renderer;
-mod react_processor;
-mod websocket;
-mod dom;
-mod web_polyfills;
-mod ai_memory;
-mod cdp;
-mod mcp_server;
-mod memory_tools;
-mod cdp_tools;
+mod engine;
+mod apis;
+mod features;
+mod protocols;
 
-use mcp_server::McpServer;
+use protocols::mcp_server::McpServer;
 
 #[tokio::main]
 async fn main() -> Result<()> {

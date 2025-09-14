@@ -1,36 +1,29 @@
-pub mod mcp;
-pub mod renderer;
-pub mod browser;
-pub mod js;
-pub mod dom;
-pub mod react_processor;
-pub mod websocket;
-pub mod challenge_solver;
-pub mod fingerprinting;
-pub mod web_apis;
-pub mod web_polyfills;
-pub mod cdp;
-pub mod ai_memory;
-pub mod mcp_server;
-pub mod memory_tools;
-pub mod cdp_tools;
-// pub mod web_apis;
-// pub mod webgl;
-// pub mod service_worker;
+// Core browser engine
+pub mod engine;
 
-pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
-pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
-pub use mcp::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};
-pub use js::JavaScriptEngine;
-pub use dom::{DomManager, DomElement, DomMutation, EventListener, WebStorage};
-pub use react_processor::{ReactProcessor, ReactElement, ProcessedReactData};
-pub use websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
-pub use challenge_solver::{ChallengeSolver, ChallengeType, ChallengeResult, SolverConfig, ChallengePatterns};
-pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
-pub use web_apis::WebApis;
-pub use web_polyfills::WebPolyfills;
-pub use cdp::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
-pub use ai_memory::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
-// pub use web_apis::WebApiManager;
-// pub use webgl::WebGLManager;
-// pub use service_worker::ServiceWorkerManager;
+// Web APIs and standards
+pub mod apis;
+
+// Advanced browser features
+pub mod features;
+
+// Communication protocols
+pub mod protocols;
+
+// Re-export main components for clean public API
+pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
+pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};
+pub use engine::{DomElement, EnhancedDom, EventListener, DomMutation};
+
+pub use apis::websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
+pub use apis::storage::WebStorage;
+pub use apis::events::DomEvent;
+
+pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
+pub use features::{ReactProcessor, ReactElement, ProcessedReactData};
+pub use features::{ChallengeSolver, ChallengeType, ChallengeResult, SolverConfig, ChallengePatterns};
+pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
+
+pub use protocols::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};
+pub use protocols::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
+pub use protocols::{McpServer, MemoryTools};
