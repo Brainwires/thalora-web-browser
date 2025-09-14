@@ -2,12 +2,13 @@ use anyhow::{anyhow, Result};
 use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
+// use crate::enhanced_dom::{DomManager, DomElement, DomMutation};
 
 // use crate::enhanced_js::EnhancedJavaScriptEngine;
-// use crate::enhanced_dom::{EnhancedDom, WebStorage};
 
 pub struct RustRenderer {
     js_context: Context,
+    // dom_manager: Option<DomManager>,
 }
 
 impl RustRenderer {
@@ -328,10 +329,50 @@ impl RustRenderer {
 
         Self {
             js_context: context,
+            // dom_manager: None,
         }
     }
 
+    // /// Initialize DOM manager with HTML content for enhanced DOM operations
+    // pub fn init_dom_manager(&mut self, html: &str) -> Result<()> {
+    //     let dom_manager = DomManager::new(html)?;
+    //     dom_manager.setup_dom_globals(&mut self.js_context)?;
+    //     self.dom_manager = Some(dom_manager);
+    //     Ok(())
+    // }
+
+    // /// Get enhanced DOM content with structure
+    // pub fn get_enhanced_dom_content(&self, selector: Option<&str>) -> Result<DomElement> {
+    //     match &self.dom_manager {
+    //         Some(dom_manager) => dom_manager.extract_enhanced_content(selector),
+    //         None => Ok(DomElement {
+    //             tag_name: "body".to_string(),
+    //             attributes: std::collections::HashMap::new(),
+    //             text_content: String::new(),
+    //             inner_html: String::new(),
+    //             children: Vec::new(),
+    //             id: "body".to_string(),
+    //         }),
+    //     }
+    // }
+
+    // /// Get storage data for debugging or inspection
+    // pub fn get_storage_data(&self) -> (std::collections::HashMap<String, String>, std::collections::HashMap<String, String>) {
+    //     match &self.dom_manager {
+    //         Some(dom_manager) => (
+    //             dom_manager.get_local_storage_data(),
+    //             dom_manager.get_session_storage_data(),
+    //         ),
+    //         None => (std::collections::HashMap::new(), std::collections::HashMap::new()),
+    //     }
+    // }
+
     pub async fn render_with_js(&mut self, html: &str, _url: &str) -> Result<String> {
+        // // Initialize DOM manager for enhanced DOM operations
+        // if let Err(e) = self.init_dom_manager(html) {
+        //     tracing::debug!("DOM manager initialization failed: {}", e);
+        // }
+        
         let modified_html = html.to_string();
 
         let script_regex = regex::Regex::new(r"<script[^>]*>(.*?)</script>").unwrap();
@@ -373,6 +414,8 @@ impl RustRenderer {
         }
 
         let dangerous_patterns = [
+            "eval(",
+            "Function(",
             "XMLHttpRequest",
             "fetch(",
             "import(",
@@ -383,6 +426,8 @@ impl RustRenderer {
             "constructor.constructor",
             "location.href",
             "window.location",
+            "document.cookie",
+            "localStorage.setItem",
             "alert(",
             "confirm(",
             "prompt(",
@@ -397,7 +442,7 @@ impl RustRenderer {
         }
 
         // Allow larger scripts for challenges
-        if js_code.len() > 50000 && !self.is_challenge_javascript(js_code) {
+        if js_code.len() > 10000 && !self.is_challenge_javascript(js_code) {
             return false;
         }
 

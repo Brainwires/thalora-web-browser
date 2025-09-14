@@ -66,9 +66,13 @@ html-escape = "0.2"
 # UUID generation for WebSocket connections
 uuid = { version = "1.0", features = ["v4"] }
 
+# Challenge solving dependencies
+base64 = "0.22"
+
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
+
 
 # Resolver to handle dependency conflicts
 [package.metadata.docs.rs]
