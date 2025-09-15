@@ -87,6 +87,13 @@ html-escape = "0.2"
 # UUID generation for WebSocket connections
 uuid = { version = "1.0", features = ["v4"] }
 
+# WebSocket implementation
+tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
+tungstenite = "0.20"
+futures-util = "0.3"
+
+# Service Worker implementation (extends existing tokio features)
+
 # Challenge solving dependencies
 base64 = "0.22"
 

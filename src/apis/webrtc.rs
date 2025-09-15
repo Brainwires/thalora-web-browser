@@ -1,7 +1,7 @@
 use anyhow::Result;
 use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
@@ -12,9 +12,7 @@ use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::data_channel::RTCDataChannel;
-use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use tokio::sync::Mutex as TokioMutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Real WebRTC API implementation with actual peer-to-peer networking
 pub struct WebRTCManager {

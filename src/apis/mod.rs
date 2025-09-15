@@ -6,6 +6,7 @@ pub mod service_worker;
 pub mod websocket;
 pub mod storage;
 pub mod events;
+pub mod timers;
 
 // Full-featured browser APIs
 pub mod webassembly;
@@ -34,7 +35,11 @@ impl WebApis {
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
 
-        let sw_manager = service_worker::ServiceWorkerManager::new();
+        // Setup real timer implementation
+        let timer_manager = timers::TimerManager::new();
+        timer_manager.setup_real_timers(context).map_err(|e| anyhow::Error::msg(format!("Timer setup failed: {:?}", e)))?;
+
+        let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e)))?;
         sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;
 
         let web_storage = storage::WebStorage::new();
@@ -53,7 +58,9 @@ impl WebApis {
         let media_manager = media::MediaManager::new().map_err(|e| anyhow::Error::msg(format!("Media manager creation failed: {:?}", e)))?;
         media_manager.setup_media_apis(context).map_err(|e| anyhow::Error::msg(format!("Media APIs setup failed: {:?}", e)))?;
 
-        // events::setup_event_system(context)?; // TODO: Check if this function exists
+        // Setup comprehensive DOM Events system
+        let event_manager = events::EventManager::new();
+        event_manager.setup_events_api(context).map_err(|e| anyhow::Error::msg(format!("Events API setup failed: {:?}", e)))?;
 
         Ok(())
     }

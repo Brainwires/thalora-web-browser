@@ -1,6 +1,5 @@
 // JavaScript polyfills organized by ES version
 pub mod console;
-pub mod timers;
 pub mod web_apis;
 pub mod syntax_transformer;
 
@@ -18,12 +17,17 @@ pub mod es2025_experimental;
 
 use anyhow::Result;
 use boa_engine::Context;
+use crate::apis::timers::TimerManager;
 
 /// Setup all JavaScript polyfills in the browser context
 pub fn setup_all_polyfills(context: &mut Context) -> Result<()> {
     // Core JavaScript enhancements
     console::setup_console(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    timers::setup_timers(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
+
+    // Setup real timer implementation
+    let timer_manager = TimerManager::new();
+    timer_manager.setup_real_timers(context).map_err(|e| anyhow::Error::msg(format!("Timer setup failed: {:?}", e)))?;
+
     web_apis::setup_web_apis(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
 
     // ES version features
