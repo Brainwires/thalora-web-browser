@@ -86,6 +86,21 @@ pub struct HeadlessWebBrowser {
     auth_context: Arc<Mutex<AuthContext>>,
     pub stealth_config: StealthConfig,
     request_history: Arc<Mutex<Vec<RequestTiming>>>,
+    navigation_history: Arc<Mutex<NavigationHistory>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NavigationHistory {
+    pub entries: Vec<HistoryEntry>,
+    pub current_index: isize,
+}
+
+#[derive(Debug, Clone)]
+pub struct HistoryEntry {
+    pub url: String,
+    pub title: Option<String>,
+    pub state: Option<serde_json::Value>,
+    pub timestamp: std::time::Instant,
 }
 
 #[derive(Debug, Clone)]
@@ -140,7 +155,7 @@ impl Default for StealthConfig {
 }
 
 impl HeadlessWebBrowser {
-    pub fn new() -> Self {
+    pub fn new() -> Arc<Mutex<Self>> {
         let mut headers = reqwest::header::HeaderMap::new();
         
         // Chrome-like headers to appear as a real browser
@@ -192,7 +207,7 @@ impl HeadlessWebBrowser {
             },
         }));
 
-        Self {
+        let browser = Self {
             client,
             renderer: RustRenderer::new(),
             cookie_jar,
@@ -200,7 +215,21 @@ impl HeadlessWebBrowser {
             auth_context,
             stealth_config: StealthConfig::default(),
             request_history: Arc::new(Mutex::new(Vec::new())),
-        }
+            navigation_history: Arc::new(Mutex::new(NavigationHistory {
+                entries: Vec::new(),
+                current_index: -1,
+            })),
+        };
+
+        let browser_arc = Arc::new(Mutex::new(browser));
+        browser_arc
+    }
+
+    /// Setup the History API after the renderer is fully initialized
+    pub fn setup_history_api(browser_arc: Arc<Mutex<Self>>) -> Result<()> {
+        let mut browser = browser_arc.lock().unwrap();
+        browser.renderer.setup_history_api(Arc::clone(&browser_arc))?;
+        Ok(())
     }
 
     // Anti-detection methods for modern browser support
@@ -1099,5 +1128,151 @@ impl HeadlessWebBrowser {
     /// Execute JavaScript code safely in the browser context
     pub async fn execute_javascript(&mut self, code: &str) -> Result<boa_engine::JsValue> {
         self.renderer.execute_javascript_safely(code).await
+    }
+
+    // Real History API Implementation
+
+    /// Add a new entry to navigation history
+    pub fn push_history_state(&self, state: Option<serde_json::Value>, title: Option<String>, url: &str) -> Result<()> {
+        let mut history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+
+        // Remove any forward history if we're not at the end
+        if history.current_index >= 0 && (history.current_index as usize) < history.entries.len() - 1 {
+            let truncate_index = (history.current_index + 1) as usize;
+            history.entries.truncate(truncate_index);
+        }
+
+        // Add new entry
+        history.entries.push(HistoryEntry {
+            url: url.to_string(),
+            title,
+            state,
+            timestamp: std::time::Instant::now(),
+        });
+
+        history.current_index = (history.entries.len() as isize) - 1;
+        Ok(())
+    }
+
+    /// Replace current history entry
+    pub fn replace_history_state(&self, state: Option<serde_json::Value>, title: Option<String>, url: &str) -> Result<()> {
+        let mut history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+
+        if history.current_index >= 0 && (history.current_index as usize) < history.entries.len() {
+            let current_index = history.current_index as usize;
+            history.entries[current_index] = HistoryEntry {
+                url: url.to_string(),
+                title,
+                state,
+                timestamp: std::time::Instant::now(),
+            };
+        } else {
+            // No current entry, create one
+            history.entries.push(HistoryEntry {
+                url: url.to_string(),
+                title,
+                state,
+                timestamp: std::time::Instant::now(),
+            });
+            history.current_index = 0;
+        }
+        Ok(())
+    }
+
+    /// Navigate back in history
+    pub async fn history_back(&mut self) -> Result<Option<ScrapedData>> {
+        let can_go_back = {
+            let history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+            history.current_index > 0
+        };
+
+        if can_go_back {
+            let url = {
+                let mut history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+                history.current_index -= 1;
+                history.entries[history.current_index as usize].url.clone()
+            };
+
+            // Actually navigate to the previous URL
+            return Ok(Some(self.scrape(&url, true, None, false, false).await?));
+        }
+
+        Ok(None)
+    }
+
+    /// Navigate forward in history
+    pub async fn history_forward(&mut self) -> Result<Option<ScrapedData>> {
+        let can_go_forward = {
+            let history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+            history.current_index >= 0 && (history.current_index as usize) < history.entries.len() - 1
+        };
+
+        if can_go_forward {
+            let url = {
+                let mut history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+                history.current_index += 1;
+                history.entries[history.current_index as usize].url.clone()
+            };
+
+            // Actually navigate to the next URL
+            return Ok(Some(self.scrape(&url, true, None, false, false).await?));
+        }
+
+        Ok(None)
+    }
+
+    /// Navigate by delta steps in history
+    pub async fn history_go(&mut self, delta: i32) -> Result<Option<ScrapedData>> {
+        if delta == 0 {
+            // Reload current page
+            let current_url = {
+                let history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+                if history.current_index >= 0 && (history.current_index as usize) < history.entries.len() {
+                    Some(history.entries[history.current_index as usize].url.clone())
+                } else {
+                    None
+                }
+            };
+
+            if let Some(url) = current_url {
+                return Ok(Some(self.scrape(&url, true, None, false, false).await?));
+            }
+            return Ok(None);
+        }
+
+        let can_navigate = {
+            let history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+            let new_index = history.current_index + delta as isize;
+            new_index >= 0 && (new_index as usize) < history.entries.len()
+        };
+
+        if can_navigate {
+            let url = {
+                let mut history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+                history.current_index += delta as isize;
+                history.entries[history.current_index as usize].url.clone()
+            };
+
+            // Actually navigate to the target URL
+            return Ok(Some(self.scrape(&url, true, None, false, false).await?));
+        }
+
+        Ok(None)
+    }
+
+    /// Get current history length
+    pub fn get_history_length(&self) -> Result<usize> {
+        let history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+        Ok(history.entries.len())
+    }
+
+    /// Get current history state
+    pub fn get_current_history_state(&self) -> Result<Option<serde_json::Value>> {
+        let history = self.navigation_history.lock().map_err(|e| anyhow!("History lock error: {}", e))?;
+        if history.current_index >= 0 && (history.current_index as usize) < history.entries.len() {
+            Ok(history.entries[history.current_index as usize].state.clone())
+        } else {
+            Ok(None)
+        }
     }
 }

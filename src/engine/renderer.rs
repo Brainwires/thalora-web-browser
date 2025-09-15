@@ -2,8 +2,10 @@ use anyhow::{anyhow, Result};
 use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
+use std::sync::{Arc, Mutex};
 use crate::apis::WebApis;
 use crate::engine::dom::EnhancedDom;
+use crate::apis::history::BrowserHistory;
 
 
 pub struct RustRenderer {
@@ -795,6 +797,13 @@ impl RustRenderer {
             web_apis,
             dom_manager: Some(dom_manager.unwrap()),
         }
+    }
+
+    /// Setup the History API with a browser reference
+    pub fn setup_history_api(&mut self, browser: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>>) -> Result<()> {
+        let history_api = BrowserHistory::new(browser);
+        history_api.setup_history_globals(&mut self.js_context)?;
+        Ok(())
     }
 
     // /// Initialize DOM manager with HTML content for enhanced DOM operations

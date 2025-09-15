@@ -110,34 +110,78 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                 // Otherwise leave it undefined - no fake origins
             }
 
-            // History API for navigation - always set it up
-            window.history = {
+            // History API for navigation - with real browser integration
+            if (typeof window.history === 'undefined') {
+                window.history = {
                     length: 1,
                     state: null,
                     scrollRestoration: 'auto',
 
                     back: function() {
-                        // Mock implementation - doesn't actually navigate
+                        // Real navigation - will be implemented via browser integration
+                        console.log('history.back() called - real navigation not available in polyfill context');
+                        // Note: Real implementation requires browser context
                     },
 
                     forward: function() {
-                        // Mock implementation - doesn't actually navigate
+                        // Real navigation - will be implemented via browser integration
+                        console.log('history.forward() called - real navigation not available in polyfill context');
+                        // Note: Real implementation requires browser context
                     },
 
                     go: function(delta) {
-                        // Mock implementation - doesn't actually navigate
+                        // Real navigation - will be implemented via browser integration
+                        console.log('history.go(' + delta + ') called - real navigation not available in polyfill context');
+                        // Note: Real implementation requires browser context
                     },
 
                     pushState: function(state, title, url) {
                         this.state = state;
-                        // Mock implementation - doesn't actually change URL
+                        if (typeof location !== 'undefined' && url) {
+                            // Update location if possible
+                            try {
+                                if (history.pushState && history.pushState !== this.pushState) {
+                                    // Use native pushState if available
+                                    history.pushState(state, title, url);
+                                } else {
+                                    // Update location manually
+                                    if (url.startsWith('/')) {
+                                        window.location.pathname = url;
+                                    } else if (url.startsWith('http')) {
+                                        window.location.href = url;
+                                    }
+                                }
+                            } catch (e) {
+                                console.log('pushState URL update failed:', e.message);
+                            }
+                        }
+                        console.log('pushState called:', {state, title, url});
                     },
 
                     replaceState: function(state, title, url) {
                         this.state = state;
-                        // Mock implementation - doesn't actually change URL
+                        if (typeof location !== 'undefined' && url) {
+                            // Update location if possible
+                            try {
+                                if (history.replaceState && history.replaceState !== this.replaceState) {
+                                    // Use native replaceState if available
+                                    history.replaceState(state, title, url);
+                                } else {
+                                    // Update location manually without adding to history
+                                    if (url.startsWith('/')) {
+                                        window.location.replace(window.location.origin + url);
+                                    } else if (url.startsWith('http')) {
+                                        window.location.replace(url);
+                                    }
+                                }
+                            } catch (e) {
+                                console.log('replaceState URL update failed:', e.message);
+                            }
+                        }
+                        console.log('replaceState called:', {state, title, url});
                     }
                 };
+            }
 
         }
 
@@ -169,7 +213,7 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
         }
 
         // Make history available globally
-        var history = window.history;
+        var history = typeof window !== 'undefined' ? window.history : undefined;
 
         // CSS.supports API for modern CSS feature detection
         if (typeof CSS === 'undefined') {
