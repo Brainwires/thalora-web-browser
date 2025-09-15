@@ -1,33 +1,83 @@
 use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
-use crate::protocols::cdp::CdpServer;
+use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
+use crate::engine::browser::HeadlessWebBrowser;
+use std::sync::{Arc, Mutex};
 
 pub struct CdpTools {
+    browser: Option<Arc<Mutex<HeadlessWebBrowser>>>,
 }
 
 impl CdpTools {
     pub fn new() -> Self {
-        Self {}
-    }
-
-    pub async fn enable_runtime(&mut self, _args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
-        // For now, just return a success message since the CDP implementation is basic
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": "CDP Runtime domain enabled successfully (placeholder implementation)"
-            })],
-            is_error: false,
+        Self {
+            browser: None,
         }
     }
 
-    pub async fn evaluate_javascript(&mut self, args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
+    pub fn with_browser(browser: Arc<Mutex<HeadlessWebBrowser>>) -> Self {
+        Self {
+            browser: Some(browser),
+        }
+    }
+
+    pub async fn enable_runtime(&mut self, _args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+        // Use the actual CDP server to enable the runtime domain
+        let command = CdpCommand {
+            id: 1,
+            method: "Runtime.enable".to_string(),
+            params: None,
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if response.error.is_some() {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Runtime domain enable failed: {:?}", response.error)
+                        })],
+                        is_error: true,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": "CDP Runtime domain enabled successfully"
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "CDP Runtime domain enabled (no response)"
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Runtime domain enable error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
+        }
+    }
+
+    pub async fn evaluate_javascript(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
         let expression = match args.get("expression").and_then(|v| v.as_str()) {
             Some(expr) => expr,
             None => {
                 return McpResponse::ToolResult {
                     content: vec![serde_json::json!({
-                        "type": "text", 
+                        "type": "text",
                         "text": "Missing required parameter: expression"
                     })],
                     is_error: true,
@@ -35,27 +85,152 @@ impl CdpTools {
             }
         };
 
-        // Placeholder implementation - in a real implementation this would use CDP
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("CDP JavaScript evaluation (placeholder): {}", expression)
-            })],
-            is_error: false,
+        // Try to use the browser for JavaScript execution if available
+        if let Some(browser_ref) = &self.browser {
+            if let Ok(mut browser) = browser_ref.lock() {
+                match browser.execute_javascript(expression).await {
+                    Ok(result) => {
+                        let result_str = match result {
+                            boa_engine::JsValue::String(s) => s.to_std_string_escaped(),
+                            boa_engine::JsValue::Boolean(b) => b.to_string(),
+                            boa_engine::JsValue::Integer(i) => i.to_string(),
+                            boa_engine::JsValue::Rational(r) => r.to_string(),
+                            boa_engine::JsValue::Undefined => "undefined".to_string(),
+                            boa_engine::JsValue::Null => "null".to_string(),
+                            _ => format!("{:?}", result),
+                        };
+
+                        return McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript evaluation result: {}", result_str)
+                            })],
+                            is_error: false,
+                        };
+                    }
+                    Err(e) => {
+                        return McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript evaluation error: {}", e)
+                            })],
+                            is_error: true,
+                        };
+                    }
+                }
+            }
+        }
+
+        // Fallback to CDP server evaluation
+        let command = CdpCommand {
+            id: 2,
+            method: "Runtime.evaluate".to_string(),
+            params: Some(serde_json::json!({
+                "expression": expression,
+                "returnByValue": true
+            })),
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if let Some(error) = response.error {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP JavaScript evaluation failed: {}", error.message)
+                        })],
+                        is_error: true,
+                    }
+                } else if let Some(result) = response.result {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP JavaScript evaluation result: {}", result)
+                        })],
+                        is_error: false,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": "CDP JavaScript evaluation completed (no result)"
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "CDP JavaScript evaluation completed (no response)"
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP JavaScript evaluation error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 
-    pub async fn enable_debugger(&mut self, _args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": "CDP Debugger domain enabled successfully (placeholder implementation)"
-            })],
-            is_error: false,
+    pub async fn enable_debugger(&mut self, _args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+        let command = CdpCommand {
+            id: 3,
+            method: "Debugger.enable".to_string(),
+            params: None,
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if response.error.is_some() {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Debugger domain enable failed: {:?}", response.error)
+                        })],
+                        is_error: true,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": "CDP Debugger domain enabled successfully"
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "CDP Debugger domain enabled"
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Debugger domain enable error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 
-    pub async fn set_breakpoint(&mut self, args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn set_breakpoint(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
         let line_number = match args.get("line_number").and_then(|v| v.as_i64()) {
             Some(line) => line,
             None => {
@@ -69,50 +244,227 @@ impl CdpTools {
             }
         };
 
-        let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("(no URL specified)");
+        let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
 
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("CDP Breakpoint set at line {} in {} (placeholder implementation)", line_number, url)
-            })],
-            is_error: false,
+        let command = CdpCommand {
+            id: 4,
+            method: "Debugger.setBreakpointByUrl".to_string(),
+            params: Some(serde_json::json!({
+                "lineNumber": line_number,
+                "url": url
+            })),
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if let Some(error) = response.error {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Breakpoint set failed: {}", error.message)
+                        })],
+                        is_error: true,
+                    }
+                } else if let Some(result) = response.result {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Breakpoint set successfully at line {} in {}: {}", line_number, url, result)
+                        })],
+                        is_error: false,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Breakpoint set at line {} in {}", line_number, url)
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Breakpoint set at line {} in {}", line_number, url)
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Breakpoint set error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 
-    pub async fn enable_dom(&mut self, _args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": "CDP DOM domain enabled successfully (placeholder implementation)"
-            })],
-            is_error: false,
+    pub async fn enable_dom(&mut self, _args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+        let command = CdpCommand {
+            id: 5,
+            method: "DOM.enable".to_string(),
+            params: None,
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if response.error.is_some() {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP DOM domain enable failed: {:?}", response.error)
+                        })],
+                        is_error: true,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": "CDP DOM domain enabled successfully"
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "CDP DOM domain enabled"
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP DOM domain enable error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 
-    pub async fn get_document(&mut self, args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_document(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
         let depth = args.get("depth").and_then(|v| v.as_i64()).unwrap_or(1);
 
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("CDP DOM document retrieved with depth {} (placeholder implementation)", depth)
-            })],
-            is_error: false,
+        let command = CdpCommand {
+            id: 6,
+            method: "DOM.getDocument".to_string(),
+            params: Some(serde_json::json!({
+                "depth": depth
+            })),
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if let Some(error) = response.error {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP DOM document retrieval failed: {}", error.message)
+                        })],
+                        is_error: true,
+                    }
+                } else if let Some(result) = response.result {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP DOM document retrieved: {}", result)
+                        })],
+                        is_error: false,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": "CDP DOM document retrieved"
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "CDP DOM document retrieved"
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP DOM document retrieval error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 
-    pub async fn enable_network(&mut self, _args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": "CDP Network domain enabled successfully (placeholder implementation)"
-            })],
-            is_error: false,
+    pub async fn enable_network(&mut self, _args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+        let command = CdpCommand {
+            id: 7,
+            method: "Network.enable".to_string(),
+            params: None,
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if response.error.is_some() {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Network domain enable failed: {:?}", response.error)
+                        })],
+                        is_error: true,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": "CDP Network domain enabled successfully"
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": "CDP Network domain enabled"
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Network domain enable error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 
-    pub async fn get_response_body(&mut self, args: Value, _cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_response_body(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
         let request_id = match args.get("request_id").and_then(|v| v.as_str()) {
             Some(id) => id,
             None => {
@@ -126,12 +478,61 @@ impl CdpTools {
             }
         };
 
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("CDP Response body for request {} (placeholder implementation)", request_id)
-            })],
-            is_error: false,
+        let command = CdpCommand {
+            id: 8,
+            method: "Network.getResponseBody".to_string(),
+            params: Some(serde_json::json!({
+                "requestId": request_id
+            })),
+            session_id: None,
+        };
+
+        match cdp_server.handle_message(CdpMessage::Command(command)) {
+            Ok(Some(CdpMessage::Response(response))) => {
+                if let Some(error) = response.error {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Response body retrieval failed: {}", error.message)
+                        })],
+                        is_error: true,
+                    }
+                } else if let Some(result) = response.result {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Response body for request {}: {}", request_id, result)
+                        })],
+                        is_error: false,
+                    }
+                } else {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("CDP Response body for request {} retrieved", request_id)
+                        })],
+                        is_error: false,
+                    }
+                }
+            }
+            Ok(_) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Response body for request {} retrieved", request_id)
+                    })],
+                    is_error: false,
+                }
+            }
+            Err(e) => {
+                McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Response body retrieval error: {}", e)
+                    })],
+                    is_error: true,
+                }
+            }
         }
     }
 }

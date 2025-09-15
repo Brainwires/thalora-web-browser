@@ -6,6 +6,7 @@ pub mod service_worker;
 pub mod websocket;
 pub mod storage;
 pub mod events;
+pub mod timers;
 
 // Full-featured browser APIs
 pub mod webassembly;
@@ -33,6 +34,10 @@ impl WebApis {
         url_api::setup_url_api(context)?;
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
+
+        // Setup real timer implementation
+        let timer_manager = timers::TimerManager::new();
+        timer_manager.setup_real_timers(context).map_err(|e| anyhow::Error::msg(format!("Timer setup failed: {:?}", e)))?;
 
         let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e)))?;
         sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;

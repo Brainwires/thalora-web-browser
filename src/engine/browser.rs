@@ -1145,4 +1145,9 @@ impl HeadlessWebBrowser {
         
         None
     }
+
+    /// Execute JavaScript code safely in the browser context
+    pub async fn execute_javascript(&mut self, code: &str) -> Result<boa_engine::JsValue> {
+        self.renderer.execute_javascript_safely(code).await
+    }
 }
