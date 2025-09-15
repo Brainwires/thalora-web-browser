@@ -71,12 +71,12 @@ pub fn setup_timers(context: &mut Context) -> JsResult<()> {
             };
 
             // Make them globally available
-            global.setTimeout = setTimeout;
-            global.clearTimeout = clearTimeout;
-            global.setInterval = setInterval;
-            global.clearInterval = clearInterval;
-            global.requestAnimationFrame = requestAnimationFrame;
-            global.cancelAnimationFrame = cancelAnimationFrame;
+            globalThis.setTimeout = setTimeout;
+            globalThis.clearTimeout = clearTimeout;
+            globalThis.setInterval = setInterval;
+            globalThis.clearInterval = clearInterval;
+            globalThis.requestAnimationFrame = requestAnimationFrame;
+            globalThis.cancelAnimationFrame = cancelAnimationFrame;
         }
     "#))?;
 

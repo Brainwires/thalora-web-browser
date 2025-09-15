@@ -356,7 +356,7 @@ impl WebSocketJsApi {
                 if (this.readyState !== 1) {
                     throw new Error('WebSocket is not open');
                 }
-                console.log('WebSocket send:', data);
+                // WebSocket send
                 
                 // Simulate echo response for testing
                 var self = this;

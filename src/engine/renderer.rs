@@ -23,7 +23,10 @@ impl RustRenderer {
         let dom_manager = EnhancedDom::new("");
         // dom_manager.setup_dom_globals(&mut context).unwrap();
 
-        // Setup Web APIs polyfills (requires window to be defined)
+        // Setup polyfills first (includes console)
+        crate::apis::polyfills::setup_all_polyfills(&mut context).unwrap();
+
+        // Setup Web APIs polyfills (requires window and console to be defined)
         web_apis.setup_all_apis(&mut context).unwrap();
 
         // Additional bot detection and challenge-specific polyfills

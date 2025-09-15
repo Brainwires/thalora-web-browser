@@ -6,6 +6,10 @@ pub mod service_worker;
 pub mod websocket;
 pub mod storage;
 pub mod events;
+pub mod webassembly;
+pub mod geolocation;
+pub mod webrtc;
+pub mod media;
 
 // JavaScript polyfills organized by modules
 pub mod polyfills;
@@ -27,10 +31,26 @@ impl WebApis {
         url_api::setup_url_api(context)?;
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
+
         let sw_manager = service_worker::ServiceWorkerManager::new();
         sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;
+
         let web_storage = storage::WebStorage::new();
         web_storage.setup_storage_globals(context)?;
+
+        // Setup new full-featured browser APIs
+        let wasm_manager = webassembly::WebAssemblyManager::new();
+        wasm_manager.setup_webassembly_api(context).map_err(|e| anyhow::Error::msg(format!("WebAssembly setup failed: {:?}", e)))?;
+
+        let geo_manager = geolocation::GeolocationManager::new();
+        geo_manager.setup_geolocation_api(context).map_err(|e| anyhow::Error::msg(format!("Geolocation setup failed: {:?}", e)))?;
+
+        let webrtc_manager = webrtc::WebRTCManager::new();
+        webrtc_manager.setup_webrtc_api(context).map_err(|e| anyhow::Error::msg(format!("WebRTC setup failed: {:?}", e)))?;
+
+        let media_manager = media::MediaManager::new();
+        media_manager.setup_media_apis(context).map_err(|e| anyhow::Error::msg(format!("Media APIs setup failed: {:?}", e)))?;
+
         // events::setup_event_system(context)?; // TODO: Check if this function exists
 
         Ok(())

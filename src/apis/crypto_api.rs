@@ -115,7 +115,7 @@ pub fn setup_crypto(context: &mut Context) -> Result<()> {
             };
         }
 
-        console.log('✅ Crypto API (crypto, atob, btoa, TextEncoder, TextDecoder) initialized');
+        // Crypto API (crypto, atob, btoa, TextEncoder, TextDecoder) initialized
     "#)).map_err(|e| anyhow::anyhow!("Failed to setup crypto API: {}", e))?;
 
     Ok(())

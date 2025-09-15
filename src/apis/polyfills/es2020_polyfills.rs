@@ -3,6 +3,10 @@ use boa_engine::{Context, JsResult, Source};
 /// Setup ES2020 polyfills (BigInt, nullish coalescing, optional chaining, etc.)
 pub fn setup_es2020_polyfills(context: &mut Context) -> JsResult<()> {
     context.eval(Source::from_bytes(r#"
+        // Create global object if it doesn't exist
+        if (typeof global === 'undefined') {
+            var global = globalThis;
+        }
         // String.prototype.matchAll (ES2020)
         if (!String.prototype.matchAll) {
             String.prototype.matchAll = function(regexp) {
@@ -106,8 +110,8 @@ pub fn setup_es2020_polyfills(context: &mut Context) -> JsResult<()> {
         }
 
         // Dynamic imports (basic support - actual module loading would need runtime support)
-        if (!global.import && typeof global !== 'undefined') {
-            global.import = function(specifier) {
+        if (!globalThis.import && typeof global !== 'undefined') {
+            globalThis.import = function(specifier) {
                 return Promise.reject(new Error('Dynamic import not supported in this environment'));
             };
         }
@@ -119,9 +123,9 @@ pub fn setup_es2020_polyfills(context: &mut Context) -> JsResult<()> {
         // This is handled by the engine implementation
 
         // import.meta (basic support)
-        if (typeof global !== 'undefined' && !global.import) {
-            global.import = function() {};
-            global.import['meta'] = {
+        if (typeof global !== 'undefined' && !globalThis.import) {
+            globalThis.import = function() {};
+            globalThis.import['meta'] = {
                 url: 'file://unknown'
             };
         }

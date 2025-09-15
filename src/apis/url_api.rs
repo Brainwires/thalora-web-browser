@@ -4,6 +4,52 @@ use boa_engine::{Context, Source};
 /// Setup URL and URLSearchParams API
 pub fn setup_url_api(context: &mut Context) -> Result<()> {
     context.eval(Source::from_bytes(r#"
+        // Create window object if it doesn't exist
+        if (typeof window === 'undefined') {
+            var window = globalThis;
+        }
+
+        // Ensure window has necessary browser properties
+        if (!window.location) {
+            window.location = {
+                href: 'about:blank',
+                protocol: 'about:',
+                host: '',
+                hostname: '',
+                port: '',
+                pathname: 'blank',
+                search: '',
+                hash: '',
+                origin: 'null'
+            };
+        }
+
+        if (!window.document) {
+            window.document = {
+                createElement: function(tag) {
+                    return {
+                        tagName: tag.toUpperCase(),
+                        innerHTML: '',
+                        textContent: '',
+                        setAttribute: function(name, value) { this[name] = value; },
+                        getAttribute: function(name) { return this[name]; }
+                    };
+                },
+                getElementById: function(id) { return null; },
+                querySelector: function(sel) { return null; }
+            };
+        }
+
+        if (!window.navigator) {
+            window.navigator = {
+                userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                platform: 'MacIntel',
+                language: 'en-US',
+                languages: ['en-US', 'en'],
+                cookieEnabled: true,
+                onLine: true
+            };
+        }
         // URL API
         if (typeof URL === 'undefined') {
             window.URL = function(url, base) {
@@ -42,7 +88,7 @@ pub fn setup_url_api(context: &mut Context) -> Result<()> {
             };
 
             window.URL.revokeObjectURL = function(url) {
-                console.log('Revoked object URL:', url);
+                // Revoked object URL (console.log removed for testing)
             };
 
             // Make URL available at global level
@@ -95,7 +141,7 @@ pub fn setup_url_api(context: &mut Context) -> Result<()> {
             this.URLSearchParams = window.URLSearchParams;
         }
 
-        console.log('✅ URL and URLSearchParams APIs initialized');
+        // URL and URLSearchParams APIs initialized
     "#)).map_err(|e| anyhow::anyhow!("Failed to setup URL API: {}", e))?;
 
     Ok(())

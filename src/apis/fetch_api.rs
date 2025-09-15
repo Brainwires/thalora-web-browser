@@ -286,7 +286,7 @@ pub fn setup_fetch(context: &mut Context) -> Result<()> {
         // FETCH API (Simplified - delegates to Rust implementation)
         if (typeof fetch === 'undefined') {
             window.fetch = function(input, init) {
-                console.log('Fetch called with:', input, init);
+                // Fetch called with input and init
 
                 // Return a basic response for now
                 // In a real implementation, this would call into Rust
