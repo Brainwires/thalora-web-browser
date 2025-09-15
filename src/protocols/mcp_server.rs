@@ -627,60 +627,48 @@ impl McpServer {
 
     async fn perform_google_search(&mut self, query: &str, num_results: usize) -> anyhow::Result<SearchResults> {
         use tokio::time::{sleep, Duration};
-        use rand::Rng;
-        
-        // Step 1: First visit Google homepage to establish session
-        let _home_data = self.browser.scrape("https://www.google.com", true, None, false, false).await?;
-        
-        // Wait a bit to simulate human behavior
-        sleep(Duration::from_millis(1000 + rand::thread_rng().gen_range(500..2000))).await;
-        
-        // Step 2: Build search URL with proper parameters
+
+        // Simple direct search - same approach that works in our tests
         let search_url = format!(
-            "https://www.google.com/search?q={}&num={}&hl=en&safe=off&filter=0&pws=0",
-            query.replace(' ', "+"),
-            num_results
+            "https://www.google.com/search?q={}",
+            query.replace(' ', "+")
         );
-        
-        // Step 3: Perform the search with JavaScript enabled to handle any challenges
-        let mut search_data = self.browser.scrape(&search_url, true, None, true, false).await?;
-        
-        // Step 4: Check if we got a challenge/redirect page
-        if search_data.content.contains("enablejs") || search_data.content.contains("unusual traffic") {
-            
-            // Extract the redirect URL from the challenge page
-            if let Some(redirect_start) = search_data.content.find("/httpservice/retry/enablejs") {
-                if let Some(redirect_end) = search_data.content[redirect_start..].find("\"") {
-                    let redirect_path = &search_data.content[redirect_start..redirect_start + redirect_end];
+
+        // Use the same parameters that work in our tests
+        let mut search_data = self.browser.scrape(&search_url, false, None, false, false).await?;
+
+        // Debug: Log the response details
+        println!("DEBUG: Google response length: {} chars", search_data.content.len());
+        println!("DEBUG: First 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);
+
+        // Check if we got the JavaScript challenge page
+        if search_data.content.contains("enablejs") && search_data.content.contains("httpservice/retry") {
+            println!("DEBUG: Got JavaScript challenge, following redirect...");
+
+            // Extract the redirect URL from the meta refresh tag
+            if let Some(start) = search_data.content.find("/httpservice/retry/enablejs") {
+                if let Some(end) = search_data.content[start..].find("\"") {
+                    let redirect_path = &search_data.content[start..start + end];
                     let redirect_url = format!("https://www.google.com{}", redirect_path);
-                    
-                    // Wait to simulate human behavior when facing a challenge
-                    sleep(Duration::from_millis(2000 + rand::thread_rng().gen_range(1000..3000))).await;
-                    
-                    // Execute the JavaScript challenge by visiting the redirect
-                    let _challenge_response = self.browser.scrape(&redirect_url, true, None, true, false).await?;
-                    
-                    // Wait again after challenge
-                    sleep(Duration::from_millis(1000 + rand::thread_rng().gen_range(500..2000))).await;
-                    
-                    // Now retry the original search
-                    search_data = self.browser.scrape(&search_url, true, None, true, false).await?;
-                    
-                    // If still getting challenges, try one more approach with different parameters
-                    if search_data.content.contains("enablejs") {
-                        sleep(Duration::from_millis(5000)).await; // Wait longer
-                        let simple_search_url = format!("https://www.google.com/search?q={}", query.replace(' ', "+"));
-                        search_data = self.browser.scrape(&simple_search_url, true, None, true, false).await?;
-                    }
-                } else {
-                    // Fallback: wait and retry with minimal parameters
-                    sleep(Duration::from_millis(5000)).await;
-                    let simple_search_url = format!("https://www.google.com/search?q={}", query.replace(' ', "+"));
-                    search_data = self.browser.scrape(&simple_search_url, true, None, true, false).await?;
+
+                    println!("DEBUG: Following redirect to: {}", redirect_url);
+
+                    // Follow the redirect with JavaScript enabled to handle the challenge
+                    let _challenge_response = self.browser.scrape(&redirect_url, true, None, false, false).await?;
+
+                    // Wait a moment for any JavaScript to execute
+                    sleep(Duration::from_millis(2000)).await;
+
+                    // Now retry the original search - should get real results
+                    println!("DEBUG: Retrying original search after challenge...");
+                    search_data = self.browser.scrape(&search_url, true, None, false, false).await?;
+
+                    println!("DEBUG: After challenge - response length: {} chars", search_data.content.len());
+                    println!("DEBUG: After challenge - first 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);
                 }
             }
         }
-        
+
         // Step 5: Parse the search results
         let mut results = self.parse_google_search_results(&search_data.content, num_results).await?;
         results.query = query.to_string();

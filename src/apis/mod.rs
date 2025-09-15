@@ -7,6 +7,7 @@ pub mod websocket;
 pub mod storage;
 pub mod events;
 pub mod timers;
+pub mod navigator;
 
 // Full-featured browser APIs
 pub mod webassembly;
@@ -30,10 +31,19 @@ impl WebApis {
 
     /// Setup all Web API implementations in the JavaScript context
     pub fn setup_all_apis(&self, context: &mut Context) -> Result<()> {
+        // Setup core browser APIs first
+        let navigator_manager = navigator::NavigatorManager::new();
+        navigator_manager.setup_navigator_api(context).map_err(|e| anyhow::Error::msg(format!("Navigator setup failed: {:?}", e)))?;
+
         // Setup all Web API modules
         url_api::setup_url_api(context)?;
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
+
+        // Setup WebSocket API
+        let websocket_manager = websocket::WebSocketManager::new();
+        let websocket_api = websocket::WebSocketJsApi::new(websocket_manager);
+        websocket_api.setup_websocket_globals(context).map_err(|e| anyhow::Error::msg(format!("WebSocket setup failed: {:?}", e)))?;
 
         // Setup real timer implementation
         let timer_manager = timers::TimerManager::new();

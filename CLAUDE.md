@@ -116,6 +116,21 @@ The project serves as an MCP server providing 17+ tools for AI models:
 
 Start the MCP server: `./target/release/synaptic`
 
+### Testing MCP Tools
+**IMPORTANT**: This is a stdio-based MCP server. Do NOT write test files - use stdin/stdout piping instead.
+
+Test MCP tools by piping JSON requests directly to the executable:
+```bash
+# Test tools list
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/synaptic
+
+# Test Google search
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "google_search", "arguments": {"query": "test", "num_results": 1}}}' | ./target/release/synaptic
+
+# Test URL scraping
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/release/synaptic
+```
+
 ## Development Patterns
 
 ### Adding New Features
