@@ -5,7 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut context = Context::default();
 
     // Setup console first
-    synaptic::apis::polyfills::console::setup_console(&mut context)?;
+    thalora::apis::polyfills::console::setup_console(&mut context)?;
 
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context)?;

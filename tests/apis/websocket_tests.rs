@@ -12,7 +12,7 @@ async fn test_websocket_connection() {
     
     // Verify connection state
     let state = manager.get_connection_state(&connection_id).unwrap();
-    assert!(matches!(state, synaptic::websocket::ConnectionState::Open));
+    assert!(matches!(state, thalora::websocket::ConnectionState::Open));
     
     // Test message sending (this might be where it hangs)
     tokio::time::timeout(
@@ -72,12 +72,12 @@ async fn test_websocket_ping_pong() {
     let (sent, received) = manager.get_message_history(&connection_id).unwrap();
     
     // Should have ping in sent messages
-    let ping_message = sent.iter().find(|msg| matches!(msg.message_type, synaptic::websocket::MessageType::Ping));
+    let ping_message = sent.iter().find(|msg| matches!(msg.message_type, thalora::websocket::MessageType::Ping));
     assert!(ping_message.is_some());
     assert_eq!(ping_message.unwrap().data, "ping data");
     
     // Should have pong in received messages
-    let pong_message = received.iter().find(|msg| matches!(msg.message_type, synaptic::websocket::MessageType::Pong));
+    let pong_message = received.iter().find(|msg| matches!(msg.message_type, thalora::websocket::MessageType::Pong));
     assert!(pong_message.is_some());
     assert_eq!(pong_message.unwrap().data, "ping data");
     
@@ -160,9 +160,9 @@ async fn test_message_handlers() {
     // Add a message handler that responds to specific messages
     manager.add_message_handler(|message| {
         if message.data.contains("hello") {
-            Ok(Some(synaptic::websocket::WebSocketMessage {
+            Ok(Some(thalora::websocket::WebSocketMessage {
                 timestamp: tokio::time::Instant::now(),
-                message_type: synaptic::websocket::MessageType::Text,
+                message_type: thalora::websocket::MessageType::Text,
                 data: "Hello back!".to_string(),
                 binary: false,
             }))

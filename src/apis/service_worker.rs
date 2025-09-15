@@ -90,7 +90,7 @@ impl ServiceWorkerManager {
     pub fn new() -> Result<Self> {
         let storage_dir = dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("synaptic")
+            .join("thalora")
             .join("service_workers");
 
         fs::create_dir_all(&storage_dir)

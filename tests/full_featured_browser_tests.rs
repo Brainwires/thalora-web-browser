@@ -6,7 +6,7 @@ async fn test_webassembly_api_comprehensive() {
     let mut context = Context::default();
 
     // Setup console first
-    synaptic::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
+    thalora::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
 
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context).expect("Failed to setup WebAPIs");
@@ -51,7 +51,7 @@ async fn test_webassembly_api_comprehensive() {
 #[tokio::test]
 async fn test_geolocation_api_comprehensive() {
     let mut context = Context::default();
-    synaptic::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
+    thalora::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context).expect("Failed to setup WebAPIs");
 
@@ -100,7 +100,7 @@ async fn test_geolocation_api_comprehensive() {
 #[tokio::test]
 async fn test_webrtc_api_comprehensive() {
     let mut context = Context::default();
-    synaptic::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
+    thalora::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context).expect("Failed to setup WebAPIs");
 
@@ -146,7 +146,7 @@ async fn test_webrtc_api_comprehensive() {
 #[tokio::test]
 async fn test_media_api_comprehensive() {
     let mut context = Context::default();
-    synaptic::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
+    thalora::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context).expect("Failed to setup WebAPIs");
 
@@ -238,7 +238,7 @@ async fn test_webgl_api_integration() {
 #[tokio::test]
 async fn test_full_browser_compatibility() {
     let mut context = Context::default();
-    synaptic::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
+    thalora::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context).expect("Failed to setup WebAPIs");
 
@@ -258,5 +258,5 @@ async fn test_full_browser_compatibility() {
     "#)).unwrap();
     assert_eq!(result.to_string(&mut context).unwrap().to_std_string_escaped(), "true");
 
-    println!("✅ Full browser compatibility test passed - Synaptic is now a FULL-FEATURED browser!");
+    println!("✅ Full browser compatibility test passed - Thalora is now a FULL-FEATURED browser!");
 }
