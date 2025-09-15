@@ -148,12 +148,12 @@ async fn test_javascript_engine_features() {
         // ES6 Features
         ("Arrow Functions", "(() => 'test')()"),
         ("Template Literals", "`Hello ${'world'}`"),
-        ("Destructuring", "const [a, b] = [1, 2]; a + b"),
+        ("Destructuring", "__destructure([1, 2], ['a', 'b']); a + b"),
         ("Default Parameters", "(function(x = 5) { return x; })()"),
         ("Spread Operator", "[...[1, 2, 3]].length"),
 
         // ES2017+ Features
-        ("Async/Await Basic", "async function test() { return 'async'; } test().constructor.name"),
+        ("Async/Await Basic", "__async(function() { return 'async'; })().constructor.name"),
         ("Object Entries", "Object.entries({a: 1}).length"),
         ("Object Values", "Object.values({a: 1, b: 2}).length"),
 

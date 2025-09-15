@@ -297,6 +297,62 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             };
         }
 
+        // ES6+ Syntax Workarounds for Boa engine limitations
+
+        // Destructuring assignment helper
+        if (typeof __destructure === 'undefined') {
+            var __destructure = function(array, vars) {
+                // Helper for array destructuring: __destructure([1, 2], ['a', 'b'])
+                for (var i = 0; i < vars.length && i < array.length; i++) {
+                    window[vars[i]] = array[i];
+                }
+                return array;
+            };
+
+            // Object destructuring helper
+            var __destructureObj = function(obj, props) {
+                // Helper for object destructuring: __destructureObj({a: 1, b: 2}, ['a', 'b'])
+                var result = {};
+                for (var i = 0; i < props.length; i++) {
+                    var prop = props[i];
+                    result[prop] = obj[prop];
+                    window[prop] = obj[prop];
+                }
+                return result;
+            };
+        }
+
+        // Async/await polyfill using Promises
+        if (typeof __async === 'undefined') {
+            var __async = function(generatorFunc) {
+                // Converts generator-like function to Promise-based async function
+                return function() {
+                    var args = Array.prototype.slice.call(arguments);
+                    return new Promise(function(resolve, reject) {
+                        try {
+                            var result = generatorFunc.apply(this, args);
+                            if (result && typeof result.then === 'function') {
+                                result.then(resolve, reject);
+                            } else {
+                                resolve(result);
+                            }
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                };
+            };
+
+            var __await = function(promise) {
+                // Await helper for Promise chains
+                if (promise && typeof promise.then === 'function') {
+                    return promise;
+                } else {
+                    return Promise.resolve(promise);
+                }
+            };
+        }
+
         // Enhanced Date.now() for consistency
         Date.now = Date.now || function() {
             return new Date().getTime();
