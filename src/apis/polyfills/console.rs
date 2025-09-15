@@ -32,6 +32,18 @@ pub fn setup_console(context: &mut Context) -> JsResult<()> {
         console.trace = function() {
             console.log('Trace:', new Error().stack || 'No stack trace available');
         };
+
+        // Chrome 134: Enhanced console.timeStamp
+        console.timeStamp = function(label, options) {
+            var timestamp = Date.now();
+            var message = label || 'TimeStamp';
+
+            if (options && typeof options === 'object' && options.detail) {
+                message += ': ' + JSON.stringify(options.detail);
+            }
+
+            console.log('[TimeStamp] ' + message + ' @ ' + timestamp);
+        };
     "#))?;
 
     Ok(())

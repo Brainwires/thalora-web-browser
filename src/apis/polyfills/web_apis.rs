@@ -202,6 +202,213 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             window.history = history;
         }
 
+        // Basic DOM API - Element constructor
+        if (typeof Element === 'undefined') {
+            var Element = function Element() {};
+            Element.prototype = {
+                constructor: Element,
+                setHTMLUnsafe: function(html) {
+                    console.log('Element.setHTMLUnsafe called with:', html);
+                    this.innerHTML = html;
+                    return this;
+                },
+                innerHTML: '',
+                tagName: 'DIV'
+            };
+        }
+
+        // Basic DOM API - Document constructor
+        if (typeof Document === 'undefined') {
+            var Document = function Document() {};
+            Document.parseHTMLUnsafe = function(html) {
+                console.log('Document.parseHTMLUnsafe called with:', html);
+                var element = new Element();
+                element.innerHTML = html;
+                return element;
+            };
+        }
+
+        // Basic document object if it doesn't exist
+        if (typeof document === 'undefined') {
+            var document = {
+                visibilityState: 'visible',
+                hidden: false,
+                addEventListener: function(type, listener) {
+                    console.log('document.addEventListener called for:', type);
+                },
+                removeEventListener: function(type, listener) {
+                    console.log('document.removeEventListener called for:', type);
+                }
+            };
+        }
+
+        // Storage Access API (Chrome 125) - add to document using Object.defineProperty
+        if (typeof document !== 'undefined' && typeof document.requestStorageAccess === 'undefined') {
+            try {
+                Object.defineProperty(document, 'requestStorageAccess', {
+                    value: function(options) {
+                        console.log('document.requestStorageAccess called with options:', options);
+                        // In headless mode, assume storage access is granted
+                        return Promise.resolve();
+                    },
+                    writable: true,
+                    enumerable: false,
+                    configurable: true
+                });
+            } catch (e) {
+                // Fallback for environments where Object.defineProperty doesn't work
+                document.requestStorageAccess = function(options) {
+                    console.log('document.requestStorageAccess called with options:', options);
+                    return Promise.resolve();
+                };
+            }
+        }
+
+        if (typeof document !== 'undefined' && typeof document.hasStorageAccess === 'undefined') {
+            try {
+                Object.defineProperty(document, 'hasStorageAccess', {
+                    value: function() {
+                        console.log('document.hasStorageAccess called');
+                        // In headless mode, assume storage access is available
+                        return Promise.resolve(true);
+                    },
+                    writable: true,
+                    enumerable: false,
+                    configurable: true
+                });
+            } catch (e) {
+                // Fallback for environments where Object.defineProperty doesn't work
+                document.hasStorageAccess = function() {
+                    console.log('document.hasStorageAccess called');
+                    return Promise.resolve(true);
+                };
+            }
+        }
+
+        // ReadableStream API
+        if (typeof ReadableStream === 'undefined') {
+            var ReadableStream = function ReadableStream(underlyingSource, strategy) {
+                this.underlyingSource = underlyingSource || {};
+                this.strategy = strategy || {};
+                this.locked = false;
+                this._controller = null;
+                this._started = false;
+
+                // Initialize the stream
+                if (this.underlyingSource.start) {
+                    this._controller = {
+                        enqueue: function(chunk) {
+                            console.log('ReadableStream: enqueuing chunk', chunk);
+                        },
+                        close: function() {
+                            console.log('ReadableStream: closing stream');
+                        },
+                        error: function(error) {
+                            console.log('ReadableStream: error', error);
+                        }
+                    };
+                    try {
+                        this.underlyingSource.start(this._controller);
+                        this._started = true;
+                    } catch (e) {
+                        console.error('ReadableStream start error:', e);
+                    }
+                }
+            };
+
+            ReadableStream.prototype[Symbol.asyncIterator] = function() {
+                console.log('ReadableStream: creating async iterator');
+                return {
+                    next: function() {
+                        return Promise.resolve({ value: undefined, done: true });
+                    },
+                    return: function() {
+                        return Promise.resolve({ done: true });
+                    }
+                };
+            };
+
+            ReadableStream.prototype.getReader = function() {
+                return {
+                    read: function() {
+                        return Promise.resolve({ value: undefined, done: true });
+                    },
+                    cancel: function() {
+                        return Promise.resolve();
+                    }
+                };
+            };
+        }
+
+        // WebSocketStream API (Chrome 124)
+        if (typeof WebSocketStream === 'undefined') {
+            var WebSocketStream = function WebSocketStream(url, options) {
+                console.log('WebSocketStream created:', url, options);
+                this.url = url;
+                this.options = options || {};
+                this.readyState = 0; // CONNECTING
+
+                // Simulate connection
+                var self = this;
+                setTimeout(function() {
+                    self.readyState = 1; // OPEN
+                }, 100);
+            };
+
+            WebSocketStream.prototype.connection = Promise.resolve({
+                readable: new ReadableStream(),
+                writable: {
+                    getWriter: function() {
+                        return {
+                            write: function(data) {
+                                console.log('WebSocketStream write:', data);
+                                return Promise.resolve();
+                            },
+                            close: function() {
+                                return Promise.resolve();
+                            }
+                        };
+                    }
+                }
+            });
+        }
+
+        // PressureObserver API (Chrome 125 - Compute Pressure)
+        if (typeof PressureObserver === 'undefined') {
+            var PressureObserver = function PressureObserver(callback, options) {
+                this.callback = callback;
+                this.options = options || {};
+                this.observing = false;
+            };
+
+            PressureObserver.prototype.observe = function(source) {
+                console.log('PressureObserver.observe called for source:', source);
+                this.observing = true;
+                // Simulate no pressure data in headless mode
+                setTimeout(() => {
+                    if (this.observing && this.callback) {
+                        this.callback([{
+                            source: source || 'cpu',
+                            state: 'nominal',
+                            time: performance.now ? performance.now() : Date.now()
+                        }], this);
+                    }
+                }, 100);
+            };
+
+            PressureObserver.prototype.unobserve = function(source) {
+                console.log('PressureObserver.unobserve called for source:', source);
+                this.observing = false;
+            };
+
+            PressureObserver.prototype.disconnect = function() {
+                console.log('PressureObserver.disconnect called');
+                this.observing = false;
+            };
+
+            PressureObserver.knownSources = ['cpu'];
+        }
+
         // CSS.supports API for modern CSS feature detection
         if (typeof CSS === 'undefined') {
             var CSS = {};
@@ -831,6 +1038,819 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                     this.data[name] = value;
                 };
             };
+        }
+
+        // Chrome 126: GamepadHapticActuator constructor
+        if (typeof GamepadHapticActuator === 'undefined') {
+            var GamepadHapticActuator = function() {
+                this.type = 'dual-rumble';
+                this.canPlay = function(effects) { return true; };
+                this.playEffect = function(type, params) {
+                    return Promise.resolve();
+                };
+                this.reset = function() {
+                    return Promise.resolve();
+                };
+            };
+        }
+
+        // Chrome 126: WebGLObject constructor
+        if (typeof WebGLObject === 'undefined') {
+            var WebGLObject = function() {
+                // Base WebGL object constructor
+            };
+        }
+
+        // Chrome 127: MediaMetadata with chapter support
+        if (typeof MediaMetadata === 'undefined') {
+            var MediaMetadata = function(metadata) {
+                if (metadata) {
+                    this.title = metadata.title || '';
+                    this.artist = metadata.artist || '';
+                    this.album = metadata.album || '';
+                    this.artwork = metadata.artwork || [];
+                    // Chrome 127: Chapter information support
+                    this.chapterInfo = metadata.chapterInfo || [];
+                }
+            };
+        }
+
+        // Chrome 127: User Activation API
+        if (typeof navigator !== 'undefined' && typeof navigator.userActivation === 'undefined') {
+            navigator.userActivation = {
+                hasBeenActive: true,
+                isActive: true
+            };
+        }
+
+        // Chrome 127: View Transitions API
+        if (typeof document !== 'undefined' && typeof document.startViewTransition === 'undefined') {
+            document.startViewTransition = function(callback) {
+                // Mock implementation - execute callback immediately
+                if (typeof callback === 'function') {
+                    try {
+                        callback();
+                    } catch (e) {
+                        console.warn('View transition callback error:', e);
+                    }
+                }
+
+                // Return a ViewTransition-like object
+                return {
+                    finished: Promise.resolve(),
+                    ready: Promise.resolve(),
+                    updateCallbackDone: Promise.resolve(),
+                    skipTransition: function() {}
+                };
+            };
+        }
+
+        // Chrome 127: Document Picture-in-Picture API
+        if (typeof documentPictureInPicture === 'undefined') {
+            var documentPictureInPicture = {
+                requestWindow: function(options) {
+                    // Mock implementation - return rejected promise
+                    return Promise.reject(new Error('Document Picture-in-Picture not supported in headless mode'));
+                },
+                window: null
+            };
+        }
+
+        // Chrome 128: document.caretPositionFromPoint
+        if (typeof document !== 'undefined' && typeof document.caretPositionFromPoint === 'undefined') {
+            document.caretPositionFromPoint = function(x, y) {
+                // Mock implementation - return a CaretPosition-like object
+                return {
+                    offsetNode: document.body,
+                    offset: 0,
+                    getClientRect: function() {
+                        return {
+                            left: x,
+                            top: y,
+                            right: x,
+                            bottom: y,
+                            width: 0,
+                            height: 0
+                        };
+                    }
+                };
+            };
+        }
+
+        // Chrome 128: PointerEvent constructor with deviceProperties
+        if (typeof PointerEvent === 'undefined') {
+            var PointerEvent = function(type, options) {
+                options = options || {};
+
+                // Create a basic event object
+                var event = {
+                    type: type,
+                    bubbles: options.bubbles || false,
+                    cancelable: options.cancelable || false,
+                    pointerId: options.pointerId || 0,
+                    width: options.width || 1,
+                    height: options.height || 1,
+                    pressure: options.pressure || 0,
+                    tangentialPressure: options.tangentialPressure || 0,
+                    tiltX: options.tiltX || 0,
+                    tiltY: options.tiltY || 0,
+                    twist: options.twist || 0,
+                    pointerType: options.pointerType || '',
+                    isPrimary: options.isPrimary || false,
+                    // Chrome 128: deviceProperties with uniqueId
+                    deviceProperties: {
+                        uniqueId: 'mock-device-' + Math.random().toString(36).substr(2, 9)
+                    }
+                };
+
+                return event;
+            };
+        } else {
+            // Extend existing PointerEvent with deviceProperties if it doesn't exist
+            var originalPointerEvent = PointerEvent;
+            PointerEvent = function(type, options) {
+                var event = new originalPointerEvent(type, options);
+                if (!event.deviceProperties) {
+                    event.deviceProperties = {
+                        uniqueId: 'mock-device-' + Math.random().toString(36).substr(2, 9)
+                    };
+                }
+                return event;
+            };
+        }
+
+        // Chrome 129: scheduler.yield API
+        if (typeof scheduler === 'undefined') {
+            var scheduler = {
+                yield: function() {
+                    // Return a promise that resolves immediately
+                    // In real implementation, this would yield to the browser
+                    return Promise.resolve();
+                }
+            };
+        } else if (typeof scheduler.yield === 'undefined') {
+            scheduler.yield = function() {
+                return Promise.resolve();
+            };
+        }
+
+        // Chrome 129: Intl.DurationFormat
+        if (typeof Intl !== 'undefined' && typeof Intl.DurationFormat === 'undefined') {
+            Intl.DurationFormat = function(locale, options) {
+                this.locale = locale || 'en-US';
+                this.options = options || {};
+
+                this.format = function(duration) {
+                    var parts = [];
+                    if (duration.hours) {
+                        parts.push(duration.hours + ' hr');
+                    }
+                    if (duration.minutes) {
+                        parts.push(duration.minutes + ' min');
+                    }
+                    if (duration.seconds) {
+                        parts.push(duration.seconds + ' sec');
+                    }
+                    return parts.join(' ');
+                };
+
+                this.formatToParts = function(duration) {
+                    var parts = [];
+                    if (duration.hours) {
+                        parts.push({type: 'hours', value: duration.hours});
+                        parts.push({type: 'literal', value: ' hr'});
+                    }
+                    if (duration.minutes) {
+                        if (parts.length > 0) parts.push({type: 'literal', value: ' '});
+                        parts.push({type: 'minutes', value: duration.minutes});
+                        parts.push({type: 'literal', value: ' min'});
+                    }
+                    if (duration.seconds) {
+                        if (parts.length > 0) parts.push({type: 'literal', value: ' '});
+                        parts.push({type: 'seconds', value: duration.seconds});
+                        parts.push({type: 'literal', value: ' sec'});
+                    }
+                    return parts;
+                };
+            };
+        }
+
+        // Chrome 129: PublicKeyCredential constructor
+        if (typeof PublicKeyCredential === 'undefined') {
+            var PublicKeyCredential = function() {
+                // Mock PublicKeyCredential constructor
+            };
+
+            // Chrome 129: WebAuthn serialization methods
+            PublicKeyCredential.prototype.toJSON = function() {
+                return {
+                    id: this.id || 'mock-credential-id',
+                    type: 'public-key',
+                    response: {}
+                };
+            };
+
+            PublicKeyCredential.parseCreationOptionsFromJSON = function(json) {
+                return json; // Mock implementation
+            };
+
+            PublicKeyCredential.parseRequestOptionsFromJSON = function(json) {
+                return json; // Mock implementation
+            };
+
+            // Chrome 133: getClientCapabilities method
+            PublicKeyCredential.getClientCapabilities = function() {
+                return Promise.resolve({
+                    rk: true, // Resident key support
+                    up: true, // User presence support
+                    uv: false, // User verification support (limited in headless)
+                    plat: false, // Platform attachment
+                    clientPin: false, // Client PIN support
+                    largeBlobs: false, // Large blob support
+                    credMgmt: false, // Credential management support
+                    credProtect: false, // Credential protection support
+                    bioEnroll: false, // Biometric enrollment support
+                    userVerificationMgmtPreview: false
+                });
+            };
+        } else {
+            // Add serialization methods if they don't exist
+            if (typeof PublicKeyCredential.prototype.toJSON === 'undefined') {
+                PublicKeyCredential.prototype.toJSON = function() {
+                    return {
+                        id: this.id || 'mock-credential-id',
+                        type: 'public-key',
+                        response: {}
+                    };
+                };
+            }
+
+            if (typeof PublicKeyCredential.parseCreationOptionsFromJSON === 'undefined') {
+                PublicKeyCredential.parseCreationOptionsFromJSON = function(json) {
+                    return json;
+                };
+            }
+
+            if (typeof PublicKeyCredential.parseRequestOptionsFromJSON === 'undefined') {
+                PublicKeyCredential.parseRequestOptionsFromJSON = function(json) {
+                    return json;
+                };
+            }
+
+            // Chrome 133: getClientCapabilities method
+            if (typeof PublicKeyCredential.getClientCapabilities === 'undefined') {
+                PublicKeyCredential.getClientCapabilities = function() {
+                    return Promise.resolve({
+                        rk: true, // Resident key support
+                        up: true, // User presence support
+                        uv: false, // User verification support (limited in headless)
+                        plat: false, // Platform attachment
+                        clientPin: false, // Client PIN support
+                        largeBlobs: false, // Large blob support
+                        credMgmt: false, // Credential management support
+                        credProtect: false, // Credential protection support
+                        bioEnroll: false, // Biometric enrollment support
+                        userVerificationMgmtPreview: false
+                    });
+                };
+            }
+        }
+
+        // Chrome 129: FileSystemObserver (Origin Trial)
+        if (typeof FileSystemObserver === 'undefined') {
+            var FileSystemObserver = function(callback) {
+                this.callback = callback;
+            };
+
+            FileSystemObserver.prototype.observe = function(handle, options) {
+                // Mock implementation - not functional in headless mode
+                console.warn('FileSystemObserver is not functional in headless mode');
+            };
+
+            FileSystemObserver.prototype.unobserve = function(handle) {
+                // Mock implementation
+            };
+
+            FileSystemObserver.prototype.disconnect = function() {
+                // Mock implementation
+            };
+        }
+
+        // Chrome 130: IndexedDB API
+        if (typeof indexedDB === 'undefined') {
+            var indexedDB = {
+                open: function(name, version) {
+                    // Mock IDBOpenDBRequest
+                    var request = {
+                        result: null,
+                        error: null,
+                        readyState: 'pending',
+                        onsuccess: null,
+                        onerror: null,
+                        onupgradeneeded: null,
+                        onblocked: null,
+                        addEventListener: function(type, listener) {},
+                        removeEventListener: function(type, listener) {}
+                    };
+
+                    // Simulate async operation
+                    setTimeout(function() {
+                        request.readyState = 'done';
+                        request.result = {
+                            name: name,
+                            version: version || 1,
+                            objectStoreNames: [],
+                            createObjectStore: function(name, options) {
+                                return {
+                                    name: name,
+                                    keyPath: options ? options.keyPath : null,
+                                    autoIncrement: options ? options.autoIncrement : false,
+                                    add: function(value, key) { return { result: key }; },
+                                    get: function(key) { return { result: undefined }; },
+                                    put: function(value, key) { return { result: key }; },
+                                    delete: function(key) { return { result: undefined }; }
+                                };
+                            },
+                            transaction: function(storeNames, mode) {
+                                return {
+                                    mode: mode || 'readonly',
+                                    objectStore: function(name) {
+                                        return {
+                                            name: name,
+                                            add: function(value, key) { return { result: key }; },
+                                            get: function(key) { return { result: undefined }; },
+                                            put: function(value, key) { return { result: key }; },
+                                            delete: function(key) { return { result: undefined }; }
+                                        };
+                                    }
+                                };
+                            },
+                            close: function() {}
+                        };
+
+                        if (request.onsuccess) {
+                            request.onsuccess({ target: request });
+                        }
+                    }, 10);
+
+                    return request;
+                },
+                deleteDatabase: function(name) {
+                    return {
+                        onsuccess: null,
+                        onerror: null,
+                        addEventListener: function(type, listener) {},
+                        removeEventListener: function(type, listener) {}
+                    };
+                },
+                cmp: function(first, second) {
+                    if (first < second) return -1;
+                    if (first > second) return 1;
+                    return 0;
+                }
+            };
+        }
+
+        // Chrome 130: Language Detector API (Origin Trial)
+        if (typeof LanguageDetector === 'undefined') {
+            var LanguageDetector = function() {
+                this.detect = function(text) {
+                    // Mock language detection
+                    return Promise.resolve([{
+                        language: 'en',
+                        confidence: 0.95
+                    }]);
+                };
+            };
+        }
+
+        // Add Language Detector to navigator.ml if available
+        if (typeof navigator !== 'undefined' && typeof navigator.ml === 'undefined') {
+            navigator.ml = {
+                createLanguageDetector: function(options) {
+                    return Promise.resolve(new LanguageDetector());
+                }
+            };
+        }
+
+        // Chrome 132: ToggleEvent constructor
+        if (typeof ToggleEvent === 'undefined') {
+            var ToggleEvent = function(type, eventInitDict) {
+                this.type = type;
+                this.bubbles = eventInitDict ? eventInitDict.bubbles : false;
+                this.cancelable = eventInitDict ? eventInitDict.cancelable : false;
+                this.oldState = eventInitDict ? eventInitDict.oldState : '';
+                this.newState = eventInitDict ? eventInitDict.newState : '';
+            };
+        }
+
+        // Chrome 132: MediaStreamTrack constructor
+        if (typeof MediaStreamTrack === 'undefined') {
+            var MediaStreamTrack = function() {
+                this.kind = 'video';
+                this.id = 'track_' + Math.random().toString(36).substr(2, 9);
+                this.label = 'Mock Track';
+                this.enabled = true;
+                this.muted = false;
+                this.readonly = false;
+                this.readyState = 'live';
+
+                this.clone = function() {
+                    return new MediaStreamTrack();
+                };
+
+                this.stop = function() {
+                    this.readyState = 'ended';
+                };
+
+                this.getCapabilities = function() {
+                    return {};
+                };
+
+                this.getConstraints = function() {
+                    return {};
+                };
+
+                this.getSettings = function() {
+                    return {};
+                };
+
+                this.applyConstraints = function(constraints) {
+                    return Promise.resolve();
+                };
+
+                this.addEventListener = function(event, handler) {};
+                this.removeEventListener = function(event, handler) {};
+            };
+        }
+
+        // Chrome 132: File System Access API - File Pickers
+        if (typeof showOpenFilePicker === 'undefined') {
+            var showOpenFilePicker = function(options) {
+                // Mock implementation - return rejected promise for headless mode
+                return Promise.reject(new Error('File System Access not supported in headless mode'));
+            };
+
+            var showSaveFilePicker = function(options) {
+                return Promise.reject(new Error('File System Access not supported in headless mode'));
+            };
+
+            var showDirectoryPicker = function(options) {
+                return Promise.reject(new Error('File System Access not supported in headless mode'));
+            };
+
+            // Also add to window if it exists
+            if (typeof window !== 'undefined') {
+                window.showOpenFilePicker = showOpenFilePicker;
+                window.showSaveFilePicker = showSaveFilePicker;
+                window.showDirectoryPicker = showDirectoryPicker;
+            }
+        }
+
+        // Chrome 133: Basic Web Animations API
+        if (typeof Animation === 'undefined') {
+            var Animation = function(effect, timeline) {
+                this.effect = effect || null;
+                this.timeline = timeline || null;
+                this.currentTime = 0;
+                this.playState = 'idle';
+                this.startTime = null;
+                this.playbackRate = 1;
+            };
+
+            Animation.prototype.play = function() {
+                this.playState = 'running';
+                this.startTime = Date.now();
+            };
+
+            Animation.prototype.pause = function() {
+                this.playState = 'paused';
+            };
+
+            Animation.prototype.cancel = function() {
+                this.playState = 'idle';
+                this.currentTime = 0;
+                this.startTime = null;
+            };
+
+            Animation.prototype.finish = function() {
+                this.playState = 'finished';
+            };
+
+            Animation.prototype.reverse = function() {
+                this.playbackRate *= -1;
+            };
+
+            Animation.prototype.addEventListener = function(event, handler) {};
+            Animation.prototype.removeEventListener = function(event, handler) {};
+        }
+
+        // Chrome 133: Animation.overallProgress property
+        if (typeof Animation !== 'undefined' && !('overallProgress' in Animation.prototype)) {
+            Object.defineProperty(Animation.prototype, 'overallProgress', {
+                get: function() {
+                    // Mock implementation - returns normalized progress across all iterations
+                    if (this.currentTime === null || this.effect === null || this.effect.getComputedTiming === null) {
+                        return null;
+                    }
+                    var computedTiming = this.effect.getComputedTiming();
+                    if (computedTiming.duration === 'auto' || computedTiming.duration === 0) {
+                        return 0;
+                    }
+                    var totalDuration = computedTiming.duration * (computedTiming.iterations || 1);
+                    return Math.min(1, Math.max(0, this.currentTime / totalDuration));
+                },
+                configurable: true
+            });
+        }
+
+        // Chrome 133: Atomics.pause() method
+        if (typeof Atomics !== 'undefined' && typeof Atomics.pause === 'undefined') {
+            Atomics.pause = function() {
+                // Mock implementation - in real implementation would hint CPU about spinlock
+                // In headless mode, this is essentially a no-op
+                return undefined;
+            };
+        }
+
+        // Chrome 133: ClipboardItem constructor with string support
+        if (typeof ClipboardItem === 'undefined') {
+            var ClipboardItem = function(data, options) {
+                this.types = Object.keys(data);
+                this._data = {};
+
+                // Convert string values to appropriate format
+                for (var type in data) {
+                    if (typeof data[type] === 'string') {
+                        this._data[type] = Promise.resolve(new Blob([data[type]], {type: type}));
+                    } else if (data[type] && typeof data[type].then === 'function') {
+                        this._data[type] = data[type];
+                    } else {
+                        this._data[type] = Promise.resolve(data[type]);
+                    }
+                }
+
+                this.presentationStyle = (options && options.presentationStyle) || 'unspecified';
+            };
+
+            ClipboardItem.prototype.getType = function(type) {
+                return this._data[type] || Promise.reject(new Error('Type not found'));
+            };
+        }
+
+        // Chrome 133: HTMLScriptElement polyfill
+        if (typeof HTMLScriptElement === 'undefined') {
+            var HTMLScriptElement = function() {
+                this.type = '';
+                this.src = '';
+                this.async = false;
+                this.defer = false;
+                this.crossOrigin = null;
+                this.integrity = '';
+                this.noModule = false;
+                this.referrerPolicy = '';
+            };
+
+            HTMLScriptElement.prototype.addEventListener = function(event, handler) {};
+            HTMLScriptElement.prototype.removeEventListener = function(event, handler) {};
+        }
+
+        // Chrome 134: HTMLDialogElement with closedby attribute
+        if (typeof HTMLDialogElement === 'undefined') {
+            var HTMLDialogElement = function() {
+                this.tagName = 'DIALOG';
+                this.open = false;
+                this.returnValue = '';
+                this._closedby = 'any'; // Default Chrome 134 behavior
+            };
+
+            HTMLDialogElement.prototype.show = function() {
+                this.open = true;
+            };
+
+            HTMLDialogElement.prototype.showModal = function() {
+                this.open = true;
+            };
+
+            HTMLDialogElement.prototype.close = function(returnValue) {
+                this.open = false;
+                if (returnValue !== undefined) {
+                    this.returnValue = returnValue;
+                }
+            };
+
+            HTMLDialogElement.prototype.setAttribute = function(name, value) {
+                if (name === 'closedby') {
+                    this._closedby = value;
+                }
+            };
+
+            HTMLDialogElement.prototype.getAttribute = function(name) {
+                if (name === 'closedby') {
+                    return this._closedby;
+                }
+                return null;
+            };
+
+            HTMLDialogElement.prototype.addEventListener = function(event, handler) {};
+            HTMLDialogElement.prototype.removeEventListener = function(event, handler) {};
+        }
+
+        // Chrome 134: Web Locks API
+        if (typeof navigator !== 'undefined' && typeof navigator.locks === 'undefined') {
+            navigator.locks = {
+                request: function(name, optionsOrCallback, callback) {
+                    // Mock implementation
+                    var actualCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+                    var options = typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
+
+                    // Simulate async lock acquisition
+                    return new Promise(function(resolve) {
+                        setTimeout(function() {
+                            var result = actualCallback ? actualCallback() : undefined;
+                            resolve(result);
+                        }, 1);
+                    });
+                },
+
+                query: function() {
+                    return Promise.resolve({
+                        pending: [],
+                        held: []
+                    });
+                }
+            };
+        }
+
+        // Chrome 134: OffscreenCanvas
+        if (typeof OffscreenCanvas === 'undefined') {
+            var OffscreenCanvas = function(width, height) {
+                this.width = width || 300;
+                this.height = height || 150;
+                this._contexts = {};
+            };
+
+            OffscreenCanvas.prototype.getContext = function(contextType, options) {
+                if (contextType === '2d') {
+                    if (!this._contexts['2d']) {
+                        var ctx = {
+                            canvas: this,
+                            imageSmoothingEnabled: true,
+                            imageSmoothingQuality: 'low', // Chrome 134 feature
+                            getContextAttributes: function() { // Chrome 134 feature
+                                return {
+                                    alpha: true,
+                                    colorSpace: 'srgb',
+                                    desynchronized: false,
+                                    willReadFrequently: false
+                                };
+                            },
+                            fillRect: function(x, y, w, h) {},
+                            clearRect: function(x, y, w, h) {},
+                            strokeRect: function(x, y, w, h) {},
+                            beginPath: function() {},
+                            closePath: function() {},
+                            moveTo: function(x, y) {},
+                            lineTo: function(x, y) {},
+                            fill: function() {},
+                            stroke: function() {}
+                        };
+                        this._contexts['2d'] = ctx;
+                    }
+                    return this._contexts['2d'];
+                }
+                return null;
+            };
+
+            OffscreenCanvas.prototype.transferToImageBitmap = function() {
+                // Mock ImageBitmap
+                return {
+                    width: this.width,
+                    height: this.height,
+                    close: function() {}
+                };
+            };
+        }
+
+        // Chrome 134: Enhanced console.timeStamp
+        if (typeof console !== 'undefined') {
+            var originalTimeStamp = console.timeStamp;
+            if (typeof originalTimeStamp === 'undefined') {
+                console.timeStamp = function(label, options) {
+                    // Chrome 134: Enhanced timeStamp with options
+                    var timestamp = Date.now();
+                    var message = label || 'TimeStamp';
+
+                    if (options && options.detail) {
+                        message += ': ' + JSON.stringify(options.detail);
+                    }
+
+                    console.log('[TimeStamp] ' + message + ' @ ' + timestamp);
+                };
+            } else {
+                // Enhance existing timeStamp
+                console.timeStamp = function(label, options) {
+                    if (options) {
+                        // Chrome 134 enhanced version
+                        var message = label || 'TimeStamp';
+                        if (options.detail) {
+                            message += ': ' + JSON.stringify(options.detail);
+                        }
+                        originalTimeStamp.call(console, message);
+                    } else {
+                        // Fallback to original
+                        originalTimeStamp.call(console, label);
+                    }
+                };
+            }
+        }
+
+        // Chrome 134: Symbol.dispose for Explicit Resource Management
+        if (typeof Symbol !== 'undefined' && typeof Symbol.dispose === 'undefined') {
+            Symbol.dispose = Symbol('Symbol.dispose');
+        }
+
+        if (typeof Symbol !== 'undefined' && typeof Symbol.asyncDispose === 'undefined') {
+            Symbol.asyncDispose = Symbol('Symbol.asyncDispose');
+        }
+
+        // Chrome 134: Enhanced Canvas context with imageSmoothingQuality
+        if (typeof document !== 'undefined') {
+            var originalCreateElement = document.createElement;
+            if (typeof originalCreateElement === 'function') {
+                document.createElement = function(tagName) {
+                    var element = originalCreateElement.call(document, tagName);
+
+                    if (tagName.toLowerCase() === 'canvas') {
+                        var originalGetContext = element.getContext;
+                        if (originalGetContext) {
+                            element.getContext = function(contextType, options) {
+                                var ctx = originalGetContext.call(element, contextType, options);
+
+                                if (ctx && contextType === '2d') {
+                                    // Chrome 134: Add imageSmoothingQuality if missing
+                                    if (typeof ctx.imageSmoothingQuality === 'undefined') {
+                                        ctx.imageSmoothingQuality = 'low';
+
+                                        // Add property descriptor to make it settable
+                                        Object.defineProperty(ctx, 'imageSmoothingQuality', {
+                                            value: 'low',
+                                            writable: true,
+                                            enumerable: true,
+                                            configurable: true
+                                        });
+                                    }
+                                }
+
+                                return ctx;
+                            };
+                        }
+                    }
+
+                    return element;
+                };
+            } else if (typeof document.createElement === 'undefined') {
+                // Basic document.createElement polyfill
+                document.createElement = function(tagName) {
+                    if (tagName.toLowerCase() === 'canvas') {
+                        return {
+                            tagName: 'CANVAS',
+                            width: 300,
+                            height: 150,
+                            getContext: function(contextType) {
+                                if (contextType === '2d') {
+                                    return {
+                                        canvas: this,
+                                        imageSmoothingEnabled: true,
+                                        imageSmoothingQuality: 'low', // Chrome 134 feature
+                                        fillRect: function(x, y, w, h) {},
+                                        clearRect: function(x, y, w, h) {},
+                                        strokeRect: function(x, y, w, h) {},
+                                        beginPath: function() {},
+                                        closePath: function() {},
+                                        moveTo: function(x, y) {},
+                                        lineTo: function(x, y) {},
+                                        fill: function() {},
+                                        stroke: function() {}
+                                    };
+                                }
+                                return null;
+                            },
+                            toDataURL: function() { return 'data:,'; }
+                        };
+                    } else if (tagName.toLowerCase() === 'dialog') {
+                        return new HTMLDialogElement();
+                    } else {
+                        return {
+                            tagName: tagName.toUpperCase(),
+                            setAttribute: function(name, value) {},
+                            getAttribute: function(name) { return null; },
+                            addEventListener: function(event, handler) {},
+                            removeEventListener: function(event, handler) {}
+                        };
+                    }
+                };
+            }
         }
     "#))?;
 
