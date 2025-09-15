@@ -961,6 +961,69 @@ impl RustRenderer {
                     };
                 };
             }
+
+            // Chrome 137: Selection API
+            if (typeof window !== 'undefined' && typeof window.getSelection === 'undefined') {
+                // Create a basic Selection constructor
+                function Selection() {
+                    this.anchorNode = null;
+                    this.anchorOffset = 0;
+                    this.focusNode = null;
+                    this.focusOffset = 0;
+                    this.isCollapsed = true;
+                    this.rangeCount = 0;
+                    this.direction = 'none'; // Chrome 137: direction property
+                }
+
+                Selection.prototype.getRangeAt = function(index) {
+                    if (index < 0 || index >= this.rangeCount) {
+                        throw new Error('Index out of range');
+                    }
+                    return {
+                        startContainer: this.anchorNode,
+                        startOffset: this.anchorOffset,
+                        endContainer: this.focusNode,
+                        endOffset: this.focusOffset,
+                        collapsed: this.isCollapsed
+                    };
+                };
+
+                Selection.prototype.removeAllRanges = function() {
+                    this.anchorNode = null;
+                    this.anchorOffset = 0;
+                    this.focusNode = null;
+                    this.focusOffset = 0;
+                    this.isCollapsed = true;
+                    this.rangeCount = 0;
+                    this.direction = 'none';
+                };
+
+                Selection.prototype.toString = function() {
+                    return '';
+                };
+
+                // Chrome 137: getComposedRanges method
+                Selection.prototype.getComposedRanges = function(shadowRoots) {
+                    if (this.rangeCount === 0) {
+                        return [];
+                    }
+                    return [{
+                        startContainer: this.anchorNode,
+                        startOffset: this.anchorOffset,
+                        endContainer: this.focusNode,
+                        endOffset: this.focusOffset,
+                        collapsed: this.isCollapsed
+                    }];
+                };
+
+                // Create global selection instance
+                var globalSelection = new Selection();
+
+                // Add getSelection to window object
+                window.getSelection = function() {
+                    return globalSelection;
+                };
+            }
         "#;
 
         // Preprocess JavaScript to handle import.meta syntax issues

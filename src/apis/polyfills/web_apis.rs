@@ -1697,6 +1697,7 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                             canvas: this,
                             imageSmoothingEnabled: true,
                             imageSmoothingQuality: 'low', // Chrome 134 feature
+                            lang: '', // Chrome 136 feature
                             getContextAttributes: function() { // Chrome 134 feature
                                 return {
                                     alpha: true,
@@ -1800,6 +1801,16 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                                             configurable: true
                                         });
                                     }
+
+                                    // Chrome 136: Add lang attribute if missing
+                                    if (typeof ctx.lang === 'undefined') {
+                                        Object.defineProperty(ctx, 'lang', {
+                                            value: '',
+                                            writable: true,
+                                            enumerable: true,
+                                            configurable: true
+                                        });
+                                    }
                                 }
 
                                 return ctx;
@@ -1823,6 +1834,7 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                                         canvas: this,
                                         imageSmoothingEnabled: true,
                                         imageSmoothingQuality: 'low', // Chrome 134 feature
+                                        lang: '', // Chrome 136 feature
                                         fillRect: function(x, y, w, h) {},
                                         clearRect: function(x, y, w, h) {},
                                         strokeRect: function(x, y, w, h) {},
@@ -1849,6 +1861,230 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                             removeEventListener: function(event, handler) {}
                         };
                     }
+                };
+            }
+        }
+
+        // Chrome 135: Float16Array typed array
+        if (typeof Float16Array === 'undefined') {
+            var Float16Array = function(lengthOrArray) {
+                if (typeof lengthOrArray === 'number') {
+                    this.length = lengthOrArray;
+                    this._buffer = new ArrayBuffer(lengthOrArray * 2); // 2 bytes per element
+                    this._view = new Uint16Array(this._buffer);
+                } else if (lengthOrArray && lengthOrArray.length !== undefined) {
+                    this.length = lengthOrArray.length;
+                    this._buffer = new ArrayBuffer(lengthOrArray.length * 2);
+                    this._view = new Uint16Array(this._buffer);
+                    for (var i = 0; i < lengthOrArray.length; i++) {
+                        this[i] = lengthOrArray[i];
+                    }
+                } else {
+                    this.length = 0;
+                    this._buffer = new ArrayBuffer(0);
+                    this._view = new Uint16Array(this._buffer);
+                }
+
+                // Add indexing support
+                for (var i = 0; i < this.length; i++) {
+                    Object.defineProperty(this, i, {
+                        get: (function(index) {
+                            return function() {
+                                // Convert from half-precision to single precision (simplified)
+                                return this._view[index] / 1024; // Mock conversion
+                            };
+                        })(i),
+                        set: (function(index) {
+                            return function(value) {
+                                // Convert from single precision to half-precision (simplified)
+                                this._view[index] = Math.floor(value * 1024);
+                            };
+                        })(i),
+                        enumerable: true
+                    });
+                }
+            };
+
+            Float16Array.BYTES_PER_ELEMENT = 2;
+            Float16Array.prototype.BYTES_PER_ELEMENT = 2;
+        }
+
+        // Chrome 135: fetchLater API for deferred fetch
+        if (typeof fetchLater === 'undefined') {
+            var fetchLater = function(url, options) {
+                // Mock implementation - in real implementation would defer until page unload
+                var fetchOptions = options || {};
+                fetchOptions.activateAfter = fetchOptions.activateAfter || 0;
+
+                // Return a FetchLaterResult-like object
+                return {
+                    activated: false,
+                    activate: function() {
+                        this.activated = true;
+                        return fetch(url, options);
+                    }
+                };
+            };
+        }
+
+        // Chrome 135: NavigateEvent with sourceElement
+        if (typeof NavigateEvent === 'undefined') {
+            var NavigateEvent = function(type, eventInitDict) {
+                this.type = type || 'navigate';
+                this.bubbles = eventInitDict ? eventInitDict.bubbles : false;
+                this.cancelable = eventInitDict ? eventInitDict.cancelable : true;
+                this.canIntercept = eventInitDict ? eventInitDict.canIntercept : false;
+                this.userInitiated = eventInitDict ? eventInitDict.userInitiated : false;
+                this.hashChange = eventInitDict ? eventInitDict.hashChange : false;
+                this.destination = eventInitDict ? eventInitDict.destination : { url: '', key: '', id: '', index: -1, sameDocument: false };
+                this.signal = eventInitDict ? eventInitDict.signal : null;
+                this.formData = eventInitDict ? eventInitDict.formData : null;
+                this.downloadRequest = eventInitDict ? eventInitDict.downloadRequest : null;
+                this.info = eventInitDict ? eventInitDict.info : undefined;
+                this.hasUAVisualTransition = eventInitDict ? eventInitDict.hasUAVisualTransition : false;
+
+                // Chrome 135: sourceElement property
+                this.sourceElement = eventInitDict ? eventInitDict.sourceElement : null;
+            };
+
+            NavigateEvent.prototype.intercept = function(options) {
+                // Mock implementation
+                return Promise.resolve();
+            };
+
+            NavigateEvent.prototype.scroll = function() {
+                // Mock implementation
+            };
+        }
+
+
+        // Chrome 136: ProgressEvent constructor enhancement
+        if (typeof ProgressEvent === 'undefined') {
+            var ProgressEvent = function(type, eventInitDict) {
+                this.type = type || 'progress';
+                this.bubbles = eventInitDict ? eventInitDict.bubbles : false;
+                this.cancelable = eventInitDict ? eventInitDict.cancelable : false;
+                this.lengthComputable = eventInitDict ? eventInitDict.lengthComputable : false;
+
+                // Chrome 136: loaded and total are now double type (supporting decimal values)
+                this.loaded = eventInitDict ? Number(eventInitDict.loaded) : 0;
+                this.total = eventInitDict ? Number(eventInitDict.total) : 0;
+            };
+
+            ProgressEvent.prototype.initProgressEvent = function(type, bubbles, cancelable, lengthComputable, loaded, total) {
+                this.type = type;
+                this.bubbles = bubbles;
+                this.cancelable = cancelable;
+                this.lengthComputable = lengthComputable;
+                this.loaded = Number(loaded);
+                this.total = Number(total);
+            };
+        }
+
+        // Chrome 137: Selection API
+        if (typeof Selection === 'undefined') {
+            var Selection = function() {
+                this.anchorNode = null;
+                this.anchorOffset = 0;
+                this.focusNode = null;
+                this.focusOffset = 0;
+                this.isCollapsed = true;
+                this.rangeCount = 0;
+                // Chrome 137: direction property
+                this.direction = 'none'; // 'forward', 'backward', 'none'
+            };
+
+            Selection.prototype.getRangeAt = function(index) {
+                if (index < 0 || index >= this.rangeCount) {
+                    throw new Error('Index out of range');
+                }
+                // Return a basic Range object
+                return {
+                    startContainer: this.anchorNode,
+                    startOffset: this.anchorOffset,
+                    endContainer: this.focusNode,
+                    endOffset: this.focusOffset,
+                    collapsed: this.isCollapsed
+                };
+            };
+
+            Selection.prototype.addRange = function(range) {
+                // Mock implementation
+            };
+
+            Selection.prototype.removeRange = function(range) {
+                // Mock implementation
+            };
+
+            Selection.prototype.removeAllRanges = function() {
+                this.anchorNode = null;
+                this.anchorOffset = 0;
+                this.focusNode = null;
+                this.focusOffset = 0;
+                this.isCollapsed = true;
+                this.rangeCount = 0;
+                this.direction = 'none';
+            };
+
+            Selection.prototype.collapse = function(node, offset) {
+                this.anchorNode = node;
+                this.anchorOffset = offset || 0;
+                this.focusNode = node;
+                this.focusOffset = offset || 0;
+                this.isCollapsed = true;
+                this.rangeCount = 1;
+                this.direction = 'none';
+            };
+
+            Selection.prototype.extend = function(node, offset) {
+                this.focusNode = node;
+                this.focusOffset = offset || 0;
+                this.isCollapsed = (this.anchorNode === this.focusNode && this.anchorOffset === this.focusOffset);
+                this.rangeCount = 1;
+                // Determine direction
+                if (this.anchorNode === this.focusNode) {
+                    this.direction = this.anchorOffset < this.focusOffset ? 'forward' : 'backward';
+                } else {
+                    this.direction = 'forward'; // Simplified
+                }
+            };
+
+            Selection.prototype.selectAllChildren = function(node) {
+                this.anchorNode = node;
+                this.anchorOffset = 0;
+                this.focusNode = node;
+                this.focusOffset = node.childNodes ? node.childNodes.length : 0;
+                this.isCollapsed = false;
+                this.rangeCount = 1;
+                this.direction = 'forward';
+            };
+
+            Selection.prototype.toString = function() {
+                return ''; // Mock implementation
+            };
+
+            // Chrome 137: getComposedRanges method
+            Selection.prototype.getComposedRanges = function(shadowRoots) {
+                // Returns an array of StaticRange objects
+                if (this.rangeCount === 0) {
+                    return [];
+                }
+                return [{
+                    startContainer: this.anchorNode,
+                    startOffset: this.anchorOffset,
+                    endContainer: this.focusNode,
+                    endOffset: this.focusOffset,
+                    collapsed: this.isCollapsed
+                }];
+            };
+
+            // Global selection instance
+            var globalSelection = new Selection();
+
+            // Add getSelection to window object
+            if (typeof window !== 'undefined' && typeof window.getSelection === 'undefined') {
+                window.getSelection = function() {
+                    return globalSelection;
                 };
             }
         }
