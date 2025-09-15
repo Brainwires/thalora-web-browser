@@ -2088,6 +2088,236 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                 };
             }
         }
+
+        // Chrome 138: WebCodecs VideoFrame API
+        if (typeof VideoFrame === 'undefined') {
+            var VideoFrame = function(source, init) {
+                // Mock VideoFrame constructor
+                this.timestamp = (init && init.timestamp) ? init.timestamp : 0;
+                this.duration = (init && init.duration) ? init.duration : null;
+                this.codedWidth = 1920;
+                this.codedHeight = 1080;
+                this.cropWidth = 1920;
+                this.cropHeight = 1080;
+                this.displayWidth = 1920;
+                this.displayHeight = 1080;
+                this.format = 'I420';
+
+                // Chrome 138: Video orientation support
+                this.rotation = (init && init.rotation) ? init.rotation : 0;
+                this.flip = (init && init.flip) ? init.flip : false;
+
+                // Mock VideoColorSpace
+                this.colorSpace = {
+                    primaries: 'bt709',
+                    transfer: 'bt709',
+                    matrix: 'bt709',
+                    fullRange: false
+                };
+            };
+
+            VideoFrame.prototype.clone = function() {
+                var cloned = Object.create(VideoFrame.prototype);
+                cloned.timestamp = this.timestamp;
+                cloned.duration = this.duration;
+                cloned.codedWidth = this.codedWidth;
+                cloned.codedHeight = this.codedHeight;
+                cloned.cropWidth = this.cropWidth;
+                cloned.cropHeight = this.cropHeight;
+                cloned.displayWidth = this.displayWidth;
+                cloned.displayHeight = this.displayHeight;
+                cloned.format = this.format;
+                cloned.rotation = this.rotation;
+                cloned.flip = this.flip;
+                cloned.colorSpace = this.colorSpace;
+                return cloned;
+            };
+
+            VideoFrame.prototype.close = function() {
+                // Mock close - release resources
+                this.timestamp = null;
+                this.duration = null;
+                this.codedWidth = 0;
+                this.codedHeight = 0;
+                this.cropWidth = 0;
+                this.cropHeight = 0;
+                this.displayWidth = 0;
+                this.displayHeight = 0;
+                this.format = null;
+                this.rotation = 0;
+                this.flip = false;
+                this.colorSpace = null;
+            };
+
+            VideoFrame.prototype.copyTo = function(destination, options) {
+                // Mock copyTo implementation
+                return Promise.resolve();
+            };
+
+            VideoFrame.prototype.allocationSize = function(options) {
+                // Mock allocation size calculation
+                var width = options && options.rect ? options.rect.width : this.cropWidth;
+                var height = options && options.rect ? options.rect.height : this.cropHeight;
+                // Simplified calculation for I420 format (1.5 bytes per pixel)
+                return Math.floor(width * height * 1.5);
+            };
+
+            // Global VideoFrame constructor
+            if (typeof window !== 'undefined') {
+                window.VideoFrame = VideoFrame;
+            }
+        }
+
+        // Chrome 139: SharedWorker API with Extended Lifetime support
+        if (typeof SharedWorker === 'undefined') {
+            var SharedWorker = function(scriptURL, options) {
+                // Mock SharedWorker constructor
+                this.port = {
+                    postMessage: function(message, transfer) {
+                        // Mock message posting
+                    },
+                    onmessage: null,
+                    onmessageerror: null,
+                    start: function() {
+                        // Mock port start
+                    },
+                    close: function() {
+                        // Mock port close
+                    },
+                    addEventListener: function(type, listener, options) {
+                        // Mock event listener
+                    },
+                    removeEventListener: function(type, listener) {
+                        // Mock event listener removal
+                    },
+                    dispatchEvent: function(event) {
+                        return true;
+                    }
+                };
+
+                this.onerror = null;
+
+                // Chrome 139: Extended lifetime options
+                if (options && options.extendedLifetime) {
+                    this._extendedLifetime = true;
+                }
+
+                // Mock worker script loading
+                if (typeof scriptURL === 'string') {
+                    this._scriptURL = scriptURL;
+                }
+
+                // Mock worker type and credentials
+                if (options) {
+                    this._type = options.type || 'classic';
+                    this._credentials = options.credentials || 'same-origin';
+                    this._name = options.name || '';
+                }
+            };
+
+            SharedWorker.prototype.addEventListener = function(type, listener, options) {
+                // Mock event listener for SharedWorker
+            };
+
+            SharedWorker.prototype.removeEventListener = function(type, listener) {
+                // Mock event listener removal
+            };
+
+            SharedWorker.prototype.dispatchEvent = function(event) {
+                return true;
+            };
+
+            // Global SharedWorker constructor
+            if (typeof window !== 'undefined') {
+                window.SharedWorker = SharedWorker;
+            }
+        }
+
+        // Chrome 140: Uint8Array Base64/Hex conversion methods
+        if (typeof Uint8Array !== 'undefined') {
+            // Chrome 140: toBase64 method
+            if (typeof Uint8Array.prototype.toBase64 === 'undefined') {
+                Uint8Array.prototype.toBase64 = function(options) {
+                    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+                    var result = '';
+                    var padding = '';
+
+                    for (var i = 0; i < this.length; i += 3) {
+                        var a = this[i];
+                        var b = this[i + 1] || 0;
+                        var c = this[i + 2] || 0;
+
+                        var bitmap = (a << 16) | (b << 8) | c;
+
+                        result += chars.charAt((bitmap >> 18) & 63);
+                        result += chars.charAt((bitmap >> 12) & 63);
+                        result += chars.charAt((bitmap >> 6) & 63);
+                        result += chars.charAt(bitmap & 63);
+                    }
+
+                    // Add padding
+                    var mod = this.length % 3;
+                    if (mod === 1) {
+                        result = result.slice(0, -2) + '==';
+                    } else if (mod === 2) {
+                        result = result.slice(0, -1) + '=';
+                    }
+
+                    return result;
+                };
+            }
+
+            // Chrome 140: fromBase64 static method
+            if (typeof Uint8Array.fromBase64 === 'undefined') {
+                Uint8Array.fromBase64 = function(base64String, options) {
+                    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+                    var str = base64String.replace(/[^A-Za-z0-9+/]/g, '');
+
+                    var result = [];
+                    for (var i = 0; i < str.length; i += 4) {
+                        var a = chars.indexOf(str.charAt(i));
+                        var b = chars.indexOf(str.charAt(i + 1));
+                        var c = chars.indexOf(str.charAt(i + 2));
+                        var d = chars.indexOf(str.charAt(i + 3));
+
+                        var bitmap = (a << 18) | (b << 12) | (c << 6) | d;
+
+                        result.push((bitmap >> 16) & 255);
+                        if (c !== 64) result.push((bitmap >> 8) & 255);
+                        if (d !== 64) result.push(bitmap & 255);
+                    }
+
+                    return new Uint8Array(result);
+                };
+            }
+
+            // Chrome 140: toHex method
+            if (typeof Uint8Array.prototype.toHex === 'undefined') {
+                Uint8Array.prototype.toHex = function(options) {
+                    var result = '';
+                    for (var i = 0; i < this.length; i++) {
+                        var hex = this[i].toString(16);
+                        result += hex.length === 1 ? '0' + hex : hex;
+                    }
+                    return result;
+                };
+            }
+
+            // Chrome 140: fromHex static method
+            if (typeof Uint8Array.fromHex === 'undefined') {
+                Uint8Array.fromHex = function(hexString, options) {
+                    var str = hexString.replace(/[^0-9a-fA-F]/g, '');
+                    var result = [];
+
+                    for (var i = 0; i < str.length; i += 2) {
+                        var hex = str.substr(i, 2);
+                        result.push(parseInt(hex, 16));
+                    }
+
+                    return new Uint8Array(result);
+                };
+            }
+        }
     "#))?;
 
     Ok(())

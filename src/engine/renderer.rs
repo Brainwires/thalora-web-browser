@@ -1024,6 +1024,24 @@ impl RustRenderer {
                     return globalSelection;
                 };
             }
+
+            // Chrome 140: highlightsFromPoint API
+            if (typeof document !== 'undefined' && typeof document.highlightsFromPoint === 'undefined') {
+                document.highlightsFromPoint = function(x, y) {
+                    // Mock implementation - returns empty array of highlights
+                    // In real implementation, would return CSS custom highlights at point
+                    return [];
+                };
+            }
+
+            // Chrome 140: Get Installed Related Apps API
+            if (typeof navigator !== 'undefined' && typeof navigator.getInstalledRelatedApps === 'undefined') {
+                navigator.getInstalledRelatedApps = function() {
+                    // Mock implementation - returns promise resolving to empty array
+                    // In real implementation, would check for installed related apps
+                    return Promise.resolve([]);
+                };
+            }
         "#;
 
         // Preprocess JavaScript to handle import.meta syntax issues
