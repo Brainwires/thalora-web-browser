@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Build System
 ```bash
-# Build the project (development)
+# Build the project (development) - ALWAYS use 10+ minute timeout for wasmtime compilation
 cargo build
 
-# Build optimized release
+# Build optimized release - ALWAYS use 10+ minute timeout
 cargo build --release
 
-# Check code without building
+# Check code without building - ALWAYS use 10+ minute timeout
 cargo check
 
 # Run the MCP server
@@ -21,15 +21,17 @@ cargo check
 cargo run
 ```
 
+**CRITICAL BUILD NOTE**: All cargo build/check/test commands require 10+ minute timeouts due to wasmtime compilation complexity. Build timeouts are normal and expected for this codebase.
+
 ### Testing
 ```bash
-# Run all tests
+# Run all tests - ALWAYS use 10+ minute timeout
 cargo test
 
-# Run tests with output
+# Run tests with output - ALWAYS use 10+ minute timeout
 cargo test -- --nocapture
 
-# Run specific test modules
+# Run specific test modules - ALWAYS use 10+ minute timeout
 cargo test --test browser_test
 cargo test --test mcp_test
 cargo test engine
@@ -37,20 +39,20 @@ cargo test apis
 cargo test features
 cargo test protocols
 
-# Run tests with debug output
+# Run tests with debug output - ALWAYS use 10+ minute timeout
 RUST_BACKTRACE=1 cargo test
 
-# Run tests quietly (less output)
+# Run tests quietly (less output) - ALWAYS use 10+ minute timeout
 cargo test --quiet
 ```
 
 ### Debugging and Analysis
 ```bash
-# Test with debug logging
+# Test with debug logging - ALWAYS use 10+ minute timeout
 RUST_LOG=debug cargo test test_name -- --nocapture
 RUST_LOG=debug cargo run
 
-# Generate documentation
+# Generate documentation - ALWAYS use 10+ minute timeout
 cargo doc --open
 ```
 

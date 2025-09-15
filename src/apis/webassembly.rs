@@ -1,31 +1,25 @@
 use anyhow::Result;
 use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use wasmtime::*;
 
 /// WebAssembly API implementation for full browser compatibility
 pub struct WebAssemblyManager {
-    modules: HashMap<String, WasmModule>,
-    instances: HashMap<String, WasmInstance>,
-}
-
-#[derive(Debug, Clone)]
-pub struct WasmModule {
-    pub bytes: Vec<u8>,
-    pub exports: Vec<String>,
-    pub imports: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct WasmInstance {
-    pub module_id: String,
-    pub exports: HashMap<String, JsValue>,
+    engine: Arc<Engine>,
+    modules: Arc<Mutex<HashMap<String, Module>>>,
+    instances: Arc<Mutex<HashMap<String, Instance>>>,
+    stores: Arc<Mutex<HashMap<String, Store<()>>>>,
 }
 
 impl WebAssemblyManager {
     pub fn new() -> Self {
+        let engine = Engine::default();
         Self {
-            modules: HashMap::new(),
-            instances: HashMap::new(),
+            engine: Arc::new(engine),
+            modules: Arc::new(Mutex::new(HashMap::new())),
+            instances: Arc::new(Mutex::new(HashMap::new())),
+            stores: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
