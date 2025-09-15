@@ -1,12 +1,12 @@
 [package]
-name = "synaptic"
+name = "thalora"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
 description = "Pure Rust headless browser for AI models - fast, secure web content extraction with MCP integration"
 authors = ["Brainwires Team"]
 license = "MIT"
-repository = "https://github.com/brainwires/synaptic"
+repository = "https://github.com/brainwires/thalora"
 keywords = ["headless-browser", "ai", "mcp", "web-scraping", "rust"]
 categories = ["web-programming", "parsing"]
 
@@ -104,7 +104,7 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5.0"
 
 [[bin]]
-name = "synaptic"
+name = "thalora"
 path = "src/main.rs"
 
 [dev-dependencies]

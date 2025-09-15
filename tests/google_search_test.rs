@@ -1,4 +1,4 @@
-use synaptic::HeadlessWebBrowser;
+use thalora::HeadlessWebBrowser;
 
 #[tokio::test]
 async fn test_google_search_real_functionality() {

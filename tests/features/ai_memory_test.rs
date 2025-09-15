@@ -1,7 +1,7 @@
 // Tests for src/features/ai_memory.rs
 #[cfg(test)]
 mod ai_memory_tests {
-    use synaptic::features::ai_memory::*;
+    use thalora::features::ai_memory::*;
 
     #[test]
     fn test_ai_memory_heap_creation() {

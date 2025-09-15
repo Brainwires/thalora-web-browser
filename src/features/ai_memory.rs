@@ -178,10 +178,10 @@ impl AiMemoryHeap {
         })
     }
     
-    /// Create memory heap in default location (~/.synaptic/ai_memory.json)
+    /// Create memory heap in default location (~/.thalora/ai_memory.json)
     pub fn new_default() -> Result<Self> {
         let home_dir = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
-        let cache_file = home_dir.join(".synaptic").join("ai_memory.json");
+        let cache_file = home_dir.join(".thalora").join("ai_memory.json");
         Self::new(cache_file)
     }
     
@@ -345,7 +345,7 @@ impl AiMemoryHeap {
     
     /// Simple XOR encryption for passwords (not secure for production, but sufficient for dev cache)
     fn encrypt_password(&self, password: &str) -> Result<String> {
-        let key = b"synaptic_ai_memory_key_2025"; // Simple key
+        let key = b"thalora_ai_memory_key_2025"; // Simple key
         let encrypted: Vec<u8> = password.bytes()
             .enumerate()
             .map(|(i, b)| b ^ key[i % key.len()])
@@ -354,7 +354,7 @@ impl AiMemoryHeap {
     }
     
     fn decrypt_password(&self, encrypted_base64: &str) -> Result<String> {
-        let key = b"synaptic_ai_memory_key_2025"; // Same key
+        let key = b"thalora_ai_memory_key_2025"; // Same key
         let encrypted = general_purpose::STANDARD.decode(encrypted_base64)?;
         let decrypted: Vec<u8> = encrypted
             .iter()

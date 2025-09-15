@@ -1,7 +1,7 @@
 // Tests for src/engine/dom.rs
 #[cfg(test)]
 mod dom_tests {
-    use synaptic::engine::dom::*;
+    use thalora::engine::dom::*;
 
     #[test]
     fn test_dom_element_creation() {

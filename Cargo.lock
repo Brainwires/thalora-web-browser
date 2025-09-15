@@ -5883,58 +5883,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "synaptic"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "boa_engine",
- "chrono",
- "cpal",
- "dirs",
- "futures",
- "futures-util",
- "hound",
- "html-escape",
- "html5ever 0.27.0",
- "ipgeolocate",
- "kuchikiki",
- "lightningcss",
- "rand 0.8.5",
- "regex",
- "reqwest 0.12.23",
- "rodio",
- "scraper",
- "serde",
- "serde_json",
- "swc_common 0.34.4",
- "swc_core",
- "swc_ecma_ast 0.112.6",
- "swc_ecma_parser 0.142.2",
- "symphonia",
- "sysinfo",
- "taffy",
- "thiserror 1.0.69",
- "tokio",
- "tokio-test",
- "tokio-tungstenite",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "tungstenite",
- "url",
- "uuid",
- "wasmtime",
- "webrtc",
- "webrtc-data 0.7.0",
- "webrtc-dtls 0.7.2",
- "webrtc-ice 0.10.1",
- "webrtc-media 0.6.1",
- "webrtc-util 0.8.1",
- "wiremock",
-]
-
-[[package]]
 name = "sync_wrapper"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6054,6 +6002,58 @@ dependencies = [
  "futf",
  "mac",
  "utf-8",
+]
+
+[[package]]
+name = "thalora"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "boa_engine",
+ "chrono",
+ "cpal",
+ "dirs",
+ "futures",
+ "futures-util",
+ "hound",
+ "html-escape",
+ "html5ever 0.27.0",
+ "ipgeolocate",
+ "kuchikiki",
+ "lightningcss",
+ "rand 0.8.5",
+ "regex",
+ "reqwest 0.12.23",
+ "rodio",
+ "scraper",
+ "serde",
+ "serde_json",
+ "swc_common 0.34.4",
+ "swc_core",
+ "swc_ecma_ast 0.112.6",
+ "swc_ecma_parser 0.142.2",
+ "symphonia",
+ "sysinfo",
+ "taffy",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "tokio-tungstenite",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "tungstenite",
+ "url",
+ "uuid",
+ "wasmtime",
+ "webrtc",
+ "webrtc-data 0.7.0",
+ "webrtc-dtls 0.7.2",
+ "webrtc-ice 0.10.1",
+ "webrtc-media 0.6.1",
+ "webrtc-util 0.8.1",
+ "wiremock",
 ]
 
 [[package]]

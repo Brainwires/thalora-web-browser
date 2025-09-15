@@ -1,4 +1,4 @@
-use synaptic::{WebSocketManager, WebSocketJsApi};
+use thalora::{WebSocketManager, WebSocketJsApi};
 use tokio::time::Duration;
 
 #[tokio::test]

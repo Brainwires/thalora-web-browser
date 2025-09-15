@@ -1,4 +1,4 @@
-use synaptic::{HeadlessWebBrowser, ScrapedData};
+use thalora::{HeadlessWebBrowser, ScrapedData};
 use serde_json::{json, Map};
 use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 
@@ -183,7 +183,7 @@ async fn test_network_error() {
 
 #[test]
 fn test_link_and_image_structures() {
-    use synaptic::{Link, Image};
+    use thalora::{Link, Image};
     
     let link = Link {
         url: "https://example.com".to_string(),

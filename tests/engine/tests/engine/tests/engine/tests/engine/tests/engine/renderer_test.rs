@@ -1,4 +1,4 @@
-use synaptic::renderer::{RustRenderer, CssProcessor, LayoutEngine};
+use thalora::renderer::{RustRenderer, CssProcessor, LayoutEngine};
 
 #[tokio::test]
 async fn test_javascript_safety_filtering() {

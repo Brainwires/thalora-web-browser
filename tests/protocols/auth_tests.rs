@@ -1,4 +1,4 @@
-use synaptic::{HeadlessWebBrowser, BrowserStorage, AuthContext};
+use thalora::{HeadlessWebBrowser, BrowserStorage, AuthContext};
 use serde_json::json;
 use std::collections::HashMap;
 use wiremock::{matchers::{method, header}, Mock, MockServer, ResponseTemplate};

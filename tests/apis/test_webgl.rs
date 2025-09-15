@@ -1,4 +1,4 @@
-use synaptic::engine::HeadlessWebBrowser;
+use thalora::engine::HeadlessWebBrowser;
 use boa_engine::{Context, Source};
 
 #[tokio::test]

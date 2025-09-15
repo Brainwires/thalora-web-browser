@@ -1,4 +1,4 @@
-use synaptic::HeadlessWebBrowser;
+use thalora::HeadlessWebBrowser;
 use serde_json::Value;
 use std::collections::HashMap;
 

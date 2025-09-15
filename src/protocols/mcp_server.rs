@@ -27,7 +27,7 @@ impl McpServer {
     pub fn new() -> Self {
         let ai_memory = AiMemoryHeap::new_default().unwrap_or_else(|_| {
             tracing::warn!("Failed to load AI memory heap, creating new one");
-            AiMemoryHeap::new("/tmp/synaptic_ai_memory.json").expect("Failed to create AI memory heap")
+            AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
         });
         
         Self {

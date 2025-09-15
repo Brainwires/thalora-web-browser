@@ -1,4 +1,4 @@
-use synaptic::RustRenderer;
+use thalora::RustRenderer;
 
 #[tokio::test]
 async fn test_comprehensive_polyfills_integration() {

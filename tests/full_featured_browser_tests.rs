@@ -1,4 +1,4 @@
-use synaptic::apis::WebApis;
+use thalora::apis::WebApis;
 use boa_engine::{Context, Source};
 
 #[tokio::test]
@@ -202,7 +202,7 @@ async fn test_media_api_comprehensive() {
 
 #[tokio::test]
 async fn test_webgl_api_integration() {
-    use synaptic::engine::RustRenderer;
+    use thalora::engine::RustRenderer;
 
     let mut renderer = RustRenderer::new();
 
