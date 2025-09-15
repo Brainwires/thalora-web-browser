@@ -553,16 +553,23 @@ impl McpServer {
         let wait_for_js = arguments.get("wait_for_js")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
-        
+
         let selector = arguments.get("selector").and_then(|v| v.as_str());
-        
+
         let extract_links = arguments.get("extract_links")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
-            
+
         let extract_images = arguments.get("extract_images")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
+
+        // Setup history API for JavaScript-enabled scraping
+        if wait_for_js {
+            if let Err(e) = HeadlessWebBrowser::setup_history_api(Arc::clone(&self.browser)) {
+                tracing::warn!("Failed to setup history API: {}", e);
+            }
+        }
 
         match self.browser.lock().unwrap().scrape(url, wait_for_js, selector, extract_links, extract_images).await {
             Ok(scraped_data) => {

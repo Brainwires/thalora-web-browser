@@ -140,7 +140,7 @@ impl MediaManager {
             // Real createOscillator method
             let audio_contexts_clone = Arc::clone(&audio_contexts);
             let ctx_id_for_osc = ctx_id.clone();
-            let create_oscillator_fn = unsafe { NativeFunction::from_closure(move |_, _, _ctx| {
+            let create_oscillator_fn = unsafe { NativeFunction::from_closure(move |_, _, ctx| {
                 let osc_id = format!("osc_{}", rand::random::<u32>());
                 let osc_id_clone = osc_id.clone();
                 let osc_id_for_start = osc_id.clone();
@@ -171,7 +171,7 @@ impl MediaManager {
                 let audio_contexts_start = Arc::clone(&audio_contexts_clone);
                 let ctx_id_start = ctx_id_for_osc.clone();
                 let osc_id_start = osc_id_for_start.clone();
-                let start_fn = unsafe { NativeFunction::from_closure(move |_, _args, _ctx| {
+                let start_fn = unsafe { NativeFunction::from_closure(move |_, _args, ctx| {
                     if let Ok(mut contexts) = audio_contexts_start.lock() {
                         if let Some(audio_ctx) = contexts.get_mut(&ctx_id_start) {
                             if let Some(oscillator) = audio_ctx.oscillators.get_mut(&osc_id_start) {
@@ -197,7 +197,7 @@ impl MediaManager {
             // Real createGain method
             let audio_contexts_gain = Arc::clone(&audio_contexts);
             let ctx_id_gain = ctx_id.clone();
-            let create_gain_fn = unsafe { NativeFunction::from_closure(move |_, _, _ctx| {
+            let create_gain_fn = unsafe { NativeFunction::from_closure(move |_, _, ctx| {
                 let gain_id = format!("gain_{}", rand::random::<u32>());
 
                 let real_gain = GainNodeReal {
@@ -297,7 +297,7 @@ impl MediaManager {
             // Real play method - actually plays audio
             let audio_elements_play = Arc::clone(&audio_elements);
             let audio_id_play = audio_id.clone();
-            let play_fn = unsafe { NativeFunction::from_closure(move |_, _, _ctx| {
+            let play_fn = unsafe { NativeFunction::from_closure(move |_, _, ctx| {
                 let promise_obj = JsObject::default();
 
                 // In real implementation, would load and play audio file
@@ -352,7 +352,7 @@ impl MediaManager {
             // Real start method - actually begins recording
             let media_recorders_start = Arc::clone(&media_recorders);
             let recorder_id_start = recorder_id.clone();
-            let start_fn = unsafe { NativeFunction::from_closure(move |_, _args, _ctx| {
+            let start_fn = unsafe { NativeFunction::from_closure(move |_, _args, ctx| {
                 if let Ok(mut recorders) = media_recorders_start.lock() {
                     if let Some(recorder) = recorders.get_mut(&recorder_id_start) {
                         recorder.state = "recording".to_string();
@@ -430,7 +430,7 @@ impl MediaManager {
         let cancel_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         speech_synthesis_obj.set(js_string!("cancel"), JsValue::from(cancel_fn.to_js_function(context.realm())), false, context)?;
 
-        let get_voices_fn = unsafe { NativeFunction::from_closure(|_, _, _ctx| {
+        let get_voices_fn = unsafe { NativeFunction::from_closure(|_, _, ctx| {
             let voices_array = JsObject::default();
             // Real voice enumeration would happen here
             Ok(JsValue::from(voices_array))

@@ -110,7 +110,9 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                 // Otherwise leave it undefined - no fake origins
             }
 
-            // History API for navigation - with real browser integration
+            // History API - Real implementation will be provided by browser engine
+            // The actual History API with navigation is set up by the browser renderer
+            // This polyfill only provides minimal fallbacks if the real API isn't available
             if (typeof window.history === 'undefined') {
                 window.history = {
                     length: 1,
@@ -118,67 +120,30 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                     scrollRestoration: 'auto',
 
                     back: function() {
-                        // Real navigation - will be implemented via browser integration
-                        console.log('history.back() called - real navigation not available in polyfill context');
-                        // Note: Real implementation requires browser context
+                        // Fallback - real implementation provided by browser engine
+                        console.log('history.back() - fallback called (real navigation should be available via browser engine)');
                     },
 
                     forward: function() {
-                        // Real navigation - will be implemented via browser integration
-                        console.log('history.forward() called - real navigation not available in polyfill context');
-                        // Note: Real implementation requires browser context
+                        // Fallback - real implementation provided by browser engine
+                        console.log('history.forward() - fallback called (real navigation should be available via browser engine)');
                     },
 
                     go: function(delta) {
-                        // Real navigation - will be implemented via browser integration
-                        console.log('history.go(' + delta + ') called - real navigation not available in polyfill context');
-                        // Note: Real implementation requires browser context
+                        // Fallback - real implementation provided by browser engine
+                        console.log('history.go(' + delta + ') - fallback called (real navigation should be available via browser engine)');
                     },
 
                     pushState: function(state, title, url) {
+                        // Fallback - real implementation provided by browser engine
                         this.state = state;
-                        if (typeof location !== 'undefined' && url) {
-                            // Update location if possible
-                            try {
-                                if (history.pushState && history.pushState !== this.pushState) {
-                                    // Use native pushState if available
-                                    history.pushState(state, title, url);
-                                } else {
-                                    // Update location manually
-                                    if (url.startsWith('/')) {
-                                        window.location.pathname = url;
-                                    } else if (url.startsWith('http')) {
-                                        window.location.href = url;
-                                    }
-                                }
-                            } catch (e) {
-                                console.log('pushState URL update failed:', e.message);
-                            }
-                        }
-                        console.log('pushState called:', {state, title, url});
+                        console.log('history.pushState() - fallback called (real implementation should be available via browser engine)');
                     },
 
                     replaceState: function(state, title, url) {
+                        // Fallback - real implementation provided by browser engine
                         this.state = state;
-                        if (typeof location !== 'undefined' && url) {
-                            // Update location if possible
-                            try {
-                                if (history.replaceState && history.replaceState !== this.replaceState) {
-                                    // Use native replaceState if available
-                                    history.replaceState(state, title, url);
-                                } else {
-                                    // Update location manually without adding to history
-                                    if (url.startsWith('/')) {
-                                        window.location.replace(window.location.origin + url);
-                                    } else if (url.startsWith('http')) {
-                                        window.location.replace(url);
-                                    }
-                                }
-                            } catch (e) {
-                                console.log('replaceState URL update failed:', e.message);
-                            }
-                        }
-                        console.log('replaceState called:', {state, title, url});
+                        console.log('history.replaceState() - fallback called (real implementation should be available via browser engine)');
                     }
                 };
             }

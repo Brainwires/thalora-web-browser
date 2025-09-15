@@ -424,6 +424,9 @@ impl HeadlessWebBrowser {
             html_content
         };
 
+        // Add URL to navigation history
+        let _ = self.push_history_state(None, None, url);
+
         let document = Html::parse_document(&processed_html);
         
         let title = document

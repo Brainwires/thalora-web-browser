@@ -349,7 +349,7 @@ impl EventManager {
                 {
                     let listeners = listeners_dispatch_clone.lock().unwrap();
                     if let Some(event_listeners) = listeners.get(&event_type) {
-                        for _listener in event_listeners {
+                        for listener in event_listeners {
                             if listener.callback.is_callable() {
                                 let callback = listener.callback.as_callable().unwrap();
                                 if let Err(e) = callback.call(&JsValue::undefined(), &[event_obj.clone()], context) {
