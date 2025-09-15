@@ -62,10 +62,10 @@ impl WebGLManager {
         ctx_2d.set(js_string!("font"), JsValue::from(js_string!("10px sans-serif")), true, context)?;
 
         // Drawing methods
-        let fill_rect_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let fill_rect_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         ctx_2d.set(js_string!("fillRect"), JsValue::from(fill_rect_fn.to_js_function(context.realm())), false, context)?;
 
-        let fill_text_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let fill_text_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         ctx_2d.set(js_string!("fillText"), JsValue::from(fill_text_fn.to_js_function(context.realm())), false, context)?;
 
         Ok(JsValue::from(ctx_2d))
@@ -103,40 +103,40 @@ impl WebGLManager {
         gl_context.set(js_string!("createBuffer"), JsValue::from(create_buffer_fn.to_js_function(context.realm())), false, context)?;
 
         // Shader operations
-        let shader_source_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let shader_source_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("shaderSource"), JsValue::from(shader_source_fn.to_js_function(context.realm())), false, context)?;
 
-        let compile_shader_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let compile_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("compileShader"), JsValue::from(compile_shader_fn.to_js_function(context.realm())), false, context)?;
 
         // Program operations
-        let attach_shader_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let attach_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("attachShader"), JsValue::from(attach_shader_fn.to_js_function(context.realm())), false, context)?;
 
-        let link_program_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let link_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("linkProgram"), JsValue::from(link_program_fn.to_js_function(context.realm())), false, context)?;
 
-        let use_program_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let use_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("useProgram"), JsValue::from(use_program_fn.to_js_function(context.realm())), false, context)?;
 
         // Buffer operations
-        let bind_buffer_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let bind_buffer_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("bindBuffer"), JsValue::from(bind_buffer_fn.to_js_function(context.realm())), false, context)?;
 
-        let buffer_data_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let buffer_data_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("bufferData"), JsValue::from(buffer_data_fn.to_js_function(context.realm())), false, context)?;
 
         // Rendering operations
-        let viewport_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let viewport_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("viewport"), JsValue::from(viewport_fn.to_js_function(context.realm())), false, context)?;
 
-        let clear_color_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let clear_color_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("clearColor"), JsValue::from(clear_color_fn.to_js_function(context.realm())), false, context)?;
 
-        let clear_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let clear_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("clear"), JsValue::from(clear_fn.to_js_function(context.realm())), false, context)?;
 
-        let draw_arrays_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+        let draw_arrays_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
         gl_context.set(js_string!("drawArrays"), JsValue::from(draw_arrays_fn.to_js_function(context.realm())), false, context)?;
 
         // Critical fingerprinting methods
@@ -220,7 +220,7 @@ impl WebGLManager {
             }) };
             gl_context.set(js_string!("createVertexArray"), JsValue::from(create_vertex_array_fn.to_js_function(context.realm())), false, context)?;
 
-            let bind_vertex_array_fn = unsafe { NativeFunction::from_closure(|_, args, _context| Ok(JsValue::undefined())) };
+            let bind_vertex_array_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
             gl_context.set(js_string!("bindVertexArray"), JsValue::from(bind_vertex_array_fn.to_js_function(context.realm())), false, context)?;
         }
 

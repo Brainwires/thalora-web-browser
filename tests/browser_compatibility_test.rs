@@ -1,5 +1,4 @@
 use thalora::HeadlessWebBrowser;
-use serde_json::Value;
 use std::collections::HashMap;
 
 /// Comprehensive browser compatibility test suite

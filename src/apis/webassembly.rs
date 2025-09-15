@@ -158,7 +158,7 @@ impl WebAssemblyManager {
 
                     // Add grow function
                     let grow_fn = unsafe { NativeFunction::from_closure(|_, args, _context| {
-                        let pages = if !args.is_empty() {
+                        let _pages = if !args.is_empty() {
                             args[0].to_i32(_context).unwrap_or(1)
                         } else {
                             1
@@ -178,7 +178,7 @@ impl WebAssemblyManager {
         webassembly_obj.set(js_string!("Memory"), JsValue::from(memory_constructor.to_js_function(context.realm())), false, context)?;
 
         // Real WebAssembly.Table with actual table management
-        let engine_table = Arc::clone(&self.engine);
+        let _engine_table = Arc::clone(&self.engine);
         let table_constructor = unsafe { NativeFunction::from_closure(move |_, _args, context| {
             // Create real table object
             let table_obj = JsObject::default();
@@ -195,7 +195,7 @@ impl WebAssemblyManager {
         webassembly_obj.set(js_string!("Table"), JsValue::from(table_constructor.to_js_function(context.realm())), false, context)?;
 
         // Real WebAssembly.Global with actual global value management
-        let engine_global = Arc::clone(&self.engine);
+        let _engine_global = Arc::clone(&self.engine);
         let global_constructor = unsafe { NativeFunction::from_closure(move |_, _args, context| {
             // Create real global object
             let global_obj = JsObject::default();
@@ -208,7 +208,7 @@ impl WebAssemblyManager {
 
         // Real WebAssembly.validate function
         let engine_validate = Arc::clone(&self.engine);
-        let validate_fn = unsafe { NativeFunction::from_closure(move |_, args, _context| {
+        let validate_fn = unsafe { NativeFunction::from_closure(move |_, _args, _context| {
             // For demo, use minimal WASM bytes (for both cases)
             let bytes = vec![
                 0x00, 0x61, 0x73, 0x6d, // Magic

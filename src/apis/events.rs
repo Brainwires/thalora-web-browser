@@ -349,7 +349,7 @@ impl EventManager {
                 {
                     let listeners = listeners_dispatch_clone.lock().unwrap();
                     if let Some(event_listeners) = listeners.get(&event_type) {
-                        for listener in event_listeners {
+                        for _listener in event_listeners {
                             if listener.callback.is_callable() {
                                 let callback = listener.callback.as_callable().unwrap();
                                 if let Err(e) = callback.call(&JsValue::undefined(), &[event_obj.clone()], context) {
@@ -498,7 +498,7 @@ impl EventManager {
 
         // Capture phase (top-down)
         if let Some(event_listeners) = listeners.get(&event.event_type) {
-            for listener in event_listeners.iter().filter(|l| l.capture && l.element_id == target_id) {
+            for _listener in event_listeners.iter().filter(|l| l.capture && l.element_id == target_id) {
                 // Execute capturing listeners
                 tracing::debug!("Executing capture listener for: {} on {}", event.event_type, target_id);
             }
@@ -506,7 +506,7 @@ impl EventManager {
 
         // Target phase
         if let Some(event_listeners) = listeners.get(&event.event_type) {
-            for listener in event_listeners.iter().filter(|l| !l.capture && l.element_id == target_id) {
+            for _listener in event_listeners.iter().filter(|l| !l.capture && l.element_id == target_id) {
                 // Execute target listeners
                 tracing::debug!("Executing target listener for: {} on {}", event.event_type, target_id);
             }
@@ -515,7 +515,7 @@ impl EventManager {
         // Bubble phase (bottom-up) - only if event bubbles
         if event.bubbles {
             if let Some(event_listeners) = listeners.get(&event.event_type) {
-                for listener in event_listeners.iter().filter(|l| !l.capture) {
+                for _listener in event_listeners.iter().filter(|l| !l.capture) {
                     // Execute bubbling listeners
                     tracing::debug!("Executing bubble listener for: {} on {}", event.event_type, target_id);
                 }

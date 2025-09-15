@@ -78,7 +78,7 @@ impl TimerManager {
         // setInterval implementation
         let active_timers_interval = Arc::clone(&self.active_timers);
         let next_id_interval = Arc::clone(&self.next_id);
-        let set_interval_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
+        let set_interval_fn = unsafe { NativeFunction::from_closure(move |_, args, _context| {
             if args.is_empty() {
                 return Err(boa_engine::JsNativeError::typ()
                     .with_message("setInterval requires a callback")

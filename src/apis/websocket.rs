@@ -86,7 +86,7 @@ impl WebSocketManager {
     /// Create a real WebSocket connection
     pub async fn connect(&self, url: &str, protocols: Option<Vec<String>>) -> Result<String> {
         let connection_id = format!("ws_{}", uuid::Uuid::new_v4().simple());
-        let parsed_url = Url::parse(url).map_err(|e| anyhow!("Invalid WebSocket URL: {}", e))?;
+        let _parsed_url = Url::parse(url).map_err(|e| anyhow!("Invalid WebSocket URL: {}", e))?;
 
         let mut connection = WebSocketConnection {
             id: connection_id.clone(),

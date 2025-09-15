@@ -402,19 +402,36 @@ impl MemoryTools {
         });
 
         match category {
-            Some("research") | None => {
+            Some("research") => {
                 let research_results = ai_memory.search_research(&criteria);
                 if !research_results.is_empty() {
                     results["results"]["research"] = serde_json::json!(research_results);
                 }
             },
-            Some("bookmarks") | None => {
+            Some("bookmarks") => {
                 let bookmark_results = ai_memory.search_bookmarks(&criteria);
                 if !bookmark_results.is_empty() {
                     results["results"]["bookmarks"] = serde_json::json!(bookmark_results);
                 }
             },
-            Some("notes") | None => {
+            Some("notes") => {
+                let note_results = ai_memory.search_notes(&criteria);
+                if !note_results.is_empty() {
+                    results["results"]["notes"] = serde_json::json!(note_results);
+                }
+            },
+            None => {
+                // Search all categories when no specific category is requested
+                let research_results = ai_memory.search_research(&criteria);
+                if !research_results.is_empty() {
+                    results["results"]["research"] = serde_json::json!(research_results);
+                }
+
+                let bookmark_results = ai_memory.search_bookmarks(&criteria);
+                if !bookmark_results.is_empty() {
+                    results["results"]["bookmarks"] = serde_json::json!(bookmark_results);
+                }
+
                 let note_results = ai_memory.search_notes(&criteria);
                 if !note_results.is_empty() {
                     results["results"]["notes"] = serde_json::json!(note_results);

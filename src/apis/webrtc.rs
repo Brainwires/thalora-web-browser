@@ -75,7 +75,7 @@ impl WebRTCManager {
             // Create actual RTCPeerConnection
             let api_clone = Arc::clone(&api);
             let peer_connections_clone = Arc::clone(&peer_connections);
-            let data_channels_clone = Arc::clone(&data_channels);
+            let _data_channels_clone = Arc::clone(&data_channels);
             let runtime_clone = Arc::clone(&runtime);
             let pc_id_clone = pc_id.clone();
 
@@ -245,7 +245,7 @@ impl WebRTCManager {
 
                         let pc_clone = Arc::clone(&pc_for_dc);
                         let runtime_clone = Arc::clone(&runtime_for_dc);
-                        let data_channels_clone = Arc::clone(&data_channels_for_dc);
+                        let _data_channels_clone = Arc::clone(&data_channels_for_dc);
                         let label_clone = label.clone();
 
                         // Create actual data channel
@@ -254,7 +254,7 @@ impl WebRTCManager {
                         });
 
                         match dc_result {
-                            Ok(dc) => {
+                            Ok(_dc) => {
                                 let dc_id = format!("dc_{}", rand::random::<u32>());
 
                                 // Store in data channels map - simplified for now
@@ -267,8 +267,8 @@ impl WebRTCManager {
                                 dc_obj.set(js_string!("bufferedAmount"), JsValue::from(0), false, context)?;
 
                                 // Real send method - simplified for compilation
-                                let dc_for_send = format!("dc_ref_{}", rand::random::<u32>());
-                                let runtime_for_send = Arc::clone(&runtime_for_dc);
+                                let _dc_for_send = format!("dc_ref_{}", rand::random::<u32>());
+                                let _runtime_for_send = Arc::clone(&runtime_for_dc);
                                 let send_fn = unsafe { NativeFunction::from_closure(move |_, args, _context| {
                                     if !args.is_empty() {
                                         if let Ok(_data) = args[0].to_string(_context) {
@@ -383,7 +383,7 @@ impl WebRTCManager {
                     stream_obj.set(js_string!("active"), JsValue::from(true), false, callback_context)?;
 
                     // Add getTracks method
-                    let get_tracks_fn = unsafe { NativeFunction::from_closure(|_, _, callback_context| {
+                    let get_tracks_fn = unsafe { NativeFunction::from_closure(|_, _, _callback_context| {
                         let tracks_array = JsObject::default();
                         // In real implementation, would return actual MediaStreamTracks
                         Ok(JsValue::from(tracks_array))
