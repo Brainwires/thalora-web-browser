@@ -30,7 +30,9 @@ impl JavaScriptEngine {
         let timers = Arc::new(Mutex::new(HashMap::new()));
         let next_timer_id = Arc::new(Mutex::new(1));
 
-        crate::features::solver::browser_globals::setup_browser_globals(&mut context);
+        // Setup real Web APIs instead of browser globals
+        let web_apis = crate::apis::WebApis::new();
+        web_apis.setup_all_apis(&mut context)?;
 
         Ok(Self {
             context,

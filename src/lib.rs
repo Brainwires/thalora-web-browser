@@ -21,7 +21,6 @@ pub use apis::events::DomEvent;
 
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use features::{ReactProcessor, ReactElement, ProcessedReactData};
-pub use features::{ChallengeSolver, ChallengeType, ChallengeResult, SolverConfig, ChallengePatterns};
 pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 
 pub use protocols::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};

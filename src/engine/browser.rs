@@ -12,7 +12,6 @@ use reqwest::cookie::CookieStore;
 use rand::{thread_rng, Rng};
 
 use crate::engine::renderer::RustRenderer;
-// use crate::{ChallengeSolver, ChallengeType};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScrapedData {
@@ -87,7 +86,6 @@ pub struct HeadlessWebBrowser {
     auth_context: Arc<Mutex<AuthContext>>,
     pub stealth_config: StealthConfig,
     request_history: Arc<Mutex<Vec<RequestTiming>>>,
-    // challenge_solver: Arc<Mutex<ChallengeSolver>>,
 }
 
 #[derive(Debug, Clone)]
@@ -202,7 +200,6 @@ impl HeadlessWebBrowser {
             auth_context,
             stealth_config: StealthConfig::default(),
             request_history: Arc::new(Mutex::new(Vec::new())),
-            // challenge_solver: Arc::new(Mutex::new(ChallengeSolver::new())),
         }
     }
 
@@ -1045,57 +1042,10 @@ impl HeadlessWebBrowser {
     }
 
     async fn handle_challenge_page(&mut self, html: &str, url: &str) -> Result<String> {
-        tracing::info!("🧩 Detected JavaScript challenge page, attempting advanced solving...");
+        tracing::info!("🧩 Detected JavaScript challenge page, processing with full browser engine...");
 
-        // // Use advanced challenge solver - temporarily disabled
-        // let challenge_result = {
-        //     let mut solver = self.challenge_solver.lock().unwrap();
-        //     solver.solve_challenges(html, url).await?
-        // };
-        // 
-        // if challenge_result.solved {
-        //     tracing::info!("✅ Challenge solved successfully! Type: {:?}, Time: {:?}", 
-        //         challenge_result.challenge_type, challenge_result.solve_time);
-        //     
-        //     // Apply any solution data (cookies, tokens, etc.)
-        //     if let Some(challenge_cookies) = challenge_result.solution_data.get("challenge_cookies") {
-        //         // Apply challenge cookies to our cookie jar
-        //         if let Ok(cookie_url) = Url::parse(url) {
-        //             if let Value::Object(cookies) = challenge_cookies {
-        //                 for (name, value) in cookies {
-        //                     if let Value::String(cookie_value) = value {
-        //                         let cookie_str = format!("{}={}", name, cookie_value);
-        //                         self.cookie_jar.add_cookie_str(&cookie_str, &cookie_url);
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     
-        //     // If we have reCAPTCHA tokens, we might need to submit a form
-        //     if challenge_result.challenge_type == ChallengeType::GoogleRecaptchaV3 {
-        //         if let Some(Value::String(token)) = challenge_result.solution_data.get("recaptcha_token") {
-        //             tracing::info!("🎯 Generated reCAPTCHA token, submitting...");
-        //             // Use the existing renderer to execute JavaScript with the token
-        //             let token_js = format!(r#"
-        //                 window.recaptcha_token = "{}";
-        //                 if (window.grecaptcha) {{
-        //                     window.grecaptcha.ready(function() {{
-        //                         window.grecaptcha.execute('{}', {{action: 'homepage'}}).then(function(token) {{
-        //                             console.log('reCAPTCHA completed');
-        //                         }});
-        //                     }});
-        //                 }}
-        //             "#, token, challenge_result.solution_data.get("site_key").and_then(|v| v.as_str()).unwrap_or(""));
-        //             
-        //             return self.renderer.render_with_js(&format!("{}<script>{}</script>", html, token_js), url).await;
-        //         }
-        //     }
-        // } else {
-        //     tracing::warn!("⚠️ Advanced challenge solver failed, falling back to basic JavaScript execution");
-        // }
-
-        // Fallback: First, execute any JavaScript in the page
+        // Use the full browser engine to process the challenge page
+        // This includes real JavaScript execution, Web APIs, timers, DOM manipulation, etc.
         let processed_html = self.renderer.render_with_js(html, url).await?;
         
         // Look for meta refresh redirect
