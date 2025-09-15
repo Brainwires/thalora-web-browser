@@ -454,7 +454,7 @@ async fn test_chrome_specific_apis() {
     println!("  📈 Chrome API Coverage: {:.1}%", (chrome_api_available as f64 / (chrome_api_available + chrome_api_missing) as f64) * 100.0);
 
     // Chrome APIs are expected to be mostly missing in a non-Chrome browser
-    assert!(chrome_api_missing >= chrome_api_available, "Most Chrome-specific APIs should be missing in Synaptic");
+    assert!(chrome_api_missing >= chrome_api_available, "Most Chrome-specific APIs should be missing in Thalora");
 }
 
 #[tokio::test]

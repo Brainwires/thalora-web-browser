@@ -1,10 +1,10 @@
-# 🧠 Synaptic - Full-Featured Pure Rust Web Browser
+# 🧠 Thalora - Full-Featured Pure Rust Web Browser
 
 **🚀 The most advanced headless web browser designed for AI agents**
 
-A cutting-edge **full-featured web browser** built entirely in Rust, designed specifically for AI model integration via the Model Context Protocol (MCP). Synaptic provides complete Chrome 131 compatibility with real JavaScript execution, modern web APIs, and AI memory persistence - all without any Chrome or Chromium dependencies.
+A cutting-edge **full-featured web browser** built entirely in Rust, designed specifically for AI model integration via the Model Context Protocol (MCP). Thalora provides complete Chrome 131 compatibility with real JavaScript execution, modern web APIs, and AI memory persistence - all without any Chrome or Chromium dependencies.
 
-## 🌟 **What Makes Synaptic Special?**
+## 🌟 **What Makes Thalora Special?**
 
 ### 🔥 **Production-Ready Full Browser**
 - **Real Chrome 131 Mimicking**: Perfect User-Agent, headers, and browser fingerprinting
@@ -82,12 +82,12 @@ cdp_get_response_body(requestId)
 
 ### Installation
 ```bash
-git clone https://github.com/brainwires/synaptic.git
-cd synaptic
+git clone https://github.com/brainwires/thalora.git
+cd thalora
 cargo build --release
 
 # Single binary - no dependencies!
-./target/release/synaptic
+./target/release/thalora
 ```
 
 ### Test All Features
@@ -99,7 +99,7 @@ cargo test
 cargo test google_search_test -- --nocapture
 
 # Test MCP tools
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/synaptic
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/thalora
 ```
 
 ## 🚀 **MCP Tools - 17+ Comprehensive Tools**
@@ -212,7 +212,7 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./tar
 ## 🏗 **Architecture - Modular & Extensible**
 
 ```
-synaptic/
+thalora/
 ├── src/
 │   ├── engine/              # 🚀 Core Browser Engine
 │   │   ├── browser.rs       # HTTP client, session management
@@ -303,11 +303,11 @@ synaptic/
 cargo build --release
 
 # Deploy anywhere - zero dependencies
-scp target/release/synaptic user@server:/usr/local/bin/
-chmod +x /usr/local/bin/synaptic
+scp target/release/thalora user@server:/usr/local/bin/
+chmod +x /usr/local/bin/thalora
 
 # Run as MCP server
-synaptic
+thalora
 ```
 
 ### Docker Container
@@ -319,17 +319,17 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/synaptic /usr/local/bin/
+COPY --from=builder /app/target/release/thalora /usr/local/bin/
 EXPOSE 3000
-CMD ["synaptic"]
+CMD ["thalora"]
 ```
 
 ### Claude Desktop Integration
 ```json
 {
   "mcpServers": {
-    "synaptic": {
-      "command": "/usr/local/bin/synaptic",
+    "thalora": {
+      "command": "/usr/local/bin/thalora",
       "args": [],
       "env": {
         "RUST_LOG": "info"
@@ -373,7 +373,7 @@ Our compatibility tests run against:
 *Results verified through automated test suite in `/tests/browser_compatibility_test.rs`*
 
 ### Performance vs Other Solutions
-| Metric | Synaptic | Puppeteer | Playwright | Selenium |
+| Metric | Thalora | Puppeteer | Playwright | Selenium |
 |--------|----------|-----------|------------|----------|
 | **Memory** | 40MB | 200MB+ | 180MB+ | 150MB+ |
 | **Binary Size** | 25MB | 300MB+ | 250MB+ | N/A |
@@ -382,7 +382,7 @@ Our compatibility tests run against:
 | **JavaScript** | Sandboxed | Full V8 | Full V8/Gecko | Full engines |
 | **AI Integration** | Native MCP | Custom | Custom | Custom |
 
-## 🌟 **Why Choose Synaptic?**
+## 🌟 **Why Choose Thalora?**
 
 ### For AI Researchers
 - ✅ **Memory Persistence**: Never lose research across sessions
@@ -439,6 +439,6 @@ Built with excellent open-source projects:
 
 ---
 
-**Synaptic v0.1.0** - The most advanced headless browser for AI agents, built entirely in Rust 🦀
+**Thalora v0.1.0** - The most advanced headless browser for AI agents, built entirely in Rust 🦀
 
 *Where artificial intelligence meets authentic web browsing* 🧠🌐

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-/// Chrome DevTools Protocol implementation for Synaptic
+/// Chrome DevTools Protocol implementation for Thalora
 /// Provides debugging and inspection APIs for AI coding agents
 #[derive(Clone)]
 pub struct CdpServer {

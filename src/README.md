@@ -1,6 +1,6 @@
-# Synaptic Source Code Architecture
+# Thalora Source Code Architecture
 
-This directory contains the complete implementation of **Synaptic** - a pure Rust headless web browser designed for AI model integration through MCP (Model Context Protocol).
+This directory contains the complete implementation of **Thalora** - a pure Rust headless web browser designed for AI model integration through MCP (Model Context Protocol).
 
 ## 🏗️ Architecture Overview
 
@@ -213,4 +213,4 @@ graph TD
 
 ---
 
-**Synaptic** provides a complete, secure, and AI-optimized headless web browser implementation in pure Rust. The modular architecture ensures maintainability while delivering enterprise-grade performance and security.
+**Thalora** provides a complete, secure, and AI-optimized headless web browser implementation in pure Rust. The modular architecture ensures maintainability while delivering enterprise-grade performance and security.

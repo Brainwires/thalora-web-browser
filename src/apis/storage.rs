@@ -17,7 +17,7 @@ impl WebStorage {
     pub fn new() -> Self {
         let storage_dir = dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("synaptic")
+            .join("thalora")
             .join("storage");
 
         fs::create_dir_all(&storage_dir).ok();
