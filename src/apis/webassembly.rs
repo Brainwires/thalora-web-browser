@@ -157,7 +157,7 @@ impl WebAssemblyManager {
                     memory_obj.set(js_string!("buffer"), JsValue::from(buffer), false, context)?;
 
                     // Add grow function
-                    let grow_fn = unsafe { NativeFunction::from_closure(|_, args, _context| {
+                    let grow_fn = NativeFunction::from_closure(|_, args, _context| {
                         let _pages = if !args.is_empty() {
                             args[0].to_i32(_context).unwrap_or(1)
                         } else {
@@ -165,7 +165,7 @@ impl WebAssemblyManager {
                         };
                         // Return previous size
                         Ok(JsValue::from(1))
-                    }) };
+                    });
                     memory_obj.set(js_string!("grow"), JsValue::from(grow_fn.to_js_function(context.realm())), false, context)?;
 
                     Ok(JsValue::from(memory_obj))
@@ -185,9 +185,9 @@ impl WebAssemblyManager {
             table_obj.set(js_string!("length"), JsValue::from(0), false, context)?;
 
             // Real grow method
-            let grow_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
+            let grow_fn = NativeFunction::from_closure(|_, _args, _context| {
                 Ok(JsValue::from(0)) // Return previous size
-            }) };
+            });
             table_obj.set(js_string!("grow"), JsValue::from(grow_fn.to_js_function(context.realm())), false, context)?;
 
             Ok(JsValue::from(table_obj))
@@ -229,7 +229,7 @@ impl WebAssemblyManager {
             let promise_obj = JsObject::default();
             let engine_for_then = Arc::clone(&engine_compile);
 
-            let then_fn = unsafe { NativeFunction::from_closure(move |_, callback_args, callback_context| {
+            let then_fn = NativeFunction::from_closure(move |_, callback_args, callback_context| {
                 if !callback_args.is_empty() && callback_args[0].is_callable() {
                     let bytes = vec![
                         0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
@@ -248,11 +248,11 @@ impl WebAssemblyManager {
                     }
                 }
                 Ok(JsValue::undefined())
-            }) };
+            });
 
             promise_obj.set(js_string!("then"), JsValue::from(then_fn.to_js_function(context.realm())), false, context)?;
 
-            let catch_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+            let catch_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
             promise_obj.set(js_string!("catch"), JsValue::from(catch_fn.to_js_function(context.realm())), false, context)?;
 
             Ok(JsValue::from(promise_obj))
@@ -263,7 +263,7 @@ impl WebAssemblyManager {
         let compile_streaming_fn = unsafe { NativeFunction::from_closure(|_, _args, context| {
             let promise_obj = JsObject::default();
             // In real implementation, would handle streaming compilation
-            let then_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+            let then_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
             promise_obj.set(js_string!("then"), JsValue::from(then_fn.to_js_function(context.realm())), false, context)?;
             Ok(JsValue::from(promise_obj))
         }) };
@@ -273,7 +273,7 @@ impl WebAssemblyManager {
         let instantiate_fn = unsafe { NativeFunction::from_closure(|_, _args, context| {
             let promise_obj = JsObject::default();
             // In real implementation, would instantiate module
-            let then_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+            let then_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
             promise_obj.set(js_string!("then"), JsValue::from(then_fn.to_js_function(context.realm())), false, context)?;
             Ok(JsValue::from(promise_obj))
         }) };
@@ -283,7 +283,7 @@ impl WebAssemblyManager {
         let instantiate_streaming_fn = unsafe { NativeFunction::from_closure(|_, _args, context| {
             let promise_obj = JsObject::default();
             // In real implementation, would handle streaming instantiation
-            let then_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+            let then_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
             promise_obj.set(js_string!("then"), JsValue::from(then_fn.to_js_function(context.realm())), false, context)?;
             Ok(JsValue::from(promise_obj))
         }) };

@@ -196,7 +196,7 @@ impl WebGLManager {
                 },
                 "WEBGL_lose_context" => {
                     let ext_obj = JsObject::default();
-                    let lose_context_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+                    let lose_context_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
                     ext_obj.set(js_string!("loseContext"), JsValue::from(lose_context_fn.to_js_function(context.realm())), false, context)?;
                     Ok(JsValue::from(ext_obj))
                 },
