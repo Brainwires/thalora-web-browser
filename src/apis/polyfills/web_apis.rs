@@ -92,19 +92,26 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             var chrome = undefined;
         }
 
-        // Security Context APIs
+        // Security Context APIs - detect actual context
         if (typeof window !== 'undefined') {
+            // Detect if we're in a secure context (HTTPS, localhost, or file://)
             if (typeof window.isSecureContext === 'undefined') {
-                window.isSecureContext = false; // Non-HTTPS context by default
+                var currentLocation = typeof location !== 'undefined' ? location.protocol : 'https:';
+                window.isSecureContext = currentLocation === 'https:' ||
+                                       currentLocation === 'file:' ||
+                                       (typeof location !== 'undefined' && location.hostname === 'localhost');
             }
 
+            // Set origin only if we have real location context
             if (typeof window.origin === 'undefined') {
-                window.origin = 'http://localhost:3000'; // Default origin for headless mode
+                if (typeof location !== 'undefined' && location.protocol && location.host) {
+                    window.origin = location.protocol + '//' + location.host;
+                }
+                // Otherwise leave it undefined - no fake origins
             }
 
-            // History API for navigation
-            if (typeof history === 'undefined') {
-                var history = {
+            // History API for navigation - always set it up
+            window.history = {
                     length: 1,
                     state: null,
                     scrollRestoration: 'auto',
@@ -131,8 +138,38 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                         // Mock implementation - doesn't actually change URL
                     }
                 };
+
+        }
+
+        // Document properties
+        if (typeof document !== 'undefined') {
+            if (typeof document.visibilityState === 'undefined') {
+                document.visibilityState = 'visible';
             }
         }
+
+        // Security and Privacy APIs
+        if (typeof TrustedHTML === 'undefined') {
+            var TrustedHTML = function(value) {
+                this.toString = function() { return value; };
+            };
+        }
+
+        if (typeof SecurityPolicyViolationEvent === 'undefined') {
+            var SecurityPolicyViolationEvent = function(type, eventInitDict) {
+                this.type = type;
+                this.blockedURI = eventInitDict && eventInitDict.blockedURI || '';
+                this.documentURI = eventInitDict && eventInitDict.documentURI || '';
+                this.violatedDirective = eventInitDict && eventInitDict.violatedDirective || '';
+            };
+        }
+
+        if (typeof crossOriginIsolated === 'undefined') {
+            var crossOriginIsolated = false;
+        }
+
+        // Make history available globally
+        var history = window.history;
 
         // CSS.supports API for modern CSS feature detection
         if (typeof CSS === 'undefined') {
