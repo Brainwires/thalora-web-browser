@@ -1,4 +1,4 @@
-use synaptic::RustRenderer;
+use thalora::RustRenderer;
 
 #[tokio::test]
 async fn test_enhanced_javascript_execution() -> Result<(), Box<dyn std::error::Error>> {

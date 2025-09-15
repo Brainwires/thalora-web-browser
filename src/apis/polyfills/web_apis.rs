@@ -110,34 +110,43 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                 // Otherwise leave it undefined - no fake origins
             }
 
-            // History API for navigation - always set it up
-            window.history = {
+            // History API - Real implementation will be provided by browser engine
+            // The actual History API with navigation is set up by the browser renderer
+            // This polyfill only provides minimal fallbacks if the real API isn't available
+            if (typeof window.history === 'undefined') {
+                window.history = {
                     length: 1,
                     state: null,
                     scrollRestoration: 'auto',
 
                     back: function() {
-                        // Mock implementation - doesn't actually navigate
+                        // Fallback - real implementation provided by browser engine
+                        console.log('history.back() - fallback called (real navigation should be available via browser engine)');
                     },
 
                     forward: function() {
-                        // Mock implementation - doesn't actually navigate
+                        // Fallback - real implementation provided by browser engine
+                        console.log('history.forward() - fallback called (real navigation should be available via browser engine)');
                     },
 
                     go: function(delta) {
-                        // Mock implementation - doesn't actually navigate
+                        // Fallback - real implementation provided by browser engine
+                        console.log('history.go(' + delta + ') - fallback called (real navigation should be available via browser engine)');
                     },
 
                     pushState: function(state, title, url) {
+                        // Fallback - real implementation provided by browser engine
                         this.state = state;
-                        // Mock implementation - doesn't actually change URL
+                        console.log('history.pushState() - fallback called (real implementation should be available via browser engine)');
                     },
 
                     replaceState: function(state, title, url) {
+                        // Fallback - real implementation provided by browser engine
                         this.state = state;
-                        // Mock implementation - doesn't actually change URL
+                        console.log('history.replaceState() - fallback called (real implementation should be available via browser engine)');
                     }
                 };
+            }
 
         }
 
@@ -169,7 +178,7 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
         }
 
         // Make history available globally
-        var history = window.history;
+        var history = typeof window !== 'undefined' ? window.history : undefined;
 
         // CSS.supports API for modern CSS feature detection
         if (typeof CSS === 'undefined') {

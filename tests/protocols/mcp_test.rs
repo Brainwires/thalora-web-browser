@@ -1,7 +1,7 @@
 // Tests for src/protocols/mcp.rs
 #[cfg(test)]
 mod mcp_tests {
-    use synaptic::protocols::mcp::*;
+    use thalora::protocols::mcp::*;
     use serde_json::json;
 
     #[test]

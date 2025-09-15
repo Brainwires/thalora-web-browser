@@ -186,7 +186,7 @@ impl RuntimeDomain {
             execution_contexts: vec![ExecutionContext {
                 id: 1,
                 name: "main".to_string(),
-                origin: "synaptic://main".to_string(),
+                origin: "thalora://main".to_string(),
                 aux_data: None,
             }],
             next_context_id: 2,
@@ -288,7 +288,7 @@ impl CdpDomain for DebuggerDomain {
             "enable" => {
                 self.enabled = true;
                 Ok(serde_json::json!({
-                    "debuggerId": "synaptic-debugger-1"
+                    "debuggerId": "thalora-debugger-1"
                 }))
             }
             "disable" => {
@@ -355,13 +355,13 @@ impl CdpDomain for DebuggerDomain {
                 method: "Debugger.scriptParsed".to_string(),
                 params: Some(serde_json::json!({
                     "scriptId": "script_1",
-                    "url": "synaptic://main",
+                    "url": "thalora://main",
                     "startLine": 0,
                     "startColumn": 0,
                     "endLine": 100,
                     "endColumn": 0,
                     "executionContextId": 1,
-                    "hash": "synaptic_hash"
+                    "hash": "thalora_hash"
                 })),
                 session_id: None,
             }]
@@ -673,7 +673,7 @@ impl CdpDomain for StorageDomain {
             }
             "getStorageKeyForFrame" => {
                 Ok(serde_json::json!({
-                    "storageKey": "synaptic://main"
+                    "storageKey": "thalora://main"
                 }))
             }
             "getUsageAndQuota" => {

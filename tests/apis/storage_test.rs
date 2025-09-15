@@ -1,7 +1,7 @@
 // Tests for src/apis/storage.rs
 #[cfg(test)]
 mod storage_tests {
-    use synaptic::apis::storage::*;
+    use thalora::apis::storage::*;
 
     #[test]
     fn test_web_storage_creation() {

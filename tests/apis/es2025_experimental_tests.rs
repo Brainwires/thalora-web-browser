@@ -1,4 +1,4 @@
-use synaptic::js::JavaScriptEngine;
+use thalora::js::JavaScriptEngine;
 
 #[tokio::test]
 async fn test_array_from_async() {

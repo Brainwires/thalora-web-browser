@@ -8,6 +8,7 @@ pub mod storage;
 pub mod events;
 pub mod timers;
 pub mod navigator;
+pub mod history;
 
 // Full-featured browser APIs
 pub mod webassembly;

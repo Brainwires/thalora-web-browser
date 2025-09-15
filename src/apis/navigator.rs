@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
+use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string};
 
 /// Navigator API implementation with Chrome-compatible browser information
 pub struct NavigatorManager {

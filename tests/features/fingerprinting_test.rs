@@ -1,7 +1,7 @@
 // Tests for src/features/fingerprinting.rs
 #[cfg(test)]
 mod fingerprinting_tests {
-    use synaptic::features::fingerprinting::*;
+    use thalora::features::fingerprinting::*;
 
     #[test]
     fn test_fingerprint_manager_creation() {

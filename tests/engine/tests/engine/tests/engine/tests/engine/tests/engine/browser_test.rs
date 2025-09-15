@@ -1,4 +1,4 @@
-use synaptic::{HeadlessWebBrowser, Form, FormField, InteractionResponse};
+use thalora::{HeadlessWebBrowser, Form, FormField, InteractionResponse};
 use std::collections::HashMap;
 use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 use url::Url;

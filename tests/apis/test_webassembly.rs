@@ -1,4 +1,4 @@
-use synaptic::apis::WebApis;
+use thalora::apis::WebApis;
 use boa_engine::{Context, Source};
 
 #[tokio::test]

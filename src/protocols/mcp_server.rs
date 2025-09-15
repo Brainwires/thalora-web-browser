@@ -5,6 +5,7 @@ use tracing::{error, info};
 
 use crate::protocols::mcp::{McpRequest, McpResponse};
 use crate::engine::browser::HeadlessWebBrowser;
+use std::sync::{Arc, Mutex};
 use crate::apis::websocket::WebSocketManager;
 use crate::engine::dom::EnhancedDom;
 use crate::features::ai_memory::AiMemoryHeap;
@@ -13,7 +14,7 @@ use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::cdp_tools::CdpTools;
 
 pub struct McpServer {
-    pub browser: HeadlessWebBrowser,
+    pub browser: Arc<Mutex<HeadlessWebBrowser>>,
     pub websocket_manager: WebSocketManager,
     pub dom_manager: Option<EnhancedDom>,
     pub ai_memory: AiMemoryHeap,
@@ -26,7 +27,7 @@ impl McpServer {
     pub fn new() -> Self {
         let ai_memory = AiMemoryHeap::new_default().unwrap_or_else(|_| {
             tracing::warn!("Failed to load AI memory heap, creating new one");
-            AiMemoryHeap::new("/tmp/synaptic_ai_memory.json").expect("Failed to create AI memory heap")
+            AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
         });
         
         Self {
@@ -552,18 +553,25 @@ impl McpServer {
         let wait_for_js = arguments.get("wait_for_js")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
-        
+
         let selector = arguments.get("selector").and_then(|v| v.as_str());
-        
+
         let extract_links = arguments.get("extract_links")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
-            
+
         let extract_images = arguments.get("extract_images")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
 
-        match self.browser.scrape(url, wait_for_js, selector, extract_links, extract_images).await {
+        // Setup history API for JavaScript-enabled scraping
+        if wait_for_js {
+            if let Err(e) = HeadlessWebBrowser::setup_history_api(Arc::clone(&self.browser)) {
+                tracing::warn!("Failed to setup history API: {}", e);
+            }
+        }
+
+        match self.browser.lock().unwrap().scrape(url, wait_for_js, selector, extract_links, extract_images).await {
             Ok(scraped_data) => {
                 McpResponse::ToolResult {
                     content: vec![serde_json::json!({
@@ -635,7 +643,7 @@ impl McpServer {
         );
 
         // Use the same parameters that work in our tests
-        let mut search_data = self.browser.scrape(&search_url, false, None, false, false).await?;
+        let mut search_data = self.browser.lock().unwrap().scrape(&search_url, false, None, false, false).await?;
 
         // Debug: Log the response details
         println!("DEBUG: Google response length: {} chars", search_data.content.len());
@@ -654,14 +662,14 @@ impl McpServer {
                     println!("DEBUG: Following redirect to: {}", redirect_url);
 
                     // Follow the redirect with JavaScript enabled to handle the challenge
-                    let _challenge_response = self.browser.scrape(&redirect_url, true, None, false, false).await?;
+                    let _challenge_response = self.browser.lock().unwrap().scrape(&redirect_url, true, None, false, false).await?;
 
                     // Wait a moment for any JavaScript to execute
                     sleep(Duration::from_millis(2000)).await;
 
                     // Now retry the original search - should get real results
                     println!("DEBUG: Retrying original search after challenge...");
-                    search_data = self.browser.scrape(&search_url, true, None, false, false).await?;
+                    search_data = self.browser.lock().unwrap().scrape(&search_url, true, None, false, false).await?;
 
                     println!("DEBUG: After challenge - response length: {} chars", search_data.content.len());
                     println!("DEBUG: After challenge - first 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);

@@ -1,4 +1,4 @@
-use synaptic::js::JavaScriptEngine;
+use thalora::js::JavaScriptEngine;
 use boa_engine::JsValue;
 
 #[tokio::test]

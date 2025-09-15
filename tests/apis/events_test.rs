@@ -1,7 +1,7 @@
 // Tests for src/apis/events.rs
 #[cfg(test)]
 mod events_tests {
-    use synaptic::apis::events::*;
+    use thalora::apis::events::*;
 
     #[test]
     fn test_event_listener_creation() {

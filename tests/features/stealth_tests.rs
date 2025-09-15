@@ -1,4 +1,4 @@
-use synaptic::HeadlessWebBrowser;
+use thalora::HeadlessWebBrowser;
 use std::time::Instant;
 use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 

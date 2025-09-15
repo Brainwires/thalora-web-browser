@@ -16,7 +16,7 @@ cargo build --release
 cargo check
 
 # Run the MCP server
-./target/release/synaptic
+./target/release/thalora
 # or during development:
 cargo run
 ```
@@ -58,7 +58,7 @@ cargo doc --open
 
 ## Project Architecture
 
-**Synaptic** is a pure Rust headless web browser designed specifically for AI model integration through the Model Context Protocol (MCP). It provides comprehensive web browsing capabilities without any Chrome/Chromium dependencies.
+**Thalora** is a pure Rust headless web browser designed specifically for AI model integration through the Model Context Protocol (MCP). It provides comprehensive web browsing capabilities without any Chrome/Chromium dependencies.
 
 ### Core Structure
 ```
@@ -114,7 +114,7 @@ The project serves as an MCP server providing 17+ tools for AI models:
 **Chrome DevTools Protocol**: Complete CDP implementation for debugging and inspection
 **Web Automation**: Full browser automation with JavaScript execution, form handling, stealth browsing
 
-Start the MCP server: `./target/release/synaptic`
+Start the MCP server: `./target/release/thalora`
 
 ### Testing MCP Tools
 **IMPORTANT**: This is a stdio-based MCP server. Do NOT write test files - use stdin/stdout piping instead.
@@ -122,13 +122,13 @@ Start the MCP server: `./target/release/synaptic`
 Test MCP tools by piping JSON requests directly to the executable:
 ```bash
 # Test tools list
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/synaptic
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/thalora
 
 # Test Google search
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "google_search", "arguments": {"query": "test", "num_results": 1}}}' | ./target/release/synaptic
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "google_search", "arguments": {"query": "test", "num_results": 1}}}' | ./target/release/thalora
 
 # Test URL scraping
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/release/synaptic
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/release/thalora
 ```
 
 ## Development Patterns

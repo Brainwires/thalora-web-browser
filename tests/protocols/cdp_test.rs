@@ -1,7 +1,7 @@
 // Tests for src/protocols/cdp.rs
 #[cfg(test)]
 mod cdp_tests {
-    use synaptic::protocols::cdp::*;
+    use thalora::protocols::cdp::*;
 
     #[test]
     fn test_cdp_server_creation() {

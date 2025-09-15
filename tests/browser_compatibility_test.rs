@@ -1,5 +1,4 @@
-use synaptic::HeadlessWebBrowser;
-use serde_json::Value;
+use thalora::HeadlessWebBrowser;
 use std::collections::HashMap;
 
 /// Comprehensive browser compatibility test suite
@@ -8,10 +7,10 @@ use std::collections::HashMap;
 async fn test_html5_compatibility() {
     println!("🧪 Testing HTML5 compatibility against html5test.com...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test HTML5Test.com - gives score out of 555 points
-    let response = browser.scrape("http://html5test.com/", true, None, false, false).await;
+    let response = browser.lock().unwrap().scrape("http://html5test.com/", true, None, false, false).await;
 
     match response {
         Ok(scraped_data) => {
@@ -43,10 +42,10 @@ async fn test_html5_compatibility() {
 async fn test_es6_compatibility() {
     println!("🧪 Testing ES6 compatibility against Kangax table...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test Kangax ES6 compatibility table
-    let response = browser.scrape("https://compat-table.github.io/compat-table/es6/", true, None, false, false).await;
+    let response = browser.lock().unwrap().scrape("https://compat-table.github.io/compat-table/es6/", true, None, false, false).await;
 
     match response {
         Ok(scraped_data) => {
@@ -91,7 +90,7 @@ async fn test_es6_compatibility() {
 async fn test_can_i_use_features() {
     println!("🧪 Testing modern web features against Can I Use...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test key modern web features
     let features_to_test = vec![
@@ -108,7 +107,7 @@ async fn test_can_i_use_features() {
     for (feature_name, url) in features_to_test {
         println!("🔍 Testing {} support...", feature_name);
 
-        let response = browser.scrape(url, true, None, false, false).await;
+        let response = browser.lock().unwrap().scrape(url, true, None, false, false).await;
 
         match response {
             Ok(scraped_data) => {
@@ -141,7 +140,7 @@ async fn test_can_i_use_features() {
 async fn test_javascript_engine_features() {
     println!("🧪 Testing JavaScript engine features directly...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test modern JavaScript features directly
     let js_tests = vec![
@@ -189,7 +188,7 @@ async fn test_javascript_engine_features() {
     let mut failed = 0;
 
     for (test_name, js_code) in js_tests {
-        let result = browser.execute_javascript(js_code).await;
+        let result = browser.lock().unwrap().execute_javascript(js_code).await;
 
         match result {
             Ok(value) => {
@@ -215,7 +214,7 @@ async fn test_javascript_engine_features() {
 async fn test_web_api_availability() {
     println!("🧪 Testing Web API availability...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test Web API availability
     let web_apis = vec![
@@ -265,7 +264,7 @@ async fn test_web_api_availability() {
     let mut missing_apis = 0;
 
     for (api_name, js_check) in web_apis {
-        let result = browser.execute_javascript(js_check).await;
+        let result = browser.lock().unwrap().execute_javascript(js_check).await;
 
         match result {
             Ok(value) => {
@@ -342,7 +341,7 @@ fn analyze_caniuse_support(content: &str) -> String {
 async fn test_webplatform_features() {
     println!("🧪 Testing Web Platform features against MDN compatibility...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test critical Web Platform features that Chrome supports
     let webplatform_tests = vec![
@@ -367,7 +366,7 @@ async fn test_webplatform_features() {
     for (feature_name, url) in webplatform_tests {
         println!("🔍 Testing {} support...", feature_name);
 
-        let response = browser.scrape(url, true, None, false, false).await;
+        let response = browser.lock().unwrap().scrape(url, true, None, false, false).await;
 
         match response {
             Ok(scraped_data) => {
@@ -400,7 +399,7 @@ async fn test_webplatform_features() {
 async fn test_chrome_specific_apis() {
     println!("🧪 Testing Chrome-specific API availability...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test Chrome-specific APIs that other browsers might not have
     let chrome_specific_tests = vec![
@@ -429,7 +428,7 @@ async fn test_chrome_specific_apis() {
     let mut chrome_api_missing = 0;
 
     for (api_name, js_check) in chrome_specific_tests {
-        let result = browser.execute_javascript(js_check).await;
+        let result = browser.lock().unwrap().execute_javascript(js_check).await;
 
         match result {
             Ok(value) => {
@@ -462,7 +461,7 @@ async fn test_chrome_specific_apis() {
 async fn test_modern_css_features() {
     println!("🧪 Testing modern CSS feature support...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test modern CSS features through JavaScript
     let css_feature_tests = vec![
@@ -501,7 +500,7 @@ async fn test_modern_css_features() {
     let mut css_not_supported = 0;
 
     for (feature_name, css_test) in css_feature_tests {
-        let result = browser.execute_javascript(css_test).await;
+        let result = browser.lock().unwrap().execute_javascript(css_test).await;
 
         match result {
             Ok(value) => {
@@ -533,7 +532,7 @@ async fn test_modern_css_features() {
 async fn test_security_and_privacy_apis() {
     println!("🧪 Testing Security and Privacy API compliance...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test security and privacy related APIs
     let security_tests = vec![
@@ -565,7 +564,7 @@ async fn test_security_and_privacy_apis() {
     let mut security_missing = 0;
 
     for (security_name, js_check) in security_tests {
-        let result = browser.execute_javascript(js_check).await;
+        let result = browser.lock().unwrap().execute_javascript(js_check).await;
 
         match result {
             Ok(value) => {
@@ -597,7 +596,7 @@ async fn test_security_and_privacy_apis() {
 async fn test_performance_and_timing_apis() {
     println!("🧪 Testing Performance and Timing API accuracy...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test performance and timing APIs with actual functionality
     let performance_tests = vec![
@@ -630,7 +629,7 @@ async fn test_performance_and_timing_apis() {
     let mut performance_broken = 0;
 
     for (api_name, js_test) in performance_tests {
-        let result = browser.execute_javascript(js_test).await;
+        let result = browser.lock().unwrap().execute_javascript(js_test).await;
 
         match result {
             Ok(value) => {

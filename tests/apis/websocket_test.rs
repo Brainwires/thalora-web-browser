@@ -1,7 +1,7 @@
 // Tests for src/apis/websocket.rs
 #[cfg(test)]
 mod websocket_tests {
-    use synaptic::apis::websocket::*;
+    use thalora::apis::websocket::*;
 
     #[tokio::test]
     async fn test_websocket_manager_creation() {
