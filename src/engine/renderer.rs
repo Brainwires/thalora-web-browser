@@ -12,6 +12,7 @@ pub struct RustRenderer {
     js_context: Context,
     web_apis: WebApis,
     dom_manager: Option<EnhancedDom>,
+    history_initialized: bool,
 }
 
 impl RustRenderer {
@@ -796,6 +797,7 @@ impl RustRenderer {
             js_context: context,
             web_apis,
             dom_manager: Some(dom_manager.unwrap()),
+            history_initialized: false,
         }
     }
 
