@@ -39,34 +39,83 @@ impl RustRenderer {
                 hidden: false,
                 visibilityState: 'visible',
                 readyState: 'complete',
-                createElement: function(tag) { 
-                    return { 
+                createElement: function(tag) {
+                    return {
                         tagName: tag.toUpperCase(),
                         style: {},
                         setAttribute: function(name, value) { this[name] = value; },
                         getAttribute: function(name) { return this[name]; },
                         addEventListener: function(event, handler) {},
                         removeEventListener: function(event, handler) {}
-                    }; 
+                    };
                 },
                 getElementById: function(id) { return null; },
                 querySelector: function(selector) { return null; },
                 querySelectorAll: function(selector) { return []; },
                 getElementsByClassName: function(className) { return []; },
                 getElementsByTagName: function(tagName) { return []; },
-                body: { 
+                body: {
                     appendChild: function(child) {},
                     removeChild: function(child) {},
                     style: {}
                 },
-                head: { 
+                head: {
                     appendChild: function(child) {},
                     removeChild: function(child) {},
                     style: {}
                 },
                 addEventListener: function(event, handler) {},
                 removeEventListener: function(event, handler) {},
-                dispatchEvent: function(event) { return true; }
+                dispatchEvent: function(event) { return true; },
+                // Chrome 125: Storage Access API
+                requestStorageAccess: function(options) {
+                    console.log('document.requestStorageAccess called with options:', options);
+                    // Return a resolved promise for cross-site storage access
+                    return Promise.resolve();
+                },
+                hasStorageAccess: function() {
+                    console.log('document.hasStorageAccess called');
+                    // Return a resolved promise with true (storage access granted)
+                    return Promise.resolve(true);
+                },
+                // Chrome 127: View Transitions API
+                startViewTransition: function(callback) {
+                    console.log('document.startViewTransition called');
+                    // Mock implementation - execute callback immediately
+                    if (typeof callback === 'function') {
+                        try {
+                            callback();
+                        } catch (e) {
+                            console.warn('View transition callback error:', e);
+                        }
+                    }
+                    // Return a ViewTransition-like object
+                    return {
+                        finished: Promise.resolve(),
+                        ready: Promise.resolve(),
+                        updateCallbackDone: Promise.resolve(),
+                        skipTransition: function() {}
+                    };
+                },
+                // Chrome 128: document.caretPositionFromPoint
+                caretPositionFromPoint: function(x, y) {
+                    console.log('document.caretPositionFromPoint called with', x, y);
+                    // Mock implementation - return a CaretPosition-like object
+                    return {
+                        offsetNode: this.body,
+                        offset: 0,
+                        getClientRect: function() {
+                            return {
+                                left: x,
+                                top: y,
+                                right: x,
+                                bottom: y,
+                                width: 0,
+                                height: 0
+                            };
+                        }
+                    };
+                }
             };
             
             // Enhanced window object with modern APIs
@@ -116,6 +165,16 @@ impl RustRenderer {
                         1: { type: 'application/x-google-chrome-pdf', suffixes: 'pdf' },
                         2: { type: 'application/x-nacl', suffixes: '' },
                         3: { type: 'application/x-pnacl', suffixes: '' }
+                    },
+                    // Chrome 126: Gamepad API
+                    getGamepads: function() {
+                        // Return empty array - no gamepads connected in headless mode
+                        return [];
+                    },
+                    // Chrome 127: User Activation API
+                    userActivation: {
+                        hasBeenActive: true,
+                        isActive: true
                     }
                 },
                 screen: {
@@ -227,6 +286,20 @@ impl RustRenderer {
                 devicePixelRatio: 1,
                 scrollX: 0,
                 scrollY: 0,
+                // Chrome 126: Visual Viewport API
+                visualViewport: {
+                    width: 1920,
+                    height: 1055,
+                    offsetLeft: 0,
+                    offsetTop: 0,
+                    pageLeft: 0,
+                    pageTop: 0,
+                    scale: 1,
+                    addEventListener: function(event, handler) {},
+                    removeEventListener: function(event, handler) {},
+                    // Chrome 126: onscrollend support
+                    onscrollend: null
+                },
                 // Essential Chrome object to pass bot detection
                 chrome: {
                     runtime: {
@@ -457,6 +530,10 @@ impl RustRenderer {
             
             var self = window;
             var globalThis = window;
+
+            // Make sure GamepadHapticActuator and WebGLObject are available globally
+            GamepadHapticActuator = window.GamepadHapticActuator;
+            WebGLObject = window.WebGLObject;
             
             // Ensure eval works correctly with Trusted Types for Google's challenge
             // The test H.eval(g.createScript("1"))===1 must return true
@@ -518,6 +595,23 @@ impl RustRenderer {
             if (typeof globalThis.import === 'undefined') {
                 globalThis.import = window.import;
             }
+
+            // Chrome 126: GamepadHapticActuator API
+            window.GamepadHapticActuator = function() {
+                this.type = 'dual-rumble';
+                this.canPlay = function(effects) { return true; };
+                this.playEffect = function(type, params) {
+                    return Promise.resolve();
+                };
+                this.reset = function() {
+                    return Promise.resolve();
+                };
+            };
+
+            // Chrome 126: WebGLObject exposure
+            window.WebGLObject = function() {
+                // Base WebGL object constructor
+            };
 
             // Handle import.meta syntax errors by preprocessing
             var originalEval = globalThis.eval;
@@ -786,6 +880,168 @@ impl RustRenderer {
             var google = {
                 tick: function(event, label) { /* Google timing captured */ }
             };
+
+            // Chrome 129: Intl object with DurationFormat
+            if (typeof Intl === 'undefined') {
+                var Intl = {
+                    DurationFormat: function(locale, options) {
+                        this.locale = locale || 'en-US';
+                        this.options = options || {};
+
+                        this.format = function(duration) {
+                            var parts = [];
+                            if (duration.hours) {
+                                parts.push(duration.hours + ' hr');
+                            }
+                            if (duration.minutes) {
+                                parts.push(duration.minutes + ' min');
+                            }
+                            if (duration.seconds) {
+                                parts.push(duration.seconds + ' sec');
+                            }
+                            return parts.join(' ');
+                        };
+
+                        this.formatToParts = function(duration) {
+                            var parts = [];
+                            if (duration.hours) {
+                                parts.push({type: 'hours', value: duration.hours});
+                                parts.push({type: 'literal', value: ' hr'});
+                            }
+                            if (duration.minutes) {
+                                if (parts.length > 0) parts.push({type: 'literal', value: ' '});
+                                parts.push({type: 'minutes', value: duration.minutes});
+                                parts.push({type: 'literal', value: ' min'});
+                            }
+                            if (duration.seconds) {
+                                if (parts.length > 0) parts.push({type: 'literal', value: ' '});
+                                parts.push({type: 'seconds', value: duration.seconds});
+                                parts.push({type: 'literal', value: ' sec'});
+                            }
+                            return parts;
+                        };
+                    }
+                };
+            } else if (typeof Intl.DurationFormat === 'undefined') {
+                Intl.DurationFormat = function(locale, options) {
+                    this.locale = locale || 'en-US';
+                    this.options = options || {};
+
+                    this.format = function(duration) {
+                        var parts = [];
+                        if (duration.hours) {
+                            parts.push(duration.hours + ' hr');
+                        }
+                        if (duration.minutes) {
+                            parts.push(duration.minutes + ' min');
+                        }
+                        if (duration.seconds) {
+                            parts.push(duration.seconds + ' sec');
+                        }
+                        return parts.join(' ');
+                    };
+
+                    this.formatToParts = function(duration) {
+                        var parts = [];
+                        if (duration.hours) {
+                            parts.push({type: 'hours', value: duration.hours});
+                            parts.push({type: 'literal', value: ' hr'});
+                        }
+                        if (duration.minutes) {
+                            if (parts.length > 0) parts.push({type: 'literal', value: ' '});
+                            parts.push({type: 'minutes', value: duration.minutes});
+                            parts.push({type: 'literal', value: ' min'});
+                        }
+                        if (duration.seconds) {
+                            if (parts.length > 0) parts.push({type: 'literal', value: ' '});
+                            parts.push({type: 'seconds', value: duration.seconds});
+                            parts.push({type: 'literal', value: ' sec'});
+                        }
+                        return parts;
+                    };
+                };
+            }
+
+            // Chrome 137: Selection API
+            if (typeof window !== 'undefined' && typeof window.getSelection === 'undefined') {
+                // Create a basic Selection constructor
+                function Selection() {
+                    this.anchorNode = null;
+                    this.anchorOffset = 0;
+                    this.focusNode = null;
+                    this.focusOffset = 0;
+                    this.isCollapsed = true;
+                    this.rangeCount = 0;
+                    this.direction = 'none'; // Chrome 137: direction property
+                }
+
+                Selection.prototype.getRangeAt = function(index) {
+                    if (index < 0 || index >= this.rangeCount) {
+                        throw new Error('Index out of range');
+                    }
+                    return {
+                        startContainer: this.anchorNode,
+                        startOffset: this.anchorOffset,
+                        endContainer: this.focusNode,
+                        endOffset: this.focusOffset,
+                        collapsed: this.isCollapsed
+                    };
+                };
+
+                Selection.prototype.removeAllRanges = function() {
+                    this.anchorNode = null;
+                    this.anchorOffset = 0;
+                    this.focusNode = null;
+                    this.focusOffset = 0;
+                    this.isCollapsed = true;
+                    this.rangeCount = 0;
+                    this.direction = 'none';
+                };
+
+                Selection.prototype.toString = function() {
+                    return '';
+                };
+
+                // Chrome 137: getComposedRanges method
+                Selection.prototype.getComposedRanges = function(shadowRoots) {
+                    if (this.rangeCount === 0) {
+                        return [];
+                    }
+                    return [{
+                        startContainer: this.anchorNode,
+                        startOffset: this.anchorOffset,
+                        endContainer: this.focusNode,
+                        endOffset: this.focusOffset,
+                        collapsed: this.isCollapsed
+                    }];
+                };
+
+                // Create global selection instance
+                var globalSelection = new Selection();
+
+                // Add getSelection to window object
+                window.getSelection = function() {
+                    return globalSelection;
+                };
+            }
+
+            // Chrome 140: highlightsFromPoint API
+            if (typeof document !== 'undefined' && typeof document.highlightsFromPoint === 'undefined') {
+                document.highlightsFromPoint = function(x, y) {
+                    // Mock implementation - returns empty array of highlights
+                    // In real implementation, would return CSS custom highlights at point
+                    return [];
+                };
+            }
+
+            // Chrome 140: Get Installed Related Apps API
+            if (typeof navigator !== 'undefined' && typeof navigator.getInstalledRelatedApps === 'undefined') {
+                navigator.getInstalledRelatedApps = function() {
+                    // Mock implementation - returns promise resolving to empty array
+                    // In real implementation, would check for installed related apps
+                    return Promise.resolve([]);
+                };
+            }
         "#;
 
         // Preprocess JavaScript to handle import.meta syntax issues

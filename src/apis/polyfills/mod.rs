@@ -1,5 +1,6 @@
 // JavaScript polyfills organized by ES version
 pub mod console;
+pub mod regexp;
 pub mod web_apis;
 pub mod syntax_transformer;
 
@@ -23,6 +24,7 @@ use crate::apis::timers::TimerManager;
 pub fn setup_all_polyfills(context: &mut Context) -> Result<()> {
     // Core JavaScript enhancements
     console::setup_console(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
+    regexp::setup_regexp(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
 
     // Setup real timer implementation
     let timer_manager = TimerManager::new();

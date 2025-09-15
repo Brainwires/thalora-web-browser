@@ -329,6 +329,7 @@ pub fn setup_es2025_experimental(context: &mut Context) -> JsResult<()> {
                         typeof value.message === 'string');
             };
         }
+
     "#))?;
 
     Ok(())
