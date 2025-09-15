@@ -40,6 +40,11 @@ impl WebApis {
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
 
+        // Setup WebSocket API
+        let websocket_manager = websocket::WebSocketManager::new();
+        let websocket_api = websocket::WebSocketJsApi::new(websocket_manager);
+        websocket_api.setup_websocket_globals(context).map_err(|e| anyhow::Error::msg(format!("WebSocket setup failed: {:?}", e)))?;
+
         // Setup real timer implementation
         let timer_manager = timers::TimerManager::new();
         timer_manager.setup_real_timers(context).map_err(|e| anyhow::Error::msg(format!("Timer setup failed: {:?}", e)))?;

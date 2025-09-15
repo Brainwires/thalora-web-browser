@@ -1023,16 +1023,12 @@ impl RustRenderer {
                 js_code
             )
         } else {
-            // Standard sandboxed execution for regular JavaScript
+            // Standard sandboxed execution for regular JavaScript - return actual result
             format!(
                 r#"
                 (function() {{
                     try {{
-                        var result = (function() {{
-                            {}
-                            return undefined;
-                        }})();
-                        return result || 'executed';
+                        return {};
                     }} catch (e) {{
                         return 'error: ' + e.message;
                     }}
