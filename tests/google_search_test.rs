@@ -4,11 +4,11 @@ use thalora::HeadlessWebBrowser;
 async fn test_google_search_real_functionality() {
     println!("🚀 Testing Google search with real browser...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test 1: Real HTTP request to Google
     println!("📡 Making request to Google...");
-    let response = browser.scrape("https://www.google.com/search?q=rust+programming", false, None, false, false).await;
+    let response = browser.lock().unwrap().scrape("https://www.google.com/search?q=rust+programming", false, None, false, false).await;
 
     match response {
         Ok(scraped_data) => {
@@ -34,7 +34,7 @@ async fn test_google_search_real_functionality() {
 
     // Test 2: JavaScript execution functionality
     println!("🧠 Testing JavaScript execution...");
-    let js_result = browser.execute_javascript("Math.random() * 1000").await;
+    let js_result = browser.lock().unwrap().execute_javascript("Math.random() * 1000").await;
 
     match js_result {
         Ok(value) => {
@@ -54,10 +54,10 @@ async fn test_google_search_real_functionality() {
 async fn test_http_client_functionality() {
     println!("🔧 Testing HTTP client with httpbin.org...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test simple HTTP request
-    let response = browser.scrape("https://httpbin.org/html", false, None, false, false).await;
+    let response = browser.lock().unwrap().scrape("https://httpbin.org/html", false, None, false, false).await;
 
     match response {
         Ok(scraped_data) => {
@@ -92,18 +92,18 @@ async fn test_http_client_functionality() {
 async fn test_javascript_engine_math_operations() {
     println!("🧮 Testing JavaScript math operations...");
 
-    let mut browser = HeadlessWebBrowser::new();
+    let browser = HeadlessWebBrowser::new();
 
     // Test basic math
-    let result = browser.execute_javascript("2 + 2").await;
+    let result = browser.lock().unwrap().execute_javascript("2 + 2").await;
     assert!(result.is_ok(), "Basic addition should work");
 
     // Test Math object
-    let result = browser.execute_javascript("Math.PI").await;
+    let result = browser.lock().unwrap().execute_javascript("Math.PI").await;
     assert!(result.is_ok(), "Math.PI should be available");
 
     // Test random number generation
-    let result = browser.execute_javascript("Math.random()").await;
+    let result = browser.lock().unwrap().execute_javascript("Math.random()").await;
     assert!(result.is_ok(), "Math.random() should work");
 
     println!("✅ JavaScript math operations working correctly");

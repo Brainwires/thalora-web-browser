@@ -177,8 +177,30 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             var crossOriginIsolated = false;
         }
 
-        // Make history available globally
-        var history = typeof window !== 'undefined' ? window.history : undefined;
+        // Create a basic history object for global access
+        var history = {
+            length: 1,
+            state: null,
+            scrollRestoration: 'auto',
+            back: function() { console.log('history.back() called'); return undefined; },
+            forward: function() { console.log('history.forward() called'); return undefined; },
+            go: function(delta) { console.log('history.go(' + delta + ') called'); return undefined; },
+            pushState: function(state, title, url) {
+                console.log('history.pushState called');
+                this.state = state;
+                return undefined;
+            },
+            replaceState: function(state, title, url) {
+                console.log('history.replaceState called');
+                this.state = state;
+                return undefined;
+            }
+        };
+
+        // Also make it available as window.history if window exists
+        if (typeof window !== 'undefined') {
+            window.history = history;
+        }
 
         // CSS.supports API for modern CSS feature detection
         if (typeof CSS === 'undefined') {
