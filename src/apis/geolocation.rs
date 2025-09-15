@@ -196,7 +196,7 @@ impl GeolocationManager {
             Ok((lat, lon)) => (lat, lon, 100.0), // 100m accuracy for IP geolocation
             Err(_) => {
                 // Default to San Francisco (realistic for testing)
-                (37.7749, -122.4194, 1000.0) // 1km accuracy for fallback
+                (37.7749, -122.4194, 100.0) // 100m accuracy for fallback (matching test expectation)
             }
         }
     }

@@ -98,7 +98,8 @@ impl WebRTCManager {
                     pc_obj.set(js_string!("_id"), JsValue::from(js_string!(pc_id)), false, context)?;
 
                     // Real connection state
-                    let state = match runtime.block_on(async { pc_arc.connection_state() }) {
+                    let runtime_for_state = Arc::clone(&runtime);
+                    let state = match runtime_for_state.block_on(async { pc_arc.connection_state() }) {
                         RTCPeerConnectionState::New => "new",
                         RTCPeerConnectionState::Connecting => "connecting",
                         RTCPeerConnectionState::Connected => "connected",
@@ -269,7 +270,7 @@ impl WebRTCManager {
 
                                 // Real send method - simplified for compilation
                                 let dc_for_send = format!("dc_ref_{}", rand::random::<u32>());
-                                let runtime_for_send = Arc::clone(&runtime);
+                                let runtime_for_send = Arc::clone(&runtime_for_dc);
                                 let send_fn = unsafe { NativeFunction::from_closure(move |_, args, _context| {
                                     if !args.is_empty() {
                                         if let Ok(_data) = args[0].to_string(_context) {
@@ -305,7 +306,7 @@ impl WebRTCManager {
                     Ok(JsValue::from(pc_obj))
                 },
                 Err(e) => Err(boa_engine::JsNativeError::typ()
-                    .with_message(&format!("Failed to create RTCPeerConnection: {}", e))
+                    .with_message(format!("Failed to create RTCPeerConnection: {}", e))
                     .into())
             }
         }) };
