@@ -1,5 +1,5 @@
-use anyhow::{Result, anyhow};
-use boa_engine::{Context, JsObject, JsValue, NativeFunction, property::Attribute, js_string, JsResult};
+use anyhow::Result;
+use boa_engine::{Context, JsObject, JsValue, NativeFunction, property::Attribute, js_string};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};

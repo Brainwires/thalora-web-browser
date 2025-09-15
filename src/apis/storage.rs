@@ -22,7 +22,7 @@ impl WebStorage {
 
         fs::create_dir_all(&storage_dir).ok();
 
-        let mut instance = Self {
+        let instance = Self {
             local_storage: Arc::new(Mutex::new(HashMap::new())),
             session_storage: Arc::new(Mutex::new(HashMap::new())),
             storage_dir,

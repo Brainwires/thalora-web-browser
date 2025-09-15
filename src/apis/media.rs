@@ -3,10 +3,9 @@ use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use cpal::{Device, Host, StreamConfig};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use rodio::{Decoder, OutputStream, Sink};
-use std::io::Cursor;
+use cpal::{Device, Host};
+use cpal::traits::HostTrait;
+use rodio::Sink;
 
 /// Real Media API implementation with actual audio/video processing
 pub struct MediaManager {

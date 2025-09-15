@@ -3,8 +3,7 @@ use boa_engine::{Context, Source};
 use std::time::Duration;
 use tokio::time::timeout;
 use crate::apis::WebApis;
-use crate::apis::events::{EventManager, EventListener, DomEvent};
-use crate::engine::dom::{EnhancedDom, DomElement, DomMutation};
+use crate::engine::dom::EnhancedDom;
 
 
 pub struct RustRenderer {

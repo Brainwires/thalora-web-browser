@@ -1,9 +1,7 @@
-use anyhow::{Result, anyhow};
 use rand::Rng;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::{debug, info};
+use tracing::debug;
 
 /// Browser fingerprinting resistance module
 /// Provides realistic browser signatures to avoid detection

@@ -169,7 +169,7 @@ impl GeolocationManager {
         let clear_watch_fn = unsafe { NativeFunction::from_closure(move |_, args, _context| {
             if !args.is_empty() {
                 if let Ok(watch_id) = args[0].to_u32(_context) {
-                    if let Some(mut watch) = watch_positions_clear.lock().unwrap().get_mut(&watch_id) {
+                    if let Some(watch) = watch_positions_clear.lock().unwrap().get_mut(&watch_id) {
                         watch.active = false;
                     }
                 }
