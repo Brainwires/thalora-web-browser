@@ -460,6 +460,9 @@ impl RustRenderer {
                     emptyHTML: '',
                     emptyScript: ''
                 },
+                // Security Context APIs - Missing from ISSUES.md #9
+                isSecureContext: true,
+                origin: 'https://www.google.com',
                 // Canvas API - Critical for bot detection bypass
                 HTMLCanvasElement: function() {
                     return {
