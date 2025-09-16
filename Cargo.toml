@@ -28,8 +28,8 @@ kuchikiki = "0.8"
 lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
 
-# JavaScript engine (pure Rust)
-boa_engine = "0.20"
+# JavaScript engine (pure Rust) - using local submodule for customization
+boa_engine = { path = "engines/boa/core/engine" }
 
 # WebAssembly runtime
 wasmtime = "21.0"

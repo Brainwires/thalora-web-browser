@@ -1,0 +1,3 @@
+[submodule "engines/boa"]
+	path = engines/boa
+	url = https://github.com/boa-dev/boa.git

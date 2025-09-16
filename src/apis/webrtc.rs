@@ -586,7 +586,7 @@ impl WebRTCManager {
             .get(js_string!("navigator"), context)
         {
             nav.as_object()
-                .cloned()
+                .map(|obj| obj.clone())
                 .unwrap_or_else(|| JsObject::default())
         } else {
             let nav = JsObject::default();

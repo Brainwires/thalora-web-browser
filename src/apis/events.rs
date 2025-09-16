@@ -118,15 +118,15 @@ impl EventManager {
                     let options = args[1].as_object().unwrap();
                     let bubbles = options
                         .get(js_string!("bubbles"), context)
-                        .unwrap_or(JsValue::Boolean(false))
+                        .unwrap_or(JsValue::new(false))
                         .to_boolean();
                     let cancelable = options
                         .get(js_string!("cancelable"), context)
-                        .unwrap_or(JsValue::Boolean(false))
+                        .unwrap_or(JsValue::new(false))
                         .to_boolean();
                     let composed = options
                         .get(js_string!("composed"), context)
-                        .unwrap_or(JsValue::Boolean(false))
+                        .unwrap_or(JsValue::new(false))
                         .to_boolean();
                     (bubbles, cancelable, composed)
                 } else {
@@ -241,15 +241,15 @@ impl EventManager {
                         let options = args[1].as_object().unwrap();
                         let bubbles = options
                             .get(js_string!("bubbles"), context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean();
                         let cancelable = options
                             .get(js_string!("cancelable"), context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean();
                         let composed = options
                             .get(js_string!("composed"), context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean();
                         let detail = options
                             .get(js_string!("detail"), context)
@@ -338,15 +338,15 @@ impl EventManager {
                         let options = args[2].as_object().unwrap();
                         let capture = options
                             .get(js_string!("capture"), _context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean();
                         let passive = options
                             .get(js_string!("passive"), _context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean();
                         let once = options
                             .get(js_string!("once"), _context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean();
                         (capture, passive, once)
                     } else {
@@ -435,7 +435,7 @@ impl EventManager {
                         cancelable: event.get(js_string!("cancelable"), context)?.to_boolean(),
                         composed: event
                             .get(js_string!("composed"), context)
-                            .unwrap_or(JsValue::Boolean(false))
+                            .unwrap_or(JsValue::new(false))
                             .to_boolean(),
                         default_prevented: false,
                         propagation_stopped: false,

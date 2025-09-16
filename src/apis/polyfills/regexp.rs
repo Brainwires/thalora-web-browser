@@ -1,4 +1,4 @@
-use boa_engine::{Context, JsResult, JsValue, NativeFunction, js_string, JsArgs};
+use boa_engine::{Context, JsResult, JsValue, NativeFunction, js_string};
 
 /// Setup enhanced RegExp implementation with Chrome 136 features
 pub fn setup_regexp(context: &mut Context) -> JsResult<()> {
@@ -13,8 +13,8 @@ pub fn setup_regexp(context: &mut Context) -> JsResult<()> {
 
     if let Some(regexp_obj) = regexp_constructor.as_object() {
         // Chrome 136: RegExp.escape static method
-        let escape_fn = unsafe { NativeFunction::from_closure(|_, args, context| {
-            let input = args.get_or_undefined(0);
+        let escape_fn = NativeFunction::from_fn_ptr(|_, args, context| {
+            let input = args.first().cloned().unwrap_or(JsValue::undefined());
             let input_str = input.to_string(context)?;
 
             // Escape special regex characters to make them literal
@@ -29,7 +29,7 @@ pub fn setup_regexp(context: &mut Context) -> JsResult<()> {
                 .collect::<String>();
 
             Ok(JsValue::from(js_string!(escaped)))
-        }) };
+        });
 
         regexp_obj.set(
             js_string!("escape"),

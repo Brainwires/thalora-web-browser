@@ -90,13 +90,13 @@ impl CdpTools {
             if let Ok(mut browser) = browser_ref.lock() {
                 match browser.execute_javascript(expression).await {
                     Ok(result) => {
-                        let result_str = match result {
-                            boa_engine::JsValue::String(s) => s.to_std_string_escaped(),
-                            boa_engine::JsValue::Boolean(b) => b.to_string(),
-                            boa_engine::JsValue::Integer(i) => i.to_string(),
-                            boa_engine::JsValue::Rational(r) => r.to_string(),
-                            boa_engine::JsValue::Undefined => "undefined".to_string(),
-                            boa_engine::JsValue::Null => "null".to_string(),
+                        let result_str = match result.variant() {
+                            boa_engine::value::JsVariant::String(s) => s.to_std_string_escaped(),
+                            boa_engine::value::JsVariant::Boolean(b) => b.to_string(),
+                            boa_engine::value::JsVariant::Integer32(i) => i.to_string(),
+                            boa_engine::value::JsVariant::Float64(r) => r.to_string(),
+                            boa_engine::value::JsVariant::Undefined => "undefined".to_string(),
+                            boa_engine::value::JsVariant::Null => "null".to_string(),
                             _ => format!("{:?}", result),
                         };
 
