@@ -78,53 +78,36 @@ impl RustRenderer {
                 addEventListener: addEventListener,
                 removeEventListener: removeEventListener,
                 dispatchEvent: dispatchEvent,
-                // MOCK Chrome 125: Storage Access API - No real cross-site storage functionality
+                // MOCK Storage Access API - Basic cross-site storage simulation
                 requestStorageAccess: function(options) {
-                    console.log('MOCK document.requestStorageAccess called with options:', options);
-                    // MOCK - Always grants fake storage access, no real cross-site storage handling
-                    return Promise.resolve();
+                    return Promise.resolve(); // MOCK: Always grants access
                 },
                 hasStorageAccess: function() {
-                    console.log('MOCK document.hasStorageAccess called');
-                    // MOCK - Always returns true, no real storage access verification
-                    return Promise.resolve(true);
+                    return Promise.resolve(true); // MOCK: Always has access
                 },
-                // MOCK Chrome 127: View Transitions API - No real transition functionality
+                // MOCK View Transitions API - Simulates page transitions
                 startViewTransition: function(callback) {
-                    console.log('MOCK document.startViewTransition called');
-                    // MOCK - Execute callback immediately without actual view transition
                     if (typeof callback === 'function') {
                         try {
                             callback();
                         } catch (e) {
-                            console.warn('MOCK View transition callback error:', e);
+                            console.warn('View transition callback error:', e);
                         }
                     }
-                    // MOCK - Return fake ViewTransition object with resolved promises
                     return {
-                        finished: Promise.resolve(),
-                        ready: Promise.resolve(),
-                        updateCallbackDone: Promise.resolve(),
-                        skipTransition: function() { /* MOCK - Does nothing */ }
+                        finished: Promise.resolve(), // MOCK: Instant completion
+                        ready: Promise.resolve(), // MOCK: Always ready
+                        updateCallbackDone: Promise.resolve(), // MOCK: Callback done
+                        skipTransition: function() {} // MOCK: No-op skip
                     };
                 },
-                // MOCK Chrome 128: document.caretPositionFromPoint - No real caret positioning
+                // MOCK Caret Position API - Basic text caret simulation
                 caretPositionFromPoint: function(x, y) {
-                    console.log('MOCK document.caretPositionFromPoint called with', x, y);
-                    // MOCK - Return fake CaretPosition object, no actual DOM text analysis
                     return {
-                        offsetNode: this.body,
-                        offset: 0,
+                        offsetNode: this.body, // MOCK: Always points to body
+                        offset: 0, // MOCK: Always at start
                         getClientRect: function() {
-                            // MOCK - Return fake rectangle based on input coordinates
-                            return {
-                                left: x,
-                                top: y,
-                                right: x,
-                                bottom: y,
-                                width: 0,
-                                height: 0
-                            };
+                            return { left: x, top: y, right: x, bottom: y, width: 0, height: 0 }; // MOCK: Point rect
                         }
                     };
                 }
@@ -283,22 +266,10 @@ impl RustRenderer {
                     return Math.floor(Math.random() * 1000) + 1;
                 },
                 cancelAnimationFrame: function(id) {},
-                // MOCK Window Event System - No real event handling
-                addEventListener: function(event, handler) {
-                    console.log('MOCK window.addEventListener called for:', event);
-                    // MOCK - No real window event registration, explains test failures
-                    return undefined;
-                },
-                removeEventListener: function(event, handler) {
-                    console.log('MOCK window.removeEventListener called for:', event);
-                    // MOCK - No real event listener removal
-                    return undefined;
-                },
-                dispatchEvent: function(event) {
-                    console.log('MOCK window.dispatchEvent called for:', event);
-                    // MOCK - Fake event dispatch, always returns true
-                    return true;
-                },
+                // REAL Window Event System - Uses EventManager for actual window events
+                addEventListener: addEventListener,
+                removeEventListener: removeEventListener,
+                dispatchEvent: dispatchEvent,
                 getComputedStyle: function(element) {
                     return {
                         getPropertyValue: function(prop) { return ''; }
@@ -320,17 +291,9 @@ impl RustRenderer {
                     pageLeft: 0,
                     pageTop: 0,
                     scale: 1,
-                    // MOCK Visual Viewport Events - No real viewport event handling
-                    addEventListener: function(event, handler) {
-                        console.log('MOCK visualViewport.addEventListener called for:', event);
-                        // MOCK - No real viewport event registration
-                        return undefined;
-                    },
-                    removeEventListener: function(event, handler) {
-                        console.log('MOCK visualViewport.removeEventListener called for:', event);
-                        // MOCK - No real viewport event removal
-                        return undefined;
-                    },
+                    // REAL Visual Viewport Events - Uses EventManager for viewport events
+                    addEventListener: addEventListener,
+                    removeEventListener: removeEventListener,
                     // Chrome 126: onscrollend support
                     onscrollend: null
                 },
