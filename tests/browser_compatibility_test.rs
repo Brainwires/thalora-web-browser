@@ -1,11 +1,11 @@
 use thalora::HeadlessWebBrowser;
 use std::collections::HashMap;
 
-/// Comprehensive browser compatibility test suite
-/// Tests against real compatibility sites to measure browser feature support
+/// HTTP Client functionality test (NOT JavaScript API testing)
+/// Tests ability to fetch and parse external websites - does NOT test browser APIs
 #[tokio::test]
 async fn test_html5_compatibility() {
-    println!("🧪 Testing HTML5 compatibility against html5test.com...");
+    println!("🧪 Testing HTTP client by fetching html5test.com...");
 
     let browser = HeadlessWebBrowser::new();
 
@@ -40,7 +40,7 @@ async fn test_html5_compatibility() {
 
 #[tokio::test]
 async fn test_es6_compatibility() {
-    println!("🧪 Testing ES6 compatibility against Kangax table...");
+    println!("🧪 Testing HTTP client by fetching Kangax ES6 table...");
 
     let browser = HeadlessWebBrowser::new();
 
@@ -88,7 +88,7 @@ async fn test_es6_compatibility() {
 
 #[tokio::test]
 async fn test_can_i_use_features() {
-    println!("🧪 Testing modern web features against Can I Use...");
+    println!("🧪 Testing HTTP client by fetching Can I Use websites...");
 
     let browser = HeadlessWebBrowser::new();
 
@@ -138,7 +138,7 @@ async fn test_can_i_use_features() {
 
 #[tokio::test]
 async fn test_javascript_engine_features() {
-    println!("🧪 Testing JavaScript engine features directly...");
+    println!("🧪 Testing REAL JavaScript engine features (Boa ES6-ES2023)...");
 
     let browser = HeadlessWebBrowser::new();
 
@@ -212,7 +212,7 @@ async fn test_javascript_engine_features() {
 
 #[tokio::test]
 async fn test_web_api_availability() {
-    println!("🧪 Testing Web API availability...");
+    println!("🧪 Testing Web API availability (WARNING: Many are MOCK implementations)...");
 
     let browser = HeadlessWebBrowser::new();
 
@@ -594,7 +594,7 @@ async fn test_security_and_privacy_apis() {
 
 #[tokio::test]
 async fn test_performance_and_timing_apis() {
-    println!("🧪 Testing Performance and Timing API accuracy...");
+    println!("🧪 Testing MOCK Performance API (WARNING: Returns fake data)...");
 
     let browser = HeadlessWebBrowser::new();
 

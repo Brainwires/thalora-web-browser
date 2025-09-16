@@ -178,9 +178,9 @@ impl NavigatorManager {
         connection.set(js_string!("saveData"), JsValue::from(false), false, context)?;
         navigator.set(js_string!("connection"), JsValue::from(connection), false, context)?;
 
-        // WebMIDI API (Chrome 124 - now requires permissions)
+        // MOCK WebMIDI API (Chrome 124) - Returns fake MIDI access, no real MIDI functionality
         let request_midi_access_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
-            // Create a mock MIDI access promise that resolves with empty ports
+            // MOCK - Create fake MIDI access promise that resolves with empty ports
             let midi_access = JsObject::with_object_proto(context.intrinsics());
             midi_access.set(js_string!("sysexEnabled"), JsValue::from(false), false, context)?;
 

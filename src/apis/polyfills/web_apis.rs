@@ -1,9 +1,11 @@
 use boa_engine::{Context, JsResult, Source};
 
-/// Setup Web APIs (fetch, URL, etc.)
+/// Setup Web APIs polyfills
+/// WARNING: Most of these are MOCK/STUB implementations that only provide API shape, not functionality
+/// They return hardcoded values and serve primarily for compatibility testing, not real usage
 pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
     context.eval(Source::from_bytes(r#"
-        // Performance API
+        // MOCK Performance API - Returns fake timing data, not real measurements
         if (typeof performance === 'undefined') {
             var performance = {
                 now: function() {
@@ -34,37 +36,37 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                     loadEventEnd: Date.now() - 865
                 },
                 mark: function(name) {
-                    // Mock implementation
+                    // MOCK - Does nothing, real implementation would create performance marks
                     return undefined;
                 },
                 measure: function(name, startMark, endMark) {
-                    // Mock implementation
+                    // MOCK - Does nothing, real implementation would measure performance
                     return undefined;
                 },
                 clearMarks: function(name) {
-                    // Mock implementation
+                    // MOCK - Does nothing, real implementation would clear marks
                     return undefined;
                 },
                 clearMeasures: function(name) {
-                    // Mock implementation
+                    // MOCK - Does nothing, real implementation would clear measures
                     return undefined;
                 },
                 getEntries: function() {
-                    // Mock implementation - return empty array
+                    // MOCK - Always returns empty array, real implementation would return performance entries
                     return [];
                 },
                 getEntriesByType: function(type) {
-                    // Mock implementation - return empty array
+                    // MOCK - Always returns empty array, real implementation would filter by type
                     return [];
                 },
                 getEntriesByName: function(name, type) {
-                    // Mock implementation - return empty array
+                    // MOCK - Always returns empty array, real implementation would filter by name
                     return [];
                 }
             };
         }
 
-        // PerformanceObserver API
+        // MOCK PerformanceObserver API - Does not actually observe performance
         if (typeof PerformanceObserver === 'undefined') {
             var PerformanceObserver = function(callback) {
                 this.callback = callback;
@@ -73,14 +75,16 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
 
             PerformanceObserver.prototype.observe = function(options) {
                 this.observing = true;
-                // Mock implementation - doesn't actually observe anything
+                // MOCK - Does nothing, real implementation would start observing performance entries
             };
 
             PerformanceObserver.prototype.disconnect = function() {
                 this.observing = false;
+                // MOCK - Does nothing, real implementation would stop observing
             };
 
             PerformanceObserver.prototype.takeRecords = function() {
+                // MOCK - Always returns empty array, real implementation would return buffered entries
                 return [];
             };
         }
@@ -340,15 +344,15 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             };
         }
 
-        // WebSocketStream API (Chrome 124)
+        // MOCK WebSocketStream API (Chrome 124) - No actual WebSocket functionality
         if (typeof WebSocketStream === 'undefined') {
             var WebSocketStream = function WebSocketStream(url, options) {
-                console.log('WebSocketStream created:', url, options);
+                console.log('MOCK WebSocketStream created:', url, options);
                 this.url = url;
                 this.options = options || {};
                 this.readyState = 0; // CONNECTING
 
-                // Simulate connection
+                // MOCK - Simulate connection without actually connecting
                 var self = this;
                 setTimeout(function() {
                     self.readyState = 1; // OPEN
@@ -361,10 +365,12 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
                     getWriter: function() {
                         return {
                             write: function(data) {
-                                console.log('WebSocketStream write:', data);
+                                console.log('MOCK WebSocketStream write:', data);
+                                // MOCK - Does nothing, real implementation would send data
                                 return Promise.resolve();
                             },
                             close: function() {
+                                // MOCK - Does nothing, real implementation would close connection
                                 return Promise.resolve();
                             }
                         };
