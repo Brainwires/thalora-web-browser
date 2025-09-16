@@ -1,17 +1,10 @@
-// JavaScript polyfills organized by ES version
+// JavaScript polyfills for browser APIs only
+// NOTE: All ES6-ES2023 language features are now natively handled by Boa engine
 pub mod console;
 pub mod web_apis;
 pub mod syntax_transformer;
 
-// ES version polyfills
-pub mod es6_polyfills;
-pub mod es2017_polyfills;
-pub mod es2018_polyfills;
-pub mod es2019_polyfills;
-pub mod es2020_polyfills;
-pub mod es2021_polyfills;
-pub mod es2022_polyfills;
-pub mod es2023_polyfills;
+// Only experimental/proposal polyfills remain
 pub mod es2024_polyfills;
 pub mod es2025_experimental;
 
@@ -19,29 +12,22 @@ use anyhow::Result;
 use boa_engine::Context;
 use crate::apis::timers::TimerManager;
 
-/// Setup all JavaScript polyfills in the browser context
+/// Setup JavaScript polyfills for browser APIs
+/// NOTE: ES6-ES2023 language features are natively handled by Boa engine
 pub fn setup_all_polyfills(context: &mut Context) -> Result<()> {
-    // Core JavaScript enhancements
-    console::setup_console(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    // regexp::setup_regexp(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
+    // Browser API implementations (still needed)
+    console::setup_console(context).map_err(|e| anyhow::Error::msg(format!("Console setup failed: {:?}", e)))?;
 
-    // Setup real timer implementation
+    // Setup browser timer implementation (setTimeout/setInterval)
     let timer_manager = TimerManager::new();
     timer_manager.setup_real_timers(context).map_err(|e| anyhow::Error::msg(format!("Timer setup failed: {:?}", e)))?;
 
-    web_apis::setup_web_apis(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
+    // Web APIs (fetch, websocket, etc.)
+    web_apis::setup_web_apis(context).map_err(|e| anyhow::Error::msg(format!("Web API setup failed: {:?}", e)))?;
 
-    // ES version features
-    es6_polyfills::setup_es6_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2017_polyfills::setup_es2017_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2018_polyfills::setup_es2018_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2019_polyfills::setup_es2019_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2020_polyfills::setup_es2020_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2021_polyfills::setup_es2021_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2022_polyfills::setup_es2022_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2023_polyfills::setup_es2023_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2024_polyfills::setup_es2024_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
-    es2025_experimental::setup_es2025_experimental(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
+    // Only experimental/future proposal polyfills remain
+    es2024_polyfills::setup_es2024_polyfills(context).map_err(|e| anyhow::Error::msg(format!("ES2024 setup failed: {:?}", e)))?;
+    es2025_experimental::setup_es2025_experimental(context).map_err(|e| anyhow::Error::msg(format!("ES2025 setup failed: {:?}", e)))?;
 
     Ok(())
 }
