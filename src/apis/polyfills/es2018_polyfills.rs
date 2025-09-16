@@ -1,52 +1,15 @@
 use boa_engine::{Context, JsResult, Source};
 
 /// Setup ES2018 polyfills (async iteration, object spread, Promise.finally, etc.)
+/// NOTE: Major ES2018 features (Promise.finally, Object.fromEntries, String.trimStart/End)
+/// are now natively implemented in the Boa JavaScript engine.
 pub fn setup_es2018_polyfills(context: &mut Context) -> JsResult<()> {
-    context.eval(Source::from_bytes(r#"
-        // Promise.prototype.finally (ES2018)
-        if (!Promise.prototype.finally) {
-            Promise.prototype.finally = function(callback) {
-                var constructor = this.constructor || Promise;
-                return this.then(
-                    function(value) {
-                        return constructor.resolve(callback()).then(function() {
-                            return value;
-                        });
-                    },
-                    function(reason) {
-                        return constructor.resolve(callback()).then(function() {
-                            throw reason;
-                        });
-                    }
-                );
-            };
-        }
+    // Pure JavaScript language features now handled natively by Boa:
+    // - Promise.prototype.finally
+    // - Object.fromEntries
+    // - String.prototype.trimStart, trimEnd
 
-        // Object.fromEntries (ES2019, but commonly polyfilled in ES2018 environments)
-        if (!Object.fromEntries) {
-            Object.fromEntries = function(iterable) {
-                var obj = {};
-                if (iterable && typeof iterable[Symbol.iterator] === 'function') {
-                    var iterator = iterable[Symbol.iterator]();
-                    var step;
-                    while (!(step = iterator.next()).done) {
-                        var entry = step.value;
-                        if (entry && typeof entry === 'object' && entry.length >= 2) {
-                            obj[entry[0]] = entry[1];
-                        }
-                    }
-                } else if (iterable && iterable.length !== undefined) {
-                    // Handle array-like objects
-                    for (var i = 0; i < iterable.length; i++) {
-                        var entry = iterable[i];
-                        if (entry && typeof entry === 'object' && entry.length >= 2) {
-                            obj[entry[0]] = entry[1];
-                        }
-                    }
-                }
-                return obj;
-            };
-        }
+    context.eval(Source::from_bytes(r#"
 
         // RegExp features (dotAll flag, named capture groups - basic support)
         if (!RegExp.prototype.dotAll) {

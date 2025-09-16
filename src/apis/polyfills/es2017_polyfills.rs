@@ -1,54 +1,15 @@
 use boa_engine::{Context, JsResult, Source};
 
 /// Setup ES2017 polyfills (async/await, Object.entries, Object.values, etc.)
+/// NOTE: Major ES2017 features (Object.getOwnPropertyDescriptors, String padding methods)
+/// are now natively implemented in the Boa JavaScript engine.
 pub fn setup_es2017_polyfills(context: &mut Context) -> JsResult<()> {
+    // Pure JavaScript language features now handled natively by Boa:
+    // - Object.getOwnPropertyDescriptors
+    // - String.prototype.padStart, padEnd
+
+    // Keep only the complex API-related polyfills that are not core language features
     context.eval(Source::from_bytes(r#"
-        // Object.getOwnPropertyDescriptors (ES2017)
-        if (!Object.getOwnPropertyDescriptors) {
-            Object.getOwnPropertyDescriptors = function(obj) {
-                var descriptors = {};
-                var propertyNames = Object.getOwnPropertyNames(obj);
-                for (var i = 0; i < propertyNames.length; i++) {
-                    var propertyName = propertyNames[i];
-                    descriptors[propertyName] = Object.getOwnPropertyDescriptor(obj, propertyName);
-                }
-                return descriptors;
-            };
-        }
-
-        // String.prototype.padStart (ES2017)
-        if (!String.prototype.padStart) {
-            String.prototype.padStart = function(targetLength, padString) {
-                targetLength = targetLength >> 0; // truncate if number, or NaN becomes 0
-                padString = String(padString !== undefined ? padString : ' ');
-                if (this.length >= targetLength) {
-                    return String(this);
-                } else {
-                    targetLength = targetLength - this.length;
-                    if (targetLength > padString.length) {
-                        padString += padString.repeat(targetLength / padString.length); // append to original to ensure we are longer than needed
-                    }
-                    return padString.slice(0, targetLength) + String(this);
-                }
-            };
-        }
-
-        // String.prototype.padEnd (ES2017)
-        if (!String.prototype.padEnd) {
-            String.prototype.padEnd = function(targetLength, padString) {
-                targetLength = targetLength >> 0; // floor if number or convert non-number to 0;
-                padString = String(padString !== undefined ? padString : ' ');
-                if (this.length > targetLength) {
-                    return String(this);
-                } else {
-                    targetLength = targetLength - this.length;
-                    if (targetLength > padString.length) {
-                        padString += padString.repeat(targetLength / padString.length);
-                    }
-                    return String(this) + padString.slice(0, targetLength);
-                }
-            };
-        }
 
         // SharedArrayBuffer polyfill (basic)
         if (typeof SharedArrayBuffer === 'undefined') {

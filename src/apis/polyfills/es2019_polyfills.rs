@@ -1,47 +1,15 @@
 use boa_engine::{Context, JsResult, Source};
 
 /// Setup ES2019 polyfills (Array.flat, Array.flatMap, Object.fromEntries, etc.)
+/// NOTE: Major ES2019 features (Array.flat/flatMap, String.trimStart/End, Symbol.description)
+/// are now natively implemented in the Boa JavaScript engine.
 pub fn setup_es2019_polyfills(context: &mut Context) -> JsResult<()> {
+    // Pure JavaScript language features now handled natively by Boa:
+    // - Array.prototype.flat, flatMap
+    // - String.prototype.trimStart, trimEnd
+    // - Symbol.prototype.description
+
     context.eval(Source::from_bytes(r#"
-        // Array.prototype.flat (ES2019)
-        if (!Array.prototype.flat) {
-            Array.prototype.flat = function(depth) {
-                depth = depth === undefined ? 1 : Number(depth);
-                var flattenArray = function(arr, currentDepth) {
-                    var result = [];
-                    for (var i = 0; i < arr.length; i++) {
-                        if (Array.isArray(arr[i]) && currentDepth > 0) {
-                            result = result.concat(flattenArray(arr[i], currentDepth - 1));
-                        } else {
-                            result.push(arr[i]);
-                        }
-                    }
-                    return result;
-                };
-
-                return flattenArray(this, depth);
-            };
-        }
-
-        // Array.prototype.flatMap (ES2019)
-        if (!Array.prototype.flatMap) {
-            Array.prototype.flatMap = function(callback, thisArg) {
-                return this.map(callback, thisArg).flat(1);
-            };
-        }
-
-        // String.prototype.trimStart and trimEnd (ES2019)
-        if (!String.prototype.trimStart) {
-            String.prototype.trimStart = function() {
-                return this.replace(/^\s+/, '');
-            };
-        }
-
-        if (!String.prototype.trimEnd) {
-            String.prototype.trimEnd = function() {
-                return this.replace(/\s+$/, '');
-            };
-        }
 
         // Optional catch binding support (syntax transformation needed)
         // This is handled in the preprocessing phase

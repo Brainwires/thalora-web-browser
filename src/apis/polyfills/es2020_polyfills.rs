@@ -7,62 +7,9 @@ pub fn setup_es2020_polyfills(context: &mut Context) -> JsResult<()> {
         if (typeof global === 'undefined') {
             var global = globalThis;
         }
-        // String.prototype.matchAll (ES2020)
-        if (!String.prototype.matchAll) {
-            String.prototype.matchAll = function(regexp) {
-                if (!regexp) {
-                    throw new TypeError('matchAll requires a RegExp');
-                }
-
-                if (!regexp.global) {
-                    throw new TypeError('matchAll requires a global RegExp');
-                }
-
-                var matches = [];
-                var str = this;
-                var match;
-
-                // Reset lastIndex for global regexes
-                regexp.lastIndex = 0;
-
-                while ((match = regexp.exec(str)) !== null) {
-                    matches.push(match);
-                    if (match.index === regexp.lastIndex) {
-                        regexp.lastIndex++;
-                    }
-                }
-
-                return {
-                    [Symbol.iterator]: function() {
-                        var index = 0;
-                        return {
-                            next: function() {
-                                if (index < matches.length) {
-                                    return { value: matches[index++], done: false };
-                                }
-                                return { done: true };
-                            }
-                        };
-                    }
-                };
-            };
-        }
-
-        // Promise.allSettled (ES2020)
-        if (!Promise.allSettled) {
-            Promise.allSettled = function(promises) {
-                return Promise.all(promises.map(function(promise) {
-                    return Promise.resolve(promise).then(
-                        function(value) {
-                            return { status: 'fulfilled', value: value };
-                        },
-                        function(reason) {
-                            return { status: 'rejected', reason: reason };
-                        }
-                    );
-                }));
-            };
-        }
+        // Pure JavaScript language features now handled natively by Boa:
+        // - String.prototype.matchAll (ES2020) - implemented in Boa engine
+        // - Promise.allSettled (ES2020) - implemented in Boa engine
 
         // globalThis (ES2020)
         if (typeof globalThis === 'undefined') {
