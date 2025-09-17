@@ -16,6 +16,11 @@ use boa_engine::{Context, JsResult, Source};
 /// - WebRTC: Mock media streams and connections
 /// - Web Workers: Log messages but don't execute scripts
 /// - And many more... (see MOCKED_APIS.md for complete list)
+///
+/// NATIVE IMPLEMENTATIONS (no longer polyfilled):
+/// - fetch, Request, Response, Headers: Native HTTP client in Boa
+/// - WebSocket: Native WebSocket with real networking in Boa
+/// - ReadableStream: Native WHATWG Streams implementation in Boa
 pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
     context.eval(Source::from_bytes(r#"
         // MOCK Performance API - Returns fake timing data, not real measurements
@@ -302,62 +307,10 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             }
         }
 
-        // ReadableStream API
-        if (typeof ReadableStream === 'undefined') {
-            var ReadableStream = function ReadableStream(underlyingSource, strategy) {
-                this.underlyingSource = underlyingSource || {};
-                this.strategy = strategy || {};
-                this.locked = false;
-                this._controller = null;
-                this._started = false;
+        // ReadableStream is now natively implemented in Boa
+        // No polyfill needed
 
-                // Initialize the stream
-                if (this.underlyingSource.start) {
-                    this._controller = {
-                        enqueue: function(chunk) {
-                            console.log('ReadableStream: enqueuing chunk', chunk);
-                        },
-                        close: function() {
-                            console.log('ReadableStream: closing stream');
-                        },
-                        error: function(error) {
-                            console.log('ReadableStream: error', error);
-                        }
-                    };
-                    try {
-                        this.underlyingSource.start(this._controller);
-                        this._started = true;
-                    } catch (e) {
-                        console.error('ReadableStream start error:', e);
-                    }
-                }
-            };
-
-            ReadableStream.prototype[Symbol.asyncIterator] = function() {
-                console.log('ReadableStream: creating async iterator');
-                return {
-                    next: function() {
-                        return Promise.resolve({ value: undefined, done: true });
-                    },
-                    return: function() {
-                        return Promise.resolve({ done: true });
-                    }
-                };
-            };
-
-            ReadableStream.prototype.getReader = function() {
-                return {
-                    read: function() {
-                        return Promise.resolve({ value: undefined, done: true });
-                    },
-                    cancel: function() {
-                        return Promise.resolve();
-                    }
-                };
-            };
-        }
-
-        // MOCK WebSocketStream API (Chrome 124) - No actual WebSocket functionality
+        // WebSocketStream uses native ReadableStream from Boa
         if (typeof WebSocketStream === 'undefined') {
             var WebSocketStream = function WebSocketStream(url, options) {
                 console.log('MOCK WebSocketStream created:', url, options);
@@ -962,42 +915,8 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             }
         };
 
-        // Basic fetch implementation (mock)
-        if (typeof fetch === 'undefined') {
-            var fetch = function(url, options) {
-                options = options || {};
-
-                return new Promise(function(resolve, reject) {
-                    // Mock successful response
-                    setTimeout(function() {
-                        var response = {
-                            ok: true,
-                            status: 200,
-                            statusText: 'OK',
-                            url: url,
-                            headers: {
-                                get: function(name) {
-                                    return null;
-                                }
-                            },
-                            json: function() {
-                                return Promise.resolve({});
-                            },
-                            text: function() {
-                                return Promise.resolve('');
-                            },
-                            blob: function() {
-                                return Promise.resolve(new Blob());
-                            },
-                            arrayBuffer: function() {
-                                return Promise.resolve(new ArrayBuffer(0));
-                            }
-                        };
-                        resolve(response);
-                    }, 10);
-                });
-            };
-        }
+        // fetch is now natively implemented in Boa
+        // No polyfill needed
 
         // Basic Blob implementation
         if (typeof Blob === 'undefined') {
@@ -1928,14 +1847,14 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
             Float16Array.prototype.BYTES_PER_ELEMENT = 2;
         }
 
-        // Chrome 135: fetchLater API for deferred fetch
+        // Chrome 135: fetchLater API for deferred fetch - uses native fetch
         if (typeof fetchLater === 'undefined') {
             var fetchLater = function(url, options) {
                 // Mock implementation - in real implementation would defer until page unload
                 var fetchOptions = options || {};
                 fetchOptions.activateAfter = fetchOptions.activateAfter || 0;
 
-                // Return a FetchLaterResult-like object
+                // Return a FetchLaterResult-like object - now uses native fetch
                 return {
                     activated: false,
                     activate: function() {
