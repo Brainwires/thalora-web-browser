@@ -32,7 +32,10 @@ impl WebApis {
 
     /// Setup all Web API implementations in the JavaScript context
     pub fn setup_all_apis(&self, context: &mut Context) -> Result<()> {
-        // Setup core browser APIs first
+        // Setup console first (required by other APIs)
+        polyfills::console::setup_console(context).map_err(|e| anyhow::Error::msg(format!("Console setup failed: {:?}", e)))?;
+
+        // Setup core browser APIs
         let navigator_manager = navigator::NavigatorManager::new();
         navigator_manager.setup_navigator_api(context).map_err(|e| anyhow::Error::msg(format!("Navigator setup failed: {:?}", e)))?;
 

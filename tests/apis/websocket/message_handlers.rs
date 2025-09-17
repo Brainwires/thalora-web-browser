@@ -16,7 +16,7 @@ async fn test_message_handlers() {
         }
     });
     
-    let connection_id = manager.connect("ws://localhost:8080/handled", None).await.unwrap();
+    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
     
     // Send message that should trigger handler
     manager.send_message(&connection_id, "hello world", false).await.unwrap();

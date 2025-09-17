@@ -2,7 +2,7 @@
 async fn test_realtime_events_simulation() {
     let manager = WebSocketManager::new();
     
-    let connection_id = manager.connect("ws://localhost:8080/events", None).await.unwrap();
+    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
     
     // Simulate various real-time events
     let events = vec!["heartbeat", "user_joined", "message", "notification", "status_update"];

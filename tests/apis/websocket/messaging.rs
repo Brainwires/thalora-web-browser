@@ -2,7 +2,7 @@
 async fn test_websocket_messaging() {
     let manager = WebSocketManager::new();
     
-    let connection_id = manager.connect("ws://localhost:8080/chat", None).await.unwrap();
+    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
     
     // Send various message types
     manager.send_message(&connection_id, "Text message", false).await.unwrap();

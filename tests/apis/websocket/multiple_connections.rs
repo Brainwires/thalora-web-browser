@@ -3,9 +3,9 @@ async fn test_multiple_connections() {
     let manager = WebSocketManager::new();
     
     // Create multiple connections
-    let conn1 = manager.connect("ws://localhost:8080/room1", None).await.unwrap();
-    let conn2 = manager.connect("ws://localhost:8080/room2", None).await.unwrap();
-    let conn3 = manager.connect("ws://localhost:8080/room3", None).await.unwrap();
+    let conn1 = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+    let conn2 = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+    let conn3 = manager.connect("wss://echo.websocket.org", None).await.unwrap();
     
     // Verify all are active
     let active_connections = manager.get_active_connections();

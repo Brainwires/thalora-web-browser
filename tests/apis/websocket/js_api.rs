@@ -4,7 +4,7 @@ async fn test_websocket_js_api() {
     let js_api = WebSocketJsApi::new(manager);
     
     // Test connection creation
-    let connection_id = js_api.create_test_connection("ws://localhost:8080/jsapi").await.unwrap();
+    let connection_id = js_api.create_test_connection("wss://echo.websocket.org").await.unwrap();
     assert!(!connection_id.is_empty());
     
     // Test message exchange simulation

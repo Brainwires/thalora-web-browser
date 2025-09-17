@@ -2,8 +2,8 @@
 async fn test_websocket_connection() {
     let manager = WebSocketManager::new();
     
-    // Test connection establishment
-    let connection_id = manager.connect("ws://localhost:8080/test", None).await.unwrap();
+    // Test connection establishment using public echo server
+    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
     assert!(!connection_id.is_empty());
     
     // Verify connection state

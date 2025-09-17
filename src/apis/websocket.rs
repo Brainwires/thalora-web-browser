@@ -105,13 +105,9 @@ impl WebSocketManager {
             connections.insert(connection_id.clone(), connection.clone());
         }
 
-        // Establish real WebSocket connection
-        let connect_request = tungstenite::handshake::client::Request::builder()
-            .uri(url)
-            .body(())
-            .map_err(|e| anyhow!("Failed to build WebSocket request: {}", e))?;
-
-        match connect_async(connect_request).await {
+        // Establish real WebSocket connection using the URL directly
+        // tokio-tungstenite's connect_async handles all WebSocket headers automatically
+        match connect_async(url).await {
             Ok((ws_stream, response)) => {
                 // Update connection state to open
                 connection.state = ConnectionState::Open;

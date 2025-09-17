@@ -2,7 +2,7 @@
 async fn test_websocket_ping_pong() {
     let manager = WebSocketManager::new();
     
-    let connection_id = manager.connect("ws://localhost:8080/ping", None).await.unwrap();
+    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
     
     // Test ping/pong mechanism
     manager.ping(&connection_id, Some("ping data")).await.unwrap();
