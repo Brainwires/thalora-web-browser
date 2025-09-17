@@ -6,8 +6,6 @@
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use futures_util::{SinkExt, StreamExt};
-use std::sync::Arc;
-use tokio::sync::{Mutex, OnceCell};
 
 pub struct WebSocketEchoServer {
     port: u16,
@@ -128,62 +126,47 @@ impl WebSocketEchoServer {
         println!("WebSocket connection ended");
     }
 
-    /// Shutdown the server
+    /// Shutdown the server gracefully
     pub async fn shutdown(mut self) {
+        println!("🔄 Shutting down WebSocket server on port {}", self.port);
+
         if let Some(sender) = self.shutdown_sender.take() {
             let _ = sender.send(());
         }
 
         if let Some(handle) = self.server_handle.take() {
-            let _ = tokio::time::timeout(
+            match tokio::time::timeout(
                 tokio::time::Duration::from_secs(5),
                 handle
-            ).await;
+            ).await {
+                Ok(_) => println!("✅ WebSocket server shut down successfully"),
+                Err(_) => println!("⚠️ WebSocket server shutdown timed out"),
+            }
         }
     }
 }
 
 impl Drop for WebSocketEchoServer {
     fn drop(&mut self) {
+        println!("🗑️ WebSocket server on port {} being dropped", self.port);
         if let Some(sender) = self.shutdown_sender.take() {
             let _ = sender.send(());
         }
     }
 }
 
-// Global test server instance
-static TEST_SERVER: OnceCell<Arc<Mutex<Option<WebSocketEchoServer>>>> = OnceCell::const_new();
-static TEST_SERVER_URL: OnceCell<String> = OnceCell::const_new();
+/// Create a new isolated WebSocket echo server for a single test
+/// This ensures complete test isolation and eliminates race conditions
+pub async fn create_isolated_test_server() -> Result<WebSocketEchoServer, Box<dyn std::error::Error>> {
+    let server = WebSocketEchoServer::new().await?;
+    let port = server.port;
+    println!("🚀 Started isolated WebSocket echo server on port: {}", port);
+    Ok(server)
+}
 
-/// Get the global test server URL, starting the server if needed
-pub async fn get_test_server_url() -> String {
-    // Initialize the server cell if needed
-    let server_cell = TEST_SERVER.get_or_init(|| async {
-        Arc::new(Mutex::new(None))
-    }).await;
-
-    // Check if URL is already cached
-    if let Some(url) = TEST_SERVER_URL.get() {
-        return url.clone();
-    }
-
-    // Start the server if not already running
-    let mut server_guard = server_cell.lock().await;
-    if server_guard.is_none() {
-        let server = WebSocketEchoServer::new().await
-            .expect("Failed to start test WebSocket server");
-        let url = server.url();
-
-        // Cache the URL
-        let _ = TEST_SERVER_URL.set(url.clone());
-
-        // Store the server
-        *server_guard = Some(server);
-
-        url
-    } else {
-        TEST_SERVER_URL.get().unwrap().clone()
-    }
+/// Get the URL for a test server
+pub fn get_server_url(server: &WebSocketEchoServer) -> String {
+    server.url()
 }
 
 /// Test utility to create a server and return the URL
@@ -193,15 +176,6 @@ pub async fn start_echo_server() -> Result<(WebSocketEchoServer, String), Box<dy
     Ok((server, url))
 }
 
-/// Shutdown the global test server (called automatically on program exit)
-pub async fn shutdown_test_server() {
-    if let Some(server_cell) = TEST_SERVER.get() {
-        let mut server_guard = server_cell.lock().await;
-        if let Some(server) = server_guard.take() {
-            server.shutdown().await;
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -211,8 +185,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_echo_server() {
-        let server = WebSocketEchoServer::new().await.unwrap();
-        let url = server.url();
+        // Create isolated test server
+        let server = create_isolated_test_server().await.unwrap();
+        let url = get_server_url(&server);
 
         // Connect to the server
         let (ws_stream, _) = connect_async(&url).await.unwrap();
@@ -244,7 +219,7 @@ mod tests {
         // Close connection
         sender.send(Message::Close(None)).await.unwrap();
 
-        // Shutdown server
+        // Shutdown the isolated server
         server.shutdown().await;
     }
 }

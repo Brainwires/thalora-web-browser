@@ -2,10 +2,12 @@
 async fn test_websocket_connection() {
     let manager = WebSocketManager::new();
 
-    // Get global test server URL (starts server if needed)
-    let url = get_test_server_url().await;
+    // Create isolated test server
+    let server = create_isolated_test_server().await.unwrap();
+    let url = get_server_url(&server);
+    println!("🔗 Attempting to connect to: {}", url);
 
-    // Test connection establishment using local echo server
+    // Test connection establishment using isolated echo server
     let connection_id = manager.connect(&url, None).await.unwrap();
     assert!(!connection_id.is_empty());
     
@@ -24,4 +26,7 @@ async fn test_websocket_connection() {
 
     let state = manager.get_connection_state(&connection_id);
     assert!(state.is_err()); // Connection should be removed
+
+    // Shutdown the isolated server
+    server.shutdown().await;
 }

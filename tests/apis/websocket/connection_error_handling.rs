@@ -15,12 +15,16 @@ async fn test_connection_error_handling() {
     assert!(result.is_err());
     
     // Create connection then test operations on closed connection
-    // Get global test server URL (starts server if needed)
-    let url = get_test_server_url().await;
+    // Create isolated test server
+    let server = create_isolated_test_server().await.unwrap();
+    let url = get_server_url(&server);
     let connection_id = manager.connect(&url, None).await.unwrap();
     manager.close(&connection_id, None, None).await.unwrap();
-    
+
     // Should fail to send message to closed connection
     let result = manager.send_message(&connection_id, "test", false).await;
     assert!(result.is_err());
+
+    // Shutdown the isolated server
+    server.shutdown().await;
 }

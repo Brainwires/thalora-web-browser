@@ -2,8 +2,9 @@
 async fn test_realtime_events_simulation() {
     let manager = WebSocketManager::new();
 
-    // Get global test server URL (starts server if needed)
-    let url = get_test_server_url().await;
+    // Create isolated test server
+    let server = create_isolated_test_server().await.unwrap();
+    let url = get_server_url(&server);
 
     let connection_id = manager.connect(&url, None).await.unwrap();
     
@@ -38,4 +39,7 @@ async fn test_realtime_events_simulation() {
     assert!(event_types.contains(&"status_update".to_string()));
     
     manager.close(&connection_id, None, None).await.unwrap();
+
+    // Shutdown the isolated server
+    server.shutdown().await;
 }

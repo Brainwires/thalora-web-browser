@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 * WE DON'T DO SIMPLER APPROACHES!
 * We will not be simplifing code
 * We will not be mocking code. If we are missing a huge library, and a crate is not available... Writing the new code becomes the next task (REGARDLESS OF HOW LONG IT COULD TAKE!); so the main project can progress!
+* This statement scares the shit out of me... Every time you say it, something breaks... "Actually, let me try a simpler approach." Let's ALWAYS take the proper approach... Prioritize doing tasks properly rather than quickly. When you have the desire to "simplify", instead use thinking to resolve the problem.
 
 ## Development Commands
 

@@ -5,10 +5,9 @@ use thalora::{WebSocketManager, WebSocketJsApi};
 use thalora::apis::WebApis;
 use thalora::apis::websocket::{ConnectionState, MessageType, WebSocketMessage};
 use boa_engine::{Context, Source};
-use tokio::time::Duration;
 
 mod utils;
-use utils::get_test_server_url;
+use utils::{create_isolated_test_server, get_server_url};
 
 mod websocket_connection {
     use super::*;

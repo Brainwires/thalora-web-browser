@@ -16,8 +16,9 @@ async fn test_message_handlers() {
         }
     });
     
-    // Get global test server URL (starts server if needed)
-    let url = get_test_server_url().await;
+    // Create isolated test server
+    let server = create_isolated_test_server().await.unwrap();
+    let url = get_server_url(&server);
     let connection_id = manager.connect(&url, None).await.unwrap();
     
     // Send message that should trigger handler
@@ -32,4 +33,7 @@ async fn test_message_handlers() {
     assert_eq!(sent[1].data, "goodbye");
     
     manager.close(&connection_id, None, None).await.unwrap();
+
+    // Shutdown the isolated server
+    server.shutdown().await;
 }
