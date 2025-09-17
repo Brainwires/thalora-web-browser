@@ -25,14 +25,19 @@ pub struct ToolCall {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct InitializeResult {
+    #[serde(rename = "protocolVersion")]
+    pub protocol_version: String,
+    pub capabilities: Value,
+    #[serde(rename = "serverInfo")]
+    pub server_info: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum McpResponse {
     Initialize {
-        #[serde(rename = "protocolVersion")]
-        protocol_version: String,
-        capabilities: Value,
-        #[serde(rename = "serverInfo")]
-        server_info: Value,
+        result: InitializeResult,
     },
     ListTools {
         tools: Vec<Value>,

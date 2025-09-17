@@ -3,7 +3,7 @@ use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tracing::{error, info};
 
-use crate::protocols::mcp::{McpRequest, McpResponse};
+use crate::protocols::mcp::{McpRequest, McpResponse, McpMessage, McpMessageContent, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
 use std::sync::{Arc, Mutex};
 use crate::apis::websocket::WebSocketManager;
@@ -54,9 +54,22 @@ impl McpServer {
             match reader.read_line(&mut line).await {
                 Ok(0) => break, // EOF
                 Ok(_) => {
-                    if let Ok(request) = serde_json::from_str::<McpRequest>(&line.trim()) {
-                        let response = self.handle_request(request).await;
-                        let response_json = serde_json::to_string(&response)?;
+                    if let Ok(message) = serde_json::from_str::<McpMessage>(&line.trim()) {
+                        let response = match message.content {
+                            McpMessageContent::Request(request) => self.handle_request(request).await,
+                            McpMessageContent::Response(_) => {
+                                // This is a response, not a request - shouldn't happen in server context
+                                continue;
+                            }
+                        };
+
+                        let response_message = McpMessage {
+                            jsonrpc: "2.0".to_string(),
+                            id: message.id,
+                            content: McpMessageContent::Response(response),
+                        };
+
+                        let response_json = serde_json::to_string(&response_message)?;
                         stdout.write_all(response_json.as_bytes()).await?;
                         stdout.write_all(b"\n").await?;
                         stdout.flush().await?;
@@ -79,14 +92,16 @@ impl McpServer {
                 self.call_tool(params.name, params.arguments).await
             }
             McpRequest::Initialize { .. } => McpResponse::Initialize {
-                protocol_version: "2024-11-05".to_string(),
-                capabilities: serde_json::json!({
-                    "tools": {}
-                }),
-                server_info: serde_json::json!({
-                    "name": "brainwires-scraper",
-                    "version": "0.1.0"
-                }),
+                result: InitializeResult {
+                    protocol_version: "2024-11-05".to_string(),
+                    capabilities: serde_json::json!({
+                        "tools": {}
+                    }),
+                    server_info: serde_json::json!({
+                        "name": "brainwires-scraper",
+                        "version": "0.1.0"
+                    }),
+                }
             },
         }
     }
@@ -645,13 +660,13 @@ impl McpServer {
         // Use the same parameters that work in our tests
         let mut search_data = self.browser.lock().unwrap().scrape(&search_url, false, None, false, false).await?;
 
-        // Debug: Log the response details
-        println!("DEBUG: Google response length: {} chars", search_data.content.len());
-        println!("DEBUG: First 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);
+        // Debug: Log the response details to stderr (MCP protocol requirement)
+        tracing::debug!("Google response length: {} chars", search_data.content.len());
+        tracing::debug!("First 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);
 
         // Check if we got the JavaScript challenge page
         if search_data.content.contains("enablejs") && search_data.content.contains("httpservice/retry") {
-            println!("DEBUG: Got JavaScript challenge, following redirect...");
+            tracing::debug!("Got JavaScript challenge, following redirect...");
 
             // Extract the redirect URL from the meta refresh tag
             if let Some(start) = search_data.content.find("/httpservice/retry/enablejs") {
@@ -659,7 +674,7 @@ impl McpServer {
                     let redirect_path = &search_data.content[start..start + end];
                     let redirect_url = format!("https://www.google.com{}", redirect_path);
 
-                    println!("DEBUG: Following redirect to: {}", redirect_url);
+                    tracing::debug!("Following redirect to: {}", redirect_url);
 
                     // Follow the redirect with JavaScript enabled to handle the challenge
                     let _challenge_response = self.browser.lock().unwrap().scrape(&redirect_url, true, None, false, false).await?;
@@ -668,11 +683,11 @@ impl McpServer {
                     sleep(Duration::from_millis(2000)).await;
 
                     // Now retry the original search - should get real results
-                    println!("DEBUG: Retrying original search after challenge...");
+                    tracing::debug!("Retrying original search after challenge...");
                     search_data = self.browser.lock().unwrap().scrape(&search_url, true, None, false, false).await?;
 
-                    println!("DEBUG: After challenge - response length: {} chars", search_data.content.len());
-                    println!("DEBUG: After challenge - first 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);
+                    tracing::debug!("After challenge - response length: {} chars", search_data.content.len());
+                    tracing::debug!("After challenge - first 500 chars: {}", &search_data.content[..search_data.content.len().min(500)]);
                 }
             }
         }
