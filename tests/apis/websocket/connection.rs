@@ -1,9 +1,12 @@
 #[tokio::test]
 async fn test_websocket_connection() {
     let manager = WebSocketManager::new();
-    
-    // Test connection establishment using public echo server
-    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+
+    // Get global test server URL (starts server if needed)
+    let url = get_test_server_url().await;
+
+    // Test connection establishment using local echo server
+    let connection_id = manager.connect(&url, None).await.unwrap();
     assert!(!connection_id.is_empty());
     
     // Verify connection state
@@ -18,7 +21,7 @@ async fn test_websocket_connection() {
     
     // Test connection closing
     manager.close(&connection_id, Some(1000), Some("Normal closure".to_string())).await.unwrap();
-    
+
     let state = manager.get_connection_state(&connection_id);
     assert!(state.is_err()); // Connection should be removed
 }

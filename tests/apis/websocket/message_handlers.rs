@@ -16,7 +16,9 @@ async fn test_message_handlers() {
         }
     });
     
-    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+    // Get global test server URL (starts server if needed)
+    let url = get_test_server_url().await;
+    let connection_id = manager.connect(&url, None).await.unwrap();
     
     // Send message that should trigger handler
     manager.send_message(&connection_id, "hello world", false).await.unwrap();

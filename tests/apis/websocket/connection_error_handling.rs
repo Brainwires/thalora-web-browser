@@ -15,7 +15,9 @@ async fn test_connection_error_handling() {
     assert!(result.is_err());
     
     // Create connection then test operations on closed connection
-    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+    // Get global test server URL (starts server if needed)
+    let url = get_test_server_url().await;
+    let connection_id = manager.connect(&url, None).await.unwrap();
     manager.close(&connection_id, None, None).await.unwrap();
     
     // Should fail to send message to closed connection

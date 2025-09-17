@@ -1,8 +1,11 @@
 #[tokio::test]
 async fn test_websocket_messaging() {
     let manager = WebSocketManager::new();
-    
-    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+
+    // Get global test server URL (starts server if needed)
+    let url = get_test_server_url().await;
+
+    let connection_id = manager.connect(&url, None).await.unwrap();
     
     // Send various message types
     manager.send_message(&connection_id, "Text message", false).await.unwrap();
@@ -25,6 +28,6 @@ async fn test_websocket_messaging() {
     
     assert!(received[0].data.contains("welcome"));
     assert!(received[1].data.contains("notification"));
-    
+
     manager.close(&connection_id, None, None).await.unwrap();
 }

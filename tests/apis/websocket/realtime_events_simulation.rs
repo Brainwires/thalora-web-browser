@@ -1,8 +1,11 @@
 #[tokio::test]
 async fn test_realtime_events_simulation() {
     let manager = WebSocketManager::new();
-    
-    let connection_id = manager.connect("wss://echo.websocket.org", None).await.unwrap();
+
+    // Get global test server URL (starts server if needed)
+    let url = get_test_server_url().await;
+
+    let connection_id = manager.connect(&url, None).await.unwrap();
     
     // Simulate various real-time events
     let events = vec!["heartbeat", "user_joined", "message", "notification", "status_update"];
