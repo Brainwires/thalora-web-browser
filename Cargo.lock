@@ -567,7 +567,7 @@ dependencies = [
 
 [[package]]
 name = "boa_ast"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "bitflags 2.9.4",
  "boa_interner",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "boa_engine"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "arrayvec",
  "bitflags 2.9.4",
@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "boa_gc"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "boa_macros",
  "boa_string",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "boa_interner"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "boa_gc",
  "boa_macros",
@@ -656,7 +656,7 @@ dependencies = [
 
 [[package]]
 name = "boa_macros"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "cfg-if",
  "cow-utils",
@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "boa_parser"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "bitflags 2.9.4",
  "boa_ast",
@@ -684,7 +684,7 @@ dependencies = [
 
 [[package]]
 name = "boa_string"
-version = "0.21.0"
+version = "0.20.0"
 dependencies = [
  "fast-float2",
  "itoa 1.0.15",

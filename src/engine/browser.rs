@@ -70,6 +70,15 @@ pub struct BrowserStorage {
     pub session_storage: HashMap<String, String>,
 }
 
+impl Default for BrowserStorage {
+    fn default() -> Self {
+        Self {
+            local_storage: HashMap::new(),
+            session_storage: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthContext {
     pub bearer_token: Option<String>,

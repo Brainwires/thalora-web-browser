@@ -12,6 +12,7 @@ use crate::features::ai_memory::AiMemoryHeap;
 use crate::protocols::cdp::CdpServer;
 use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::cdp_tools::CdpTools;
+use crate::protocols::browser_tools::BrowserTools;
 
 pub struct McpServer {
     pub browser: Arc<Mutex<HeadlessWebBrowser>>,
@@ -21,6 +22,7 @@ pub struct McpServer {
     pub cdp_server: CdpServer,
     pub memory_tools: MemoryTools,
     pub cdp_tools: CdpTools,
+    pub browser_tools: BrowserTools,
 }
 
 impl McpServer {
@@ -38,6 +40,7 @@ impl McpServer {
             cdp_server: CdpServer::new(),
             memory_tools: MemoryTools::new(),
             cdp_tools: CdpTools::new(),
+            browser_tools: BrowserTools::new(),
         }
     }
 
@@ -129,10 +132,24 @@ impl McpServer {
             "cdp_enable_network" => self.cdp_tools.enable_network(arguments, &mut self.cdp_server).await,
             "cdp_get_response_body" => self.cdp_tools.get_response_body(arguments, &mut self.cdp_server).await,
             
-            // Web scraping tools
+            // Browser session management tools
+            "browser_create_session" => self.browser_tools.create_session(arguments, &self.browser).await,
+            "browser_get_session" => self.browser_tools.get_session(arguments, &self.browser).await,
+            "browser_close_session" => self.browser_tools.close_session(arguments, &self.browser).await,
+            "browser_list_sessions" => self.browser_tools.list_sessions(arguments, &self.browser).await,
+            "browser_close_all_sessions" => self.browser_tools.close_all_sessions(arguments, &self.browser).await,
+            "browser_navigate" => self.browser_tools.navigate(arguments, &self.browser).await,
+            "browser_find_elements" => self.browser_tools.find_elements(arguments, &self.browser).await,
+            "browser_get_page_state" => self.browser_tools.get_page_state(arguments, &self.browser).await,
+            "browser_fill_form" => self.browser_tools.fill_form(arguments, &self.browser).await,
+            "browser_click_element" => self.browser_tools.click_element(arguments, &self.browser).await,
+            "browser_execute_javascript" => self.browser_tools.execute_javascript(arguments, &self.browser).await,
+            "browser_wait_for_element" => self.browser_tools.wait_for_element(arguments, &self.browser).await,
+
+            // Web scraping tools (legacy)
             "scrape_url" => self.scrape_url(arguments).await,
-            "google_search" => self.google_search(arguments).await,
-            
+            "web_search" => self.google_search(arguments).await,
+
             _ => McpResponse::Error {
                 error: format!("Unknown tool: {}", name),
             },
@@ -492,7 +509,221 @@ impl McpServer {
                         "required": ["request_id"]
                     }
                 }),
-                // Web scraping tools
+                // Browser session management tools
+                serde_json::json!({
+                    "name": "browser_create_session",
+                    "description": "Create a new browser session for persistent interactions",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Unique identifier for the session (optional, auto-generated if not provided)"
+                            },
+                            "persistent": {
+                                "type": "boolean",
+                                "description": "Whether to maintain session state across interactions",
+                                "default": false
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of the session purpose"
+                            }
+                        }
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_get_session",
+                    "description": "Get information about a browser session",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Session identifier"
+                            }
+                        },
+                        "required": ["session_id"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_close_session",
+                    "description": "Close and cleanup a browser session",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Session identifier"
+                            }
+                        },
+                        "required": ["session_id"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_list_sessions",
+                    "description": "List all active browser sessions with their details",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {}
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_close_all_sessions",
+                    "description": "Close and cleanup all active browser sessions",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {}
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_navigate",
+                    "description": "Navigate to a URL within a browser session",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to navigate to"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Optional session identifier"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to wait for JavaScript execution",
+                                "default": true
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_find_elements",
+                    "description": "Find elements on the current page using CSS selectors",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector to find elements"
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "URL to search on (optional, uses current page if not provided)"
+                            }
+                        },
+                        "required": ["selector"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_get_page_state",
+                    "description": "Get comprehensive page state including forms, links, and content",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to analyze (optional, uses current page if not provided)"
+                            },
+                            "include_forms": {
+                                "type": "boolean",
+                                "description": "Whether to extract form data",
+                                "default": true
+                            }
+                        }
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_fill_form",
+                    "description": "Fill and submit a form on the current page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "form_data": {
+                                "type": "object",
+                                "description": "Key-value pairs of form field names and values"
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "URL containing the form"
+                            },
+                            "form_selector": {
+                                "type": "string",
+                                "description": "CSS selector for the form (optional, uses first form if not provided)",
+                                "default": "form"
+                            }
+                        },
+                        "required": ["form_data", "url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_click_element",
+                    "description": "Click on an element (link, button, etc.)",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector for the element to click"
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "URL containing the element"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to wait for JavaScript execution after click",
+                                "default": true
+                            }
+                        },
+                        "required": ["selector", "url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_execute_javascript",
+                    "description": "Execute JavaScript code in the browser context",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "type": "string",
+                                "description": "JavaScript code to execute"
+                            }
+                        },
+                        "required": ["code"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_wait_for_element",
+                    "description": "Wait for an element to appear or disappear on the page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector for the element to wait for"
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "URL to monitor (optional, uses current page if not provided)"
+                            },
+                            "timeout_ms": {
+                                "type": "integer",
+                                "description": "Timeout in milliseconds",
+                                "default": 5000
+                            },
+                            "expect_visible": {
+                                "type": "boolean",
+                                "description": "Whether to wait for element to be visible (true) or hidden (false)",
+                                "default": true
+                            }
+                        },
+                        "required": ["selector"]
+                    }
+                }),
+                // Web scraping tools (legacy)
                 serde_json::json!({
                     "name": "scrape_url",
                     "description": "Scrape a web page and extract content, links, images, and metadata",
@@ -527,14 +758,14 @@ impl McpServer {
                     }
                 }),
                 serde_json::json!({
-                    "name": "google_search",
-                    "description": "Perform a Google search by submitting a query and returning search results",
+                    "name": "web_search",
+                    "description": "Perform a web search by submitting a query and returning search results",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Search query to submit to Google"
+                                "description": "Search query to submit"
                             },
                             "num_results": {
                                 "type": "integer",
