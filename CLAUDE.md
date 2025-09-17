@@ -146,6 +146,19 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "sc
 4. Create corresponding test in `tests/` directory
 5. Run full test suite to ensure compatibility
 
+### Modifying the Boa JavaScript Engine
+**IMPORTANT**: When adding features to the Boa engine (`engines/boa/`):
+1. **Update Documentation**: Always update `engines/boa/ADDED-FEATURES.md` to document new Web APIs or engine features
+2. **Follow Boa Patterns**: Use Boa's builtin system (`IntrinsicObject`, `BuiltInObject`, `BuiltInConstructor`)
+3. **Real Implementation**: No mocks - implement actual functionality with real networking/system calls
+4. **Standards Compliance**: Follow WHATWG/W3C specifications exactly
+5. **Integration Steps**:
+   - Add new builtin modules to `core/engine/src/builtins/mod.rs`
+   - Register intrinsics in `core/engine/src/context/intrinsics.rs`
+   - Add dependencies to `core/engine/Cargo.toml` if needed
+   - Update string constants in `core/string/src/common.rs` for optimization
+6. **Git Workflow**: Commit changes to Boa submodule with descriptive messages
+
 ### Security Considerations
 - JavaScript execution is sandboxed with 5-second timeouts
 - Dangerous patterns (`eval`, `Function`) are blocked
