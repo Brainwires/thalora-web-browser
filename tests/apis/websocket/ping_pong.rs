@@ -6,7 +6,10 @@ async fn test_websocket_ping_pong() {
     
     // Test ping/pong mechanism
     manager.ping(&connection_id, Some("ping data")).await.unwrap();
-    
+
+    // Wait for pong response (WebSocket ping/pong is asynchronous)
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
     let (sent, received) = manager.get_message_history(&connection_id).unwrap();
     
     // Should have ping in sent messages

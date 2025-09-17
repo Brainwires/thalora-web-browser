@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## PRIORITY DIRECTIVES
+
+* WE DON'T DO SIMPLER APPROACHES!
+* We will not be simplifing code
+* We will not be mocking code. If we are missing a huge library, and a crate is not available... Writing the new code becomes the next task (REGARDLESS OF HOW LONG IT COULD TAKE!); so the main project can progress!
+
 ## Development Commands
 
 ### Build System

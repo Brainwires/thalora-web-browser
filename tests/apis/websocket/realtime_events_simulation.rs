@@ -9,10 +9,16 @@ async fn test_realtime_events_simulation() {
     manager.simulate_realtime_events(&connection_id, events).await.unwrap();
     
     let (_sent, received) = manager.get_message_history(&connection_id).unwrap();
-    assert_eq!(received.len(), 5);
+    // Filter only the JSON event messages (ignore server identification messages)
+    let json_messages: Vec<_> = received.iter()
+        .filter(|msg| serde_json::from_str::<serde_json::Value>(&msg.data).is_ok())
+        .collect();
+
+    // We expect exactly 5 simulated JSON messages
+    assert_eq!(json_messages.len(), 5, "Expected 5 JSON event messages, got {} total messages", received.len());
     
-    // Verify event types were properly simulated
-    let event_types: Vec<String> = received.iter()
+    // Verify event types were properly simulated (using only JSON messages)
+    let event_types: Vec<String> = json_messages.iter()
         .filter_map(|msg| {
             serde_json::from_str::<serde_json::Value>(&msg.data)
                 .ok()?
