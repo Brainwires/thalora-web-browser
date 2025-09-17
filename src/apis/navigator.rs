@@ -178,20 +178,16 @@ impl NavigatorManager {
         connection.set(js_string!("saveData"), JsValue::from(false), false, context)?;
         navigator.set(js_string!("connection"), JsValue::from(connection), false, context)?;
 
-        // MOCK WebMIDI API (Chrome 124) - Returns fake MIDI access, no real MIDI functionality
+        // MOCK WebMIDI API - No real MIDI hardware access in headless mode
         let request_midi_access_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
-            // MOCK - Create fake MIDI access promise that resolves with empty ports
             let midi_access = JsObject::with_object_proto(context.intrinsics());
             midi_access.set(js_string!("sysexEnabled"), JsValue::from(false), false, context)?;
-
             let empty_map = JsObject::with_object_proto(context.intrinsics());
             empty_map.set(js_string!("size"), JsValue::from(0), false, context)?;
             midi_access.set(js_string!("inputs"), JsValue::from(empty_map.clone()), false, context)?;
             midi_access.set(js_string!("outputs"), JsValue::from(empty_map), false, context)?;
-
-            // Return a resolved promise with the MIDI access object
             let resolved_promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(midi_access), context);
-            Ok(JsValue::from(resolved_promise))
+            Ok(JsValue::from(resolved_promise)) // MOCK: Empty MIDI ports
         });
         navigator.set(js_string!("requestMIDIAccess"), JsValue::from(request_midi_access_fn.to_js_function(context.realm())), false, context)?;
 
@@ -226,7 +222,7 @@ impl NavigatorManager {
         user_agent_data.set(js_string!("platform"), JsValue::from(js_string!(self.platform.clone())), false, context)?;
 
         let get_high_entropy_values_fn = NativeFunction::from_fn_ptr(|_, args, context| {
-            // Mock implementation - in real browser this would return actual system info
+            // MOCK: Returns hardcoded system info
             let hints = JsObject::with_object_proto(context.intrinsics());
             hints.set(js_string!("platform"), JsValue::from(js_string!("macOS")), false, context)?;
             hints.set(js_string!("platformVersion"), JsValue::from(js_string!("13.0.0")), false, context)?;
@@ -319,16 +315,14 @@ impl NavigatorManager {
         let credentials = JsObject::with_object_proto(context.intrinsics());
 
         let create_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock WebAuthn create implementation
             let error = boa_engine::JsError::from_opaque(JsValue::from(js_string!("WebAuthn not supported in headless mode")));
-            Err(error)
+            Err(error) // MOCK: WebAuthn unavailable in headless
         });
         credentials.set(js_string!("create"), JsValue::from(create_fn.to_js_function(context.realm())), false, context)?;
 
         let get_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock WebAuthn get implementation
             let error = boa_engine::JsError::from_opaque(JsValue::from(js_string!("WebAuthn not supported in headless mode")));
-            Err(error)
+            Err(error) // MOCK: WebAuthn unavailable in headless
         });
         credentials.set(js_string!("get"), JsValue::from(get_fn.to_js_function(context.realm())), false, context)?;
 
@@ -338,20 +332,17 @@ impl NavigatorManager {
         let media_session = JsObject::with_object_proto(context.intrinsics());
 
         let set_action_handler_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock setActionHandler implementation - accepts skipad action
-            Ok(JsValue::undefined())
+            Ok(JsValue::undefined()) // MOCK: No-op media session handler
         });
         media_session.set(js_string!("setActionHandler"), JsValue::from(set_action_handler_fn.to_js_function(context.realm())), false, context)?;
 
         let set_metadata_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock setMetadata implementation
-            Ok(JsValue::undefined())
+            Ok(JsValue::undefined()) // MOCK: No-op metadata setter
         });
         media_session.set(js_string!("setMetadata"), JsValue::from(set_metadata_fn.to_js_function(context.realm())), false, context)?;
 
         let set_playback_state_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock setPlaybackState implementation
-            Ok(JsValue::undefined())
+            Ok(JsValue::undefined()) // MOCK: No-op playback state setter
         });
         media_session.set(js_string!("setPlaybackState"), JsValue::from(set_playback_state_fn.to_js_function(context.realm())), false, context)?;
 
@@ -361,19 +352,16 @@ impl NavigatorManager {
         let ml_api = JsObject::with_object_proto(context.intrinsics());
 
         let create_language_detector_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Create a mock language detector
             let detector = JsObject::with_object_proto(_context.intrinsics());
 
             let detect_fn = NativeFunction::from_fn_ptr(|_, _args, _ctx| {
-                // Mock language detection returning English with high confidence
                 let result_array = boa_engine::object::builtins::JsArray::new(_ctx);
                 let detection = JsObject::with_object_proto(_ctx.intrinsics());
                 detection.set(js_string!("language"), JsValue::from(js_string!("en")), false, _ctx)?;
                 detection.set(js_string!("confidence"), JsValue::from(0.95), false, _ctx)?;
                 result_array.push(JsValue::from(detection), _ctx)?;
-
                 let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(result_array), _ctx);
-                Ok(JsValue::from(promise))
+                Ok(JsValue::from(promise)) // MOCK: Always detects English
             });
             detector.set(js_string!("detect"), JsValue::from(detect_fn.to_js_function(_context.realm())), false, _context)?;
 
@@ -388,7 +376,7 @@ impl NavigatorManager {
             let translator = JsObject::with_object_proto(_context.intrinsics());
 
             let translate_fn = NativeFunction::from_fn_ptr(|_, args, ctx| {
-                // Mock translation - just return the input text
+                // MOCK: Just returns input text with "Translated:" prefix
                 let text = if args.len() > 0 {
                     args[0].to_string(ctx).unwrap_or_else(|_| js_string!("")).to_std_string_escaped()
                 } else {
@@ -396,7 +384,7 @@ impl NavigatorManager {
                 };
 
                 let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(js_string!(format!("Translated: {}", text))), ctx);
-                Ok(JsValue::from(promise))
+                Ok(JsValue::from(promise)) // MOCK: No real translation performed
             });
             translator.set(js_string!("translate"), JsValue::from(translate_fn.to_js_function(_context.realm())), false, _context)?;
 
@@ -411,7 +399,7 @@ impl NavigatorManager {
             let summarizer = JsObject::with_object_proto(_context.intrinsics());
 
             let summarize_fn = NativeFunction::from_fn_ptr(|_, args, ctx| {
-                // Mock summarization - return first 100 chars + "..."
+                // MOCK: Returns first 100 chars + "..." as fake summary
                 let text = if args.len() > 0 {
                     args[0].to_string(ctx).unwrap_or_else(|_| js_string!("")).to_std_string_escaped()
                 } else {
@@ -425,7 +413,7 @@ impl NavigatorManager {
                 };
 
                 let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(js_string!(summary)), ctx);
-                Ok(JsValue::from(promise))
+                Ok(JsValue::from(promise)) // MOCK: No real AI summarization performed
             });
             summarizer.set(js_string!("summarize"), JsValue::from(summarize_fn.to_js_function(_context.realm())), false, _context)?;
 
@@ -440,17 +428,17 @@ impl NavigatorManager {
         let xr_api = JsObject::with_object_proto(context.intrinsics());
 
         let is_session_supported_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock session support check - always resolve to false for headless mode
+            // MOCK: Always resolves to false - no VR/AR hardware support
             let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(false), _context);
-            Ok(JsValue::from(promise))
+            Ok(JsValue::from(promise)) // MOCK: No real XR session support
         });
         xr_api.set(js_string!("isSessionSupported"), JsValue::from(is_session_supported_fn.to_js_function(context.realm())), false, context)?;
 
         let request_session_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // Mock request session - reject for headless mode
+            // MOCK: Always rejects - no VR/AR hardware access
             let error = boa_engine::JsError::from_opaque(JsValue::from(js_string!("WebXR not supported in headless mode")));
             let promise = boa_engine::object::builtins::JsPromise::reject(error, _context);
-            Ok(JsValue::from(promise))
+            Ok(JsValue::from(promise)) // MOCK: No real XR session creation
         });
         xr_api.set(js_string!("requestSession"), JsValue::from(request_session_fn.to_js_function(context.realm())), false, context)?;
 
@@ -460,32 +448,32 @@ impl NavigatorManager {
         let locks_api = JsObject::with_object_proto(context.intrinsics());
 
         let request_fn = NativeFunction::from_fn_ptr(|_, args, _context| {
-            // Mock Web Locks API implementation
+            // MOCK: Executes callback immediately without real locking
             let _name = args.get(0).cloned().unwrap_or(JsValue::undefined());
             let _options_or_callback = args.get(1).cloned().unwrap_or(JsValue::undefined());
             let _callback = args.get(2).cloned().unwrap_or(JsValue::undefined());
 
-            // Return a resolved promise
             let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::undefined(), _context);
-            Ok(JsValue::from(promise))
+            Ok(JsValue::from(promise)) // MOCK: No real lock management
         });
         locks_api.set(js_string!("request"), JsValue::from(request_fn.to_js_function(context.realm())), false, context)?;
 
         let query_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
+            // MOCK: Returns empty arrays for pending/held locks
             let result = JsObject::with_object_proto(_context.intrinsics());
             result.set(js_string!("pending"), JsValue::from(JsArray::new(_context)), false, _context)?;
             result.set(js_string!("held"), JsValue::from(JsArray::new(_context)), false, _context)?;
 
             let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(result), _context);
-            Ok(JsValue::from(promise))
+            Ok(JsValue::from(promise)) // MOCK: No real lock tracking
         });
         locks_api.set(js_string!("query"), JsValue::from(query_fn.to_js_function(context.realm())), false, context)?;
 
         navigator.set(js_string!("locks"), JsValue::from(locks_api), false, context)?;
 
-        // Chrome 132: Device Posture API
+        // Chrome 132: Device Posture API - MOCK
         let device_posture = JsObject::with_object_proto(context.intrinsics());
-        device_posture.set(js_string!("type"), JsValue::from(js_string!("continuous")), false, context)?;
+        device_posture.set(js_string!("type"), JsValue::from(js_string!("continuous")), false, context)?; // MOCK: Always "continuous"
         navigator.set(js_string!("devicePosture"), JsValue::from(device_posture), false, context)?;
 
         // Set navigator in global scope

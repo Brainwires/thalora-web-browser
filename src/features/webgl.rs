@@ -186,21 +186,23 @@ impl WebGLManager {
 
             let ext_name = args[0].to_string(context)?.to_std_string_escaped();
 
-            // Return mock extension object for supported extensions
+            // MOCK: Returns fake extension objects - no real GPU hardware access
             match ext_name.as_str() {
                 "WEBGL_debug_renderer_info" => {
+                    // MOCK: Hardcoded GL constants for debugging extension
                     let ext_obj = JsObject::default();
-                    ext_obj.set(js_string!("UNMASKED_VENDOR_WEBGL"), JsValue::from(37445), false, context)?;
-                    ext_obj.set(js_string!("UNMASKED_RENDERER_WEBGL"), JsValue::from(37446), false, context)?;
+                    ext_obj.set(js_string!("UNMASKED_VENDOR_WEBGL"), JsValue::from(37445), false, context)?; // MOCK GL constant
+                    ext_obj.set(js_string!("UNMASKED_RENDERER_WEBGL"), JsValue::from(37446), false, context)?; // MOCK GL constant
                     Ok(JsValue::from(ext_obj))
                 },
                 "WEBGL_lose_context" => {
+                    // MOCK: Fake context loss extension - no real GPU interaction
                     let ext_obj = JsObject::default();
-                    let lose_context_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+                    let lose_context_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())); // MOCK: No-op function
                     ext_obj.set(js_string!("loseContext"), JsValue::from(lose_context_fn.to_js_function(context.realm())), false, context)?;
                     Ok(JsValue::from(ext_obj))
                 },
-                _ => Ok(JsValue::null())
+                _ => Ok(JsValue::null()) // MOCK: All other extensions return null
             }
         }) };
         gl_context.set(js_string!("getExtension"), JsValue::from(get_extension_fn.to_js_function(context.realm())), false, context)?;

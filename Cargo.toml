@@ -31,8 +31,14 @@ taffy = "0.5"
 # JavaScript engine (pure Rust) - using local submodule for customization
 boa_engine = { path = "engines/boa/core/engine" }
 
-# WebAssembly runtime
-wasmtime = "21.0"
+# WebAssembly runtime - Full V8-compatible stack
+wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"] }
+wasmtime-wasi = "21.0"
+wasmtime-wast = "21.0"
+wasm-bindgen = "0.2"
+wat = "1.0"
+wasmparser = "0.121"
+wasm-encoder = "0.38"
 
 # Geolocation services
 sysinfo = "0.31"

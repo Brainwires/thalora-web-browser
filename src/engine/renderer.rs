@@ -7,6 +7,7 @@ use crate::apis::WebApis;
 use crate::engine::dom::EnhancedDom;
 use crate::apis::history::BrowserHistory;
 use crate::apis::events::EventManager;
+use crate::features::AdvancedWebAssemblyEngine;
 
 
 pub struct RustRenderer {
@@ -15,6 +16,7 @@ pub struct RustRenderer {
     dom_manager: Option<EnhancedDom>,
     history_initialized: bool,
     event_manager: EventManager,
+    wasm_api: Option<AdvancedWebAssemblyEngine>,
 }
 
 impl RustRenderer {
@@ -36,6 +38,18 @@ impl RustRenderer {
 
         // Setup REAL DOM event system (replaces mock implementations)
         event_manager.setup_events_api(&mut context).unwrap();
+
+        // Setup REAL WebAssembly API (replaces mock implementations)
+        let wasm_api = match AdvancedWebAssemblyEngine::new() {
+            Ok(api) => {
+                api.setup_webassembly_api(&mut context).unwrap();
+                Some(api)
+            },
+            Err(e) => {
+                eprintln!("Failed to initialize WebAssembly API: {}", e);
+                None
+            }
+        };
 
         // Additional bot detection and challenge-specific polyfills
         let js_code = r#"
@@ -326,57 +340,7 @@ impl RustRenderer {
                         };
                     }
                 },
-                // WebAssembly support - Critical for V8 compatibility
-                WebAssembly: {
-                    Module: function(bytes) {
-                        // Mock WebAssembly.Module constructor
-                        this.exports = {};
-                        this.imports = {};
-                        return this;
-                    },
-                    Instance: function(module, importObject) {
-                        // Mock WebAssembly.Instance constructor
-                        this.exports = {};
-                        return this;
-                    },
-                    Memory: function(descriptor) {
-                        // Mock WebAssembly.Memory constructor  
-                        this.buffer = new ArrayBuffer(descriptor.initial * 65536);
-                        this.grow = function(delta) {
-                            return this.buffer.byteLength / 65536;
-                        };
-                        return this;
-                    },
-                    Table: function(descriptor) {
-                        // Mock WebAssembly.Table constructor
-                        this.length = descriptor.initial || 0;
-                        this.get = function(index) { return null; };
-                        this.set = function(index, value) {};
-                        this.grow = function(delta) { return this.length; };
-                        return this;
-                    },
-                    Global: function(descriptor, value) {
-                        // Mock WebAssembly.Global constructor
-                        this.value = value;
-                        this.valueOf = function() { return this.value; };
-                        return this;
-                    },
-                    compile: function(bytes) {
-                        // Mock WebAssembly.compile - returns Promise
-                        return Promise.resolve(new WebAssembly.Module(bytes));
-                    },
-                    instantiate: function(bytes, importObject) {
-                        // Mock WebAssembly.instantiate - returns Promise
-                        return Promise.resolve({
-                            module: new WebAssembly.Module(bytes),
-                            instance: new WebAssembly.Instance({}, importObject)
-                        });
-                    },
-                    validate: function(bytes) {
-                        // Mock WebAssembly.validate
-                        return true;
-                    }
-                },
+                // WebAssembly support is now handled by the real WebAssemblyEngine
                 
                 // Complete URL API - V8 compatible
                 URL: function(url, base) {
@@ -1055,6 +1019,7 @@ impl RustRenderer {
             dom_manager: Some(dom_manager.unwrap()),
             history_initialized: false,
             event_manager,
+            wasm_api,
         }
     }
 

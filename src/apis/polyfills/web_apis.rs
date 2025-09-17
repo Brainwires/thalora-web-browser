@@ -1,8 +1,21 @@
 use boa_engine::{Context, JsResult, Source};
 
 /// Setup Web APIs polyfills
-/// WARNING: Most of these are MOCK/STUB implementations that only provide API shape, not functionality
-/// They return hardcoded values and serve primarily for compatibility testing, not real usage
+///
+/// ⚠️  CRITICAL WARNING: MOST OF THESE ARE MOCK/STUB IMPLEMENTATIONS! ⚠️
+///
+/// These polyfills provide API shape compatibility but NOT real functionality.
+/// They return hardcoded fake values and are primarily for compatibility testing.
+/// For production use, these need to be replaced with real implementations.
+///
+/// KNOWN MOCKS:
+/// - Performance API: Returns fake timing data, no real measurements
+/// - WebSocketStream: Logs but doesn't create real connections
+/// - WebAuthn: Returns fake credentials, no real authentication
+/// - IndexedDB: Fake database operations
+/// - WebRTC: Mock media streams and connections
+/// - Web Workers: Log messages but don't execute scripts
+/// - And many more... (see MOCKED_APIS.md for complete list)
 pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
     context.eval(Source::from_bytes(r#"
         // MOCK Performance API - Returns fake timing data, not real measurements
