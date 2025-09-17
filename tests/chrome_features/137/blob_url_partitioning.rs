@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_blob_url_partitioning() {
     println!("🧪 Testing Chrome 137: Blob URL partitioning...");

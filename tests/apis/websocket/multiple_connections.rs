@@ -1,6 +1,4 @@
-use thalora::{WebSocketManager, WebSocketJsApi};
-use tokio::time::Duration;
-
+#[tokio::test]
 async fn test_multiple_connections() {
     let manager = WebSocketManager::new();
     
@@ -21,7 +19,7 @@ async fn test_multiple_connections() {
     manager.send_message(&conn2, "Message from room2", false).await.unwrap();
     
     // Close one connection
-    manager.close(&conn2, Some(1000), Some("Leaving room")).await.unwrap();
+    manager.close(&conn2, Some(1000), Some("Leaving room".to_string())).await.unwrap();
     
     // Verify active connections updated
     let active_connections = manager.get_active_connections();

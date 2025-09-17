@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_audiocontext_interrupted_state() {
     println!("🧪 Testing Chrome 136: AudioContext interrupted state...");

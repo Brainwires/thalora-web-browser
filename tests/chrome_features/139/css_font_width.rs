@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_css_font_width() {
     println!("🧪 Testing Chrome 139: CSS font-width property...");

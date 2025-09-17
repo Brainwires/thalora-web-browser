@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_get_installed_related_apps() {
     println!("🧪 Testing Chrome 140: Get Installed Related Apps API on Desktop...");

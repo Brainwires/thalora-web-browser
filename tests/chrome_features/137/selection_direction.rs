@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_selection_direction() {
     println!("🧪 Testing Chrome 137: Selection.direction...");

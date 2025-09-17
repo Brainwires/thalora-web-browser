@@ -1,6 +1,4 @@
-use thalora::{WebSocketManager, WebSocketJsApi};
-use tokio::time::Duration;
-
+#[tokio::test]
 async fn test_connection_error_handling() {
     let manager = WebSocketManager::new();
     

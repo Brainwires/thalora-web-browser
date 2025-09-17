@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_132_device_posture_api() {
     println!("🧪 Testing Chrome 132: Device Posture API...");

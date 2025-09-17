@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_find_last() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Array.prototype.findLast
     let result = engine.execute_enhanced(r#"
         const arr = [1, 2, 3, 4, 5];
@@ -14,6 +11,5 @@ async fn test_array_find_last() {
             [].findLast(x => true)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

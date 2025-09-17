@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_126_visual_viewport_scrollend() {
     println!("🧪 Testing Chrome 126: visualViewport onscrollend support...");

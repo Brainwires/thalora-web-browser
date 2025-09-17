@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_webauthn_conditional_create() {
     println!("🧪 Testing Chrome 136: WebAuthn conditional create...");

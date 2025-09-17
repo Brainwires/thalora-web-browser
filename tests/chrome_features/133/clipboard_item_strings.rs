@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_clipboard_item_strings() {
     println!("🧪 Testing Chrome 133: ClipboardItem string support...");

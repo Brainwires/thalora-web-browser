@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_readablestream_byob_min() {
     println!("🧪 Testing Chrome 140: ReadableStreamBYOBReader min option...");

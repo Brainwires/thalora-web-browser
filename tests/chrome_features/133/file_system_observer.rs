@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_file_system_observer() {
     println!("🧪 Testing Chrome 133: FileSystemObserver interface...");

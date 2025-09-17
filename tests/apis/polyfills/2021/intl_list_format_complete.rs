@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_intl_list_format_complete() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Intl.ListFormat (if available)
     let result = engine.execute_enhanced(r#"
         try {
@@ -17,6 +14,5 @@ async fn test_intl_list_format_complete() {
             true // Graceful fallback
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_canvas_image_smoothing_quality() {
     println!("🧪 Testing Chrome 134: Canvas imageSmoothingQuality...");

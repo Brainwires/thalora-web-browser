@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_extended_lifetime_shared_workers() {
     println!("🧪 Testing Chrome 139: Extended Lifetime Shared Workers...");

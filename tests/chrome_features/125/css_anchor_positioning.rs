@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_css_anchor_positioning() {
     println!("🧪 Testing Chrome 125: CSS Anchor Positioning...");

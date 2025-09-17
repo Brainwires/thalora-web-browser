@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_explicit_resource_management() {
     println!("🧪 Testing Chrome 134: Explicit Resource Management...");

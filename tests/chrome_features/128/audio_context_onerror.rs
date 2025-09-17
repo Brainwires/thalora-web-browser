@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_128_audio_context_onerror() {
     println!("🧪 Testing Chrome 128: AudioContext.onerror...");

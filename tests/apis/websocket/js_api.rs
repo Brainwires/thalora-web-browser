@@ -1,6 +1,4 @@
-use thalora::{WebSocketManager, WebSocketJsApi};
-use tokio::time::Duration;
-
+#[tokio::test]
 async fn test_websocket_js_api() {
     let manager = WebSocketManager::new();
     let js_api = WebSocketJsApi::new(manager);

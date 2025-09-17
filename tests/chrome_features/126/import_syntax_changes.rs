@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_126_import_syntax_changes() {
     println!("🧪 Testing Chrome 126: Import assertion syntax changes...");

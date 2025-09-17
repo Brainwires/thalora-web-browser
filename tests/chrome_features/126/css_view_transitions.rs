@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_126_css_view_transitions() {
     println!("🧪 Testing Chrome 126: Cross-Document View Transitions...");

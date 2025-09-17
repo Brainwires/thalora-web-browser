@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_129_scheduler_yield() {
     println!("🧪 Testing Chrome 129: scheduler.yield()...");

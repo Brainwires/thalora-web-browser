@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_129_rtc_data_channel_blob() {
     println!("🧪 Testing Chrome 129: RTCDataChannel Blob support...");

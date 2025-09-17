@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_regexp_named_capture_groups() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test named capture groups support
     let result = engine.execute_enhanced(r#"
         try {
@@ -15,6 +12,5 @@ async fn test_regexp_named_capture_groups() {
             true
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

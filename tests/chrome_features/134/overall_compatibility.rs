@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_overall_compatibility() {
     println!("🧪 Testing Chrome 134: Overall feature compatibility...");

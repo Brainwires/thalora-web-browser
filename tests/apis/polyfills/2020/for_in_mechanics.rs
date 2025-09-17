@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_for_in_mechanics() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test for-in mechanics improvements
     let result = engine.execute_enhanced(r#"
         const obj = { a: 1, b: 2, c: 3 };
@@ -13,6 +10,5 @@ async fn test_for_in_mechanics() {
         }
         keys.length === 3
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

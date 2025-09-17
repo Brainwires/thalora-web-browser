@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_127_scroll_snap_events() {
     println!("🧪 Testing Chrome 127: Scroll Snap Events...");

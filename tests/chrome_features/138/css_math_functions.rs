@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_css_math_functions() {
     println!("🧪 Testing Chrome 138: CSS math functions (abs, sign, progress)...");

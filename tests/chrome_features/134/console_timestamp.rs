@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_console_timestamp() {
     println!("🧪 Testing Chrome 134: console.timeStamp enhancements...");

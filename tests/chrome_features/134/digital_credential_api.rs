@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_digital_credential_api() {
     println!("🧪 Testing Chrome 134: Digital Credential API (Origin Trial)...");

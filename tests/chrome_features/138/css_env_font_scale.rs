@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_css_env_font_scale() {
     println!("🧪 Testing Chrome 138: CSS env() font scale...");

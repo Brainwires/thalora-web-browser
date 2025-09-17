@@ -1,6 +1,4 @@
-use thalora::{WebSocketManager, WebSocketJsApi};
-use tokio::time::Duration;
-
+#[tokio::test]
 async fn test_realtime_events_simulation() {
     let manager = WebSocketManager::new();
     

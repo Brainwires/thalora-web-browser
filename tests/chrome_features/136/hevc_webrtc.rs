@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_hevc_webrtc() {
     println!("🧪 Testing Chrome 136: HEVC codec support in WebRTC...");

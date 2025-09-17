@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_exponentiation_operator() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test ** operator via Math.pow transformation
     let result = engine.execute_enhanced(r#"
         [
@@ -13,6 +10,5 @@ async fn test_exponentiation_operator() {
             Math.pow(-2, 3)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

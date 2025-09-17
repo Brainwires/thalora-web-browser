@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_webgpu_compatibility_mode() {
     println!("🧪 Testing Chrome 139: WebGPU compatibility mode...");

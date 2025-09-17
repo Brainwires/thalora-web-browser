@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_nullish_coalescing() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test nullish coalescing operator (??)
     let result = engine.execute_enhanced(r#"
         const a = null;
@@ -17,6 +14,5 @@ async fn test_nullish_coalescing() {
             d ?? 'default'
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

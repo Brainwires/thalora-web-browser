@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_124_dom_html_unsafe_methods() {
     println!("🧪 Testing Chrome 124: DOM setHTMLUnsafe and parseHTMLUnsafe...");

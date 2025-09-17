@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_iterator_helpers() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Iterator helpers (if available)
     let result = engine.execute_enhanced(r#"
         try {
@@ -14,6 +11,5 @@ async fn test_iterator_helpers() {
             true // May not be supported
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

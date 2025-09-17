@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_css_custom_functions() {
     println!("🧪 Testing Chrome 139: CSS custom functions...");

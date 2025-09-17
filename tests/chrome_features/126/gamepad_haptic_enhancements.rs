@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_126_gamepad_haptic_enhancements() {
     println!("🧪 Testing Chrome 126: Gamepad API Trigger-Rumble Extension...");

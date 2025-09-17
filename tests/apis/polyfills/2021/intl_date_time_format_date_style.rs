@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_intl_date_time_format_date_style() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Intl.DateTimeFormat dateStyle and timeStyle
     let result = engine.execute_enhanced(r#"
         try {
@@ -17,6 +14,5 @@ async fn test_intl_date_time_format_date_style() {
             true // Graceful fallback
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

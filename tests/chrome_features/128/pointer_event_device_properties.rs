@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_128_pointer_event_device_properties() {
     println!("🧪 Testing Chrome 128: PointerEvent.deviceProperties...");

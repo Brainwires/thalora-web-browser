@@ -1,11 +1,7 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_history_api_functionality() {
     println!("🧪 Testing History API functionality...");
-
     let browser = HeadlessWebBrowser::new();
-
     // Test pushState
     let result = browser.lock().unwrap().execute_javascript("history.pushState({test: 'data'}, 'Test', '/test'); 'success'").await;
     match result {
@@ -15,7 +11,6 @@ async fn test_history_api_functionality() {
         },
         Err(e) => panic!("pushState failed: {:?}", e),
     }
-
     // Test state property
     let result = browser.lock().unwrap().execute_javascript("history.state").await;
     match result {
@@ -26,6 +21,5 @@ async fn test_history_api_functionality() {
         },
         Err(e) => panic!("Failed to get history.state: {:?}", e),
     }
-
     println!("✅ History API functionality test completed");
 }

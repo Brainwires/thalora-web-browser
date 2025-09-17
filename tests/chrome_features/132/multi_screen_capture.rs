@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_132_multi_screen_capture() {
     println!("🧪 Testing Chrome 132: Multi-Screen Capture API...");

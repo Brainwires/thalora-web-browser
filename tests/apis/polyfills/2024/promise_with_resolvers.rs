@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_promise_with_resolvers() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Promise.withResolvers
     let result = engine.execute_enhanced(r#"
         const { promise, resolve, reject } = Promise.withResolvers();
@@ -14,6 +11,5 @@ async fn test_promise_with_resolvers() {
             promise instanceof Promise
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

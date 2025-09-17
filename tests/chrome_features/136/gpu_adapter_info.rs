@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_gpu_adapter_info() {
     println!("🧪 Testing Chrome 136: GPUAdapterInfo isFallbackAdapter...");

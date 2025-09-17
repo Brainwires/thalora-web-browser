@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_highlights_from_point() {
     println!("🧪 Testing Chrome 140: highlightsFromPoint API...");

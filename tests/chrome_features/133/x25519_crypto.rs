@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_x25519_crypto() {
     println!("🧪 Testing Chrome 133: X25519 crypto algorithm...");

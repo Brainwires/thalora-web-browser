@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_124_pageswap_event() {
     println!("🧪 Testing Chrome 124: pageswap event...");

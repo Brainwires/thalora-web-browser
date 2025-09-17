@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_webauth_immediate_mediation() {
     println!("🧪 Testing Chrome 139: WebAuthn immediate mediation mode...");

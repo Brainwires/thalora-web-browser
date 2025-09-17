@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_132_file_system_access_android() {
     println!("🧪 Testing Chrome 132: File System Access API on Android...");

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_fetch_later() {
     println!("🧪 Testing Chrome 135: fetchLater() API...");

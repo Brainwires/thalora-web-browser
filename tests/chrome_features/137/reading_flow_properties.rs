@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_reading_flow_properties() {
     println!("🧪 Testing Chrome 137: reading-flow and reading-order CSS properties...");

@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_at_edge_cases() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Array.prototype.at edge cases
     let result = engine.execute_enhanced(r#"
         [
@@ -13,6 +10,5 @@ async fn test_array_at_edge_cases() {
             'test'.at(-1)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

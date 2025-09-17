@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_duplicate_named_groups() {
     println!("🧪 Testing Chrome 125: Duplicate Named Capture Groups...");

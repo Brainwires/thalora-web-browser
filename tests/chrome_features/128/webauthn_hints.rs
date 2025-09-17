@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_128_webauthn_hints() {
     println!("🧪 Testing Chrome 128: WebAuthn hints parameter...");

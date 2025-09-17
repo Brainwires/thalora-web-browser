@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_for_await_of() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test for-await-of transformation
     let result = engine.execute_enhanced(r#"
         // for-await-of would be transformed to regular iteration
@@ -14,6 +11,5 @@ async fn test_for_await_of() {
         }
         sum === 6
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

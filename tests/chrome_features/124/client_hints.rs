@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_124_client_hints() {
     println!("🧪 Testing Chrome 124: Client Hints (Sec-CH-UA-Form-Factors)...");

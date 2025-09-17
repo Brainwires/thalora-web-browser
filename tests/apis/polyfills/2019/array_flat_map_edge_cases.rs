@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_flat_map_edge_cases() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Array.prototype.flatMap edge cases
     let result = engine.execute_enhanced(r#"
         [
@@ -13,6 +10,5 @@ async fn test_array_flat_map_edge_cases() {
             [].flatMap(x => [x, x])
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

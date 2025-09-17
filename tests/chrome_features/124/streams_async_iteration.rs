@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_124_streams_async_iteration() {
     println!("🧪 Testing Chrome 124: Streams API Async Iteration...");

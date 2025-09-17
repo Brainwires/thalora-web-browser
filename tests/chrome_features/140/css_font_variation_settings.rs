@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_css_font_variation_settings() {
     println!("🧪 Testing Chrome 140: CSS font-variation-settings descriptor...");

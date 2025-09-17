@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_open_pseudo_class() {
     println!("🧪 Testing Chrome 133: :open pseudo-class support...");

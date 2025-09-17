@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_web_locks_shared_storage() {
     println!("🧪 Testing Chrome 134: Web Locks API in Shared Storage...");

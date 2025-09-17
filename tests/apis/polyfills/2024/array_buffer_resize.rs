@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_buffer_resize() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test ArrayBuffer.prototype.resize (if supported)
     let result = engine.execute_enhanced(r#"
         try {
@@ -13,6 +10,5 @@ async fn test_array_buffer_resize() {
             true // Graceful fallback
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

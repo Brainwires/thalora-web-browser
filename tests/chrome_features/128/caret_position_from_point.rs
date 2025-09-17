@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_128_caret_position_from_point() {
     println!("🧪 Testing Chrome 128: document.caretPositionFromPoint...");

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_media_devices_set_default_sink() {
     println!("🧪 Testing Chrome 136: MediaDevices setDefaultSinkId()...");

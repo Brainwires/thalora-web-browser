@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_132_dialog_toggle_event() {
     println!("🧪 Testing Chrome 132: Dialog ToggleEvent...");

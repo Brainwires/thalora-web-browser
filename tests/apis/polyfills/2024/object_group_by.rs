@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_object_group_by() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Object.groupBy
     let result = engine.execute_enhanced(r#"
         const items = [
@@ -20,6 +17,5 @@ async fn test_object_group_by() {
             typeof grouped.A[0] === 'object'
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

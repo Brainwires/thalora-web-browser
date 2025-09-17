@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_navigate_event_source_element() {
     println!("🧪 Testing Chrome 135: NavigateEvent.sourceElement...");

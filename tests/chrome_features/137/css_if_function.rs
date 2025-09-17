@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_css_if_function() {
     println!("🧪 Testing Chrome 137: CSS if() function...");

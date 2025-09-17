@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_128_promise_try() {
     println!("🧪 Testing Chrome 128: Promise.try...");

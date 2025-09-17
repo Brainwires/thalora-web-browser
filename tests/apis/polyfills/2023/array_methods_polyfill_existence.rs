@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_methods_polyfill_existence() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test that all ES2023 array methods exist
     let result = engine.execute_enhanced(r#"
         const arr = [];
@@ -16,6 +13,5 @@ async fn test_array_methods_polyfill_existence() {
             typeof arr.with === 'function'
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

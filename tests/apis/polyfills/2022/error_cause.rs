@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_error_cause() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Error cause property
     let result = engine.execute_enhanced(r#"
         try {
@@ -14,6 +11,5 @@ async fn test_error_cause() {
             true
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

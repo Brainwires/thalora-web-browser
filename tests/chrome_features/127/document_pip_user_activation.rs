@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_127_document_pip_user_activation() {
     println!("🧪 Testing Chrome 127: Document Picture-in-Picture User Activation...");

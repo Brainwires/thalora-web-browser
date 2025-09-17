@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_130_document_pip_placement() {
     println!("🧪 Testing Chrome 130: Document Picture-in-Picture preferInitialWindowPlacement...");

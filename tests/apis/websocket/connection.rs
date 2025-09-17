@@ -1,6 +1,4 @@
-use thalora::{WebSocketManager, WebSocketJsApi};
-use tokio::time::Duration;
-
+#[tokio::test]
 async fn test_websocket_connection() {
     let manager = WebSocketManager::new();
     
@@ -10,7 +8,7 @@ async fn test_websocket_connection() {
     
     // Verify connection state
     let state = manager.get_connection_state(&connection_id).unwrap();
-    assert!(matches!(state, thalora::websocket::ConnectionState::Open));
+    assert!(matches!(state, ConnectionState::Open));
     
     // Test message sending (this might be where it hangs)
     tokio::time::timeout(
@@ -19,7 +17,7 @@ async fn test_websocket_connection() {
     ).await.expect("send_message timed out").unwrap();
     
     // Test connection closing
-    manager.close(&connection_id, Some(1000), Some("Normal closure")).await.unwrap();
+    manager.close(&connection_id, Some(1000), Some("Normal closure".to_string())).await.unwrap();
     
     let state = manager.get_connection_state(&connection_id);
     assert!(state.is_err()); // Connection should be removed

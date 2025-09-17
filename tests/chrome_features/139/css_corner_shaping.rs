@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_css_corner_shaping() {
     println!("🧪 Testing Chrome 139: CSS corner shaping...");

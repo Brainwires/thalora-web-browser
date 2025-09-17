@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_animation_overall_progress() {
     println!("🧪 Testing Chrome 133: Animation.overallProgress...");

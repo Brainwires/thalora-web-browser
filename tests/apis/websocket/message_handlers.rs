@@ -1,15 +1,13 @@
-use thalora::{WebSocketManager, WebSocketJsApi};
-use tokio::time::Duration;
-
+#[tokio::test]
 async fn test_message_handlers() {
     let manager = WebSocketManager::new();
     
     // Add a message handler that responds to specific messages
     manager.add_message_handler(|message| {
         if message.data.contains("hello") {
-            Ok(Some(thalora::websocket::WebSocketMessage {
+            Ok(Some(WebSocketMessage {
                 timestamp: tokio::time::Instant::now(),
-                message_type: thalora::websocket::MessageType::Text,
+                message_type: MessageType::Text,
                 data: "Hello back!".to_string(),
                 binary: false,
             }))

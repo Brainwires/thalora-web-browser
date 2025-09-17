@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_storage_access_api() {
     println!("🧪 Testing Chrome 125: Storage Access API Extension...");

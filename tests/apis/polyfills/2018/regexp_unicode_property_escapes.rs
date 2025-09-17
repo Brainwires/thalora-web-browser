@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_regexp_unicode_property_escapes() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Unicode property escapes
     let result = engine.execute_enhanced(r#"
         try {
@@ -15,6 +12,5 @@ async fn test_regexp_unicode_property_escapes() {
             true
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

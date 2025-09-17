@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_webauthn_client_capabilities() {
     println!("🧪 Testing Chrome 133: WebAuthn getClientCapabilities()...");

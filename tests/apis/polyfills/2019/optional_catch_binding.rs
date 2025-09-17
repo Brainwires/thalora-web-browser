@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_optional_catch_binding() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test optional catch binding (syntax feature)
     let result = engine.execute_enhanced(r#"
         try {
@@ -18,6 +15,5 @@ async fn test_optional_catch_binding() {
             true;
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

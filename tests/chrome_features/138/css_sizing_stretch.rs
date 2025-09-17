@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_css_sizing_stretch() {
     println!("🧪 Testing Chrome 138: CSS sizing stretch keyword...");

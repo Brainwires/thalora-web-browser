@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_regexp_dotall_flag() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test s (dotAll) flag support
     let result = engine.execute_enhanced(r#"
         try {
@@ -14,6 +11,5 @@ async fn test_regexp_dotall_flag() {
             true
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

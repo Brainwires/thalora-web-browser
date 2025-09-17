@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_124_webmidi_permissions() {
     println!("🧪 Testing Chrome 124: WebMIDI permissions...");

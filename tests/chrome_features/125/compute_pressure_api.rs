@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_compute_pressure_api() {
     println!("🧪 Testing Chrome 125: Compute Pressure API...");

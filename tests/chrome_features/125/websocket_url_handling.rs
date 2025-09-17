@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_websocket_url_handling() {
     println!("🧪 Testing Chrome 125: Enhanced WebSocket URL handling...");

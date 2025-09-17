@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_dialog_closedby_attribute() {
     println!("🧪 Testing Chrome 134: Dialog closedby attribute...");

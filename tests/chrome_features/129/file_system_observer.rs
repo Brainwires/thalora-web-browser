@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_129_file_system_observer() {
     println!("🧪 Testing Chrome 129: FileSystemObserver (Origin Trial)...");

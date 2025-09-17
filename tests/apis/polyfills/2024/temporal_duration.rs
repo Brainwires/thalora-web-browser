@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_temporal_duration() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Temporal.Duration (if available)
     let result = engine.execute_enhanced(r#"
         try {
@@ -17,6 +14,5 @@ async fn test_temporal_duration() {
             true // Graceful fallback
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_127_webgpu_adapter_info() {
     println!("🧪 Testing Chrome 127: WebGPU Adapter Info...");

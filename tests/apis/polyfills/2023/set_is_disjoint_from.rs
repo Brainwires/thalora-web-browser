@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_set_is_disjoint_from() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Set.prototype.isDisjointFrom
     let result = engine.execute_enhanced(r#"
         const set1 = new Set([1, 2, 3]);
@@ -16,6 +13,5 @@ async fn test_set_is_disjoint_from() {
             new Set().isDisjointFrom(set1)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_toggle_event_source() {
     println!("🧪 Testing Chrome 140: ToggleEvent source attribute...");

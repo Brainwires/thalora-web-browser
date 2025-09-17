@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_133_multiple_import_maps() {
     println!("🧪 Testing Chrome 133: Multiple import maps support...");

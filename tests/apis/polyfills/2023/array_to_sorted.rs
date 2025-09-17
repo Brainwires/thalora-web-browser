@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_to_sorted() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Array.prototype.toSorted
     let result = engine.execute_enhanced(r#"
         const arr = [3, 1, 4, 1, 5];
@@ -16,6 +13,5 @@ async fn test_array_to_sorted() {
             arr !== sorted
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

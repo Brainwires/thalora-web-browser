@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_130_serial_port_connected() {
     println!("🧪 Testing Chrome 130: SerialPort.connected attribute...");

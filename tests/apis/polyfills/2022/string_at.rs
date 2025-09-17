@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_string_at() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test String.prototype.at
     let result = engine.execute_enhanced(r#"
         const str = 'hello';
@@ -15,6 +12,5 @@ async fn test_string_at() {
             str.at(10)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

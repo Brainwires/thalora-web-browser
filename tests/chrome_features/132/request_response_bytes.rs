@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_132_request_response_bytes() {
     println!("🧪 Testing Chrome 132: Request/Response bytes() method...");

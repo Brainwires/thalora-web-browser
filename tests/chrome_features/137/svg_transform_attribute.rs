@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_svg_transform_attribute() {
     println!("🧪 Testing Chrome 137: SVG transform attribute on root element...");

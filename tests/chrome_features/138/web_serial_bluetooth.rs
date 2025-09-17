@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_web_serial_bluetooth() {
     println!("🧪 Testing Chrome 138: Web Serial over Bluetooth...");

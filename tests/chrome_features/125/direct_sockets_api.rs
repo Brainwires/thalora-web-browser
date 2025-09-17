@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_direct_sockets_api() {
     println!("🧪 Testing Chrome 125: Direct Sockets API...");

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_129_webauthn_serialization() {
     println!("🧪 Testing Chrome 129: WebAuthn serialization methods...");

@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_optional_chaining() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test optional chaining operator (?.)
     let result = engine.execute_enhanced(r#"
         const obj = { nested: { value: 42 } };
@@ -15,6 +12,5 @@ async fn test_optional_chaining() {
             obj?.nested?.missing
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

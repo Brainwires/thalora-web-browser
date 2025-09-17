@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_125_regex_modifiers() {
     println!("🧪 Testing Chrome 125: Regular Expression Modifiers...");

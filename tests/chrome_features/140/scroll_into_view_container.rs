@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_scroll_into_view_container() {
     println!("🧪 Testing Chrome 140: ScrollIntoViewOptions container option...");

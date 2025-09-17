@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_regexp_v_flag() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test RegExp v flag support
     let result = engine.execute_enhanced(r#"
         try {
@@ -18,6 +15,5 @@ async fn test_regexp_v_flag() {
             }
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

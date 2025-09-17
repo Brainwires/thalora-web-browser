@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_130_indexeddb_error_reporting() {
     println!("🧪 Testing Chrome 130: IndexedDB improved error reporting...");

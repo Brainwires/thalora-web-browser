@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_regexp_lookbehind_assertions() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test lookbehind assertions (may not be fully supported)
     let result = engine.execute_enhanced(r#"
         try {
@@ -15,6 +12,5 @@ async fn test_regexp_lookbehind_assertions() {
             true
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

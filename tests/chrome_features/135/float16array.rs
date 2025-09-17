@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_float16array() {
     println!("🧪 Testing Chrome 135: Float16Array...");

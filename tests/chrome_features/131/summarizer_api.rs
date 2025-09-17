@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_131_summarizer_api() {
     println!("🧪 Testing Chrome 131: Summarizer API (Origin Trial)...");

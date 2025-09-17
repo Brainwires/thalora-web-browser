@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_canvas_text_lang() {
     println!("🧪 Testing Chrome 136: CanvasTextDrawingStyles lang attribute...");

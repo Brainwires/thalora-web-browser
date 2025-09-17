@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_observable_api() {
     println!("🧪 Testing Chrome 135: Observable API...");

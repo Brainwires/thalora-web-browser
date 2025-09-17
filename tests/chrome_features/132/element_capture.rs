@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_132_element_capture() {
     println!("🧪 Testing Chrome 132: Element Capture API...");

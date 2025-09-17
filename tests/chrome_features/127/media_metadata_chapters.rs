@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_127_media_metadata_chapters() {
     println!("🧪 Testing Chrome 127: Media Metadata Chapters...");

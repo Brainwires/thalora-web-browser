@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_set_methods_polyfill_existence() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test that all ES2023 set methods exist
     let result = engine.execute_enhanced(r#"
         const set = new Set();
@@ -17,6 +14,5 @@ async fn test_set_methods_polyfill_existence() {
             typeof set.isDisjointFrom === 'function'
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

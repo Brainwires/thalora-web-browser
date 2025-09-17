@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_temporal_plain_date_time() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Temporal.PlainDateTime (if available)
     let result = engine.execute_enhanced(r#"
         try {
@@ -17,6 +14,5 @@ async fn test_temporal_plain_date_time() {
             true // Graceful fallback
         }
     "#).await.unwrap();
-
     assert!(result.as_boolean().unwrap());
 }

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_126_mediarecorder_improvements() {
     println!("🧪 Testing Chrome 126: MediaRecorder MP4 support...");

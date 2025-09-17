@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_rtc_encoded_frame_timestamps() {
     println!("🧪 Testing Chrome 135: RTC Encoded Frame timestamps...");

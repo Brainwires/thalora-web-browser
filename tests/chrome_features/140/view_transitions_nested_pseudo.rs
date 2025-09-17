@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_view_transitions_nested_pseudo() {
     println!("🧪 Testing Chrome 140: View Transitions Nested Pseudo-Elements...");

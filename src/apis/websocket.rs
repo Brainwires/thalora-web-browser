@@ -318,10 +318,10 @@ impl WebSocketManager {
         {
             let senders = self.active_senders.lock().unwrap();
             if let Some(sender) = senders.get(connection_id) {
-                let close_frame = match (code, reason) {
+                let close_frame = match (code, &reason) {
                     (Some(c), Some(r)) => Message::Close(Some(tungstenite::protocol::CloseFrame {
                         code: tungstenite::protocol::frame::coding::CloseCode::from(c),
-                        reason: r.into(),
+                        reason: r.clone().into(),
                     })),
                     (Some(c), None) => Message::Close(Some(tungstenite::protocol::CloseFrame {
                         code: tungstenite::protocol::frame::coding::CloseCode::from(c),
@@ -446,6 +446,50 @@ impl WebSocketManager {
             .ok_or_else(|| anyhow!("WebSocket connection not found: {}", connection_id))?;
         
         connection.state = state;
+        Ok(())
+    }
+
+    /// Simulate incoming message for testing purposes
+    pub async fn simulate_incoming_message(&self, connection_id: &str, data: &str, binary: bool) -> Result<()> {
+        let message = WebSocketMessage {
+            data: data.to_string(),
+            binary,
+            timestamp: Instant::now(),
+            message_type: if binary { MessageType::Binary } else { MessageType::Text },
+        };
+
+        // Add to received messages
+        {
+            let mut connections = self.connections.lock().unwrap();
+            if let Some(connection) = connections.get_mut(connection_id) {
+                connection.messages_received.push(message.clone());
+            } else {
+                return Err(anyhow!("WebSocket connection not found: {}", connection_id));
+            }
+        }
+
+        // Process the incoming message
+        self.process_incoming_message(connection_id, &message).await?;
+        Ok(())
+    }
+
+    /// Simulate realtime events for testing
+    pub async fn simulate_realtime_events(&self, connection_id: &str, events: Vec<&str>) -> Result<()> {
+        for event in events {
+            let event_data = match event {
+                "heartbeat" => r#"{"type":"heartbeat","timestamp":1234567890}"#,
+                "user_joined" => r#"{"type":"user_joined","user_id":"user123","username":"testuser"}"#,
+                "message" => r#"{"type":"message","id":"msg456","content":"Hello, World!","user":"system"}"#,
+                "notification" => r#"{"type":"notification","title":"New Message","body":"You have a new message"}"#,
+                "status_update" => r#"{"type":"status_update","status":"online","last_seen":1234567890}"#,
+                _ => r#"{"type":"unknown","data":{}}"#,
+            };
+
+            self.simulate_incoming_message(connection_id, event_data, false).await?;
+
+            // Add realistic delay between events
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
         Ok(())
     }
 
@@ -736,6 +780,24 @@ impl WebSocketJsApi {
             r#"{"type":"message","user":"test","text":"Hello from real WebSocket!"}"#,
             false
         ).await?;
+
+        Ok(())
+    }
+
+    /// Simulate message exchange for testing
+    pub async fn simulate_message_exchange(&self, connection_id: &str) -> Result<()> {
+        // Send test join message
+        self.manager.send_message(connection_id, r#"{"type":"join","room":"general"}"#, false).await?;
+
+        // Simulate server responses
+        self.manager.simulate_incoming_message(connection_id, r#"{"type":"joined","room":"general","user_count":5}"#, false).await?;
+        self.manager.simulate_incoming_message(connection_id, r#"{"type":"welcome","message":"Welcome to the chat!"}"#, false).await?;
+
+        // Send a test message
+        self.manager.send_message(connection_id, r#"{"type":"message","user":"test","text":"Hello everyone!"}"#, false).await?;
+
+        // Simulate echo response
+        self.manager.simulate_incoming_message(connection_id, r#"{"type":"message","user":"server","text":"Message received"}"#, false).await?;
 
         Ok(())
     }

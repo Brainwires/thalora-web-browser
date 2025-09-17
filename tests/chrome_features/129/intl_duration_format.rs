@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_129_intl_duration_format() {
     println!("🧪 Testing Chrome 129: Intl.DurationFormat...");

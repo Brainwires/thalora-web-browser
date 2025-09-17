@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_130_webauthn_attestation_formats() {
     println!("🧪 Testing Chrome 130: WebAuthn attestationFormats field...");

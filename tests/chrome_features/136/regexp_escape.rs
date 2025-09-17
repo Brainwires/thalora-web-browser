@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_regexp_escape() {
     println!("🧪 Testing Chrome 136: RegExp.escape() static method...");

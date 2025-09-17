@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_css_counter_alt_text() {
     println!("🧪 Testing Chrome 140: CSS counter() and counters() in alt text...");

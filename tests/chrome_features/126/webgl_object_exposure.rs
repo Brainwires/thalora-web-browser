@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_126_webgl_object_exposure() {
     println!("🧪 Testing Chrome 126: WebGL Enhancements (WebGLObject exposure)...");

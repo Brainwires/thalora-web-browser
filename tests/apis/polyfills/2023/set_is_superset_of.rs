@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_set_is_superset_of() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Set.prototype.isSupersetOf
     let result = engine.execute_enhanced(r#"
         const set1 = new Set([1, 2, 3, 4]);
@@ -16,6 +13,5 @@ async fn test_set_is_superset_of() {
             set1.isSupersetOf(new Set())
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_csp_require_sri() {
     println!("🧪 Testing Chrome 135: CSP require-sri-for directive...");

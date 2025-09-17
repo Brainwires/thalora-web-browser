@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_webassembly_jspi() {
     println!("🧪 Testing Chrome 137: WebAssembly JSPI (JavaScript Promise Integration)...");

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_137_webcrypto_ed25519() {
     println!("🧪 Testing Chrome 137: WebCrypto Ed25519 support...");

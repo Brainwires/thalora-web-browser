@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_numeric_separators() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test numeric separators
     let result = engine.execute_enhanced(r#"
         const million = 1_000_000;
@@ -11,6 +8,5 @@ async fn test_numeric_separators() {
         const hex = 0xFF_EC_DE_5E;
         [million, binary, hex]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

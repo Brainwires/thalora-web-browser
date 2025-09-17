@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_has_slotted_pseudo_class() {
     println!("🧪 Testing Chrome 134: :has-slotted pseudo-class...");

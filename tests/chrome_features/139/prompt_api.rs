@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_139_prompt_api() {
     println!("🧪 Testing Chrome 139: Prompt API (Origin Trial)...");

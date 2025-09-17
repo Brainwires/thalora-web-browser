@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_130_webassembly_string_builtins() {
     println!("🧪 Testing Chrome 130: WebAssembly JavaScript String Builtins...");

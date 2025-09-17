@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_object_from_entries_edge_cases() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Object.fromEntries edge cases
     let result = engine.execute_enhanced(r#"
         [
@@ -13,6 +10,5 @@ async fn test_object_from_entries_edge_cases() {
             typeof Object.fromEntries === 'function'
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

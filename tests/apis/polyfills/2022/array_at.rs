@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_at() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Array.prototype.at
     let result = engine.execute_enhanced(r#"
         const arr = [1, 2, 3, 4, 5];
@@ -15,6 +12,5 @@ async fn test_array_at() {
             arr.at(10)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

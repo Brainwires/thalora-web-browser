@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_131_webrtc_scale_resolution_down_to() {
     println!("🧪 Testing Chrome 131: WebRTC scaleResolutionDownTo...");

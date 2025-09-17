@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_webcodecs_video_orientation() {
     println!("🧪 Testing Chrome 138: WebCodecs video orientation support...");

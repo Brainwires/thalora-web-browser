@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_136_progress_event_double() {
     println!("🧪 Testing Chrome 136: ProgressEvent double type...");

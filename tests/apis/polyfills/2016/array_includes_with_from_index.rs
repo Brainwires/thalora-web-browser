@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_array_includes_with_from_index() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test includes with fromIndex parameter
     let result = engine.execute_enhanced(r#"
         const arr = [1, 2, 3, 4, 5];
@@ -14,6 +11,5 @@ async fn test_array_includes_with_from_index() {
             arr.includes(5, -1)    // true - found at last position
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

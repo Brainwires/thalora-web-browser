@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_css_sibling_functions() {
     println!("🧪 Testing Chrome 138: CSS sibling functions (sibling-index, sibling-count)...");

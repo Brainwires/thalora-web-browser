@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_set_difference() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Set.prototype.difference
     let result = engine.execute_enhanced(r#"
         const set1 = new Set([1, 2, 3, 4]);
@@ -17,6 +14,5 @@ async fn test_set_difference() {
             difference.has(4)
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_map_group_by() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Map.groupBy
     let result = engine.execute_enhanced(r#"
         const items = ['apple', 'banana', 'cherry', 'apricot', 'blueberry'];
@@ -15,6 +12,5 @@ async fn test_map_group_by() {
             grouped.has('d')
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

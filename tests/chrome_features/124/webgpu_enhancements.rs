@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_124_webgpu_enhancements() {
     println!("🧪 Testing Chrome 124: WebGPU enhancements...");

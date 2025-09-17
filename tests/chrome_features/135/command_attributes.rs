@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_135_command_attributes() {
     println!("🧪 Testing Chrome 135: Command and commandfor attributes...");

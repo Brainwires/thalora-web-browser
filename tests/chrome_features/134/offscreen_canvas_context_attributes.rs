@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_134_offscreen_canvas_context_attributes() {
     println!("🧪 Testing Chrome 134: OffscreenCanvas getContextAttributes...");

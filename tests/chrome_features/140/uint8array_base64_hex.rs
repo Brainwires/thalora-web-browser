@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_140_uint8array_base64_hex() {
     println!("🧪 Testing Chrome 140: Uint8Array Base64/Hex conversion...");

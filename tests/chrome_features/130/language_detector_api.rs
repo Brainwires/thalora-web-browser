@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_130_language_detector_api() {
     println!("🧪 Testing Chrome 130: Language Detector API (Origin Trial)...");

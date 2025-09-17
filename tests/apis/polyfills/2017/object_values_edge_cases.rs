@@ -1,9 +1,6 @@
-use thalora::js::JavaScriptEngine;
-
 #[tokio::test]
 async fn test_object_values_edge_cases() {
     let mut engine = JavaScriptEngine::new().unwrap();
-
     // Test Object.values edge cases
     let result = engine.execute_enhanced(r#"
         [
@@ -14,6 +11,5 @@ async fn test_object_values_edge_cases() {
             Object.values(undefined) || []
         ]
     "#).await.unwrap();
-
     assert!(result.is_object());
 }

@@ -1,5 +1,3 @@
-use thalora::HeadlessWebBrowser;
-
 #[tokio::test]
 async fn test_chrome_138_viewport_segments_api() {
     println!("🧪 Testing Chrome 138: Viewport Segments API...");
