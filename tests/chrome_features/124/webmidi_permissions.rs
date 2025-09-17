@@ -15,11 +15,17 @@ async fn test_chrome_124_webmidi_permissions() {
         Err(e) => panic!("Failed to check navigator.requestMIDIAccess: {:?}", e),
     }
 
-    // Test that requesting MIDI access requires permissions (should not crash)
+    // Test that requesting MIDI access works (returns a promise with MIDI access object)
     let js_code = r#"
         try {
-            // This should work without throwing, even if it fails due to permissions
-            typeof navigator.requestMIDIAccess === 'function' ? 'function_available' : 'not_available'
+            // Test that we can call the function and get a promise back
+            let promise = navigator.requestMIDIAccess();
+            // Check if it's a promise-like object
+            if (promise && typeof promise.then === 'function') {
+                'function_available'
+            } else {
+                'not_promise'
+            }
         } catch (e) {
             'error: ' + e.message
         }

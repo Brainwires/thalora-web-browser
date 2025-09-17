@@ -17,9 +17,11 @@ async fn test_chrome_124_pageswap_event() {
     // Test pageswap event registration (should not throw)
     let js_code = r#"
         try {
-            window.addEventListener('pageswap', function(event) {
+            // addEventListener returns undefined (correct behavior)
+            let result = window.addEventListener('pageswap', function(event) {
                 // Event handler for pageswap
             });
+            // If we get here without throwing, it worked
             'success'
         } catch (e) {
             'error: ' + e.message
