@@ -47,6 +47,7 @@ impl HeadlessWebBrowser {
         let stealth_manager = StealthManager::new(stealth_config);
         let scraper = WebScraper::new();
 
+        println!("🔧 HeadlessWebBrowser::new() - Creating browser struct");
         let browser = Self {
             client,
             renderer: Some(renderer),
@@ -59,22 +60,32 @@ impl HeadlessWebBrowser {
             scraper,
         };
 
+        println!("🔧 HeadlessWebBrowser::new() - Creating Arc<Mutex<browser>>");
         let browser_arc = Arc::new(Mutex::new(browser));
+        println!("🔧 HeadlessWebBrowser::new() - Arc<Mutex<browser>> created successfully");
 
         // Setup history API with reference to browser
+        println!("🔧 HeadlessWebBrowser::new() - Setting up history API");
         if let Err(e) = Self::setup_history_api(browser_arc.clone()) {
             eprintln!("Failed to setup history API: {}", e);
         }
+        println!("🔧 HeadlessWebBrowser::new() - History API setup complete");
 
+        println!("🔧 HeadlessWebBrowser::new() - Browser initialization complete");
         browser_arc
     }
 
     pub fn setup_history_api(browser_arc: Arc<Mutex<Self>>) -> Result<()> {
+        println!("🔧 HeadlessWebBrowser::setup_history_api() - Starting");
         if let Ok(mut browser) = browser_arc.try_lock() {
+            println!("🔧 HeadlessWebBrowser::setup_history_api() - Browser lock acquired");
             if let Some(ref mut renderer) = browser.renderer {
+                println!("🔧 HeadlessWebBrowser::setup_history_api() - Calling renderer.setup_history_api");
                 renderer.setup_history_api(browser_arc.clone())?;
+                println!("🔧 HeadlessWebBrowser::setup_history_api() - Renderer setup complete");
             }
         }
+        println!("🔧 HeadlessWebBrowser::setup_history_api() - Complete");
         Ok(())
     }
 

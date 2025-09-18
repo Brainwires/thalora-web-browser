@@ -283,13 +283,27 @@ pub fn setup_fetch(context: &mut Context) -> Result<()> {
             this.Response = window.Response;
         }
 
-        // FETCH API (Simplified - delegates to Rust implementation)
-        if (typeof fetch === 'undefined') {
+        // FETCH API: Prefer the environment/Boa-provided `fetch` if present, but ensure it's
+        // available on `window` and the global `this`. If not present, install a simple
+        // fallback implementation (used by some tests/environments).
+        if (typeof fetch !== 'undefined') {
+            // If fetch already exists (e.g. provided by Boa), ensure it's reachable as
+            // `window.fetch` and the global `this.fetch` for older code expecting it there.
+            try {
+                window.fetch = fetch;
+            } catch (e) {
+                // ignore assignment errors in constrained contexts
+            }
+            try {
+                this.fetch = fetch;
+            } catch (e) {}
+        } else {
+            // Fallback simple fetch implementation
             window.fetch = function(input, init) {
                 // Fetch called with input and init
 
                 // Return a basic response for now
-                // In a real implementation, this would call into Rust
+                // In a real implementation, this would call into Rust or an HTTP stack
                 return Promise.resolve(new window.Response('{}', {
                     status: 200,
                     statusText: 'OK',
@@ -300,8 +314,6 @@ pub fn setup_fetch(context: &mut Context) -> Result<()> {
             // Make fetch available at global level
             this.fetch = window.fetch;
         }
-
-        console.log('✅ Fetch API (fetch, Blob, FormData, Headers, Request, Response, AbortController) initialized');
     "#)).map_err(|e| anyhow::anyhow!("Failed to setup fetch API: {}", e))?;
 
     Ok(())

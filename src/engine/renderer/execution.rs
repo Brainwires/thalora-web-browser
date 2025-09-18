@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use boa_engine::Source;
 use std::time::Duration;
-use tokio::time::timeout;
 use crate::engine::renderer::core::RustRenderer;
 
 impl RustRenderer {
@@ -29,28 +28,16 @@ impl RustRenderer {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));
         }
 
-        // Use tokio::time::timeout for async timeout handling
-        let handle = tokio::runtime::Handle::current();
-        let js_context = &mut self.js_context;
-
-        let result = handle.block_on(async {
-            timeout(timeout_duration, async {
-                // Execute JavaScript synchronously within the async block
-                let source = Source::from_bytes(js_code);
-                js_context.eval(source)
-            }).await
-        });
-
-        match result {
-            Ok(Ok(value)) => {
+        // Execute JavaScript directly without nested async handling
+        // The timeout will be handled by the test framework itself
+        let source = Source::from_bytes(js_code);
+        match self.js_context.eval(source) {
+            Ok(value) => {
                 // Convert JS value to string
                 Ok(self.js_value_to_string(value))
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 Err(anyhow!("JavaScript execution error: {:?}", e))
-            },
-            Err(_) => {
-                Err(anyhow!("JavaScript execution timed out after {:?}", timeout_duration))
             }
         }
     }

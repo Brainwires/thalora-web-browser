@@ -2,9 +2,12 @@
 async fn test_chrome_124_websocketstream_api() {
     println!("🧪 Testing Chrome 124: WebSocketStream API...");
 
+    println!("🔧 Creating HeadlessWebBrowser...");
     let browser = HeadlessWebBrowser::new();
+    println!("🔧 HeadlessWebBrowser created successfully");
 
     // Test WebSocketStream constructor availability
+    println!("🔧 Testing WebSocketStream constructor availability...");
     let result = browser.lock().unwrap().execute_javascript("typeof WebSocketStream").await;
     match result {
         Ok(value) => {
@@ -16,6 +19,7 @@ async fn test_chrome_124_websocketstream_api() {
     }
 
     // Test WebSocketStream has expected methods
+    println!("🔧 Testing WebSocketStream prototype...");
     let result = browser.lock().unwrap().execute_javascript("WebSocketStream.prototype.constructor === WebSocketStream").await;
     match result {
         Ok(value) => {
