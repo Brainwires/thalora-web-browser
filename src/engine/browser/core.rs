@@ -114,4 +114,15 @@ impl HeadlessWebBrowser {
     pub fn can_go_forward(&self) -> bool {
         self.history.current_index < self.history.entries.len().saturating_sub(1)
     }
+
+    /// Execute JavaScript in the internal renderer and return the raw string result.
+    /// Tests call this on a MutexGuard (so &mut self) and await the future.
+    pub async fn execute_javascript(&mut self, js_code: &str) -> Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            // Delegate to renderer's evaluate_javascript which already handles timeouts and safety
+            renderer.evaluate_javascript(js_code)
+        } else {
+            Err(anyhow::anyhow!("Renderer not available"))
+        }
+    }
 }

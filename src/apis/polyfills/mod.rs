@@ -3,6 +3,7 @@
 // NOTE: Console is now handled by Boa's native console implementation
 pub mod web_apis;
 pub mod syntax_transformer;
+pub mod console;
 
 // Modular polyfill components
 pub mod performance;

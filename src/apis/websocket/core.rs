@@ -196,9 +196,23 @@ impl WebSocketManager {
     }
 
     /// Send a message through an established WebSocket connection
-    pub async fn send_message(&self, connection_id: &str, data: &str) -> Result<()> {
+    // Backwards-compatible send_message accepts a binary flag as the 3rd parameter
+    pub async fn send_message(&self, connection_id: &str, data: &str, binary: bool) -> Result<()> {
+        // Ensure connection exists and is open
+        if let Some(conn) = self.connections.lock().unwrap().get(connection_id) {
+            if !matches!(conn.state, ConnectionState::Open) {
+                return Err(anyhow!("Connection is not open: {}", connection_id));
+            }
+        } else {
+            return Err(anyhow!("No connection found for ID: {}", connection_id));
+        }
+
         if let Some(sender) = self.active_senders.lock().unwrap().get(connection_id) {
-            let message = Message::Text(data.to_string());
+            let message = if binary {
+                Message::Binary(data.as_bytes().to_vec())
+            } else {
+                Message::Text(data.to_string())
+            };
 
             // Record the sent message
             {
@@ -206,9 +220,9 @@ impl WebSocketManager {
                 if let Some(conn) = connections.get_mut(connection_id) {
                     conn.messages_sent.push(WebSocketMessage {
                         timestamp: Instant::now(),
-                        message_type: MessageType::Text,
-                        data: data.to_string(),
-                        binary: false,
+                        message_type: if binary { MessageType::Binary } else { MessageType::Text },
+                        data: if binary { String::from_utf8_lossy(data.as_bytes()).to_string() } else { data.to_string() },
+                        binary,
                     });
                 }
             }
@@ -253,19 +267,27 @@ impl WebSocketManager {
 
     /// Close a WebSocket connection
     pub async fn close_connection(&self, connection_id: &str) -> Result<()> {
-        // Remove sender to stop outgoing messages
+        // Remove sender and connection entirely to mirror previous behaviour expected by tests
         self.active_senders.lock().unwrap().remove(connection_id);
 
-        // Update connection state
+        // Remove the connection from the map
         {
             let mut connections = self.connections.lock().unwrap();
-            if let Some(conn) = connections.get_mut(connection_id) {
-                conn.state = ConnectionState::Closed;
-            }
+            connections.remove(connection_id);
         }
 
-        tracing::info!("WebSocket connection closed: {}", connection_id);
+        tracing::info!("WebSocket connection closed and removed: {}", connection_id);
         Ok(())
+    }
+
+    /// Close a WebSocket connection (compatibility method used by tests)
+    pub async fn close(&self, connection_id: &str, _code: Option<u16>, _reason: Option<String>) -> Result<()> {
+        // For compatibility: return Err if the connection doesn't exist
+        if self.connections.lock().unwrap().contains_key(connection_id) {
+            self.close_connection(connection_id).await
+        } else {
+            Err(anyhow!("No connection found for ID: {}", connection_id))
+        }
     }
 
     /// Get connection status
@@ -276,6 +298,73 @@ impl WebSocketManager {
     /// Get all active connections
     pub fn get_all_connections(&self) -> Vec<WebSocketConnection> {
         self.connections.lock().unwrap().values().cloned().collect()
+    }
+
+    /// Compatibility shim returning active connection ids
+    pub fn get_active_connections(&self) -> Vec<String> {
+        self.connections.lock().unwrap().keys().cloned().collect()
+    }
+
+    /// Compatibility: return the state of a connection or an error if missing
+    pub fn get_connection_state(&self, connection_id: &str) -> Result<ConnectionState> {
+        if let Some(conn) = self.connections.lock().unwrap().get(connection_id) {
+            Ok(conn.state.clone())
+        } else {
+            Err(anyhow!("No connection found for ID: {}", connection_id))
+        }
+    }
+
+    /// Get message history (sent, received) for a connection
+    pub fn get_message_history(&self, connection_id: &str) -> Result<(Vec<WebSocketMessage>, Vec<WebSocketMessage>)> {
+        if let Some(conn) = self.connections.lock().unwrap().get(connection_id) {
+            Ok((conn.messages_sent.clone(), conn.messages_received.clone()))
+        } else {
+            Err(anyhow!("No connection found for ID: {}", connection_id))
+        }
+    }
+
+    /// Simulate an incoming message for a connection (used by tests)
+    pub async fn simulate_incoming_message(&self, connection_id: &str, data: &str, binary: bool) -> Result<()> {
+        // Build message
+        let message = WebSocketMessage {
+            timestamp: Instant::now(),
+            message_type: if binary { MessageType::Binary } else { MessageType::Text },
+            data: data.to_string(),
+            binary,
+        };
+
+        // Store the received message and update last activity
+        {
+            if let Ok(mut connections) = self.connections.lock() {
+                if let Some(conn) = connections.get_mut(connection_id) {
+                    conn.messages_received.push(message.clone());
+                    conn.last_ping = Instant::now();
+                } else {
+                    return Err(anyhow!("No connection found for ID: {}", connection_id));
+                }
+            } else {
+                return Err(anyhow!("Failed to lock connections"));
+            }
+        }
+
+        // Run handlers
+        if let Ok(handlers) = self.message_handlers.lock() {
+            for handler in handlers.iter() {
+                let _ = handler(&message);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Simulate a series of realtime events (each event is a short string representing type)
+    pub async fn simulate_realtime_events(&self, connection_id: &str, events: Vec<&str>) -> Result<()> {
+        for ev in events {
+            let payload = serde_json::json!({ "type": ev, "message": format!("event:{}", ev) });
+            let data = payload.to_string();
+            self.simulate_incoming_message(connection_id, &data, false).await?;
+        }
+        Ok(())
     }
 
     /// Add a message handler
@@ -312,9 +401,32 @@ impl WebSocketManager {
 
     /// Send ping to keep connection alive
     pub async fn ping(&self, connection_id: &str, data: Option<&str>) -> Result<()> {
+        // Ensure connection exists and is open
+        if let Some(conn) = self.connections.lock().unwrap().get(connection_id) {
+            if !matches!(conn.state, ConnectionState::Open) {
+                return Err(anyhow!("Connection is not open: {}", connection_id));
+            }
+        } else {
+            return Err(anyhow!("No connection found for ID: {}", connection_id));
+        }
+
         if let Some(sender) = self.active_senders.lock().unwrap().get(connection_id) {
-            let ping_data = data.unwrap_or("ping").as_bytes().to_vec();
+            let ping_data_str = data.unwrap_or("ping");
+            let ping_data = ping_data_str.as_bytes().to_vec();
             let message = Message::Ping(ping_data);
+
+            // Record ping in sent messages
+            {
+                let mut connections = self.connections.lock().unwrap();
+                if let Some(conn) = connections.get_mut(connection_id) {
+                    conn.messages_sent.push(WebSocketMessage {
+                        timestamp: Instant::now(),
+                        message_type: MessageType::Ping,
+                        data: ping_data_str.to_string(),
+                        binary: false,
+                    });
+                }
+            }
 
             sender.send(message)
                 .map_err(|e| anyhow!("Failed to send ping: {}", e))?;

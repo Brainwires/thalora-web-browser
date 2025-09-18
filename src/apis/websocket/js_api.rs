@@ -206,3 +206,23 @@ impl WebSocketJsApi {
         Ok(())
     }
 }
+
+impl WebSocketJsApi {
+    /// Create a test connection using the underlying manager and return its id
+    pub async fn create_test_connection(&self, url: &str) -> Result<String> {
+        // Use the manager to create a real connection (or simulated in tests)
+        Ok(self.manager.connect(url, None).await?)
+    }
+
+    /// Simulate a message exchange for testing (sends a join message and simulates responses)
+    pub async fn simulate_message_exchange(&self, connection_id: &str) -> Result<()> {
+        // Send a join message
+        let _ = self.manager.send_message(connection_id, "join", false).await?;
+
+        // Simulate server responses
+        let _ = self.manager.simulate_incoming_message(connection_id, r#"{"type":"joined","message":"Welcome"}"#, false).await?;
+        let _ = self.manager.simulate_incoming_message(connection_id, r#"{"type":"response","message":"OK"}"#, false).await?;
+
+        Ok(())
+    }
+}
