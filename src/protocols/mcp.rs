@@ -52,6 +52,29 @@ pub enum McpResponse {
     },
 }
 
+impl McpResponse {
+    /// Construct a success response wrapping arbitrary JSON value(s).
+    /// Many call sites expect a `success` helper taking a `serde_json::Value`.
+    pub fn success(value: Value) -> Self {
+        // Try to normalize into ToolResult when possible (array or single value)
+        if value.is_array() {
+            // from_value consumes, so clone to preserve original for fallback.
+            if let Ok(vec) = serde_json::from_value::<Vec<Value>>(value.clone()) {
+                return McpResponse::ToolResult { content: vec, is_error: false };
+            }
+        }
+
+        // Otherwise wrap the single value into a ToolResult.content
+        McpResponse::ToolResult { content: vec![value], is_error: false }
+    }
+
+    /// Construct an error response. The code is currently ignored by the enum shape
+    /// but callers pass an int and message; we'll include message in `Error`.
+    pub fn error(_code: i32, message: String) -> Self {
+        McpResponse::Error { error: message }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct McpMessage {
     pub jsonrpc: String,

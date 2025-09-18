@@ -33,8 +33,7 @@ impl WebApis {
 
     /// Setup all Web API implementations in the JavaScript context
     pub fn setup_all_apis(&self, context: &mut Context) -> Result<()> {
-        // Setup console first (required by other APIs)
-        polyfills::console::setup_console(context).map_err(|e| anyhow::Error::msg(format!("Console setup failed: {:?}", e)))?;
+        // Console is now handled by Boa's native console implementation
 
         // Setup core browser APIs
         let navigator_manager = navigator::NavigatorManager::new();

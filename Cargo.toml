@@ -72,6 +72,12 @@ url = "2.5"
 # Random number generation for human-like behavior
 rand = "0.8"
 
+# Concurrency-friendly mutexes and synchronization primitives
+parking_lot = "0.12"
+
+# URL decoding helper used by scraping utilities
+urlencoding = "2.1"
+
 # Async utilities
 futures = "0.3"
 

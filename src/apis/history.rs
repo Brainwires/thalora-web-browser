@@ -1,6 +1,7 @@
 use anyhow::Result;
 use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, Source};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use crate::engine::browser::HeadlessWebBrowser;
 
 /// Real History API implementation with browser navigation
@@ -24,14 +25,14 @@ impl BrowserHistory {
 
         // Get initial length from browser
         let length = {
-            let browser = self.browser.lock().unwrap();
+            let browser = self.browser.lock();
             browser.get_history_length().unwrap_or(1)
         };
         history_obj.set(js_string!("length"), JsValue::from(length), false, context)?;
 
         // Get initial state from browser
         let state = {
-            let browser = self.browser.lock().unwrap();
+            let browser = self.browser.lock();
             match browser.get_current_history_state() {
                 Ok(Some(state)) => {
                     match serde_json::to_string(&state) {
@@ -48,9 +49,9 @@ impl BrowserHistory {
         history_obj.set(js_string!("scrollRestoration"), JsValue::from(js_string!("auto")), false, context)?;
 
         // history.back()
-        let browser_back = Arc::clone(&self.browser);
+    let browser_back: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let back_fn = unsafe { NativeFunction::from_closure(move |_, _args, _context| {
-            if let Ok(mut browser) = browser_back.try_lock() {
+            if let Some(mut browser) = browser_back.try_lock() {
                 match tokio::runtime::Handle::try_current() {
                     Ok(handle) => {
                         handle.block_on(async {
@@ -80,9 +81,9 @@ impl BrowserHistory {
         history_obj.set(js_string!("back"), JsValue::from(back_fn.to_js_function(context.realm())), false, context)?;
 
         // history.forward()
-        let browser_forward = Arc::clone(&self.browser);
+        let browser_forward: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let forward_fn = unsafe { NativeFunction::from_closure(move |_, _args, _context| {
-            if let Ok(mut browser) = browser_forward.try_lock() {
+            if let Some(mut browser) = browser_forward.try_lock() {
                 match tokio::runtime::Handle::try_current() {
                     Ok(handle) => {
                         handle.block_on(async {
@@ -111,7 +112,7 @@ impl BrowserHistory {
         history_obj.set(js_string!("forward"), JsValue::from(forward_fn.to_js_function(context.realm())), false, context)?;
 
         // history.go(delta)
-        let browser_go = Arc::clone(&self.browser);
+        let browser_go: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let go_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             let delta = if !args.is_empty() {
                 args[0].to_i32(context).unwrap_or(0)
@@ -119,7 +120,7 @@ impl BrowserHistory {
                 0
             };
 
-            if let Ok(mut browser) = browser_go.try_lock() {
+            if let Some(mut browser) = browser_go.try_lock() {
                 match tokio::runtime::Handle::try_current() {
                     Ok(handle) => {
                         handle.block_on(async {
@@ -148,7 +149,7 @@ impl BrowserHistory {
         history_obj.set(js_string!("go"), JsValue::from(go_fn.to_js_function(context.realm())), false, context)?;
 
         // history.pushState(state, title, url)
-        let browser_push = Arc::clone(&self.browser);
+        let browser_push: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let push_state_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             if args.len() >= 3 {
                 let state = if args[0].is_null() || args[0].is_undefined() {
@@ -169,7 +170,7 @@ impl BrowserHistory {
 
                 let url = args[2].to_string(context)?.to_std_string_escaped();
 
-                if let Ok(browser) = browser_push.try_lock() {
+                if let Some(browser) = browser_push.try_lock() {
                     match browser.push_history_state(state, title, &url) {
                         Ok(()) => {
                             tracing::info!("📌 History pushState completed: {}", url);
@@ -187,7 +188,7 @@ impl BrowserHistory {
         history_obj.set(js_string!("pushState"), JsValue::from(push_state_fn.to_js_function(context.realm())), false, context)?;
 
         // history.replaceState(state, title, url)
-        let browser_replace = Arc::clone(&self.browser);
+        let browser_replace: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let replace_state_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             if args.len() >= 3 {
                 let state = if args[0].is_null() || args[0].is_undefined() {
@@ -208,7 +209,7 @@ impl BrowserHistory {
 
                 let url = args[2].to_string(context)?.to_std_string_escaped();
 
-                if let Ok(browser) = browser_replace.try_lock() {
+                if let Some(browser) = browser_replace.try_lock() {
                     match browser.replace_history_state(state, title, &url) {
                         Ok(()) => {
                             tracing::info!("🔄 History replaceState completed: {}", url);

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use tracing::info;
 
 // Core modules organized by functionality
 pub mod engine;
@@ -16,8 +15,8 @@ async fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    info!("🧠 Thalora v0.1.0 - Pure Rust headless browser for AI models");
-    info!("🔗 Neural connections between AI and the web");
+    eprintln!("🧠 Thalora v0.1.0 - Pure Rust headless browser for AI models");
+    eprintln!("🔗 Neural connections between AI and the web");
 
     let mut server = McpServer::new();
     server.run().await
