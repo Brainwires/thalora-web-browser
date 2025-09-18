@@ -28,11 +28,6 @@ impl RustRenderer {
         let event_manager = EventManager::new();
         println!("🔧 RustRenderer::new() - Created EventManager");
 
-        // Setup native DOM globals first (Document, Window, History, PageSwapEvent)
-        println!("🔧 RustRenderer::new() - Setting up native DOM globals");
-        crate::apis::dom_native::setup_native_dom_globals(&mut context).unwrap();
-        println!("🔧 RustRenderer::new() - Native DOM globals setup complete");
-
         // Setup DOM with EnhancedDom
         println!("🔧 RustRenderer::new() - Initializing EnhancedDom");
         let dom_manager = match EnhancedDom::new("") {
@@ -55,6 +50,11 @@ impl RustRenderer {
         println!("🔧 RustRenderer::new() - Setting up Web APIs");
         web_apis.setup_all_apis(&mut context).unwrap();
         println!("🔧 RustRenderer::new() - Web APIs setup complete");
+
+        // Setup native DOM globals (Document, Window, History, PageSwapEvent) - after builtins are initialized
+        println!("🔧 RustRenderer::new() - Setting up native DOM globals");
+        crate::apis::dom_native::setup_native_dom_globals(&mut context).unwrap();
+        println!("🔧 RustRenderer::new() - Native DOM globals setup complete");
 
         // Setup REAL DOM event system (replaces mock implementations)
         println!("🔧 RustRenderer::new() - Setting up DOM events");
