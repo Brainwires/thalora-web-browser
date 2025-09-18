@@ -1,7 +1,6 @@
 use anyhow::Result;
 use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, Source};
-use std::sync::Arc;
-use parking_lot::Mutex;
+use std::sync::{Arc, Mutex};
 use crate::engine::browser::HeadlessWebBrowser;
 
 /// Real History API implementation with browser navigation
@@ -25,37 +24,26 @@ impl BrowserHistory {
 
         // Get initial length from browser
         let length = {
-            let browser = self.browser.lock();
-            browser.get_history_length().unwrap_or(1)
+            let browser = self.browser.lock().unwrap();
+            browser.get_history().entries.len() as i32
         };
         history_obj.set(js_string!("length"), JsValue::from(length), false, context)?;
 
-        // Get initial state from browser
-        let state = {
-            let browser = self.browser.lock();
-            match browser.get_current_history_state() {
-                Ok(Some(state)) => {
-                    match serde_json::to_string(&state) {
-                        Ok(json_str) => context.eval(Source::from_bytes(&format!("({})", json_str))).unwrap_or(JsValue::null()),
-                        Err(_) => JsValue::null(),
-                    }
-                },
-                _ => JsValue::null(),
-            }
-        };
+        // Get initial state from browser (not implemented - default to null)
+        let state = JsValue::null();
         history_obj.set(js_string!("state"), state, false, context)?;
 
         // scrollRestoration property
         history_obj.set(js_string!("scrollRestoration"), JsValue::from(js_string!("auto")), false, context)?;
 
         // history.back()
-    let browser_back: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
+    let browser_back: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let back_fn = unsafe { NativeFunction::from_closure(move |_, _args, _context| {
-            if let Some(mut browser) = browser_back.try_lock() {
+            if let Ok(mut browser) = browser_back.try_lock() {
                 match tokio::runtime::Handle::try_current() {
                     Ok(handle) => {
                         handle.block_on(async {
-                            match browser.history_back().await {
+                            match browser.go_back().await {
                                 Ok(Some(_scraped_data)) => {
                                     // Navigation successful
                                     tracing::info!("🔙 History back navigation completed");
@@ -81,13 +69,13 @@ impl BrowserHistory {
         history_obj.set(js_string!("back"), JsValue::from(back_fn.to_js_function(context.realm())), false, context)?;
 
         // history.forward()
-        let browser_forward: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
+        let browser_forward: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let forward_fn = unsafe { NativeFunction::from_closure(move |_, _args, _context| {
-            if let Some(mut browser) = browser_forward.try_lock() {
+                if let Ok(mut browser) = browser_forward.try_lock() {
                 match tokio::runtime::Handle::try_current() {
                     Ok(handle) => {
                         handle.block_on(async {
-                            match browser.history_forward().await {
+                                match browser.go_forward().await {
                                 Ok(Some(_scraped_data)) => {
                                     tracing::info!("🔜 History forward navigation completed");
                                 },
@@ -112,7 +100,7 @@ impl BrowserHistory {
         history_obj.set(js_string!("forward"), JsValue::from(forward_fn.to_js_function(context.realm())), false, context)?;
 
         // history.go(delta)
-        let browser_go: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
+        let browser_go: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let go_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             let delta = if !args.is_empty() {
                 args[0].to_i32(context).unwrap_or(0)
@@ -120,36 +108,39 @@ impl BrowserHistory {
                 0
             };
 
-            if let Some(mut browser) = browser_go.try_lock() {
-                match tokio::runtime::Handle::try_current() {
-                    Ok(handle) => {
-                        handle.block_on(async {
-                            match browser.history_go(delta).await {
-                                Ok(Some(_scraped_data)) => {
-                                    tracing::info!("🎯 History go({}) navigation completed", delta);
-                                },
-                                Ok(None) => {
-                                    tracing::info!("🎯 Cannot navigate go({}) - invalid history position", delta);
-                                },
-                                Err(e) => {
-                                    tracing::error!("🎯 History go({}) navigation failed: {}", delta, e);
+                if let Ok(mut browser) = browser_go.try_lock() {
+                    match tokio::runtime::Handle::try_current() {
+                        Ok(handle) => {
+                            handle.block_on(async {
+                                // Simple implementation: if delta < 0 -> go_back, if >0 -> go_forward
+                                if delta < 0 {
+                                    match browser.go_back().await {
+                                        Ok(Some(_)) => tracing::info!("🎯 History go({}) navigation completed", delta),
+                                        Ok(None) => tracing::info!("🎯 Cannot navigate go({}) - invalid history position", delta),
+                                        Err(e) => tracing::error!("🎯 History go({}) navigation failed: {}", delta, e),
+                                    }
+                                } else if delta > 0 {
+                                    match browser.go_forward().await {
+                                        Ok(Some(_)) => tracing::info!("🎯 History go({}) navigation completed", delta),
+                                        Ok(None) => tracing::info!("🎯 Cannot navigate go({}) - invalid history position", delta),
+                                        Err(e) => tracing::error!("🎯 History go({}) navigation failed: {}", delta, e),
+                                    }
                                 }
-                            }
-                        });
-                    },
-                    Err(_) => {
-                        tracing::warn!("🎯 History go called outside async context - navigation may not work");
+                            });
+                        },
+                        Err(_) => {
+                            tracing::warn!("🎯 History go called outside async context - navigation may not work");
+                        }
                     }
+                } else {
+                    tracing::warn!("🎯 Browser locked - cannot perform history go");
                 }
-            } else {
-                tracing::warn!("🎯 Browser locked - cannot perform history go");
-            }
             Ok(JsValue::undefined())
         }) };
         history_obj.set(js_string!("go"), JsValue::from(go_fn.to_js_function(context.realm())), false, context)?;
 
         // history.pushState(state, title, url)
-        let browser_push: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
+        let browser_push: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let push_state_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             if args.len() >= 3 {
                 let state = if args[0].is_null() || args[0].is_undefined() {
@@ -170,15 +161,11 @@ impl BrowserHistory {
 
                 let url = args[2].to_string(context)?.to_std_string_escaped();
 
-                if let Some(browser) = browser_push.try_lock() {
-                    match browser.push_history_state(state, title, &url) {
-                        Ok(()) => {
-                            tracing::info!("📌 History pushState completed: {}", url);
-                        },
-                        Err(e) => {
-                            tracing::error!("📌 History pushState failed: {}", e);
-                        }
-                    }
+                if let Ok(mut browser) = browser_push.try_lock() {
+                    // Use add_to_history to simulate pushState
+                    let title_str = title.unwrap_or_else(|| url.clone());
+                    browser.add_to_history(url.clone(), title_str);
+                    tracing::info!("📌 History pushState completed: {}", url);
                 } else {
                     tracing::warn!("📌 Browser locked - cannot perform pushState");
                 }
@@ -188,7 +175,7 @@ impl BrowserHistory {
         history_obj.set(js_string!("pushState"), JsValue::from(push_state_fn.to_js_function(context.realm())), false, context)?;
 
         // history.replaceState(state, title, url)
-        let browser_replace: Arc<parking_lot::Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
+        let browser_replace: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>> = Arc::clone(&self.browser);
         let replace_state_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             if args.len() >= 3 {
                 let state = if args[0].is_null() || args[0].is_undefined() {
@@ -209,14 +196,18 @@ impl BrowserHistory {
 
                 let url = args[2].to_string(context)?.to_std_string_escaped();
 
-                if let Some(browser) = browser_replace.try_lock() {
-                    match browser.replace_history_state(state, title, &url) {
-                        Ok(()) => {
-                            tracing::info!("🔄 History replaceState completed: {}", url);
-                        },
-                        Err(e) => {
-                            tracing::error!("🔄 History replaceState failed: {}", e);
+                if let Ok(mut browser) = browser_replace.try_lock() {
+                    // Replace current history entry if exists
+                    let idx = browser.history.current_index;
+                    if idx < browser.history.entries.len() {
+                        let entry = &mut browser.history.entries[idx];
+                        entry.url = url.clone();
+                        if let Some(t) = title {
+                            entry.title = t;
                         }
+                        tracing::info!("🔄 History replaceState completed: {}", url);
+                    } else {
+                        tracing::warn!("🔄 No history entry to replace");
                     }
                 } else {
                     tracing::warn!("🔄 Browser locked - cannot perform replaceState");
