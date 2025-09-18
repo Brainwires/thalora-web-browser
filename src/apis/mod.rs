@@ -8,7 +8,7 @@ pub mod storage;
 pub mod events;
 pub mod timers;
 pub mod navigator;
-pub mod history;
+pub mod dom_native;
 // pub mod credentials; // Temporarily disabled due to threading issues
 
 // Full-featured browser APIs

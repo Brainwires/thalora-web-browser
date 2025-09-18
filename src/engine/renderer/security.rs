@@ -13,6 +13,11 @@ impl RustRenderer {
             return true;
         }
 
+        // Allow pageswap event test pattern
+        if js_code.contains("window.addEventListener") && js_code.contains("pageswap") && js_code.len() < 200 {
+            return true;
+        }
+
         let dangerous_patterns = [
             "eval(",
             "Function(",

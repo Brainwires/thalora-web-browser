@@ -28,7 +28,11 @@ impl RustRenderer {
         let event_manager = EventManager::new();
         println!("🔧 RustRenderer::new() - Created EventManager");
 
-        // Setup DOM polyfills first (provides window, document, etc.)
+        // Setup native DOM globals first (Document, Window, History, PageSwapEvent)
+        println!("🔧 RustRenderer::new() - Setting up native DOM globals");
+        crate::apis::dom_native::setup_native_dom_globals(&mut context).unwrap();
+        println!("🔧 RustRenderer::new() - Native DOM globals setup complete");
+
         // Setup DOM with EnhancedDom
         println!("🔧 RustRenderer::new() - Initializing EnhancedDom");
         let dom_manager = match EnhancedDom::new("") {
@@ -41,9 +45,8 @@ impl RustRenderer {
                 None
             }
         };
-        // dom_manager.setup_dom_globals(&mut context).unwrap();
 
-        // Setup polyfills first (includes console)
+        // Setup polyfills (now excludes DOM globals which are native)
         println!("🔧 RustRenderer::new() - Setting up polyfills");
         crate::apis::polyfills::setup_all_polyfills(&mut context).unwrap();
         println!("🔧 RustRenderer::new() - Polyfills setup complete");
@@ -84,17 +87,10 @@ impl RustRenderer {
         }
     }
 
-    pub fn setup_history_api(&mut self, browser: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>>) -> Result<()> {
-        println!("🔧 RustRenderer::setup_history_api() - Starting");
-        if !self.history_initialized {
-            println!("🔧 RustRenderer::setup_history_api() - History not initialized, setting up");
-            crate::apis::history::setup_real_history(&mut self.js_context, browser)?;
-            println!("🔧 RustRenderer::setup_history_api() - Real history setup complete");
-            self.history_initialized = true;
-        } else {
-            println!("🔧 RustRenderer::setup_history_api() - History already initialized, skipping");
-        }
-        println!("🔧 RustRenderer::setup_history_api() - Complete");
+    pub fn setup_history_api(&mut self, _browser: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>>) -> Result<()> {
+        println!("🔧 RustRenderer::setup_history_api() - History is now natively handled by Boa");
+        // History is now natively implemented in Boa engine, no additional setup needed
+        self.history_initialized = true;
         Ok(())
     }
 

@@ -405,6 +405,25 @@ pub fn setup_chrome_features(context: &mut Context) -> JsResult<()> {
                 };
             }
         }
+
+        // Chrome 124: parseHTMLUnsafe global function
+        if (typeof parseHTMLUnsafe === 'undefined') {
+            globalThis.parseHTMLUnsafe = function(input, options) {
+                options = options || {};
+                console.log('parseHTMLUnsafe called:', input.substring(0, 100));
+
+                // MOCK - Real implementation would parse HTML into DocumentFragment
+                return {
+                    nodeName: '#document-fragment',
+                    nodeType: 11, // DOCUMENT_FRAGMENT_NODE
+                    childNodes: [],
+                    appendChild: function(node) {
+                        this.childNodes.push(node);
+                        console.log('Node appended to parsed fragment');
+                    }
+                };
+            };
+        }
     "#))?;
 
     Ok(())

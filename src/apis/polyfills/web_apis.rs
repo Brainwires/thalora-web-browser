@@ -4,7 +4,6 @@ use boa_engine::{Context, JsResult, Source};
 use super::{
     performance::setup_performance_apis,
     security::setup_security_apis,
-    dom::setup_dom_apis,
     worker::setup_worker_apis,
     css::setup_css_apis,
     storage::setup_storage_apis,
@@ -32,11 +31,12 @@ use super::{
 /// - fetch, Request, Response, Headers: Native HTTP client in Boa
 /// - WebSocket: Native WebSocket with real networking in Boa
 /// - ReadableStream: Native WHATWG Streams implementation in Boa
+/// - DOM, Document, Element, History: Native DOM implementation in Boa
 pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
     // Setup modular polyfill components
     setup_performance_apis(context)?;
     setup_security_apis(context)?;
-    setup_dom_apis(context)?;
+    // DOM APIs are now natively implemented in Boa engine
     setup_worker_apis(context)?;
     setup_css_apis(context)?;
     setup_storage_apis(context)?;
@@ -51,90 +51,7 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
 /// Setup miscellaneous APIs that don't fit in other modules
 fn setup_misc_apis(context: &mut Context) -> JsResult<()> {
     context.eval(Source::from_bytes(r#"
-        // Basic document object if not available
-        if (typeof document === 'undefined') {
-            var document = {
-                documentElement: null,
-                body: null,
-                head: null,
-                title: 'Mock Document',
-                URL: 'about:blank',
-                visibilityState: 'visible',
-                hidden: false,
-                // Basic document.createElement polyfill
-                createElement: function(tagName) {
-                    return {
-                        tagName: tagName.toUpperCase(),
-                        id: '',
-                        className: '',
-                        innerHTML: '',
-                        textContent: '',
-                        children: [],
-                        parentNode: null,
-                        style: {},
-                        setAttribute: function(name, value) {
-                            this[name] = value;
-                        },
-                        getAttribute: function(name) {
-                            return this[name];
-                        },
-                        appendChild: function(child) {
-                            child.parentNode = this;
-                            this.children.push(child);
-                            return child;
-                        },
-                        addEventListener: function(type, listener, options) {
-                            console.log('Event listener added to element:', type);
-                        },
-                        removeEventListener: function(type, listener, options) {
-                            console.log('Event listener removed from element:', type);
-                        },
-                        dispatchEvent: function(event) {
-                            console.log('Event dispatched on element:', event.type);
-                            return true;
-                        },
-                        querySelector: function(selector) {
-                            console.log('querySelector called with:', selector);
-                            return null;
-                        },
-                        querySelectorAll: function(selector) {
-                            console.log('querySelectorAll called with:', selector);
-                            return [];
-                        }
-                    };
-                },
-                getElementById: function(id) {
-                    console.log('getElementById called with:', id);
-                    return null;
-                },
-                getElementsByTagName: function(tagName) {
-                    console.log('getElementsByTagName called with:', tagName);
-                    return [];
-                },
-                getElementsByClassName: function(className) {
-                    console.log('getElementsByClassName called with:', className);
-                    return [];
-                },
-                querySelector: function(selector) {
-                    console.log('document.querySelector called with:', selector);
-                    return null;
-                },
-                querySelectorAll: function(selector) {
-                    console.log('document.querySelectorAll called with:', selector);
-                    return [];
-                },
-                addEventListener: function(type, listener, options) {
-                    console.log('Document event listener added:', type);
-                },
-                removeEventListener: function(type, listener, options) {
-                    console.log('Document event listener removed:', type);
-                },
-                dispatchEvent: function(event) {
-                    console.log('Event dispatched on document:', event.type);
-                    return true;
-                }
-            };
-        }
+        // Document and DOM APIs are now natively implemented in Boa engine
 
         // No polyfill needed
         // Async/await polyfill using Promises
