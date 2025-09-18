@@ -187,23 +187,27 @@ impl McpServer {
     pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
         match name.as_str() {
             // AI Memory tools
-            "ai_memory_store_research" => self.memory_tools.store_research(&mut self.ai_memory, arguments).await,
-            "ai_memory_get_research" => self.memory_tools.get_research(&self.ai_memory, arguments).await,
-            "ai_memory_search_research" => self.memory_tools.search_research(&self.ai_memory, arguments).await,
-            "ai_memory_store_credentials" => self.memory_tools.store_credentials(&mut self.ai_memory, arguments).await,
-            "ai_memory_get_credentials" => self.memory_tools.get_credentials(&self.ai_memory, arguments).await,
-            "ai_memory_store_bookmark" => self.memory_tools.store_bookmark(&mut self.ai_memory, arguments).await,
-            "ai_memory_get_bookmarks" => self.memory_tools.get_bookmarks(&self.ai_memory, arguments).await,
-            "ai_memory_store_note" => self.memory_tools.store_note(&mut self.ai_memory, arguments).await,
-            "ai_memory_get_notes" => self.memory_tools.get_notes(&self.ai_memory, arguments).await,
+            "ai_memory_store_research" => self.memory_tools.store_research(arguments, &mut self.ai_memory).await,
+            // There is no direct `get_research` async tool; use `search` with a key filter
+            "ai_memory_get_research" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
+            "ai_memory_search_research" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
+            "ai_memory_store_credentials" => self.memory_tools.store_credentials(arguments, &mut self.ai_memory).await,
+            "ai_memory_get_credentials" => self.memory_tools.get_credentials(arguments, &mut self.ai_memory).await,
+            "ai_memory_store_bookmark" => self.memory_tools.store_bookmark(arguments, &mut self.ai_memory).await,
+            // no direct get_bookmarks; map to search with category=bookmarks
+            "ai_memory_get_bookmarks" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
+            "ai_memory_store_note" => self.memory_tools.store_note(arguments, &mut self.ai_memory).await,
+            // no direct get_notes; map to search with category=notes
+            "ai_memory_get_notes" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
 
-            // Chrome DevTools Protocol tools
-            "cdp_runtime_evaluate" => self.cdp_tools.runtime_evaluate(arguments).await,
-            "cdp_dom_get_document" => self.cdp_tools.dom_get_document(arguments).await,
-            "cdp_dom_query_selector" => self.cdp_tools.dom_query_selector(arguments).await,
-            "cdp_dom_get_attributes" => self.cdp_tools.dom_get_attributes(arguments).await,
-            "cdp_network_get_cookies" => self.cdp_tools.network_get_cookies(arguments).await,
-            "cdp_network_set_cookie" => self.cdp_tools.network_set_cookie(arguments).await,
+            // Chrome DevTools Protocol tools - map to existing CdpTools methods where available
+            "cdp_runtime_evaluate" => self.cdp_tools.evaluate_javascript(arguments, &mut self.cdp_server).await,
+            "cdp_dom_get_document" => self.cdp_tools.get_document(arguments, &mut self.cdp_server).await,
+            // The following CDP helpers are not implemented in CdpTools; return an explicit error
+            "cdp_dom_query_selector" => McpResponse::error(-32601, "Tool not implemented: cdp_dom_query_selector".to_string()),
+            "cdp_dom_get_attributes" => McpResponse::error(-32601, "Tool not implemented: cdp_dom_get_attributes".to_string()),
+            "cdp_network_get_cookies" => McpResponse::error(-32601, "Tool not implemented: cdp_network_get_cookies".to_string()),
+            "cdp_network_set_cookie" => McpResponse::error(-32601, "Tool not implemented: cdp_network_set_cookie".to_string()),
 
             // Web scraping and navigation tools
             "scrape_url" => self.scrape_url(arguments).await,

@@ -77,7 +77,7 @@ impl MediaManager {
         // Real play method - actually plays audio
         let audio_elements_play = Arc::clone(audio_elements);
         let audio_id_play = audio_id.to_string();
-        let play_fn = NativeFunction::from_closure(move |_, _, ctx| {
+        let play_fn = unsafe { NativeFunction::from_closure(move |_, _, ctx| {
             let promise_obj = JsObject::default();
 
             // In real implementation, would load and play audio file
@@ -90,7 +90,7 @@ impl MediaManager {
                 }
             }
 
-            let then_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+            let then_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
             promise_obj.set(
                 js_string!("then"),
                 JsValue::from(then_fn.to_js_function(ctx.realm())),
@@ -99,7 +99,7 @@ impl MediaManager {
             )?;
 
             Ok(JsValue::from(promise_obj))
-        });
+        }) };
         audio.set(
             js_string!("play"),
             JsValue::from(play_fn.to_js_function(context.realm())),
@@ -107,7 +107,7 @@ impl MediaManager {
             context,
         )?;
 
-        let pause_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+    let pause_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         audio.set(
             js_string!("pause"),
             JsValue::from(pause_fn.to_js_function(context.realm())),
@@ -115,7 +115,7 @@ impl MediaManager {
             context,
         )?;
 
-        let load_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+        let load_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         audio.set(
             js_string!("load"),
             JsValue::from(load_fn.to_js_function(context.realm())),

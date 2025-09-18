@@ -15,6 +15,7 @@ pub struct MediaManager {
     pub audio_devices: Vec<Device>,
 }
 
+#[derive(Clone)]
 pub struct AudioContextReal {
     pub sample_rate: f32,
     pub current_time: f64,
@@ -24,12 +25,14 @@ pub struct AudioContextReal {
     pub gain_nodes: HashMap<String, GainNodeReal>,
 }
 
+#[derive(Clone)]
 pub struct OscillatorReal {
     pub frequency: f32,
     pub wave_type: String,
     pub started: bool,
 }
 
+#[derive(Clone)]
 pub struct GainNodeReal {
     pub gain_value: f32,
 }
@@ -43,12 +46,30 @@ pub struct AudioElementReal {
     pub sink: Option<Sink>,
 }
 
+// Manual Clone implementation: `rodio::Sink` does not implement Clone, so when cloning an
+// AudioElementReal we clone the metadata and set `sink` to None in the clone. This is a
+// pragmatic choice to allow higher-level structs to be Clone without requiring Sink: Clone.
+impl Clone for AudioElementReal {
+    fn clone(&self) -> Self {
+        Self {
+            src: self.src.clone(),
+            current_time: self.current_time,
+            duration: self.duration,
+            paused: self.paused,
+            volume: self.volume,
+            sink: None,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct MediaRecorderReal {
     pub state: String,
     pub mime_type: String,
     pub recording_data: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct SpeechSynthesisReal {
     pub speaking: bool,
     pub pending: bool,
@@ -56,6 +77,7 @@ pub struct SpeechSynthesisReal {
     pub voices: Vec<SpeechVoice>,
 }
 
+#[derive(Clone)]
 pub struct SpeechVoice {
     pub name: String,
     pub lang: String,

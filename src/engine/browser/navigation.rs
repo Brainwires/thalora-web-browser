@@ -24,18 +24,17 @@ impl HeadlessWebBrowser {
 
         let content = response.text().await?;
 
-        // Store current state
-        self.current_url = Some(url.to_string());
-        self.current_content = content.clone();
+    // Store current state
+    self.current_url = Some(url.to_string());
+    self.current_content = content.clone();
 
         // Add to history
         let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
         // Execute any JavaScript on the page if needed
-        if let Some(ref mut renderer) = self.renderer {
-            // Only execute if it's safe
-            if let Some(js_code) = self.extract_safe_javascript(&content) {
+        if let Some(js_code) = self.extract_safe_javascript(&content) {
+            if let Some(ref mut renderer) = self.renderer {
                 if renderer.is_safe_javascript(&js_code) {
                     let _ = renderer.evaluate_javascript(&js_code);
                 }
@@ -49,10 +48,10 @@ impl HeadlessWebBrowser {
         if !self.can_go_back() {
             return Ok(None);
         }
-
         self.history.current_index -= 1;
-        let entry = &self.history.entries[self.history.current_index];
-        let content = self.navigate_to(&entry.url).await?;
+        // Clone URL to avoid borrowing self while calling navigate_to which mutably borrows self
+        let entry_url = self.history.entries[self.history.current_index].url.clone();
+        let content = self.navigate_to(&entry_url).await?;
         Ok(Some(content))
     }
 
@@ -60,10 +59,9 @@ impl HeadlessWebBrowser {
         if !self.can_go_forward() {
             return Ok(None);
         }
-
         self.history.current_index += 1;
-        let entry = &self.history.entries[self.history.current_index];
-        let content = self.navigate_to(&entry.url).await?;
+        let entry_url = self.history.entries[self.history.current_index].url.clone();
+        let content = self.navigate_to(&entry_url).await?;
         Ok(Some(content))
     }
 
@@ -101,8 +99,8 @@ impl HeadlessWebBrowser {
 
         // Build form data
         let mut form_params = reqwest::multipart::Form::new();
-        for (key, value) in form_data {
-            form_params = form_params.text(key, value);
+        for (key, value) in &form_data {
+            form_params = form_params.text(key.clone(), value.clone());
         }
 
         let headers = self.stealth_manager.create_stealth_headers(&form.action);
@@ -118,8 +116,8 @@ impl HeadlessWebBrowser {
             // For GET forms, convert to query parameters
             let mut url = Url::parse(&form.action)?;
             let mut query_pairs = url.query_pairs_mut();
-            for (key, value) in form_data {
-                query_pairs.append_pair(&key, &value);
+            for (key, value) in &form_data {
+                query_pairs.append_pair(key, value);
             }
             drop(query_pairs);
 

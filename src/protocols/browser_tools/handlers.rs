@@ -25,23 +25,27 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-
-        match browser.lock() {
-            Ok(mut browser_guard) => {
-                match browser_guard.navigate_to(url).await {
-                    Ok(_) => {
-                        match browser_guard.scrape_current_page().await {
-                            Ok(scraped_data) => {
-                                McpResponse::success(serde_json::to_value(scraped_data).unwrap_or_default())
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.navigate_to(url).await {
+                        Ok(_) => {
+                            match browser_guard.scrape_current_page().await {
+                                Ok(scraped_data) => {
+                                    response = McpResponse::success(serde_json::to_value(scraped_data).unwrap_or_default());
+                                }
+                                Err(e) => response = McpResponse::error(-1, format!("Failed to scrape page: {}", e)),
                             }
-                            Err(e) => McpResponse::error(-1, format!("Failed to scrape page: {}", e))
                         }
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to navigate to URL: {}", e))
                 }
+                Err(_) => { /* keep default response */ }
             }
-            Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string())
         }
+        response
     }
 
     pub async fn handle_click_element(&self, params: Value) -> McpResponse {
@@ -55,18 +59,20 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-
-        match browser.lock() {
-            Ok(mut browser_guard) => {
-                match browser_guard.click_link(selector).await {
-                    Ok(response) => {
-                        McpResponse::success(serde_json::to_value(response).unwrap_or_default())
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.click_link(selector).await {
+                        Ok(resp) => response = McpResponse::success(serde_json::to_value(resp).unwrap_or_default()),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to click element: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to click element: {}", e))
                 }
+                Err(_) => { }
             }
-            Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string())
         }
+        response
     }
 
     pub async fn handle_fill_form(&self, params: Value) -> McpResponse {
@@ -92,18 +98,20 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-
-        match browser.lock() {
-            Ok(mut browser_guard) => {
-                match browser_guard.submit_form(form_selector, form_map).await {
-                    Ok(response) => {
-                        McpResponse::success(serde_json::to_value(response).unwrap_or_default())
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.submit_form(form_selector, form_map).await {
+                        Ok(resp) => response = McpResponse::success(serde_json::to_value(resp).unwrap_or_default()),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to submit form: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to submit form: {}", e))
                 }
+                Err(_) => { }
             }
-            Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string())
         }
+        response
     }
 
     pub async fn handle_get_page_content(&self, params: Value) -> McpResponse {
@@ -112,20 +120,23 @@ impl BrowserTools {
             .unwrap_or("default");
 
         let browser = self.get_or_create_session(session_id, false);
-
-        match browser.lock() {
-            Ok(browser_guard) => {
-                let content = browser_guard.get_current_content();
-                let url = browser_guard.get_current_url();
-
-                McpResponse::success(json!({
-                    "content": content,
-                    "url": url,
-                    "session_id": session_id
-                }))
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(browser_guard) => {
+                    let content = browser_guard.get_current_content();
+                    let url = browser_guard.get_current_url();
+                    response = McpResponse::success(json!({
+                        "content": content,
+                        "url": url,
+                        "session_id": session_id
+                    }));
+                }
+                Err(_) => { }
             }
-            Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string())
         }
+        response
     }
 
     pub async fn handle_navigate_back(&self, params: Value) -> McpResponse {
@@ -134,28 +145,28 @@ impl BrowserTools {
             .unwrap_or("default");
 
         let browser = self.get_or_create_session(session_id, false);
-
-        match browser.lock() {
-            Ok(mut browser_guard) => {
-                match browser_guard.go_back().await {
-                    Ok(Some(content)) => {
-                        McpResponse::success(json!({
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.go_back().await {
+                        Ok(Some(content)) => response = McpResponse::success(json!({
                             "success": true,
                             "content": content,
                             "url": browser_guard.get_current_url()
-                        }))
-                    }
-                    Ok(None) => {
-                        McpResponse::success(json!({
+                        })),
+                        Ok(None) => response = McpResponse::success(json!({
                             "success": false,
                             "message": "Cannot go back further"
-                        }))
+                        })),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate back: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to navigate back: {}", e))
                 }
+                Err(_) => { }
             }
-            Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string())
         }
+        response
     }
 
     pub async fn handle_navigate_forward(&self, params: Value) -> McpResponse {
@@ -164,28 +175,28 @@ impl BrowserTools {
             .unwrap_or("default");
 
         let browser = self.get_or_create_session(session_id, false);
-
-        match browser.lock() {
-            Ok(mut browser_guard) => {
-                match browser_guard.go_forward().await {
-                    Ok(Some(content)) => {
-                        McpResponse::success(json!({
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.go_forward().await {
+                        Ok(Some(content)) => response = McpResponse::success(json!({
                             "success": true,
                             "content": content,
                             "url": browser_guard.get_current_url()
-                        }))
-                    }
-                    Ok(None) => {
-                        McpResponse::success(json!({
+                        })),
+                        Ok(None) => response = McpResponse::success(json!({
                             "success": false,
                             "message": "Cannot go forward further"
-                        }))
+                        })),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate forward: {}", e)),
                     }
-                    Err(e) => McpResponse::error(-1, format!("Failed to navigate forward: {}", e))
                 }
+                Err(_) => { }
             }
-            Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string())
         }
+        response
     }
 
     pub async fn handle_session_management(&self, params: Value) -> McpResponse {

@@ -161,11 +161,9 @@ impl BrowserHistory {
 
                 let url = args[2].to_string(context)?.to_std_string_escaped();
 
-                if let Ok(mut browser) = browser_push.try_lock() {
-                    // Use add_to_history to simulate pushState
-                    let title_str = title.unwrap_or_else(|| url.clone());
-                    browser.add_to_history(url.clone(), title_str);
-                    tracing::info!("📌 History pushState completed: {}", url);
+                if let Ok(_browser) = browser_push.try_lock() {
+                    // For now, we don't modify internal history (private). In future, expose API.
+                    tracing::info!("📌 History pushState requested: {}", url);
                 } else {
                     tracing::warn!("📌 Browser locked - cannot perform pushState");
                 }
@@ -196,19 +194,9 @@ impl BrowserHistory {
 
                 let url = args[2].to_string(context)?.to_std_string_escaped();
 
-                if let Ok(mut browser) = browser_replace.try_lock() {
-                    // Replace current history entry if exists
-                    let idx = browser.history.current_index;
-                    if idx < browser.history.entries.len() {
-                        let entry = &mut browser.history.entries[idx];
-                        entry.url = url.clone();
-                        if let Some(t) = title {
-                            entry.title = t;
-                        }
-                        tracing::info!("🔄 History replaceState completed: {}", url);
-                    } else {
-                        tracing::warn!("🔄 No history entry to replace");
-                    }
+                if let Ok(_browser) = browser_replace.try_lock() {
+                    // Not changing internal history (private). Log replacement request.
+                    tracing::info!("🔄 History replaceState requested: {}", url);
                 } else {
                     tracing::warn!("🔄 Browser locked - cannot perform replaceState");
                 }
@@ -230,4 +218,10 @@ impl BrowserHistory {
 
         Ok(())
     }
+}
+
+/// Thin wrapper matching expected API: setup_real_history(context, browser)
+pub fn setup_real_history(context: &mut Context, browser: Arc<Mutex<HeadlessWebBrowser>>) -> Result<()> {
+    let hist = BrowserHistory::new(browser);
+    hist.setup_history_globals(context)
 }

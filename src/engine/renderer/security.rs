@@ -209,8 +209,8 @@ impl RustRenderer {
             return false;
         }
 
-        // Check for suspicious regular expressions
-        if js_code.contains("/.*eval.*/) || js_code.contains("/.*function.*/) {
+        // Check for suspicious regular expressions (simple heuristic)
+        if js_code.contains("/eval/") || js_code.contains("/function/") {
             return false;
         }
 
@@ -249,7 +249,7 @@ impl RustRenderer {
         }
 
         // Check for too many nested parentheses (sign of obfuscation)
-        let mut paren_depth = 0;
+    let mut paren_depth: i32 = 0;
         let mut max_depth = 0;
         for c in js_code.chars() {
             match c {

@@ -68,9 +68,9 @@ impl MediaManager {
         context: &mut Context,
     ) -> Result<(), boa_engine::JsError> {
         // Real start method - actually begins recording
-        let media_recorders_start = Arc::clone(media_recorders);
-        let recorder_id_start = recorder_id.to_string();
-        let start_fn = NativeFunction::from_closure(move |_, _args, _ctx| {
+            let media_recorders_start = Arc::clone(media_recorders);
+            let recorder_id_start = recorder_id.to_string();
+            let start_fn = unsafe { NativeFunction::from_closure(move |_, _args, _ctx| {
             if let Ok(mut recorders) = media_recorders_start.lock() {
                 if let Some(recorder) = recorders.get_mut(&recorder_id_start) {
                     recorder.state = "recording".to_string();
@@ -78,7 +78,7 @@ impl MediaManager {
                 }
             }
             Ok(JsValue::undefined())
-        });
+            }) };
         recorder.set(
             js_string!("start"),
             JsValue::from(start_fn.to_js_function(context.realm())),
@@ -86,7 +86,7 @@ impl MediaManager {
             context,
         )?;
 
-        let stop_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+    let stop_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         recorder.set(
             js_string!("stop"),
             JsValue::from(stop_fn.to_js_function(context.realm())),
@@ -94,7 +94,7 @@ impl MediaManager {
             context,
         )?;
 
-        let pause_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+    let pause_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         recorder.set(
             js_string!("pause"),
             JsValue::from(pause_fn.to_js_function(context.realm())),
@@ -102,7 +102,7 @@ impl MediaManager {
             context,
         )?;
 
-        let resume_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+    let resume_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         recorder.set(
             js_string!("resume"),
             JsValue::from(resume_fn.to_js_function(context.realm())),

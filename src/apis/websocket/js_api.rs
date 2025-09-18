@@ -200,7 +200,7 @@ impl WebSocketJsApi {
                 WebSocket.prototype.removeEventListener = EventTarget.prototype.removeEventListener;
                 WebSocket.prototype.dispatchEvent = EventTarget.prototype.dispatchEvent;
             }
-        "#))?;
+        "#)).map_err(|e| anyhow::anyhow!("Failed to init WebSocket JS API: {}", e.to_string()))?;
 
         tracing::debug!("Real WebSocket JavaScript API initialized");
         Ok(())

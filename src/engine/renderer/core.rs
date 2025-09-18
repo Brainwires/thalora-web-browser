@@ -23,7 +23,13 @@ impl RustRenderer {
 
         // Setup DOM polyfills first (provides window, document, etc.)
         // Setup DOM with EnhancedDom
-        let dom_manager = EnhancedDom::new("");
+        let dom_manager = match EnhancedDom::new("") {
+            Ok(dom) => Some(dom),
+            Err(e) => {
+                eprintln!("Failed to initialize EnhancedDom: {}", e);
+                None
+            }
+        };
         // dom_manager.setup_dom_globals(&mut context).unwrap();
 
         // Setup polyfills first (includes console)
@@ -50,7 +56,7 @@ impl RustRenderer {
         Self {
             js_context: context,
             web_apis,
-            dom_manager: Some(dom_manager),
+            dom_manager,
             history_initialized: false,
             event_manager,
             wasm_api,

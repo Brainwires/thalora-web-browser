@@ -1,5 +1,5 @@
 use rand::{thread_rng, Rng};
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS, SEC_FETCH_DEST, SEC_FETCH_MODE, SEC_FETCH_SITE, SEC_FETCH_USER};
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::types::StealthConfig;
 
 pub struct StealthManager {
@@ -44,11 +44,11 @@ impl StealthManager {
             headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
             headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
 
-            // Sec-Fetch headers (modern browsers)
-            headers.insert(SEC_FETCH_DEST, HeaderValue::from_static("document"));
-            headers.insert(SEC_FETCH_MODE, HeaderValue::from_static("navigate"));
-            headers.insert(SEC_FETCH_SITE, HeaderValue::from_static("none"));
-            headers.insert(SEC_FETCH_USER, HeaderValue::from_static("?1"));
+            // Sec-Fetch headers (modern browsers) - inserted by name to support older reqwest
+            headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+            headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+            headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
+            headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
 
             // Additional headers to look more like a real browser
             headers.insert("sec-ch-ua", HeaderValue::from_static(r#""Not_A Brand";v="8", "Chromium";v="140", "Chrome";v="140""#));

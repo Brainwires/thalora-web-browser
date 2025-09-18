@@ -88,10 +88,10 @@ impl McpServer {
     }
 
     pub(super) async fn handle_request(&mut self, request: McpRequest) -> McpResponse {
-        info!("Handling request: {:?}", request.method);
+        info!("Handling request: {:?}", request);
 
-        match request.method.as_str() {
-            "initialize" => {
+        match request {
+            McpRequest::Initialize { .. } => {
                 let result = InitializeResult {
                     protocol_version: "2024-11-05".to_string(),
                     capabilities: serde_json::json!({
@@ -104,17 +104,16 @@ impl McpServer {
                 };
                 McpResponse::success(serde_json::to_value(result).unwrap())
             }
-            "tools/list" => {
+            McpRequest::ListTools => {
                 McpResponse::success(serde_json::json!({
                     "tools": self.get_tool_definitions()
                 }))
             }
-            "tools/call" => {
-                let tool_name = request.params["name"].as_str().unwrap_or("");
-                let arguments = request.params["arguments"].clone();
+            McpRequest::CallTool { params } => {
+                let tool_name = params.name;
+                let arguments = params.arguments;
                 self.call_tool(tool_name.to_string(), arguments).await
             }
-            _ => McpResponse::error(-32601, "Method not found".to_string())
         }
     }
 }

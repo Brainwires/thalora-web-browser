@@ -85,41 +85,8 @@ impl CdpTools {
             }
         };
 
-        // Try to use the browser for JavaScript execution if available
-        if let Some(browser_ref) = &self.browser {
-            if let Ok(mut browser) = browser_ref.lock() {
-                match browser.execute_javascript(expression).await {
-                    Ok(result) => {
-                        let result_str = match result.variant() {
-                            boa_engine::value::JsVariant::String(s) => s.to_std_string_escaped(),
-                            boa_engine::value::JsVariant::Boolean(b) => b.to_string(),
-                            boa_engine::value::JsVariant::Integer32(i) => i.to_string(),
-                            boa_engine::value::JsVariant::Float64(r) => r.to_string(),
-                            boa_engine::value::JsVariant::Undefined => "undefined".to_string(),
-                            boa_engine::value::JsVariant::Null => "null".to_string(),
-                            _ => format!("{:?}", result),
-                        };
-
-                        return McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": format!("JavaScript evaluation result: {}", result_str)
-                            })],
-                            is_error: false,
-                        };
-                    }
-                    Err(e) => {
-                        return McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": format!("JavaScript evaluation error: {}", e)
-                            })],
-                            is_error: true,
-                        };
-                    }
-                }
-            }
-        }
+        // Browser-based JavaScript execution is not implemented via the HeadlessWebBrowser
+        // at this time. Fall back to using the CDP server evaluation below.
 
         // Fallback to CDP server evaluation
         let command = CdpCommand {
