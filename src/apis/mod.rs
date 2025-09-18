@@ -9,6 +9,7 @@ pub mod events;
 pub mod timers;
 pub mod navigator;
 pub mod history;
+pub mod credentials;
 
 // Full-featured browser APIs
 pub mod webassembly;
@@ -38,6 +39,10 @@ impl WebApis {
         // Setup core browser APIs
         let navigator_manager = navigator::NavigatorManager::new();
         navigator_manager.setup_navigator_api(context).map_err(|e| anyhow::Error::msg(format!("Navigator setup failed: {:?}", e)))?;
+
+        // Setup Credential Management API
+        let credential_manager = credentials::CredentialManager::new();
+        credential_manager.setup_credentials_api(context).map_err(|e| anyhow::Error::msg(format!("Credentials API setup failed: {:?}", e)))?;
 
         // Setup all Web API modules
         url_api::setup_url_api(context)?;

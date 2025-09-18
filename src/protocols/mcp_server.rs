@@ -146,6 +146,12 @@ impl McpServer {
             "browser_execute_javascript" => self.browser_tools.execute_javascript(arguments, &self.browser).await,
             "browser_wait_for_element" => self.browser_tools.wait_for_element(arguments, &self.browser).await,
 
+            // Credential management tools
+            "browser_store_credential" => self.browser_tools.store_credential(arguments, &self.browser).await,
+            "browser_get_credentials" => self.browser_tools.get_credentials(arguments, &self.browser).await,
+            "browser_remove_credential" => self.browser_tools.remove_credential(arguments, &self.browser).await,
+            "browser_fill_form_with_credentials" => self.browser_tools.fill_form_with_credentials(arguments, &self.browser).await,
+
             // Web scraping tools (legacy)
             "scrape_url" => self.scrape_url(arguments).await,
             "web_search" => self.google_search(arguments).await,
@@ -723,6 +729,89 @@ impl McpServer {
                         "required": ["selector"]
                     }
                 }),
+                // Credential management tools
+                serde_json::json!({
+                    "name": "browser_store_credential",
+                    "description": "Store a credential using the Credential Management API",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Credential identifier (username/email)"
+                            },
+                            "password": {
+                                "type": "string",
+                                "description": "Password to store"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Display name for the credential"
+                            },
+                            "origin": {
+                                "type": "string",
+                                "description": "Origin URL for the credential",
+                                "default": "localhost"
+                            }
+                        },
+                        "required": ["id", "password"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_get_credentials",
+                    "description": "Retrieve stored credentials, optionally filtered by origin",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "origin": {
+                                "type": "string",
+                                "description": "Filter credentials by origin URL"
+                            }
+                        }
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_remove_credential",
+                    "description": "Remove a stored credential by ID",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Credential identifier to remove"
+                            }
+                        },
+                        "required": ["id"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_fill_form_with_credentials",
+                    "description": "Fill a form and optionally store credentials automatically",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "form_data": {
+                                "type": "object",
+                                "description": "Key-value pairs of form field names and values"
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "URL containing the form"
+                            },
+                            "store_credentials": {
+                                "type": "boolean",
+                                "description": "Whether to automatically store detected credentials",
+                                "default": false
+                            },
+                            "form_selector": {
+                                "type": "string",
+                                "description": "CSS selector for the form",
+                                "default": "form"
+                            }
+                        },
+                        "required": ["form_data", "url"]
+                    }
+                }), */
                 // Web scraping tools (legacy)
                 serde_json::json!({
                     "name": "scrape_url",

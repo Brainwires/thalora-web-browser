@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -8,14 +7,17 @@ use url::Url;
 
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::mcp::McpResponse;
+use crate::apis::credentials::{CredentialManager, StoredCredential, CredentialType};
+
+// Temporarily removed credential types
 
 /// Session identifier for managing browser sessions
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BrowserSession {
     pub session_id: String,
-    #[serde(skip)]
+    #[serde(skip, default = "std::time::Instant::now")]
     pub created_at: std::time::Instant,
-    #[serde(skip)]
+    #[serde(skip, default = "std::time::Instant::now")]
     pub last_accessed: std::time::Instant,
     pub current_url: Option<String>,
     pub persistent: bool,
@@ -56,6 +58,7 @@ impl BrowserSession {
 pub struct BrowserTools {
     sessions: Arc<Mutex<HashMap<String, BrowserSession>>>,
     session_file: PathBuf,
+    credentials: CredentialManager,
 }
 
 impl BrowserTools {
@@ -64,6 +67,7 @@ impl BrowserTools {
         let mut browser_tools = Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             session_file,
+            credentials: CredentialManager::new(),
         };
 
         // Load existing sessions on startup
@@ -309,7 +313,14 @@ impl BrowserTools {
             if let Ok(mut sessions) = self.sessions.lock() {
                 if let Some(session) = sessions.get_mut(session_id) {
                     session.current_url = Some(url.to_string());
-                    session.last_accessed = std::time::Instant::now();
+                    session.update_last_accessed();
+                    let was_persistent = session.persistent;
+                    drop(sessions);
+
+                    // Save if session is persistent
+                    if was_persistent {
+                        self.save_sessions();
+                    }
                 }
             }
         }
@@ -352,6 +363,19 @@ impl BrowserTools {
 
     /// Find elements on the current page
     pub async fn find_elements(&self, arguments: Value, browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
+        let session_id = match arguments.get("session_id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": "Missing required parameter: session_id"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
         let selector = match arguments.get("selector").and_then(|v| v.as_str()) {
             Some(selector) => selector,
             None => {
@@ -365,11 +389,37 @@ impl BrowserTools {
             }
         };
 
-        let url = arguments.get("url").and_then(|v| v.as_str()).unwrap_or("about:blank");
+        let url = match self.sessions.lock() {
+            Ok(sessions) => {
+                match sessions.get(session_id) {
+                    Some(session) => {
+                        session.current_url.clone().unwrap_or_else(|| "about:blank".to_string())
+                    }
+                    None => {
+                        return McpResponse::ToolResult {
+                            content: vec![json!({
+                                "type": "text",
+                                "text": format!("Session '{}' not found", session_id)
+                            })],
+                            is_error: true,
+                        };
+                    }
+                }
+            }
+            Err(e) => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": format!("Failed to access sessions: {}", e)
+                    })],
+                    is_error: true,
+                };
+            }
+        };
 
         match browser.lock() {
             Ok(mut browser) => {
-                match browser.scrape(url, true, Some(selector), false, false).await {
+                match browser.scrape(&url, true, Some(selector), false, false).await {
                     Ok(scraped_data) => {
                         McpResponse::ToolResult {
                             content: vec![json!({
@@ -405,14 +455,54 @@ impl BrowserTools {
 
     /// Get page state including forms and content
     pub async fn get_page_state(&self, arguments: Value, browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
-        let url = arguments.get("url").and_then(|v| v.as_str()).unwrap_or("about:blank");
+        let session_id = match arguments.get("session_id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": "Missing required parameter: session_id"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        let url = match self.sessions.lock() {
+            Ok(sessions) => {
+                match sessions.get(session_id) {
+                    Some(session) => {
+                        session.current_url.clone().unwrap_or_else(|| "about:blank".to_string())
+                    }
+                    None => {
+                        return McpResponse::ToolResult {
+                            content: vec![json!({
+                                "type": "text",
+                                "text": format!("Session '{}' not found", session_id)
+                            })],
+                            is_error: true,
+                        };
+                    }
+                }
+            }
+            Err(e) => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": format!("Failed to access sessions: {}", e)
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
         let include_forms = arguments.get("include_forms")
             .and_then(|v| v.as_bool())
             .unwrap_or(true);
 
         match browser.lock() {
             Ok(mut browser) => {
-                match browser.scrape(url, true, None, true, true).await {
+                match browser.scrape(&url, true, None, true, true).await {
                     Ok(scraped_data) => {
                         let mut result = json!({
                             "url": scraped_data.url,
@@ -424,7 +514,7 @@ impl BrowserTools {
                         });
 
                         if include_forms {
-                            if let Ok(base_url) = Url::parse(url) {
+                            if let Ok(base_url) = Url::parse(&url) {
                                 match browser.extract_forms(&scraped_data.content, &base_url) {
                                     Ok(forms) => {
                                         result["forms"] = json!(forms);
@@ -645,6 +735,19 @@ impl BrowserTools {
 
     /// Execute JavaScript code
     pub async fn execute_javascript(&self, arguments: Value, browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
+        let session_id = match arguments.get("session_id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": "Missing required parameter: session_id"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
         let code = match arguments.get("code").and_then(|v| v.as_str()) {
             Some(code) => code,
             None => {
@@ -658,26 +761,68 @@ impl BrowserTools {
             }
         };
 
-        match browser.lock() {
-            Ok(mut browser) => {
-                match browser.execute_javascript(code).await {
-                    Ok(result) => {
-                        McpResponse::ToolResult {
+        // Get the session's current URL
+        let url = match self.sessions.lock() {
+            Ok(sessions) => {
+                match sessions.get(session_id) {
+                    Some(session) => {
+                        session.current_url.clone().unwrap_or_else(|| "about:blank".to_string())
+                    }
+                    None => {
+                        return McpResponse::ToolResult {
                             content: vec![json!({
                                 "type": "text",
-                                "text": serde_json::to_string_pretty(&json!({
-                                    "execution_successful": true,
-                                    "code": code,
-                                    "result": format!("{:?}", result)
-                                })).unwrap_or_else(|_| "Failed to serialize JavaScript execution result".to_string())
+                                "text": format!("Session '{}' not found", session_id)
                             })],
-                            is_error: false,
+                            is_error: true,
+                        };
+                    }
+                }
+            }
+            Err(e) => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": format!("Failed to access sessions: {}", e)
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        match browser.lock() {
+            Ok(mut browser) => {
+                // First scrape the page to load the content and execute any existing JavaScript
+                match browser.scrape(&url, true, None, false, false).await {
+                    Ok(_) => {
+                        // Now execute the custom JavaScript in the loaded page context
+                        match browser.execute_javascript(code).await {
+                            Ok(result) => {
+                                McpResponse::ToolResult {
+                                    content: vec![json!({
+                                        "type": "text",
+                                        "text": serde_json::to_string_pretty(&json!({
+                                            "execution_successful": true,
+                                            "code": code,
+                                            "result": format!("{:?}", result)
+                                        })).unwrap_or_else(|_| "Failed to serialize JavaScript execution result".to_string())
+                                    })],
+                                    is_error: false,
+                                }
+                            }
+                            Err(e) => McpResponse::ToolResult {
+                                content: vec![json!({
+                                    "type": "text",
+                                    "text": format!("JavaScript execution failed: {}", e)
+                                })],
+                                is_error: true,
+                            }
                         }
                     }
                     Err(e) => McpResponse::ToolResult {
                         content: vec![json!({
                             "type": "text",
-                            "text": format!("JavaScript execution failed: {}", e)
+                            "text": format!("Failed to load page for JavaScript execution: {}", e)
                         })],
                         is_error: true,
                     }
@@ -782,7 +927,7 @@ impl BrowserTools {
         while start_time.elapsed() < timeout_duration {
             match browser.lock() {
                 Ok(mut browser) => {
-                    match browser.scrape(url, true, Some(selector), false, false).await {
+                    match browser.scrape(&url, true, Some(selector), false, false).await {
                         Ok(scraped_data) => {
                             let element_found = !scraped_data.content.trim().is_empty();
 
@@ -823,5 +968,196 @@ impl BrowserTools {
             })],
             is_error: true,
         }
+    }
+
+    /// Store a credential using the Credential Management API
+    pub async fn store_credential(&self, arguments: Value, _browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
+        let id = match arguments.get("id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": "Missing required parameter: id"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        let password = match arguments.get("password").and_then(|v| v.as_str()) {
+            Some(password) => password,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": "Missing required parameter: password"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        let name = arguments.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let origin = arguments.get("origin").and_then(|v| v.as_str()).unwrap_or("localhost");
+
+        let credential = StoredCredential {
+            id: id.to_string(),
+            credential_type: CredentialType::Password,
+            password: Some(password.to_string()),
+            name,
+            icon_url: None,
+            origin: origin.to_string(),
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        };
+
+        self.credentials.store_credential(credential.clone());
+
+        McpResponse::ToolResult {
+            content: vec![json!({
+                "type": "text",
+                "text": format!("Stored credential for '{}'", id)
+            })],
+            is_error: false,
+        }
+    }
+
+    /// Retrieve stored credentials
+    pub async fn get_credentials(&self, arguments: Value, _browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
+        let origin = arguments.get("origin").and_then(|v| v.as_str());
+
+        let credentials = if let Some(origin) = origin {
+            self.credentials.get_credentials_for_origin(origin)
+        } else {
+            self.credentials.get_all_credentials().values().cloned().collect()
+        };
+
+        let credentials_json: Vec<_> = credentials.iter().map(|cred| {
+            json!({
+                "id": cred.id,
+                "type": match cred.credential_type {
+                    CredentialType::Password => "password",
+                    CredentialType::PublicKey => "public-key",
+                    CredentialType::Federated => "federated",
+                    CredentialType::Identity => "identity",
+                },
+                "name": cred.name,
+                "origin": cred.origin,
+                "created_at": cred.created_at,
+                "has_password": cred.password.is_some()
+            })
+        }).collect();
+
+        McpResponse::ToolResult {
+            content: vec![json!({
+                "type": "text",
+                "text": serde_json::to_string_pretty(&json!({
+                    "credentials": credentials_json,
+                    "total": credentials.len()
+                })).unwrap_or_else(|_| "Failed to serialize credentials".to_string())
+            })],
+            is_error: false,
+        }
+    }
+
+    /// Remove a stored credential
+    pub async fn remove_credential(&self, arguments: Value, _browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
+        let id = match arguments.get("id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => {
+                return McpResponse::ToolResult {
+                    content: vec![json!({
+                        "type": "text",
+                        "text": "Missing required parameter: id"
+                    })],
+                    is_error: true,
+                };
+            }
+        };
+
+        let removed = self.credentials.remove_credential(id);
+
+        if removed {
+            McpResponse::ToolResult {
+                content: vec![json!({
+                    "type": "text",
+                    "text": format!("Removed credential '{}'", id)
+                })],
+                is_error: false,
+            }
+        } else {
+            McpResponse::ToolResult {
+                content: vec![json!({
+                    "type": "text",
+                    "text": format!("Credential '{}' not found", id)
+                })],
+                is_error: true,
+            }
+        }
+    }
+
+    /// Enhanced form filling with automatic credential storage
+    pub async fn fill_form_with_credentials(&self, arguments: Value, browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
+        // First, do the regular form filling
+        let form_result = self.fill_form(arguments.clone(), browser).await;
+
+        // If form filling was successful and store_credentials is true, store the credentials
+        if !matches!(form_result, McpResponse::ToolResult { is_error: true, .. }) {
+            let store_credentials = arguments.get("store_credentials")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if store_credentials {
+                if let Some(form_data) = arguments.get("form_data").and_then(|v| v.as_object()) {
+                    // Look for common credential field names
+                    let mut username = None;
+                    let mut password = None;
+
+                    for (key, value) in form_data {
+                        let key_lower = key.to_lowercase();
+                        let value_str = value.as_str().unwrap_or("");
+
+                        if key_lower.contains("email") || key_lower.contains("username") || key_lower.contains("user") {
+                            username = Some(value_str.to_string());
+                        } else if key_lower.contains("password") || key_lower.contains("pass") {
+                            password = Some(value_str.to_string());
+                        }
+                    }
+
+                    if let (Some(user), Some(pass)) = (username, password) {
+                        let origin = arguments.get("url").and_then(|v| v.as_str()).unwrap_or("localhost");
+
+                        let credential = StoredCredential {
+                            id: user.clone(),
+                            credential_type: CredentialType::Password,
+                            password: Some(pass),
+                            name: Some(user.clone()),
+                            icon_url: None,
+                            origin: origin.to_string(),
+                            created_at: std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                        };
+
+                        self.credentials.store_credential(credential);
+
+                        // Return enhanced response
+                        return McpResponse::ToolResult {
+                            content: vec![json!({
+                                "type": "text",
+                                "text": format!("Form submitted successfully and credentials stored for '{}'", user)
+                            })],
+                            is_error: false,
+                        };
+                    }
+                }
+            }
+        }
+
+        form_result
     }
 }
