@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::mcp::McpResponse;
-use crate::apis::credentials::{CredentialManager, StoredCredential, CredentialType};
+// use crate::apis::credentials::{CredentialManager, StoredCredential, CredentialType};
 
 // Temporarily removed credential types
 
@@ -58,7 +58,7 @@ impl BrowserSession {
 pub struct BrowserTools {
     sessions: Arc<Mutex<HashMap<String, BrowserSession>>>,
     session_file: PathBuf,
-    credentials: CredentialManager,
+    // credentials: CredentialManager,
 }
 
 impl BrowserTools {
@@ -67,7 +67,7 @@ impl BrowserTools {
         let mut browser_tools = Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             session_file,
-            credentials: CredentialManager::new(),
+            // credentials: CredentialManager::new(),
         };
 
         // Load existing sessions on startup
@@ -792,37 +792,25 @@ impl BrowserTools {
 
         match browser.lock() {
             Ok(mut browser) => {
-                // First scrape the page to load the content and execute any existing JavaScript
-                match browser.scrape(&url, true, None, false, false).await {
-                    Ok(_) => {
-                        // Now execute the custom JavaScript in the loaded page context
-                        match browser.execute_javascript(code).await {
-                            Ok(result) => {
-                                McpResponse::ToolResult {
-                                    content: vec![json!({
-                                        "type": "text",
-                                        "text": serde_json::to_string_pretty(&json!({
-                                            "execution_successful": true,
-                                            "code": code,
-                                            "result": format!("{:?}", result)
-                                        })).unwrap_or_else(|_| "Failed to serialize JavaScript execution result".to_string())
-                                    })],
-                                    is_error: false,
-                                }
-                            }
-                            Err(e) => McpResponse::ToolResult {
-                                content: vec![json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript execution failed: {}", e)
-                                })],
-                                is_error: true,
-                            }
+                // Execute JavaScript directly in the current browser context
+                match browser.execute_javascript(code).await {
+                    Ok(result) => {
+                        McpResponse::ToolResult {
+                            content: vec![json!({
+                                "type": "text",
+                                "text": serde_json::to_string_pretty(&json!({
+                                    "execution_successful": true,
+                                    "code": code,
+                                    "result": format!("{:?}", result)
+                                })).unwrap_or_else(|_| "Failed to serialize JavaScript execution result".to_string())
+                            })],
+                            is_error: false,
                         }
                     }
                     Err(e) => McpResponse::ToolResult {
                         content: vec![json!({
                             "type": "text",
-                            "text": format!("Failed to load page for JavaScript execution: {}", e)
+                            "text": format!("JavaScript execution failed: {}", e)
                         })],
                         is_error: true,
                     }
@@ -970,6 +958,7 @@ impl BrowserTools {
         }
     }
 
+    /* Temporarily disabled while fixing threading issues
     /// Store a credential using the Credential Management API
     pub async fn store_credential(&self, arguments: Value, _browser: &Arc<Mutex<HeadlessWebBrowser>>) -> McpResponse {
         let id = match arguments.get("id").and_then(|v| v.as_str()) {
@@ -1160,4 +1149,5 @@ impl BrowserTools {
 
         form_result
     }
+    */ // End temporarily disabled credential methods
 }

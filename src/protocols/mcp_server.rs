@@ -146,11 +146,11 @@ impl McpServer {
             "browser_execute_javascript" => self.browser_tools.execute_javascript(arguments, &self.browser).await,
             "browser_wait_for_element" => self.browser_tools.wait_for_element(arguments, &self.browser).await,
 
-            // Credential management tools
-            "browser_store_credential" => self.browser_tools.store_credential(arguments, &self.browser).await,
-            "browser_get_credentials" => self.browser_tools.get_credentials(arguments, &self.browser).await,
-            "browser_remove_credential" => self.browser_tools.remove_credential(arguments, &self.browser).await,
-            "browser_fill_form_with_credentials" => self.browser_tools.fill_form_with_credentials(arguments, &self.browser).await,
+            // Credential management tools (temporarily disabled)
+            // "browser_store_credential" => self.browser_tools.store_credential(arguments, &self.browser).await,
+            // "browser_get_credentials" => self.browser_tools.get_credentials(arguments, &self.browser).await,
+            // "browser_remove_credential" => self.browser_tools.remove_credential(arguments, &self.browser).await,
+            // "browser_fill_form_with_credentials" => self.browser_tools.fill_form_with_credentials(arguments, &self.browser).await,
 
             // Web scraping tools (legacy)
             "scrape_url" => self.scrape_url(arguments).await,
