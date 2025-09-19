@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::fs;
+use vfs::fs;
 use std::path::PathBuf;
 use url::Url;
 

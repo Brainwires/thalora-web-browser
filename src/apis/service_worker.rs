@@ -3,7 +3,7 @@ use boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, Nat
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use vfs::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};

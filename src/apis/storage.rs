@@ -3,7 +3,7 @@ use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
-use std::fs;
+use vfs::fs;
 use serde_json;
 
 /// Real WebStorage implementation with persistent localStorage and sessionStorage

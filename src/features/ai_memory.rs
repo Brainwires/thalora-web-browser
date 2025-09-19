@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fs;
+use vfs::fs;
 use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use base64::{Engine as _, engine::general_purpose};

@@ -1,0 +1,13 @@
+[package]
+name = "vfs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[features]
+# By default use an in-memory virtual filesystem. Enable `real_fs` to delegate to `std::fs`.
+default = []
+real_fs = []
+
+[dependencies]
+once_cell = "1.20"

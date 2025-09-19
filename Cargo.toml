@@ -114,6 +114,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # AI Memory Heap for persistent storage
 dirs = "5.0"
+vfs = { path = "vfs", default-features = false }
 
 [[bin]]
 name = "thalora"
