@@ -28,6 +28,11 @@ impl HeadlessWebBrowser {
     self.current_url = Some(url.to_string());
     self.current_content = content.clone();
 
+        // Update the document's HTML content in the JavaScript context
+        if let Some(ref mut renderer) = self.renderer {
+            let _ = renderer.update_document_html(&content);
+        }
+
         // Add to history
         let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);

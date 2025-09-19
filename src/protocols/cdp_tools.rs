@@ -85,10 +85,56 @@ impl CdpTools {
             }
         };
 
-        // Browser-based JavaScript execution is not implemented via the HeadlessWebBrowser
-        // at this time. Fall back to using the CDP server evaluation below.
+        // Use the browser directly for JavaScript execution instead of the CDP server mock
+        if let Some(ref browser) = self.browser {
+            // Execute JavaScript directly without threading (Boa is not thread-safe)
+            let mut browser_guard = browser.lock().unwrap();
+            let result = futures::executor::block_on(async {
+                browser_guard.execute_javascript(expression).await
+            });
 
-        // Fallback to CDP server evaluation
+            return match result {
+                Ok(js_result) => {
+                    // Try to parse as different types
+                    if js_result == "true" || js_result == "false" {
+                        McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript result (boolean): {}", js_result)
+                            })],
+                            is_error: false,
+                        }
+                    } else if let Ok(num) = js_result.parse::<f64>() {
+                        McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript result (number): {}", num)
+                            })],
+                            is_error: false,
+                        }
+                    } else {
+                        McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript result: {}", js_result)
+                            })],
+                            is_error: false,
+                        }
+                    }
+                },
+                Err(e) => {
+                    McpResponse::ToolResult {
+                        content: vec![serde_json::json!({
+                            "type": "text",
+                            "text": format!("JavaScript execution error: {}", e)
+                        })],
+                        is_error: true,
+                    }
+                }
+            };
+        }
+
+        // Fallback to CDP server evaluation (which is currently not working)
         let command = CdpCommand {
             id: 2,
             method: "Runtime.evaluate".to_string(),

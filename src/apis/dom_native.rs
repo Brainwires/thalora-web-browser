@@ -7,15 +7,20 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
 
     // Create instances using constructor functions directly instead of evaluating JavaScript
 
-    // Use the constructor objects directly instead of creating instances
-    let document = context.intrinsics().constructors().document().constructor();
-    let window = context.intrinsics().constructors().window().constructor();
-    let history = context.intrinsics().constructors().history().constructor();
+    // Get the constructor functions
+    let document_constructor = context.intrinsics().constructors().document().constructor();
+    let window_constructor = context.intrinsics().constructors().window().constructor();
+    let history_constructor = context.intrinsics().constructors().history().constructor();
 
-    // For the values, we'll use the constructor JsObjects as values
-    let document_value = JsValue::from(document.clone());
-    let window_value = JsValue::from(window.clone());
-    let history_value = JsValue::from(history.clone());
+    // Call the constructors to create instances using construct
+    let document_obj = document_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create Document instance: {}", e)))?;
+    let window_obj = window_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create Window instance: {}", e)))?;
+    let history_obj = history_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create History instance: {}", e)))?;
+
+    // Convert to JsValue for setting as globals
+    let document_value = JsValue::from(document_obj.clone());
+    let window_value = JsValue::from(window_obj.clone());
+    let history_value = JsValue::from(history_obj.clone());
 
     // Set up the global object relationships
     let global = context.global_object();
@@ -63,7 +68,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     // Set up the relationships between window, document, and history
     {
         // Set document on window
-        window.define_property_or_throw(
+        window_obj.define_property_or_throw(
             js_string!("document"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
@@ -75,7 +80,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.document: {}", e)))?;
 
         // Set history on window
-        window.define_property_or_throw(
+        window_obj.define_property_or_throw(
             js_string!("history"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
@@ -87,7 +92,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.history: {}", e)))?;
 
         // Set window as self-reference
-        window.define_property_or_throw(
+        window_obj.define_property_or_throw(
             js_string!("window"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
@@ -99,7 +104,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.window: {}", e)))?;
 
         // Set self as self-reference
-        window.define_property_or_throw(
+        window_obj.define_property_or_throw(
             js_string!("self"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)

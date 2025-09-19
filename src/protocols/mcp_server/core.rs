@@ -36,13 +36,16 @@ impl McpServer {
             AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
         });
 
+        let browser = HeadlessWebBrowser::new();
+        let cdp_tools = CdpTools::with_browser(browser.clone());
+
         Self {
-            browser: HeadlessWebBrowser::new(),
+            browser,
             websocket_manager: WebSocketManager::new(),
             ai_memory,
             cdp_server: CdpServer::new(),
             memory_tools: MemoryTools::new(),
-            cdp_tools: CdpTools::new(),
+            cdp_tools,
             browser_tools: BrowserTools::new(),
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
         }

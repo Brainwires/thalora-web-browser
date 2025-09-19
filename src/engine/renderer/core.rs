@@ -69,4 +69,23 @@ impl RustRenderer {
             .map(|s| s.to_std_string_escaped())
             .unwrap_or_else(|_| "undefined".to_string())
     }
+
+    /// Update the document's HTML content to enable real DOM querying
+    pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
+        use boa_engine::js_string;
+
+        // Get the global document object
+        let global = self.js_context.global_object().clone();
+        if let Ok(document_value) = global.get(js_string!("document"), &mut self.js_context) {
+            if let Some(document_obj) = document_value.as_object() {
+                // Check if this is a Document object with our DocumentData
+                if let Some(document_data) = document_obj.downcast_ref::<boa_engine::builtins::document::DocumentData>() {
+                    document_data.set_html_content(html_content);
+                    document_data.set_ready_state("complete");
+                }
+            }
+        }
+
+        Ok(())
+    }
 }

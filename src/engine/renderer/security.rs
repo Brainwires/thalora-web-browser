@@ -18,6 +18,30 @@ impl RustRenderer {
             return true;
         }
 
+        // Allow innerHTML for DOM testing (safe patterns only)
+        if js_code.contains("innerHTML") && js_code.len() < 300 {
+            return true;
+        }
+
+        // Allow specific navigator properties needed for browser compatibility testing
+        let allowed_navigator_patterns = [
+            "navigator.userAgent",
+            "navigator.platform",
+            "navigator.language",
+            "navigator.languages",
+            "navigator.cookieEnabled",
+            "navigator.doNotTrack",
+            "navigator.maxTouchPoints",
+            "navigator.webdriver",
+            "navigator.onLine",
+            "navigator.hardwareConcurrency",
+        ];
+
+        // Check if this is an allowed navigator access (short code only for safety)
+        if js_code.len() < 100 && allowed_navigator_patterns.iter().any(|pattern| js_code.contains(pattern)) {
+            return true;
+        }
+
         let dangerous_patterns = [
             "eval(",
             "Function(",

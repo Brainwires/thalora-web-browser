@@ -68,21 +68,22 @@ impl CdpServer {
     pub fn new() -> Self {
         let (event_sender, _) = broadcast::channel(1000);
         let session_id = Uuid::new_v4().to_string();
-        
+
         let mut server = Self {
             domains: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
             session_id,
         };
-        
+
         // Register core domains
         server.register_core_domains();
         server
     }
 
+
     fn register_core_domains(&mut self) {
         let mut domains = self.domains.lock().unwrap();
-        
+
         domains.insert("Runtime".to_string(), Box::new(RuntimeDomain::new()));
         domains.insert("Debugger".to_string(), Box::new(DebuggerDomain::new()));
         domains.insert("DOM".to_string(), Box::new(DomDomain::new()));
@@ -92,6 +93,7 @@ impl CdpServer {
         domains.insert("Performance".to_string(), Box::new(PerformanceDomain::new()));
         domains.insert("Storage".to_string(), Box::new(StorageDomain::new()));
     }
+
 
     pub fn handle_message(&mut self, message: CdpMessage) -> Result<Option<CdpMessage>> {
         match message {
@@ -213,12 +215,13 @@ impl CdpDomain for RuntimeDomain {
                 let expression = params.get("expression")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                
-                // TODO: Integrate with Boa engine for actual evaluation
+
+                // TODO: Need to implement JavaScript execution via message passing to avoid thread safety issues
+                // For now, return a clear indication that evaluation is not yet implemented
                 Ok(serde_json::json!({
                     "result": {
                         "type": "string",
-                        "value": format!("Evaluated: {}", expression)
+                        "value": format!("JavaScript evaluation not yet implemented: {}", expression)
                     }
                 }))
             }
