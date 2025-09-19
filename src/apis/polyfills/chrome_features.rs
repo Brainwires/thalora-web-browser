@@ -368,62 +368,11 @@ pub fn setup_chrome_features(context: &mut Context) -> JsResult<()> {
             };
         }
 
-        // Chrome 124: Pageswap Event API
-        if (typeof window !== 'undefined' && typeof PageSwapEvent === 'undefined') {
-            globalThis.PageSwapEvent = function PageSwapEvent(type, eventInitDict) {
-                eventInitDict = eventInitDict || {};
-                this.type = type;
-                this.activation = eventInitDict.activation || null;
-                this.viewTransition = eventInitDict.viewTransition || null;
+        // PageSwapEvent is now natively implemented in Boa engine
 
-                console.log('PageSwapEvent created:', type);
-            };
+        // Element.setHTML and setHTMLUnsafe are now natively implemented in Boa engine
 
-            PageSwapEvent.prototype = Object.create(Event.prototype);
-            PageSwapEvent.prototype.constructor = PageSwapEvent;
-        }
-
-        // Chrome 124: DOM unsafe methods (setHTML, etc.)
-        if (typeof Element !== 'undefined') {
-            if (!Element.prototype.setHTML) {
-                Element.prototype.setHTML = function(input, options) {
-                    options = options || {};
-                    console.log('Element.setHTML called (sanitized):', input.substring(0, 100));
-
-                    // MOCK - Real implementation would sanitize and set HTML
-                    if (options.sanitizer) {
-                        console.log('Using custom sanitizer');
-                    }
-                    this.innerHTML = input; // Basic fallback
-                };
-            }
-
-            if (!Element.prototype.setHTMLUnsafe) {
-                Element.prototype.setHTMLUnsafe = function(input) {
-                    console.log('Element.setHTMLUnsafe called:', input.substring(0, 100));
-                    this.innerHTML = input;
-                };
-            }
-        }
-
-        // Chrome 124: parseHTMLUnsafe global function
-        if (typeof parseHTMLUnsafe === 'undefined') {
-            globalThis.parseHTMLUnsafe = function(input, options) {
-                options = options || {};
-                console.log('parseHTMLUnsafe called:', input.substring(0, 100));
-
-                // MOCK - Real implementation would parse HTML into DocumentFragment
-                return {
-                    nodeName: '#document-fragment',
-                    nodeType: 11, // DOCUMENT_FRAGMENT_NODE
-                    childNodes: [],
-                    appendChild: function(node) {
-                        this.childNodes.push(node);
-                        console.log('Node appended to parsed fragment');
-                    }
-                };
-            };
-        }
+        // Document.parseHTMLUnsafe is now natively implemented in Boa engine
     "#))?;
 
     Ok(())
