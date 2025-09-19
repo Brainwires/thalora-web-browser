@@ -8,9 +8,8 @@ pub mod console;
 // Modular polyfill components
 pub mod performance;
 pub mod security;
-// DOM is now natively implemented in Boa engine
+// DOM and CSS are now natively implemented in Boa engine
 pub mod worker;
-pub mod css;
 pub mod storage;
 pub mod chrome_features;
 

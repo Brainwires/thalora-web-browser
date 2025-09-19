@@ -42,3 +42,29 @@ mod chrome_124_overall_compatibility {
     use super::*;
     include!("chrome_features/124/overall_compatibility.rs");
 }
+
+// Chrome 137 Tests
+mod chrome_137_selection_api_comprehensive {
+    use super::*;
+    include!("chrome_features/137/selection_api_comprehensive.rs");
+}
+
+mod chrome_137_selection_frame_selection {
+    use super::*;
+    include!("chrome_features/137/selection_frame_selection.rs");
+}
+
+mod chrome_137_range_api_comprehensive {
+    use super::*;
+    include!("chrome_features/137/range_api_comprehensive.rs");
+}
+
+mod chrome_137_selection_get_composed_ranges {
+    use super::*;
+    include!("chrome_features/137/selection_get_composed_ranges.rs");
+}
+
+mod chrome_137_selection_direction {
+    use super::*;
+    include!("chrome_features/137/selection_direction.rs");
+}
