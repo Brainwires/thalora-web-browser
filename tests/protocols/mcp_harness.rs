@@ -106,15 +106,27 @@ impl McpTestHarness {
 
         let response = self.send_request_raw(request)?;
 
-        // Extract tools from response
-        if let Some(tools) = response.get("tools") {
-            if let Some(tools_array) = tools.as_array() {
-                Ok(tools_array.clone())
+        // Extract tools from response format: {"content":[{"tools":[...]}],"isError":false}
+        if let Some(content) = response.get("content") {
+            if let Some(content_array) = content.as_array() {
+                if let Some(first_content) = content_array.first() {
+                    if let Some(tools) = first_content.get("tools") {
+                        if let Some(tools_array) = tools.as_array() {
+                            Ok(tools_array.clone())
+                        } else {
+                            bail!("Tools field is not an array: {:?}", tools);
+                        }
+                    } else {
+                        bail!("No tools field in content: {:?}", first_content);
+                    }
+                } else {
+                    bail!("Content array is empty: {:?}", content_array);
+                }
             } else {
-                bail!("Tools response is not an array: {:?}", tools);
+                bail!("Content is not an array: {:?}", content);
             }
         } else {
-            bail!("No tools field in response: {:?}", response);
+            bail!("No content field in response: {:?}", response);
         }
     }
 

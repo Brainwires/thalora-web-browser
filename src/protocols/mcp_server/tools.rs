@@ -97,6 +97,154 @@ impl McpServer {
                     }
                 }
             }),
+            // Additional CDP debugging tools
+            serde_json::json!({
+                "name": "cdp_dom_query_selector",
+                "description": "Find elements using CSS selectors via Chrome DevTools Protocol",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "selector": {
+                            "type": "string",
+                            "description": "CSS selector to find elements"
+                        },
+                        "node_id": {
+                            "type": "number",
+                            "description": "Optional node ID to search within (default: document)"
+                        }
+                    },
+                    "required": ["selector"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_dom_get_attributes",
+                "description": "Get all attributes of an element via Chrome DevTools Protocol",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "node_id": {
+                            "type": "number",
+                            "description": "Node ID of the element"
+                        }
+                    },
+                    "required": ["node_id"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_dom_get_computed_style",
+                "description": "Get computed CSS styles of an element",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "node_id": {
+                            "type": "number",
+                            "description": "Node ID of the element"
+                        }
+                    },
+                    "required": ["node_id"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_network_get_cookies",
+                "description": "Get all cookies from the current page",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "urls": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional URLs to filter cookies (default: current page)"
+                        }
+                    }
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_network_set_cookie",
+                "description": "Set a cookie via Chrome DevTools Protocol",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Cookie name"
+                        },
+                        "value": {
+                            "type": "string",
+                            "description": "Cookie value"
+                        },
+                        "domain": {
+                            "type": "string",
+                            "description": "Cookie domain (optional)"
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Cookie path (default: /)"
+                        },
+                        "secure": {
+                            "type": "boolean",
+                            "description": "Whether cookie is secure (default: false)"
+                        },
+                        "http_only": {
+                            "type": "boolean",
+                            "description": "Whether cookie is HTTP only (default: false)"
+                        }
+                    },
+                    "required": ["name", "value"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_console_get_messages",
+                "description": "Get console messages (logs, errors, warnings) from the page",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": "string",
+                            "description": "Filter by message level: 'log', 'info', 'warn', 'error', 'debug' (optional)",
+                            "enum": ["log", "info", "warn", "error", "debug"]
+                        },
+                        "limit": {
+                            "type": "number",
+                            "description": "Maximum number of messages to return (default: 100)"
+                        }
+                    }
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_page_screenshot",
+                "description": "Take a screenshot of the current page",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "format": {
+                            "type": "string",
+                            "description": "Image format: 'png' or 'jpeg' (default: png)",
+                            "enum": ["png", "jpeg"]
+                        },
+                        "quality": {
+                            "type": "number",
+                            "description": "Image quality 0-100 for JPEG (default: 80)"
+                        },
+                        "full_page": {
+                            "type": "boolean",
+                            "description": "Capture full page height (default: false)"
+                        }
+                    }
+                }
+            }),
+            serde_json::json!({
+                "name": "cdp_page_reload",
+                "description": "Reload the current page",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "ignore_cache": {
+                            "type": "boolean",
+                            "description": "Whether to ignore cache and reload from server (default: false)"
+                        }
+                    }
+                }
+            }),
             // Web scraping tools
             serde_json::json!({
                 "name": "scrape_url",
@@ -121,9 +269,9 @@ impl McpServer {
                     "required": ["url"]
                 }
             }),
-            // Google search tools
+            // Web search tools
             serde_json::json!({
-                "name": "google_search",
+                "name": "web_search",
                 "description": "Search Google and return organic results with title, URL, and snippet",
                 "inputSchema": {
                     "type": "object",
@@ -181,6 +329,73 @@ impl McpServer {
                     "required": ["form_data"]
                 }
             }),
+            // Session management tools
+            serde_json::json!({
+                "name": "browser_session_management",
+                "description": "Manage browser sessions for persistent AI interactions",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "description": "Action to perform: 'create', 'info', 'list', 'close', 'cleanup'",
+                            "enum": ["create", "info", "list", "close", "cleanup"]
+                        },
+                        "session_id": {
+                            "type": "string",
+                            "description": "Session ID (required for info/close actions)"
+                        },
+                        "persistent": {
+                            "type": "boolean",
+                            "description": "Whether to make session persistent (for create action)"
+                        },
+                        "max_age_seconds": {
+                            "type": "number",
+                            "description": "Maximum age for cleanup action (default: 3600)"
+                        }
+                    },
+                    "required": ["action"]
+                }
+            }),
+            serde_json::json!({
+                "name": "browser_get_page_content",
+                "description": "Get the current page content and URL from a browser session",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {
+                            "type": "string",
+                            "description": "Browser session ID (optional, defaults to 'default')"
+                        }
+                    }
+                }
+            }),
+            serde_json::json!({
+                "name": "browser_navigate_back",
+                "description": "Navigate back in browser history",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {
+                            "type": "string",
+                            "description": "Browser session ID (optional, defaults to 'default')"
+                        }
+                    }
+                }
+            }),
+            serde_json::json!({
+                "name": "browser_navigate_forward",
+                "description": "Navigate forward in browser history",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {
+                            "type": "string",
+                            "description": "Browser session ID (optional, defaults to 'default')"
+                        }
+                    }
+                }
+            }),
         ]
     }
 
@@ -200,18 +415,29 @@ impl McpServer {
             // no direct get_notes; map to search with category=notes
             "ai_memory_get_notes" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
 
-            // Chrome DevTools Protocol tools - map to existing CdpTools methods where available
+            // Chrome DevTools Protocol tools - comprehensive debugging toolkit
             "cdp_runtime_evaluate" => self.cdp_tools.evaluate_javascript(arguments, &mut self.cdp_server).await,
             "cdp_dom_get_document" => self.cdp_tools.get_document(arguments, &mut self.cdp_server).await,
-            // The following CDP helpers are not implemented in CdpTools; return an explicit error
-            "cdp_dom_query_selector" => McpResponse::error(-32601, "Tool not implemented: cdp_dom_query_selector".to_string()),
-            "cdp_dom_get_attributes" => McpResponse::error(-32601, "Tool not implemented: cdp_dom_get_attributes".to_string()),
-            "cdp_network_get_cookies" => McpResponse::error(-32601, "Tool not implemented: cdp_network_get_cookies".to_string()),
-            "cdp_network_set_cookie" => McpResponse::error(-32601, "Tool not implemented: cdp_network_set_cookie".to_string()),
+
+            // DOM debugging tools
+            "cdp_dom_query_selector" => self.cdp_tools.query_selector(arguments, &mut self.cdp_server).await,
+            "cdp_dom_get_attributes" => self.cdp_tools.get_attributes(arguments, &mut self.cdp_server).await,
+            "cdp_dom_get_computed_style" => self.cdp_tools.get_computed_style(arguments, &mut self.cdp_server).await,
+
+            // Network debugging tools
+            "cdp_network_get_cookies" => self.cdp_tools.get_cookies(arguments, &mut self.cdp_server).await,
+            "cdp_network_set_cookie" => self.cdp_tools.set_cookie(arguments, &mut self.cdp_server).await,
+
+            // Console debugging tools
+            "cdp_console_get_messages" => self.cdp_tools.get_console_messages(arguments, &mut self.cdp_server).await,
+
+            // Page control tools
+            "cdp_page_screenshot" => self.cdp_tools.take_screenshot(arguments, &mut self.cdp_server).await,
+            "cdp_page_reload" => self.cdp_tools.reload_page(arguments, &mut self.cdp_server).await,
 
             // Web scraping and navigation tools
             "scrape_url" => self.scrape_url(arguments).await,
-            "google_search" => self.google_search(arguments).await,
+            "web_search" => self.google_search(arguments).await,
 
             // Browser automation tools
             "browser_click_element" => self.browser_tools.handle_click_element(arguments).await,
