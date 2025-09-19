@@ -2,14 +2,12 @@ use anyhow::Result;
 use boa_engine::Context;
 use std::sync::{Arc, Mutex};
 use crate::apis::WebApis;
-use crate::engine::dom::EnhancedDom;
 use crate::apis::events::EventManager;
 use crate::features::AdvancedWebAssemblyEngine;
 
 pub struct RustRenderer {
     pub(super) js_context: Context,
     pub(super) web_apis: WebApis,
-    pub(super) dom_manager: Option<EnhancedDom>,
     pub(super) history_initialized: bool,
     pub(super) event_manager: EventManager,
     pub(super) wasm_api: Option<AdvancedWebAssemblyEngine>,
@@ -28,18 +26,8 @@ impl RustRenderer {
         let event_manager = EventManager::new();
         println!("🔧 RustRenderer::new() - Created EventManager");
 
-        // Setup DOM with EnhancedDom
-        println!("🔧 RustRenderer::new() - Initializing EnhancedDom");
-        let dom_manager = match EnhancedDom::new("") {
-            Ok(dom) => {
-                println!("🔧 RustRenderer::new() - EnhancedDom created successfully");
-                Some(dom)
-            },
-            Err(e) => {
-                eprintln!("Failed to initialize EnhancedDom: {}", e);
-                None
-            }
-        };
+        // DOM is now natively handled by Boa engine (Document, Element, etc.)
+        println!("🔧 RustRenderer::new() - DOM is natively handled by Boa engine");
 
         // Setup polyfills (now excludes DOM globals which are native)
         println!("🔧 RustRenderer::new() - Setting up polyfills");
@@ -80,7 +68,6 @@ impl RustRenderer {
         Self {
             js_context: context,
             web_apis,
-            dom_manager,
             history_initialized: false,
             event_manager,
             wasm_api,

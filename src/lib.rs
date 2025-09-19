@@ -13,7 +13,8 @@ pub mod protocols;
 // Re-export main components for clean public API
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};
-pub use engine::{DomElement, EnhancedDom, EventListener, DomMutation};
+pub use engine::EventListener;
+// DOM is now natively implemented in Boa engine
 
 pub use apis::websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
 pub use apis::storage::WebStorage;

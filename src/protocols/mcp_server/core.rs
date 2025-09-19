@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use crate::protocols::mcp::{McpRequest, McpResponse, McpMessage, McpMessageContent, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::apis::websocket::WebSocketManager;
-use crate::engine::dom::EnhancedDom;
+// DOM is now natively handled by Boa engine
 use crate::features::ai_memory::AiMemoryHeap;
 use crate::protocols::cdp::CdpServer;
 use crate::protocols::memory_tools::MemoryTools;
@@ -17,7 +17,6 @@ use crate::protocols::browser_tools::BrowserTools;
 pub struct McpServer {
     pub(super) browser: Arc<Mutex<HeadlessWebBrowser>>,
     pub(super) websocket_manager: WebSocketManager,
-    pub(super) dom_manager: Option<EnhancedDom>,
     pub(super) ai_memory: AiMemoryHeap,
     pub(super) cdp_server: CdpServer,
     pub(super) memory_tools: MemoryTools,
@@ -35,7 +34,6 @@ impl McpServer {
         Self {
             browser: HeadlessWebBrowser::new(),
             websocket_manager: WebSocketManager::new(),
-            dom_manager: None,
             ai_memory,
             cdp_server: CdpServer::new(),
             memory_tools: MemoryTools::new(),
