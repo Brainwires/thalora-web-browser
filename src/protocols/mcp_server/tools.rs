@@ -463,7 +463,7 @@ impl McpServer {
             "ai_memory_get_notes" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
 
             // Chrome DevTools Protocol tools - comprehensive debugging toolkit
-            "cdp_runtime_evaluate" => self.cdp_tools.evaluate_javascript(args_for_call.clone(), &mut self.cdp_server).await,
+            "cdp_runtime_evaluate" => self.cdp_tools.evaluate_javascript(args_for_call.clone(), &mut self.cdp_server, &self.browser_tools).await,
             "cdp_dom_get_document" => self.cdp_tools.get_document(args_for_call.clone(), &mut self.cdp_server).await,
 
             // DOM debugging tools
