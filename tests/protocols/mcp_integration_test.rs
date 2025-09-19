@@ -125,7 +125,8 @@ fn test_browser_automation_workflow() {
 
     let store_response = harness.call_tool("ai_memory_store_research", json!({
         "key": "automation_test_001",
-        "data": automation_data,
+        "topic": "browser automation testing",
+        "summary": format!("Browser automation test results: {}", serde_json::to_string(&automation_data).unwrap_or_default()),
         "tags": ["automation", "browser", "testing", "cdp"]
     })).expect("Storing automation results should succeed");
 
@@ -285,7 +286,8 @@ fn test_error_recovery_workflow() {
 
     let store_response = harness.call_tool("ai_memory_store_research", json!({
         "key": "error_recovery_test_001",
-        "data": error_results_data,
+        "topic": "error recovery testing",
+        "summary": format!("Error recovery test results: {}", serde_json::to_string(&error_results_data).unwrap_or_default()),
         "tags": ["error_handling", "stability", "testing"]
     })).expect("Storing error results should succeed");
 
@@ -379,7 +381,7 @@ fn test_end_to_end_ai_simulation() {
     // 5. Search for related stored knowledge
 
     // Step 1: "AI decides to research Rust programming"
-    let search_response = harness.call_tool("google_search", json!({
+    let search_response = harness.call_tool("web_search", json!({
         "query": "rust programming language tutorial",
         "num_results": 1
     })).expect("AI search should succeed");
@@ -429,7 +431,8 @@ fn test_end_to_end_ai_simulation() {
 
     let store_response = harness.call_tool("ai_memory_store_research", json!({
         "key": "ai_rust_research_001",
-        "data": insights_data,
+        "topic": "AI Rust programming research",
+        "summary": format!("AI research insights on Rust programming: {}", serde_json::to_string(&insights_data).unwrap_or_default()),
         "tags": ["ai_simulation", "rust", "programming", "tutorial", "research"]
     })).expect("AI storing should succeed");
 

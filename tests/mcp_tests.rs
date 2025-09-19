@@ -75,7 +75,8 @@ mod tests {
         // Store data
         let store_response = harness.call_tool("ai_memory_store_research", serde_json::json!({
             "key": &test_key,
-            "data": test_data,
+            "topic": "end-to-end verification testing",
+            "summary": format!("End-to-end verification test data: {}", serde_json::to_string(&test_data).unwrap_or_default()),
             "tags": ["verification", "e2e"]
         })).expect("Store should succeed");
 
