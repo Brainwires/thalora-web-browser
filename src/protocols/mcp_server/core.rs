@@ -107,11 +107,11 @@ impl McpServer {
                         }
                         Err(e) => {
                             error!("Failed to parse request: {}", e);
-                            let error_response = McpResponse::error(-1, format!("Parse error: {}", e));
-                            let response_json = serde_json::to_string(&error_response)?;
-                            stdout.write_all(response_json.as_bytes()).await?;
-                            stdout.write_all(b"\n").await?;
-                            stdout.flush().await?;
+                            // Parse errors should go to stderr, not stdout, to keep JSON-RPC stream clean
+                            let mut stderr = tokio::io::stderr();
+                            let error_msg = format!("Parse error: {}\n", e);
+                            stderr.write_all(error_msg.as_bytes()).await?;
+                            stderr.flush().await?;
                         }
                     }
                 }
