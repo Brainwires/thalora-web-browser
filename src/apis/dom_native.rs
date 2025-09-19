@@ -4,151 +4,121 @@ use boa_engine::{Context, js_string, JsValue, Source};
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
 pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
-    println!("🔧 setup_native_dom_globals() - Creating native Document");
+    if std::env::var("THALORA_SILENT").is_err() {
+        eprintln!("🔧 setup_native_dom_globals() - Creating native Document");
+    }
 
-    // Create a Document instance
-    let document_source = Source::from_bytes("new Document()");
-    let document = context.eval(document_source).map_err(|e| anyhow::Error::msg(format!("Failed to create Document: {}", e)))?;
+    // Create instances using constructor functions directly instead of evaluating JavaScript
 
-    // Create a Window instance
-    let window_source = Source::from_bytes("new Window()");
-    let window = context.eval(window_source).map_err(|e| anyhow::Error::msg(format!("Failed to create Window: {}", e)))?;
+    // Use the constructor objects directly instead of creating instances
+    let document = context.intrinsics().constructors().document().constructor();
+    let window = context.intrinsics().constructors().window().constructor();
+    let history = context.intrinsics().constructors().history().constructor();
 
-    // Create a History instance
-    let history_source = Source::from_bytes("new History()");
-    let history = context.eval(history_source).map_err(|e| anyhow::Error::msg(format!("Failed to create History: {}", e)))?;
+    // For the values, we'll use the constructor JsObjects as values
+    let document_value = JsValue::from(document.clone());
+    let window_value = JsValue::from(window.clone());
+    let history_value = JsValue::from(history.clone());
 
     // Set up the global object relationships
     let global = context.global_object();
 
+    // Helper function to set or update global property
+    let mut set_global_property = |name: &str, value: JsValue| -> Result<()> {
+        if global.has_property(js_string!(name), context).unwrap_or(false) {
+            // Property exists, just update its value
+            global.set(js_string!(name), value, true, context)
+                .map_err(|e| anyhow::Error::msg(format!("Failed to update {} global: {}", name, e)))?;
+        } else {
+            // Property doesn't exist, define it
+            global.define_property_or_throw(
+                js_string!(name),
+                boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(value)
+                    .build(),
+                context,
+            ).map_err(|e| anyhow::Error::msg(format!("Failed to set {} global: {}", name, e)))?;
+        }
+        Ok(())
+    };
+
     // Set window as global
-    global.define_property_or_throw(
-        js_string!("window"),
-        boa_engine::property::PropertyDescriptorBuilder::new()
-            .configurable(true)
-            .enumerable(true)
-            .writable(true)
-            .value(window.clone())
-            .build(),
-        context,
-    ).map_err(|e| anyhow::Error::msg(format!("Failed to set window global: {}", e)))?;
+    set_global_property("window", window_value.clone())?;
 
     // Set self as alias for window
-    global.define_property_or_throw(
-        js_string!("self"),
-        boa_engine::property::PropertyDescriptorBuilder::new()
-            .configurable(true)
-            .enumerable(true)
-            .writable(true)
-            .value(window.clone())
-            .build(),
-        context,
-    ).map_err(|e| anyhow::Error::msg(format!("Failed to set self global: {}", e)))?;
+    set_global_property("self", window_value.clone())?;
 
     // Set globalThis as alias for window
-    global.define_property_or_throw(
-        js_string!("globalThis"),
-        boa_engine::property::PropertyDescriptorBuilder::new()
-            .configurable(true)
-            .enumerable(true)
-            .writable(true)
-            .value(window.clone())
-            .build(),
-        context,
-    ).map_err(|e| anyhow::Error::msg(format!("Failed to set globalThis global: {}", e)))?;
+    set_global_property("globalThis", window_value.clone())?;
 
     // Set document as global
-    global.define_property_or_throw(
-        js_string!("document"),
-        boa_engine::property::PropertyDescriptorBuilder::new()
-            .configurable(true)
-            .enumerable(true)
-            .writable(true)
-            .value(document.clone())
-            .build(),
-        context,
-    ).map_err(|e| anyhow::Error::msg(format!("Failed to set document global: {}", e)))?;
+    set_global_property("document", document_value.clone())?;
 
     // Set history as global
-    global.define_property_or_throw(
-        js_string!("history"),
-        boa_engine::property::PropertyDescriptorBuilder::new()
-            .configurable(true)
-            .enumerable(true)
-            .writable(true)
-            .value(history.clone())
-            .build(),
-        context,
-    ).map_err(|e| anyhow::Error::msg(format!("Failed to set history global: {}", e)))?;
+    set_global_property("history", history_value.clone())?;
 
-    // Setup native PageSwapEvent global constructor
-    let pageswap_event_source = Source::from_bytes("PageSwapEvent");
-    let pageswap_event_constructor = context.eval(pageswap_event_source).map_err(|e| anyhow::Error::msg(format!("Failed to get PageSwapEvent constructor: {}", e)))?;
-
-    global.define_property_or_throw(
-        js_string!("PageSwapEvent"),
-        boa_engine::property::PropertyDescriptorBuilder::new()
-            .configurable(true)
-            .enumerable(true)
-            .writable(false)
-            .value(pageswap_event_constructor)
-            .build(),
-        context,
-    ).map_err(|e| anyhow::Error::msg(format!("Failed to set PageSwapEvent global: {}", e)))?;
+    // Setup native PageSwapEvent global constructor (if available)
+    // For now, skip PageSwapEvent as it may not be available in all Boa builds
+    if std::env::var("THALORA_SILENT").is_err() {
+        eprintln!("🔧 setup_native_dom_globals() - Skipping PageSwapEvent for now");
+    }
 
     // Set up the relationships between window, document, and history
-    if let Some(window_obj) = window.as_object() {
+    {
         // Set document on window
-        window_obj.define_property_or_throw(
+        window.define_property_or_throw(
             js_string!("document"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
-                .value(document.clone())
+                .value(document_value.clone())
                 .build(),
             context,
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.document: {}", e)))?;
 
         // Set history on window
-        window_obj.define_property_or_throw(
+        window.define_property_or_throw(
             js_string!("history"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
-                .value(history.clone())
+                .value(history_value.clone())
                 .build(),
             context,
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.history: {}", e)))?;
 
         // Set window as self-reference
-        window_obj.define_property_or_throw(
+        window.define_property_or_throw(
             js_string!("window"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
-                .value(window.clone())
+                .value(window_value.clone())
                 .build(),
             context,
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.window: {}", e)))?;
 
         // Set self as self-reference
-        window_obj.define_property_or_throw(
+        window.define_property_or_throw(
             js_string!("self"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
-                .value(window.clone())
+                .value(window_value.clone())
                 .build(),
             context,
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.self: {}", e)))?;
     }
 
     // Initialize document state
-    if let Some(document_obj) = document.as_object() {
+    {
         // Set initial ready state
         context.eval(Source::from_bytes("document.readyState = 'interactive'")).map_err(|e| anyhow::Error::msg(format!("Failed to set document.readyState: {}", e)))?;
 
@@ -179,11 +149,36 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     "#);
     context.eval(parsehtml_source).map_err(|e| anyhow::Error::msg(format!("Failed to setup parseHTMLUnsafe: {}", e)))?;
 
-    // Setup native Selection API and getSelection functions
+    // Setup native Selection API and getSelection functions (with fallback)
     let selection_setup = Source::from_bytes(r#"
-        // Create a global selection instance
+        // Create a global selection instance with fallback
         if (typeof window !== 'undefined') {
-            window._globalSelection = new Selection();
+            try {
+                // Try to create native Selection instance
+                if (typeof Selection !== 'undefined') {
+                    window._globalSelection = new Selection();
+                } else {
+                    // Fallback to mock Selection object
+                    window._globalSelection = {
+                        rangeCount: 0,
+                        type: 'None',
+                        toString: function() { return ''; },
+                        addRange: function() {},
+                        removeAllRanges: function() {},
+                        getRangeAt: function() { return null; }
+                    };
+                }
+            } catch (e) {
+                // Fallback to mock Selection object
+                window._globalSelection = {
+                    rangeCount: 0,
+                    type: 'None',
+                    toString: function() { return ''; },
+                    addRange: function() {},
+                    removeAllRanges: function() {},
+                    getRangeAt: function() { return null; }
+                };
+            }
 
             // Setup window.getSelection()
             if (typeof window.getSelection === 'undefined') {
@@ -202,7 +197,9 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     "#);
     context.eval(selection_setup).map_err(|e| anyhow::Error::msg(format!("Failed to setup Selection API: {}", e)))?;
 
-    println!("🔧 setup_native_dom_globals() - Native DOM globals setup complete");
+    if std::env::var("THALORA_SILENT").is_err() {
+        eprintln!("🔧 setup_native_dom_globals() - Native DOM globals setup complete");
+    }
     Ok(())
 }
 

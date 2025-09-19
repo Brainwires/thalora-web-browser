@@ -23,7 +23,7 @@ impl Default for McpTestConfig {
     fn default() -> Self {
         Self {
             timeout: Duration::from_secs(30),
-            use_release_build: false,
+            use_release_build: true,  // Use release builds by default for faster startup
             debug_output: false,
         }
     }
@@ -57,11 +57,12 @@ impl McpTestHarness {
             Command::new(binary_path)
         } else {
             let mut cmd = Command::new("cargo");
-            cmd.args(&["run", "--quiet"]);
+            cmd.args(&["run", "--quiet", "--bin", "thalora"]);
             cmd
         };
 
         let mut process = cmd
+            .env("THALORA_SILENT", "1")  // Suppress debug output for clean JSON responses
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(if config.debug_output { Stdio::inherit() } else { Stdio::piped() })

@@ -11,12 +11,19 @@ use protocols::mcp_server::McpServer;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Configure tracing to write to stderr only (MCP protocol requirement)
-    tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
-        .init();
+    // Disable tracing in silent mode
+    if std::env::var("THALORA_SILENT").is_err() {
+        tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
+            .init();
+    }
 
-    eprintln!("🧠 Thalora v0.1.0 - Pure Rust headless browser for AI models");
-    eprintln!("🔗 Neural connections between AI and the web");
+    if std::env::var("THALORA_SILENT").is_err() {
+        eprintln!("🧠 Thalora v0.1.0 - Pure Rust headless browser for AI models");
+    }
+    if std::env::var("THALORA_SILENT").is_err() {
+        eprintln!("🔗 Neural connections between AI and the web");
+    }
 
     let mut server = McpServer::new();
     server.run().await

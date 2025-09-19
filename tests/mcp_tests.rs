@@ -40,7 +40,10 @@ mod tests {
     #[test]
     fn test_harness_functionality() {
         let harness_result = create_initialized_harness();
-        assert!(harness_result.is_ok(), "Test harness should initialize successfully");
+        if let Err(e) = &harness_result {
+            eprintln!("Harness creation failed: {}", e);
+        }
+        assert!(harness_result.is_ok(), "Test harness should initialize successfully: {:?}", harness_result.err());
 
         let mut harness = harness_result.unwrap();
         assert!(harness.is_running(), "MCP server should be running");
