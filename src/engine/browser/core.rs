@@ -47,9 +47,6 @@ impl HeadlessWebBrowser {
         let stealth_manager = StealthManager::new(stealth_config);
         let scraper = WebScraper::new();
 
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::new() - Creating browser struct");
-        }
         let browser = Self {
             client,
             renderer: Some(renderer),
@@ -62,53 +59,19 @@ impl HeadlessWebBrowser {
             scraper,
         };
 
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::new() - Creating Arc<Mutex<browser>>");
-        }
         let browser_arc = Arc::new(Mutex::new(browser));
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::new() - Arc<Mutex<browser>> created successfully");
-        }
 
         // Setup history API with reference to browser
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::new() - Setting up history API");
-        }
-        if let Err(e) = Self::setup_history_api(browser_arc.clone()) {
-            if std::env::var("THALORA_SILENT").is_err() {
-                eprintln!("Failed to setup history API: {}", e);
-            }
-        }
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::new() - History API setup complete");
-        }
+        let _ = Self::setup_history_api(browser_arc.clone());
 
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::new() - Browser initialization complete");
-        }
         browser_arc
     }
 
     pub fn setup_history_api(browser_arc: Arc<Mutex<Self>>) -> Result<()> {
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::setup_history_api() - Starting");
-        }
         if let Ok(mut browser) = browser_arc.try_lock() {
-            if std::env::var("THALORA_SILENT").is_err() {
-                eprintln!("🔧 HeadlessWebBrowser::setup_history_api() - Browser lock acquired");
-            }
             if let Some(ref mut renderer) = browser.renderer {
-                if std::env::var("THALORA_SILENT").is_err() {
-                    eprintln!("🔧 HeadlessWebBrowser::setup_history_api() - Calling renderer.setup_history_api");
-                }
                 renderer.setup_history_api(browser_arc.clone())?;
-                if std::env::var("THALORA_SILENT").is_err() {
-                    eprintln!("🔧 HeadlessWebBrowser::setup_history_api() - Renderer setup complete");
-                }
             }
-        }
-        if std::env::var("THALORA_SILENT").is_err() {
-            eprintln!("🔧 HeadlessWebBrowser::setup_history_api() - Complete");
         }
         Ok(())
     }

@@ -4,9 +4,6 @@ use boa_engine::{Context, js_string, JsValue, Source};
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
 pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
-    if std::env::var("THALORA_SILENT").is_err() {
-        eprintln!("🔧 setup_native_dom_globals() - Creating native Document");
-    }
 
     // Create instances using constructor functions directly instead of evaluating JavaScript
 
@@ -62,9 +59,6 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
 
     // Setup native PageSwapEvent global constructor (if available)
     // For now, skip PageSwapEvent as it may not be available in all Boa builds
-    if std::env::var("THALORA_SILENT").is_err() {
-        eprintln!("🔧 setup_native_dom_globals() - Skipping PageSwapEvent for now");
-    }
 
     // Set up the relationships between window, document, and history
     {
@@ -197,9 +191,6 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     "#);
     context.eval(selection_setup).map_err(|e| anyhow::Error::msg(format!("Failed to setup Selection API: {}", e)))?;
 
-    if std::env::var("THALORA_SILENT").is_err() {
-        eprintln!("🔧 setup_native_dom_globals() - Native DOM globals setup complete");
-    }
     Ok(())
 }
 

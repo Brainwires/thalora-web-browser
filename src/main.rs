@@ -18,12 +18,6 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    if std::env::var("THALORA_SILENT").is_err() {
-        eprintln!("🧠 Thalora v0.1.0 - Pure Rust headless browser for AI models");
-    }
-    if std::env::var("THALORA_SILENT").is_err() {
-        eprintln!("🔗 Neural connections between AI and the web");
-    }
 
     let mut server = McpServer::new();
     server.run().await
