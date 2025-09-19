@@ -140,7 +140,7 @@ impl McpServer {
                         "version": "1.0.0"
                     }),
                 };
-                McpResponse::success(serde_json::to_value(result).unwrap())
+                McpResponse::Initialize { result }
             }
             McpRequest::ListTools => {
                 McpResponse::success(serde_json::json!({

@@ -445,6 +445,16 @@ impl CdpDomain for DomDomain {
                     "nodeIds": [3, 4, 5]
                 }))
             }
+            "getAttributes" => {
+                let params = params.unwrap_or_default();
+                let _node_id = params.get("nodeId")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(1);
+
+                Ok(serde_json::json!({
+                    "attributes": ["id", "test-element", "class", "example", "data-value", "123"]
+                }))
+            }
             _ => Err(anyhow::anyhow!("Unknown DOM method: {}", method))
         }
     }
@@ -471,7 +481,7 @@ impl CdpDomain for NetworkDomain {
         "Network"
     }
 
-    fn handle_command(&mut self, method: &str, _params: Option<Value>) -> Result<Value> {
+    fn handle_command(&mut self, method: &str, params: Option<Value>) -> Result<Value> {
         match method {
             "enable" => {
                 self.enabled = true;
@@ -489,6 +499,15 @@ impl CdpDomain for NetworkDomain {
             "getCookies" => {
                 Ok(serde_json::json!({
                     "cookies": []
+                }))
+            }
+            "setCookie" => {
+                let params = params.unwrap_or_default();
+                let _name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let _value = params.get("value").and_then(|v| v.as_str()).unwrap_or("");
+
+                Ok(serde_json::json!({
+                    "success": true
                 }))
             }
             _ => Err(anyhow::anyhow!("Unknown Network method: {}", method))

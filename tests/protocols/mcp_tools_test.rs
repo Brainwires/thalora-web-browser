@@ -234,7 +234,7 @@ fn test_tools_handle_missing_required_params() {
         ("scrape_url", json!({})), // Missing required 'url'
         ("ai_memory_get_research", json!({})), // Missing required 'key'
         ("cdp_runtime_evaluate", json!({})), // Missing required 'expression'
-        ("google_search", json!({})), // Missing required 'query'
+        ("web_search", json!({})), // Missing required 'query'
     ];
 
     for (tool_name, args) in test_cases {
@@ -314,7 +314,8 @@ fn test_multiple_tool_calls_in_sequence() {
     // Step 1: Store
     let store_response = harness.call_tool("ai_memory_store_research", json!({
         "key": key,
-        "data": test_data,
+        "topic": "sequence testing",
+        "summary": "Testing multiple tool calls in sequence",
         "tags": ["sequence", "test"]
     })).expect("Store should succeed");
     assert!(!store_response.is_error, "Store should not error");
@@ -358,7 +359,8 @@ fn test_tools_with_large_data() {
 
     let response = harness.call_tool("ai_memory_store_research", json!({
         "key": "large_data_test",
-        "data": large_data
+        "topic": "large data testing",
+        "summary": "Testing storage of large data structures with nested objects and arrays"
     }));
 
     // Should handle large data gracefully

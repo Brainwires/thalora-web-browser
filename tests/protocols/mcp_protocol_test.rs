@@ -83,8 +83,8 @@ fn test_expected_tools_present() {
     // Web scraping tools
     assert!(tool_names.contains(&"scrape_url".to_string()),
            "Should have scrape_url tool");
-    assert!(tool_names.contains(&"google_search".to_string()),
-           "Should have google_search tool");
+    assert!(tool_names.contains(&"web_search".to_string()),
+           "Should have web_search tool");
 
     // Browser automation tools
     assert!(tool_names.contains(&"browser_click_element".to_string()),
@@ -126,8 +126,17 @@ fn test_malformed_json_handling() {
     std::io::Write::write_all(stdin, b"{ invalid json }\n").unwrap();
     std::io::Write::flush(stdin).unwrap();
 
-    // The server should still be running and responsive
+    // Send a dummy request to consume the error response
     std::thread::sleep(Duration::from_millis(100));
+    let dummy_request = json!({
+        "jsonrpc": "2.0",
+        "id": 999999,
+        "method": "dummy",
+        "params": {}
+    });
+    let _ = harness.send_request_raw(dummy_request);
+
+    // The server should still be running and responsive
     assert!(harness.is_running(), "Server should still be running after malformed JSON");
 
     // Should still be able to initialize normally

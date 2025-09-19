@@ -15,11 +15,11 @@ fn test_research_workflow() {
     // 3. Store findings in AI memory
     // 4. Search memory for stored research
 
-    // Step 1: Google search
-    let search_response = harness.call_tool("google_search", json!({
+    // Step 1: Web search
+    let search_response = harness.call_tool("web_search", json!({
         "query": "rust programming examples",
         "num_results": 2
-    })).expect("Google search should succeed");
+    })).expect("Web search should succeed");
 
     assert!(!search_response.is_error, "Search should not error");
     assert_tool_success(&search_response, Duration::from_secs(30)).expect("Search should complete timely");
@@ -44,7 +44,8 @@ fn test_research_workflow() {
 
     let store_response = harness.call_tool("ai_memory_store_research", json!({
         "key": "workflow_test_001",
-        "data": research_data,
+        "topic": "rust programming workflow testing",
+        "summary": "Successfully tested web scraping workflow for Rust programming examples",
         "tags": ["workflow", "testing", "rust", "scraping"]
     })).expect("Storing research should succeed");
 
@@ -153,10 +154,12 @@ fn test_data_persistence_workflow() {
 
     // Step 1: Store all datasets
     for (i, (key, data)) in test_datasets.iter().enumerate() {
+        let data_type = data.get("type").unwrap().as_str().unwrap();
         let store_response = harness.call_tool("ai_memory_store_research", json!({
             "key": key,
-            "data": data,
-            "tags": ["persistence_test", data.get("type").unwrap().as_str().unwrap()]
+            "topic": format!("persistence test {}", data_type),
+            "summary": format!("Test data for persistence workflow: {}", serde_json::to_string(data).unwrap_or_default()),
+            "tags": ["persistence_test", data_type]
         })).expect(&format!("Store {} should succeed", i));
 
         assert!(!store_response.is_error, "Store {} should not error", i);

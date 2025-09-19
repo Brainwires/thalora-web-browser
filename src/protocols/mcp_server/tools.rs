@@ -429,7 +429,29 @@ impl McpServer {
             // AI Memory tools
             "ai_memory_store_research" => self.memory_tools.store_research(args_for_call.clone(), &mut self.ai_memory).await,
             // There is no direct `get_research` async tool; use `search` with a key filter
-            "ai_memory_get_research" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
+            "ai_memory_get_research" => {
+                // Validate required "key" parameter
+                let key = match args_for_call.get("key").and_then(|v| v.as_str()) {
+                    Some(key) => key,
+                    None => {
+                        return McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": "Missing required parameter: key"
+                            })],
+                            is_error: true,
+                        };
+                    }
+                };
+
+                // Convert key to query for search
+                let mut search_args = serde_json::json!({
+                    "query": key,
+                    "category": "research",
+                    "limit": 1
+                });
+                self.memory_tools.search(search_args, &mut self.ai_memory).await
+            },
             "ai_memory_search_research" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
             "ai_memory_store_credentials" => self.memory_tools.store_credentials(args_for_call.clone(), &mut self.ai_memory).await,
             "ai_memory_get_credentials" => self.memory_tools.get_credentials(args_for_call.clone(), &mut self.ai_memory).await,

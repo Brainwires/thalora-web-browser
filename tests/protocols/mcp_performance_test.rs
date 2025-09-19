@@ -165,7 +165,8 @@ fn test_ai_memory_performance() {
             let start = Instant::now();
             let result = harness.call_tool("ai_memory_store_research", json!({
                 "key": key,
-                "data": data,
+                "topic": "performance testing",
+                "summary": "Performance test data for AI memory benchmarking",
                 "tags": ["performance", "test"]
             }));
 
