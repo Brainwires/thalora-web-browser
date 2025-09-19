@@ -3,6 +3,9 @@ use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tracing::{error, info};
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use vfs::VfsInstance;
+use uuid::Uuid;
 
 use crate::protocols::mcp::{McpRequest, McpResponse, McpMessage, McpMessageContent, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
@@ -22,6 +25,8 @@ pub struct McpServer {
     pub(super) memory_tools: MemoryTools,
     pub(super) cdp_tools: CdpTools,
     pub(super) browser_tools: BrowserTools,
+    /// Optional session-scoped persistent VFS instances. Keyed by session_id.
+    pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
 }
 
 impl McpServer {
@@ -39,6 +44,41 @@ impl McpServer {
             memory_tools: MemoryTools::new(),
             cdp_tools: CdpTools::new(),
             browser_tools: BrowserTools::new(),
+            session_vfs: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Get or create a session-scoped VFS. If `backing_dir` is provided, the backing file will be created there.
+    pub fn get_or_create_session_vfs(&self, session_id: &str, backing_dir: Option<&std::path::Path>) -> Arc<VfsInstance> {
+        let mut guard = self.session_vfs.lock().unwrap();
+        if let Some(v) = guard.get(session_id) {
+            return v.clone();
+        }
+
+        // Build a backing path: backing_dir/vfs-<session_id>.bin
+        let file = if let Some(dir) = backing_dir {
+            dir.join(format!("vfs-session-{}.bin", session_id))
+        } else {
+            // fallback to temp dir
+            std::env::temp_dir().join(format!("vfs-session-{}.bin", session_id))
+        };
+
+        // Try to open existing or create new
+        let v = match VfsInstance::open_file_backed(&file) {
+            Ok(inst) => Arc::new(inst),
+            Err(_) => Arc::new(VfsInstance::new_temp_in_dir(std::env::temp_dir()).expect("create temp vfs")),
+        };
+        guard.insert(session_id.to_string(), v.clone());
+        v
+    }
+
+    /// Remove and optionally delete the backing file for a session VFS.
+    pub fn remove_session_vfs(&self, session_id: &str, delete_backing: bool) {
+        let mut guard = self.session_vfs.lock().unwrap();
+        if let Some(v) = guard.remove(session_id) {
+            if delete_backing {
+                let _ = v.delete_backing_file();
+            }
         }
     }
 

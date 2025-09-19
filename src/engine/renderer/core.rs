@@ -1,6 +1,7 @@
 use anyhow::Result;
-use boa_engine::Context;
+use boa_engine::{Context, module::IdleModuleLoader};
 use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 use crate::apis::WebApis;
 use crate::apis::events::EventManager;
 use crate::features::AdvancedWebAssemblyEngine;
@@ -16,7 +17,10 @@ pub struct RustRenderer {
 impl RustRenderer {
     pub fn new() -> Self {
 
-        let mut context = Context::default();
+        let mut context = Context::builder()
+            .module_loader(Rc::new(IdleModuleLoader))
+            .build()
+            .expect("failed to build JS context");
 
         let web_apis = WebApis::new();
 

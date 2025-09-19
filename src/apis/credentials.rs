@@ -143,15 +143,15 @@ impl CredentialManager {
 
             // Implement credentials.preventSilentAccess()
             let prevent_silent_access_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
-                // For now, just return a resolved promise
+                // For now, just return a resolved promise that invokes the provided resolver
                 let promise = context.intrinsics().promise().constructor().call(
                     &JsValue::undefined(),
-                    &[NativeFunction::from_fn_ptr(|_, args, _| {
+                    &[NativeFunction::from_fn_ptr(|_, args, context| {
                         if let Some(resolve) = args.get(0) {
                             resolve.as_callable().unwrap().call(
                                 &JsValue::undefined(),
                                 &[],
-                                &mut Context::default(),
+                                context,
                             )?;
                         }
                         Ok(JsValue::undefined())

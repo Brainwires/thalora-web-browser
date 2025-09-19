@@ -1,6 +1,9 @@
 use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
+use std::sync::Arc;
+use vfs::{VfsInstance, set_current_vfs};
+use std::env;
 
 impl McpServer {
     pub(super) fn get_tool_definitions(&self) -> Vec<Value> {
@@ -400,54 +403,106 @@ impl McpServer {
     }
 
     pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
-        match name.as_str() {
+        // If a `session_id` argument is present, reuse or create a session-scoped VFS that persists across calls.
+        let vfs_instance: Arc<VfsInstance>;
+        let prev_vfs: Option<Arc<VfsInstance>>;
+        if let Some(session_id) = arguments.get("session_id").and_then(|v| v.as_str()) {
+            // Reuse or create a session VFS. Backing path is in temp dir by default.
+            let v = self.get_or_create_session_vfs(session_id, None);
+            vfs_instance = v.clone();
+            prev_vfs = set_current_vfs(Some(vfs_instance.clone()));
+        } else {
+            // ephemeral per-call VFS
+            let tmp_dir = env::temp_dir();
+            let v = match VfsInstance::new_temp_in_dir(&tmp_dir) {
+                Ok(v) => Arc::new(v),
+                Err(e) => return McpResponse::error(-32000, format!("Failed to create VFS: {}", e)),
+            };
+            prev_vfs = set_current_vfs(Some(v.clone()));
+            vfs_instance = v;
+        }
+
+        // Run the tool while VFS is installed
+        // Clone `arguments` for the call so we can still inspect the original after the call (lifecycle checks).
+        let args_for_call = arguments.clone();
+          let resp = match name.as_str() {
             // AI Memory tools
-            "ai_memory_store_research" => self.memory_tools.store_research(arguments, &mut self.ai_memory).await,
+            "ai_memory_store_research" => self.memory_tools.store_research(args_for_call.clone(), &mut self.ai_memory).await,
             // There is no direct `get_research` async tool; use `search` with a key filter
-            "ai_memory_get_research" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
-            "ai_memory_search_research" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
-            "ai_memory_store_credentials" => self.memory_tools.store_credentials(arguments, &mut self.ai_memory).await,
-            "ai_memory_get_credentials" => self.memory_tools.get_credentials(arguments, &mut self.ai_memory).await,
-            "ai_memory_store_bookmark" => self.memory_tools.store_bookmark(arguments, &mut self.ai_memory).await,
+            "ai_memory_get_research" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
+            "ai_memory_search_research" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
+            "ai_memory_store_credentials" => self.memory_tools.store_credentials(args_for_call.clone(), &mut self.ai_memory).await,
+            "ai_memory_get_credentials" => self.memory_tools.get_credentials(args_for_call.clone(), &mut self.ai_memory).await,
+            "ai_memory_store_bookmark" => self.memory_tools.store_bookmark(args_for_call.clone(), &mut self.ai_memory).await,
             // no direct get_bookmarks; map to search with category=bookmarks
-            "ai_memory_get_bookmarks" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
-            "ai_memory_store_note" => self.memory_tools.store_note(arguments, &mut self.ai_memory).await,
+            "ai_memory_get_bookmarks" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
+            "ai_memory_store_note" => self.memory_tools.store_note(args_for_call.clone(), &mut self.ai_memory).await,
             // no direct get_notes; map to search with category=notes
-            "ai_memory_get_notes" => self.memory_tools.search(arguments, &mut self.ai_memory).await,
+            "ai_memory_get_notes" => self.memory_tools.search(args_for_call.clone(), &mut self.ai_memory).await,
 
             // Chrome DevTools Protocol tools - comprehensive debugging toolkit
-            "cdp_runtime_evaluate" => self.cdp_tools.evaluate_javascript(arguments, &mut self.cdp_server).await,
-            "cdp_dom_get_document" => self.cdp_tools.get_document(arguments, &mut self.cdp_server).await,
+            "cdp_runtime_evaluate" => self.cdp_tools.evaluate_javascript(args_for_call.clone(), &mut self.cdp_server).await,
+            "cdp_dom_get_document" => self.cdp_tools.get_document(args_for_call.clone(), &mut self.cdp_server).await,
 
             // DOM debugging tools
-            "cdp_dom_query_selector" => self.cdp_tools.query_selector(arguments, &mut self.cdp_server).await,
-            "cdp_dom_get_attributes" => self.cdp_tools.get_attributes(arguments, &mut self.cdp_server).await,
-            "cdp_dom_get_computed_style" => self.cdp_tools.get_computed_style(arguments, &mut self.cdp_server).await,
+            "cdp_dom_query_selector" => self.cdp_tools.query_selector(args_for_call.clone(), &mut self.cdp_server).await,
+            "cdp_dom_get_attributes" => self.cdp_tools.get_attributes(args_for_call.clone(), &mut self.cdp_server).await,
+            "cdp_dom_get_computed_style" => self.cdp_tools.get_computed_style(args_for_call.clone(), &mut self.cdp_server).await,
 
             // Network debugging tools
-            "cdp_network_get_cookies" => self.cdp_tools.get_cookies(arguments, &mut self.cdp_server).await,
-            "cdp_network_set_cookie" => self.cdp_tools.set_cookie(arguments, &mut self.cdp_server).await,
+            "cdp_network_get_cookies" => self.cdp_tools.get_cookies(args_for_call.clone(), &mut self.cdp_server).await,
+            "cdp_network_set_cookie" => self.cdp_tools.set_cookie(args_for_call.clone(), &mut self.cdp_server).await,
 
             // Console debugging tools
-            "cdp_console_get_messages" => self.cdp_tools.get_console_messages(arguments, &mut self.cdp_server).await,
+            "cdp_console_get_messages" => self.cdp_tools.get_console_messages(args_for_call.clone(), &mut self.cdp_server).await,
 
             // Page control tools
-            "cdp_page_screenshot" => self.cdp_tools.take_screenshot(arguments, &mut self.cdp_server).await,
-            "cdp_page_reload" => self.cdp_tools.reload_page(arguments, &mut self.cdp_server).await,
+            "cdp_page_screenshot" => self.cdp_tools.take_screenshot(args_for_call.clone(), &mut self.cdp_server).await,
+            "cdp_page_reload" => self.cdp_tools.reload_page(args_for_call.clone(), &mut self.cdp_server).await,
 
             // Web scraping and navigation tools
-            "scrape_url" => self.scrape_url(arguments).await,
-            "web_search" => self.google_search(arguments).await,
+            "scrape_url" => self.scrape_url(args_for_call.clone()).await,
+            "web_search" => self.google_search(args_for_call.clone()).await,
 
             // Browser automation tools
-            "browser_click_element" => self.browser_tools.handle_click_element(arguments).await,
-            "browser_fill_form" => self.browser_tools.handle_fill_form(arguments).await,
-            "browser_get_page_content" => self.browser_tools.handle_get_page_content(arguments).await,
-            "browser_navigate_back" => self.browser_tools.handle_navigate_back(arguments).await,
-            "browser_navigate_forward" => self.browser_tools.handle_navigate_forward(arguments).await,
-            "browser_session_management" => self.browser_tools.handle_session_management(arguments).await,
+            "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
+            "browser_fill_form" => self.browser_tools.handle_fill_form(args_for_call.clone()).await,
+            "browser_get_page_content" => self.browser_tools.handle_get_page_content(args_for_call.clone()).await,
+            "browser_navigate_back" => self.browser_tools.handle_navigate_back(args_for_call.clone()).await,
+            "browser_navigate_forward" => self.browser_tools.handle_navigate_forward(args_for_call.clone()).await,
+            "browser_session_management" => self.browser_tools.handle_session_management(args_for_call.clone()).await,
 
             _ => McpResponse::error(-32601, format!("Tool not found: {}", name))
+          };
+
+        // Lifecycle:
+        // - If ephemeral (no session_id): persist if `persistent=true`, otherwise delete backing file.
+        // - If session-scoped: if `persistent=true` persist the session backing file; otherwise keep it in-memory for the session.
+        let is_session = arguments.get("session_id").and_then(|v| v.as_str()).is_some();
+        let should_persist = arguments.get("persistent").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        if is_session {
+            if should_persist {
+                if let Err(e) = vfs_instance.persist() {
+                    let _ = set_current_vfs(prev_vfs);
+                    return McpResponse::error(-32001, format!("Failed to persist session VFS: {}", e));
+                }
+            }
+            // for session VFS we keep the backing instance in `self.session_vfs` until explicit removal
+        } else {
+            if should_persist {
+                if let Err(e) = vfs_instance.persist() {
+                    let _ = set_current_vfs(prev_vfs);
+                    return McpResponse::error(-32002, format!("Failed to persist ephemeral VFS: {}", e));
+                }
+            } else {
+                let _ = vfs_instance.delete_backing_file();
+            }
         }
+
+        // Restore previous VFS (if any)
+        let _ = set_current_vfs(prev_vfs);
+
+        resp
     }
 }
