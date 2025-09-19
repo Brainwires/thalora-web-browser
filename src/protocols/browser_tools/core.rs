@@ -26,11 +26,9 @@ impl BrowserTools {
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
-            eprintln!("🔄 BROWSER: Reusing existing session: {}", session_id);
             session.update_last_accessed();
             browser.clone()
         } else {
-            eprintln!("🆕 BROWSER: Creating NEW session: {}", session_id);
             let browser = HeadlessWebBrowser::new();
             let session = BrowserSession::new(session_id.to_string(), persistent);
             sessions.insert(session_id.to_string(), (browser.clone(), session));
