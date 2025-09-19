@@ -270,7 +270,7 @@ async fn test_error_debugging_scenario() {
     match &console_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Console errors check should have content");
-            if let Some(text) = extract_response_text(console_response) {
+            if let Some(text) = extract_response_text(&console_response) {
                 assert!(text.contains("Console") || text.contains("messages") || text.contains("CDP"),
                        "Console response should mention console or messages: {}", text);
             }

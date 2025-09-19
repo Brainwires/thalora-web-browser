@@ -73,6 +73,11 @@ impl VfsInstance {
     pub fn as_map(&self) -> Arc<Mutex<HashMap<PathBuf, Vec<u8>>>> {
         self.map.clone()
     }
+
+    /// Return the backing file path for this VFS instance.
+    pub fn backing_path(&self) -> PathBuf {
+        self.file_path.clone()
+    }
 }
 
 // Global current VFS instance (optional)

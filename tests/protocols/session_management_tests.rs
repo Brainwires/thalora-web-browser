@@ -563,8 +563,8 @@ async fn test_session_error_handling() {
 
     match &info_response {
         McpResponse::ToolResult { content, is_error } => {
-            if is_error {
-                if let Some(text) = extract_response_text(info_response) {
+            if *is_error {
+                if let Some(text) = extract_response_text(&info_response) {
                     assert!(text.contains("Session not found") || text.contains("non_existent_session"),
                            "Error should mention missing session: {}", text);
                 }
@@ -583,7 +583,7 @@ async fn test_session_error_handling() {
     match &close_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Response should have content");
-            if let Some(text) = extract_response_text(close_response) {
+            if let Some(text) = extract_response_text(&close_response) {
                 assert!(text.contains("closed") || text.contains("false"),
                        "Response should indicate session was not found or closed: {}", text);
             }
