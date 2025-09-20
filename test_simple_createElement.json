@@ -1,1 +1,0 @@
-{"method": "tools/call", "params": {"name": "cdp_runtime_evaluate", "arguments": {"expression": "const div = document.createElement('div'); div.id = 'test-element'; div.textContent = 'Test Content'; document.body.appendChild(div); div.textContent"}}}
