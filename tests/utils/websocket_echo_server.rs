@@ -162,7 +162,7 @@ impl Drop for WebSocketEchoServer {
 pub async fn create_isolated_test_server() -> Result<WebSocketEchoServer, Box<dyn std::error::Error>> {
     let server = WebSocketEchoServer::new().await?;
     let port = server.port;
-    println!("🚀 Started isolated WebSocket echo server on port: {}", port);
+    eprintln!("🚀 Started isolated WebSocket echo server on port: {}", port);
     Ok(server)
 }
 

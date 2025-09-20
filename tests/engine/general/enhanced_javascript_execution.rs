@@ -2,7 +2,7 @@ use thalora::RustRenderer;
 
 #[tokio::test]
 async fn test_enhanced_javascript_execution() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Testing Enhanced JavaScript Execution");
+    eprintln!("🚀 Testing Enhanced JavaScript Execution");
     
     let mut renderer = RustRenderer::new();
     
@@ -167,11 +167,11 @@ async fn test_enhanced_javascript_execution() -> Result<(), Box<dyn std::error::
     // Summary
     println!("\n🎉 Enhanced JavaScript Execution Test Summary:");
     println!("  ✅ Basic JavaScript execution working");
-    println!("  ✅ DOM manipulation support functional"); 
-    println!("  ✅ Modern browser APIs (performance, navigator, screen) working");
-    println!("  ✅ Timer functions implemented (immediate execution)");
-    println!("  ✅ Challenge-like JavaScript handling functional");
-    println!("  🚀 JavaScript engine ready for complex web applications!");
+    eprintln!("  ✅ DOM manipulation support functional"); 
+    eprintln!("  ✅ Modern browser APIs (performance, navigator, screen) working");
+    eprintln!("  ✅ Timer functions implemented (immediate execution)");
+    eprintln!("  ✅ Challenge-like JavaScript handling functional");
+    eprintln!("  🚀 JavaScript engine ready for complex web applications!");
     
     Ok(())
 }

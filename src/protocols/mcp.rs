@@ -19,6 +19,21 @@ pub enum McpRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "method")]
+pub enum McpNotification {
+    #[serde(rename = "notifications/cancelled")]
+    Cancelled {
+        #[serde(default)]
+        params: Value,
+    },
+    #[serde(rename = "notifications/initialized")]
+    Initialized {
+        #[serde(default)]
+        params: Value,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ToolCall {
     pub name: String,
     pub arguments: Value,
@@ -40,7 +55,7 @@ pub enum McpResponse {
         result: InitializeResult,
     },
     ListTools {
-        tools: Vec<Value>,
+        result: ListToolsResult,
     },
     ToolResult {
         content: Vec<Value>,
@@ -50,6 +65,11 @@ pub enum McpResponse {
     Error {
         error: String,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListToolsResult {
+    pub tools: Vec<Value>,
 }
 
 impl McpResponse {

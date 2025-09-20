@@ -2,7 +2,7 @@ use thalora::HeadlessWebBrowser;
 
 #[tokio::test]
 async fn test_google_search_real_functionality() {
-    println!("🚀 Testing Google search with real browser...");
+    eprintln!("🚀 Testing Google search with real browser...");
 
     let browser = HeadlessWebBrowser::new();
 

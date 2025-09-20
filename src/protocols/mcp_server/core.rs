@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use vfs::VfsInstance;
 
-use crate::protocols::mcp::{McpRequest, McpResponse, InitializeResult};
+use crate::protocols::mcp::{McpRequest, McpNotification, McpResponse, McpMessage, McpMessageContent, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::apis::websocket::WebSocketManager;
 // DOM is now natively handled by Boa engine
@@ -99,32 +99,71 @@ impl McpServer {
                         continue;
                     }
 
-                    match serde_json::from_str::<McpRequest>(line) {
-                        Ok(request) => {
-                            let response = self.handle_request(request).await;
-                            let response_json = serde_json::to_string(&response)?;
-                            stdout.write_all(response_json.as_bytes()).await?;
-                            stdout.write_all(b"\n").await?;
-                            stdout.flush().await?;
-                        }
+                    // First, check if this is a notification (no 'id' field) or a request (has 'id' field)
+                    let parsed: serde_json::Value = match serde_json::from_str(line) {
+                        Ok(v) => v,
                         Err(e) => {
-                            error!("Failed to parse request: {}", e);
+                            error!("Failed to parse JSON: {}", e);
+                            continue;
+                        }
+                    };
 
-                            // Send a JSON-RPC error response to stdout for invalid methods
-                            let error_response = McpResponse::Error {
-                                error: format!("Invalid method or malformed request: {}", e),
-                            };
+                    if let Some(request_id) = parsed.get("id") {
+                        // This is a request - parse as McpRequest and send response
+                        match serde_json::from_value::<McpRequest>(parsed.clone()) {
+                            Ok(request) => {
+                                let response = self.handle_request(request).await;
 
-                            let response_json = serde_json::to_string(&error_response)?;
-                            stdout.write_all(response_json.as_bytes()).await?;
-                            stdout.write_all(b"\n").await?;
-                            stdout.flush().await?;
+                                // Wrap response in proper JSON-RPC 2.0 format
+                                let message = McpMessage {
+                                    jsonrpc: "2.0".to_string(),
+                                    id: Some(request_id.clone()),
+                                    content: McpMessageContent::Response(response),
+                                };
 
-                            // Also log to stderr for debugging
-                            let mut stderr = tokio::io::stderr();
-                            let error_msg = format!("Parse error: {}\n", e);
-                            stderr.write_all(error_msg.as_bytes()).await?;
-                            stderr.flush().await?;
+                                let response_json = serde_json::to_string(&message)?;
+                                stdout.write_all(response_json.as_bytes()).await?;
+                                stdout.write_all(b"\n").await?;
+                                stdout.flush().await?;
+                            }
+                            Err(e) => {
+                                error!("Failed to parse request: {}", e);
+
+                                // Send a JSON-RPC error response to stdout for invalid methods
+                                let error_response = McpResponse::Error {
+                                    error: format!("Invalid method or malformed request: {}", e),
+                                };
+
+                                // Wrap error in proper JSON-RPC 2.0 format
+                                let message = McpMessage {
+                                    jsonrpc: "2.0".to_string(),
+                                    id: Some(request_id.clone()),
+                                    content: McpMessageContent::Response(error_response),
+                                };
+
+                                let response_json = serde_json::to_string(&message)?;
+                                stdout.write_all(response_json.as_bytes()).await?;
+                                stdout.write_all(b"\n").await?;
+                                stdout.flush().await?;
+
+                                // Also log to stderr for debugging
+                                let mut stderr = tokio::io::stderr();
+                                let error_msg = format!("Parse error: {}\n", e);
+                                stderr.write_all(error_msg.as_bytes()).await?;
+                                stderr.flush().await?;
+                            }
+                        }
+                    } else {
+                        // This is a notification - parse as McpNotification and handle without response
+                        match serde_json::from_value::<McpNotification>(parsed) {
+                            Ok(notification) => {
+                                self.handle_notification(notification).await;
+                                // Notifications don't require responses
+                            }
+                            Err(e) => {
+                                error!("Failed to parse notification: {}", e);
+                                // For notifications, we don't send error responses
+                            }
                         }
                     }
                 }
@@ -156,14 +195,34 @@ impl McpServer {
                 McpResponse::Initialize { result }
             }
             McpRequest::ListTools => {
-                McpResponse::success(serde_json::json!({
-                    "tools": self.get_tool_definitions()
-                }))
+                use crate::protocols::mcp::ListToolsResult;
+                McpResponse::ListTools {
+                    result: ListToolsResult {
+                        tools: self.get_tool_definitions()
+                    }
+                }
             }
             McpRequest::CallTool { params } => {
                 let tool_name = params.name;
                 let arguments = params.arguments;
                 self.call_tool(tool_name.to_string(), arguments).await
+            }
+        }
+    }
+
+    pub(super) async fn handle_notification(&mut self, notification: McpNotification) {
+        info!("Handling notification: {:?}", notification);
+
+        match notification {
+            McpNotification::Cancelled { .. } => {
+                // Handle cancellation notification
+                // For now, we just log it - in a more complex implementation
+                // we might track and cancel ongoing operations
+                info!("Received cancellation notification");
+            }
+            McpNotification::Initialized { .. } => {
+                // Handle initialization complete notification
+                info!("Received initialization notification");
             }
         }
     }
