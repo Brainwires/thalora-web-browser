@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "execute_js",
+    "arguments": {
+      "js_code": "console.log('=== Canvas Feature Test ==='); try { const canvas = document.createElement('canvas'); console.log('Canvas element creation:', !!canvas); console.log('Canvas type:', typeof canvas); const ctx = canvas.getContext('2d'); console.log('Canvas 2D context:', !!ctx); console.log('Context type:', typeof ctx); if (ctx) { console.log('fillRect method:', typeof ctx.fillRect); console.log('strokeRect method:', typeof ctx.strokeRect); console.log('fillText method:', typeof ctx.fillText); } } catch (e) { console.log('Error:', e.message); }"
+    }
+  }
+}
