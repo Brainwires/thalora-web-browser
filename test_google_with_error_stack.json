@@ -1,0 +1,1 @@
+{"method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://www.google.com/search?q=test", "wait_for_js": true}}}

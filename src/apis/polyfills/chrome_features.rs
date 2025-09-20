@@ -373,6 +373,59 @@ pub fn setup_chrome_features(context: &mut Context) -> JsResult<()> {
         // Element.setHTML and setHTMLUnsafe are now natively implemented in Boa engine
 
         // Document.parseHTMLUnsafe is now natively implemented in Boa engine
+
+        // Error.stack and Error.captureStackTrace - CRITICAL for Google 2025 bot detection
+        if (typeof Error !== 'undefined') {
+            // Add Error.captureStackTrace static method (V8/Chrome specific)
+            if (typeof Error.captureStackTrace === 'undefined') {
+                Error.captureStackTrace = function(targetObject, constructorOpt) {
+                    if (targetObject && typeof targetObject === 'object') {
+                        var stack = 'Error\\n    at <anonymous>:1:1\\n    at eval (eval at <anonymous>:1:1)\\n    at Object.eval (native)\\n    at Function.call (native)';
+                        Object.defineProperty(targetObject, 'stack', {
+                            value: stack,
+                            writable: true,
+                            enumerable: false,
+                            configurable: true
+                        });
+                    }
+                };
+            }
+
+            // Ensure all Error instances have stack property
+            var originalError = Error;
+            Error = function(message) {
+                var error = new originalError(message);
+                if (typeof error.stack === 'undefined') {
+                    var stack = 'Error: ' + (message || '') + '\\n    at new Error (<anonymous>)\\n    at <anonymous>:1:1\\n    at eval (eval at <anonymous>:1:1)\\n    at Object.eval (native)';
+                    Object.defineProperty(error, 'stack', {
+                        value: stack,
+                        writable: true,
+                        enumerable: false,
+                        configurable: true
+                    });
+                }
+                return error;
+            };
+
+            // Copy static methods and properties
+            for (var prop in originalError) {
+                if (originalError.hasOwnProperty(prop)) {
+                    Error[prop] = originalError[prop];
+                }
+            }
+            Error.prototype = originalError.prototype;
+            Error.captureStackTrace = function(targetObject, constructorOpt) {
+                if (targetObject && typeof targetObject === 'object') {
+                    var stack = 'Error\\n    at <anonymous>:1:1\\n    at eval (eval at <anonymous>:1:1)\\n    at Object.eval (native)\\n    at Function.call (native)';
+                    Object.defineProperty(targetObject, 'stack', {
+                        value: stack,
+                        writable: true,
+                        enumerable: false,
+                        configurable: true
+                    });
+                }
+            };
+        }
     "#))?;
 
     Ok(())

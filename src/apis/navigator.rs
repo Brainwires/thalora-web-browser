@@ -204,6 +204,54 @@ impl NavigatorManager {
         navigator.set(js_string!("productSub"), JsValue::from(js_string!("20030107")), false, context)?;
         navigator.set(js_string!("vendorSub"), JsValue::from(js_string!("")), false, context)?;
 
+        // TrustedTypes API (critical for Google's 2025 bot detection)
+        let trusted_types = JsObject::with_object_proto(context.intrinsics());
+
+        let create_policy_fn = NativeFunction::from_fn_ptr(|_, args, context| {
+            if args.len() < 2 {
+                return Err(boa_engine::JsError::from_opaque(JsValue::from(js_string!("TrustedTypes createPolicy requires name and rules"))));
+            }
+
+            let policy = JsObject::with_object_proto(context.intrinsics());
+
+            // Add createHTML method
+            let create_html_fn = NativeFunction::from_fn_ptr(|_, args, _context| {
+                if args.is_empty() {
+                    return Ok(JsValue::from(js_string!("")));
+                }
+                Ok(args[0].clone())
+            });
+            policy.set(js_string!("createHTML"), JsValue::from(create_html_fn.to_js_function(context.realm())), false, context)?;
+
+            // Add createScript method
+            let create_script_fn = NativeFunction::from_fn_ptr(|_, args, _context| {
+                if args.is_empty() {
+                    return Ok(JsValue::from(js_string!("")));
+                }
+                Ok(args[0].clone())
+            });
+            policy.set(js_string!("createScript"), JsValue::from(create_script_fn.to_js_function(context.realm())), false, context)?;
+
+            // Add createScriptURL method
+            let create_script_url_fn = NativeFunction::from_fn_ptr(|_, args, _context| {
+                if args.is_empty() {
+                    return Ok(JsValue::from(js_string!("")));
+                }
+                Ok(args[0].clone())
+            });
+            policy.set(js_string!("createScriptURL"), JsValue::from(create_script_url_fn.to_js_function(context.realm())), false, context)?;
+
+            Ok(JsValue::from(policy))
+        });
+
+        trusted_types.set(js_string!("createPolicy"), JsValue::from(create_policy_fn.to_js_function(context.realm())), false, context)?;
+        trusted_types.set(js_string!("isHTML"), JsValue::from(false), false, context)?;
+        trusted_types.set(js_string!("isScript"), JsValue::from(false), false, context)?;
+        trusted_types.set(js_string!("isScriptURL"), JsValue::from(false), false, context)?;
+
+        // Set trustedTypes on global object (not navigator)
+        context.global_object().set(js_string!("trustedTypes"), JsValue::from(trusted_types), false, context)?;
+
         // Chrome permissions API
         let permissions = JsObject::with_object_proto(context.intrinsics());
         let query_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
