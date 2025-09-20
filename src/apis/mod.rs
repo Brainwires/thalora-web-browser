@@ -48,8 +48,6 @@ impl WebApis {
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
 
-        // Setup screen global (alias for window.screen)
-        self.setup_screen_global(context)?;
 
         // Setup WebSocket API
         let websocket_manager = websocket::WebSocketManager::new();
@@ -82,6 +80,9 @@ impl WebApis {
         // Setup comprehensive DOM Events system
         let event_manager = events::EventManager::new();
         event_manager.setup_events_api(context).map_err(|e| anyhow::Error::msg(format!("Events API setup failed: {:?}", e)))?;
+
+        // Screen object is now handled directly in Boa builtin system (window.rs)
+        // No need for separate global alias setup
 
         Ok(())
     }

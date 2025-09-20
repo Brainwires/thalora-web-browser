@@ -17,8 +17,8 @@ pub struct NavigatorManager {
 impl NavigatorManager {
     pub fn new() -> Self {
         Self {
-            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
-            platform: "MacIntel".to_string(),
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
+            platform: "Win32".to_string(),
             vendor: "Google Inc.".to_string(),
             language: "en-US".to_string(),
             languages: vec!["en-US".to_string(), "en".to_string()],
@@ -54,6 +54,83 @@ impl NavigatorManager {
         navigator.set(js_string!("cookieEnabled"), JsValue::from(true), false, context)?;
         navigator.set(js_string!("onLine"), JsValue::from(true), false, context)?;
         navigator.set(js_string!("doNotTrack"), JsValue::null(), false, context)?;
+
+        // Create plugins array with fake PDF viewers (critical for bot detection)
+        let plugins_array = boa_engine::object::builtins::JsArray::new(context);
+
+        // Add fake PDF Viewer plugin
+        let pdf_plugin = JsObject::with_object_proto(context.intrinsics());
+        pdf_plugin.set(js_string!("name"), JsValue::from(js_string!("PDF Viewer")), false, context)?;
+        pdf_plugin.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        pdf_plugin.set(js_string!("filename"), JsValue::from(js_string!("internal-pdf-viewer")), false, context)?;
+        pdf_plugin.set(js_string!("length"), JsValue::from(1), false, context)?;
+        plugins_array.set(0, JsValue::from(pdf_plugin), false, context)?;
+
+        // Add fake Chrome PDF Plugin
+        let chrome_pdf = JsObject::with_object_proto(context.intrinsics());
+        chrome_pdf.set(js_string!("name"), JsValue::from(js_string!("Chrome PDF Plugin")), false, context)?;
+        chrome_pdf.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        chrome_pdf.set(js_string!("filename"), JsValue::from(js_string!("internal-pdf-viewer")), false, context)?;
+        chrome_pdf.set(js_string!("length"), JsValue::from(1), false, context)?;
+        plugins_array.set(1, JsValue::from(chrome_pdf), false, context)?;
+
+        // Add fake Chromium PDF Plugin
+        let chromium_pdf = JsObject::with_object_proto(context.intrinsics());
+        chromium_pdf.set(js_string!("name"), JsValue::from(js_string!("Chromium PDF Plugin")), false, context)?;
+        chromium_pdf.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        chromium_pdf.set(js_string!("filename"), JsValue::from(js_string!("internal-pdf-viewer")), false, context)?;
+        chromium_pdf.set(js_string!("length"), JsValue::from(1), false, context)?;
+        plugins_array.set(2, JsValue::from(chromium_pdf), false, context)?;
+
+        // Add fake Microsoft Edge PDF Plugin
+        let edge_pdf = JsObject::with_object_proto(context.intrinsics());
+        edge_pdf.set(js_string!("name"), JsValue::from(js_string!("Microsoft Edge PDF Plugin")), false, context)?;
+        edge_pdf.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        edge_pdf.set(js_string!("filename"), JsValue::from(js_string!("internal-pdf-viewer")), false, context)?;
+        edge_pdf.set(js_string!("length"), JsValue::from(1), false, context)?;
+        plugins_array.set(3, JsValue::from(edge_pdf), false, context)?;
+
+        // Add fake WebKit built-in PDF
+        let webkit_pdf = JsObject::with_object_proto(context.intrinsics());
+        webkit_pdf.set(js_string!("name"), JsValue::from(js_string!("WebKit built-in PDF")), false, context)?;
+        webkit_pdf.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        webkit_pdf.set(js_string!("filename"), JsValue::from(js_string!("internal-pdf-viewer")), false, context)?;
+        webkit_pdf.set(js_string!("length"), JsValue::from(1), false, context)?;
+        plugins_array.set(4, JsValue::from(webkit_pdf), false, context)?;
+
+        // Set array length
+        plugins_array.set(js_string!("length"), JsValue::from(5), false, context)?;
+        navigator.set(js_string!("plugins"), JsValue::from(plugins_array), false, context)?;
+
+        // Create mimeTypes array (related to plugins)
+        let mime_types_array = boa_engine::object::builtins::JsArray::new(context);
+
+        // Create reference plugin for MIME types (create a new plugin for reference)
+        let ref_pdf_plugin = JsObject::with_object_proto(context.intrinsics());
+        ref_pdf_plugin.set(js_string!("name"), JsValue::from(js_string!("PDF Viewer")), false, context)?;
+        ref_pdf_plugin.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        ref_pdf_plugin.set(js_string!("filename"), JsValue::from(js_string!("internal-pdf-viewer")), false, context)?;
+        ref_pdf_plugin.set(js_string!("length"), JsValue::from(1), false, context)?;
+
+        // Add fake application/pdf MIME type
+        let pdf_mime = JsObject::with_object_proto(context.intrinsics());
+        pdf_mime.set(js_string!("type"), JsValue::from(js_string!("application/pdf")), false, context)?;
+        pdf_mime.set(js_string!("suffixes"), JsValue::from(js_string!("pdf")), false, context)?;
+        pdf_mime.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        pdf_mime.set(js_string!("enabledPlugin"), JsValue::from(ref_pdf_plugin.clone()), false, context)?;
+        mime_types_array.set(0, JsValue::from(pdf_mime), false, context)?;
+
+        // Add fake text/pdf MIME type
+        let text_pdf_mime = JsObject::with_object_proto(context.intrinsics());
+        text_pdf_mime.set(js_string!("type"), JsValue::from(js_string!("text/pdf")), false, context)?;
+        text_pdf_mime.set(js_string!("suffixes"), JsValue::from(js_string!("pdf")), false, context)?;
+        text_pdf_mime.set(js_string!("description"), JsValue::from(js_string!("Portable Document Format")), false, context)?;
+        text_pdf_mime.set(js_string!("enabledPlugin"), JsValue::from(ref_pdf_plugin), false, context)?;
+        mime_types_array.set(1, JsValue::from(text_pdf_mime), false, context)?;
+
+        // Set array length
+        mime_types_array.set(js_string!("length"), JsValue::from(2), false, context)?;
+        navigator.set(js_string!("mimeTypes"), JsValue::from(mime_types_array), false, context)?;
 
         // Chrome-specific properties
         navigator.set(js_string!("webdriver"), JsValue::from(false), false, context)?;
@@ -119,9 +196,9 @@ impl NavigatorManager {
         bluetooth.set(js_string!("getAvailability"), JsValue::from(bluetooth_get_availability_fn.to_js_function(context.realm())), false, context)?;
         navigator.set(js_string!("bluetooth"), JsValue::from(bluetooth), false, context)?;
 
-        // App information (legacy but still checked)
+        // App information (legacy but still checked) - update to Windows
         navigator.set(js_string!("appName"), JsValue::from(js_string!("Netscape")), false, context)?;
-        navigator.set(js_string!("appVersion"), JsValue::from(js_string!("5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")), false, context)?;
+        navigator.set(js_string!("appVersion"), JsValue::from(js_string!("5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")), false, context)?;
         navigator.set(js_string!("appCodeName"), JsValue::from(js_string!("Mozilla")), false, context)?;
         navigator.set(js_string!("product"), JsValue::from(js_string!("Gecko")), false, context)?;
         navigator.set(js_string!("productSub"), JsValue::from(js_string!("20030107")), false, context)?;
@@ -224,8 +301,8 @@ impl NavigatorManager {
         let get_high_entropy_values_fn = NativeFunction::from_fn_ptr(|_, args, context| {
             // MOCK: Returns hardcoded system info
             let hints = JsObject::with_object_proto(context.intrinsics());
-            hints.set(js_string!("platform"), JsValue::from(js_string!("macOS")), false, context)?;
-            hints.set(js_string!("platformVersion"), JsValue::from(js_string!("13.0.0")), false, context)?;
+            hints.set(js_string!("platform"), JsValue::from(js_string!("Windows")), false, context)?;
+            hints.set(js_string!("platformVersion"), JsValue::from(js_string!("15.0.0")), false, context)?;
             hints.set(js_string!("architecture"), JsValue::from(js_string!("x86")), false, context)?;
             hints.set(js_string!("model"), JsValue::from(js_string!("")), false, context)?;
             hints.set(js_string!("uaFullVersion"), JsValue::from(js_string!("131.0.6778.86")), false, context)?;

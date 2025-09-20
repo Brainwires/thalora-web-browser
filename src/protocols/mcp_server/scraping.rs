@@ -118,6 +118,11 @@ impl McpServer {
             return Err(anyhow::anyhow!("Google returned reCAPTCHA challenge"));
         }
 
+        // Check for JavaScript challenge/enablejs redirect
+        if html.contains("/httpservice/retry/enablejs") || (html.contains("<style>table,div,span,p{display:none}</style>") && html.contains("refresh")) {
+            return Err(anyhow::anyhow!("Google returned JavaScript challenge - requires browser automation with JS execution"));
+        }
+
         self.parse_google_results(&html, query, num_results).await
     }
 
@@ -251,6 +256,98 @@ impl McpServer {
                     // Only add if we have valid title and URL, and it's not a duplicate
                     if !title.is_empty() && !url.is_empty() && url.starts_with("http")
                         && !url.contains("bing.com") && !url.contains("microsoft.com")
+                        && !results.iter().any(|r: &SearchResult| r.url == url) {
+                        results.push(SearchResult {
+                            title,
+                            url,
+                            snippet,
+                            position: results.len() + 1,
+                        });
+                    }
+                }
+            }
+
+            if results.len() >= num_results {
+                break;
+            }
+        }
+
+        let result_count = results.len();
+        Ok(SearchResults {
+            query: query.to_string(),
+            results,
+            total_results: Some(format!("{} results", result_count)),
+            search_time: None,
+        })
+    }
+
+    async fn parse_google_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+        let document = Html::parse_document(html);
+        let mut results = Vec::new();
+
+        // Google result selectors - multiple approaches since Google changes frequently
+        let main_selectors = [
+            ".g",                    // Classic Google result container
+            "[data-sokoban-container]", // Modern Google result container
+            ".tF2Cxc",              // Current Google search result container
+            ".rc",                  // Legacy Google result container
+        ];
+
+        for selector_str in &main_selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                for element in document.select(&selector) {
+                    if results.len() >= num_results {
+                        break;
+                    }
+
+                    // Google title selectors
+                    let title_selectors = [
+                        "h3",
+                        ".LC20lb",
+                        ".DKV0Md",
+                        "a h3",
+                        ".r h3 a",
+                        ".yuRUbf h3 a"
+                    ];
+
+                    // Google URL selectors
+                    let url_selectors = [
+                        "a[href]",
+                        ".yuRUbf a",
+                        ".r a",
+                        "h3 a"
+                    ];
+
+                    // Google snippet selectors
+                    let snippet_selectors = [
+                        ".VwiC3b",
+                        ".s",
+                        ".st",
+                        ".IsZvec",
+                        "span[data-ved]"
+                    ];
+
+                    let title = self.extract_generic_title(&element, &title_selectors);
+                    let mut url = self.extract_generic_url(&element, &url_selectors);
+                    let snippet = self.extract_generic_snippet(&element, &snippet_selectors);
+
+                    // Clean up Google redirect URLs
+                    if url.starts_with("/url?q=") {
+                        if let Some(actual_url) = url.strip_prefix("/url?q=") {
+                            if let Some(clean_url) = actual_url.split('&').next() {
+                                url = urlencoding::decode(clean_url).unwrap_or_default().to_string();
+                            }
+                        }
+                    }
+
+                    // Make relative URLs absolute
+                    if url.starts_with("/") {
+                        url = format!("https://www.google.com{}", url);
+                    }
+
+                    // Only add if we have valid title and URL, and it's not a Google internal URL
+                    if !title.is_empty() && !url.is_empty() && url.starts_with("http")
+                        && !url.contains("google.com") && !url.contains("youtube.com")
                         && !results.iter().any(|r: &SearchResult| r.url == url) {
                         results.push(SearchResult {
                             title,
