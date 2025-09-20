@@ -8,6 +8,10 @@ use crate::engine::browser::types::{ScrapedData, InteractionResponse};
 
 impl HeadlessWebBrowser {
     pub async fn navigate_to(&mut self, url: &str) -> Result<String> {
+        self.navigate_to_with_options(url, false).await
+    }
+
+    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
         self.stealth_manager.apply_random_delay().await;
 
         let headers = self.stealth_manager.create_stealth_headers(url);
@@ -24,9 +28,9 @@ impl HeadlessWebBrowser {
 
         let content = response.text().await?;
 
-    // Store current state
-    self.current_url = Some(url.to_string());
-    self.current_content = content.clone();
+        // Store current state
+        self.current_url = Some(url.to_string());
+        self.current_content = content.clone();
 
         // Update the document's HTML content in the JavaScript context
         if let Some(ref mut renderer) = self.renderer {
@@ -37,8 +41,27 @@ impl HeadlessWebBrowser {
         let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
-        // Execute any JavaScript on the page if needed
-        if let Some(js_code) = self.extract_safe_javascript(&content) {
+        // Execute JavaScript and wait for dynamic content if requested
+        if wait_for_js {
+            self.wait_for_page_ready().await?;
+        } else {
+            // Execute any safe JavaScript on the page
+            if let Some(js_code) = self.extract_safe_javascript(&content) {
+                if let Some(ref mut renderer) = self.renderer {
+                    if renderer.is_safe_javascript(&js_code) {
+                        let _ = renderer.evaluate_javascript(&js_code);
+                    }
+                }
+            }
+        }
+
+        Ok(self.current_content.clone())
+    }
+
+    async fn wait_for_page_ready(&mut self) -> Result<()> {
+        // Execute initialization scripts first
+        let content_copy = self.current_content.clone();
+        if let Some(js_code) = self.extract_safe_javascript(&content_copy) {
             if let Some(ref mut renderer) = self.renderer {
                 if renderer.is_safe_javascript(&js_code) {
                     let _ = renderer.evaluate_javascript(&js_code);
@@ -46,7 +69,68 @@ impl HeadlessWebBrowser {
             }
         }
 
-        Ok(content)
+        if let Some(ref mut renderer) = self.renderer {
+
+            // Wait for DOM to be ready
+            let ready_check = r#"
+                (function() {
+                    try {
+                        return document.readyState === 'complete' ||
+                               document.readyState === 'interactive';
+                    } catch(e) {
+                        return true;
+                    }
+                })()
+            "#;
+
+            for _ in 0..10 { // Try up to 10 times (5 seconds total)
+                if let Ok(result) = renderer.evaluate_javascript(ready_check) {
+                    if result.contains("true") {
+                        break;
+                    }
+                }
+                sleep(Duration::from_millis(500)).await;
+            }
+
+            // Give dynamic content time to load
+            sleep(Duration::from_millis(1000)).await;
+
+            // Update current content with any dynamic changes
+            let updated_content = self.get_dynamic_content().await?;
+            if !updated_content.is_empty() {
+                self.current_content = updated_content;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn get_dynamic_content(&mut self) -> Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            let get_html_script = r#"
+                (function() {
+                    try {
+                        return document.documentElement.outerHTML ||
+                               document.body.innerHTML || '';
+                    } catch(e) {
+                        return '';
+                    }
+                })()
+            "#;
+
+            match renderer.evaluate_javascript(get_html_script) {
+                Ok(result) => {
+                    // Clean up the result - remove "JavaScript result (string): " prefix
+                    let cleaned = result.replace("JavaScript result (string): ", "").trim().to_string();
+                    if cleaned.len() > 100 && cleaned.contains("<") {
+                        return Ok(cleaned);
+                    }
+                }
+                Err(_) => {}
+            }
+        }
+
+        Ok(String::new())
     }
 
     pub async fn go_back(&mut self) -> Result<Option<String>> {

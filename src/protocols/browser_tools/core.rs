@@ -27,10 +27,22 @@ impl BrowserTools {
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
             session.update_last_accessed();
+            // Return existing browser with preserved state
             browser.clone()
         } else {
             let browser = HeadlessWebBrowser::new();
             let session = BrowserSession::new(session_id.to_string(), persistent);
+
+            // Set persistent data path for session storage
+            if persistent {
+                if let Ok(mut browser_guard) = browser.lock() {
+                    browser_guard.get_storage_mut().session_storage.insert(
+                        "_session_id".to_string(),
+                        session_id.to_string()
+                    );
+                }
+            }
+
             sessions.insert(session_id.to_string(), (browser.clone(), session));
 
             if persistent {

@@ -30,7 +30,7 @@ impl BrowserTools {
             let lock_res = browser.lock();
             match lock_res {
                 Ok(mut browser_guard) => {
-                    match browser_guard.navigate_to(url).await {
+                    match browser_guard.navigate_to_with_options(url, wait_for_js).await {
                         Ok(_) => {
                             match browser_guard.scrape_current_page().await {
                                 Ok(scraped_data) => {

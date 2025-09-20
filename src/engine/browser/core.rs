@@ -92,6 +92,14 @@ impl HeadlessWebBrowser {
         (self.storage.local_storage.clone(), self.storage.session_storage.clone())
     }
 
+    pub fn get_stealth_headers(&self, url: &str) -> reqwest::header::HeaderMap {
+        self.stealth_manager.create_stealth_headers(url)
+    }
+
+    pub fn get_storage_mut(&mut self) -> &mut BrowserStorage {
+        &mut self.storage
+    }
+
     pub(super) fn add_to_history(&mut self, url: String, title: String) {
         let entry = HistoryEntry {
             url,
