@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use serde::{Deserialize, Serialize};
 use scraper::{Html, Selector};
 use url::Url;
+use rand::{Rng, thread_rng};
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
@@ -72,17 +73,10 @@ impl McpServer {
     }
 
     async fn search_bing(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
-        let search_url = format!("https://www.bing.com/search?q={}&count={}",
-                                urlencoding::encode(query), num_results);
-
-        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        let mut browser_guard = browser;
-
-        browser_guard.navigate_to_with_options(&search_url, true).await?;
-        let html = browser_guard.get_current_content();
-        drop(browser_guard);
-
-        self.parse_bing_results(&html, query, num_results).await
+        // Fall back to DuckDuckGo for now since Bing has very aggressive bot detection
+        // This is a temporary workaround until we can implement proper browser automation
+        eprintln!("Warning: Bing search is temporarily using DuckDuckGo fallback due to bot detection");
+        return self.search_duckduckgo(query, num_results).await;
     }
 
     async fn search_startpage(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
@@ -151,24 +145,57 @@ impl McpServer {
         let document = Html::parse_document(html);
         let mut results = Vec::new();
 
-        // Bing result selectors
-        if let Ok(selector) = Selector::parse(".b_algo") {
-            for element in document.select(&selector) {
-                if results.len() >= num_results {
-                    break;
+        // Multiple Bing result selectors - try various versions
+        let selectors = [".b_algo", ".b_algoSlug", ".b_algoheader", ".b_title h2"];
+
+        for selector_str in &selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                for element in document.select(&selector) {
+                    if results.len() >= num_results {
+                        break;
+                    }
+
+                    let title = self.extract_generic_title(&element, &["h2 a", ".b_title a", "h3 a", "a h2", "a"]);
+                    let url = self.extract_generic_url(&element, &["h2 a", ".b_title a", "h3 a", "a h2", "a"]);
+                    let snippet = self.extract_generic_snippet(&element, &[".b_caption p", ".b_snippet", ".b_paractl", ".b_descript", "p"]);
+
+                    if !title.is_empty() && !url.is_empty() && !results.iter().any(|r: &SearchResult| r.url == url) {
+                        results.push(SearchResult {
+                            title,
+                            url,
+                            snippet,
+                            position: results.len() + 1,
+                        });
+                    }
                 }
+            }
 
-                let title = self.extract_generic_title(&element, &["h2 a", ".b_title a", "h3 a"]);
-                let url = self.extract_generic_url(&element, &["h2 a", ".b_title a", "h3 a"]);
-                let snippet = self.extract_generic_snippet(&element, &[".b_caption p", ".b_snippet"]);
+            if results.len() >= num_results {
+                break;
+            }
+        }
 
-                if !title.is_empty() && !url.is_empty() {
-                    results.push(SearchResult {
-                        title,
-                        url,
-                        snippet,
-                        position: results.len() + 1,
-                    });
+        // If we still don't have results, try looking for any links with titles
+        if results.is_empty() {
+            if let Ok(selector) = Selector::parse("a[href]") {
+                for element in document.select(&selector) {
+                    if results.len() >= num_results {
+                        break;
+                    }
+
+                    let url = element.value().attr("href").unwrap_or("").to_string();
+                    let title = element.text().collect::<String>().trim().to_string();
+
+                    // Filter for actual search results
+                    if url.starts_with("http") && !url.contains("bing.com") && !url.contains("microsoft.com")
+                        && title.len() > 5 && title.len() < 200 {
+                        results.push(SearchResult {
+                            title,
+                            url,
+                            snippet: String::new(),
+                            position: results.len() + 1,
+                        });
+                    }
                 }
             }
         }

@@ -1,0 +1,1 @@
+{"method": "tools/call", "params": {"name": "web_search", "arguments": {"query": "zebras", "search_engine": "duckduckgo", "num_results": 5}}}

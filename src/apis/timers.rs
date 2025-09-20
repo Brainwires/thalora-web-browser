@@ -129,9 +129,13 @@ impl TimerManager {
                 timers.insert(id, true);
             }
 
-            // Execute callback immediately with timestamp
+            // Execute callback immediately with more realistic timestamp
             if callback.is_callable() {
-                let timestamp = JsValue::from(16.0); // Simulate 16ms frame time
+                // Use performance.now() style timestamp (milliseconds since load)
+                let timestamp = JsValue::from(std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as f64 % 1000000.0); // Keep reasonable range
                 let _ = callback.as_callable().unwrap().call(&JsValue::undefined(), &[timestamp], context);
             }
 
