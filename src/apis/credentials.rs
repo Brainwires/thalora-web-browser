@@ -1,8 +1,4 @@
-use anyhow::Result;
-use boa_engine::{
-    js_string, native_function::NativeFunction, object::builtins::JsArray, Context, JsError,
-    JsObject, JsResult, JsString, JsValue,
-};
+use boa_engine::{js_string, native_function::NativeFunction, Context, JsObject, JsResult, JsValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -110,57 +106,80 @@ impl CredentialManager {
     }
 
     /// Setup the navigator.credentials API in the JavaScript context
-    pub fn setup_credentials_api(&self, context: &mut Context) -> Result<()> {
+    pub fn setup_credentials_api(&self, context: &mut Context) -> JsResult<()> {
         // Get the navigator object
         let navigator = context
             .global_object()
             .get(js_string!("navigator"), context)?;
 
-        if let Ok(navigator_obj) = navigator.try_js_into::<JsObject>() {
+    if let Ok(navigator_obj) = navigator.try_js_into::<JsObject>(context) {
             // Create credentials manager object
             let credentials_obj = JsObject::with_object_proto(context.intrinsics());
 
             // Implement credentials.get()
             let credentials_arc = Arc::clone(&self.credentials);
-            let get_fn = NativeFunction::from_fn_ptr(move |_, args, context| {
+            let get_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
                 Self::credentials_get(Arc::clone(&credentials_arc), args, context)
-            });
-            credentials_obj.set(js_string!("get"), get_fn, false, context)?;
+            }) };
+            credentials_obj.set(
+                js_string!("get"),
+                JsValue::from(get_fn.to_js_function(context.realm())),
+                false,
+                context,
+            )?;
 
             // Implement credentials.store()
             let credentials_arc = Arc::clone(&self.credentials);
-            let store_fn = NativeFunction::from_fn_ptr(move |_, args, context| {
+            let store_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
                 Self::credentials_store(Arc::clone(&credentials_arc), args, context)
-            });
-            credentials_obj.set(js_string!("store"), store_fn, false, context)?;
+            }) };
+            credentials_obj.set(
+                js_string!("store"),
+                JsValue::from(store_fn.to_js_function(context.realm())),
+                false,
+                context,
+            )?;
 
             // Implement credentials.create()
             let credentials_arc = Arc::clone(&self.credentials);
-            let create_fn = NativeFunction::from_fn_ptr(move |_, args, context| {
+            let create_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
                 Self::credentials_create(Arc::clone(&credentials_arc), args, context)
-            });
-            credentials_obj.set(js_string!("create"), create_fn, false, context)?;
+            }) };
+            credentials_obj.set(
+                js_string!("create"),
+                JsValue::from(create_fn.to_js_function(context.realm())),
+                false,
+                context,
+            )?;
 
             // Implement credentials.preventSilentAccess()
-            let prevent_silent_access_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
+            let prevent_silent_access_fn = unsafe { NativeFunction::from_closure(|_, _args, context| {
                 // For now, just return a resolved promise that invokes the provided resolver
-                let promise = context.intrinsics().promise().constructor().call(
-                    &JsValue::undefined(),
-                    &[NativeFunction::from_fn_ptr(|_, args, context| {
-                        if let Some(resolve) = args.get(0) {
-                            resolve.as_callable().unwrap().call(
-                                &JsValue::undefined(),
-                                &[],
-                                context,
-                            )?;
-                        }
-                        Ok(JsValue::undefined())
-                    }).into()],
-                    context,
-                )?;
+                let executor = NativeFunction::from_closure(|_, args, context| {
+                    if let Some(resolve) = args.get(0) {
+                        resolve.as_callable().unwrap().call(
+                            &JsValue::undefined(),
+                            &[],
+                            context,
+                        )?;
+                    }
+                    Ok(JsValue::undefined())
+                });
+                let executor_fn = JsValue::from(executor.to_js_function(context.realm()));
+                let promise = context
+                    .intrinsics()
+                    .constructors()
+                    .promise()
+                    .constructor()
+                    .call(&JsValue::undefined(), &[executor_fn], context)?;
                 Ok(promise)
-            });
-            credentials_obj.set(js_string!("preventSilentAccess"), prevent_silent_access_fn, false, context)?;
+            }) };
+            credentials_obj.set(
+                js_string!("preventSilentAccess"),
+                JsValue::from(prevent_silent_access_fn.to_js_function(context.realm())),
+                false,
+                context,
+            )?;
 
             // Set the credentials object on navigator
             navigator_obj.set(js_string!("credentials"), credentials_obj, false, context)?;
@@ -171,14 +190,14 @@ impl CredentialManager {
 
     /// Implementation of navigator.credentials.get()
     fn credentials_get(
-        credentials: Arc<Mutex<HashMap<String, StoredCredential>>>,
+        _credentials: Arc<Mutex<HashMap<String, StoredCredential>>>,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
         let options = args.get(0).cloned().unwrap_or(JsValue::undefined());
 
         // Parse options object
-        let mediation = if let Ok(options_obj) = options.try_js_into::<JsObject>() {
+        let _mediation = if let Ok(options_obj) = options.try_js_into::<JsObject>(context) {
             options_obj
                 .get(js_string!("mediation"), context)?
                 .to_string(context)?
@@ -196,20 +215,23 @@ impl CredentialManager {
         credential_obj.set(js_string!("password"), js_string!("simulated_password"), false, context)?;
 
         // Return a resolved promise with the credential
-        let promise = context.intrinsics().promise().constructor().call(
-            &JsValue::undefined(),
-            &[NativeFunction::from_fn_ptr(move |_, args, context| {
-                if let Some(resolve) = args.get(0) {
-                    resolve.as_callable().unwrap().call(
-                        &JsValue::undefined(),
-                        &[credential_obj.clone().into()],
-                        context,
-                    )?;
-                }
-                Ok(JsValue::undefined())
-            }).into()],
-            context,
-        )?;
+                let executor = unsafe { NativeFunction::from_closure(move |_, args, context| {
+                    if let Some(resolve) = args.get(0) {
+                        resolve.as_callable().unwrap().call(
+                            &JsValue::undefined(),
+                            &[credential_obj.clone().into()],
+                            context,
+                        )?;
+                    }
+                    Ok(JsValue::undefined())
+                }) };
+                let executor_fn = JsValue::from(executor.to_js_function(context.realm()));
+                let promise = context
+                    .intrinsics()
+                    .constructors()
+                    .promise()
+                    .constructor()
+                    .call(&JsValue::undefined(), &[executor_fn], context)?;
 
         Ok(promise)
     }
@@ -222,7 +244,7 @@ impl CredentialManager {
     ) -> JsResult<JsValue> {
         let credential = args.get(0).cloned().unwrap_or(JsValue::undefined());
 
-        if let Ok(credential_obj) = credential.try_js_into::<JsObject>() {
+    if let Ok(credential_obj) = credential.try_js_into::<JsObject>(context) {
             let id = credential_obj
                 .get(js_string!("id"), context)?
                 .to_string(context)?
@@ -274,20 +296,23 @@ impl CredentialManager {
         }
 
         // Return a resolved promise with the stored credential
-        let promise = context.intrinsics().promise().constructor().call(
-            &JsValue::undefined(),
-            &[NativeFunction::from_fn_ptr(move |_, args, context| {
-                if let Some(resolve) = args.get(0) {
-                    resolve.as_callable().unwrap().call(
-                        &JsValue::undefined(),
-                        &[credential.clone()],
-                        context,
-                    )?;
-                }
-                Ok(JsValue::undefined())
-            }).into()],
-            context,
-        )?;
+        let executor = unsafe { NativeFunction::from_closure(move |_, args, context| {
+            if let Some(resolve) = args.get(0) {
+                resolve.as_callable().unwrap().call(
+                    &JsValue::undefined(),
+                    &[credential.clone()],
+                    context,
+                )?;
+            }
+            Ok(JsValue::undefined())
+        }) };
+        let executor_fn = JsValue::from(executor.to_js_function(context.realm()));
+        let promise = context
+            .intrinsics()
+            .constructors()
+            .promise()
+            .constructor()
+            .call(&JsValue::undefined(), &[executor_fn], context)?;
 
         Ok(promise)
     }
@@ -303,7 +328,7 @@ impl CredentialManager {
         // For now, create a mock credential based on the options
         let credential_obj = JsObject::with_object_proto(context.intrinsics());
 
-        if let Ok(options_obj) = options.try_js_into::<JsObject>() {
+    if let Ok(options_obj) = options.try_js_into::<JsObject>(context) {
             // Check if this is a password credential creation
             if let Ok(password_opts) = options_obj.get(js_string!("password"), context) {
                 if !password_opts.is_undefined() {
@@ -329,27 +354,34 @@ impl CredentialManager {
         }
 
         // Return a resolved promise with the created credential
-        let promise = context.intrinsics().promise().constructor().call(
-            &JsValue::undefined(),
-            &[NativeFunction::from_fn_ptr(move |_, args, context| {
-                if let Some(resolve) = args.get(0) {
-                    resolve.as_callable().unwrap().call(
-                        &JsValue::undefined(),
-                        &[credential_obj.clone().into()],
-                        context,
-                    )?;
-                }
-                Ok(JsValue::undefined())
-            }).into()],
-            context,
-        )?;
+        let executor = unsafe { NativeFunction::from_closure(move |_, args, context| {
+            if let Some(resolve) = args.get(0) {
+                resolve.as_callable().unwrap().call(
+                    &JsValue::undefined(),
+                    &[credential_obj.clone().into()],
+                    context,
+                )?;
+            }
+            Ok(JsValue::undefined())
+        }) };
+        let executor_fn = JsValue::from(executor.to_js_function(context.realm()));
+        let promise = context
+            .intrinsics()
+            .constructors()
+            .promise()
+            .constructor()
+            .call(&JsValue::undefined(), &[executor_fn], context)?;
 
         Ok(promise)
     }
 
     /// Get all stored credentials (for debugging/management)
     pub fn get_all_credentials(&self) -> HashMap<String, StoredCredential> {
-        self.credentials.lock().unwrap_or_default().clone()
+        if let Ok(creds) = self.credentials.lock() {
+            creds.clone()
+        } else {
+            HashMap::new()
+        }
     }
 
     /// Clear all stored credentials

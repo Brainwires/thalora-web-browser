@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 // MCP Protocol Tests - Core JSON-RPC protocol compliance tests
 use std::time::Duration;
 use serde_json::{json, Value};

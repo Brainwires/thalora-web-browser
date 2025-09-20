@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Local WebSocket echo server for testing
 //!
 //! This creates a simple WebSocket server that echoes back messages

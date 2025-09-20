@@ -1,5 +1,7 @@
 // MCP Integration Tests - Complex workflows combining multiple tools
 use std::time::Duration;
+#![allow(unused_imports)]
+#![allow(unused_variables)]
 use serde_json::{json, Value};
 use anyhow::Result;
 
