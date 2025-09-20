@@ -17,8 +17,6 @@ pub mod chrome_features;
 pub mod es2024_polyfills;
 pub mod es2025_experimental;
 
-// TEMPORARY: Debug polyfill for investigating Bing search issues
-pub mod bing_debug;
 
 use anyhow::Result;
 use boa_engine::Context;
@@ -43,8 +41,6 @@ pub fn setup_all_polyfills(context: &mut Context) -> Result<()> {
 
     es2025_experimental::setup_es2025_experimental(context).map_err(|e| anyhow::Error::msg(format!("ES2025 setup failed: {:?}", e)))?;
 
-    // TEMPORARY: Setup debug polyfill for Bing search investigation
-    bing_debug::setup_bing_debug_polyfill(context).map_err(|e| anyhow::Error::msg(format!("Bing debug setup failed: {:?}", e)))?;
 
     Ok(())
 }

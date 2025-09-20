@@ -2,7 +2,7 @@ use boa_engine::{Context, Source};
 
 #[tokio::test]
 async fn test_minimal_javascript_execution() {
-    println!("🧪 Testing minimal JavaScript execution...");
+    eprintln!("🧪 Testing minimal JavaScript execution...");
 
     let mut context = Context::default();
 
@@ -11,18 +11,18 @@ async fn test_minimal_javascript_execution() {
     match context.eval(source) {
         Ok(value) => {
             let value_str = value.to_string(&mut context).unwrap().to_std_string_escaped();
-            println!("WebSocketStream type: {}", value_str);
+            eprintln!("WebSocketStream type: {}", value_str);
             assert!(value_str.contains("undefined"), "Expected undefined for uninitialized WebSocketStream, got: {}", value_str);
         },
         Err(e) => panic!("Failed to execute basic JavaScript: {:?}", e),
     }
 
-    println!("✅ Minimal JavaScript execution test completed");
+    eprintln!("✅ Minimal JavaScript execution test completed");
 }
 
 #[tokio::test]
 async fn test_javascript_with_polyfills() {
-    println!("🧪 Testing JavaScript execution with basic polyfills...");
+    eprintln!("🧪 Testing JavaScript execution with basic polyfills...");
 
     let mut context = Context::default();
 
@@ -37,7 +37,7 @@ async fn test_javascript_with_polyfills() {
 
     match context.eval(polyfill_source) {
         Ok(_) => {
-            println!("✅ Polyfill installed successfully");
+            eprintln!("✅ Polyfill installed successfully");
         },
         Err(e) => panic!("Failed to install polyfill: {:?}", e),
     }
@@ -47,11 +47,11 @@ async fn test_javascript_with_polyfills() {
     match context.eval(test_source) {
         Ok(value) => {
             let value_str = value.to_string(&mut context).unwrap().to_std_string_escaped();
-            println!("WebSocketStream type: {}", value_str);
+            eprintln!("WebSocketStream type: {}", value_str);
             assert!(value_str.contains("function"), "WebSocketStream should be available as constructor, got: {}", value_str);
         },
         Err(e) => panic!("Failed to check WebSocketStream: {:?}", e),
     }
 
-    println!("✅ JavaScript with polyfills test completed");
+    eprintln!("✅ JavaScript with polyfills test completed");
 }

@@ -41,7 +41,7 @@ mod tests {
     fn test_harness_functionality() {
         let harness_result = create_initialized_harness();
         if let Err(e) = &harness_result {
-            eprintln!("Harness creation failed: {}", e);
+            eeprintln!("Harness creation failed: {}", e);
         }
         assert!(harness_result.is_ok(), "Test harness should initialize successfully: {:?}", harness_result.err());
 
@@ -55,7 +55,7 @@ mod tests {
         let tools = tools_result.unwrap();
         assert!(!tools.is_empty(), "Should have at least one tool available");
 
-        println!("Test harness verification successful - found {} tools", tools.len());
+        eprintln!("Test harness verification successful - found {} tools", tools.len());
     }
 
     /// Integration test to verify end-to-end testing capability
@@ -103,7 +103,7 @@ mod tests {
 
         assert!(!search_response.is_error, "Search should not return error");
 
-        println!("End-to-end verification completed successfully");
+        eprintln!("End-to-end verification completed successfully");
     }
 
     /// Quick smoke test for all major tool categories
@@ -132,7 +132,7 @@ mod tests {
         }));
         assert!(dom_result.is_ok(), "DOM tools should be functional");
 
-        println!("All major tool categories passed smoke test");
+        eprintln!("All major tool categories passed smoke test");
     }
 }
 
