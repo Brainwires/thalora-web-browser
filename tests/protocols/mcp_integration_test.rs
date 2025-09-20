@@ -83,7 +83,7 @@ fn test_browser_automation_workflow() {
 
     // Step 1: Execute JavaScript to create a simple DOM structure
     let js_response = harness.call_tool("cdp_runtime_evaluate", json!({
-        "expression": "document.body.innerHTML = '<div id=\"test-element\">Test Content</div>'; document.getElementById('test-element').textContent",
+        "expression": "const div = document.createElement('div'); div.id = 'test-element'; div.textContent = 'Test Content'; document.body.appendChild(div); div.textContent",
         "await_promise": false
     })).expect("JavaScript execution should succeed");
 

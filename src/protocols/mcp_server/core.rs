@@ -110,7 +110,18 @@ impl McpServer {
                         }
                         Err(e) => {
                             error!("Failed to parse request: {}", e);
-                            // Parse errors should go to stderr, not stdout, to keep JSON-RPC stream clean
+
+                            // Send a JSON-RPC error response to stdout for invalid methods
+                            let error_response = McpResponse::Error {
+                                error: format!("Invalid method or malformed request: {}", e),
+                            };
+
+                            let response_json = serde_json::to_string(&error_response)?;
+                            stdout.write_all(response_json.as_bytes()).await?;
+                            stdout.write_all(b"\n").await?;
+                            stdout.flush().await?;
+
+                            // Also log to stderr for debugging
                             let mut stderr = tokio::io::stderr();
                             let error_msg = format!("Parse error: {}\n", e);
                             stderr.write_all(error_msg.as_bytes()).await?;

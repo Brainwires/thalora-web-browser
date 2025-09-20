@@ -41,7 +41,7 @@ mod tests {
     fn test_harness_functionality() {
         let harness_result = create_initialized_harness();
         if let Err(e) = &harness_result {
-            eeprintln!("Harness creation failed: {}", e);
+            eprintln!("Harness creation failed: {}", e);
         }
         assert!(harness_result.is_ok(), "Test harness should initialize successfully: {:?}", harness_result.err());
 

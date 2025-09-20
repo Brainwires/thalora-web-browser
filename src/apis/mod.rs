@@ -48,6 +48,9 @@ impl WebApis {
         crypto_api::setup_crypto(context)?;
         fetch_api::setup_fetch(context)?;
 
+        // Setup screen global (alias for window.screen)
+        self.setup_screen_global(context)?;
+
         // Setup WebSocket API
         let websocket_manager = websocket::WebSocketManager::new();
         let websocket_api = websocket::WebSocketJsApi::new(websocket_manager);
@@ -79,6 +82,32 @@ impl WebApis {
         // Setup comprehensive DOM Events system
         let event_manager = events::EventManager::new();
         event_manager.setup_events_api(context).map_err(|e| anyhow::Error::msg(format!("Events API setup failed: {:?}", e)))?;
+
+        Ok(())
+    }
+
+    /// Setup screen global (alias for window.screen)
+    fn setup_screen_global(&self, context: &mut Context) -> Result<()> {
+        use boa_engine::{js_string, JsValue};
+
+        // Execute JavaScript to create screen global as alias for window.screen
+        let script = r#"
+            (function() {
+                if (typeof window !== 'undefined' && window.screen) {
+                    // Set screen as a global variable (alias for window.screen)
+                    globalThis.screen = window.screen;
+                    return true;
+                } else {
+                    console.error('window.screen not available for global screen alias');
+                    return false;
+                }
+            })();
+        "#;
+
+        let result = context.eval(boa_engine::Source::from_bytes(script))
+            .map_err(|e| anyhow::Error::msg(format!("Failed to execute screen global setup: {:?}", e)))?;
+
+        eprintln!("Screen global setup result: {:?}", result.to_string(context));
 
         Ok(())
     }
