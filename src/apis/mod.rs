@@ -89,7 +89,7 @@ impl WebApis {
 
     /// Setup screen global (alias for window.screen) - DISABLED to prevent stack overflow
     #[allow(dead_code)]
-    fn setup_screen_global(&self, context: &mut Context) -> Result<()> {
+    fn setup_screen_global(&self, _context: &mut Context) -> Result<()> {
         // DISABLED - this was causing infinite recursion due to window.screen getter loops
         eprintln!("🔥 Screen global setup DISABLED - preventing stack overflow");
         Ok(())

@@ -30,7 +30,7 @@ impl WebAssemblyManager {
         // Real WebAssembly.Module constructor with actual compilation
         let engine = Arc::clone(&self.engine);
         let modules = Arc::clone(&self.modules);
-        let module_constructor = unsafe { NativeFunction::from_closure(move |_, args, context| {
+    let module_constructor = unsafe { NativeFunction::from_closure(move |_, args, context| {
             // Extract bytes from arguments (simplified - real impl would handle TypedArray/ArrayBuffer)
             let bytes = if !args.is_empty() {
                 // For demo, create a minimal working WASM module
@@ -81,7 +81,7 @@ impl WebAssemblyManager {
         let modules_clone = Arc::clone(&self.modules);
         let instances = Arc::clone(&self.instances);
         let stores = Arc::clone(&self.stores);
-        let instance_constructor = unsafe { NativeFunction::from_closure(move |_, args, context| {
+    let instance_constructor = unsafe { NativeFunction::from_closure(move |_, args, context| {
             if args.is_empty() {
                 return Err(boa_engine::JsNativeError::typ()
                     .with_message("WebAssembly.Instance constructor requires module")
@@ -217,7 +217,7 @@ impl WebAssemblyManager {
 
         // Real WebAssembly.compile function
         let engine_compile = Arc::clone(&self.engine);
-        let compile_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
+    let compile_fn = unsafe { NativeFunction::from_closure(move |_, _args, context| {
             let promise_obj = JsObject::default();
             let engine_for_then = Arc::clone(&engine_compile);
 

@@ -348,19 +348,19 @@ impl NavigatorManager {
 
     let get_high_entropy_values_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
             // MOCK: Returns hardcoded system info
-            let hints = JsObject::with_object_proto(context.intrinsics());
-            hints.set(js_string!("platform"), JsValue::from(js_string!("Windows")), false, context)?;
-            hints.set(js_string!("platformVersion"), JsValue::from(js_string!("15.0.0")), false, context)?;
-            hints.set(js_string!("architecture"), JsValue::from(js_string!("x86")), false, context)?;
-            hints.set(js_string!("model"), JsValue::from(js_string!("")), false, context)?;
-            hints.set(js_string!("uaFullVersion"), JsValue::from(js_string!("131.0.6778.86")), false, context)?;
+            let hints = JsObject::with_object_proto(_context.intrinsics());
+            hints.set(js_string!("platform"), JsValue::from(js_string!("Windows")), false, _context)?;
+            hints.set(js_string!("platformVersion"), JsValue::from(js_string!("15.0.0")), false, _context)?;
+            hints.set(js_string!("architecture"), JsValue::from(js_string!("x86")), false, _context)?;
+            hints.set(js_string!("model"), JsValue::from(js_string!("")), false, _context)?;
+            hints.set(js_string!("uaFullVersion"), JsValue::from(js_string!("131.0.6778.86")), false, _context)?;
 
             // Chrome 124 feature: Form factors
-            let form_factors_array = boa_engine::object::builtins::JsArray::new(context);
-            form_factors_array.set(0, JsValue::from(js_string!("desktop")), false, context)?;
-            hints.set(js_string!("formFactors"), JsValue::from(form_factors_array), false, context)?;
+            let form_factors_array = boa_engine::object::builtins::JsArray::new(_context);
+            form_factors_array.set(0, JsValue::from(js_string!("desktop")), false, _context)?;
+            hints.set(js_string!("formFactors"), JsValue::from(form_factors_array), false, _context)?;
 
-            let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(hints), context);
+            let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(hints), _context);
             Ok(JsValue::from(promise))
         });
 

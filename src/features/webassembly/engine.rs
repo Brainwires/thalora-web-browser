@@ -274,7 +274,7 @@ impl AdvancedWebAssemblyEngine {
                     complexity_score: self.calculate_complexity(bytes)?,
                 })
             }
-            Err(e) => Ok(ValidationResult {
+            Err(_e) => Ok(ValidationResult {
                 is_valid: false,
                 features_detected: WasmFeatureSet::default(),
                 estimated_memory_usage: 0,
@@ -472,7 +472,7 @@ impl AdvancedWebAssemblyEngine {
     }
 
     /// Setup WebAssembly API in JavaScript context
-    pub fn setup_webassembly_api(&self, context: &mut boa_engine::Context) -> Result<()> {
+    pub fn setup_webassembly_api(&self, _context: &mut boa_engine::Context) -> Result<()> {
         // This would setup the WebAssembly global object and its methods
         // For now, we'll return OK as the setup is done elsewhere
         Ok(())
