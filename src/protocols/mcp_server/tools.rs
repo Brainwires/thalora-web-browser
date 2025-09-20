@@ -275,7 +275,7 @@ impl McpServer {
             // Web search tools
             serde_json::json!({
                 "name": "web_search",
-                "description": "Search Google and return organic results with title, URL, and snippet",
+                "description": "Search the web using various search engines and return organic results with title, URL, and snippet",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -286,6 +286,11 @@ impl McpServer {
                         "num_results": {
                             "type": "number",
                             "description": "Number of results to return (default: 10, max: 20)"
+                        },
+                        "search_engine": {
+                            "type": "string",
+                            "description": "Search engine to use: 'duckduckgo', 'bing', 'startpage', 'searx' (default: 'duckduckgo')",
+                            "enum": ["duckduckgo", "bing", "startpage", "searx"]
                         }
                     },
                     "required": ["query"]
@@ -484,7 +489,7 @@ impl McpServer {
 
             // Web scraping and navigation tools
             "scrape_url" => self.scrape_url(args_for_call.clone()).await,
-            "web_search" => self.google_search(args_for_call.clone()).await,
+            "web_search" => self.web_search(args_for_call.clone()).await,
 
             // Browser automation tools
             "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use tokio::time::sleep;
 use std::time::Duration;
 use url::Url;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::core::HeadlessWebBrowser;
 use crate::engine::browser::types::{ScrapedData, InteractionResponse};
 
@@ -12,9 +13,7 @@ impl HeadlessWebBrowser {
     }
 
     pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
-        self.stealth_manager.apply_random_delay().await;
-
-        let headers = self.stealth_manager.create_stealth_headers(url);
+        let headers = self.create_standard_browser_headers(url);
 
         let response = self.client
             .get(url)
@@ -59,19 +58,43 @@ impl HeadlessWebBrowser {
     }
 
     async fn wait_for_page_ready(&mut self) -> Result<()> {
-        // Execute initialization scripts first
+        // First, extract ALL JavaScript that needs to be executed
         let content_copy = self.current_content.clone();
-        if let Some(js_code) = self.extract_safe_javascript(&content_copy) {
-            if let Some(ref mut renderer) = self.renderer {
-                if renderer.is_safe_javascript(&js_code) {
-                    let _ = renderer.evaluate_javascript(&js_code);
+        let inline_js = self.extract_safe_javascript(&content_copy);
+
+        // Extract external script URLs
+        let mut external_scripts = Vec::new();
+        if let Ok(selector) = scraper::Selector::parse("script[src]") {
+            let document = scraper::Html::parse_document(&content_copy);
+            for element in document.select(&selector) {
+                if let Some(src) = element.value().attr("src") {
+                    if self.is_safe_script_url(src) {
+                        external_scripts.push(src.to_string());
+                    }
                 }
             }
         }
 
         if let Some(ref mut renderer) = self.renderer {
+            // Execute inline JavaScript
+            if let Some(js_code) = inline_js {
+                if renderer.is_safe_javascript(&js_code) {
+                    let _ = renderer.evaluate_javascript(&js_code);
+                }
+            }
 
-            // Wait for DOM to be ready
+            // Load and execute external scripts
+            for script_url in external_scripts {
+                if let Ok(script_response) = self.client.get(&script_url).send().await {
+                    if let Ok(script_content) = script_response.text().await {
+                        if renderer.is_safe_javascript(&script_content) {
+                            let _ = renderer.evaluate_javascript(&script_content);
+                        }
+                    }
+                }
+            }
+
+            // Wait for DOM to be ready with more attempts
             let ready_check = r#"
                 (function() {
                     try {
@@ -83,7 +106,7 @@ impl HeadlessWebBrowser {
                 })()
             "#;
 
-            for _ in 0..10 { // Try up to 10 times (5 seconds total)
+            for _ in 0..20 { // Try up to 20 times (10 seconds total)
                 if let Ok(result) = renderer.evaluate_javascript(ready_check) {
                     if result.contains("true") {
                         break;
@@ -92,8 +115,32 @@ impl HeadlessWebBrowser {
                 sleep(Duration::from_millis(500)).await;
             }
 
-            // Give dynamic content time to load
-            sleep(Duration::from_millis(1000)).await;
+            // Give dynamic content more time to load and execute
+            sleep(Duration::from_millis(3000)).await;
+
+            // Try to trigger any lazy loading or dynamic content
+            let trigger_dynamic = r#"
+                (function() {
+                    try {
+                        // Trigger scroll events that might load content
+                        window.dispatchEvent(new Event('scroll'));
+                        window.dispatchEvent(new Event('resize'));
+
+                        // Trigger DOMContentLoaded if not already fired
+                        if (document.readyState === 'loading') {
+                            document.dispatchEvent(new Event('DOMContentLoaded'));
+                        }
+
+                        return 'triggered';
+                    } catch(e) {
+                        return 'error: ' + e.message;
+                    }
+                })()
+            "#;
+            let _ = renderer.evaluate_javascript(trigger_dynamic);
+
+            // Wait a bit more after triggering events
+            sleep(Duration::from_millis(2000)).await;
 
             // Update current content with any dynamic changes
             let updated_content = self.get_dynamic_content().await?;
@@ -110,19 +157,51 @@ impl HeadlessWebBrowser {
             let get_html_script = r#"
                 (function() {
                     try {
-                        return document.documentElement.outerHTML ||
-                               document.body.innerHTML || '';
+                        // Try multiple ways to get the dynamic content
+                        var html = '';
+
+                        if (document.documentElement && document.documentElement.outerHTML) {
+                            html = document.documentElement.outerHTML;
+                        } else if (document.body && document.body.innerHTML) {
+                            html = '<html><head></head><body>' + document.body.innerHTML + '</body></html>';
+                        } else if (document.getElementsByTagName) {
+                            var bodyTags = document.getElementsByTagName('body');
+                            if (bodyTags.length > 0) {
+                                html = '<html><head></head><body>' + bodyTags[0].innerHTML + '</body></html>';
+                            }
+                        }
+
+                        // Also try to capture any dynamically created content
+                        if (html.length < 1000) { // If we didn't get much, try harder
+                            var allElements = document.querySelectorAll('*');
+                            var content = '';
+                            for (var i = 0; i < allElements.length && i < 100; i++) {
+                                if (allElements[i].outerHTML) {
+                                    content += allElements[i].outerHTML + '\n';
+                                }
+                            }
+                            if (content.length > html.length) {
+                                html = content;
+                            }
+                        }
+
+                        return html || '';
                     } catch(e) {
-                        return '';
+                        return 'Error getting dynamic content: ' + e.message;
                     }
                 })()
             "#;
 
             match renderer.evaluate_javascript(get_html_script) {
                 Ok(result) => {
-                    // Clean up the result - remove "JavaScript result (string): " prefix
-                    let cleaned = result.replace("JavaScript result (string): ", "").trim().to_string();
-                    if cleaned.len() > 100 && cleaned.contains("<") {
+                    // Clean up the result - remove "JavaScript result (string): " prefix and handle quotes
+                    let cleaned = result
+                        .replace("JavaScript result (string): ", "")
+                        .trim()
+                        .trim_matches('"')
+                        .to_string();
+
+                    if cleaned.len() > 100 && (cleaned.contains("<") || cleaned.contains("Error getting dynamic content:")) {
                         return Ok(cleaned);
                     }
                 }
@@ -173,7 +252,6 @@ impl HeadlessWebBrowser {
         let current_url = self.current_url.as_ref()
             .ok_or_else(|| anyhow!("No current page loaded"))?;
 
-        self.stealth_manager.apply_random_delay().await;
 
         // Parse the current page to find the form
         let document = scraper::Html::parse_document(&self.current_content);
@@ -192,7 +270,7 @@ impl HeadlessWebBrowser {
             form_params = form_params.text(key.clone(), value.clone());
         }
 
-        let headers = self.stealth_manager.create_stealth_headers(&form.action);
+        let headers = self.create_standard_browser_headers(&form.action);
 
         let response = if form.method.to_uppercase() == "POST" {
             self.client
@@ -282,16 +360,57 @@ impl HeadlessWebBrowser {
     }
 
     fn extract_safe_javascript(&self, html: &str) -> Option<String> {
-        // Extract inline JavaScript from script tags
+        // Extract ALL inline JavaScript from script tags and combine them
         if let Ok(selector) = scraper::Selector::parse("script:not([src])") {
             let document = scraper::Html::parse_document(html);
+            let mut all_js = Vec::new();
+
             for element in document.select(&selector) {
                 let js_content = element.text().collect::<String>();
                 if !js_content.trim().is_empty() {
-                    return Some(js_content);
+                    all_js.push(js_content);
                 }
+            }
+
+            if !all_js.is_empty() {
+                // Join all JavaScript with newlines and proper separation
+                return Some(all_js.join("\n;\n"));
             }
         }
         None
     }
+
+    fn is_safe_script_url(&self, url: &str) -> bool {
+        // Allow relative URLs
+        if !url.starts_with("http") {
+            return true;
+        }
+
+        // Allow well-known CDNs and common script sources
+        let safe_domains = [
+            "cdn.jsdelivr.net",
+            "cdnjs.cloudflare.com",
+            "unpkg.com",
+            "ajax.googleapis.com",
+            "code.jquery.com",
+            "stackpath.bootstrapcdn.com",
+            "maxcdn.bootstrapcdn.com",
+            "ajax.aspnetcdn.com",
+            "cdn.socket.io",
+            "d3js.org",
+        ];
+
+        // Check if current URL is available to allow same-origin scripts
+        if let Some(ref current_url) = self.current_url {
+            if let (Ok(current), Ok(script)) = (url::Url::parse(current_url), url::Url::parse(url)) {
+                if current.host() == script.host() {
+                    return true;
+                }
+            }
+        }
+
+        // Check against safe domains
+        safe_domains.iter().any(|domain| url.contains(domain))
+    }
+
 }

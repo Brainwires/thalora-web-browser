@@ -1,6 +1,5 @@
 pub mod types;
 pub mod core;
-pub mod stealth;
 pub mod scraper;
 pub mod navigation;
 

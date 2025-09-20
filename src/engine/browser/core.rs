@@ -2,9 +2,9 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::renderer::RustRenderer;
-use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry, StealthConfig};
-use crate::engine::browser::stealth::StealthManager;
+use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry};
 use crate::engine::browser::scraper::WebScraper;
 
 pub struct HeadlessWebBrowser {
@@ -15,16 +15,16 @@ pub struct HeadlessWebBrowser {
     pub(super) auth_context: AuthContext,
     pub(super) storage: BrowserStorage,
     pub(super) history: NavigationHistory,
-    pub(super) stealth_manager: StealthManager,
     pub(super) scraper: WebScraper,
 }
 
 impl HeadlessWebBrowser {
     pub fn new() -> Arc<Mutex<Self>> {
+        // We are Chrome - configure client to identify properly as Chrome
         let client = reqwest::Client::builder()
             .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .build()
             .expect("Failed to create HTTP client");
 
@@ -43,8 +43,6 @@ impl HeadlessWebBrowser {
             current_index: 0,
         };
 
-        let stealth_config = StealthConfig::default();
-        let stealth_manager = StealthManager::new(stealth_config);
         let scraper = WebScraper::new();
 
         let browser = Self {
@@ -55,7 +53,6 @@ impl HeadlessWebBrowser {
             auth_context,
             storage,
             history,
-            stealth_manager,
             scraper,
         };
 
@@ -92,8 +89,8 @@ impl HeadlessWebBrowser {
         (self.storage.local_storage.clone(), self.storage.session_storage.clone())
     }
 
-    pub fn get_stealth_headers(&self, url: &str) -> reqwest::header::HeaderMap {
-        self.stealth_manager.create_stealth_headers(url)
+    pub fn get_chrome_headers(&self, url: &str) -> reqwest::header::HeaderMap {
+        self.create_standard_browser_headers(url)
     }
 
     pub fn get_storage_mut(&mut self) -> &mut BrowserStorage {
@@ -130,5 +127,41 @@ impl HeadlessWebBrowser {
         } else {
             Err(anyhow::anyhow!("Renderer not available"))
         }
+    }
+
+    pub fn create_standard_browser_headers(&self, _url: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+
+        // We ARE Chrome - this is what Chrome actually sends
+        headers.insert(USER_AGENT, HeaderValue::from_static(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ));
+
+        // Standard Chrome headers - exactly what Chrome sends
+        headers.insert(ACCEPT, HeaderValue::from_static(
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+        ));
+        headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
+        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
+        headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+        headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
+
+        // Chrome's standard security headers
+        headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+        headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+        headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
+        headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
+
+        // Chrome's client hints - we ARE Chrome
+        headers.insert("sec-ch-ua", HeaderValue::from_static(
+            r#""Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120""#
+        ));
+        headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
+        headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Linux""#));
+
+        // Standard Chrome cache control
+        headers.insert("cache-control", HeaderValue::from_static("max-age=0"));
+
+        headers
     }
 }

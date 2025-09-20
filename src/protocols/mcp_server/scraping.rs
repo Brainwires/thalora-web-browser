@@ -28,9 +28,10 @@ impl McpServer {
         self.browser_tools.handle_scrape_url(arguments).await
     }
 
-    pub(super) async fn google_search(&mut self, arguments: Value) -> McpResponse {
+    pub(super) async fn web_search(&mut self, arguments: Value) -> McpResponse {
         let query = arguments["query"].as_str().unwrap_or("");
         let num_results = arguments["num_results"].as_u64().unwrap_or(10) as usize;
+        let search_engine = arguments["search_engine"].as_str().unwrap_or("duckduckgo");
 
         if query.is_empty() {
             return McpResponse::error(-1, "Query parameter is required".to_string());
@@ -38,167 +39,215 @@ impl McpServer {
 
         let num_results = num_results.min(20); // Cap at 20 results
 
-        match self.perform_google_search(query, num_results).await {
+        match self.perform_web_search(query, num_results, search_engine).await {
             Ok(results) => McpResponse::success(serde_json::to_value(results).unwrap_or_default()),
-            Err(e) => McpResponse::error(-1, format!("Google search failed: {}", e))
+            Err(e) => McpResponse::error(-1, format!("Web search failed: {}", e))
         }
     }
 
-    async fn perform_google_search(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
-        // Try multiple search approaches to avoid detection
-        for attempt in 0..3 {
-            match self.try_google_search_approach(query, num_results, attempt).await {
-                Ok(results) if !results.results.is_empty() => return Ok(results),
-                Ok(_) => continue, // Empty results, try next approach
-                Err(_) if attempt < 2 => continue, // Error, try next approach
-                Err(e) => return Err(e), // Final attempt failed
+    async fn perform_web_search(&mut self, query: &str, num_results: usize, search_engine: &str) -> Result<SearchResults> {
+        match search_engine {
+            "duckduckgo" => self.search_duckduckgo(query, num_results).await,
+            "bing" => self.search_bing(query, num_results).await,
+            "startpage" => self.search_startpage(query, num_results).await,
+            "searx" => self.search_searx(query, num_results).await,
+            _ => self.search_duckduckgo(query, num_results).await, // Default to DuckDuckGo
+        }
+    }
+
+    async fn search_duckduckgo(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
+        let search_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
+
+        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser_guard = browser;
+
+        // Navigate with JavaScript support
+        browser_guard.navigate_to_with_options(&search_url, true).await?;
+
+        // Get the rendered content
+        let html = browser_guard.get_current_content();
+        drop(browser_guard);
+
+        self.parse_duckduckgo_results(&html, query, num_results).await
+    }
+
+    async fn search_bing(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
+        let search_url = format!("https://www.bing.com/search?q={}&count={}",
+                                urlencoding::encode(query), num_results);
+
+        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser_guard = browser;
+
+        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        let html = browser_guard.get_current_content();
+        drop(browser_guard);
+
+        self.parse_bing_results(&html, query, num_results).await
+    }
+
+    async fn search_startpage(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
+        let search_url = format!("https://www.startpage.com/do/search?query={}", urlencoding::encode(query));
+
+        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser_guard = browser;
+
+        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        let html = browser_guard.get_current_content();
+        drop(browser_guard);
+
+        self.parse_startpage_results(&html, query, num_results).await
+    }
+
+    async fn search_searx(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
+        // Use public SearX instance
+        let search_url = format!("https://searx.be/search?q={}&format=html", urlencoding::encode(query));
+
+        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser_guard = browser;
+
+        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        let html = browser_guard.get_current_content();
+        drop(browser_guard);
+
+        self.parse_searx_results(&html, query, num_results).await
+    }
+
+    async fn parse_duckduckgo_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+        let document = Html::parse_document(html);
+        let mut results = Vec::new();
+
+        // DuckDuckGo HTML result selectors
+        if let Ok(selector) = Selector::parse(".result__body") {
+            for element in document.select(&selector) {
+                if results.len() >= num_results {
+                    break;
+                }
+
+                let title = self.extract_generic_title(&element, &[".result__title a", "h2 a", "h3 a"]);
+                let url = self.extract_generic_url(&element, &[".result__title a", "h2 a", "h3 a"]);
+                let snippet = self.extract_generic_snippet(&element, &[".result__snippet", ".result__body .snippet"]);
+
+                if !title.is_empty() && !url.is_empty() {
+                    results.push(SearchResult {
+                        title,
+                        url,
+                        snippet,
+                        position: results.len() + 1,
+                    });
+                }
             }
         }
 
-        // If all approaches fail, return empty results
+        let result_count = results.len();
         Ok(SearchResults {
             query: query.to_string(),
-            results: vec![],
-            total_results: Some("0 results".to_string()),
+            results,
+            total_results: Some(format!("{} results", result_count)),
             search_time: None,
         })
     }
 
-    async fn try_google_search_approach(&mut self, query: &str, num_results: usize, approach: usize) -> Result<SearchResults> {
-        let search_url = match approach {
-            0 => format!("https://www.google.com/search?q={}&num={}",
-                        urlencoding::encode(query), num_results),
-            1 => format!("https://www.google.com/search?q={}&num={}&hl=en",
-                        urlencoding::encode(query), num_results),
-            _ => format!("https://www.google.com/search?q={}&start=0&num={}",
-                        urlencoding::encode(query), num_results),
-        };
-
-        // Enhanced anti-detection headers
-        let user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        ];
-
-        let client = reqwest::Client::builder()
-            .cookie_store(true)
-            .timeout(std::time::Duration::from_secs(30))
-            .user_agent(user_agents[approach % user_agents.len()])
-            .build()?;
-
-        // Add random delay to avoid rate limiting
-        tokio::time::sleep(std::time::Duration::from_millis(500 + (approach * 200) as u64)).await;
-
-        let mut request = client.get(&search_url)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Accept-Encoding", "gzip, deflate, br")
-            .header("Cache-Control", "max-age=0")
-            .header("Sec-Fetch-Dest", "document")
-            .header("Sec-Fetch-Mode", "navigate")
-            .header("Sec-Fetch-Site", "none")
-            .header("Sec-Fetch-User", "?1")
-            .header("Upgrade-Insecure-Requests", "1");
-
-        // Add browser-specific headers based on approach
-        if approach == 1 {
-            request = request.header("Sec-Ch-Ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
-                           .header("Sec-Ch-Ua-Mobile", "?0")
-                           .header("Sec-Ch-Ua-Platform", "\"Windows\"");
-        }
-
-        let response = request.send().await?;
-
-        if !response.status().is_success() {
-            return Err(anyhow::anyhow!("Google search failed with status: {}", response.status()));
-        }
-
-        let html = response.text().await?;
-
-        // Check if we got blocked by JavaScript detection
-        if html.contains("enablejs") || html.contains("Please click") || html.contains("redirect") {
-            return Err(anyhow::anyhow!("Blocked by Google bot detection"));
-        }
-
-        self.parse_google_search_results(&html, num_results).await
-    }
-
-    async fn parse_google_search_results(&self, html: &str, num_results: usize) -> Result<SearchResults> {
+    async fn parse_bing_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
         let document = Html::parse_document(html);
         let mut results = Vec::new();
 
-        // Modern Google search result selectors (2024/2025)
-        let result_selectors = [
-            "div[data-ved] h3",           // Most common modern selector
-            ".g h3",                      // Traditional selector
-            ".tF2Cxc",                    // Container for search results
-            ".yuRUbf",                    // Title container
-            "div.g div[data-ved]",        // Nested data-ved elements
-            "[data-ved] > div > div > div > div > div > span > a", // Deep nested structure
-        ];
-
-        // First try to find results using modern selectors
-        for selector_str in &result_selectors {
-            if let Ok(selector) = Selector::parse(selector_str) {
-                for element in document.select(&selector) {
-                    if results.len() >= num_results {
-                        break;
-                    }
-
-                    let title = self.extract_modern_search_result_title(&element);
-                    let url = self.extract_modern_search_result_url(&element);
-                    let snippet = self.extract_modern_search_result_snippet(&element);
-
-                    if !title.is_empty() && !url.is_empty() && !url.contains("google.com") {
-                        results.push(SearchResult {
-                            title,
-                            url,
-                            snippet,
-                            position: results.len() + 1,
-                        });
-                    }
-                }
-
-                if !results.is_empty() {
+        // Bing result selectors
+        if let Ok(selector) = Selector::parse(".b_algo") {
+            for element in document.select(&selector) {
+                if results.len() >= num_results {
                     break;
                 }
-            }
-        }
 
-        // Fallback: broader search for links with useful content
-        if results.is_empty() {
-            if let Ok(link_selector) = Selector::parse("a[href*='/url?q='], a[href^='http']:not([href*='google.com'])") {
-                for element in document.select(&link_selector) {
-                    if results.len() >= num_results {
-                        break;
-                    }
+                let title = self.extract_generic_title(&element, &["h2 a", ".b_title a", "h3 a"]);
+                let url = self.extract_generic_url(&element, &["h2 a", ".b_title a", "h3 a"]);
+                let snippet = self.extract_generic_snippet(&element, &[".b_caption p", ".b_snippet"]);
 
-                    if let Some(href) = element.value().attr("href") {
-                        let url = self.clean_google_url(href);
-                        let title = self.extract_link_text(&element);
-
-                        if !title.is_empty() && !url.is_empty() && !url.contains("google.com") {
-                            // Look for snippet in nearby elements
-                            let snippet = self.extract_nearby_snippet(&element);
-
-                            results.push(SearchResult {
-                                title,
-                                url,
-                                snippet,
-                                position: results.len() + 1,
-                            });
-                        }
-                    }
+                if !title.is_empty() && !url.is_empty() {
+                    results.push(SearchResult {
+                        title,
+                        url,
+                        snippet,
+                        position: results.len() + 1,
+                    });
                 }
             }
         }
 
-        let total_count = results.len();
+        let result_count = results.len();
         Ok(SearchResults {
-            query: "search query".to_string(),
+            query: query.to_string(),
             results,
-            total_results: Some(format!("{} results", total_count)),
+            total_results: Some(format!("{} results", result_count)),
+            search_time: None,
+        })
+    }
+
+    async fn parse_startpage_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+        let document = Html::parse_document(html);
+        let mut results = Vec::new();
+
+        // Startpage result selectors
+        if let Ok(selector) = Selector::parse(".result") {
+            for element in document.select(&selector) {
+                if results.len() >= num_results {
+                    break;
+                }
+
+                let title = self.extract_generic_title(&element, &[".result-title a", "h3 a", "h2 a"]);
+                let url = self.extract_generic_url(&element, &[".result-title a", "h3 a", "h2 a"]);
+                let snippet = self.extract_generic_snippet(&element, &[".result-desc", ".snippet"]);
+
+                if !title.is_empty() && !url.is_empty() {
+                    results.push(SearchResult {
+                        title,
+                        url,
+                        snippet,
+                        position: results.len() + 1,
+                    });
+                }
+            }
+        }
+
+        let result_count = results.len();
+        Ok(SearchResults {
+            query: query.to_string(),
+            results,
+            total_results: Some(format!("{} results", result_count)),
+            search_time: None,
+        })
+    }
+
+    async fn parse_searx_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+        let document = Html::parse_document(html);
+        let mut results = Vec::new();
+
+        // SearX result selectors
+        if let Ok(selector) = Selector::parse(".result") {
+            for element in document.select(&selector) {
+                if results.len() >= num_results {
+                    break;
+                }
+
+                let title = self.extract_generic_title(&element, &[".result_title a", "h3 a", "h2 a"]);
+                let url = self.extract_generic_url(&element, &[".result_title a", "h3 a", "h2 a"]);
+                let snippet = self.extract_generic_snippet(&element, &[".result_content", ".content"]);
+
+                if !title.is_empty() && !url.is_empty() {
+                    results.push(SearchResult {
+                        title,
+                        url,
+                        snippet,
+                        position: results.len() + 1,
+                    });
+                }
+            }
+        }
+
+        let result_count = results.len();
+        Ok(SearchResults {
+            query: query.to_string(),
+            results,
+            total_results: Some(format!("{} results", result_count)),
             search_time: None,
         })
     }
@@ -390,6 +439,122 @@ impl McpServer {
             }
         } else if url.starts_with("http") {
             return url.to_string();
+        }
+
+        url.to_string()
+    }
+
+    fn extract_generic_title(&self, element: &scraper::ElementRef, selectors: &[&str]) -> String {
+        for selector_str in selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(title_element) = element.select(&selector).next() {
+                    let title = title_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                    if !title.is_empty() && title.len() > 3 {
+                        return title;
+                    }
+                }
+            }
+        }
+
+        // Fallback: look for any heading in the element
+        let fallback_selectors = ["h1", "h2", "h3", "h4", "h5", "h6"];
+        for selector_str in &fallback_selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(title_element) = element.select(&selector).next() {
+                    let title = title_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                    if !title.is_empty() && title.len() > 3 {
+                        return title;
+                    }
+                }
+            }
+        }
+
+        String::new()
+    }
+
+    fn extract_generic_url(&self, element: &scraper::ElementRef, selectors: &[&str]) -> String {
+        for selector_str in selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(link_element) = element.select(&selector).next() {
+                    if let Some(href) = link_element.value().attr("href") {
+                        let cleaned_url = self.clean_url(href);
+                        if !cleaned_url.is_empty() && cleaned_url.starts_with("http") {
+                            return cleaned_url;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: look for any link in the element
+        if let Ok(selector) = Selector::parse("a[href]") {
+            if let Some(link_element) = element.select(&selector).next() {
+                if let Some(href) = link_element.value().attr("href") {
+                    let cleaned_url = self.clean_url(href);
+                    if !cleaned_url.is_empty() && cleaned_url.starts_with("http") {
+                        return cleaned_url;
+                    }
+                }
+            }
+        }
+
+        String::new()
+    }
+
+    fn extract_generic_snippet(&self, element: &scraper::ElementRef, selectors: &[&str]) -> String {
+        for selector_str in selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(snippet_element) = element.select(&selector).next() {
+                    let snippet = snippet_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                    if !snippet.is_empty() && snippet.len() > 10 && snippet.len() < 500 {
+                        return snippet;
+                    }
+                }
+            }
+        }
+
+        // Fallback: look for paragraph text
+        if let Ok(selector) = Selector::parse("p") {
+            if let Some(snippet_element) = element.select(&selector).next() {
+                let snippet = snippet_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                if !snippet.is_empty() && snippet.len() > 10 && snippet.len() < 500 {
+                    return snippet;
+                }
+            }
+        }
+
+        String::new()
+    }
+
+    fn clean_url(&self, url: &str) -> String {
+        // Handle various redirect patterns
+        if url.starts_with("/url?q=") {
+            // Google-style redirect
+            if let Ok(parsed_url) = Url::parse(&format!("https://google.com{}", url)) {
+                if let Some(query) = parsed_url.query() {
+                    for pair in query.split('&') {
+                        if let Some(q_url) = pair.strip_prefix("q=") {
+                            return urlencoding::decode(q_url)
+                                .unwrap_or_else(|_| q_url.into())
+                                .into_owned();
+                        }
+                    }
+                }
+            }
+        } else if url.starts_with("/l/?u=") {
+            // Some redirect patterns
+            if let Some(u_param) = url.strip_prefix("/l/?u=") {
+                return urlencoding::decode(u_param)
+                    .unwrap_or_else(|_| u_param.into())
+                    .into_owned();
+            }
+        } else if url.starts_with("http") {
+            return url.to_string();
+        } else if url.starts_with("//") {
+            return format!("https:{}", url);
+        } else if url.starts_with("/") {
+            // Relative URL - would need base URL to resolve properly
+            return String::new();
         }
 
         url.to_string()
