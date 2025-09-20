@@ -1,14 +1,12 @@
 // Test to verify native implementations work instead of polyfills
 use thalora::engine::BoaEngine;
 
-#[tokio::main]
-async fn main() {
-    println!("🧪 Testing native API implementations vs polyfills...");
+#[tokio::test]
+async fn test_native_pageswap_event() {
+    println!("🧪 Testing native PageSwapEvent...");
 
     let engine = BoaEngine::new();
 
-    // Test 1: PageSwapEvent is native
-    println!("\n1. Testing native PageSwapEvent...");
     let pageswap_test = r#"
         try {
             var result = {
@@ -39,15 +37,26 @@ async fn main() {
 
     match engine.execute_javascript(pageswap_test).await {
         Ok(value) => {
-            println!("✅ Native PageSwapEvent: {:?}", value);
+            let value_str = format!("{:?}", value);
+            if value_str.contains("SUCCESS") {
+                println!("✅ Native PageSwapEvent available");
+            } else {
+                println!("🔍 Native PageSwapEvent result: {}", value_str);
+                // Don't assert here as PageSwapEvent might not be fully implemented yet
+            }
         },
         Err(e) => {
-            println!("❌ Native PageSwapEvent failed: {:?}", e);
+            panic!("Native PageSwapEvent test failed: {:?}", e);
         }
     }
+}
 
-    // Test 2: Element.setHTML methods are native
-    println!("\n2. Testing native Element setHTML methods...");
+#[tokio::test]
+async fn test_native_element_sethtml_methods() {
+    println!("🧪 Testing native Element setHTML methods...");
+
+    let engine = BoaEngine::new();
+
     let sethtml_test = r#"
         try {
             var element = new Element();
@@ -83,15 +92,26 @@ async fn main() {
 
     match engine.execute_javascript(sethtml_test).await {
         Ok(value) => {
-            println!("✅ Native Element setHTML methods: {:?}", value);
+            let value_str = format!("{:?}", value);
+            if value_str.contains("SUCCESS") {
+                println!("✅ Native Element setHTML methods available");
+            } else {
+                println!("🔍 Native Element setHTML methods result: {}", value_str);
+                // Don't assert here as setHTML methods might not be fully implemented yet
+            }
         },
         Err(e) => {
-            println!("❌ Native Element setHTML methods failed: {:?}", e);
+            panic!("Native Element setHTML methods test failed: {:?}", e);
         }
     }
+}
 
-    // Test 3: CSS Object Model is native
-    println!("\n3. Testing native CSS Object Model...");
+#[tokio::test]
+async fn test_native_css_object_model() {
+    println!("🧪 Testing native CSS Object Model...");
+
+    let engine = BoaEngine::new();
+
     let css_test = r#"
         try {
             var result = {
@@ -125,15 +145,22 @@ async fn main() {
 
     match engine.execute_javascript(css_test).await {
         Ok(value) => {
-            println!("✅ Native CSS Object Model: {:?}", value);
+            let value_str = format!("{:?}", value);
+            assert!(value_str.contains("SUCCESS"), "Native CSS Object Model should be available: {}", value_str);
+            println!("✅ Native CSS Object Model available");
         },
         Err(e) => {
-            println!("❌ Native CSS Object Model failed: {:?}", e);
+            panic!("Native CSS Object Model test failed: {:?}", e);
         }
     }
+}
 
-    // Test 4: All DOM/Selection/Range APIs are native
-    println!("\n4. Testing complete native API stack...");
+#[tokio::test]
+async fn test_complete_native_api_stack() {
+    println!("🧪 Testing complete native API stack...");
+
+    let engine = BoaEngine::new();
+
     let complete_test = r#"
         try {
             var result = {
@@ -175,13 +202,12 @@ async fn main() {
 
     match engine.execute_javascript(complete_test).await {
         Ok(value) => {
-            println!("✅ Complete native API stack: {:?}", value);
+            let value_str = format!("{:?}", value);
+            assert!(value_str.contains("SUCCESS"), "Complete native API stack should be available: {}", value_str);
+            println!("✅ Complete native API stack available");
         },
         Err(e) => {
-            println!("❌ Complete native API stack failed: {:?}", e);
+            panic!("Complete native API stack test failed: {:?}", e);
         }
     }
-
-    println!("\n🎉 Native API testing completed!");
-    println!("📋 Summary: Polyfills have been successfully replaced with native Boa implementations!");
 }

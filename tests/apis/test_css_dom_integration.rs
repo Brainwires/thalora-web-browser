@@ -1,17 +1,12 @@
 // Integration test for CSS + DOM + Selection API working together
-use std::sync::{Arc, Mutex};
+use thalora::engine::BoaEngine;
 
-#[tokio::main]
-async fn main() {
-    println!("🧪 Testing CSS + DOM + Selection API integration...");
-
-    // Create a simple browser instance using the engine directly
-    use thalora::engine::BoaEngine;
+#[tokio::test]
+async fn test_css_object_model_availability() {
+    println!("🧪 Testing CSS Object Model availability...");
 
     let engine = BoaEngine::new();
 
-    // Test 1: CSS Object Model availability
-    println!("\n1. Testing CSS Object Model availability...");
     let css_test = r#"
         try {
             var result = {
@@ -37,15 +32,22 @@ async fn main() {
 
     match engine.execute_javascript(css_test).await {
         Ok(value) => {
-            println!("✅ CSS Object Model: {:?}", value);
+            let value_str = format!("{:?}", value);
+            assert!(value_str.contains("SUCCESS"), "CSS Object Model should be available: {}", value_str);
+            println!("✅ CSS Object Model available");
         },
         Err(e) => {
-            println!("❌ CSS Object Model failed: {:?}", e);
+            panic!("CSS Object Model test failed: {:?}", e);
         }
     }
+}
 
-    // Test 2: DOM + CSS integration
-    println!("\n2. Testing DOM + CSS integration...");
+#[tokio::test]
+async fn test_dom_css_integration() {
+    println!("🧪 Testing DOM + CSS integration...");
+
+    let engine = BoaEngine::new();
+
     let dom_css_test = r#"
         try {
             // Test Element style property
@@ -75,15 +77,22 @@ async fn main() {
 
     match engine.execute_javascript(dom_css_test).await {
         Ok(value) => {
-            println!("✅ DOM + CSS integration: {:?}", value);
+            let value_str = format!("{:?}", value);
+            assert!(value_str.contains("SUCCESS"), "DOM + CSS integration should work: {}", value_str);
+            println!("✅ DOM + CSS integration working");
         },
         Err(e) => {
-            println!("❌ DOM + CSS integration failed: {:?}", e);
+            panic!("DOM + CSS integration test failed: {:?}", e);
         }
     }
+}
 
-    // Test 3: CSS Houdini APIs
-    println!("\n3. Testing CSS Houdini APIs...");
+#[tokio::test]
+async fn test_css_houdini_apis() {
+    println!("🧪 Testing CSS Houdini APIs...");
+
+    let engine = BoaEngine::new();
+
     let houdini_test = r#"
         try {
             var result = {
@@ -104,15 +113,26 @@ async fn main() {
 
     match engine.execute_javascript(houdini_test).await {
         Ok(value) => {
-            println!("✅ CSS Houdini APIs: {:?}", value);
+            let value_str = format!("{:?}", value);
+            if value_str.contains("SUCCESS") {
+                println!("✅ CSS Houdini APIs available");
+            } else {
+                println!("🔍 CSS Houdini APIs result: {}", value_str);
+                // Don't assert here as Houdini APIs might not be fully implemented yet
+            }
         },
         Err(e) => {
-            println!("❌ CSS Houdini APIs failed: {:?}", e);
+            panic!("CSS Houdini APIs test failed: {:?}", e);
         }
     }
+}
 
-    // Test 4: Advanced CSS features
-    println!("\n4. Testing Advanced CSS features...");
+#[tokio::test]
+async fn test_advanced_css_features() {
+    println!("🧪 Testing Advanced CSS features...");
+
+    let engine = BoaEngine::new();
+
     let advanced_test = r#"
         try {
             var result = {
@@ -138,13 +158,16 @@ async fn main() {
 
     match engine.execute_javascript(advanced_test).await {
         Ok(value) => {
-            println!("✅ Advanced CSS features: {:?}", value);
+            let value_str = format!("{:?}", value);
+            if value_str.contains("SUCCESS") {
+                println!("✅ Advanced CSS features tested");
+            } else {
+                println!("🔍 Advanced CSS features result: {}", value_str);
+                // Don't assert here as advanced features might not be fully implemented yet
+            }
         },
         Err(e) => {
-            println!("❌ Advanced CSS features failed: {:?}", e);
+            panic!("Advanced CSS features test failed: {:?}", e);
         }
     }
-
-    println!("\n🎉 CSS + DOM + Selection API integration testing completed!");
-    println!("📋 Summary: All major browser APIs (CSS, DOM, Selection, Range) are now natively implemented in Boa!");
 }

@@ -1,22 +1,18 @@
 use thalora::HeadlessWebBrowser;
 
-#[tokio::main]
-async fn main() {
-    println!("🧪 Testing Selection and Range API implementation...");
+#[tokio::test]
+async fn test_selection_api_availability() {
+    println!("🧪 Testing Selection API availability...");
 
     let browser = HeadlessWebBrowser::new();
 
-    // Test 1: Basic Selection API availability
-    println!("\n1. Testing Selection API availability...");
     let selection_test = r#"
         try {
-            // Test window.getSelection
             var hasGetSelection = typeof window !== 'undefined' && typeof window.getSelection === 'function';
 
             if (hasGetSelection) {
                 var selection = window.getSelection();
 
-                // Test Selection properties
                 var tests = {
                     hasAnchorNode: 'anchorNode' in selection,
                     hasDirection: 'direction' in selection,
@@ -40,18 +36,23 @@ async fn main() {
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            println!("✅ Selection API: {}", value_str);
+            assert!(value_str.contains("SUCCESS"), "Selection API should be available: {}", value_str);
+            println!("✅ Selection API available");
         },
         Err(e) => {
-            println!("❌ Selection API failed: {:?}", e);
+            panic!("Selection API test failed: {:?}", e);
         }
     }
+}
 
-    // Test 2: Range API availability
-    println!("\n2. Testing Range API availability...");
+#[tokio::test]
+async fn test_range_api_availability() {
+    println!("🧪 Testing Range API availability...");
+
+    let browser = HeadlessWebBrowser::new();
+
     let range_test = r#"
         try {
-            // Test Range constructor and methods
             var hasRange = typeof Range === 'function';
 
             if (hasRange) {
@@ -95,15 +96,25 @@ async fn main() {
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            println!("✅ Range API: {}", value_str);
+            assert!(value_str.contains("SUCCESS"), "Range API should be available: {}", value_str);
+            assert!(value_str.contains("hasSetStart\":true"), "Should have setStart method");
+            assert!(value_str.contains("hasCloneRange\":true"), "Should have cloneRange method");
+            assert!(value_str.contains("cloneWorks\":true"), "Range cloning should work");
+            assert!(value_str.contains("START_TO_START\":0"), "Should have correct constants");
+            println!("✅ Range API available");
         },
         Err(e) => {
-            println!("❌ Range API failed: {:?}", e);
+            panic!("Range API test failed: {:?}", e);
         }
     }
+}
 
-    // Test 3: Selection-Range integration
-    println!("\n3. Testing Selection-Range integration...");
+#[tokio::test]
+async fn test_selection_range_integration() {
+    println!("🧪 Testing Selection-Range integration...");
+
+    let browser = HeadlessWebBrowser::new();
+
     let integration_test = r#"
         try {
             var selection = window.getSelection();
@@ -143,15 +154,22 @@ async fn main() {
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            println!("✅ Selection-Range integration: {}", value_str);
+            assert!(value_str.contains("SUCCESS"), "Selection-Range integration should work: {}", value_str);
+            assert!(value_str.contains("rangesIsArray\":true"), "getComposedRanges should return array");
+            println!("✅ Selection-Range integration working");
         },
         Err(e) => {
-            println!("❌ Selection-Range integration failed: {:?}", e);
+            panic!("Selection-Range integration test failed: {:?}", e);
         }
     }
+}
 
-    // Test 4: Chrome 137 compliance
-    println!("\n4. Testing Chrome 137 compliance...");
+#[tokio::test]
+async fn test_chrome_137_compliance() {
+    println!("🧪 Testing Chrome 137 compliance...");
+
+    let browser = HeadlessWebBrowser::new();
+
     let compliance_test = r#"
         try {
             var selection = window.getSelection();
@@ -201,12 +219,11 @@ async fn main() {
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            println!("✅ Chrome 137 compliance: {}", value_str);
+            assert!(value_str.contains("SUCCESS"), "Chrome 137 compliance should work: {}", value_str);
+            println!("✅ Chrome 137 compliance verified");
         },
         Err(e) => {
-            println!("❌ Chrome 137 compliance failed: {:?}", e);
+            panic!("Chrome 137 compliance test failed: {:?}", e);
         }
     }
-
-    println!("\n🎉 Selection and Range API testing completed!");
 }
