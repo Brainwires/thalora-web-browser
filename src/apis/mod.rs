@@ -87,29 +87,10 @@ impl WebApis {
         Ok(())
     }
 
-    /// Setup screen global (alias for window.screen)
+    /// Setup screen global (alias for window.screen) - DISABLED to prevent stack overflow
     fn setup_screen_global(&self, context: &mut Context) -> Result<()> {
-        use boa_engine::{js_string, JsValue};
-
-        // Execute JavaScript to create screen global as alias for window.screen
-        let script = r#"
-            (function() {
-                if (typeof window !== 'undefined' && window.screen) {
-                    // Set screen as a global variable (alias for window.screen)
-                    globalThis.screen = window.screen;
-                    return true;
-                } else {
-                    console.error('window.screen not available for global screen alias');
-                    return false;
-                }
-            })();
-        "#;
-
-        let result = context.eval(boa_engine::Source::from_bytes(script))
-            .map_err(|e| anyhow::Error::msg(format!("Failed to execute screen global setup: {:?}", e)))?;
-
-        eprintln!("Screen global setup result: {:?}", result.to_string(context));
-
+        // DISABLED - this was causing infinite recursion due to window.screen getter loops
+        eprintln!("🔥 Screen global setup DISABLED - preventing stack overflow");
         Ok(())
     }
 }

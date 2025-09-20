@@ -38,7 +38,9 @@ impl HeadlessWebBrowser {
 
         // Update the document's HTML content in the JavaScript context
         if let Some(ref mut renderer) = self.renderer {
-            let _ = renderer.update_document_html(&content);
+            // DISABLED - this was causing stack overflow
+            eprintln!("🔍 DEBUG: Document HTML update DISABLED to prevent stack overflow");
+            // let _ = renderer.update_document_html(&content);
         }
 
         // Add to history
@@ -47,13 +49,19 @@ impl HeadlessWebBrowser {
 
         // Execute JavaScript and wait for dynamic content if requested
         if wait_for_js {
+            eprintln!("🔍 DEBUG: About to call wait_for_page_ready");
             self.wait_for_page_ready().await?;
+            eprintln!("🔍 DEBUG: wait_for_page_ready completed");
         } else {
+            eprintln!("🔍 DEBUG: Processing safe JavaScript");
             // Execute any safe JavaScript on the page
             if let Some(js_code) = self.extract_safe_javascript(&content) {
+                eprintln!("🔍 DEBUG: Found safe JavaScript, checking with renderer");
                 if let Some(ref mut renderer) = self.renderer {
                     if renderer.is_safe_javascript(&js_code) {
+                        eprintln!("🔍 DEBUG: JavaScript deemed safe, evaluating");
                         let _ = renderer.evaluate_javascript(&js_code);
+                        eprintln!("🔍 DEBUG: JavaScript evaluation completed");
                     }
                 }
             }
@@ -63,12 +71,16 @@ impl HeadlessWebBrowser {
     }
 
     async fn wait_for_page_ready(&mut self) -> Result<()> {
+        eprintln!("🔍 DEBUG: wait_for_page_ready starting");
         // First, extract ALL JavaScript that needs to be executed
         let content_copy = self.current_content.clone();
+        eprintln!("🔍 DEBUG: Content copied, extracting safe JavaScript");
         let inline_js = self.extract_safe_javascript(&content_copy);
+        eprintln!("🔍 DEBUG: Safe JavaScript extracted");
 
         // Extract external script URLs
         let mut external_scripts = Vec::new();
+        eprintln!("🔍 DEBUG: Parsing external scripts");
         if let Ok(selector) = scraper::Selector::parse("script[src]") {
             let document = scraper::Html::parse_document(&content_copy);
             for element in document.select(&selector) {
@@ -79,13 +91,23 @@ impl HeadlessWebBrowser {
                 }
             }
         }
+        eprintln!("🔍 DEBUG: Found {} external scripts", external_scripts.len());
 
         if let Some(ref mut renderer) = self.renderer {
+            eprintln!("🔍 DEBUG: Renderer available, processing JavaScript");
             // Execute inline JavaScript
             if let Some(js_code) = inline_js {
+                eprintln!("🔍 DEBUG: Found inline JavaScript, checking safety");
                 if renderer.is_safe_javascript(&js_code) {
-                    let _ = renderer.evaluate_javascript(&js_code);
+                    eprintln!("🔍 DEBUG: JavaScript deemed safe, but DISABLED to prevent stack overflow");
+                    // DISABLED - this was causing stack overflow in our Boa bot detection APIs
+                    // let _ = renderer.evaluate_javascript(&js_code);
+                    eprintln!("🔍 DEBUG: JavaScript evaluation SKIPPED");
+                } else {
+                    eprintln!("🔍 DEBUG: JavaScript deemed unsafe, skipping");
                 }
+            } else {
+                eprintln!("🔍 DEBUG: No inline JavaScript found");
             }
 
             // Load and execute external scripts

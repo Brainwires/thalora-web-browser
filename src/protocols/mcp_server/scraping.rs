@@ -31,29 +31,54 @@ impl McpServer {
     }
 
     pub(super) async fn web_search(&mut self, arguments: Value) -> McpResponse {
+        eprintln!("🔍 DEBUG: Starting web_search function");
         let query = arguments["query"].as_str().unwrap_or("");
         let num_results = arguments["num_results"].as_u64().unwrap_or(10) as usize;
-        let search_engine = arguments["search_engine"].as_str().unwrap_or("duckduckgo");
+        let search_engine = arguments["search_engine"].as_str().unwrap_or("google");
+        eprintln!("🔍 DEBUG: Parameters - query: {}, num_results: {}, engine: {}", query, num_results, search_engine);
 
         if query.is_empty() {
             return McpResponse::error(-1, "Query parameter is required".to_string());
         }
 
         let num_results = num_results.min(20); // Cap at 20 results
+        eprintln!("🔍 DEBUG: About to call perform_web_search");
 
         match self.perform_web_search(query, num_results, search_engine).await {
-            Ok(results) => McpResponse::success(serde_json::to_value(results).unwrap_or_default()),
-            Err(e) => McpResponse::error(-1, format!("Web search failed: {}", e))
+            Ok(results) => {
+                eprintln!("🔍 DEBUG: perform_web_search succeeded");
+                McpResponse::success(serde_json::to_value(results).unwrap_or_default())
+            },
+            Err(e) => {
+                eprintln!("🔍 DEBUG: perform_web_search failed: {}", e);
+                McpResponse::error(-1, format!("Web search failed: {}", e))
+            }
         }
     }
 
     async fn perform_web_search(&mut self, query: &str, num_results: usize, search_engine: &str) -> Result<SearchResults> {
+        eprintln!("🔍 DEBUG: perform_web_search called with engine: {}", search_engine);
         match search_engine {
-            "duckduckgo" => self.search_duckduckgo(query, num_results).await,
-            "bing" => self.search_bing(query, num_results).await,
-            "google" => self.search_google(query, num_results).await,
-            "startpage" => self.search_startpage(query, num_results).await,
-            "searx" => self.search_searx(query, num_results).await,
+            "duckduckgo" => {
+                eprintln!("🔍 DEBUG: Calling search_duckduckgo");
+                self.search_duckduckgo(query, num_results).await
+            },
+            "bing" => {
+                eprintln!("🔍 DEBUG: Calling search_bing");
+                self.search_bing(query, num_results).await
+            },
+            "google" => {
+                eprintln!("🔍 DEBUG: Calling search_google");
+                self.search_google(query, num_results).await
+            },
+            "startpage" => {
+                eprintln!("🔍 DEBUG: Calling search_startpage");
+                self.search_startpage(query, num_results).await
+            },
+            "searx" => {
+                eprintln!("🔍 DEBUG: Calling search_searx");
+                self.search_searx(query, num_results).await
+            },
             _ => Err(anyhow::anyhow!("Unsupported search engine: {}. Supported engines: google, bing, duckduckgo, startpage, searx", search_engine)),
         }
     }
@@ -96,16 +121,22 @@ impl McpServer {
     }
 
     async fn search_google(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
+        eprintln!("🔍 DEBUG: search_google started");
         let search_url = format!("https://www.google.com/search?q={}&num={}&hl=en&gl=us",
                                 urlencoding::encode(query), num_results);
+        eprintln!("🔍 DEBUG: Google search URL: {}", search_url);
 
         // Use the browser's HTTP client with enhanced stealth capabilities
+        eprintln!("🔍 DEBUG: Acquiring browser lock");
         let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         let mut browser_guard = browser;
+        eprintln!("🔍 DEBUG: Browser lock acquired, about to navigate");
 
         // Navigate using the browser's full navigation system which includes stealth features
         browser_guard.navigate_to_with_options(&search_url, true).await?;
+        eprintln!("🔍 DEBUG: Navigation completed, getting content");
         let html = browser_guard.get_current_content();
+        eprintln!("🔍 DEBUG: Content retrieved, dropping browser guard");
         drop(browser_guard);
 
         // Check for Google's bot detection challenges

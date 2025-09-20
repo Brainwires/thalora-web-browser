@@ -244,20 +244,8 @@ pub fn setup_extended_polyfills(context: &mut Context) -> JsResult<()> {
             }
         }
 
-        // Error.stack and Error.captureStackTrace - CRITICAL for Google 2025 bot detection
-        if (typeof Error !== 'undefined' && typeof Error.captureStackTrace === 'undefined') {
-            Error.captureStackTrace = function(targetObject, constructorOpt) {
-                if (targetObject && typeof targetObject === 'object') {
-                    var stack = 'Error\\n    at <anonymous>:1:1\\n    at eval (eval at <anonymous>:1:1)\\n    at Object.eval (native)\\n    at Function.call (native)';
-                    Object.defineProperty(targetObject, 'stack', {
-                        value: stack,
-                        writable: true,
-                        enumerable: false,
-                        configurable: true
-                    });
-                }
-            };
-        }
+        // DISABLED - Error.stack polyfill was causing stack overflow
+        // Google 2025 bot detection APIs now handled in Boa window initialization
     "#))?;
 
     Ok(())
