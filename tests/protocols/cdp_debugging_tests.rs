@@ -1,6 +1,5 @@
 /// Comprehensive tests for the new CDP debugging tools
 /// Tests all 8 newly implemented CDP debugging capabilities
-
 use serde_json::json;
 
 // Import from the local crate
@@ -72,8 +71,8 @@ async fn test_cdp_dom_query_selector_missing_params() {
     let response = cdp_tools.query_selector(args, &mut cdp_server).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(is_error, "Should return error for missing selector");
+    McpResponse::ToolResult { content: _, is_error } => {
+        assert!(is_error, "Should return error for missing selector");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: selector"),
                        "Should indicate missing selector parameter: {}", text);
@@ -118,8 +117,8 @@ async fn test_cdp_dom_get_attributes_missing_params() {
     let response = cdp_tools.get_attributes(args, &mut cdp_server).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(is_error, "Should return error for missing node_id");
+    McpResponse::ToolResult { content: _, is_error } => {
+        assert!(is_error, "Should return error for missing node_id");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: node_id"),
                        "Should indicate missing node_id parameter: {}", text);
@@ -241,8 +240,8 @@ async fn test_cdp_network_set_cookie_missing_params() {
     let response = cdp_tools.set_cookie(args, &mut cdp_server).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(is_error, "Should return error for missing name");
+    McpResponse::ToolResult { content: _, is_error } => {
+        assert!(is_error, "Should return error for missing name");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: name"),
                        "Should indicate missing name parameter: {}", text);
@@ -259,7 +258,7 @@ async fn test_cdp_network_set_cookie_missing_params() {
     let response = cdp_tools.set_cookie(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content: _, is_error } => {
             assert!(is_error, "Should return error for missing value");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: value"),
@@ -281,7 +280,7 @@ async fn test_cdp_console_get_messages() {
     let response = cdp_tools.get_console_messages(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Console") || text.contains("messages") || text.contains("CDP"),
@@ -306,7 +305,7 @@ async fn test_cdp_console_get_messages_with_filters() {
     let response = cdp_tools.get_console_messages(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Console") || text.contains("error") || text.contains("CDP"),
@@ -328,7 +327,7 @@ async fn test_cdp_page_screenshot() {
     let response = cdp_tools.take_screenshot(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Screenshot") || text.contains("CDP"),
@@ -354,7 +353,7 @@ async fn test_cdp_page_screenshot_with_options() {
     let response = cdp_tools.take_screenshot(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Screenshot") || text.contains("CDP"),
@@ -376,7 +375,7 @@ async fn test_cdp_page_reload() {
     let response = cdp_tools.reload_page(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("reload") || text.contains("CDP"),
@@ -400,7 +399,7 @@ async fn test_cdp_page_reload_ignore_cache() {
     let response = cdp_tools.reload_page(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("reload") || text.contains("cache") || text.contains("CDP"),
@@ -477,7 +476,7 @@ async fn test_parameter_validation() {
         };
 
         match &response {
-            McpResponse::ToolResult { content, is_error } => {
+            McpResponse::ToolResult { content: _, is_error } => {
                 assert!(is_error, "Tool {} should return error for missing {}", tool_name, expected_missing_param);
                 if let Some(text) = extract_response_text(&response) {
                     assert!(text.contains(&format!("Missing required parameter: {}", expected_missing_param)),

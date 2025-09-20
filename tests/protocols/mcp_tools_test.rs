@@ -37,7 +37,7 @@ fn test_ai_memory_store_and_retrieve() {
     validate_tool_response(&get_response, "text").expect("Get should return valid response");
 
     // Verify the retrieved data contains our original data
-    let _response_text = get_response.content[0].get("text").unwrap().as_str().unwrap();
+    let response_text = get_response.content[0].get("text").unwrap().as_str().unwrap();
 
     // NOTE: Due to VFS being ephemeral, data doesn't persist between MCP tool calls
     // This is a known limitation that requires implementing global persistent VFS
@@ -215,7 +215,7 @@ fn test_cdp_runtime_evaluate_with_error() {
     // Should either return an error response or fail
     if let Ok(response) = response {
         // If it returns, it might include error information
-        let response_text = response.content[0].get("text").unwrap_or(&json!("")).as_str().unwrap_or("");
+        let _response_text = response.content[0].get("text").unwrap_or(&json!("")).as_str().unwrap_or("");
         // Error handling is implementation-dependent
     }
 }
@@ -392,7 +392,7 @@ fn test_tools_with_large_data() {
 fn test_tools_with_unicode_data() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    let _unicode_data = json!({
+    let unicode_data = json!({
         "emoji": "🚀🧠🔗⚡",
         "chinese": "测试数据",
         "arabic": "بيانات الاختبار",

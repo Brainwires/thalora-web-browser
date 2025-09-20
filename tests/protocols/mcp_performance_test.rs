@@ -158,7 +158,7 @@ fn test_ai_memory_performance() {
 
         for i in 0..iterations {
             let key = format!("perf_test_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default());
-            let data = json!({
+            let _data = json!({
                 "test_data": "performance test data",
                 "timestamp": chrono::Utc::now().to_rfc3339(),
                 "iteration": rand::random::<u32>()

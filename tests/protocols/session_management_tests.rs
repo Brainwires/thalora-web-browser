@@ -27,6 +27,7 @@ fn extract_response_text(response: &McpResponse) -> Option<String> {
 }
 
 /// Helper function to extract JSON content from MCP response
+#[allow(dead_code)]
 fn extract_response_json(response: &McpResponse) -> Option<Value> {
     match &response {
         McpResponse::ToolResult { content, .. } => {
@@ -59,8 +60,8 @@ async fn test_session_management_create() {
     let response = browser_tools.handle_session_management(args).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(!is_error, "Session creation should not error");
+    McpResponse::ToolResult { content, is_error } => {
+        assert!(!is_error, "Session creation should not error");
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -86,8 +87,8 @@ async fn test_session_management_create_persistent() {
     let response = browser_tools.handle_session_management(args).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(!is_error, "Persistent session creation should not error");
+    McpResponse::ToolResult { content, is_error } => {
+        assert!(!is_error, "Persistent session creation should not error");
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -119,8 +120,8 @@ async fn test_session_management_list() {
     let response = browser_tools.handle_session_management(list_args).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(!is_error, "Session listing should not error");
+    McpResponse::ToolResult { content, is_error } => {
+        assert!(!is_error, "Session listing should not error");
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -187,8 +188,8 @@ async fn test_session_management_close() {
     let response = browser_tools.handle_session_management(close_args).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(!is_error, "Session closing should not error");
+    McpResponse::ToolResult { content, is_error } => {
+        assert!(!is_error, "Session closing should not error");
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -213,8 +214,8 @@ async fn test_session_management_cleanup() {
     let response = browser_tools.handle_session_management(cleanup_args).await;
 
     match &response {
-    McpResponse::ToolResult { content, is_error: _ } => {
-            assert!(!is_error, "Session cleanup should not error");
+    McpResponse::ToolResult { content, is_error } => {
+        assert!(!is_error, "Session cleanup should not error");
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -304,7 +305,7 @@ async fn test_browser_navigate_back() {
     let response = browser_tools.handle_navigate_back(args).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -328,7 +329,7 @@ async fn test_browser_navigate_back_with_session() {
     let response = browser_tools.handle_navigate_back(args).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -350,7 +351,7 @@ async fn test_browser_navigate_forward() {
     let response = browser_tools.handle_navigate_forward(args).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {
@@ -374,7 +375,7 @@ async fn test_browser_navigate_forward_with_session() {
     let response = browser_tools.handle_navigate_forward(args).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+        McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
 
             if let Some(text) = extract_response_text(&response) {

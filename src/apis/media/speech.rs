@@ -23,6 +23,31 @@ impl MediaManager {
 
         self.setup_speech_utterance_constructor(context)?;
 
+        // Minimal SpeechRecognition constructor (also provide webkitSpeechRecognition alias)
+        let speech_recognition_constructor = unsafe {
+            NativeFunction::from_closure(|_, _args, context| {
+                // Return a simple object with start/stop placeholders
+                let obj = JsObject::default();
+                obj.set(js_string!("start"), JsValue::from(native_fn_stub(context)?), true, context)?;
+                obj.set(js_string!("stop"), JsValue::from(native_fn_stub(context)?), true, context)?;
+                Ok(JsValue::from(obj))
+            })
+        };
+
+        let speech_recognition_value = JsValue::from(speech_recognition_constructor.to_js_function(context.realm()));
+
+        context.register_global_property(
+            js_string!("SpeechRecognition"),
+            speech_recognition_value.clone(),
+            Attribute::all(),
+        )?;
+
+        context.register_global_property(
+            js_string!("webkitSpeechRecognition"),
+            speech_recognition_value,
+            Attribute::all(),
+        )?;
+
         Ok(())
     }
 
@@ -143,4 +168,10 @@ impl MediaManager {
 
         Ok(())
     }
+}
+
+// Helper to create a no-op native function wrapped as JsValue
+fn native_fn_stub(context: &mut Context) -> Result<JsValue, boa_engine::JsError> {
+    let f = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+    Ok(JsValue::from(f.to_js_function(context.realm())))
 }

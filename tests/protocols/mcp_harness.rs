@@ -267,6 +267,7 @@ pub fn create_initialized_harness() -> Result<McpTestHarness> {
 }
 
 /// Create a test harness with release build for performance testing
+#[allow(dead_code)]
 pub fn create_release_harness() -> Result<McpTestHarness> {
     let config = McpTestConfig {
         use_release_build: true,
