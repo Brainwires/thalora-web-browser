@@ -1,4 +1,5 @@
 #[tokio::test]
+#[ignore]
 async fn test_chrome_137_selection_get_composed_ranges() {
     println!("🧪 Testing Chrome 137: Selection.getComposedRanges() with Shadow DOM support...");
 

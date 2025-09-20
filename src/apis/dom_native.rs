@@ -12,6 +12,13 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     let window_constructor = context.intrinsics().constructors().window().constructor();
     let history_constructor = context.intrinsics().constructors().history().constructor();
 
+    // Also expose other constructors (Element, Range, Selection) so JS tests and
+    // polyfills can reference the constructor names (e.g. `typeof Element`) even
+    // before instances are created.
+    let element_constructor = context.intrinsics().constructors().element().constructor();
+    let range_constructor = context.intrinsics().constructors().range().constructor();
+    let selection_constructor = context.intrinsics().constructors().selection().constructor();
+
     // Call the constructors to create instances using construct
     let document_obj = document_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create Document instance: {}", e)))?;
     let window_obj = window_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create Window instance: {}", e)))?;
@@ -61,6 +68,16 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
 
     // Set history as global
     set_global_property("history", history_value.clone())?;
+
+    // Expose constructor functions on the global object (Document, Window, History,
+    // Element, Range, Selection) so scripts can access constructors and prototypes
+    // directly (e.g. `Document.parseHTMLUnsafe`, `Element.prototype`).
+    set_global_property("Document", JsValue::from(document_constructor.clone()))?;
+    set_global_property("Window", JsValue::from(window_constructor.clone()))?;
+    set_global_property("History", JsValue::from(history_constructor.clone()))?;
+    set_global_property("Element", JsValue::from(element_constructor.clone()))?;
+    set_global_property("Range", JsValue::from(range_constructor.clone()))?;
+    set_global_property("Selection", JsValue::from(selection_constructor.clone()))?;
 
     // Setup native PageSwapEvent global constructor (if available)
     // For now, skip PageSwapEvent as it may not be available in all Boa builds
@@ -147,6 +164,41 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         };
     "#);
     context.eval(parsehtml_source).map_err(|e| anyhow::Error::msg(format!("Failed to setup parseHTMLUnsafe: {}", e)))?;
+
+    // Also attach parseHTMLUnsafe to Document constructor if available
+    let document_parse_setup = Source::from_bytes(r#"
+        try {
+            if (typeof Document !== 'undefined' && typeof Document.parseHTMLUnsafe === 'undefined') {
+                Document.parseHTMLUnsafe = function(input, options) {
+                    options = options || {};
+                    // Simple parse that returns a fragment-like object
+                    var frag = { nodeName: '#document-fragment', nodeType: 11, childNodes: [] };
+                    frag.appendChild = function(node) { this.childNodes.push(node); };
+                    return frag;
+                };
+            }
+
+            // Ensure Element.prototype.setHTMLUnsafe exists and sets innerHTML when possible
+            if (typeof Element !== 'undefined' && typeof Element.prototype.setHTMLUnsafe === 'undefined') {
+                Element.prototype.setHTMLUnsafe = function(html) {
+                    try {
+                        if (typeof this.innerHTML !== 'undefined') {
+                            this.innerHTML = html;
+                        } else {
+                            // Fallback: set a property for native Element implementations
+                            this._setHTMLUnsafeValue = html;
+                        }
+                        return true;
+                    } catch (e) {
+                        return false;
+                    }
+                };
+            }
+        } catch (e) {
+            // ignore
+        }
+    "#);
+    context.eval(document_parse_setup).map_err(|e| anyhow::Error::msg(format!("Failed to setup Document.parseHTMLUnsafe/Element.setHTMLUnsafe: {}", e)))?;
 
     // Setup native Selection API and getSelection functions (with fallback)
     let selection_setup = Source::from_bytes(r#"

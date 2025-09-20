@@ -1,9 +1,8 @@
 // MCP Integration Tests - Complex workflows combining multiple tools
 use std::time::Duration;
-#![allow(unused_imports)]
-#![allow(unused_variables)]
+#[allow(unused_imports)]
+#[allow(unused_variables)]
 use serde_json::{json, Value};
-use anyhow::Result;
 
 use super::mcp_harness::*;
 
@@ -37,7 +36,7 @@ fn test_research_workflow() {
 
     // Step 3: Store research findings
     let timestamp = chrono::Utc::now().to_rfc3339();
-    let research_data = json!({
+    let _research_data = json!({
         "search_query": "rust programming examples",
         "scraped_url": "https://httpbin.org/html",
         "timestamp": timestamp,
@@ -147,7 +146,7 @@ fn test_data_persistence_workflow() {
     // 3. Search across all stored data
     // 4. Verify relationships are maintained
 
-    let base_timestamp = chrono::Utc::now();
+    let _base_timestamp = chrono::Utc::now();
     let test_datasets = vec![
         ("dataset_001", json!({"type": "user_data", "user": "alice", "action": "login"})),
         ("dataset_002", json!({"type": "user_data", "user": "bob", "action": "logout"})),

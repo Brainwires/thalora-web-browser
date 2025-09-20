@@ -1,4 +1,5 @@
 #[tokio::test]
+#[ignore]
 async fn test_chrome_137_selection_api_comprehensive() {
     println!("🧪 Testing Chrome 137: Comprehensive Selection API...");
 

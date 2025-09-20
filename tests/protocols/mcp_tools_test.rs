@@ -1,9 +1,8 @@
 // MCP Tools Tests - Comprehensive testing of all MCP tools
 use std::time::Duration;
-#![allow(unused_imports)]
-#![allow(unused_variables)]
+#[allow(unused_imports)]
+#[allow(unused_variables)]
 use serde_json::{json, Value};
-use anyhow::Result;
 
 use super::mcp_harness::*;
 
@@ -13,7 +12,7 @@ fn test_ai_memory_store_and_retrieve() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     // Store research data
-    let test_data = json!({
+    let _test_data = json!({
         "topic": "rust testing",
         "findings": ["MCP protocol works well", "stdio communication is reliable"],
         "timestamp": "2025-01-01T00:00:00Z"
@@ -38,7 +37,7 @@ fn test_ai_memory_store_and_retrieve() {
     validate_tool_response(&get_response, "text").expect("Get should return valid response");
 
     // Verify the retrieved data contains our original data
-    let response_text = get_response.content[0].get("text").unwrap().as_str().unwrap();
+    let _response_text = get_response.content[0].get("text").unwrap().as_str().unwrap();
 
     // NOTE: Due to VFS being ephemeral, data doesn't persist between MCP tool calls
     // This is a known limitation that requires implementing global persistent VFS
@@ -321,7 +320,7 @@ fn test_multiple_tool_calls_in_sequence() {
 
     // Test sequence: store data, retrieve it, search for it
     let key = "sequence_test_001";
-    let test_data = json!({"test": "sequence data"});
+    let _test_data = json!({"test": "sequence data"});
 
     // Step 1: Store
     let store_response = harness.call_tool("ai_memory_store_research", json!({
@@ -357,7 +356,7 @@ fn test_tools_with_large_data() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     // Create a large data object
-    let large_data = json!({
+    let _large_data = json!({
         "large_text": "x".repeat(10000), // 10KB of text
         "array_data": (0..1000).collect::<Vec<i32>>(),
         "nested": {
@@ -393,7 +392,7 @@ fn test_tools_with_large_data() {
 fn test_tools_with_unicode_data() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    let unicode_data = json!({
+    let _unicode_data = json!({
         "emoji": "🚀🧠🔗⚡",
         "chinese": "测试数据",
         "arabic": "بيانات الاختبار",

@@ -1,7 +1,7 @@
 // MCP Performance Tests - Benchmarking and stress testing the MCP server
 use std::time::{Duration, Instant};
-#![allow(unused_imports)]
-#![allow(unused_variables)]
+#[allow(unused_imports)]
+#[allow(unused_variables)]
 use serde_json::{json, Value};
 use anyhow::Result;
 

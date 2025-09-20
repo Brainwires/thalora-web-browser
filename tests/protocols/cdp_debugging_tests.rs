@@ -47,7 +47,7 @@ async fn test_cdp_dom_query_selector() {
 
     // Should return a response (even if CDP server isn't fully connected)
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             // The response text should mention the selector
             if let Some(text) = extract_response_text(&response) {
@@ -72,7 +72,7 @@ async fn test_cdp_dom_query_selector_missing_params() {
     let response = cdp_tools.query_selector(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(is_error, "Should return error for missing selector");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: selector"),
@@ -96,7 +96,7 @@ async fn test_cdp_dom_get_attributes() {
     let response = cdp_tools.get_attributes(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("123") || text.contains("CDP"),
@@ -118,7 +118,7 @@ async fn test_cdp_dom_get_attributes_missing_params() {
     let response = cdp_tools.get_attributes(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(is_error, "Should return error for missing node_id");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: node_id"),
@@ -142,7 +142,7 @@ async fn test_cdp_dom_get_computed_style() {
     let response = cdp_tools.get_computed_style(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("456") || text.contains("CDP") || text.contains("style"),
@@ -164,7 +164,7 @@ async fn test_cdp_network_get_cookies() {
     let response = cdp_tools.get_cookies(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Cookies") || text.contains("CDP"),
@@ -188,7 +188,7 @@ async fn test_cdp_network_get_cookies_with_urls() {
     let response = cdp_tools.get_cookies(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Cookies") || text.contains("CDP"),
@@ -217,7 +217,7 @@ async fn test_cdp_network_set_cookie() {
     let response = cdp_tools.set_cookie(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(!content.is_empty(), "Response should have content");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("test_cookie") || text.contains("CDP"),
@@ -241,7 +241,7 @@ async fn test_cdp_network_set_cookie_missing_params() {
     let response = cdp_tools.set_cookie(args, &mut cdp_server).await;
 
     match &response {
-        McpResponse::ToolResult { content, is_error } => {
+    McpResponse::ToolResult { content, is_error: _ } => {
             assert!(is_error, "Should return error for missing name");
             if let Some(text) = extract_response_text(&response) {
                 assert!(text.contains("Missing required parameter: name"),

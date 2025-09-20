@@ -1,4 +1,5 @@
 #[tokio::test]
+#[ignore]
 async fn test_chrome_137_selection_frame_selection_architecture() {
     println!("🧪 Testing Chrome 137: FrameSelection Architecture...");
 

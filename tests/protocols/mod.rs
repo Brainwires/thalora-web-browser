@@ -12,4 +12,5 @@ pub mod session_management_tests;
 pub mod cdp_session_integration_tests;
 
 // Re-export common testing utilities
+#[allow(unused_imports)]
 pub use mcp_harness::{McpTestHarness, McpTestConfig, McpToolResponse, create_initialized_harness, create_release_harness};
