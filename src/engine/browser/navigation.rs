@@ -4,6 +4,7 @@ use tokio::time::sleep;
 use std::time::Duration;
 use url::Url;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
+use rand::Rng;
 use crate::engine::browser::core::HeadlessWebBrowser;
 use crate::engine::browser::types::{ScrapedData, InteractionResponse};
 
@@ -13,6 +14,10 @@ impl HeadlessWebBrowser {
     }
 
     pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
+        // Add human-like delay before making request (50-200ms)
+        let delay_ms = 50 + (rand::random::<u64>() % 150);
+        sleep(Duration::from_millis(delay_ms)).await;
+
         let headers = self.create_standard_browser_headers(url);
 
         let response = self.client

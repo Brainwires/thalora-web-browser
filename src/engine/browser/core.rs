@@ -20,11 +20,18 @@ pub struct HeadlessWebBrowser {
 
 impl HeadlessWebBrowser {
     pub fn new() -> Arc<Mutex<Self>> {
-        // We are Chrome - configure client to identify properly as Chrome
+        // Configure client with enhanced stealth capabilities
         let client = reqwest::Client::builder()
             .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .gzip(true)
+            .brotli(true)
+            .deflate(true)
+            .http2_prior_knowledge()
+            .http2_adaptive_window(true)
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .tcp_nodelay(true)
             .build()
             .expect("Failed to create HTTP client");
 
@@ -129,38 +136,60 @@ impl HeadlessWebBrowser {
         }
     }
 
-    pub fn create_standard_browser_headers(&self, _url: &str) -> HeaderMap {
+    pub fn create_standard_browser_headers(&self, url: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
 
-        // We ARE Chrome - this is what Chrome actually sends
+        // Latest Chrome version with more realistic versioning
         headers.insert(USER_AGENT, HeaderValue::from_static(
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ));
 
-        // Standard Chrome headers - exactly what Chrome sends
+        // More comprehensive Accept header with proper priorities
         headers.insert(ACCEPT, HeaderValue::from_static(
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
         ));
+
+        // More realistic language preferences
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
-        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
-        headers.insert(CONNECTION, HeaderValue::from_static("keep-alive"));
-        headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
 
-        // Chrome's standard security headers
-        headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
-        headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
-        headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
-        headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
+        // Add zstd compression support for latest Chrome
+        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br, zstd"));
 
-        // Chrome's client hints - we ARE Chrome
+        // Modern Chrome client hints with proper versioning
         headers.insert("sec-ch-ua", HeaderValue::from_static(
-            r#""Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120""#
+            r#""Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24""#
         ));
         headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
-        headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Linux""#));
+        headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Windows""#));
+        headers.insert("sec-ch-ua-platform-version", HeaderValue::from_static(r#""15.0.0""#));
+        headers.insert("sec-ch-ua-arch", HeaderValue::from_static(r#""x86""#));
+        headers.insert("sec-ch-ua-bitness", HeaderValue::from_static(r#""64""#));
+        headers.insert("sec-ch-ua-model", HeaderValue::from_static(r#""""#));
+        headers.insert("sec-ch-ua-full-version-list", HeaderValue::from_static(
+            r#""Google Chrome";v="131.0.6778.85", "Chromium";v="131.0.6778.85", "Not_A Brand";v="24.0.0.0""#
+        ));
 
-        // Standard Chrome cache control
+        // Proper fetch metadata based on navigation context
+        if url.starts_with("https://www.bing.com") {
+            headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+            headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+            headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
+            headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
+        } else {
+            headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+            headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+            headers.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
+            headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
+        }
+
+        headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
         headers.insert("cache-control", HeaderValue::from_static("max-age=0"));
+
+        // Add DNT header that some browsers send
+        headers.insert("dnt", HeaderValue::from_static("1"));
+
+        // Modern priority header
+        headers.insert("priority", HeaderValue::from_static("u=0, i"));
 
         headers
     }

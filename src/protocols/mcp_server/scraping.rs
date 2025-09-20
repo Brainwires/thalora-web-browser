@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use scraper::{Html, Selector};
 use url::Url;
 use rand::{Rng, thread_rng};
+use base64;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
@@ -50,9 +51,10 @@ impl McpServer {
         match search_engine {
             "duckduckgo" => self.search_duckduckgo(query, num_results).await,
             "bing" => self.search_bing(query, num_results).await,
+            "google" => self.search_google(query, num_results).await,
             "startpage" => self.search_startpage(query, num_results).await,
             "searx" => self.search_searx(query, num_results).await,
-            _ => self.search_duckduckgo(query, num_results).await, // Default to DuckDuckGo
+            _ => Err(anyhow::anyhow!("Unsupported search engine: {}. Supported engines: google, bing, duckduckgo, startpage, searx", search_engine)),
         }
     }
 
@@ -73,10 +75,50 @@ impl McpServer {
     }
 
     async fn search_bing(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
-        // Fall back to DuckDuckGo for now since Bing has very aggressive bot detection
-        // This is a temporary workaround until we can implement proper browser automation
-        eprintln!("Warning: Bing search is temporarily using DuckDuckGo fallback due to bot detection");
-        return self.search_duckduckgo(query, num_results).await;
+        let search_url = format!("https://www.bing.com/search?q={}&count={}&FORM=QBLH",
+                                urlencoding::encode(query), num_results);
+
+        // Use the browser's HTTP client with enhanced stealth capabilities
+        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser_guard = browser;
+
+        // Navigate using the browser's full navigation system which includes stealth features
+        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        let html = browser_guard.get_current_content();
+        drop(browser_guard);
+
+        // Check for actual Cloudflare challenge (not just JS that mentions cloudflare)
+        if html.contains("challenges.cloudflare.com") && html.contains("cf-browser-verification") {
+            return Err(anyhow::anyhow!("Bing returned Cloudflare challenge - need enhanced stealth"));
+        }
+
+        self.parse_bing_results(&html, query, num_results).await
+    }
+
+    async fn search_google(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
+        let search_url = format!("https://www.google.com/search?q={}&num={}&hl=en&gl=us",
+                                urlencoding::encode(query), num_results);
+
+        // Use the browser's HTTP client with enhanced stealth capabilities
+        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser_guard = browser;
+
+        // Navigate using the browser's full navigation system which includes stealth features
+        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        let html = browser_guard.get_current_content();
+        drop(browser_guard);
+
+        // Check for Google's bot detection challenges
+        if html.contains("Our systems have detected unusual traffic") || html.contains("why did this happen") {
+            return Err(anyhow::anyhow!("Google returned bot detection challenge"));
+        }
+
+        // Check for reCAPTCHA challenge
+        if html.contains("recaptcha") && html.contains("challenge") {
+            return Err(anyhow::anyhow!("Google returned reCAPTCHA challenge"));
+        }
+
+        self.parse_google_results(&html, query, num_results).await
     }
 
     async fn search_startpage(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
@@ -145,21 +187,71 @@ impl McpServer {
         let document = Html::parse_document(html);
         let mut results = Vec::new();
 
-        // Multiple Bing result selectors - try various versions
-        let selectors = [".b_algo", ".b_algoSlug", ".b_algoheader", ".b_title h2"];
+        // Modern Bing result selectors - updated for current Bing structure
+        let main_selectors = [
+            ".b_algo",           // Main result container
+            ".b_algoSlug",       // Alternative result container
+            "li.b_algo",         // List item with class
+            "[data-feedback]",   // Modern Bing feedback-enabled results
+        ];
 
-        for selector_str in &selectors {
+        for selector_str in &main_selectors {
             if let Ok(selector) = Selector::parse(selector_str) {
                 for element in document.select(&selector) {
                     if results.len() >= num_results {
                         break;
                     }
 
-                    let title = self.extract_generic_title(&element, &["h2 a", ".b_title a", "h3 a", "a h2", "a"]);
-                    let url = self.extract_generic_url(&element, &["h2 a", ".b_title a", "h3 a", "a h2", "a"]);
-                    let snippet = self.extract_generic_snippet(&element, &[".b_caption p", ".b_snippet", ".b_paractl", ".b_descript", "p"]);
+                    // Try multiple title selectors for Bing
+                    let title_selectors = [
+                        "h2 a",
+                        ".b_title a",
+                        ".b_algoheader a",
+                        ".b_topTitle a",
+                        "a[href] h2",
+                        "a[href] h3"
+                    ];
 
-                    if !title.is_empty() && !url.is_empty() && !results.iter().any(|r: &SearchResult| r.url == url) {
+                    let url_selectors = [
+                        "h2 a",
+                        ".b_title a",
+                        ".b_algoheader a",
+                        ".b_topTitle a",
+                        "a[href]:first-of-type"
+                    ];
+
+                    let snippet_selectors = [
+                        ".b_caption p",
+                        ".b_snippet",
+                        ".b_paractl",
+                        ".b_descript",
+                        ".b_lineclamp2",
+                        ".b_lineclamp3",
+                        ".b_lineclamp4",
+                        "p"
+                    ];
+
+                    let title = self.extract_generic_title(&element, &title_selectors);
+                    let mut url = self.extract_generic_url(&element, &url_selectors);
+                    let snippet = self.extract_generic_snippet(&element, &snippet_selectors);
+
+                    // Clean up Bing redirect URLs
+                    if url.starts_with("https://www.bing.com/ck/a?") || url.contains("&u=a1aHR0") {
+                        // Extract actual URL from Bing redirect
+                        if let Some(u_param) = url.split("&u=a1").nth(1) {
+                            let param_value = u_param.chars().take_while(|&c| c != '&').collect::<String>();
+                            if let Ok(decoded) = base64::decode(&param_value) {
+                                if let Ok(decoded_url) = String::from_utf8(decoded) {
+                                    url = decoded_url;
+                                }
+                            }
+                        }
+                    }
+
+                    // Only add if we have valid title and URL, and it's not a duplicate
+                    if !title.is_empty() && !url.is_empty() && url.starts_with("http")
+                        && !url.contains("bing.com") && !url.contains("microsoft.com")
+                        && !results.iter().any(|r: &SearchResult| r.url == url) {
                         results.push(SearchResult {
                             title,
                             url,
@@ -172,31 +264,6 @@ impl McpServer {
 
             if results.len() >= num_results {
                 break;
-            }
-        }
-
-        // If we still don't have results, try looking for any links with titles
-        if results.is_empty() {
-            if let Ok(selector) = Selector::parse("a[href]") {
-                for element in document.select(&selector) {
-                    if results.len() >= num_results {
-                        break;
-                    }
-
-                    let url = element.value().attr("href").unwrap_or("").to_string();
-                    let title = element.text().collect::<String>().trim().to_string();
-
-                    // Filter for actual search results
-                    if url.starts_with("http") && !url.contains("bing.com") && !url.contains("microsoft.com")
-                        && title.len() > 5 && title.len() < 200 {
-                        results.push(SearchResult {
-                            title,
-                            url,
-                            snippet: String::new(),
-                            position: results.len() + 1,
-                        });
-                    }
-                }
             }
         }
 
