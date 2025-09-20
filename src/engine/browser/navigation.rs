@@ -118,6 +118,7 @@ impl HeadlessWebBrowser {
             // Give dynamic content more time to load and execute
             sleep(Duration::from_millis(3000)).await;
 
+
             // Try to trigger any lazy loading or dynamic content
             let trigger_dynamic = r#"
                 (function() {
