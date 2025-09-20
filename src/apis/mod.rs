@@ -81,17 +81,6 @@ impl WebApis {
         let event_manager = events::EventManager::new();
         event_manager.setup_events_api(context).map_err(|e| anyhow::Error::msg(format!("Events API setup failed: {:?}", e)))?;
 
-        // Screen object is now handled directly in Boa builtin system (window.rs)
-        // No need for separate global alias setup
-
-        Ok(())
-    }
-
-    /// Setup screen global (alias for window.screen) - DISABLED to prevent stack overflow
-    #[allow(dead_code)]
-    fn setup_screen_global(&self, _context: &mut Context) -> Result<()> {
-        // DISABLED - this was causing infinite recursion due to window.screen getter loops
-        eprintln!("🔥 Screen global setup DISABLED - preventing stack overflow");
         Ok(())
     }
 }

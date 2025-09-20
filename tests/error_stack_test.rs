@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::engine::HeadlessWebBrowser;
-    use crate::engine::engine::JavaScriptEngine;
+    use thalora::engine::HeadlessWebBrowser;
+    use thalora::engine::engine::JavaScriptEngine;
 
     #[tokio::test]
     async fn test_error_stack_trace_implementation() {
-        let mut browser = HeadlessWebBrowser::new();
-        let mut js_engine = JavaScriptEngine::new();
+    let _browser = HeadlessWebBrowser::new();
+    let mut js_engine = JavaScriptEngine::new().unwrap();
 
         // Test Error.stack property
         let stack_test = r#"
@@ -33,7 +33,7 @@ mod tests {
             'Complete'
         "#;
 
-        let result = js_engine.execute_script(stack_test).await;
+    let result = js_engine.execute_enhanced(stack_test).await;
         println!("Error stack test result: {:?}", result);
 
         // The test should show Error.stack exists and Error.captureStackTrace works
