@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 use std::collections::HashMap;

@@ -46,7 +46,7 @@ impl BrowserTools {
             sessions.insert(session_id.to_string(), (browser.clone(), session));
 
             if persistent {
-                let _ = self.save_session(session_id);
+                drop(self.save_session(session_id));
             }
 
             browser
@@ -67,7 +67,7 @@ impl BrowserTools {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some((_, session)) = sessions.remove(session_id) {
             if session.persistent {
-                let _ = self.remove_persistent_session(session_id);
+                drop(self.remove_persistent_session(session_id));
             }
             true
         } else {

@@ -532,6 +532,6 @@ mod tests {
         // cleanup
         arc.delete_backing_file().expect("delete");
         assert!(!backing.exists());
-        let _ = set_current_vfs(None);
+    drop(set_current_vfs(None));
     }
 }

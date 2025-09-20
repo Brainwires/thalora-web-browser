@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::time::{Duration, Instant};
+use tokio::time::Instant;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
@@ -350,7 +350,7 @@ impl WebSocketManager {
         // Run handlers
         if let Ok(handlers) = self.message_handlers.lock() {
             for handler in handlers.iter() {
-                let _ = handler(&message);
+                drop(handler(&message));
             }
         }
 

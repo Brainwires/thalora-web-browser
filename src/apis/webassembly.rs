@@ -242,7 +242,7 @@ impl WebAssemblyManager {
                         Ok(_module) => {
                             let module_obj = JsObject::default();
                             let callback = callback_args[0].as_callable().unwrap();
-                            let _ = callback.call(&JsValue::undefined(), &[JsValue::from(module_obj)], callback_context);
+                            drop(callback.call(&JsValue::undefined(), &[JsValue::from(module_obj)], callback_context));
                         },
                         Err(_) => {}
                     }

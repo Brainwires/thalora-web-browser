@@ -49,7 +49,7 @@ impl TimerManager {
             // For now, execute immediately if delay is 0
             if delay_ms == 0 {
                 if callback.is_callable() {
-                    let _ = callback.as_callable().unwrap().call(&JsValue::undefined(), &[], context);
+                    drop(callback.as_callable().unwrap().call(&JsValue::undefined(), &[], context));
                 }
                 // Remove from active timers
                 {
@@ -136,7 +136,7 @@ impl TimerManager {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as f64 % 1000000.0); // Keep reasonable range
-                let _ = callback.as_callable().unwrap().call(&JsValue::undefined(), &[timestamp], context);
+                drop(callback.as_callable().unwrap().call(&JsValue::undefined(), &[timestamp], context));
             }
 
             // Remove from active timers

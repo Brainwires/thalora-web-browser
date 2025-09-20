@@ -488,7 +488,7 @@ impl AiMemoryHeap {
             bookmark.last_accessed = Some(Utc::now());
             bookmark.access_count += 1;
             let result = Some(bookmark.clone());
-            let _ = self.save(); // Ignore save errors for access tracking
+            drop(self.save()); // Ignore save errors for access tracking
             result
         } else {
             None

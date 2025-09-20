@@ -511,7 +511,7 @@ impl McpServer {
         if is_session {
             if should_persist {
                 if let Err(e) = vfs_instance.persist() {
-                    let _ = set_current_vfs(prev_vfs);
+                    drop(set_current_vfs(prev_vfs));
                     return McpResponse::error(-32001, format!("Failed to persist session VFS: {}", e));
                 }
             }
@@ -519,16 +519,16 @@ impl McpServer {
         } else {
             if should_persist {
                 if let Err(e) = vfs_instance.persist() {
-                    let _ = set_current_vfs(prev_vfs);
+                    drop(set_current_vfs(prev_vfs));
                     return McpResponse::error(-32002, format!("Failed to persist ephemeral VFS: {}", e));
                 }
             } else {
-                let _ = vfs_instance.delete_backing_file();
+                drop(vfs_instance.delete_backing_file());
             }
         }
 
         // Restore previous VFS (if any)
-        let _ = set_current_vfs(prev_vfs);
+    drop(set_current_vfs(prev_vfs));
 
         resp
     }

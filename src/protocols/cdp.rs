@@ -162,7 +162,7 @@ impl CdpServer {
     }
 
     pub fn emit_event(&self, event: CdpEvent) {
-        let _ = self.event_sender.send(event);
+    drop(self.event_sender.send(event));
     }
 }
 

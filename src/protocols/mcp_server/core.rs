@@ -80,7 +80,7 @@ impl McpServer {
         let mut guard = self.session_vfs.lock().unwrap();
         if let Some(v) = guard.remove(session_id) {
             if delete_backing {
-                let _ = v.delete_backing_file();
+                drop(v.delete_backing_file());
             }
         }
     }

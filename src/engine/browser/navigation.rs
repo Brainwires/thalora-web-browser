@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use tokio::time::sleep;
 use std::time::Duration;
 use url::Url;
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
-use rand::Rng;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::core::HeadlessWebBrowser;
 use crate::engine::browser::types::{ScrapedData, InteractionResponse};
 
@@ -38,9 +37,13 @@ impl HeadlessWebBrowser {
 
         // Update the document's HTML content in the JavaScript context
         if let Some(ref mut renderer) = self.renderer {
-            // DISABLED - this was causing stack overflow
-            eprintln!("🔍 DEBUG: Document HTML update DISABLED to prevent stack overflow");
-            // let _ = renderer.update_document_html(&content);
+            // Use the renderer's re-entrancy guard to prevent recursion
+            if !renderer.is_in_update() {
+                eprintln!("🔍 DEBUG: Updating document HTML via renderer");
+                drop(renderer.update_document_html(&content));
+            } else {
+                eprintln!("🔍 DEBUG: Skipping document HTML update due to active renderer update guard");
+            }
         }
 
         // Add to history
@@ -59,9 +62,16 @@ impl HeadlessWebBrowser {
                 eprintln!("🔍 DEBUG: Found safe JavaScript, checking with renderer");
                 if let Some(ref mut renderer) = self.renderer {
                     if renderer.is_safe_javascript(&js_code) {
-                        eprintln!("🔍 DEBUG: JavaScript deemed safe, evaluating");
-                        let _ = renderer.evaluate_javascript(&js_code);
-                        eprintln!("🔍 DEBUG: JavaScript evaluation completed");
+                        eprintln!("🔍 DEBUG: JavaScript deemed safe, evaluating (guarded)");
+                        if !renderer.is_in_update() {
+                                // Mark in_update to avoid re-entrancy during evaluation
+                                renderer.set_in_update(true);
+                                drop(renderer.evaluate_javascript(&js_code));
+                                renderer.set_in_update(false);
+                            eprintln!("🔍 DEBUG: JavaScript evaluation completed");
+                        } else {
+                            eprintln!("🔍 DEBUG: Skipping JS evaluation due to renderer update guard");
+                        }
                     }
                 }
             }
@@ -115,7 +125,13 @@ impl HeadlessWebBrowser {
                 if let Ok(script_response) = self.client.get(&script_url).send().await {
                     if let Ok(script_content) = script_response.text().await {
                         if renderer.is_safe_javascript(&script_content) {
-                            let _ = renderer.evaluate_javascript(&script_content);
+                            if !renderer.is_in_update() {
+                                    renderer.set_in_update(true);
+                                    drop(renderer.evaluate_javascript(&script_content));
+                                    renderer.set_in_update(false);
+                            } else {
+                                eprintln!("🔍 DEBUG: Skipping external script evaluation due to renderer update guard");
+                            }
                         }
                     }
                 }
@@ -165,7 +181,7 @@ impl HeadlessWebBrowser {
                     }
                 })()
             "#;
-            let _ = renderer.evaluate_javascript(trigger_dynamic);
+            drop(renderer.evaluate_javascript(trigger_dynamic));
 
             // Wait a bit more after triggering events
             sleep(Duration::from_millis(2000)).await;
@@ -276,7 +292,7 @@ impl HeadlessWebBrowser {
         self.scraper.scrape_page(&self.current_content, url)
     }
 
-    pub async fn submit_form(&mut self, form_selector: &str, form_data: HashMap<String, String>) -> Result<InteractionResponse> {
+    pub async fn submit_form(&mut self, _form_selector: &str, form_data: HashMap<String, String>) -> Result<InteractionResponse> {
         let current_url = self.current_url.as_ref()
             .ok_or_else(|| anyhow!("No current page loaded"))?;
 

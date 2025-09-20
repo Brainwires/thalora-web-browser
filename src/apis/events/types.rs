@@ -1,4 +1,4 @@
-use anyhow::Result;
+// anyhow::Result intentionally unused here
 use boa_engine::JsValue;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

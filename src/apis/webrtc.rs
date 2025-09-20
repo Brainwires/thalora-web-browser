@@ -173,11 +173,11 @@ impl WebRTCManager {
 
                                                     let callback =
                                                         callback_args[0].as_callable().unwrap();
-                                                    let _ = callback.call(
+                                                    drop(callback.call(
                                                         &JsValue::undefined(),
                                                         &[JsValue::from(offer_obj)],
                                                         callback_context,
-                                                    );
+                                                    ));
                                                 }
                                                 Err(_) => {
                                                     // Handle error
@@ -253,11 +253,11 @@ impl WebRTCManager {
 
                                                     let callback =
                                                         callback_args[0].as_callable().unwrap();
-                                                    let _ = callback.call(
+                                                    drop(callback.call(
                                                         &JsValue::undefined(),
                                                         &[JsValue::from(answer_obj)],
                                                         callback_context,
-                                                    );
+                                                    ));
                                                 }
                                                 Err(_) => {}
                                             }

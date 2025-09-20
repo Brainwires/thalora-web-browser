@@ -35,7 +35,7 @@ impl HeadlessWebBrowser {
             .build()
             .expect("Failed to create HTTP client");
 
-        let mut renderer = RustRenderer::new();
+    let renderer = RustRenderer::new();
 
         let auth_context = AuthContext {
             cookies: HashMap::new(),
@@ -66,7 +66,7 @@ impl HeadlessWebBrowser {
         let browser_arc = Arc::new(Mutex::new(browser));
 
         // Setup history API with reference to browser
-        let _ = Self::setup_history_api(browser_arc.clone());
+    let _ = Self::setup_history_api(browser_arc.clone());
 
         browser_arc
     }

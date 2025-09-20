@@ -12,6 +12,10 @@ pub struct RustRenderer {
     pub(super) history_initialized: bool,
     pub(super) event_manager: EventManager,
     pub(super) wasm_api: Option<AdvancedWebAssemblyEngine>,
+    // Guard to prevent re-entrant updates/evaluations which previously caused
+    // infinite recursion / stack overflows when JS evaluation or window getters
+    // triggered additional document updates.
+    pub(super) in_update: bool,
 }
 
 impl RustRenderer {
@@ -55,7 +59,18 @@ impl RustRenderer {
             history_initialized: false,
             event_manager,
             wasm_api,
+            in_update: false,
         }
+    }
+
+    /// Check whether the renderer is currently performing an update.
+    pub fn is_in_update(&self) -> bool {
+        self.in_update
+    }
+
+    /// Set the renderer "in update" guard flag.
+    pub fn set_in_update(&mut self, value: bool) {
+        self.in_update = value;
     }
 
     pub fn setup_history_api(&mut self, _browser: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>>) -> Result<()> {
@@ -73,7 +88,14 @@ impl RustRenderer {
     /// Update the document's HTML content to enable real DOM querying
     pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
         use boa_engine::js_string;
+        // Prevent re-entrant updates which could cause infinite recursion by
+        // a JS getter calling back into document update.
+        if self.in_update {
+            eprintln!("🔍 DEBUG: update_document_html re-entrant call detected - skipping to avoid recursion");
+            return Ok(());
+        }
 
+        self.in_update = true;
         // Get the global document object
         let global = self.js_context.global_object().clone();
         if let Ok(document_value) = global.get(js_string!("document"), &mut self.js_context) {
@@ -85,6 +107,8 @@ impl RustRenderer {
                 }
             }
         }
+
+        self.in_update = false;
 
         Ok(())
     }
