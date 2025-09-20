@@ -88,4 +88,26 @@ impl RustRenderer {
 
         Ok(())
     }
+
+    /// TEMPORARY: Get debugging information from Bing debug polyfill
+    pub fn get_bing_debug_info(&mut self) -> Result<String> {
+        let debug_script = r#"
+            (function() {
+                try {
+                    if (typeof window._BING_DEBUG !== 'undefined') {
+                        return JSON.stringify(window._BING_DEBUG.report(), null, 2);
+                    } else {
+                        return 'No debug info available';
+                    }
+                } catch(e) {
+                    return 'Error getting debug info: ' + e.message;
+                }
+            })()
+        "#;
+
+        match self.js_context.eval(boa_engine::Source::from_bytes(debug_script)) {
+            Ok(value) => Ok(self.js_value_to_string(value)),
+            Err(_) => Ok("Failed to get debug info".to_string())
+        }
+    }
 }

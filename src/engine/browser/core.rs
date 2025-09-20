@@ -164,4 +164,13 @@ impl HeadlessWebBrowser {
 
         headers
     }
+
+    /// TEMPORARY: Get debugging information about missing APIs for Bing search
+    pub fn get_bing_debug_info(&mut self) -> anyhow::Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.get_bing_debug_info()
+        } else {
+            Ok("No renderer available".to_string())
+        }
+    }
 }
