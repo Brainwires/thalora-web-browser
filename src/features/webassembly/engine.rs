@@ -102,7 +102,7 @@ struct FunctionEntry {
 }
 
 #[derive(Debug, Default, Clone)]
-struct EngineMetrics {
+pub struct EngineMetrics {
     modules_compiled: u64,
     instances_created: u64,
     functions_called: u64,
@@ -122,7 +122,7 @@ struct CompiledModule {
 }
 
 #[derive(Debug, Default, Clone)]
-struct WasmFeatureSet {
+pub struct WasmFeatureSet {
     bulk_memory: bool,
     reference_types: bool,
     simd: bool,
@@ -291,7 +291,7 @@ impl AdvancedWebAssemblyEngine {
         // Check JIT cache first
         {
             let cache = self.jit_cache.read().unwrap();
-            if let Some(cached) = cache.get(&bytes.to_vec()) {
+            if let Some(_cached) = cache.get(&bytes.to_vec()) {
                 let mut metrics = self.metrics.write().unwrap();
                 metrics.cache_hits += 1;
                 return Ok(format!("cached_module_{}", bytecode_hash));

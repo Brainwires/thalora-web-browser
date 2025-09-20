@@ -49,6 +49,7 @@ impl WebStorage {
         }
     }
 
+    #[allow(dead_code)]
     fn save_local_storage(&self) {
         let local_storage_file = self.storage_dir.join("localStorage.json");
         let storage_data = self.local_storage.lock().unwrap().clone();

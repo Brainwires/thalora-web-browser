@@ -1,2 +1,4 @@
 [build]
-rustflags = ["-A", "warnings"]
+# Temporarily disabled global suppression. Remove or re-enable only if
+# you explicitly need to silence all warnings across the workspace.
+# rustflags = ["-A", "warnings"]

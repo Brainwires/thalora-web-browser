@@ -135,13 +135,9 @@ impl WebAssemblyManager {
 
         // Real WebAssembly.Memory with actual linear memory
         let engine_memory = Arc::clone(&self.engine);
-        let memory_constructor = unsafe { NativeFunction::from_closure(move |_, args, context| {
+    let memory_constructor = unsafe { NativeFunction::from_closure(move |_, _args, ctx| {
             // Parse memory descriptor from args (simplified)
-            let initial_pages = if !args.is_empty() {
-                1 // Default to 1 page (64KB)
-            } else {
-                1
-            };
+            let initial_pages = 1; // Default to 1 page (64KB); args ignored in headless
 
             // Create actual WASM memory using wasmtime store
             let memory_type = MemoryType::new(initial_pages, Some(1000)); // Max 1000 pages
@@ -153,20 +149,16 @@ impl WebAssemblyManager {
 
                     // Create ArrayBuffer-like buffer property
                     let buffer = JsObject::default();
-                    buffer.set(js_string!("byteLength"), JsValue::from(initial_pages * 65536), false, context)?;
-                    memory_obj.set(js_string!("buffer"), JsValue::from(buffer), false, context)?;
+                    buffer.set(js_string!("byteLength"), JsValue::from(initial_pages * 65536), false, ctx)?;
+                    memory_obj.set(js_string!("buffer"), JsValue::from(buffer), false, ctx)?;
 
                     // Add grow function
-                    let grow_fn = NativeFunction::from_closure(|_, args, _context| {
-                        let _pages = if !args.is_empty() {
-                            args[0].to_i32(_context).unwrap_or(1)
-                        } else {
-                            1
-                        };
+                    let grow_fn = NativeFunction::from_closure(|_, _args, _context| {
+                                let _pages = 1; // simplified; input ignored in headless mode
                         // Return previous size
                         Ok(JsValue::from(1))
                     });
-                    memory_obj.set(js_string!("grow"), JsValue::from(grow_fn.to_js_function(context.realm())), false, context)?;
+                    memory_obj.set(js_string!("grow"), JsValue::from(grow_fn.to_js_function(ctx.realm())), false, ctx)?;
 
                     Ok(JsValue::from(memory_obj))
                 },
@@ -175,24 +167,24 @@ impl WebAssemblyManager {
                     .into())
             }
         }) };
-        webassembly_obj.set(js_string!("Memory"), JsValue::from(memory_constructor.to_js_function(context.realm())), false, context)?;
+    webassembly_obj.set(js_string!("Memory"), JsValue::from(memory_constructor.to_js_function(context.realm())), false, context)?;
 
         // Real WebAssembly.Table with actual table management
         let _engine_table = Arc::clone(&self.engine);
-        let table_constructor = unsafe { NativeFunction::from_closure(move |_, _args, context| {
+    let table_constructor = unsafe { NativeFunction::from_closure(move |_, _args, ctx| {
             // Create real table object
             let table_obj = JsObject::default();
-            table_obj.set(js_string!("length"), JsValue::from(0), false, context)?;
+            table_obj.set(js_string!("length"), JsValue::from(0), false, ctx)?;
 
             // Real grow method
-            let grow_fn = NativeFunction::from_closure(|_, _args, _context| {
+            let grow_fn = NativeFunction::from_closure(|_, _args, _ctx| {
                 Ok(JsValue::from(0)) // Return previous size
             });
-            table_obj.set(js_string!("grow"), JsValue::from(grow_fn.to_js_function(context.realm())), false, context)?;
+            table_obj.set(js_string!("grow"), JsValue::from(grow_fn.to_js_function(ctx.realm())), false, ctx)?;
 
             Ok(JsValue::from(table_obj))
         }) };
-        webassembly_obj.set(js_string!("Table"), JsValue::from(table_constructor.to_js_function(context.realm())), false, context)?;
+    webassembly_obj.set(js_string!("Table"), JsValue::from(table_constructor.to_js_function(context.realm())), false, context)?;
 
         // Real WebAssembly.Global with actual global value management
         let _engine_global = Arc::clone(&self.engine);
@@ -229,8 +221,8 @@ impl WebAssemblyManager {
             let promise_obj = JsObject::default();
             let engine_for_then = Arc::clone(&engine_compile);
 
-            let then_fn = NativeFunction::from_closure(move |_, callback_args, callback_context| {
-                if !callback_args.is_empty() && callback_args[0].is_callable() {
+            let then_fn = NativeFunction::from_closure(move |_, _callback_args, callback_context| {
+                if !_callback_args.is_empty() && _callback_args[0].is_callable() {
                     let bytes = vec![
                         0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
                         0x01, 0x04, 0x01, 0x60, 0x00, 0x00,
@@ -241,7 +233,7 @@ impl WebAssemblyManager {
                     match Module::new(&*engine_for_then, &bytes) {
                         Ok(_module) => {
                             let module_obj = JsObject::default();
-                            let callback = callback_args[0].as_callable().unwrap();
+                            let callback = _callback_args[0].as_callable().unwrap();
                             drop(callback.call(&JsValue::undefined(), &[JsValue::from(module_obj)], callback_context));
                         },
                         Err(_) => {}
@@ -252,7 +244,7 @@ impl WebAssemblyManager {
 
             promise_obj.set(js_string!("then"), JsValue::from(then_fn.to_js_function(context.realm())), false, context)?;
 
-            let catch_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined()));
+            let catch_fn = NativeFunction::from_closure(|_, _args, _ctx| Ok(JsValue::undefined()));
             promise_obj.set(js_string!("catch"), JsValue::from(catch_fn.to_js_function(context.realm())), false, context)?;
 
             Ok(JsValue::from(promise_obj))

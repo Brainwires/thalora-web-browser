@@ -582,7 +582,7 @@ impl McpServer {
 
         // Look in parent elements for links
         if let Some(parent) = element.parent() {
-            if let Some(parent_element) = parent.value().as_element() {
+            if let Some(_parent_element) = parent.value().as_element() {
                 let parent_ref = scraper::ElementRef::wrap(parent).unwrap();
                 return self.extract_modern_search_result_url(&parent_ref);
             }

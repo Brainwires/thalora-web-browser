@@ -9,6 +9,7 @@ use uuid::Uuid;
 /// Chrome DevTools Protocol implementation for Thalora
 /// Provides debugging and inspection APIs for AI coding agents
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct CdpServer {
     domains: Arc<Mutex<HashMap<String, Box<dyn CdpDomain + Send + Sync>>>>,
     event_sender: broadcast::Sender<CdpEvent>,
@@ -168,6 +169,7 @@ impl CdpServer {
 
 /// Runtime domain - JavaScript execution and inspection
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RuntimeDomain {
     execution_contexts: Vec<ExecutionContext>,
     next_context_id: i32,
@@ -376,6 +378,7 @@ impl CdpDomain for DebuggerDomain {
 
 /// DOM domain - Document inspection and manipulation
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct DomDomain {
     enabled: bool,
     next_node_id: i32,
@@ -673,6 +676,7 @@ impl CdpDomain for PerformanceDomain {
 
 /// Storage domain - Web storage inspection
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StorageDomain {
     enabled: bool,
 }

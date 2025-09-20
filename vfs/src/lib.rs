@@ -106,6 +106,7 @@ pub mod fs {
 pub mod fs {
     use super::*;
 
+    #[allow(dead_code)]
     fn map_for_current() -> Option<Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>> {
         if let Some(vfs) = get_current_vfs() {
             return Some(vfs.as_map());

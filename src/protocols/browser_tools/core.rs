@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::browser_tools::session::BrowserSession;
 
+#[allow(dead_code)]
 pub struct BrowserTools {
     pub(super) sessions: Arc<Mutex<HashMap<String, (Arc<Mutex<HeadlessWebBrowser>>, BrowserSession)>>>,
     pub(super) persistent_session_path: Option<PathBuf>,

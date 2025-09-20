@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use super::types::*;
 
 /// Core event management system
+#[allow(dead_code)]
 pub struct EventManager {
     listeners: Arc<Mutex<HashMap<String, Vec<EventListener>>>>,
     custom_events: Arc<Mutex<HashMap<String, CustomEvent>>>,

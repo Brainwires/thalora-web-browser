@@ -5,17 +5,20 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Real Geolocation API implementation with actual location detection
+#[allow(dead_code)]
 pub struct GeolocationManager {
     watch_positions: Arc<Mutex<HashMap<u32, GeolocationWatch>>>,
     next_watch_id: Arc<Mutex<u32>>,
 }
 
+#[allow(dead_code)]
 struct GeolocationWatch {
     callback: String, // In real impl, would store JS function reference
     options: GeolocationOptions,
     active: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 struct GeolocationOptions {
     enable_high_accuracy: bool,

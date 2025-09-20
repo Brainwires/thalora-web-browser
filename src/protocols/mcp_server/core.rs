@@ -15,6 +15,7 @@ use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::cdp_tools::CdpTools;
 use crate::protocols::browser_tools::BrowserTools;
 
+#[allow(dead_code)]
 pub struct McpServer {
     pub(super) browser: Arc<Mutex<HeadlessWebBrowser>>,
     pub(super) websocket_manager: WebSocketManager,

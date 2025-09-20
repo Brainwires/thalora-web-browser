@@ -6,6 +6,7 @@ use crate::apis::WebApis;
 use crate::apis::events::EventManager;
 use crate::features::AdvancedWebAssemblyEngine;
 
+#[allow(dead_code)]
 pub struct RustRenderer {
     pub(super) js_context: Context,
     pub(super) web_apis: WebApis,

@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;
 
+#[allow(dead_code)]
 pub struct JavaScriptEngine {
     context: Context,
     timers: Arc<Mutex<HashMap<u32, TimerHandle>>>,
@@ -17,6 +18,7 @@ pub struct JavaScriptEngine {
     syntax_transformer: SyntaxTransformer,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TimerHandle {
     id: u32,

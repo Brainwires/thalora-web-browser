@@ -207,7 +207,7 @@ impl NavigatorManager {
         // TrustedTypes API (critical for Google's 2025 bot detection)
         let trusted_types = JsObject::with_object_proto(context.intrinsics());
 
-        let create_policy_fn = NativeFunction::from_fn_ptr(|_, args, context| {
+    let create_policy_fn = NativeFunction::from_fn_ptr(|_, args, context| {
             if args.len() < 2 {
                 return Err(boa_engine::JsError::from_opaque(JsValue::from(js_string!("TrustedTypes createPolicy requires name and rules"))));
             }
@@ -346,7 +346,7 @@ impl NavigatorManager {
         user_agent_data.set(js_string!("mobile"), JsValue::from(false), false, context)?;
         user_agent_data.set(js_string!("platform"), JsValue::from(js_string!(self.platform.clone())), false, context)?;
 
-        let get_high_entropy_values_fn = NativeFunction::from_fn_ptr(|_, args, context| {
+    let get_high_entropy_values_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
             // MOCK: Returns hardcoded system info
             let hints = JsObject::with_object_proto(context.intrinsics());
             hints.set(js_string!("platform"), JsValue::from(js_string!("Windows")), false, context)?;
@@ -369,7 +369,7 @@ impl NavigatorManager {
 
         // Direct Sockets API (Chrome 125) - TCP and UDP
         let tcp = JsObject::with_object_proto(context.intrinsics());
-        let tcp_connect_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
+    let tcp_connect_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
             // TCP sockets require Chrome Apps context - not available in headless mode
             let error = boa_engine::JsError::from_opaque(JsValue::from(js_string!("TCP sockets are only available in Chrome Apps")));
             Err(error)
@@ -378,7 +378,7 @@ impl NavigatorManager {
         navigator.set(js_string!("tcp"), JsValue::from(tcp), false, context)?;
 
         let udp = JsObject::with_object_proto(context.intrinsics());
-        let udp_bind_fn = NativeFunction::from_fn_ptr(|_, _args, context| {
+    let udp_bind_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
             // UDP sockets require Chrome Apps context - not available in headless mode
             let error = boa_engine::JsError::from_opaque(JsValue::from(js_string!("UDP sockets are only available in Chrome Apps")));
             Err(error)

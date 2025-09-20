@@ -7,6 +7,7 @@ use crate::engine::renderer::RustRenderer;
 use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry};
 use crate::engine::browser::scraper::WebScraper;
 
+#[allow(dead_code)]
 pub struct HeadlessWebBrowser {
     pub(super) client: reqwest::Client,
     pub(super) renderer: Option<RustRenderer>,

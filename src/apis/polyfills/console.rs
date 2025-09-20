@@ -6,8 +6,8 @@ pub fn setup_console(context: &mut Context) -> JsResult<()> {
     let console = JsObject::with_object_proto(context.intrinsics());
 
     // console.log
-    let log_fn = NativeFunction::from_fn_ptr(|_, args, context| {
-        let _message = args.first().cloned().unwrap_or(JsValue::undefined());
+    let log_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
+        let _message = _args.first().cloned().unwrap_or(JsValue::undefined());
         // In real implementation, would forward to Rust logging
         Ok(JsValue::undefined())
     });
