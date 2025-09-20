@@ -1,10 +1,9 @@
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::Value;
 use serde::{Deserialize, Serialize};
 use scraper::{Html, Selector};
 use url::Url;
-use rand::{Rng, thread_rng};
-use base64;
+use base64::{engine::general_purpose, Engine as _};
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
@@ -274,9 +273,9 @@ impl McpServer {
                     // Clean up Bing redirect URLs
                     if url.starts_with("https://www.bing.com/ck/a?") || url.contains("&u=a1aHR0") {
                         // Extract actual URL from Bing redirect
-                        if let Some(u_param) = url.split("&u=a1").nth(1) {
+                            if let Some(u_param) = url.split("&u=a1").nth(1) {
                             let param_value = u_param.chars().take_while(|&c| c != '&').collect::<String>();
-                            if let Ok(decoded) = base64::decode(&param_value) {
+                            if let Ok(decoded) = general_purpose::STANDARD.decode(&param_value) {
                                 if let Ok(decoded_url) = String::from_utf8(decoded) {
                                     url = decoded_url;
                                 }
@@ -474,6 +473,7 @@ impl McpServer {
         })
     }
 
+    #[allow(dead_code)]
     fn extract_search_result_title(&self, element: &scraper::ElementRef) -> String {
         let title_selectors = ["h3", ".LC20lb", ".DKV0Md", "a h3"];
 
@@ -491,6 +491,7 @@ impl McpServer {
         String::new()
     }
 
+    #[allow(dead_code)]
     fn extract_search_result_url(&self, element: &scraper::ElementRef) -> String {
         let link_selectors = ["a[href]", "h3 a", ".yuRUbf a"];
 
@@ -507,6 +508,7 @@ impl McpServer {
         String::new()
     }
 
+    #[allow(dead_code)]
     fn extract_search_result_snippet(&self, element: &scraper::ElementRef) -> String {
         let snippet_selectors = [".VwiC3b", ".s", ".st", "span.aCOpRe"];
 
@@ -524,6 +526,7 @@ impl McpServer {
         String::new()
     }
 
+    #[allow(dead_code)]
     fn extract_modern_search_result_title(&self, element: &scraper::ElementRef) -> String {
         // Modern Google search title extraction
         let title_selectors = [
@@ -555,6 +558,7 @@ impl McpServer {
         }
     }
 
+    #[allow(dead_code)]
     fn extract_modern_search_result_url(&self, element: &scraper::ElementRef) -> String {
         // Modern Google search URL extraction
         let link_selectors = [
@@ -587,6 +591,7 @@ impl McpServer {
         String::new()
     }
 
+    #[allow(dead_code)]
     fn extract_modern_search_result_snippet(&self, element: &scraper::ElementRef) -> String {
         // Modern Google search snippet extraction
         let snippet_selectors = [
@@ -612,6 +617,7 @@ impl McpServer {
         String::new()
     }
 
+    #[allow(dead_code)]
     fn extract_link_text(&self, element: &scraper::ElementRef) -> String {
         let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
         if text.len() > 3 && text.len() < 200 {
@@ -621,15 +627,16 @@ impl McpServer {
         }
     }
 
+    #[allow(dead_code)]
     fn extract_nearby_snippet(&self, element: &scraper::ElementRef) -> String {
         // Look for snippet text in sibling elements
         if let Some(parent) = element.parent() {
-            if let Some(parent_element) = parent.value().as_element() {
+            if let Some(_parent_element) = parent.value().as_element() {
                 let parent_ref = scraper::ElementRef::wrap(parent).unwrap();
 
                 // Check siblings for snippet-like content
                 for sibling in parent_ref.children() {
-                    if let Some(sibling_element) = sibling.value().as_element() {
+                    if let Some(_sibling_element) = sibling.value().as_element() {
                         let sibling_ref = scraper::ElementRef::wrap(sibling).unwrap();
                         let text = sibling_ref.text().collect::<Vec<_>>().join(" ").trim().to_string();
 

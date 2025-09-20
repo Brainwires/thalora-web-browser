@@ -7,4 +7,3 @@ pub mod speech;
 
 // Re-export main types
 pub use types::*;
-pub use core::*;

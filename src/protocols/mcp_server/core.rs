@@ -1,13 +1,11 @@
 use anyhow::Result;
-use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tracing::{error, info};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use vfs::VfsInstance;
-use uuid::Uuid;
 
-use crate::protocols::mcp::{McpRequest, McpResponse, McpMessage, McpMessageContent, InitializeResult};
+use crate::protocols::mcp::{McpRequest, McpResponse, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::apis::websocket::WebSocketManager;
 // DOM is now natively handled by Boa engine

@@ -450,7 +450,7 @@ impl McpServer {
                 };
 
                 // Convert key to query for search
-                let mut search_args = serde_json::json!({
+                let search_args = serde_json::json!({
                     "query": key,
                     "category": "research",
                     "limit": 1

@@ -22,7 +22,7 @@ impl RustRenderer {
         self.evaluate_javascript_with_timeout(js_code, Duration::from_secs(5))
     }
 
-    fn evaluate_javascript_with_timeout(&mut self, js_code: &str, timeout_duration: Duration) -> Result<String> {
+    fn evaluate_javascript_with_timeout(&mut self, js_code: &str, _timeout_duration: Duration) -> Result<String> {
         // Security check
         if !self.is_safe_javascript(js_code) {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));

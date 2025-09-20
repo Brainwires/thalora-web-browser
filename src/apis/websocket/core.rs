@@ -59,7 +59,7 @@ impl WebSocketManager {
                 }
 
                 // Split the WebSocket stream for concurrent read/write
-                let (mut ws_sender, mut ws_receiver) = ws_stream.split();
+                let (mut ws_sender, ws_receiver) = ws_stream.split();
                 let (tx, mut rx) = mpsc::unbounded_channel::<Message>();
 
                 // Store sender for this connection

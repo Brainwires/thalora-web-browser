@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use tokio::time::sleep;
 use std::time::Duration;
 use url::Url;
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::core::HeadlessWebBrowser;
 use crate::engine::browser::types::{ScrapedData, InteractionResponse};
 

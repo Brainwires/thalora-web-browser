@@ -1,9 +1,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use url::Url;
 
-use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
 

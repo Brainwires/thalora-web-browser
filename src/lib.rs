@@ -1,3 +1,11 @@
+#![allow(dead_code)]
+#![allow(missing_docs)]
+#![allow(unused)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+#![allow(unused_must_use)]
+#![allow(let_underscore_drop)]
 // Core browser engine
 pub mod engine;
 

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(missing_docs)]
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use wasmtime::*;
