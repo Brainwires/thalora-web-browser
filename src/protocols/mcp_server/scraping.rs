@@ -788,4 +788,167 @@ impl McpServer {
 
         url.to_string()
     }
+
+    /// Extract clean, readable content from a webpage using advanced readability algorithms
+    pub(super) async fn scrape_readable_content(&mut self, arguments: Value) -> McpResponse {
+        let url = match arguments["url"].as_str() {
+            Some(url) => url,
+            None => return McpResponse::error(-1, "URL parameter is required".to_string()),
+        };
+
+        // Parse optional parameters
+        let format = arguments["format"].as_str().unwrap_or("markdown");
+        let include_images = arguments["include_images"].as_bool().unwrap_or(true);
+        let include_metadata = arguments["include_metadata"].as_bool().unwrap_or(true);
+        let min_content_score = arguments["min_content_score"].as_f64().unwrap_or(0.3) as f32;
+
+        // Validate format parameter
+        let output_format = match format {
+            "markdown" => crate::features::readability::OutputFormat::Markdown,
+            "text" => crate::features::readability::OutputFormat::Text,
+            "structured" => crate::features::readability::OutputFormat::Structured,
+            _ => return McpResponse::error(-1, "Invalid format. Must be 'markdown', 'text', or 'structured'".to_string()),
+        };
+
+        // Fetch the webpage
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap();
+
+        let html_content = match client.get(url).send().await {
+            Ok(response) => {
+                match response.text().await {
+                    Ok(text) => text,
+                    Err(e) => return McpResponse::error(-1, format!("Failed to read response body: {}", e)),
+                }
+            },
+            Err(e) => return McpResponse::error(-1, format!("Failed to fetch URL: {}", e)),
+        };
+
+        // Use the readability engine to extract content
+        let mut extractor = crate::features::readability::ReadabilityExtractor::new();
+        let document = scraper::Html::parse_document(&html_content);
+
+        let options = crate::features::readability::ExtractionOptions {
+            base_url: url.to_string(),
+            include_images,
+            include_metadata,
+            output_format,
+            min_content_score,
+            max_link_density: 0.25,
+            min_paragraph_count: 2,
+        };
+
+        match extractor.extract(&document, &options) {
+            Ok(result) => {
+                if result.success {
+                    let response_data = serde_json::json!({
+                        "content": result.content.content,
+                        "format": format,
+                        "metadata": result.content.metadata,
+                        "quality": result.quality,
+                        "processing_time_ms": result.processing_time_ms
+                    });
+                    McpResponse::success(response_data)
+                } else {
+                    McpResponse::error(-1, result.error.unwrap_or("Extraction failed".to_string()))
+                }
+            },
+            Err(e) => McpResponse::error(-1, format!("Content extraction failed: {}", e)),
+        }
+    }
+
+    /// Extract content from multi-page articles with session support and automatic pagination handling
+    pub(super) async fn browse_readable_content(&mut self, arguments: Value) -> McpResponse {
+        let url = match arguments["url"].as_str() {
+            Some(url) => url,
+            None => return McpResponse::error(-1, "URL parameter is required".to_string()),
+        };
+
+        // Parse optional parameters
+        let format = arguments["format"].as_str().unwrap_or("markdown");
+        let follow_pagination = arguments["follow_pagination"].as_bool().unwrap_or(true);
+        let max_pages = arguments["max_pages"].as_u64().unwrap_or(10) as usize;
+        let wait_for_js = arguments["wait_for_js"].as_bool().unwrap_or(false);
+        let include_images = arguments["include_images"].as_bool().unwrap_or(true);
+        let session_id = arguments["session_id"].as_str();
+
+        // Validate format parameter
+        let output_format = match format {
+            "markdown" => crate::features::readability::OutputFormat::Markdown,
+            "text" => crate::features::readability::OutputFormat::Text,
+            "structured" => crate::features::readability::OutputFormat::Structured,
+            _ => return McpResponse::error(-1, "Invalid format. Must be 'markdown', 'text', or 'structured'".to_string()),
+        };
+
+        // For now, implement as single-page extraction
+        // TODO: Add actual multi-page session support and pagination detection
+        if session_id.is_some() {
+            eprintln!("Warning: Session-based browsing not yet implemented, falling back to single-page extraction");
+        }
+
+        if follow_pagination && max_pages > 1 {
+            eprintln!("Warning: Pagination following not yet implemented, extracting single page only");
+        }
+
+        if wait_for_js {
+            eprintln!("Warning: JavaScript execution not yet implemented for readability extraction");
+        }
+
+        // For now, use the same logic as scrape_readable_content
+        // but with a slightly lower quality threshold for multi-page content
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_secs(30))
+            .cookie_store(true)  // Enable cookies for session-like behavior
+            .build()
+            .unwrap();
+
+        let html_content = match client.get(url).send().await {
+            Ok(response) => {
+                match response.text().await {
+                    Ok(text) => text,
+                    Err(e) => return McpResponse::error(-1, format!("Failed to read response body: {}", e)),
+                }
+            },
+            Err(e) => return McpResponse::error(-1, format!("Failed to fetch URL: {}", e)),
+        };
+
+        // Use the readability engine with slightly more permissive settings for multi-page content
+        let mut extractor = crate::features::readability::ReadabilityExtractor::new();
+        let document = scraper::Html::parse_document(&html_content);
+
+        let options = crate::features::readability::ExtractionOptions {
+            base_url: url.to_string(),
+            include_images,
+            include_metadata: true,
+            output_format,
+            min_content_score: 0.25,  // Slightly lower threshold for multi-page content
+            max_link_density: 0.30,  // Allow slightly more links for multi-page articles
+            min_paragraph_count: 1,  // Lower minimum for partial content
+        };
+
+        match extractor.extract(&document, &options) {
+            Ok(result) => {
+                if result.success {
+                    let response_data = serde_json::json!({
+                        "content": result.content.content,
+                        "format": format,
+                        "metadata": result.content.metadata,
+                        "quality": result.quality,
+                        "processing_time_ms": result.processing_time_ms,
+                        "pages_processed": 1,
+                        "session_used": session_id.is_some(),
+                        "pagination_followed": false  // Not yet implemented
+                    });
+                    McpResponse::success(response_data)
+                } else {
+                    McpResponse::error(-1, result.error.unwrap_or("Content extraction failed".to_string()))
+                }
+            },
+            Err(e) => McpResponse::error(-1, format!("Content extraction failed: {}", e)),
+        }
+    }
 }

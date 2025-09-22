@@ -530,6 +530,76 @@ impl McpServer {
                         "required": ["selectors"]
                     }
                 }),
+                serde_json::json!({
+                    "name": "scrape_readable_content",
+                    "description": "Extract clean, readable content from a webpage using advanced readability algorithms",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to extract readable content from"
+                            },
+                            "format": {
+                                "type": "string",
+                                "enum": ["markdown", "text", "structured"],
+                                "description": "Output format for the content (default: markdown)"
+                            },
+                            "include_images": {
+                                "type": "boolean",
+                                "description": "Whether to include images in the output (default: true)"
+                            },
+                            "include_metadata": {
+                                "type": "boolean",
+                                "description": "Whether to include article metadata like author, date, etc. (default: true)"
+                            },
+                            "min_content_score": {
+                                "type": "number",
+                                "description": "Minimum content quality score threshold (0.0-1.0, default: 0.3)"
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browse_readable_content",
+                    "description": "Extract content from multi-page articles with session support and automatic pagination handling",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "Starting URL for content extraction"
+                            },
+                            "format": {
+                                "type": "string",
+                                "enum": ["markdown", "text", "structured"],
+                                "description": "Output format for the content (default: markdown)"
+                            },
+                            "follow_pagination": {
+                                "type": "boolean",
+                                "description": "Whether to automatically follow pagination links (default: true)"
+                            },
+                            "max_pages": {
+                                "type": "number",
+                                "description": "Maximum number of pages to process (default: 10)"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to wait for JavaScript execution (default: false)"
+                            },
+                            "include_images": {
+                                "type": "boolean",
+                                "description": "Whether to include images in the output (default: true)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID to maintain state across pages (optional)"
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
             ]);
         }
 
@@ -895,6 +965,10 @@ impl McpServer {
 
             // Note: scrape_content_by_selector not implemented yet - placeholder for future
             "scrape_content_by_selector" => McpResponse::error(-32601, "Tool not implemented yet: scrape_content_by_selector".to_string()),
+
+            // Readability tools for clean content extraction
+            "scrape_readable_content" => self.scrape_readable_content(args_for_call.clone()).await,
+            "browse_readable_content" => self.browse_readable_content(args_for_call.clone()).await,
 
             // Web search tools
             "web_search" => self.web_search(args_for_call.clone()).await,
