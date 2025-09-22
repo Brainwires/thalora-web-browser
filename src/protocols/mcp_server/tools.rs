@@ -5,406 +5,809 @@ use std::sync::Arc;
 use vfs::{VfsInstance, set_current_vfs};
 use std::env;
 
+/*
+    Define the available tools for the MCP server, including AI memory management,
+    Chrome DevTools Protocol interactions, web scraping, browser automation, and session management.
+    Each tool includes a name, description, and input schema for validation.
+
+    Tools are grouped into categories:
+        - AI Memory Tools: Store and retrieve research data, credentials, bookmarks, and notes.
+        - Chrome DevTools Protocol (CDP) Tools: Execute JavaScript, inspect DOM, manage cookies, capture screenshots, and retrieve console messages.
+        - Web Scraping Tools: Scrape web pages and extract content.
+        - Web Search Tools: Perform web searches using various search engines.
+        - Browser Automation Tools: Interact with web pages by clicking elements and filling forms.
+        - Session Management Tools: Create, manage, and clean up browser sessions for persistent AI interactions.
+
+    Each category needs a corresponding environment variable to be enabled, e.g.:
+        - THALORA_ENABLE_AI_MEMORY
+        - THALORA_ENABLE_CDP
+        - THALORA_ENABLE_SCRAPING
+        - THALORA_ENABLE_SEARCH
+        - THALORA_ENABLE_BROWSER_AUTOMATION
+        - THALORA_ENABLE_SESSION_MANAGEMENT
+
+*/
+
 impl McpServer {
     pub(super) fn get_tool_definitions(&self) -> Vec<Value> {
-        vec![
-            // AI Memory tools
-            serde_json::json!({
-                "name": "ai_memory_store_research",
-                "description": "Store research data in AI memory for persistent access across sessions",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "key": {
-                            "type": "string",
-                            "description": "Unique identifier for the research data"
+        let mut tools = Vec::new();
+
+        // AI Memory Tools - Store and retrieve research data, credentials, bookmarks, and notes
+        if env::var("THALORA_ENABLE_AI_MEMORY").unwrap_or_else(|_| "true".to_string()) == "true" {
+            tools.extend_from_slice(&[
+                serde_json::json!({
+                    "name": "ai_memory_store_research",
+                    "description": "Store research data in AI memory for persistent access across sessions",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "key": {
+                                "type": "string",
+                                "description": "Unique identifier for the research data"
+                            },
+                            "data": {
+                                "type": "object",
+                                "description": "Research data to store (any JSON object)"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional tags for categorization"
+                            }
                         },
-                        "data": {
-                            "type": "object",
-                            "description": "Research data to store (any JSON object)"
+                        "required": ["key", "data"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_get_research",
+                    "description": "Retrieve research data from AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "key": {
+                                "type": "string",
+                                "description": "Unique identifier for the research data"
+                            }
                         },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Optional tags for categorization"
-                        }
-                    },
-                    "required": ["key", "data"]
-                }
-            }),
-            serde_json::json!({
-                "name": "ai_memory_get_research",
-                "description": "Retrieve research data from AI memory",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "key": {
-                            "type": "string",
-                            "description": "Unique identifier for the research data"
-                        }
-                    },
-                    "required": ["key"]
-                }
-            }),
-            serde_json::json!({
-                "name": "ai_memory_search_research",
-                "description": "Search research data in AI memory by tags or content",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query"
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Tags to filter by"
-                        },
-                        "limit": {
-                            "type": "number",
-                            "description": "Maximum number of results (default: 10)"
+                        "required": ["key"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_search_research",
+                    "description": "Search research data in AI memory by tags or content",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Search query"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags to filter by"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "description": "Maximum number of results (default: 10)"
+                            }
                         }
                     }
-                }
-            }),
-            // Chrome DevTools Protocol tools
-            serde_json::json!({
-                "name": "cdp_runtime_evaluate",
-                "description": "Execute JavaScript in the browser context using Chrome DevTools Protocol",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "expression": {
-                            "type": "string",
-                            "description": "JavaScript expression to evaluate"
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_store_credentials",
+                    "description": "Securely store credentials (passwords, API keys, tokens) in encrypted AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "service": {
+                                "type": "string",
+                                "description": "Service name or identifier for the credentials"
+                            },
+                            "username": {
+                                "type": "string",
+                                "description": "Username or identifier"
+                            },
+                            "password": {
+                                "type": "string",
+                                "description": "Password or secret value"
+                            },
+                            "additional_data": {
+                                "type": "object",
+                                "description": "Additional credential data (API keys, tokens, etc.)"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional tags for categorization"
+                            }
                         },
-                        "await_promise": {
-                            "type": "boolean",
-                            "description": "Whether to await promise results"
-                        }
-                    },
-                    "required": ["expression"]
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_dom_get_document",
-                "description": "Get the DOM document structure using Chrome DevTools Protocol",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "depth": {
-                            "type": "number",
-                            "description": "Depth of DOM tree to retrieve (default: 2)"
+                        "required": ["service", "username", "password"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_get_credentials",
+                    "description": "Retrieve stored credentials from encrypted AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "service": {
+                                "type": "string",
+                                "description": "Service name to retrieve credentials for"
+                            },
+                            "username": {
+                                "type": "string",
+                                "description": "Username to filter by (optional)"
+                            }
+                        },
+                        "required": ["service"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_store_bookmark",
+                    "description": "Store bookmark with URL, title, and metadata in AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL of the bookmark"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Title or name of the bookmark"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Optional description or notes"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags for categorization"
+                            },
+                            "folder": {
+                                "type": "string",
+                                "description": "Optional folder or category"
+                            }
+                        },
+                        "required": ["url", "title"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_get_bookmarks",
+                    "description": "Retrieve stored bookmarks from AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Filter by tags"
+                            },
+                            "folder": {
+                                "type": "string",
+                                "description": "Filter by folder"
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "Search query for title or description"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "description": "Maximum number of results (default: 20)"
+                            }
                         }
                     }
-                }
-            }),
-            // Additional CDP debugging tools
-            serde_json::json!({
-                "name": "cdp_dom_query_selector",
-                "description": "Find elements using CSS selectors via Chrome DevTools Protocol",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "selector": {
-                            "type": "string",
-                            "description": "CSS selector to find elements"
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_store_note",
+                    "description": "Store notes and documentation in AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Note title"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Note content (supports markdown)"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Tags for categorization"
+                            },
+                            "category": {
+                                "type": "string",
+                                "description": "Note category (optional)"
+                            }
                         },
-                        "node_id": {
-                            "type": "number",
-                            "description": "Optional node ID to search within (default: document)"
-                        }
-                    },
-                    "required": ["selector"]
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_dom_get_attributes",
-                "description": "Get all attributes of an element via Chrome DevTools Protocol",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "node_id": {
-                            "type": "number",
-                            "description": "Node ID of the element"
-                        }
-                    },
-                    "required": ["node_id"]
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_dom_get_computed_style",
-                "description": "Get computed CSS styles of an element",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "node_id": {
-                            "type": "number",
-                            "description": "Node ID of the element"
-                        }
-                    },
-                    "required": ["node_id"]
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_network_get_cookies",
-                "description": "Get all cookies from the current page",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "urls": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Optional URLs to filter cookies (default: current page)"
+                        "required": ["title", "content"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "ai_memory_get_notes",
+                    "description": "Retrieve stored notes from AI memory",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "tags": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Filter by tags"
+                            },
+                            "category": {
+                                "type": "string",
+                                "description": "Filter by category"
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "Search query for title or content"
+                            },
+                            "limit": {
+                                "type": "number",
+                                "description": "Maximum number of results (default: 20)"
+                            }
                         }
                     }
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_network_set_cookie",
-                "description": "Set a cookie via Chrome DevTools Protocol",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "Cookie name"
+                }),
+            ]);
+        }
+
+        // Chrome DevTools Protocol (CDP) Tools - Execute JavaScript, inspect DOM, manage cookies, capture screenshots, and retrieve console messages
+        if env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "true".to_string()) == "true" {
+            tools.extend_from_slice(&[
+                serde_json::json!({
+                    "name": "cdp_runtime_evaluate",
+                    "description": "Execute JavaScript in the browser context using Chrome DevTools Protocol",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "expression": {
+                                "type": "string",
+                                "description": "JavaScript expression to evaluate"
+                            },
+                            "await_promise": {
+                                "type": "boolean",
+                                "description": "Whether to await promise results (default: false)"
+                            },
+                            "return_by_value": {
+                                "type": "boolean",
+                                "description": "Whether to return result by value (default: true)"
+                            },
+                            "timeout": {
+                                "type": "number",
+                                "description": "Execution timeout in milliseconds (default: 5000)"
+                            }
                         },
-                        "value": {
-                            "type": "string",
-                            "description": "Cookie value"
-                        },
-                        "domain": {
-                            "type": "string",
-                            "description": "Cookie domain (optional)"
-                        },
-                        "path": {
-                            "type": "string",
-                            "description": "Cookie path (default: /)"
-                        },
-                        "secure": {
-                            "type": "boolean",
-                            "description": "Whether cookie is secure (default: false)"
-                        },
-                        "http_only": {
-                            "type": "boolean",
-                            "description": "Whether cookie is HTTP only (default: false)"
-                        }
-                    },
-                    "required": ["name", "value"]
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_console_get_messages",
-                "description": "Get console messages (logs, errors, warnings) from the page",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "level": {
-                            "type": "string",
-                            "description": "Filter by message level: 'log', 'info', 'warn', 'error', 'debug' (optional)",
-                            "enum": ["log", "info", "warn", "error", "debug"]
-                        },
-                        "limit": {
-                            "type": "number",
-                            "description": "Maximum number of messages to return (default: 100)"
+                        "required": ["expression"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "cdp_dom_get_document",
+                    "description": "Get the DOM document structure using Chrome DevTools Protocol",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "depth": {
+                                "type": "number",
+                                "description": "Depth of DOM tree to retrieve (default: 2, max: 10)"
+                            },
+                            "pierce_shadow": {
+                                "type": "boolean",
+                                "description": "Whether to pierce shadow DOM (default: false)"
+                            }
                         }
                     }
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_page_screenshot",
-                "description": "Take a screenshot of the current page",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "format": {
-                            "type": "string",
-                            "description": "Image format: 'png' or 'jpeg' (default: png)",
-                            "enum": ["png", "jpeg"]
+                }),
+                serde_json::json!({
+                    "name": "cdp_dom_query_selector",
+                    "description": "Find elements using CSS selectors via Chrome DevTools Protocol",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector to find elements"
+                            },
+                            "node_id": {
+                                "type": "number",
+                                "description": "Optional node ID to search within (default: document)"
+                            }
                         },
-                        "quality": {
-                            "type": "number",
-                            "description": "Image quality 0-100 for JPEG (default: 80)"
+                        "required": ["selector"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "cdp_dom_get_attributes",
+                    "description": "Get all attributes of an element via Chrome DevTools Protocol",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "node_id": {
+                                "type": "number",
+                                "description": "Node ID of the element"
+                            }
                         },
-                        "full_page": {
-                            "type": "boolean",
-                            "description": "Capture full page height (default: false)"
+                        "required": ["node_id"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "cdp_dom_get_computed_style",
+                    "description": "Get computed CSS styles of an element",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "node_id": {
+                                "type": "number",
+                                "description": "Node ID of the element"
+                            }
+                        },
+                        "required": ["node_id"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "cdp_network_get_cookies",
+                    "description": "Get all cookies from the current page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "urls": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional URLs to filter cookies (default: current page)"
+                            }
                         }
                     }
-                }
-            }),
-            serde_json::json!({
-                "name": "cdp_page_reload",
-                "description": "Reload the current page",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "ignore_cache": {
-                            "type": "boolean",
-                            "description": "Whether to ignore cache and reload from server (default: false)"
+                }),
+                serde_json::json!({
+                    "name": "cdp_network_set_cookie",
+                    "description": "Set a cookie via Chrome DevTools Protocol",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Cookie name"
+                            },
+                            "value": {
+                                "type": "string",
+                                "description": "Cookie value"
+                            },
+                            "domain": {
+                                "type": "string",
+                                "description": "Cookie domain (optional)"
+                            },
+                            "path": {
+                                "type": "string",
+                                "description": "Cookie path (default: /)"
+                            },
+                            "secure": {
+                                "type": "boolean",
+                                "description": "Whether cookie is secure (default: false)"
+                            },
+                            "http_only": {
+                                "type": "boolean",
+                                "description": "Whether cookie is HTTP only (default: false)"
+                            },
+                            "expires": {
+                                "type": "number",
+                                "description": "Cookie expiration timestamp (optional)"
+                            }
+                        },
+                        "required": ["name", "value"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "cdp_console_get_messages",
+                    "description": "Get console messages (logs, errors, warnings) from the page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "level": {
+                                "type": "string",
+                                "description": "Filter by message level: 'log', 'info', 'warn', 'error', 'debug' (optional)",
+                                "enum": ["log", "info", "warn", "error", "debug"]
+                            },
+                            "limit": {
+                                "type": "number",
+                                "description": "Maximum number of messages to return (default: 100)"
+                            }
                         }
                     }
-                }
-            }),
-            // Web scraping tools
-            serde_json::json!({
-                "name": "scrape_url",
-                "description": "Scrape a web page and extract content, links, images, and metadata",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "url": {
-                            "type": "string",
-                            "description": "URL to scrape"
-                        },
-                        "wait_for_js": {
-                            "type": "boolean",
-                            "description": "Whether to wait for JavaScript execution",
-                            "default": false
-                        },
-                        "session_id": {
-                            "type": "string",
-                            "description": "Browser session ID (optional)"
-                        }
-                    },
-                    "required": ["url"]
-                }
-            }),
-            // Web search tools
-            serde_json::json!({
-                "name": "web_search",
-                "description": "Search the web using various search engines and return organic results with title, URL, and snippet",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query"
-                        },
-                        "num_results": {
-                            "type": "number",
-                            "description": "Number of results to return (default: 10, max: 20)"
-                        },
-                        "search_engine": {
-                            "type": "string",
-                            "description": "Search engine to use: 'duckduckgo', 'bing', 'startpage', 'searx' (default: 'duckduckgo')",
-                            "enum": ["duckduckgo", "bing", "startpage", "searx"]
-                        }
-                    },
-                    "required": ["query"]
-                }
-            }),
-            // Browser automation tools
-            serde_json::json!({
-                "name": "browser_click_element",
-                "description": "Click on an element in the current page",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "selector": {
-                            "type": "string",
-                            "description": "CSS selector or link text to click"
-                        },
-                        "session_id": {
-                            "type": "string",
-                            "description": "Browser session ID (optional)"
-                        }
-                    },
-                    "required": ["selector"]
-                }
-            }),
-            serde_json::json!({
-                "name": "browser_fill_form",
-                "description": "Fill out and submit a form on the current page",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "form_data": {
-                            "type": "object",
-                            "description": "Key-value pairs of form field names and values"
-                        },
-                        "form_selector": {
-                            "type": "string",
-                            "description": "CSS selector for the form (default: 'form')"
-                        },
-                        "session_id": {
-                            "type": "string",
-                            "description": "Browser session ID (optional)"
-                        }
-                    },
-                    "required": ["form_data"]
-                }
-            }),
-            // Session management tools
-            serde_json::json!({
-                "name": "browser_session_management",
-                "description": "Manage browser sessions for persistent AI interactions",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "action": {
-                            "type": "string",
-                            "description": "Action to perform: 'create', 'info', 'list', 'close', 'cleanup'",
-                            "enum": ["create", "info", "list", "close", "cleanup"]
-                        },
-                        "session_id": {
-                            "type": "string",
-                            "description": "Session ID (required for info/close actions)"
-                        },
-                        "persistent": {
-                            "type": "boolean",
-                            "description": "Whether to make session persistent (for create action)"
-                        },
-                        "max_age_seconds": {
-                            "type": "number",
-                            "description": "Maximum age for cleanup action (default: 3600)"
-                        }
-                    },
-                    "required": ["action"]
-                }
-            }),
-            serde_json::json!({
-                "name": "browser_get_page_content",
-                "description": "Get the current page content and URL from a browser session",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "session_id": {
-                            "type": "string",
-                            "description": "Browser session ID (optional, defaults to 'default')"
+                }),
+                serde_json::json!({
+                    "name": "cdp_page_screenshot",
+                    "description": "Take a screenshot of the current page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "format": {
+                                "type": "string",
+                                "description": "Image format: 'png' or 'jpeg' (default: png)",
+                                "enum": ["png", "jpeg"]
+                            },
+                            "quality": {
+                                "type": "number",
+                                "description": "Image quality 0-100 for JPEG (default: 80)"
+                            },
+                            "full_page": {
+                                "type": "boolean",
+                                "description": "Capture full page height (default: false)"
+                            },
+                            "clip": {
+                                "type": "object",
+                                "properties": {
+                                    "x": {"type": "number"},
+                                    "y": {"type": "number"},
+                                    "width": {"type": "number"},
+                                    "height": {"type": "number"}
+                                },
+                                "description": "Optional clip rectangle for partial screenshots"
+                            }
                         }
                     }
-                }
-            }),
-            serde_json::json!({
-                "name": "browser_navigate_back",
-                "description": "Navigate back in browser history",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "session_id": {
-                            "type": "string",
-                            "description": "Browser session ID (optional, defaults to 'default')"
+                }),
+                serde_json::json!({
+                    "name": "cdp_page_reload",
+                    "description": "Reload the current page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "ignore_cache": {
+                                "type": "boolean",
+                                "description": "Whether to ignore cache and reload from server (default: false)"
+                            }
                         }
                     }
-                }
-            }),
-            serde_json::json!({
-                "name": "browser_navigate_forward",
-                "description": "Navigate forward in browser history",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "session_id": {
-                            "type": "string",
-                            "description": "Browser session ID (optional, defaults to 'default')"
+                }),
+            ]);
+        }
+
+        // Web Scraping Tools - Scrape web pages and extract content
+        if env::var("THALORA_ENABLE_SCRAPING").unwrap_or_else(|_| "true".to_string()) == "true" {
+            tools.extend_from_slice(&[
+                serde_json::json!({
+                    "name": "scrape_url",
+                    "description": "Scrape a web page and extract content, links, images, and metadata",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to scrape"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to wait for JavaScript execution (default: false)"
+                            },
+                            "wait_timeout": {
+                                "type": "number",
+                                "description": "Timeout for JavaScript execution in milliseconds (default: 5000)"
+                            },
+                            "extract_links": {
+                                "type": "boolean",
+                                "description": "Whether to extract all links (default: true)"
+                            },
+                            "extract_images": {
+                                "type": "boolean",
+                                "description": "Whether to extract image URLs (default: true)"
+                            },
+                            "extract_metadata": {
+                                "type": "boolean",
+                                "description": "Whether to extract page metadata (default: true)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "scrape_content_by_selector",
+                    "description": "Extract specific content from a page using CSS selectors",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to scrape (optional if session_id provided)"
+                            },
+                            "selectors": {
+                                "type": "object",
+                                "description": "CSS selectors mapped to content names",
+                                "additionalProperties": {"type": "string"}
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
+                            }
+                        },
+                        "required": ["selectors"]
+                    }
+                }),
+            ]);
+        }
+
+        // Web Search Tools - Perform web searches using various search engines
+        if env::var("THALORA_ENABLE_SEARCH").unwrap_or_else(|_| "true".to_string()) == "true" {
+            tools.extend_from_slice(&[
+                serde_json::json!({
+                    "name": "web_search",
+                    "description": "Search the web using various search engines and return organic results with title, URL, and snippet",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Search query"
+                            },
+                            "num_results": {
+                                "type": "number",
+                                "description": "Number of results to return (default: 10, max: 20)"
+                            },
+                            "search_engine": {
+                                "type": "string",
+                                "description": "Search engine to use: 'duckduckgo', 'bing', 'startpage', 'searx' (default: 'duckduckgo')",
+                                "enum": ["duckduckgo", "bing", "startpage", "searx"]
+                            },
+                            "region": {
+                                "type": "string",
+                                "description": "Search region/country code (e.g., 'us', 'uk', 'de')"
+                            },
+                            "time_range": {
+                                "type": "string",
+                                "description": "Time range filter: 'day', 'week', 'month', 'year'",
+                                "enum": ["day", "week", "month", "year"]
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "image_search",
+                    "description": "Search for images using web search engines",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Image search query"
+                            },
+                            "num_results": {
+                                "type": "number",
+                                "description": "Number of image results to return (default: 10, max: 20)"
+                            },
+                            "search_engine": {
+                                "type": "string",
+                                "description": "Search engine to use: 'duckduckgo', 'bing' (default: 'duckduckgo')",
+                                "enum": ["duckduckgo", "bing"]
+                            },
+                            "size": {
+                                "type": "string",
+                                "description": "Image size filter: 'small', 'medium', 'large'",
+                                "enum": ["small", "medium", "large"]
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }),
+            ]);
+        }
+
+        // Browser Automation Tools - Interact with web pages by clicking elements and filling forms
+        if env::var("THALORA_ENABLE_BROWSER_AUTOMATION").unwrap_or_else(|_| "true".to_string()) == "true" {
+            tools.extend_from_slice(&[
+                serde_json::json!({
+                    "name": "browser_click_element",
+                    "description": "Click on an element in the current page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector or link text to click"
+                            },
+                            "wait_for_navigation": {
+                                "type": "boolean",
+                                "description": "Whether to wait for page navigation after click (default: false)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
+                            }
+                        },
+                        "required": ["selector"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_fill_form",
+                    "description": "Fill out and submit a form on the current page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "form_data": {
+                                "type": "object",
+                                "description": "Key-value pairs of form field names and values"
+                            },
+                            "form_selector": {
+                                "type": "string",
+                                "description": "CSS selector for the form (default: 'form')"
+                            },
+                            "submit": {
+                                "type": "boolean",
+                                "description": "Whether to submit the form after filling (default: true)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
+                            }
+                        },
+                        "required": ["form_data"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_type_text",
+                    "description": "Type text into an input field or element",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector for the input element"
+                            },
+                            "text": {
+                                "type": "string",
+                                "description": "Text to type"
+                            },
+                            "clear_first": {
+                                "type": "boolean",
+                                "description": "Whether to clear the field before typing (default: true)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
+                            }
+                        },
+                        "required": ["selector", "text"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_wait_for_element",
+                    "description": "Wait for an element to appear on the page",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "selector": {
+                                "type": "string",
+                                "description": "CSS selector for the element to wait for"
+                            },
+                            "timeout": {
+                                "type": "number",
+                                "description": "Timeout in milliseconds (default: 10000)"
+                            },
+                            "visible": {
+                                "type": "boolean",
+                                "description": "Whether to wait for element to be visible (default: true)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
+                            }
+                        },
+                        "required": ["selector"]
+                    }
+                }),
+            ]);
+        }
+
+        // Session Management Tools - Create, manage, and clean up browser sessions for persistent AI interactions
+        if env::var("THALORA_ENABLE_SESSION_MANAGEMENT").unwrap_or_else(|_| "true".to_string()) == "true" {
+            tools.extend_from_slice(&[
+                serde_json::json!({
+                    "name": "browser_session_management",
+                    "description": "Manage browser sessions for persistent AI interactions",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "description": "Action to perform: 'create', 'info', 'list', 'close', 'cleanup'",
+                                "enum": ["create", "info", "list", "close", "cleanup"]
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Session ID (required for info/close actions)"
+                            },
+                            "persistent": {
+                                "type": "boolean",
+                                "description": "Whether to make session persistent (for create action)"
+                            },
+                            "max_age_seconds": {
+                                "type": "number",
+                                "description": "Maximum age for cleanup action (default: 3600)"
+                            }
+                        },
+                        "required": ["action"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_get_page_content",
+                    "description": "Get the current page content and URL from a browser session",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional, defaults to 'default')"
+                            },
+                            "include_html": {
+                                "type": "boolean",
+                                "description": "Whether to include raw HTML (default: false)"
+                            },
+                            "include_text": {
+                                "type": "boolean",
+                                "description": "Whether to include extracted text (default: true)"
+                            }
                         }
                     }
-                }
-            }),
-        ]
+                }),
+                serde_json::json!({
+                    "name": "browser_navigate_to",
+                    "description": "Navigate to a specific URL in a browser session",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to navigate to"
+                            },
+                            "wait_for_load": {
+                                "type": "boolean",
+                                "description": "Whether to wait for page to fully load (default: true)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional, defaults to 'default')"
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_navigate_back",
+                    "description": "Navigate back in browser history",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional, defaults to 'default')"
+                            }
+                        }
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_navigate_forward",
+                    "description": "Navigate forward in browser history",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional, defaults to 'default')"
+                            }
+                        }
+                    }
+                }),
+            ]);
+        }
+
+        tools
     }
 
     pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
@@ -489,12 +892,21 @@ impl McpServer {
 
             // Web scraping and navigation tools
             "scrape_url" => self.scrape_url(args_for_call.clone()).await,
+            "scrape_content_by_selector" => self.scrape_content_by_selector(args_for_call.clone()).await,
+
+            // Web search tools
             "web_search" => self.web_search(args_for_call.clone()).await,
+            "image_search" => self.image_search(args_for_call.clone()).await,
 
             // Browser automation tools
             "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
             "browser_fill_form" => self.browser_tools.handle_fill_form(args_for_call.clone()).await,
+            "browser_type_text" => self.browser_tools.handle_type_text(args_for_call.clone()).await,
+            "browser_wait_for_element" => self.browser_tools.handle_wait_for_element(args_for_call.clone()).await,
+
+            // Session management tools
             "browser_get_page_content" => self.browser_tools.handle_get_page_content(args_for_call.clone()).await,
+            "browser_navigate_to" => self.browser_tools.handle_navigate_to(args_for_call.clone()).await,
             "browser_navigate_back" => self.browser_tools.handle_navigate_back(args_for_call.clone()).await,
             "browser_navigate_forward" => self.browser_tools.handle_navigate_forward(args_for_call.clone()).await,
             "browser_session_management" => self.browser_tools.handle_session_management(args_for_call.clone()).await,
