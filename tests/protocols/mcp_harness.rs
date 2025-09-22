@@ -17,14 +17,25 @@ pub struct McpTestConfig {
     pub timeout: Duration,
     pub use_release_build: bool,
     pub debug_output: bool,
+    pub env_vars: std::collections::HashMap<String, String>,
 }
 
 impl Default for McpTestConfig {
     fn default() -> Self {
+        let mut env_vars = std::collections::HashMap::new();
+        // Enable all tool categories by default for testing (since they default to disabled in production)
+        env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_CDP".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_BROWSER_AUTOMATION".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_SESSION_MANAGEMENT".to_string(), "true".to_string());
+
         Self {
             timeout: Duration::from_secs(30),
             use_release_build: true,  // Use release builds by default for faster startup
             debug_output: false,
+            env_vars,
         }
     }
 }
@@ -61,8 +72,14 @@ impl McpTestHarness {
             cmd
         };
 
+        cmd.env("THALORA_SILENT", "1");  // Suppress debug output for clean JSON responses
+
+        // Apply custom environment variables
+        for (key, value) in &config.env_vars {
+            cmd.env(key, value);
+        }
+
         let mut process = cmd
-            .env("THALORA_SILENT", "1")  // Suppress debug output for clean JSON responses
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(if config.debug_output { Stdio::inherit() } else { Stdio::piped() })
@@ -106,8 +123,17 @@ impl McpTestHarness {
 
         let response = self.send_request_raw(request)?;
 
-        // Extract tools from response format: {"content":[{"tools":[...]}],"isError":false}
-        if let Some(content) = response.get("content") {
+        // Extract tools from response - handle different possible formats
+        // Try direct tools field first: {"tools": [...]}
+        if let Some(tools) = response.get("tools") {
+            if let Some(tools_array) = tools.as_array() {
+                Ok(tools_array.clone())
+            } else {
+                bail!("Tools field is not an array: {:?}", tools);
+            }
+        }
+        // Try nested content format: {"content":[{"tools":[...]}],"isError":false}
+        else if let Some(content) = response.get("content") {
             if let Some(content_array) = content.as_array() {
                 if let Some(first_content) = content_array.first() {
                     if let Some(tools) = first_content.get("tools") {
@@ -126,7 +152,7 @@ impl McpTestHarness {
                 bail!("Content is not an array: {:?}", content);
             }
         } else {
-            bail!("No content field in response: {:?}", response);
+            bail!("No tools or content field in response: {:?}", response);
         }
     }
 
@@ -276,6 +302,66 @@ pub fn create_release_harness() -> Result<McpTestHarness> {
     let mut harness = McpTestHarness::with_config(config)?;
     harness.initialize()?;
     Ok(harness)
+}
+
+/// Create a test harness with custom environment variables
+pub fn create_harness_with_env(env_vars: std::collections::HashMap<String, String>) -> Result<McpTestHarness> {
+    let config = McpTestConfig {
+        env_vars,
+        ..Default::default()
+    };
+    let mut harness = McpTestHarness::with_config(config)?;
+    harness.initialize()?;
+    Ok(harness)
+}
+
+/// Create a test harness with specific tool categories disabled
+pub fn create_harness_with_disabled_categories(disabled_categories: &[&str]) -> Result<McpTestHarness> {
+    let mut env_vars = std::collections::HashMap::new();
+
+    // Start with all categories enabled
+    let all_categories = [
+        "THALORA_ENABLE_AI_MEMORY",
+        "THALORA_ENABLE_CDP",
+        "THALORA_ENABLE_SCRAPING",
+        "THALORA_ENABLE_SEARCH",
+        "THALORA_ENABLE_BROWSER_AUTOMATION",
+        "THALORA_ENABLE_SESSION_MANAGEMENT"
+    ];
+
+    for category in all_categories {
+        if disabled_categories.contains(&category) {
+            env_vars.insert(category.to_string(), "false".to_string());
+        } else {
+            env_vars.insert(category.to_string(), "true".to_string());
+        }
+    }
+
+    create_harness_with_env(env_vars)
+}
+
+/// Create a test harness with only specific tool categories enabled
+pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Result<McpTestHarness> {
+    let mut env_vars = std::collections::HashMap::new();
+
+    let all_categories = [
+        "THALORA_ENABLE_AI_MEMORY",
+        "THALORA_ENABLE_CDP",
+        "THALORA_ENABLE_SCRAPING",
+        "THALORA_ENABLE_SEARCH",
+        "THALORA_ENABLE_BROWSER_AUTOMATION",
+        "THALORA_ENABLE_SESSION_MANAGEMENT"
+    ];
+
+    for category in all_categories {
+        if enabled_categories.contains(&category) {
+            env_vars.insert(category.to_string(), "true".to_string());
+        } else {
+            env_vars.insert(category.to_string(), "false".to_string());
+        }
+    }
+
+    create_harness_with_env(env_vars)
 }
 
 /// Validate that a tool response contains expected fields

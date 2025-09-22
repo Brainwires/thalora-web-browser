@@ -5,6 +5,7 @@ pub mod mcp_protocol_test;
 pub mod mcp_tools_test;
 pub mod mcp_integration_test;
 pub mod mcp_performance_test;
+pub mod mcp_environment_test;
 
 // New CDP debugging and session management tests
 pub mod cdp_debugging_tests;
@@ -13,4 +14,5 @@ pub mod cdp_session_integration_tests;
 
 // Re-export common testing utilities
 #[allow(unused_imports)]
-pub use mcp_harness::{McpTestHarness, McpTestConfig, McpToolResponse, create_initialized_harness, create_release_harness};
+pub use mcp_harness::{McpTestHarness, McpTestConfig, McpToolResponse, create_initialized_harness, create_release_harness,
+                     create_harness_with_env, create_harness_with_disabled_categories, create_harness_with_only_categories};

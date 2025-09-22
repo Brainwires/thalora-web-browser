@@ -28,6 +28,7 @@ pub use protocols::{
     mcp_tools_test,
     mcp_integration_test,
     mcp_performance_test,
+    mcp_environment_test,
     mcp_harness::{McpTestHarness, McpTestConfig, create_initialized_harness},
 };
 
