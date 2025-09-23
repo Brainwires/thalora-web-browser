@@ -84,6 +84,9 @@ futures = "0.3"
 # STDIO handling
 tokio-util = { version = "0.7", features = ["codec"] }
 
+# Command line argument parsing
+clap = { version = "4.0", features = ["derive"] }
+
 # Regex for JavaScript processing
 regex = "1.10"
 

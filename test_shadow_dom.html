@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shadow DOM Test</title>
+</head>
+<body>
+    <div id="host"></div>
+    <div id="test-results"></div>
+
+    <script>
+        try {
+            var results = document.getElementById('test-results');
+            var host = document.getElementById('host');
+
+            // Test basic element creation
+            results.innerHTML += '<p>Element creation: OK</p>';
+
+            // Test attachShadow method exists
+            if (typeof host.attachShadow === 'function') {
+                results.innerHTML += '<p>attachShadow method: FOUND</p>';
+
+                // Test shadow root creation
+                var shadowRoot = host.attachShadow({mode: 'open'});
+                if (shadowRoot) {
+                    results.innerHTML += '<p>Shadow root creation: SUCCESS</p>';
+
+                    // Test shadowRoot property
+                    if (host.shadowRoot) {
+                        results.innerHTML += '<p>shadowRoot property: ACCESSIBLE</p>';
+                    } else {
+                        results.innerHTML += '<p>shadowRoot property: NOT ACCESSIBLE</p>';
+                    }
+
+                    // Test shadow content
+                    shadowRoot.innerHTML = '<p>Shadow content loaded!</p>';
+                    results.innerHTML += '<p>Shadow content injection: SUCCESS</p>';
+                } else {
+                    results.innerHTML += '<p>Shadow root creation: FAILED</p>';
+                }
+            } else {
+                results.innerHTML += '<p>attachShadow method: NOT FOUND (type: ' + typeof host.attachShadow + ')</p>';
+            }
+        } catch(e) {
+            document.getElementById('test-results').innerHTML += '<p>Error: ' + e.message + '</p>';
+        }
+    </script>
+</body>
+</html>

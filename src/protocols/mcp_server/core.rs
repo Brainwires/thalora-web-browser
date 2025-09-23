@@ -14,6 +14,7 @@ use crate::protocols::cdp::CdpServer;
 use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::cdp_tools::CdpTools;
 use crate::protocols::browser_tools::BrowserTools;
+use crate::protocols::session_manager::SessionManager;
 
 #[allow(dead_code)]
 pub struct McpServer {
@@ -23,6 +24,7 @@ pub struct McpServer {
     pub(super) memory_tools: MemoryTools,
     pub(super) cdp_tools: CdpTools,
     pub(super) browser_tools: BrowserTools,
+    pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
 }
@@ -34,6 +36,11 @@ impl McpServer {
             AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
         });
 
+        let session_manager = SessionManager::new().unwrap_or_else(|e| {
+            tracing::warn!("Failed to create session manager: {}", e);
+            panic!("Could not initialize session manager: {}", e);
+        });
+
         Self {
             websocket_manager: WebSocketManager::new(),
             ai_memory,
@@ -41,6 +48,7 @@ impl McpServer {
             memory_tools: MemoryTools::new(),
             cdp_tools: CdpTools::new(),
             browser_tools: BrowserTools::new(),
+            session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -77,6 +85,11 @@ impl McpServer {
                 drop(v.delete_backing_file());
             }
         }
+    }
+
+    /// Cleanup all sessions and resources
+    pub async fn cleanup(&self) {
+        self.session_manager.shutdown().await;
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -169,6 +182,8 @@ impl McpServer {
             }
         }
 
+        // Cleanup all sessions before shutting down
+        self.cleanup().await;
         Ok(())
     }
 

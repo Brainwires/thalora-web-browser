@@ -166,9 +166,62 @@ impl McpServer {
             return Err(anyhow::anyhow!("Google returned reCAPTCHA challenge"));
         }
 
-        // Check for JavaScript challenge/enablejs redirect
+        // Check for JavaScript challenge/enablejs redirect - but let's try to proceed anyway
         if html.contains("/httpservice/retry/enablejs") || (html.contains("<style>table,div,span,p{display:none}</style>") && html.contains("refresh")) {
-            return Err(anyhow::anyhow!("Google returned JavaScript challenge - requires browser automation with JS execution"));
+            eprintln!("🔍 DEBUG: Google returned JavaScript challenge page, but attempting to parse anyway");
+            eprintln!("🔍 DEBUG: Challenge page length: {} chars", html.len());
+            // Instead of failing, let's try to follow the redirect or parse what we can
+
+            // Try to extract the redirect URL and follow it
+            if let Some(start) = html.find("http-equiv=\"refresh\"") {
+                if let Some(content_start) = html[..start].rfind("content=\"") {
+                    let content_part = &html[content_start + 9..];
+                    if let Some(url_start) = content_part.find("url=") {
+                        let url_part = &content_part[url_start + 4..];
+                        if let Some(url_end) = url_part.find("\"") {
+                            let redirect_url = &url_part[..url_end];
+                            eprintln!("🔍 DEBUG: Found redirect URL: {}", redirect_url);
+
+                            // Make a new request to the redirect URL
+                            let full_redirect_url = if redirect_url.starts_with("/") {
+                                format!("https://www.google.com{}", redirect_url)
+                            } else {
+                                redirect_url.to_string()
+                            };
+
+                            eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
+
+                            // Create a new temporary browser for the redirect
+                            let redirect_browser = crate::engine::browser::HeadlessWebBrowser::new();
+                            {
+                                let mut browser = redirect_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
+                                browser.navigate_to_with_options(&full_redirect_url, true).await?;
+                            }
+
+                            let redirect_html = {
+                                let browser = redirect_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
+                                browser.get_current_content()
+                            };
+
+                            eprintln!("🔍 DEBUG: Redirect response length: {} chars", redirect_html.len());
+                            eprintln!("🔍 DEBUG: Redirect response preview: {}",
+                                if redirect_html.len() > 500 { &redirect_html[..500] } else { &redirect_html });
+
+                            // Parse the redirect response instead
+                            return self.parse_google_results(&redirect_html, query, num_results).await;
+                        }
+                    }
+                }
+            }
+
+            // If we can't follow the redirect, just try to parse what we have
+            eprintln!("🔍 DEBUG: Could not extract redirect URL, parsing challenge page directly");
+        }
+
+        // Let's also check if we got valid search results
+        if !html.contains("</html>") || html.len() < 1000 {
+            eprintln!("🔍 DEBUG: Got incomplete HTML response: {} chars", html.len());
+            eprintln!("🔍 DEBUG: HTML content: {}", if html.len() > 500 { &html[..500] } else { &html });
         }
 
         self.parse_google_results(&html, query, num_results).await

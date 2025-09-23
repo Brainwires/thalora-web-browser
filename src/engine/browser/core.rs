@@ -140,38 +140,32 @@ impl HeadlessWebBrowser {
     pub fn create_standard_browser_headers(&self, url: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
 
-        // Latest Chrome version with more realistic versioning
+        // Use Firefox User-Agent - Firefox is less likely to be blocked by Google
         headers.insert(USER_AGENT, HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0"
         ));
 
-        // More comprehensive Accept header with proper priorities
+        // Firefox-style Accept header
         headers.insert(ACCEPT, HeaderValue::from_static(
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
         ));
 
-        // More realistic language preferences
-        headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
+        // More realistic language preferences with Firefox ordering
+        headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
 
-        // Add zstd compression support for latest Chrome
-        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br, zstd"));
+        // Firefox compression support (no zstd)
+        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
 
-        // Modern Chrome client hints with proper versioning
-        headers.insert("sec-ch-ua", HeaderValue::from_static(
-            r#""Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24""#
-        ));
-        headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
-        headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Windows""#));
-        headers.insert("sec-ch-ua-platform-version", HeaderValue::from_static(r#""15.0.0""#));
-        headers.insert("sec-ch-ua-arch", HeaderValue::from_static(r#""x86""#));
-        headers.insert("sec-ch-ua-bitness", HeaderValue::from_static(r#""64""#));
-        headers.insert("sec-ch-ua-model", HeaderValue::from_static(r#""""#));
-        headers.insert("sec-ch-ua-full-version-list", HeaderValue::from_static(
-            r#""Google Chrome";v="131.0.6778.85", "Chromium";v="131.0.6778.85", "Not_A Brand";v="24.0.0.0""#
-        ));
+        // Firefox doesn't send Chrome's client hints - this is important!
+        // Google detects mismatched User-Agent vs client hints
 
-        // Proper fetch metadata based on navigation context
-        if url.starts_with("https://www.bing.com") {
+        // Proper fetch metadata for Firefox
+        if url.starts_with("https://www.google.com") {
+            headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+            headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+            headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
+            headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
+        } else if url.starts_with("https://www.bing.com") {
             headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
             headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
             headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
@@ -184,13 +178,18 @@ impl HeadlessWebBrowser {
         }
 
         headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
-        headers.insert("cache-control", HeaderValue::from_static("max-age=0"));
 
-        // Add DNT header that some browsers send
+        // Firefox doesn't send cache-control on initial requests
+        // headers.insert("cache-control", HeaderValue::from_static("max-age=0"));
+
+        // Add DNT header that Firefox sends
         headers.insert("dnt", HeaderValue::from_static("1"));
 
-        // Modern priority header
-        headers.insert("priority", HeaderValue::from_static("u=0, i"));
+        // Firefox doesn't send priority header
+        // headers.insert("priority", HeaderValue::from_static("u=0, i"));
+
+        // Add some realistic Firefox headers
+        headers.insert("connection", HeaderValue::from_static("keep-alive"));
 
         headers
     }

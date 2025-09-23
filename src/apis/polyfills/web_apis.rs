@@ -405,9 +405,9 @@ fn setup_misc_apis(context: &mut Context) -> JsResult<()> {
             Object.defineProperty(navigator, 'userAgentData', {
                 value: {
                     brands: [
-                        { brand: 'Thalora', version: '1.0' },
                         { brand: 'Chromium', version: '140' },
-                        { brand: 'Chrome', version: '140' }
+                        { brand: 'Chrome', version: '140' },
+                        { brand: 'Not_A Brand', version: '99' }
                     ],
                     mobile: false,
                     platform: 'Linux',

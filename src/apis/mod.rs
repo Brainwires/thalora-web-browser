@@ -81,6 +81,10 @@ impl WebApis {
         let event_manager = events::EventManager::new();
         event_manager.setup_events_api(context).map_err(|e| anyhow::Error::msg(format!("Events API setup failed: {:?}", e)))?;
 
+        // DISABLED: Polyfill system is disabled to focus on real DOM implementation
+        // Only using native DOM from Boa engine
+        // polyfills::setup_all_polyfills(context).map_err(|e| anyhow::Error::msg(format!("Polyfill setup failed: {:?}", e)))?;
+
         Ok(())
     }
 }

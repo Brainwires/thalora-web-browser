@@ -17,13 +17,13 @@ pub struct NavigatorManager {
 impl NavigatorManager {
     pub fn new() -> Self {
         Self {
-            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0".to_string(),
             platform: "Win32".to_string(),
-            vendor: "Google Inc.".to_string(),
+            vendor: "".to_string(), // Firefox doesn't have a vendor
             language: "en-US".to_string(),
             languages: vec!["en-US".to_string(), "en".to_string()],
             hardware_concurrency: 8,
-            device_memory: 8,
+            device_memory: 8, // Firefox reports deviceMemory but it's often undefined
             max_touch_points: 0,
         }
     }
@@ -132,9 +132,11 @@ impl NavigatorManager {
         mime_types_array.set(js_string!("length"), JsValue::from(2), false, context)?;
         navigator.set(js_string!("mimeTypes"), JsValue::from(mime_types_array), false, context)?;
 
-        // Chrome-specific properties
+        // Firefox-specific properties
         navigator.set(js_string!("webdriver"), JsValue::from(false), false, context)?;
         navigator.set(js_string!("pdfViewerEnabled"), JsValue::from(true), false, context)?;
+        navigator.set(js_string!("buildID"), JsValue::from(js_string!("20231107100000")), false, context)?; // Firefox build ID
+        navigator.set(js_string!("oscpu"), JsValue::from(js_string!("Windows NT 10.0; Win64; x64")), false, context)?; // Firefox oscpu
 
         // Chrome 131+ features - Device APIs that typically require user gestures
         // WebHID API (chrome 131+)
@@ -196,12 +198,12 @@ impl NavigatorManager {
         bluetooth.set(js_string!("getAvailability"), JsValue::from(bluetooth_get_availability_fn.to_js_function(context.realm())), false, context)?;
         navigator.set(js_string!("bluetooth"), JsValue::from(bluetooth), false, context)?;
 
-        // App information (legacy but still checked) - update to Windows
+        // App information (legacy but still checked) - Firefox values
         navigator.set(js_string!("appName"), JsValue::from(js_string!("Netscape")), false, context)?;
-        navigator.set(js_string!("appVersion"), JsValue::from(js_string!("5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")), false, context)?;
+        navigator.set(js_string!("appVersion"), JsValue::from(js_string!("5.0 (Windows)")), false, context)?;
         navigator.set(js_string!("appCodeName"), JsValue::from(js_string!("Mozilla")), false, context)?;
         navigator.set(js_string!("product"), JsValue::from(js_string!("Gecko")), false, context)?;
-        navigator.set(js_string!("productSub"), JsValue::from(js_string!("20030107")), false, context)?;
+        navigator.set(js_string!("productSub"), JsValue::from(js_string!("20100101")), false, context)?;
         navigator.set(js_string!("vendorSub"), JsValue::from(js_string!("")), false, context)?;
 
         // TrustedTypes API (critical for Google's 2025 bot detection)
@@ -333,39 +335,8 @@ impl NavigatorManager {
         gpu.set(js_string!("getPreferredCanvasFormat"), JsValue::from(get_preferred_canvas_format_fn.to_js_function(context.realm())), false, context)?;
         navigator.set(js_string!("gpu"), JsValue::from(gpu), false, context)?;
 
-        // User Agent Client Hints (Chrome 124 - Sec-CH-UA-Form-Factors)
-        let user_agent_data = JsObject::with_object_proto(context.intrinsics());
-
-        // Basic brand info
-        let brands_array = boa_engine::object::builtins::JsArray::new(context);
-        let brand = JsObject::with_object_proto(context.intrinsics());
-        brand.set(js_string!("brand"), JsValue::from(js_string!("Chromium")), false, context)?;
-        brand.set(js_string!("version"), JsValue::from(js_string!("131")), false, context)?;
-        brands_array.set(0, JsValue::from(brand), false, context)?;
-        user_agent_data.set(js_string!("brands"), JsValue::from(brands_array), false, context)?;
-        user_agent_data.set(js_string!("mobile"), JsValue::from(false), false, context)?;
-        user_agent_data.set(js_string!("platform"), JsValue::from(js_string!(self.platform.clone())), false, context)?;
-
-    let get_high_entropy_values_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {
-            // MOCK: Returns hardcoded system info
-            let hints = JsObject::with_object_proto(_context.intrinsics());
-            hints.set(js_string!("platform"), JsValue::from(js_string!("Windows")), false, _context)?;
-            hints.set(js_string!("platformVersion"), JsValue::from(js_string!("15.0.0")), false, _context)?;
-            hints.set(js_string!("architecture"), JsValue::from(js_string!("x86")), false, _context)?;
-            hints.set(js_string!("model"), JsValue::from(js_string!("")), false, _context)?;
-            hints.set(js_string!("uaFullVersion"), JsValue::from(js_string!("131.0.6778.86")), false, _context)?;
-
-            // Chrome 124 feature: Form factors
-            let form_factors_array = boa_engine::object::builtins::JsArray::new(_context);
-            form_factors_array.set(0, JsValue::from(js_string!("desktop")), false, _context)?;
-            hints.set(js_string!("formFactors"), JsValue::from(form_factors_array), false, _context)?;
-
-            let promise = boa_engine::object::builtins::JsPromise::resolve(JsValue::from(hints), _context);
-            Ok(JsValue::from(promise))
-        });
-
-        user_agent_data.set(js_string!("getHighEntropyValues"), JsValue::from(get_high_entropy_values_fn.to_js_function(context.realm())), false, context)?;
-        navigator.set(js_string!("userAgentData"), JsValue::from(user_agent_data), false, context)?;
+        // Firefox doesn't have User Agent Client Hints - this is Chrome-specific
+        // Removing Chrome's userAgentData API to better emulate Firefox
 
         // Direct Sockets API (Chrome 125) - TCP and UDP
         let tcp = JsObject::with_object_proto(context.intrinsics());
@@ -604,6 +575,22 @@ impl NavigatorManager {
         // Set navigator in global scope
         let global = context.global_object();
         global.set(js_string!("navigator"), JsValue::from(navigator), false, context)?;
+
+        // Add Google global object that Google's pages expect
+        let google = JsObject::with_object_proto(context.intrinsics());
+
+        // Add basic Google services (these are often checked by Google's JavaScript)
+        let search = JsObject::with_object_proto(context.intrinsics());
+        search.set(js_string!("cse"), JsValue::from(JsObject::with_object_proto(context.intrinsics())), false, context)?;
+        google.set(js_string!("search"), JsValue::from(search), false, context)?;
+
+        let ads = JsObject::with_object_proto(context.intrinsics());
+        google.set(js_string!("ads"), JsValue::from(ads), false, context)?;
+
+        let analytics = JsObject::with_object_proto(context.intrinsics());
+        google.set(js_string!("analytics"), JsValue::from(analytics), false, context)?;
+
+        global.set(js_string!("google"), JsValue::from(google), false, context)?;
 
         // Chrome 126: GamepadHapticActuator constructor
         let gamepad_haptic_actuator_fn = NativeFunction::from_fn_ptr(|_, _args, _context| {

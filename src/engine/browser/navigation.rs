@@ -12,8 +12,10 @@ impl HeadlessWebBrowser {
     }
 
     pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
-        // Add human-like delay before making request (50-200ms)
-        let delay_ms = 50 + (rand::random::<u64>() % 150);
+        // Add realistic human-like delay before making request (1-3 seconds)
+        // Real humans don't navigate instantly - they read, think, click
+        let delay_ms = 1000 + (rand::random::<u64>() % 2000);
+        eprintln!("🔍 DEBUG: Adding human-like navigation delay: {}ms", delay_ms);
         sleep(Duration::from_millis(delay_ms)).await;
 
         let headers = self.create_standard_browser_headers(url);
@@ -49,6 +51,11 @@ impl HeadlessWebBrowser {
         let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
+        // Add processing delay to simulate page loading and parsing time
+        let processing_delay = 500 + (rand::random::<u64>() % 1000); // 500-1500ms
+        eprintln!("🔍 DEBUG: Adding page processing delay: {}ms", processing_delay);
+        sleep(Duration::from_millis(processing_delay)).await;
+
         // Execute JavaScript and wait for dynamic content if requested
         if wait_for_js {
             eprintln!("🔍 DEBUG: About to call wait_for_page_ready");
@@ -63,6 +70,11 @@ impl HeadlessWebBrowser {
                     if renderer.is_safe_javascript(&js_code) {
                         eprintln!("🔍 DEBUG: JavaScript deemed safe, evaluating (guarded)");
                         if !renderer.is_in_update() {
+                                // Add delay before JavaScript execution (browsers don't execute instantly)
+                                let js_delay = 200 + (rand::random::<u64>() % 300); // 200-500ms
+                                eprintln!("🔍 DEBUG: Adding JavaScript execution delay: {}ms", js_delay);
+                                sleep(Duration::from_millis(js_delay)).await;
+
                                 // Mark in_update to avoid re-entrancy during evaluation
                                 renderer.set_in_update(true);
                                 drop(renderer.evaluate_javascript(&js_code));
@@ -104,14 +116,54 @@ impl HeadlessWebBrowser {
 
         if let Some(ref mut renderer) = self.renderer {
             eprintln!("🔍 DEBUG: Renderer available, processing JavaScript");
-            // Execute inline JavaScript
+            // Execute inline JavaScript - ENABLED for Google search compatibility
             if let Some(js_code) = inline_js {
                 eprintln!("🔍 DEBUG: Found inline JavaScript, checking safety");
                 if renderer.is_safe_javascript(&js_code) {
-                    eprintln!("🔍 DEBUG: JavaScript deemed safe, but DISABLED to prevent stack overflow");
-                    // DISABLED - this was causing stack overflow in our Boa bot detection APIs
-                    // let _ = renderer.evaluate_javascript(&js_code);
-                    eprintln!("🔍 DEBUG: JavaScript evaluation SKIPPED");
+                    eprintln!("🔍 DEBUG: JavaScript deemed safe, enabling for Google compatibility");
+
+                    // Enable JavaScript execution for Google search - but with safety guards
+                    if !renderer.is_in_update() {
+                        // Inject minimal form structure for Google compatibility
+                        eprintln!("🔍 DEBUG: Injecting minimal form structure for Google compatibility...");
+                        renderer.set_in_update(true);
+                        if let Ok(_) = renderer.inject_minimal_form_for_google() {
+                            eprintln!("🔍 DEBUG: Form injection completed");
+                        }
+                        renderer.set_in_update(false);
+
+                        // Add human-like delay before JavaScript processing
+                        let js_processing_delay = 300 + (rand::random::<u64>() % 700); // 300-1000ms
+                        eprintln!("🔍 DEBUG: Adding JavaScript processing delay: {}ms", js_processing_delay);
+                        sleep(Duration::from_millis(js_processing_delay)).await;
+
+                        renderer.set_in_update(true);
+                        match renderer.evaluate_javascript(&js_code) {
+                            Ok(result) => eprintln!("🔍 DEBUG: JavaScript executed successfully: {}",
+                                if result.len() > 100 { &result[..100] } else { &result }),
+                            Err(e) => {
+                                eprintln!("🔍 DEBUG: JavaScript execution failed: {}", e);
+                                eprintln!("🔍 DEBUG: Failed JavaScript code (first 300 chars): {}",
+                                    if js_code.len() > 300 { &js_code[..300] } else { &js_code });
+                            },
+                        }
+                        renderer.set_in_update(false);
+
+                        // Test shadow DOM APIs after Google's JavaScript runs
+                        eprintln!("🔍 DEBUG: Testing shadow DOM APIs after JavaScript...");
+                        if !renderer.is_in_update() {
+                            renderer.set_in_update(true);
+                            if let Ok(_) = renderer.test_shadow_dom_apis() {
+                                eprintln!("🔍 DEBUG: Post-JS shadow DOM test completed");
+                            }
+                            renderer.set_in_update(false);
+                        }
+
+                        // Add delay after JavaScript execution (like real browser processing)
+                        let post_js_delay = 100 + (rand::random::<u64>() % 400); // 100-500ms
+                        eprintln!("🔍 DEBUG: Adding post-JavaScript delay: {}ms", post_js_delay);
+                        sleep(Duration::from_millis(post_js_delay)).await;
+                    }
                 } else {
                     eprintln!("🔍 DEBUG: JavaScript deemed unsafe, skipping");
                 }
