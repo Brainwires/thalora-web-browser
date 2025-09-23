@@ -330,7 +330,7 @@ fn test_web_scraping_performance() {
 
     for i in 0..iterations {
         let start = Instant::now();
-        let result = harness.call_tool("scrape_url", json!({
+        let result = harness.call_tool("scrape", json!({
             "url": "https://httpbin.org/html",
             "wait_for_js": false
         }));

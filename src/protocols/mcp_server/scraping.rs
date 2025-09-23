@@ -85,15 +85,21 @@ impl McpServer {
     async fn search_duckduckgo(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
         let search_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
 
-        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        let mut browser_guard = browser;
+        // Create temporary browser for stateless search
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
         // Navigate with JavaScript support
-        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        {
+            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.navigate_to_with_options(&search_url, true).await?;
+        }
 
         // Get the rendered content
-        let html = browser_guard.get_current_content();
-        drop(browser_guard);
+        let html = {
+            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.get_current_content()
+        };
+        // Browser dropped here automatically
 
         self.parse_duckduckgo_results(&html, query, num_results).await
     }
@@ -102,14 +108,20 @@ impl McpServer {
         let search_url = format!("https://www.bing.com/search?q={}&count={}&FORM=QBLH",
                                 urlencoding::encode(query), num_results);
 
-        // Use the browser's HTTP client with enhanced stealth capabilities
-        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        let mut browser_guard = browser;
+        // Create temporary browser for stateless search
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
         // Navigate using the browser's full navigation system which includes stealth features
-        browser_guard.navigate_to_with_options(&search_url, true).await?;
-        let html = browser_guard.get_current_content();
-        drop(browser_guard);
+        {
+            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.navigate_to_with_options(&search_url, true).await?;
+        }
+
+        let html = {
+            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.get_current_content()
+        };
+        // Browser dropped here automatically
 
         // Check for actual Cloudflare challenge (not just JS that mentions cloudflare)
         if html.contains("challenges.cloudflare.com") && html.contains("cf-browser-verification") {
@@ -125,18 +137,24 @@ impl McpServer {
                                 urlencoding::encode(query), num_results);
         eprintln!("🔍 DEBUG: Google search URL: {}", search_url);
 
-        // Use the browser's HTTP client with enhanced stealth capabilities
-        eprintln!("🔍 DEBUG: Acquiring browser lock");
-        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        let mut browser_guard = browser;
-        eprintln!("🔍 DEBUG: Browser lock acquired, about to navigate");
+        // Create temporary browser for stateless search
+        eprintln!("🔍 DEBUG: Creating temporary browser");
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
+        eprintln!("🔍 DEBUG: Temporary browser created, about to navigate");
 
         // Navigate using the browser's full navigation system which includes stealth features
-        browser_guard.navigate_to_with_options(&search_url, true).await?;
+        {
+            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.navigate_to_with_options(&search_url, true).await?;
+        }
         eprintln!("🔍 DEBUG: Navigation completed, getting content");
-        let html = browser_guard.get_current_content();
-        eprintln!("🔍 DEBUG: Content retrieved, dropping browser guard");
-        drop(browser_guard);
+
+        let html = {
+            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.get_current_content()
+        };
+        eprintln!("🔍 DEBUG: Content retrieved");
+        // Browser dropped here automatically
 
         // Check for Google's bot detection challenges
         if html.contains("Our systems have detected unusual traffic") || html.contains("why did this happen") {
@@ -159,12 +177,19 @@ impl McpServer {
     async fn search_startpage(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
         let search_url = format!("https://www.startpage.com/do/search?query={}", urlencoding::encode(query));
 
-        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        let mut browser_guard = browser;
+        // Create temporary browser for stateless search
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
-        browser_guard.navigate_to_with_options(&search_url, true).await?;
-        let html = browser_guard.get_current_content();
-        drop(browser_guard);
+        {
+            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.navigate_to_with_options(&search_url, true).await?;
+        }
+
+        let html = {
+            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.get_current_content()
+        };
+        // Browser dropped here automatically
 
         self.parse_startpage_results(&html, query, num_results).await
     }
@@ -173,12 +198,19 @@ impl McpServer {
         // Use public SearX instance
         let search_url = format!("https://searx.be/search?q={}&format=html", urlencoding::encode(query));
 
-        let browser = self.browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        let mut browser_guard = browser;
+        // Create temporary browser for stateless search
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
-        browser_guard.navigate_to_with_options(&search_url, true).await?;
-        let html = browser_guard.get_current_content();
-        drop(browser_guard);
+        {
+            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.navigate_to_with_options(&search_url, true).await?;
+        }
+
+        let html = {
+            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.get_current_content()
+        };
+        // Browser dropped here automatically
 
         self.parse_searx_results(&html, query, num_results).await
     }
@@ -950,5 +982,443 @@ impl McpServer {
             },
             Err(e) => McpResponse::error(-1, format!("Content extraction failed: {}", e)),
         }
+    }
+
+    /// Extract tables from HTML content
+    pub(super) fn extract_tables(&self, html: &str) -> Vec<serde_json::Value> {
+        let document = Html::parse_document(html);
+        let mut tables = Vec::new();
+
+        // Select all tables
+        if let Ok(table_selector) = Selector::parse("table") {
+            for table in document.select(&table_selector) {
+                let mut table_data = serde_json::json!({
+                    "headers": [],
+                    "rows": [],
+                    "caption": null
+                });
+
+                // Extract caption if present
+                if let Ok(caption_selector) = Selector::parse("caption") {
+                    if let Some(caption) = table.select(&caption_selector).next() {
+                        table_data["caption"] = serde_json::Value::String(
+                            caption.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                        );
+                    }
+                }
+
+                // Extract headers from thead or first tr
+                if let Ok(thead_selector) = Selector::parse("thead tr th, thead tr td") {
+                    let headers: Vec<String> = table.select(&thead_selector)
+                        .map(|th| th.text().collect::<Vec<_>>().join(" ").trim().to_string())
+                        .collect();
+
+                    if !headers.is_empty() {
+                        table_data["headers"] = serde_json::Value::Array(
+                            headers.into_iter().map(serde_json::Value::String).collect()
+                        );
+                    }
+                }
+
+                // If no headers in thead, try first tr
+                if table_data["headers"].as_array().map_or(true, |h| h.is_empty()) {
+                    if let Ok(first_row_selector) = Selector::parse("tr:first-child th, tr:first-child td") {
+                        let headers: Vec<String> = table.select(&first_row_selector)
+                            .map(|th| th.text().collect::<Vec<_>>().join(" ").trim().to_string())
+                            .collect();
+
+                        if !headers.is_empty() {
+                            table_data["headers"] = serde_json::Value::Array(
+                                headers.into_iter().map(serde_json::Value::String).collect()
+                            );
+                        }
+                    }
+                }
+
+                // Extract data rows
+                if let Ok(row_selector) = Selector::parse("tbody tr, tr") {
+                    let mut rows = Vec::new();
+                    let mut skip_first = table_data["headers"].as_array().map_or(false, |h| !h.is_empty());
+
+                    for row in table.select(&row_selector) {
+                        if skip_first {
+                            skip_first = false;
+                            continue;
+                        }
+
+                        if let Ok(cell_selector) = Selector::parse("td, th") {
+                            let cells: Vec<String> = row.select(&cell_selector)
+                                .map(|td| td.text().collect::<Vec<_>>().join(" ").trim().to_string())
+                                .collect();
+
+                            if !cells.is_empty() && !cells.iter().all(|c| c.is_empty()) {
+                                rows.push(serde_json::Value::Array(
+                                    cells.into_iter().map(serde_json::Value::String).collect()
+                                ));
+                            }
+                        }
+                    }
+
+                    table_data["rows"] = serde_json::Value::Array(rows);
+                }
+
+                // Only include tables with meaningful content
+                if table_data["rows"].as_array().map_or(false, |rows| !rows.is_empty()) {
+                    tables.push(table_data);
+                }
+            }
+        }
+
+        tables
+    }
+
+    /// Extract lists (ul, ol) from HTML content
+    pub(super) fn extract_lists(&self, html: &str) -> Vec<serde_json::Value> {
+        let document = Html::parse_document(html);
+        let mut lists = Vec::new();
+
+        // Select all lists
+        if let Ok(list_selector) = Selector::parse("ul, ol") {
+            for list in document.select(&list_selector) {
+                let list_type = list.value().name();
+                let mut list_data = serde_json::json!({
+                    "type": list_type,
+                    "items": []
+                });
+
+                // Extract list items
+                if let Ok(item_selector) = Selector::parse("li") {
+                    let items: Vec<String> = list.select(&item_selector)
+                        .map(|li| {
+                            // Get text content, handling nested lists
+                            let mut text = String::new();
+                            for node in li.children() {
+                                if let Some(element) = node.value().as_element() {
+                                    if element.name() != "ul" && element.name() != "ol" {
+                                        text.push_str(&scraper::ElementRef::wrap(node)
+                                            .unwrap()
+                                            .text()
+                                            .collect::<Vec<_>>()
+                                            .join(" ")
+                                            .trim());
+                                        text.push(' ');
+                                    }
+                                } else if let Some(text_node) = node.value().as_text() {
+                                    text.push_str(text_node.trim());
+                                    text.push(' ');
+                                }
+                            }
+                            text.trim().to_string()
+                        })
+                        .filter(|item| !item.is_empty())
+                        .collect();
+
+                    if !items.is_empty() {
+                        list_data["items"] = serde_json::Value::Array(
+                            items.into_iter().map(serde_json::Value::String).collect()
+                        );
+                        lists.push(list_data);
+                    }
+                }
+            }
+        }
+
+        lists
+    }
+
+    /// Extract code blocks from HTML content
+    pub(super) fn extract_code_blocks(&self, html: &str) -> Vec<serde_json::Value> {
+        let document = Html::parse_document(html);
+        let mut code_blocks = Vec::new();
+
+        // Extract pre/code blocks
+        let selectors = [
+            "pre", "code", "pre code", ".highlight", ".code",
+            ".sourceCode", ".language-*", "[class*='lang-']"
+        ];
+
+        for selector_str in &selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                for element in document.select(&selector) {
+                    let code_text = element.text().collect::<Vec<_>>().join("\n").trim().to_string();
+
+                    if !code_text.is_empty() && code_text.len() > 10 {
+                        // Try to detect language from class attributes
+                        let mut language = None;
+                        if let Some(class_attr) = element.value().attr("class") {
+                            for class in class_attr.split_whitespace() {
+                                if class.starts_with("language-") {
+                                    language = Some(class.strip_prefix("language-").unwrap().to_string());
+                                    break;
+                                } else if class.starts_with("lang-") {
+                                    language = Some(class.strip_prefix("lang-").unwrap().to_string());
+                                    break;
+                                }
+                            }
+                        }
+
+                        let code_block = serde_json::json!({
+                            "code": code_text,
+                            "language": language,
+                            "element_type": element.value().name()
+                        });
+
+                        // Avoid duplicates by checking if we already have this exact code
+                        let is_duplicate = code_blocks.iter().any(|existing: &serde_json::Value| {
+                            existing["code"].as_str() == Some(&code_text)
+                        });
+
+                        if !is_duplicate {
+                            code_blocks.push(code_block);
+                        }
+                    }
+                }
+            }
+        }
+
+        code_blocks
+    }
+
+    /// Extract article metadata (author, publish date, tags) from HTML content
+    pub(super) fn extract_article_metadata(&self, html: &str) -> serde_json::Value {
+        let document = Html::parse_document(html);
+        let mut metadata = serde_json::json!({
+            "title": null,
+            "author": null,
+            "publish_date": null,
+            "tags": [],
+            "description": null,
+            "canonical_url": null
+        });
+
+        // Extract title
+        if let Ok(title_selector) = Selector::parse("title, h1, .title, .article-title, [property='og:title'], [name='twitter:title']") {
+            if let Some(title_element) = document.select(&title_selector).next() {
+                let title = if title_element.value().name() == "meta" {
+                    title_element.value().attr("content").unwrap_or("").to_string()
+                } else {
+                    title_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                };
+                if !title.is_empty() {
+                    metadata["title"] = serde_json::Value::String(title);
+                }
+            }
+        }
+
+        // Extract author
+        let author_selectors = [
+            "[name='author']", "[property='article:author']", "[rel='author']",
+            ".author", ".byline", ".article-author", ".post-author"
+        ];
+
+        for selector_str in &author_selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(author_element) = document.select(&selector).next() {
+                    let author = if author_element.value().name() == "meta" {
+                        author_element.value().attr("content").unwrap_or("").to_string()
+                    } else {
+                        author_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    };
+                    if !author.is_empty() {
+                        metadata["author"] = serde_json::Value::String(author);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Extract publish date
+        let date_selectors = [
+            "[property='article:published_time']", "[name='publish_date']",
+            "[name='date']", "time[datetime]", ".publish-date", ".date",
+            ".article-date", ".post-date"
+        ];
+
+        for selector_str in &date_selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(date_element) = document.select(&selector).next() {
+                    let date = if let Some(datetime) = date_element.value().attr("datetime") {
+                        datetime.to_string()
+                    } else if let Some(content) = date_element.value().attr("content") {
+                        content.to_string()
+                    } else {
+                        date_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    };
+                    if !date.is_empty() {
+                        metadata["publish_date"] = serde_json::Value::String(date);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Extract tags/keywords
+        let tag_selectors = [
+            "[name='keywords']", "[property='article:tag']",
+            ".tags a", ".tag", ".article-tags a", ".post-tags a"
+        ];
+
+        let mut tags = Vec::new();
+        for selector_str in &tag_selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                for tag_element in document.select(&selector) {
+                    let tag = if tag_element.value().name() == "meta" {
+                        tag_element.value().attr("content").unwrap_or("").to_string()
+                    } else {
+                        tag_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    };
+
+                    if !tag.is_empty() {
+                        // Split comma-separated keywords
+                        if tag.contains(',') {
+                            for t in tag.split(',') {
+                                let clean_tag = t.trim().to_string();
+                                if !clean_tag.is_empty() && !tags.contains(&clean_tag) {
+                                    tags.push(clean_tag);
+                                }
+                            }
+                        } else if !tags.contains(&tag) {
+                            tags.push(tag);
+                        }
+                    }
+                }
+            }
+        }
+
+        if !tags.is_empty() {
+            metadata["tags"] = serde_json::Value::Array(
+                tags.into_iter().map(serde_json::Value::String).collect()
+            );
+        }
+
+        // Extract description
+        let desc_selectors = [
+            "[name='description']", "[property='og:description']",
+            "[name='twitter:description']", ".description", ".summary"
+        ];
+
+        for selector_str in &desc_selectors {
+            if let Ok(selector) = Selector::parse(selector_str) {
+                if let Some(desc_element) = document.select(&selector).next() {
+                    let description = if desc_element.value().name() == "meta" {
+                        desc_element.value().attr("content").unwrap_or("").to_string()
+                    } else {
+                        desc_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    };
+                    if !description.is_empty() {
+                        metadata["description"] = serde_json::Value::String(description);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Extract canonical URL
+        if let Ok(canonical_selector) = Selector::parse("[rel='canonical']") {
+            if let Some(canonical_element) = document.select(&canonical_selector).next() {
+                if let Some(href) = canonical_element.value().attr("href") {
+                    metadata["canonical_url"] = serde_json::Value::String(href.to_string());
+                }
+            }
+        }
+
+        metadata
+    }
+
+    /// Extract structured content from a webpage (stateless operation)
+    pub(super) async fn extract_structured_content(&mut self, arguments: Value) -> McpResponse {
+        let url = match arguments["url"].as_str() {
+            Some(url) => url,
+            None => return McpResponse::error(-1, "URL parameter is required".to_string()),
+        };
+
+        // Parse optional parameters
+        let content_types = arguments["content_types"].as_array()
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_else(|| vec!["tables", "lists", "code_blocks", "metadata"]);
+
+        // Create temporary browser for stateless operation
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
+
+        // Navigate and get content
+        {
+            let mut browser = match temp_browser.lock() {
+                Ok(b) => b,
+                Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+            };
+            match browser.navigate_to_with_options(url, true).await {
+                Ok(_) => {},
+                Err(e) => return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+            }
+        }
+
+        let html = {
+            let browser = match temp_browser.lock() {
+                Ok(b) => b,
+                Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+            };
+            browser.get_current_content()
+        };
+        // Browser dropped here automatically for stateless operation
+
+        // Extract requested content types
+        let mut result = serde_json::json!({
+            "url": url,
+            "content_types_requested": content_types,
+            "extracted_content": {}
+        });
+
+        for content_type in &content_types {
+            match content_type.as_ref() {
+                "tables" => {
+                    let tables = self.extract_tables(&html);
+                    result["extracted_content"]["tables"] = serde_json::Value::Array(tables);
+                },
+                "lists" => {
+                    let lists = self.extract_lists(&html);
+                    result["extracted_content"]["lists"] = serde_json::Value::Array(lists);
+                },
+                "code_blocks" => {
+                    let code_blocks = self.extract_code_blocks(&html);
+                    result["extracted_content"]["code_blocks"] = serde_json::Value::Array(code_blocks);
+                },
+                "metadata" => {
+                    let metadata = self.extract_article_metadata(&html);
+                    result["extracted_content"]["metadata"] = metadata;
+                },
+                _ => {
+                    // Unknown content type - skip it
+                    continue;
+                }
+            }
+        }
+
+        // Add summary information
+        let mut summary = serde_json::json!({
+            "total_tables": 0,
+            "total_lists": 0,
+            "total_code_blocks": 0,
+            "has_metadata": false
+        });
+
+        if let Some(tables) = result["extracted_content"]["tables"].as_array() {
+            summary["total_tables"] = serde_json::Value::Number(serde_json::Number::from(tables.len()));
+        }
+
+        if let Some(lists) = result["extracted_content"]["lists"].as_array() {
+            summary["total_lists"] = serde_json::Value::Number(serde_json::Number::from(lists.len()));
+        }
+
+        if let Some(code_blocks) = result["extracted_content"]["code_blocks"].as_array() {
+            summary["total_code_blocks"] = serde_json::Value::Number(serde_json::Number::from(code_blocks.len()));
+        }
+
+        if let Some(metadata) = result["extracted_content"]["metadata"].as_object() {
+            summary["has_metadata"] = serde_json::Value::Bool(!metadata.is_empty());
+        }
+
+        result["summary"] = summary;
+
+        McpResponse::success(result)
     }
 }

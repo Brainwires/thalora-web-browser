@@ -92,11 +92,11 @@ fn test_ai_memory_search() {
 
 // Web Scraping Tools Tests
 #[test]
-fn test_scrape_url_basic() {
+fn test_scrape_basic() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     // Test with a simple HTTP endpoint that should be reliable
-    let response = harness.call_tool("scrape_url", json!({
+    let response = harness.call_tool("scrape", json!({
         "url": "https://httpbin.org/html",
         "wait_for_js": false
     })).expect("Scrape should succeed");
@@ -113,10 +113,10 @@ fn test_scrape_url_basic() {
 }
 
 #[test]
-fn test_scrape_url_with_invalid_url() {
+fn test_scrape_with_invalid_url() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    let response = harness.call_tool("scrape_url", json!({
+    let response = harness.call_tool("scrape", json!({
         "url": "invalid-url-format",
         "wait_for_js": false
     }));
@@ -242,7 +242,7 @@ fn test_tools_handle_missing_required_params() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let test_cases = vec![
-        ("scrape_url", json!({})), // Missing required 'url'
+        ("scrape", json!({})), // Missing required 'url'
         ("ai_memory_get_research", json!({})), // Missing required 'key'
         ("cdp_runtime_evaluate", json!({})), // Missing required 'expression'
         ("web_search", json!({})), // Missing required 'query'
@@ -269,7 +269,7 @@ fn test_tools_handle_invalid_param_types() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let test_cases = vec![
-        ("scrape_url", json!({"url": 123})), // url should be string
+        ("scrape", json!({"url": 123})), // url should be string
         ("ai_memory_store_research", json!({"key": 123, "data": "invalid"})), // key should be string
         ("google_search", json!({"query": ["array", "not", "string"], "num_results": "not_number"})),
         ("cdp_runtime_evaluate", json!({"expression": true})), // expression should be string

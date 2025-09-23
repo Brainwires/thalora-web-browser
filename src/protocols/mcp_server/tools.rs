@@ -475,7 +475,7 @@ impl McpServer {
         if env::var("THALORA_ENABLE_SCRAPING").unwrap_or_else(|_| "true".to_string()) == "true" {
             tools.extend_from_slice(&[
                 serde_json::json!({
-                    "name": "scrape_url",
+                    "name": "scrape",
                     "description": "Scrape a web page and extract content, links, images, and metadata",
                     "inputSchema": {
                         "type": "object",
@@ -600,6 +600,29 @@ impl McpServer {
                             "session_id": {
                                 "type": "string",
                                 "description": "Browser session ID to maintain state across pages (optional)"
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "scrape_structured_content",
+                    "description": "Extract structured content (tables, lists, code blocks, metadata) from a webpage",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "URL to extract structured content from"
+                            },
+                            "content_types": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": ["tables", "lists", "code_blocks", "metadata"]
+                                },
+                                "description": "Types of content to extract (default: all types)",
+                                "default": ["tables", "lists", "code_blocks", "metadata"]
                             }
                         },
                         "required": ["url"]
@@ -979,8 +1002,9 @@ impl McpServer {
             "cdp_page_reload" => self.cdp_tools.reload_page(args_for_call.clone(), &mut self.cdp_server).await,
 
             // Scraping and Search tools (stateless)
-            "scrape_url" => self.scrape_url(args_for_call.clone()).await,
+            "scrape" => self.scrape_url(args_for_call.clone()).await,
             "scrape_readable_content" => self.scrape_readable_content(args_for_call.clone()).await,
+            "scrape_structured_content" => self.extract_structured_content(args_for_call.clone()).await,
 
             // Maybe make the searches stateful in the future with session_id
             "web_search" => self.web_search(args_for_call.clone()).await,

@@ -83,8 +83,8 @@ fn test_expected_tools_present() {
            "Should have ai_memory_search_research tool");
 
     // Web scraping tools
-    assert!(tool_names.contains(&"scrape_url".to_string()),
-           "Should have scrape_url tool");
+    assert!(tool_names.contains(&"scrape".to_string()),
+           "Should have scrape tool");
     assert!(tool_names.contains(&"web_search".to_string()),
            "Should have web_search tool");
 
@@ -169,8 +169,8 @@ fn test_tool_call_with_invalid_tool() {
 fn test_tool_call_with_invalid_arguments() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    // Try to call scrape_url without required 'url' parameter
-    let result = harness.call_tool("scrape_url", json!({}));
+    // Try to call scrape without required 'url' parameter
+    let result = harness.call_tool("scrape", json!({}));
 
     // This should either fail during call or return an error response
     if let Ok(response) = result {
