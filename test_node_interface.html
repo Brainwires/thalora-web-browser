@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Node Interface Test</title>
+</head>
+<body>
+    <div id="test-results"></div>
+    <div id="parent">
+        <p id="child1">First child</p>
+        <p id="child2">Second child</p>
+        <span id="child3">Third child</span>
+    </div>
+
+    <script>
+        try {
+            var results = document.getElementById('test-results');
+            var testCount = 0;
+            var passCount = 0;
+
+            function test(name, condition) {
+                testCount++;
+                if (condition) {
+                    passCount++;
+                    results.innerHTML += '<p style="color: green;">✓ ' + name + '</p>';
+                } else {
+                    results.innerHTML += '<p style="color: red;">✗ ' + name + '</p>';
+                }
+            }
+
+            // Get test elements
+            var parent = document.getElementById('parent');
+            var child1 = document.getElementById('child1');
+            var child2 = document.getElementById('child2');
+            var child3 = document.getElementById('child3');
+
+            // Test Node constants
+            test('Node.ELEMENT_NODE constant', Node.ELEMENT_NODE === 1);
+            test('Node.TEXT_NODE constant', Node.TEXT_NODE === 3);
+            test('Node.DOCUMENT_NODE constant', Node.DOCUMENT_NODE === 9);
+            test('Node.DOCUMENT_FRAGMENT_NODE constant', Node.DOCUMENT_FRAGMENT_NODE === 11);
+
+            // Test nodeType property
+            test('Element nodeType', parent.nodeType === Node.ELEMENT_NODE);
+            test('Document nodeType', document.nodeType === Node.DOCUMENT_NODE);
+
+            // Test nodeName property
+            test('Element nodeName', parent.nodeName === 'DIV');
+            test('Child element nodeName', child1.nodeName === 'P');
+
+            // Test nodeValue property (should be null for elements)
+            test('Element nodeValue is null', parent.nodeValue === null);
+
+            // Test parentNode property
+            test('Child parentNode', child1.parentNode === parent);
+            test('Document parentNode is null', document.parentNode === null);
+
+            // Test childNodes property
+            test('Parent has childNodes', parent.childNodes && parent.childNodes.length > 0);
+            test('childNodes is array-like', typeof parent.childNodes.length === 'number');
+
+            // Test firstChild and lastChild
+            test('firstChild exists', parent.firstChild !== null);
+            test('lastChild exists', parent.lastChild !== null);
+
+            // Test previousSibling and nextSibling
+            test('First child has no previousSibling', child1.previousSibling === null);
+            test('Second child has previousSibling', child2.previousSibling === child1);
+            test('Second child has nextSibling', child2.nextSibling === child3);
+            test('Last child has no nextSibling', child3.nextSibling === null);
+
+            // Test ownerDocument
+            test('Element ownerDocument', child1.ownerDocument === document);
+            test('Document ownerDocument is null', document.ownerDocument === null);
+
+            // Test hasChildNodes method
+            test('Parent hasChildNodes', typeof parent.hasChildNodes === 'function' && parent.hasChildNodes());
+            test('Child has no child nodes', !child1.hasChildNodes());
+
+            // Test contains method
+            test('Parent contains child', typeof parent.contains === 'function' && parent.contains(child1));
+            test('Parent does not contain unrelated element', !parent.contains(document.body));
+
+            // Test compareDocumentPosition method
+            if (typeof parent.compareDocumentPosition === 'function') {
+                var position = parent.compareDocumentPosition(child1);
+                test('compareDocumentPosition returns number', typeof position === 'number');
+            }
+
+            // Test isEqualNode method
+            if (typeof parent.isEqualNode === 'function') {
+                test('Element isEqualNode with self', parent.isEqualNode(parent));
+            }
+
+            // Test isSameNode method
+            if (typeof parent.isSameNode === 'function') {
+                test('Element isSameNode with self', parent.isSameNode(parent));
+                test('Element not isSameNode with different element', !parent.isSameNode(child1));
+            }
+
+            // Test appendChild method
+            if (typeof parent.appendChild === 'function') {
+                var newElement = document.createElement('div');
+                newElement.id = 'test-append';
+                var result = parent.appendChild(newElement);
+                test('appendChild returns appended element', result === newElement);
+                test('appendChild adds to childNodes', parent.contains(newElement));
+            }
+
+            // Test insertBefore method
+            if (typeof parent.insertBefore === 'function') {
+                var insertElement = document.createElement('span');
+                insertElement.id = 'test-insert';
+                var result = parent.insertBefore(insertElement, child2);
+                test('insertBefore returns inserted element', result === insertElement);
+                test('insertBefore inserts correctly', parent.contains(insertElement));
+            }
+
+            // Test removeChild method
+            if (typeof parent.removeChild === 'function') {
+                var elementToRemove = document.getElementById('test-append');
+                if (elementToRemove) {
+                    var result = parent.removeChild(elementToRemove);
+                    test('removeChild returns removed element', result === elementToRemove);
+                    test('removeChild removes from parent', !parent.contains(elementToRemove));
+                }
+            }
+
+            // Test replaceChild method
+            if (typeof parent.replaceChild === 'function') {
+                var newElement = document.createElement('em');
+                newElement.id = 'test-replace';
+                var oldElement = document.getElementById('test-insert');
+                if (oldElement) {
+                    var result = parent.replaceChild(newElement, oldElement);
+                    test('replaceChild returns old element', result === oldElement);
+                    test('replaceChild adds new element', parent.contains(newElement));
+                    test('replaceChild removes old element', !parent.contains(oldElement));
+                }
+            }
+
+            // Test cloneNode method
+            if (typeof parent.cloneNode === 'function') {
+                var shallowClone = parent.cloneNode(false);
+                test('cloneNode creates new node', shallowClone !== parent);
+                test('cloneNode preserves nodeName', shallowClone.nodeName === parent.nodeName);
+
+                var deepClone = parent.cloneNode(true);
+                test('cloneNode deep creates new node', deepClone !== parent);
+                test('cloneNode deep preserves structure', deepClone.childNodes.length > 0);
+            }
+
+            // Summary
+            results.innerHTML += '<hr><h3>Test Results: ' + passCount + '/' + testCount + ' passed</h3>';
+            if (passCount === testCount) {
+                results.innerHTML += '<p style="color: green; font-weight: bold;">🎉 All Node interface tests passed!</p>';
+            } else {
+                results.innerHTML += '<p style="color: red; font-weight: bold;">❌ Some tests failed. Node interface needs more work.</p>';
+            }
+
+        } catch(e) {
+            document.getElementById('test-results').innerHTML += '<p style="color: red;">Error: ' + e.message + '</p>';
+            console.error('Node interface test error:', e);
+        }
+    </script>
+</body>
+</html>
