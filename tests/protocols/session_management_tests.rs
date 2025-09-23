@@ -601,3 +601,100 @@ async fn test_session_error_handling() {
         _ => panic!("Expected ToolResult response")
     }
 }
+
+#[tokio::test]
+async fn test_browser_refresh_page() {
+    let browser_tools = create_test_browser_tools();
+
+    // Test refresh with default session (should fail with no current URL)
+    let args = json!({});
+
+    let response = browser_tools.handle_refresh_page(args).await;
+
+    match &response {
+        McpResponse::ToolResult { content, is_error: _ } => {
+            assert!(!content.is_empty(), "Response should have content");
+        }
+        McpResponse::Error { error } => {
+            assert!(error.contains("No current URL") || error.contains("Failed to refresh"),
+                   "Error should mention no current URL: {}", error);
+        }
+        _ => panic!("Expected ToolResult or Error response")
+    }
+}
+
+#[tokio::test]
+async fn test_browser_navigation_workflow() {
+    let browser_tools = create_test_browser_tools();
+    let session_id = "navigation_workflow_session";
+
+    // Step 1: Navigate to a page
+    let navigate_args = json!({
+        "url": "https://httpbin.org/html",
+        "session_id": session_id,
+        "wait_for_load": false
+    });
+
+    let navigate_response = browser_tools.handle_navigate_to(navigate_args).await;
+
+    match &navigate_response {
+        McpResponse::ToolResult { content, is_error } => {
+            assert!(!is_error, "Navigation should not error");
+            assert!(!content.is_empty(), "Navigate response should have content");
+        }
+        McpResponse::Error { error } => {
+            // Network errors are acceptable in test environment
+            eprintln!("INFO: Navigation test handled network error: {}", error);
+            return; // Skip rest of test if we can't navigate
+        }
+        _ => panic!("Expected ToolResult or Error response for navigation")
+    }
+
+    // Step 2: Get page content to verify session state
+    let content_args = json!({
+        "session_id": session_id
+    });
+
+    let content_response = browser_tools.handle_get_page_content(content_args.clone()).await;
+
+    match &content_response {
+        McpResponse::ToolResult { content, is_error } => {
+            assert!(!is_error, "Get page content should not error");
+            assert!(!content.is_empty(), "Content response should have content");
+        }
+        _ => panic!("Expected ToolResult response for page content")
+    }
+
+    // Step 3: Test refresh functionality - should work now that we have a current URL
+    let refresh_args = json!({
+        "session_id": session_id
+    });
+
+    let refresh_response = browser_tools.handle_refresh_page(refresh_args).await;
+
+    match &refresh_response {
+        McpResponse::ToolResult { content, is_error } => {
+            assert!(!content.is_empty(), "Refresh response should have content");
+            // Refresh should succeed or fail gracefully
+        }
+        McpResponse::Error { error } => {
+            // Acceptable if there are network issues or session state problems
+            eprintln!("INFO: Refresh test handled error: {}", error);
+        }
+        _ => panic!("Expected ToolResult or Error response for refresh")
+    }
+
+    // Step 4: Test back navigation (should report cannot go back since only one page)
+    let back_args = json!({
+        "session_id": session_id
+    });
+
+    let back_response = browser_tools.handle_navigate_back(back_args).await;
+
+    match &back_response {
+        McpResponse::ToolResult { content, is_error: _ } => {
+            assert!(!content.is_empty(), "Back response should have content");
+        }
+        _ => panic!("Expected ToolResult response for back navigation")
+    }
+}

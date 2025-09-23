@@ -197,6 +197,71 @@ impl BrowserTools {
         response
     }
 
+    pub async fn handle_refresh_page(&self, params: Value) -> McpResponse {
+        let session_id = params.get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        let browser = self.get_or_create_session(session_id, false);
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.reload().await {
+                        Ok(content) => response = McpResponse::success(json!({
+                            "success": true,
+                            "content": content,
+                            "url": browser_guard.get_current_url(),
+                            "message": "Page refreshed successfully"
+                        })),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to refresh page: {}", e)),
+                    }
+                }
+                Err(_) => { }
+            }
+        }
+        response
+    }
+
+    pub async fn handle_navigate_to(&self, params: Value) -> McpResponse {
+        let url = params["url"].as_str().unwrap_or("");
+        let wait_for_load = params.get("wait_for_load").and_then(|v| v.as_bool()).unwrap_or(true);
+        let session_id = params.get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        if url.is_empty() {
+            return McpResponse::error(-1, "URL is required".to_string());
+        }
+
+        // Validate URL
+        if let Err(_) = Url::parse(url) {
+            return McpResponse::error(-1, "Invalid URL format".to_string());
+        }
+
+        let browser = self.get_or_create_session(session_id, false);
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.navigate_to_with_options(url, wait_for_load).await {
+                        Ok(content) => response = McpResponse::success(json!({
+                            "success": true,
+                            "content": content,
+                            "url": browser_guard.get_current_url(),
+                            "message": format!("Successfully navigated to {}", url)
+                        })),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+                    }
+                }
+                Err(_) => { }
+            }
+        }
+        response
+    }
+
     pub async fn handle_session_management(&self, params: Value) -> McpResponse {
         let action = params["action"].as_str().unwrap_or("");
         let session_id = params.get("session_id")

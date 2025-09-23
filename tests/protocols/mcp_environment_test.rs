@@ -94,10 +94,18 @@ fn test_cdp_tools_disabled() {
     eprintln!("CDP tools successfully disabled - {} tools remaining", tools.len());
 }
 
-// Test disabling scraping tools
+// Test disabling scraping tools (which are enabled by default)
 #[test]
 fn test_scraping_tools_disabled() {
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_SCRAPING"])
+    // Explicitly disable scraping (which is enabled by default)
+    let mut env_vars = std::collections::HashMap::new();
+    env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "true".to_string());
+    env_vars.insert("THALORA_ENABLE_CDP".to_string(), "true".to_string());
+    env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
+    env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
+
+    let mut harness = create_harness_with_env(env_vars)
         .expect("Failed to create harness with disabled scraping");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
@@ -144,11 +152,11 @@ fn test_search_tools_disabled() {
     eprintln!("Search tools successfully disabled - {} tools remaining", tools.len());
 }
 
-// Test disabling browser automation tools
+// Test disabling sessions (browser automation + session management)
 #[test]
-fn test_browser_automation_tools_disabled() {
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_BROWSER_AUTOMATION"])
-        .expect("Failed to create harness with disabled browser automation");
+fn test_sessions_tools_disabled() {
+    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_SESSIONS"])
+        .expect("Failed to create harness with disabled sessions");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
     let tool_names: Vec<String> = tools.iter()
@@ -156,23 +164,29 @@ fn test_browser_automation_tools_disabled() {
         .map(|name| name.to_string())
         .collect();
 
-    // Browser automation tools should not be available
-    let automation_tools = ["browser_click_element", "browser_fill_form", "browser_type_text", "browser_wait_for_element"];
-    assert!(!tool_names.iter().any(|name| automation_tools.contains(&name.as_str())),
-           "Browser automation tools should be disabled");
+    // All browser tools should not be available when sessions are disabled
+    let browser_tools = ["browser_click_element", "browser_fill_form", "browser_type_text",
+                        "browser_wait_for_element", "browser_session_management",
+                        "browser_get_page_content", "browser_navigate_to",
+                        "browser_navigate_back", "browser_navigate_forward", "browser_refresh_page"];
+    assert!(!tool_names.iter().any(|name| browser_tools.contains(&name.as_str())),
+           "All browser tools should be disabled when sessions are disabled");
 
-    // Session management tools should still be available (different category)
-    assert!(tool_names.iter().any(|name| name.starts_with("browser_") && name.contains("session")),
-           "Session management tools should still be enabled");
+    // Other categories should still be available
+    assert!(tool_names.iter().any(|name| name.starts_with("ai_memory_")),
+           "AI memory tools should still be enabled");
+    assert!(tool_names.iter().any(|name| name.starts_with("cdp_")),
+           "CDP tools should still be enabled");
 
-    eprintln!("Browser automation tools successfully disabled - {} tools remaining", tools.len());
+    eprintln!("Sessions tools successfully disabled - {} tools remaining", tools.len());
 }
 
-// Test disabling session management tools
+// Test that CDP automatically enables sessions
 #[test]
-fn test_session_management_tools_disabled() {
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_SESSION_MANAGEMENT"])
-        .expect("Failed to create harness with disabled session management");
+fn test_cdp_enables_sessions_automatically() {
+    // Only enable CDP, but sessions should be enabled automatically
+    let mut harness = create_harness_with_only_categories(&["THALORA_ENABLE_CDP"])
+        .expect("Failed to create harness with only CDP enabled");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
     let tool_names: Vec<String> = tools.iter()
@@ -180,17 +194,23 @@ fn test_session_management_tools_disabled() {
         .map(|name| name.to_string())
         .collect();
 
-    // Session management tools should not be available
-    let session_tools = ["browser_session_management", "browser_get_page_content", "browser_navigate_to",
-                        "browser_navigate_back", "browser_navigate_forward"];
-    assert!(!tool_names.iter().any(|name| session_tools.contains(&name.as_str())),
-           "Session management tools should be disabled");
+    // CDP tools should be available
+    assert!(tool_names.iter().any(|name| name.starts_with("cdp_")),
+           "CDP tools should be enabled");
 
-    // Browser automation tools should still be available (different category)
+    // Sessions tools should also be available (automatic dependency)
     assert!(tool_names.iter().any(|name| name == "browser_click_element"),
-           "Browser automation tools should still be enabled");
+           "Browser automation tools should be enabled via CDP dependency");
+    assert!(tool_names.iter().any(|name| name == "browser_session_management"),
+           "Session management tools should be enabled via CDP dependency");
 
-    eprintln!("Session management tools successfully disabled - {} tools remaining", tools.len());
+    // Other categories should not be available
+    assert!(!tool_names.iter().any(|name| name.starts_with("ai_memory_")),
+           "AI memory tools should be disabled");
+    assert!(!tool_names.iter().any(|name| name.starts_with("scrape_")),
+           "Scraping tools should be disabled");
+
+    eprintln!("CDP dependency logic verified - {} tools available", tools.len());
 }
 
 // Test disabling multiple categories
@@ -293,16 +313,15 @@ fn test_disabled_tools_return_errors() {
 // Test minimal configuration (all categories disabled)
 #[test]
 fn test_all_categories_disabled() {
-    let all_categories = [
-        "THALORA_ENABLE_AI_MEMORY",
-        "THALORA_ENABLE_CDP",
-        "THALORA_ENABLE_SCRAPING",
-        "THALORA_ENABLE_SEARCH",
-        "THALORA_ENABLE_BROWSER_AUTOMATION",
-        "THALORA_ENABLE_SESSION_MANAGEMENT"
-    ];
+    // Explicitly disable all categories, including scraping (which is enabled by default)
+    let mut env_vars = std::collections::HashMap::new();
+    env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_CDP".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "false".to_string());
 
-    let mut harness = create_harness_with_disabled_categories(&all_categories)
+    let mut harness = create_harness_with_env(env_vars)
         .expect("Failed to create harness with all categories disabled");
 
     let tools = harness.list_tools().expect("Should be able to list tools even when all categories disabled");
@@ -313,7 +332,7 @@ fn test_all_categories_disabled() {
     eprintln!("All categories successfully disabled - {} tools available", tools.len());
 }
 
-// Test default behavior (all tools disabled by default unless environment variables are set)
+// Test default behavior (only scraping tools enabled by default)
 #[test]
 fn test_default_behavior_no_env_vars() {
     // Create harness with empty environment variables to test true defaults
@@ -322,11 +341,27 @@ fn test_default_behavior_no_env_vars() {
         .expect("Failed to create harness with no environment variables");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
+    let tool_names: Vec<String> = tools.iter()
+        .filter_map(|tool| tool.get("name")?.as_str())
+        .map(|name| name.to_string())
+        .collect();
 
-    // By default (with no environment variables set), all tool categories should be disabled
-    assert!(tools.is_empty(), "Should have no tools available by default when no environment variables are set");
+    // By default (with no environment variables set), only scraping tools should be enabled
+    assert!(!tools.is_empty(), "Should have scraping tools available by default");
+    assert!(tool_names.iter().any(|name| name.starts_with("scrape_")),
+           "Should have scraping tools enabled by default");
 
-    eprintln!("Default behavior verified - {} tools available without environment variables", tools.len());
+    // Other categories should be disabled
+    assert!(!tool_names.iter().any(|name| name.starts_with("ai_memory_")),
+           "AI memory tools should be disabled by default");
+    assert!(!tool_names.iter().any(|name| name.starts_with("cdp_")),
+           "CDP tools should be disabled by default");
+    assert!(!tool_names.iter().any(|name| name.starts_with("browser_")),
+           "Browser tools should be disabled by default");
+    assert!(!tool_names.iter().any(|name| name == "web_search" || name == "image_search"),
+           "Search tools should be disabled by default");
+
+    eprintln!("Default behavior verified - {} tools available (scraping tools enabled by default)", tools.len());
 }
 
 // Test that environment variables are correctly applied
@@ -337,8 +372,7 @@ fn test_custom_environment_variables() {
     env_vars.insert("THALORA_ENABLE_CDP".to_string(), "false".to_string());
     env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
     env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "false".to_string());
-    env_vars.insert("THALORA_ENABLE_BROWSER_AUTOMATION".to_string(), "true".to_string());
-    env_vars.insert("THALORA_ENABLE_SESSION_MANAGEMENT".to_string(), "false".to_string());
+    env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
 
     let mut harness = create_harness_with_env(env_vars)
         .expect("Failed to create harness with custom environment variables");
@@ -362,8 +396,6 @@ fn test_custom_environment_variables() {
            "CDP tools should be disabled");
     assert!(!tool_names.iter().any(|name| name == "web_search" || name == "image_search"),
            "Search tools should be disabled");
-    assert!(!tool_names.iter().any(|name| name == "browser_session_management"),
-           "Session management tools should be disabled");
 
     eprintln!("Custom environment variables correctly applied - {} tools available", tools.len());
 }

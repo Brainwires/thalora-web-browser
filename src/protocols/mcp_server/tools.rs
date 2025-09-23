@@ -20,15 +20,20 @@ use std::env;
 
     Each category needs a corresponding environment variable to be enabled, e.g.:
         - THALORA_ENABLE_AI_MEMORY
-        - THALORA_ENABLE_CDP
-        - THALORA_ENABLE_SCRAPING
+        - THALORA_ENABLE_CDP (also enables SESSIONS automatically)
+        - THALORA_ENABLE_SCRAPING (enabled by default - minimal toolset)
         - THALORA_ENABLE_SEARCH
-        - THALORA_ENABLE_BROWSER_AUTOMATION
-        - THALORA_ENABLE_SESSION_MANAGEMENT
+        - THALORA_ENABLE_SESSIONS (browser automation + session management)
 
 */
 
 impl McpServer {
+    /// Check if sessions are enabled (either directly or through CDP dependency)
+    fn is_sessions_enabled() -> bool {
+        env::var("THALORA_ENABLE_SESSIONS").unwrap_or_else(|_| "false".to_string()) == "true" ||
+        env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "false".to_string()) == "true"
+    }
+
     pub(super) fn get_tool_definitions(&self) -> Vec<Value> {
         let mut tools = Vec::new();
 
@@ -466,8 +471,8 @@ impl McpServer {
             ]);
         }
 
-        // Web Scraping Tools - Scrape web pages and extract content
-        if env::var("THALORA_ENABLE_SCRAPING").unwrap_or_else(|_| "false".to_string()) == "true" {
+        // Web Scraping Tools - Scrape web pages and extract content (enabled by default)
+        if env::var("THALORA_ENABLE_SCRAPING").unwrap_or_else(|_| "true".to_string()) == "true" {
             tools.extend_from_slice(&[
                 serde_json::json!({
                     "name": "scrape_url",
@@ -670,7 +675,7 @@ impl McpServer {
         }
 
         // Browser Automation Tools - Interact with web pages by clicking elements and filling forms
-        if env::var("THALORA_ENABLE_BROWSER_AUTOMATION").unwrap_or_else(|_| "false".to_string()) == "true" {
+        if Self::is_sessions_enabled() {
             tools.extend_from_slice(&[
                 serde_json::json!({
                     "name": "browser_click_element",
@@ -776,7 +781,7 @@ impl McpServer {
         }
 
         // Session Management Tools - Create, manage, and clean up browser sessions for persistent AI interactions
-        if env::var("THALORA_ENABLE_SESSION_MANAGEMENT").unwrap_or_else(|_| "false".to_string()) == "true" {
+        if Self::is_sessions_enabled() {
             tools.extend_from_slice(&[
                 serde_json::json!({
                     "name": "browser_session_management",
@@ -874,6 +879,19 @@ impl McpServer {
                         }
                     }
                 }),
+                serde_json::json!({
+                    "name": "browser_refresh_page",
+                    "description": "Refresh/reload the current page in the browser",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional, defaults to 'default')"
+                            }
+                        }
+                    }
+                }),
             ]);
         }
 
@@ -960,39 +978,36 @@ impl McpServer {
             "cdp_page_screenshot" => self.cdp_tools.take_screenshot(args_for_call.clone(), &mut self.cdp_server).await,
             "cdp_page_reload" => self.cdp_tools.reload_page(args_for_call.clone(), &mut self.cdp_server).await,
 
-            // Web scraping and navigation tools
+            // Scraping and Search tools (stateless)
             "scrape_url" => self.scrape_url(args_for_call.clone()).await,
-
-            // Note: scrape_content_by_selector not implemented yet - placeholder for future
-            "scrape_content_by_selector" => McpResponse::error(-32601, "Tool not implemented yet: scrape_content_by_selector".to_string()),
-
-            // Readability tools for clean content extraction
             "scrape_readable_content" => self.scrape_readable_content(args_for_call.clone()).await,
-            "browse_readable_content" => self.browse_readable_content(args_for_call.clone()).await,
 
-            // Web search tools
+            // Maybe make the searches stateful in the future with session_id
             "web_search" => self.web_search(args_for_call.clone()).await,
-
             // Note: image_search not implemented yet - placeholder for future
             "image_search" => McpResponse::error(-32601, "Tool not implemented yet: image_search".to_string()),
 
-            // Browser automation tools
-            "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
-            "browser_fill_form" => self.browser_tools.handle_fill_form(args_for_call.clone()).await,
+            // Session management tools
+            "browser_session_management" => self.browser_tools.handle_session_management(args_for_call.clone()).await,
+            "browser_get_page_content" => self.browser_tools.handle_get_page_content(args_for_call.clone()).await,
+            "browse_readable_content" => self.browse_readable_content(args_for_call.clone()).await,
 
+            // Browser automation tools
+            "browser_fill_form" => self.browser_tools.handle_fill_form(args_for_call.clone()).await,
+            
+            // User Events Simulation
+            "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
             // Note: Additional browser automation tools not implemented yet - placeholders for future
-            "browser_type_text" => McpResponse::error(-32601, "Tool not implemented yet: browser_type_text".to_string()),
+            "browser_output_text" => McpResponse::error(-32601, "Tool not implemented yet: browser_type_text".to_string()),
             "browser_wait_for_element" => McpResponse::error(-32601, "Tool not implemented yet: browser_wait_for_element".to_string()),
 
-            // Session management tools
-            "browser_get_page_content" => self.browser_tools.handle_get_page_content(args_for_call.clone()).await,
-            "browser_navigate_back" => self.browser_tools.handle_navigate_back(args_for_call.clone()).await,
+            // Navigation tools
+            "browser_refresh_page" => self.browser_tools.handle_refresh_page(args_for_call.clone()).await,
             "browser_navigate_forward" => self.browser_tools.handle_navigate_forward(args_for_call.clone()).await,
-            "browser_session_management" => self.browser_tools.handle_session_management(args_for_call.clone()).await,
+            "browser_navigate_back" => self.browser_tools.handle_navigate_back(args_for_call.clone()).await,
+            "browser_navigate_to" => self.browser_tools.handle_navigate_to(args_for_call.clone()).await,
 
-            // Note: browser_navigate_to not implemented yet - placeholder for future
-            "browser_navigate_to" => McpResponse::error(-32601, "Tool not implemented yet: browser_navigate_to".to_string()),
-
+            // Unknown/Unhandled tool
             _ => McpResponse::error(-32601, format!("Tool not found: {}", name))
           };
 

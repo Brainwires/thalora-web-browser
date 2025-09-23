@@ -28,8 +28,7 @@ impl Default for McpTestConfig {
         env_vars.insert("THALORA_ENABLE_CDP".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
-        env_vars.insert("THALORA_ENABLE_BROWSER_AUTOMATION".to_string(), "true".to_string());
-        env_vars.insert("THALORA_ENABLE_SESSION_MANAGEMENT".to_string(), "true".to_string());
+        env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
 
         Self {
             timeout: Duration::from_secs(30),
