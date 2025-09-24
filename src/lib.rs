@@ -24,7 +24,7 @@ pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScr
 pub use engine::EventListener;
 
 pub use apis::websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
-pub use apis::storage::WebStorage;
+// WebStorage is now natively implemented in Boa engine
 pub use apis::events::DomEvent;
 
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};

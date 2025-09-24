@@ -4,7 +4,7 @@ pub mod fetch_api;
 pub mod url_api;
 pub mod service_worker;
 pub mod websocket;
-pub mod storage;
+// Storage APIs are now natively implemented in Boa engine
 pub mod events;
 pub mod timers;
 pub mod navigator;
@@ -61,8 +61,7 @@ impl WebApis {
         let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e)))?;
         sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;
 
-        let web_storage = storage::WebStorage::new();
-        web_storage.setup_storage_globals(context)?;
+        // Storage APIs (localStorage/sessionStorage) are now natively implemented in Boa engine
 
         // Setup full-featured browser APIs
         let wasm_manager = webassembly::WebAssemblyManager::new();

@@ -5,7 +5,6 @@ use super::{
     performance::setup_performance_apis,
     security::setup_security_apis,
     worker::setup_worker_apis,
-    storage::setup_storage_apis,
     chrome_features::setup_chrome_features,
 };
 
@@ -37,7 +36,6 @@ pub fn setup_web_apis(context: &mut Context) -> JsResult<()> {
     setup_security_apis(context)?;
     // DOM and CSS APIs are now natively implemented in Boa engine
     setup_worker_apis(context)?;
-    setup_storage_apis(context)?;
     setup_chrome_features(context)?;
 
     // Setup remaining APIs that don't fit in the above modules
