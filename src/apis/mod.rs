@@ -1,13 +1,13 @@
 // Web APIs and standards implementation
 pub mod crypto_api;
-pub mod fetch_api;
+// fetch API is now natively implemented in Boa engine
 pub mod url_api;
 pub mod service_worker;
-pub mod websocket;
+// websocket API is now natively implemented in Boa engine
 // Storage APIs are now natively implemented in Boa engine
 pub mod events;
-pub mod timers;
-pub mod navigator;
+// timers API is now natively implemented in Boa engine
+// navigator API is now natively implemented in Boa engine
 pub mod dom_native;
 pub mod credentials;
 
@@ -35,9 +35,7 @@ impl WebApis {
     pub fn setup_all_apis(&self, context: &mut Context) -> Result<()> {
         // Console is now handled by Boa's native console implementation
 
-        // Setup core browser APIs
-        let navigator_manager = navigator::NavigatorManager::new();
-        navigator_manager.setup_navigator_api(context).map_err(|e| anyhow::Error::msg(format!("Navigator setup failed: {:?}", e)))?;
+        // navigator API is now natively handled by Boa engine
 
     // Setup Credential Management API
     let credential_manager = credentials::CredentialManager::new();
@@ -46,17 +44,10 @@ impl WebApis {
         // Setup all Web API modules
         url_api::setup_url_api(context)?;
         crypto_api::setup_crypto(context)?;
-        fetch_api::setup_fetch(context)?;
+        // fetch API is now natively handled by Boa engine
+        // websocket API is now natively handled by Boa engine
 
-
-        // Setup WebSocket API
-        let websocket_manager = websocket::WebSocketManager::new();
-        let websocket_api = websocket::WebSocketJsApi::new(websocket_manager);
-        websocket_api.setup_websocket_globals(context).map_err(|e| anyhow::Error::msg(format!("WebSocket setup failed: {:?}", e)))?;
-
-        // Setup real timer implementation
-        let timer_manager = timers::TimerManager::new();
-        timer_manager.setup_real_timers(context).map_err(|e| anyhow::Error::msg(format!("Timer setup failed: {:?}", e)))?;
+        // timers (setTimeout/setInterval) are now natively handled by Boa engine
 
         let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e)))?;
         sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;
