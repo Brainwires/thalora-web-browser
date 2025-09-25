@@ -368,12 +368,6 @@ pub fn setup_chrome_features(context: &mut Context) -> JsResult<()> {
             };
         }
 
-        // PageSwapEvent is now natively implemented in Boa engine
-
-        // Element.setHTML and setHTMLUnsafe are now natively implemented in Boa engine
-
-        // Document.parseHTMLUnsafe is now natively implemented in Boa engine
-
         // Error.stack and Error.captureStackTrace - CRITICAL for Google 2025 bot detection
         if (typeof Error !== 'undefined') {
             // Add Error.captureStackTrace static method (V8/Chrome specific)

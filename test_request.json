@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "execute_javascript",
+    "arguments": {
+      "code": "console.log('Testing localStorage...'); localStorage.setItem('test', 'success'); console.log('Value:', localStorage.getItem('test')); console.log('Length:', localStorage.length); console.log('sessionStorage test:'); sessionStorage.setItem('session', 'data'); console.log('sessionStorage value:', sessionStorage.getItem('session')); console.log('localStorage vs sessionStorage:', localStorage.getItem('session')); 'localStorage test completed!'"
+    }
+  }
+}

@@ -10,7 +10,6 @@ pub mod performance;
 pub mod security;
 // DOM and CSS are now natively implemented in Boa engine
 pub mod worker;
-pub mod storage;
 pub mod chrome_features;
 
 // Only experimental/proposal polyfills remain

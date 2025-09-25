@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Web APIs</title>
+</head>
+<body>
+    <h1>Testing Web Locks and IndexedDB APIs</h1>
+    <div id="test-results"></div>
+    <script>
+        const results = document.getElementById('test-results');
+
+        function addResult(test, result) {
+            const p = document.createElement('p');
+            p.textContent = `${test}: ${result}`;
+            results.appendChild(p);
+        }
+
+        // Test navigator.locks
+        addResult('navigator.locks exists', typeof navigator.locks);
+        addResult('navigator.locks.request exists', typeof navigator?.locks?.request);
+        addResult('navigator.locks.query exists', typeof navigator?.locks?.query);
+
+        // Test indexedDB
+        addResult('indexedDB exists', typeof indexedDB);
+        addResult('indexedDB.open exists', typeof indexedDB?.open);
+        addResult('indexedDB.deleteDatabase exists', typeof indexedDB?.deleteDatabase);
+        addResult('indexedDB.databases exists', typeof indexedDB?.databases);
+        addResult('indexedDB.cmp exists', typeof indexedDB?.cmp);
+
+        // Test localStorage (should work from previous implementation)
+        addResult('localStorage exists', typeof localStorage);
+        addResult('sessionStorage exists', typeof sessionStorage);
+
+        console.log('All API tests completed');
+    </script>
+</body>
+</html>
