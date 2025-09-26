@@ -6,6 +6,7 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAG
 use crate::engine::renderer::RustRenderer;
 use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry};
 use crate::engine::browser::scraper::WebScraper;
+use crate::engine::browser::{FormAnalyzer, FormInfo};
 
 #[allow(dead_code)]
 pub struct HeadlessWebBrowser {
@@ -17,6 +18,8 @@ pub struct HeadlessWebBrowser {
     pub(super) storage: BrowserStorage,
     pub(super) history: NavigationHistory,
     pub(super) scraper: WebScraper,
+    pub(super) form_analyzer: FormAnalyzer,
+    pub(super) analyzed_forms: Vec<FormInfo>,
 }
 
 impl HeadlessWebBrowser {
@@ -52,6 +55,7 @@ impl HeadlessWebBrowser {
         };
 
         let scraper = WebScraper::new();
+        let form_analyzer = FormAnalyzer::new();
 
         let browser = Self {
             client,
@@ -62,6 +66,8 @@ impl HeadlessWebBrowser {
             storage,
             history,
             scraper,
+            form_analyzer,
+            analyzed_forms: Vec::new(),
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));
@@ -103,6 +109,21 @@ impl HeadlessWebBrowser {
 
     pub fn get_storage_mut(&mut self) -> &mut BrowserStorage {
         &mut self.storage
+    }
+
+    /// Get analyzed forms from the current page
+    pub fn get_analyzed_forms(&self) -> &[FormInfo] {
+        &self.analyzed_forms
+    }
+
+    /// Get forms that open new windows
+    pub fn get_new_window_forms(&self) -> Vec<&FormInfo> {
+        self.analyzed_forms.iter().filter(|f| f.opens_new_window).collect()
+    }
+
+    /// Find form information by submit button selector
+    pub fn find_form_by_submit_button(&self, button_selector: &str) -> Option<FormInfo> {
+        self.form_analyzer.find_form_by_submit_button(&self.current_content, button_selector).ok().flatten()
     }
 
     pub(super) fn add_to_history(&mut self, url: String, title: String) {

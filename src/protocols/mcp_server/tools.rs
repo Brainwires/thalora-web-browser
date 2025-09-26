@@ -800,6 +800,54 @@ impl McpServer {
                         "required": ["selector"]
                     }
                 }),
+                serde_json::json!({
+                    "name": "browser_prepare_form_submission",
+                    "description": "Prepare for a form submission that will open a new window by creating a predictive session",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "form_selector": {
+                                "type": "string",
+                                "description": "CSS selector for the form element"
+                            },
+                            "submit_button_selector": {
+                                "type": "string",
+                                "description": "CSS selector for the submit button (optional)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Current browser session ID (optional, defaults to 'default')"
+                            }
+                        },
+                        "required": ["form_selector"]
+                    }
+                }),
+                serde_json::json!({
+                    "name": "browser_validate_session",
+                    "description": "Validate that a browser session exists and optionally check if it has loaded expected content",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID to validate"
+                            },
+                            "expected_url_pattern": {
+                                "type": "string",
+                                "description": "Optional regex pattern to match against current URL"
+                            },
+                            "expected_content": {
+                                "type": "string",
+                                "description": "Optional text that should be present in page content"
+                            },
+                            "timeout": {
+                                "type": "number",
+                                "description": "Timeout in milliseconds to wait for conditions (default: 5000)"
+                            }
+                        },
+                        "required": ["session_id"]
+                    }
+                }),
             ]);
         }
 
@@ -1026,6 +1074,8 @@ impl McpServer {
             "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
             "browser_type_text" => self.browser_tools.handle_type_text(args_for_call.clone()).await,
             "browser_wait_for_element" => McpResponse::error(-32601, "Tool not implemented yet: browser_wait_for_element".to_string()),
+            "browser_prepare_form_submission" => self.browser_tools.handle_prepare_form_submission(args_for_call.clone()).await,
+            "browser_validate_session" => self.browser_tools.handle_validate_session(args_for_call.clone()).await,
 
             // Navigation tools
             "browser_refresh_page" => self.browser_tools.handle_refresh_page(args_for_call.clone()).await,

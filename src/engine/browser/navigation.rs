@@ -39,6 +39,21 @@ impl super::HeadlessWebBrowser {
         eprintln!("🔍 DEBUG: Adding page processing delay: {}ms", processing_delay);
         sleep(Duration::from_millis(processing_delay)).await;
 
+        // Analyze forms for target="_blank" detection
+        self.form_analyzer = self.form_analyzer.clone().with_base_url(url.to_string());
+        match self.form_analyzer.analyze_forms(&content) {
+            Ok(forms) => {
+                self.analyzed_forms = forms;
+                eprintln!("🔍 DEBUG: Analyzed {} forms on page", self.analyzed_forms.len());
+
+                let new_window_forms = self.analyzed_forms.iter().filter(|f| f.opens_new_window).count();
+                if new_window_forms > 0 {
+                    eprintln!("🔍 DEBUG: Found {} forms that open new windows", new_window_forms);
+                }
+            }
+            Err(e) => eprintln!("🔍 DEBUG: Form analysis failed: {}", e),
+        }
+
         // Headless browser behavior: load HTML and make it ready for interaction
         // No JavaScript extraction or execution from the page
         eprintln!("🔍 DEBUG: HTML content loaded, ready for direct DOM interaction");
