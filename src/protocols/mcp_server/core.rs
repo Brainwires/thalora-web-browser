@@ -7,7 +7,7 @@ use vfs::VfsInstance;
 
 use crate::protocols::mcp::{McpRequest, McpNotification, McpResponse, McpMessage, McpMessageContent, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
-use crate::apis::websocket::WebSocketManager;
+// websocket API is now natively implemented in Boa engine
 // DOM is now natively handled by Boa engine
 use crate::features::ai_memory::AiMemoryHeap;
 use crate::protocols::cdp::CdpServer;
@@ -18,7 +18,7 @@ use crate::protocols::session_manager::SessionManager;
 
 #[allow(dead_code)]
 pub struct McpServer {
-    pub(super) websocket_manager: WebSocketManager,
+    // websocket API is now natively implemented in Boa engine
     pub(super) ai_memory: AiMemoryHeap,
     pub(super) cdp_server: CdpServer,
     pub(super) memory_tools: MemoryTools,
@@ -42,7 +42,7 @@ impl McpServer {
         });
 
         Self {
-            websocket_manager: WebSocketManager::new(),
+            // websocket API is now natively implemented in Boa engine
             ai_memory,
             cdp_server: CdpServer::new(),
             memory_tools: MemoryTools::new(),

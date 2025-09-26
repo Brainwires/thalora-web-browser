@@ -3,7 +3,7 @@ use boa_engine::{Context, module::IdleModuleLoader};
 use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use crate::apis::WebApis;
-use crate::apis::events::EventManager;
+// events API is now natively implemented in Boa engine
 use crate::features::AdvancedWebAssemblyEngine;
 
 #[allow(dead_code)]
@@ -11,7 +11,7 @@ pub struct RustRenderer {
     pub(super) js_context: Context,
     pub(super) web_apis: WebApis,
     pub(super) history_initialized: bool,
-    pub(super) event_manager: EventManager,
+    // event manager is now handled by Boa engine
     pub(super) wasm_api: Option<AdvancedWebAssemblyEngine>,
     // Guard to prevent re-entrant updates/evaluations which previously caused
     // infinite recursion / stack overflows when JS evaluation or window getters
@@ -29,7 +29,7 @@ impl RustRenderer {
 
         let web_apis = WebApis::new();
 
-        let event_manager = EventManager::new();
+        // event manager is now handled by Boa engine
 
         // DOM is now natively handled by Boa engine (Document, Element, etc.)
 
@@ -42,8 +42,7 @@ impl RustRenderer {
         // Setup native DOM globals (Document, Window, History, PageSwapEvent) - after builtins are initialized
         crate::apis::dom_native::setup_native_dom_globals(&mut context).unwrap();
 
-        // Setup REAL DOM event system (replaces mock implementations)
-        event_manager.setup_events_api(&mut context).unwrap();
+        // events API is now natively handled by Boa engine
 
         // Setup REAL WebAssembly API (replaces mock implementations)
         let wasm_api = match AdvancedWebAssemblyEngine::new() {
@@ -58,7 +57,7 @@ impl RustRenderer {
             js_context: context,
             web_apis,
             history_initialized: false,
-            event_manager,
+            // event_manager is now handled by Boa engine
             wasm_api,
             in_update: false,
         }

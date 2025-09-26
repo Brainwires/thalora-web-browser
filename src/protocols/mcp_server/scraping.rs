@@ -1218,7 +1218,7 @@ impl McpServer {
 
                         // Avoid duplicates by checking if we already have this exact code
                         let is_duplicate = code_blocks.iter().any(|existing: &serde_json::Value| {
-                            existing["code"].as_str() == Some(&code_text)
+                            existing["code"].as_str() == Some(code_text.as_str())
                         });
 
                         if !is_duplicate {

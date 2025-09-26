@@ -21,11 +21,11 @@ pub mod protocols;
 // Re-export main components for clean public API
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};
-pub use engine::EventListener;
+// EventListener is now natively implemented in Boa engine
 
-pub use apis::websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
+// websocket API is now natively implemented in Boa engine
 // WebStorage is now natively implemented in Boa engine
-pub use apis::events::DomEvent;
+// events API is now natively implemented in Boa engine
 
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};

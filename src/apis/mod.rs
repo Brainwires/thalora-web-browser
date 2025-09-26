@@ -5,7 +5,7 @@ pub mod url_api;
 pub mod service_worker;
 // websocket API is now natively implemented in Boa engine
 // Storage APIs are now natively implemented in Boa engine
-pub mod events;
+// events API is now natively implemented in Boa engine
 // timers API is now natively implemented in Boa engine
 // navigator API is now natively implemented in Boa engine
 pub mod dom_native;
@@ -67,9 +67,7 @@ impl WebApis {
         let media_manager = media::MediaManager::new().map_err(|e| anyhow::Error::msg(format!("Media manager creation failed: {:?}", e)))?;
         media_manager.setup_media_apis(context).map_err(|e| anyhow::Error::msg(format!("Media APIs setup failed: {:?}", e)))?;
 
-        // Setup comprehensive DOM Events system
-        let event_manager = events::EventManager::new();
-        event_manager.setup_events_api(context).map_err(|e| anyhow::Error::msg(format!("Events API setup failed: {:?}", e)))?;
+        // events API (Event, EventTarget, CustomEvent) is now natively handled by Boa engine
 
         // DISABLED: Polyfill system is disabled to focus on real DOM implementation
         // Only using native DOM from Boa engine

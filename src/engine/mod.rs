@@ -9,4 +9,4 @@ pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField,
 pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
 pub use engine::JavaScriptEngine;
 // DOM is now natively implemented in Boa engine
-pub use crate::apis::events::EventListener;
+// EventListener is now natively implemented in Boa engine
