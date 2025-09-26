@@ -18,6 +18,9 @@ pub mod features;
 // Communication protocols
 pub mod protocols;
 
+// Debug utilities
+pub mod debug_utils;
+
 // Re-export main components for clean public API
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};

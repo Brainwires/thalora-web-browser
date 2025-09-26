@@ -922,10 +922,13 @@ impl McpServer {
     }
 
     pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
+        eprintln!("🔍 DEBUG: call_tool - Tool: {}, Arguments: {}", name, arguments);
+
         // If a `session_id` argument is present, reuse or create a session-scoped VFS that persists across calls.
         let vfs_instance: Arc<VfsInstance>;
         let prev_vfs: Option<Arc<VfsInstance>>;
         if let Some(session_id) = arguments.get("session_id").and_then(|v| v.as_str()) {
+            eprintln!("🔍 DEBUG: call_tool - Using session_id: {}", session_id);
             // Reuse or create a session VFS. Backing path is in temp dir by default.
             let v = self.get_or_create_session_vfs(session_id, None);
             vfs_instance = v.clone();
@@ -1021,8 +1024,7 @@ impl McpServer {
             
             // User Events Simulation
             "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
-            // Note: Additional browser automation tools not implemented yet - placeholders for future
-            "browser_output_text" => McpResponse::error(-32601, "Tool not implemented yet: browser_type_text".to_string()),
+            "browser_type_text" => self.browser_tools.handle_type_text(args_for_call.clone()).await,
             "browser_wait_for_element" => McpResponse::error(-32601, "Tool not implemented yet: browser_wait_for_element".to_string()),
 
             // Navigation tools

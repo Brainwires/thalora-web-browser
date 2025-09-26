@@ -1,0 +1,1 @@
+{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "scrape_content_by_selector", "arguments": {"url": "https://www.twologs.com/en/resources/formtest.asp", "selectors": {"form_inputs": "input", "form_container": "form", "page_title": "title"}}}}

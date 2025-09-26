@@ -23,10 +23,17 @@ impl BrowserTools {
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
+            eprintln!("🔍 DEBUG: get_or_create_session - FOUND existing session: {}", session_id);
             session.update_last_accessed();
+            // Debug browser state
+            if let Ok(browser_guard) = browser.try_lock() {
+                eprintln!("🔍 DEBUG: get_or_create_session - existing browser content length: {}", browser_guard.get_current_content().len());
+                eprintln!("🔍 DEBUG: get_or_create_session - existing browser URL: {:?}", browser_guard.get_current_url());
+            }
             // Return existing browser with preserved state
             browser.clone()
         } else {
+            eprintln!("🔍 DEBUG: get_or_create_session - CREATING new session: {}", session_id);
             let browser = HeadlessWebBrowser::new();
             let session = BrowserSession::new(session_id.to_string(), persistent);
 

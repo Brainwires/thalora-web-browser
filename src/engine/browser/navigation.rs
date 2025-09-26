@@ -1,405 +1,301 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
-use tokio::time::sleep;
-use std::time::Duration;
-use url::Url;
-use crate::engine::browser::core::HeadlessWebBrowser;
-use crate::engine::browser::types::{ScrapedData, InteractionResponse};
+use tokio::time::{sleep, Duration};
+use rand;
 
-impl HeadlessWebBrowser {
-    pub async fn navigate_to(&mut self, url: &str) -> Result<String> {
-        self.navigate_to_with_options(url, false).await
-    }
+use crate::engine::browser::{InteractionResponse, types::ScrapedData};
 
-    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
-        // Add realistic human-like delay before making request (1-3 seconds)
-        // Real humans don't navigate instantly - they read, think, click
-        let delay_ms = 1000 + (rand::random::<u64>() % 2000);
-        eprintln!("🔍 DEBUG: Adding human-like navigation delay: {}ms", delay_ms);
-        sleep(Duration::from_millis(delay_ms)).await;
+impl super::HeadlessWebBrowser {
+    /// Navigate to URL with options for JavaScript execution
+    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_load: bool) -> Result<String> {
+        eprintln!("🔍 DEBUG: navigate_to_with_options - URL: {}, wait_for_load: {}", url, wait_for_load);
 
-        let headers = self.create_standard_browser_headers(url);
-
-        let response = self.client
-            .get(url)
-            .headers(headers)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Err(anyhow!("HTTP error: {}", response.status()));
-        }
-
+        // Fetch the page content
+        let response = self.client.get(url).send().await?;
         let content = response.text().await?;
 
-        // Store current state
-        self.current_url = Some(url.to_string());
+        // Store the current content and URL
         self.current_content = content.clone();
+        self.current_url = Some(url.to_string());
 
-        // Update the document's HTML content in the JavaScript context
+        eprintln!("🔍 DEBUG: Content length: {} characters", content.len());
+
+        // Store HTML content for form parsing when needed
+        eprintln!("🔍 DEBUG: HTML content available for form parsing: {} characters", content.len());
+
+        // Update document HTML in the renderer if available
         if let Some(ref mut renderer) = self.renderer {
-            // Use the renderer's re-entrancy guard to prevent recursion
-            if !renderer.is_in_update() {
-                eprintln!("🔍 DEBUG: Updating document HTML via renderer");
-                drop(renderer.update_document_html(&content));
-            } else {
-                eprintln!("🔍 DEBUG: Skipping document HTML update due to active renderer update guard");
-            }
+            eprintln!("🔍 DEBUG: Updating document HTML via renderer");
+            renderer.update_document_html(&content)?;
         }
 
-        // Add to history
-        let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
-        self.add_to_history(url.to_string(), title);
+        // Add human-like navigation delay
+        let navigation_delay = 1000 + (rand::random::<u64>() % 2000); // 1-3 seconds
+        eprintln!("🔍 DEBUG: Adding human-like navigation delay: {}ms", navigation_delay);
+        sleep(Duration::from_millis(navigation_delay)).await;
 
-        // Add processing delay to simulate page loading and parsing time
-        let processing_delay = 500 + (rand::random::<u64>() % 1000); // 500-1500ms
+        // Add processing delay to simulate page loading
+        let processing_delay = 500 + (rand::random::<u64>() % 1500); // 0.5-2 seconds
         eprintln!("🔍 DEBUG: Adding page processing delay: {}ms", processing_delay);
         sleep(Duration::from_millis(processing_delay)).await;
 
-        // Execute JavaScript and wait for dynamic content if requested
-        if wait_for_js {
-            eprintln!("🔍 DEBUG: About to call wait_for_page_ready");
-            self.wait_for_page_ready().await?;
-            eprintln!("🔍 DEBUG: wait_for_page_ready completed");
-        } else {
-            eprintln!("🔍 DEBUG: Processing safe JavaScript");
-            // Execute any safe JavaScript on the page
-            if let Some(js_code) = self.extract_safe_javascript(&content) {
-                eprintln!("🔍 DEBUG: Found safe JavaScript, checking with renderer");
-                if let Some(ref mut renderer) = self.renderer {
-                    if renderer.is_safe_javascript(&js_code) {
-                        eprintln!("🔍 DEBUG: JavaScript deemed safe, evaluating (guarded)");
-                        if !renderer.is_in_update() {
-                                // Add delay before JavaScript execution (browsers don't execute instantly)
-                                let js_delay = 200 + (rand::random::<u64>() % 300); // 200-500ms
-                                eprintln!("🔍 DEBUG: Adding JavaScript execution delay: {}ms", js_delay);
-                                sleep(Duration::from_millis(js_delay)).await;
-
-                                // Mark in_update to avoid re-entrancy during evaluation
-                                renderer.set_in_update(true);
-                                drop(renderer.evaluate_javascript(&js_code));
-                                renderer.set_in_update(false);
-                            eprintln!("🔍 DEBUG: JavaScript evaluation completed");
-                        } else {
-                            eprintln!("🔍 DEBUG: Skipping JS evaluation due to renderer update guard");
-                        }
-                    }
-                }
-            }
-        }
+        // Headless browser behavior: load HTML and make it ready for interaction
+        // No JavaScript extraction or execution from the page
+        eprintln!("🔍 DEBUG: HTML content loaded, ready for direct DOM interaction");
 
         Ok(self.current_content.clone())
     }
 
-    async fn wait_for_page_ready(&mut self) -> Result<()> {
-        eprintln!("🔍 DEBUG: wait_for_page_ready starting");
-        // First, extract ALL JavaScript that needs to be executed
-        let content_copy = self.current_content.clone();
-        eprintln!("🔍 DEBUG: Content copied, extracting safe JavaScript");
-        let inline_js = self.extract_safe_javascript(&content_copy);
-        eprintln!("🔍 DEBUG: Safe JavaScript extracted");
-
-        // Extract external script URLs
-        let mut external_scripts = Vec::new();
-        eprintln!("🔍 DEBUG: Parsing external scripts");
-        if let Ok(selector) = scraper::Selector::parse("script[src]") {
-            let document = scraper::Html::parse_document(&content_copy);
-            for element in document.select(&selector) {
-                if let Some(src) = element.value().attr("src") {
-                    if self.is_safe_script_url(src) {
-                        external_scripts.push(src.to_string());
-                    }
-                }
-            }
-        }
-        eprintln!("🔍 DEBUG: Found {} external scripts", external_scripts.len());
-
-        if let Some(ref mut renderer) = self.renderer {
-            eprintln!("🔍 DEBUG: Renderer available, processing JavaScript");
-            // Execute inline JavaScript - ENABLED for Google search compatibility
-            if let Some(js_code) = inline_js {
-                eprintln!("🔍 DEBUG: Found inline JavaScript, checking safety");
-                if renderer.is_safe_javascript(&js_code) {
-                    eprintln!("🔍 DEBUG: JavaScript deemed safe, enabling for Google compatibility");
-
-                    // Enable JavaScript execution for Google search - but with safety guards
-                    if !renderer.is_in_update() {
-                        // Inject minimal form structure for Google compatibility
-                        eprintln!("🔍 DEBUG: Injecting minimal form structure for Google compatibility...");
-                        renderer.set_in_update(true);
-                        if let Ok(_) = renderer.inject_minimal_form_for_google() {
-                            eprintln!("🔍 DEBUG: Form injection completed");
-                        }
-                        renderer.set_in_update(false);
-
-                        // Add human-like delay before JavaScript processing
-                        let js_processing_delay = 300 + (rand::random::<u64>() % 700); // 300-1000ms
-                        eprintln!("🔍 DEBUG: Adding JavaScript processing delay: {}ms", js_processing_delay);
-                        sleep(Duration::from_millis(js_processing_delay)).await;
-
-                        renderer.set_in_update(true);
-                        match renderer.evaluate_javascript(&js_code) {
-                            Ok(result) => eprintln!("🔍 DEBUG: JavaScript executed successfully: {}",
-                                if result.len() > 100 { &result[..100] } else { &result }),
-                            Err(e) => {
-                                eprintln!("🔍 DEBUG: JavaScript execution failed: {}", e);
-                                eprintln!("🔍 DEBUG: Failed JavaScript code (first 300 chars): {}",
-                                    if js_code.len() > 300 { &js_code[..300] } else { &js_code });
-                            },
-                        }
-                        renderer.set_in_update(false);
-
-                        // Test shadow DOM APIs after Google's JavaScript runs
-                        eprintln!("🔍 DEBUG: Testing shadow DOM APIs after JavaScript...");
-                        if !renderer.is_in_update() {
-                            renderer.set_in_update(true);
-                            if let Ok(_) = renderer.test_shadow_dom_apis() {
-                                eprintln!("🔍 DEBUG: Post-JS shadow DOM test completed");
-                            }
-                            renderer.set_in_update(false);
-                        }
-
-                        // Add delay after JavaScript execution (like real browser processing)
-                        let post_js_delay = 100 + (rand::random::<u64>() % 400); // 100-500ms
-                        eprintln!("🔍 DEBUG: Adding post-JavaScript delay: {}ms", post_js_delay);
-                        sleep(Duration::from_millis(post_js_delay)).await;
-                    }
-                } else {
-                    eprintln!("🔍 DEBUG: JavaScript deemed unsafe, skipping");
-                }
-            } else {
-                eprintln!("🔍 DEBUG: No inline JavaScript found");
-            }
-
-            // Load and execute external scripts
-            for script_url in external_scripts {
-                if let Ok(script_response) = self.client.get(&script_url).send().await {
-                    if let Ok(script_content) = script_response.text().await {
-                        if renderer.is_safe_javascript(&script_content) {
-                            if !renderer.is_in_update() {
-                                    renderer.set_in_update(true);
-                                    drop(renderer.evaluate_javascript(&script_content));
-                                    renderer.set_in_update(false);
-                            } else {
-                                eprintln!("🔍 DEBUG: Skipping external script evaluation due to renderer update guard");
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Wait for DOM to be ready with more attempts
-            let ready_check = r#"
-                (function() {
-                    try {
-                        return document.readyState === 'complete' ||
-                               document.readyState === 'interactive';
-                    } catch(e) {
-                        return true;
-                    }
-                })()
-            "#;
-
-            for _ in 0..20 { // Try up to 20 times (10 seconds total)
-                if let Ok(result) = renderer.evaluate_javascript(ready_check) {
-                    if result.contains("true") {
-                        break;
-                    }
-                }
-                sleep(Duration::from_millis(500)).await;
-            }
-
-            // Give dynamic content more time to load and execute
-            sleep(Duration::from_millis(3000)).await;
-
-
-            // Try to trigger any lazy loading or dynamic content
-            let trigger_dynamic = r#"
-                (function() {
-                    try {
-                        // Trigger scroll events that might load content
-                        window.dispatchEvent(new Event('scroll'));
-                        window.dispatchEvent(new Event('resize'));
-
-                        // Trigger DOMContentLoaded if not already fired
-                        if (document.readyState === 'loading') {
-                            document.dispatchEvent(new Event('DOMContentLoaded'));
-                        }
-
-                        return 'triggered';
-                    } catch(e) {
-                        return 'error: ' + e.message;
-                    }
-                })()
-            "#;
-            drop(renderer.evaluate_javascript(trigger_dynamic));
-
-            // Wait a bit more after triggering events
-            sleep(Duration::from_millis(2000)).await;
-
-            // Update current content with any dynamic changes
-            let updated_content = self.get_dynamic_content().await?;
-            if !updated_content.is_empty() {
-                self.current_content = updated_content;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn get_dynamic_content(&mut self) -> Result<String> {
-        if let Some(ref mut renderer) = self.renderer {
-            let get_html_script = r#"
-                (function() {
-                    try {
-                        // Try multiple ways to get the dynamic content
-                        var html = '';
-
-                        if (document.documentElement && document.documentElement.outerHTML) {
-                            html = document.documentElement.outerHTML;
-                        } else if (document.body && document.body.innerHTML) {
-                            html = '<html><head></head><body>' + document.body.innerHTML + '</body></html>';
-                        } else if (document.getElementsByTagName) {
-                            var bodyTags = document.getElementsByTagName('body');
-                            if (bodyTags.length > 0) {
-                                html = '<html><head></head><body>' + bodyTags[0].innerHTML + '</body></html>';
-                            }
-                        }
-
-                        // Also try to capture any dynamically created content
-                        if (html.length < 1000) { // If we didn't get much, try harder
-                            var allElements = document.querySelectorAll('*');
-                            var content = '';
-                            for (var i = 0; i < allElements.length && i < 100; i++) {
-                                if (allElements[i].outerHTML) {
-                                    content += allElements[i].outerHTML + '\n';
-                                }
-                            }
-                            if (content.length > html.length) {
-                                html = content;
-                            }
-                        }
-
-                        return html || '';
-                    } catch(e) {
-                        return 'Error getting dynamic content: ' + e.message;
-                    }
-                })()
-            "#;
-
-            match renderer.evaluate_javascript(get_html_script) {
-                Ok(result) => {
-                    // Clean up the result - remove "JavaScript result (string): " prefix and handle quotes
-                    let cleaned = result
-                        .replace("JavaScript result (string): ", "")
-                        .trim()
-                        .trim_matches('"')
-                        .to_string();
-
-                    if cleaned.len() > 100 && (cleaned.contains("<") || cleaned.contains("Error getting dynamic content:")) {
-                        return Ok(cleaned);
-                    }
-                }
-                Err(_) => {}
-            }
-        }
-
-        Ok(String::new())
-    }
-
-    pub async fn go_back(&mut self) -> Result<Option<String>> {
-        if !self.can_go_back() {
-            return Ok(None);
-        }
-        self.history.current_index -= 1;
-        // Clone URL to avoid borrowing self while calling navigate_to which mutably borrows self
-        let entry_url = self.history.entries[self.history.current_index].url.clone();
-        let content = self.navigate_to(&entry_url).await?;
-        Ok(Some(content))
-    }
-
-    pub async fn go_forward(&mut self) -> Result<Option<String>> {
-        if !self.can_go_forward() {
-            return Ok(None);
-        }
-        self.history.current_index += 1;
-        let entry_url = self.history.entries[self.history.current_index].url.clone();
-        let content = self.navigate_to(&entry_url).await?;
-        Ok(Some(content))
-    }
-
-    pub async fn reload(&mut self) -> Result<String> {
-        if let Some(url) = &self.current_url.clone() {
-            self.navigate_to(url).await
+    /// Extract page title from HTML
+    fn extract_title(&self, html: &str) -> Option<String> {
+        if let Ok(selector) = scraper::Selector::parse("title") {
+            let document = scraper::Html::parse_document(html);
+            document.select(&selector)
+                .next()
+                .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
+                .filter(|t| !t.is_empty())
         } else {
-            Err(anyhow!("No current URL to reload"))
+            None
         }
     }
 
-    pub async fn scrape_current_page(&self) -> Result<ScrapedData> {
-        let url = self.current_url.as_ref()
-            .ok_or_else(|| anyhow!("No current page to scrape"))?;
-
-        self.scraper.scrape_page(&self.current_content, url)
-    }
-
-    pub async fn submit_form(&mut self, _form_selector: &str, form_data: HashMap<String, String>) -> Result<InteractionResponse> {
+    pub async fn click_link(&mut self, link_text: &str) -> Result<InteractionResponse> {
         let current_url = self.current_url.as_ref()
             .ok_or_else(|| anyhow!("No current page loaded"))?;
 
+        // Parse current page to find the link
+        let scraped_data = self.scraper.scrape_page(&self.current_content, current_url)?;
 
-        // Parse the current page to find the form
-        let document = scraper::Html::parse_document(&self.current_content);
-        let forms = self.scraper.extract_forms(&document, current_url)?;
+        let target_link = scraped_data.links.iter()
+            .find(|link| link.text.contains(link_text) || link.url.contains(link_text))
+            .ok_or_else(|| anyhow!("Link not found: {}", link_text))?;
 
-        if forms.is_empty() {
-            return Err(anyhow!("No forms found on the current page"));
+        // Navigate to the link
+        let content = self.navigate_to_with_options(&target_link.url, false).await?;
+
+        Ok(InteractionResponse {
+            success: true,
+            message: format!("Navigated to: {}", target_link.url),
+            redirect_url: Some(target_link.url.clone()),
+            new_content: Some(content),
+        })
+    }
+
+    /// Type text into a form input element identified by CSS selector
+    pub async fn type_text_into_element(&mut self, selector: &str, text: &str, clear_first: bool) -> Result<InteractionResponse> {
+        // Debug logging for session state
+        eprintln!("🔍 DEBUG: type_text_into_element - current_content length: {}", self.current_content.len());
+        eprintln!("🔍 DEBUG: type_text_into_element - current_url: {:?}", self.current_url);
+
+        if self.current_content.is_empty() {
+            return Err(anyhow!("No current page loaded"));
         }
 
-        // Use the first form for now (in a real implementation, would use form_selector)
-        let form = &forms[0];
+        // Use JavaScript-based form field manipulation for better compatibility
+        // Escape quotes in CSS selector for proper JavaScript string interpolation
+        let escaped_selector = selector.replace("\"", "\\\"");
+        let escaped_text = text.replace("\"", "\\\"");
+
+
+        let js_code = format!(r#"
+(function() {{
+    try {{
+        // Check if document.querySelector is available
+        if (typeof document === 'undefined') {{
+            return JSON.stringify({{
+                success: false,
+                message: "Error typing text: document is undefined",
+                error: "document_undefined"
+            }});
+        }}
+
+        if (typeof document.querySelector !== 'function') {{
+            return JSON.stringify({{
+                success: false,
+                message: "Error typing text: document.querySelector is not a function",
+                error: "querySelector_not_function"
+            }});
+        }}
+
+        var element = document.querySelector("{}");
+        if (element) {{
+            var elementType = element.tagName.toLowerCase();
+            var isInput = (elementType === 'input' || elementType === 'textarea');
+
+            if (isInput) {{
+                // Handle input/textarea elements
+                try {{
+                    // Step 1: Set the value
+                    if ({}) {{
+                        element.value = '';
+                    }}
+                    element.value = "{}";
+
+                    // Step 2: Check Event constructor availability
+                    if (typeof Event === 'undefined') {{
+                        return JSON.stringify({{
+                            success: false,
+                            message: "Error typing text: Event constructor is undefined",
+                            error: "event_constructor_undefined"
+                        }});
+                    }}
+
+                    if (typeof Event !== 'function') {{
+                        return JSON.stringify({{
+                            success: false,
+                            message: "Error typing text: Event is not a function, type is: " + typeof Event,
+                            error: "event_constructor_not_function"
+                        }});
+                    }}
+
+                    // Step 3: Test Event constructor
+                    var inputEvent;
+                    try {{
+                        inputEvent = new Event('input', {{ bubbles: true }});
+                    }} catch (eventError) {{
+                        return JSON.stringify({{
+                            success: false,
+                            message: "Error typing text: Event constructor failed: " + eventError.message,
+                            error: "event_constructor_failed"
+                        }});
+                    }}
+
+                    // Trigger input events to simulate real user interaction
+                    var inputEvent = new Event('input', {{ bubbles: true }});
+                    element.dispatchEvent(inputEvent);
+
+                    var changeEvent = new Event('change', {{ bubbles: true }});
+                    element.dispatchEvent(changeEvent);
+
+                    return JSON.stringify({{
+                        success: true,
+                        message: "Text entered into " + elementType + " element: " + (element.name || element.id || "unnamed") + " = " + element.value,
+                        element_type: elementType,
+                        element_name: element.name,
+                        element_value: element.value
+                    }});
+                }} catch (inputError) {{
+                    return JSON.stringify({{
+                        success: false,
+                        message: "Error typing text: input handling failed: " + inputError.message,
+                        error: "input_handling_failed"
+                    }});
+                }}
+            }} else {{
+                // Handle non-input elements (h1, p, div, etc.) - set textContent
+                if ({}) {{
+                    element.textContent = '';
+                }}
+                element.textContent = "{}";
+
+                return JSON.stringify({{
+                    success: true,
+                    message: "Text set for " + elementType + " element: " + (element.id || element.className || "unnamed") + " = " + element.textContent,
+                    element_type: elementType,
+                    element_id: element.id,
+                    element_value: element.textContent
+                }});
+            }}
+        }} else {{
+            return JSON.stringify({{
+                success: false,
+                message: "Element not found: {}",
+                error: "selector_not_found"
+            }});
+        }}
+    }} catch (error) {{
+        return JSON.stringify({{
+            success: false,
+            message: "Error typing text: " + error.message,
+            error: error.toString()
+        }});
+    }}
+}})();
+"#, escaped_selector, if clear_first { "true" } else { "false" }, escaped_text, if clear_first { "true" } else { "false" }, escaped_text, escaped_selector);
+
+        // Execute the JavaScript in the browser engine
+        if let Some(ref mut renderer) = self.renderer {
+            match renderer.evaluate_javascript_direct(&js_code) {
+                Ok(result) => {
+                    // Try to parse the result as JSON
+                    if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
+                        let success = json_result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let message = json_result.get("message").and_then(|v| v.as_str()).unwrap_or("Text entered");
+
+                        Ok(InteractionResponse {
+                            success,
+                            message: message.to_string(),
+                            redirect_url: None,
+                            new_content: None,
+                        })
+                    } else {
+                        // Fallback if result is not JSON
+                        Ok(InteractionResponse {
+                            success: !result.contains("error") && !result.contains("Error"),
+                            message: format!("Text input result: {}", result),
+                            redirect_url: None,
+                            new_content: None,
+                        })
+                    }
+                }
+                Err(e) => Err(anyhow!("Failed to execute text input JavaScript: {}", e))
+            }
+        } else {
+            Err(anyhow!("No JavaScript renderer available"))
+        }
+    }
+
+    /// Submit a form with the provided field data
+    pub async fn submit_form(&mut self, form_selector: &str, form_data: HashMap<String, String>) -> Result<InteractionResponse> {
+        if self.current_content.is_empty() {
+            return Err(anyhow!("No current page loaded"));
+        }
+
+        // Parse HTML to find the form
+        let document = scraper::Html::parse_document(&self.current_content);
+        let form_selector = scraper::Selector::parse(form_selector)
+            .map_err(|_| anyhow!("Invalid form selector"))?;
+
+        let form_element = document.select(&form_selector).next()
+            .ok_or_else(|| anyhow!("Form not found"))?;
+
+        let action = form_element.value().attr("action").unwrap_or("");
+        let method = form_element.value().attr("method").unwrap_or("get").to_lowercase();
+
+        let current_url = self.current_url.as_ref().unwrap();
+        let form_url = if action.starts_with("http") {
+            action.to_string()
+        } else if action.starts_with('/') {
+            let base_url = url::Url::parse(current_url)?;
+            format!("{}://{}{}", base_url.scheme(), base_url.host_str().unwrap_or(""), action)
+        } else {
+            format!("{}/{}", current_url.trim_end_matches('/'), action.trim_start_matches('/'))
+        };
 
         // Build form data
-        let mut form_params = reqwest::multipart::Form::new();
-        for (key, value) in &form_data {
-            form_params = form_params.text(key.clone(), value.clone());
+        let mut form_params = Vec::new();
+        for (key, value) in form_data {
+            form_params.push((key, value));
         }
 
-        let headers = self.create_standard_browser_headers(&form.action);
-
-        let response = if form.method.to_uppercase() == "POST" {
-            self.client
-                .post(&form.action)
-                .headers(headers)
-                .multipart(form_params)
-                .send()
-                .await?
+        // Submit the form
+        let response = if method == "post" {
+            self.client.post(&form_url).form(&form_params).send().await?
         } else {
-            // For GET forms, convert to query parameters
-            let mut url = Url::parse(&form.action)?;
-            let mut query_pairs = url.query_pairs_mut();
-            for (key, value) in &form_data {
-                query_pairs.append_pair(key, value);
-            }
-            drop(query_pairs);
-
-            self.client
-                .get(url.as_str())
-                .headers(headers)
-                .send()
-                .await?
+            self.client.get(&form_url).query(&form_params).send().await?
         };
 
         let status_code = response.status();
         let content = response.text().await?;
 
+        // Update current content if successful
         if status_code.is_success() {
-            // Update current content if successful
             self.current_content = content.clone();
+            self.current_url = Some(form_url.clone());
 
             // Check for redirect
             let redirect_url = if status_code.is_redirection() {
-                Some(form.action.clone())
+                Some(form_url)
             } else {
                 None
             };
@@ -420,92 +316,271 @@ impl HeadlessWebBrowser {
         }
     }
 
-    pub async fn click_link(&mut self, link_text: &str) -> Result<InteractionResponse> {
+    /// Click on a form element (checkbox, submit button, etc.) using CSS selector
+    pub async fn click_element(&mut self, selector: &str) -> Result<InteractionResponse> {
+        if self.current_content.is_empty() {
+            return Err(anyhow!("No current page loaded"));
+        }
+
+        eprintln!("🔍 DEBUG: click_element - attempting to click selector: {}", selector);
+        eprintln!("🔍 DEBUG: click_element - current_content length: {}", self.current_content.len());
+
+        // Use JavaScript-based element interaction for better compatibility
+        // Escape quotes in CSS selector for proper JavaScript string interpolation
+        let escaped_selector = selector.replace("\"", "\\\"");
+
+        let js_code = format!(r#"
+(function() {{
+    try {{
+        var element = document.querySelector("{}");
+        if (element) {{
+            // Handle different element types
+            if (element.type === 'checkbox' || element.type === 'radio') {{
+                // Toggle checkbox/radio state
+                element.checked = !element.checked;
+
+                // Try to dispatch change event, fallback gracefully
+                var eventDispatchSuccessful = false;
+                var eventErrors = [];
+
+                try {{
+                    if (typeof element.dispatchEvent === 'function') {{
+                        var changeEvent = new Event('change', {{ bubbles: true }});
+                        element.dispatchEvent(changeEvent);
+                        eventDispatchSuccessful = true;
+                    }} else {{
+                        eventErrors.push("dispatchEvent not available (type: " + typeof element.dispatchEvent + ")");
+                    }}
+                }} catch (eventError) {{
+                    eventErrors.push("Event dispatch failed: " + eventError.message);
+                }}
+
+                // Fallback: try onchange property
+                if (!eventDispatchSuccessful) {{
+                    try {{
+                        if (typeof element.onchange === 'function') {{
+                            element.onchange();
+                            eventDispatchSuccessful = true;
+                        }}
+                    }} catch (propError) {{
+                        eventErrors.push("onchange property trigger failed: " + propError.message);
+                    }}
+                }}
+
+                var message = "Clicked " + element.type + " element: " + (element.name || "unnamed") + ", checked: " + element.checked;
+                if (!eventDispatchSuccessful && eventErrors.length > 0) {{
+                    message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
+                }}
+
+                return JSON.stringify({{
+                    success: true,
+                    message: message,
+                    element_type: element.type,
+                    element_name: element.name,
+                    element_checked: element.checked,
+                    event_dispatch_successful: eventDispatchSuccessful,
+                    event_errors: eventErrors
+                }});
+            }} else if (element.type === 'submit' || element.tagName.toLowerCase() === 'button') {{
+                // For submit buttons and regular buttons
+                var eventDispatchSuccessful = false;
+                var eventErrors = [];
+
+                // Try to dispatch click event
+                try {{
+                    if (typeof element.dispatchEvent === 'function') {{
+                        var clickEvent = new Event('click', {{ bubbles: true }});
+                        element.dispatchEvent(clickEvent);
+                        eventDispatchSuccessful = true;
+                    }} else {{
+                        eventErrors.push("dispatchEvent not available (type: " + typeof element.dispatchEvent + ")");
+                    }}
+                }} catch (eventError) {{
+                    eventErrors.push("Event dispatch failed: " + eventError.message);
+                }}
+
+                // Fallback: try onclick property
+                if (!eventDispatchSuccessful) {{
+                    try {{
+                        if (typeof element.onclick === 'function') {{
+                            element.onclick();
+                            eventDispatchSuccessful = true;
+                        }}
+                    }} catch (propError) {{
+                        eventErrors.push("onclick property trigger failed: " + propError.message);
+                    }}
+                }}
+
+                // If it's a submit button, also trigger form submission
+                if (element.type === 'submit' && element.form) {{
+                    var message = "Clicked submit button: " + (element.value || "unnamed") + ", form will be submitted";
+                    if (!eventDispatchSuccessful && eventErrors.length > 0) {{
+                        message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
+                    }}
+
+                    return JSON.stringify({{
+                        success: true,
+                        message: message,
+                        element_type: element.type,
+                        element_value: element.value,
+                        form_action: element.form.action,
+                        form_method: element.form.method,
+                        submit_triggered: true,
+                        event_dispatch_successful: eventDispatchSuccessful,
+                        event_errors: eventErrors
+                    }});
+                }} else {{
+                    var message = "Clicked button element: " + (element.value || element.textContent || "unnamed");
+                    if (!eventDispatchSuccessful && eventErrors.length > 0) {{
+                        message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
+                    }}
+
+                    return JSON.stringify({{
+                        success: true,
+                        message: message,
+                        element_type: element.type || "button",
+                        element_value: element.value || element.textContent,
+                        event_dispatch_successful: eventDispatchSuccessful,
+                        event_errors: eventErrors
+                    }});
+                }}
+            }} else {{
+                // Generic element click
+                var eventDispatchSuccessful = false;
+                var eventErrors = [];
+
+                // Try to dispatch click event
+                try {{
+                    if (typeof element.dispatchEvent === 'function') {{
+                        var clickEvent = new Event('click', {{ bubbles: true }});
+                        element.dispatchEvent(clickEvent);
+                        eventDispatchSuccessful = true;
+                    }} else {{
+                        eventErrors.push("dispatchEvent not available (type: " + typeof element.dispatchEvent + ")");
+                    }}
+                }} catch (eventError) {{
+                    eventErrors.push("Event dispatch failed: " + eventError.message);
+                }}
+
+                // Fallback: try onclick property
+                if (!eventDispatchSuccessful) {{
+                    try {{
+                        if (typeof element.onclick === 'function') {{
+                            element.onclick();
+                            eventDispatchSuccessful = true;
+                        }}
+                    }} catch (propError) {{
+                        eventErrors.push("onclick property trigger failed: " + propError.message);
+                    }}
+                }}
+
+                var message = "Clicked element: " + element.tagName + (element.name ? " (name: " + element.name + ")" : "");
+                if (!eventDispatchSuccessful && eventErrors.length > 0) {{
+                    message += " (Note: Event dispatching failed - " + eventErrors.join(", ") + ")";
+                }}
+
+                return JSON.stringify({{
+                    success: true,
+                    message: message,
+                    element_type: element.tagName.toLowerCase(),
+                    element_name: element.name || null,
+                    event_dispatch_successful: eventDispatchSuccessful,
+                    event_errors: eventErrors
+                }});
+            }}
+        }} else {{
+            return JSON.stringify({{
+                success: false,
+                message: "Element not found: {}",
+                error: "selector_not_found"
+            }});
+        }}
+    }} catch (error) {{
+        return JSON.stringify({{
+            success: false,
+            message: "Error clicking element: " + error.message,
+            error: error.toString()
+        }});
+    }}
+}})();
+"#, escaped_selector, escaped_selector);
+
+        // Execute the JavaScript in the browser engine
+        if let Some(ref mut renderer) = self.renderer {
+            eprintln!("🔍 DEBUG: click_element - executing JavaScript to click element");
+            match renderer.evaluate_javascript_direct(&js_code) {
+                Ok(result) => {
+                    eprintln!("🔍 DEBUG: click_element - JavaScript result: {}", result);
+
+                    // Try to parse the result as JSON
+                    if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
+                        let success = json_result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let message = json_result.get("message").and_then(|v| v.as_str()).unwrap_or("Element clicked");
+                        let submit_triggered = json_result.get("submit_triggered").and_then(|v| v.as_bool()).unwrap_or(false);
+
+                        if success && submit_triggered {
+                            // Handle form submission if submit button was clicked
+                            eprintln!("🔍 DEBUG: click_element - submit button triggered form submission");
+                            // Note: In a real browser, this would navigate to the form action URL
+                            // For now, we'll return the click result and let the caller handle navigation
+                        }
+
+                        Ok(InteractionResponse {
+                            success,
+                            message: message.to_string(),
+                            redirect_url: None,
+                            new_content: None,
+                        })
+                    } else {
+                        // Fallback if result is not JSON
+                        Ok(InteractionResponse {
+                            success: !result.contains("error") && !result.contains("Error"),
+                            message: format!("Element interaction result: {}", result),
+                            redirect_url: None,
+                            new_content: None,
+                        })
+                    }
+                }
+                Err(e) => {
+                    eprintln!("🔍 DEBUG: click_element - JavaScript execution error: {}", e);
+                    Err(anyhow!("Failed to execute element click JavaScript: {}", e))
+                }
+            }
+        } else {
+            Err(anyhow!("No JavaScript renderer available"))
+        }
+    }
+
+    /// Navigate to URL (convenience method)
+    pub async fn navigate_to(&mut self, url: &str) -> Result<String> {
+        self.navigate_to_with_options(url, false).await
+    }
+
+    /// Scrape the current page content
+    pub async fn scrape_current_page(&mut self) -> Result<ScrapedData> {
         let current_url = self.current_url.as_ref()
             .ok_or_else(|| anyhow!("No current page loaded"))?;
-
-        // Parse current page to find the link
-        let scraped_data = self.scraper.scrape_page(&self.current_content, current_url)?;
-
-        let target_link = scraped_data.links.iter()
-            .find(|link| link.text.contains(link_text) || link.url.contains(link_text))
-            .ok_or_else(|| anyhow!("Link not found: {}", link_text))?;
-
-        // Navigate to the link
-        let content = self.navigate_to(&target_link.url).await?;
-
-        Ok(InteractionResponse {
-            success: true,
-            message: format!("Navigated to: {}", target_link.url),
-            redirect_url: Some(target_link.url.clone()),
-            new_content: Some(content),
-        })
+        self.scraper.scrape_page(&self.current_content, current_url)
     }
 
-    fn extract_title(&self, html: &str) -> Option<String> {
-        if let Ok(selector) = scraper::Selector::parse("title") {
-            let document = scraper::Html::parse_document(html);
-            document.select(&selector)
-                .next()
-                .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
-                .filter(|t| !t.is_empty())
+    /// Go back in navigation history
+    pub async fn go_back(&mut self) -> Result<Option<String>> {
+        // Simplified implementation - return None since we don't maintain history
+        Ok(None)
+    }
+
+    /// Go forward in navigation history
+    pub async fn go_forward(&mut self) -> Result<Option<String>> {
+        // Simplified implementation - return None since we don't maintain history
+        Ok(None)
+    }
+
+    /// Reload the current page
+    pub async fn reload(&mut self) -> Result<String> {
+        if let Some(ref url) = self.current_url.clone() {
+            self.navigate_to_with_options(url, false).await
         } else {
-            None
+            Err(anyhow!("No current page to reload"))
         }
     }
-
-    fn extract_safe_javascript(&self, html: &str) -> Option<String> {
-        // Extract ALL inline JavaScript from script tags and combine them
-        if let Ok(selector) = scraper::Selector::parse("script:not([src])") {
-            let document = scraper::Html::parse_document(html);
-            let mut all_js = Vec::new();
-
-            for element in document.select(&selector) {
-                let js_content = element.text().collect::<String>();
-                if !js_content.trim().is_empty() {
-                    all_js.push(js_content);
-                }
-            }
-
-            if !all_js.is_empty() {
-                // Join all JavaScript with newlines and proper separation
-                return Some(all_js.join("\n;\n"));
-            }
-        }
-        None
-    }
-
-    fn is_safe_script_url(&self, url: &str) -> bool {
-        // Allow relative URLs
-        if !url.starts_with("http") {
-            return true;
-        }
-
-        // Allow well-known CDNs and common script sources
-        let safe_domains = [
-            "cdn.jsdelivr.net",
-            "cdnjs.cloudflare.com",
-            "unpkg.com",
-            "ajax.googleapis.com",
-            "code.jquery.com",
-            "stackpath.bootstrapcdn.com",
-            "maxcdn.bootstrapcdn.com",
-            "ajax.aspnetcdn.com",
-            "cdn.socket.io",
-            "d3js.org",
-        ];
-
-        // Check if current URL is available to allow same-origin scripts
-        if let Some(ref current_url) = self.current_url {
-            if let (Ok(current), Ok(script)) = (url::Url::parse(current_url), url::Url::parse(url)) {
-                if current.host() == script.host() {
-                    return true;
-                }
-            }
-        }
-
-        // Check against safe domains
-        safe_domains.iter().any(|domain| url.contains(domain))
-    }
-
 }

@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use url::Url;
+use rand;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
@@ -62,9 +63,43 @@ impl BrowserTools {
             let lock_res = browser.lock();
             match lock_res {
                 Ok(mut browser_guard) => {
-                    match browser_guard.click_link(selector).await {
+                    match browser_guard.click_element(selector).await {
                         Ok(resp) => response = McpResponse::success(serde_json::to_value(resp).unwrap_or_default()),
                         Err(e) => response = McpResponse::error(-1, format!("Failed to click element: {}", e)),
+                    }
+                }
+                Err(_) => { }
+            }
+        }
+        response
+    }
+
+    pub async fn handle_type_text(&self, params: Value) -> McpResponse {
+        let selector = params["selector"].as_str().unwrap_or("");
+        let text = params["text"].as_str().unwrap_or("");
+        let clear_first = params.get("clear_first").and_then(|v| v.as_bool()).unwrap_or(true);
+        let session_id = params.get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        if selector.is_empty() {
+            return McpResponse::error(-1, "Selector is required".to_string());
+        }
+
+        if text.is_empty() {
+            return McpResponse::error(-1, "Text is required".to_string());
+        }
+
+        let browser = self.get_or_create_session(session_id, false);
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    // Use the browser's text input functionality
+                    match browser_guard.type_text_into_element(selector, text, clear_first).await {
+                        Ok(resp) => response = McpResponse::success(serde_json::to_value(resp).unwrap_or_default()),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to type text: {}", e)),
                     }
                 }
                 Err(_) => { }
@@ -264,14 +299,16 @@ impl BrowserTools {
 
     pub async fn handle_session_management(&self, params: Value) -> McpResponse {
         let action = params["action"].as_str().unwrap_or("");
-        let session_id = params.get("session_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("default");
 
         match action {
             "create" => {
                 let persistent = params.get("persistent").and_then(|v| v.as_bool()).unwrap_or(false);
-                let _browser = self.get_or_create_session(session_id, persistent);
+                // Generate a unique session ID using timestamp and random component
+                let session_id = format!("session_{}_{}",
+                    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
+                    rand::random::<u32>()
+                );
+                let _browser = self.get_or_create_session(&session_id, persistent);
                 McpResponse::success(json!({
                     "session_id": session_id,
                     "created": true,
@@ -279,10 +316,16 @@ impl BrowserTools {
                 }))
             }
             "info" => {
-                if let Some(session) = self.get_session_info(session_id) {
-                    McpResponse::success(serde_json::to_value(session).unwrap_or_default())
+                let session_id = params.get("session_id")
+                    .and_then(|v| v.as_str());
+                if let Some(session_id) = session_id {
+                    if let Some(session) = self.get_session_info(session_id) {
+                        McpResponse::success(serde_json::to_value(session).unwrap_or_default())
+                    } else {
+                        McpResponse::error(-1, "Session not found".to_string())
+                    }
                 } else {
-                    McpResponse::error(-1, "Session not found".to_string())
+                    McpResponse::error(-1, "Session ID is required for info action".to_string())
                 }
             }
             "list" => {
@@ -290,11 +333,17 @@ impl BrowserTools {
                 McpResponse::success(json!({"sessions": sessions}))
             }
             "close" => {
-                let closed = self.close_session(session_id);
-                McpResponse::success(json!({
-                    "session_id": session_id,
-                    "closed": closed
-                }))
+                let session_id = params.get("session_id")
+                    .and_then(|v| v.as_str());
+                if let Some(session_id) = session_id {
+                    let closed = self.close_session(session_id);
+                    McpResponse::success(json!({
+                        "session_id": session_id,
+                        "closed": closed
+                    }))
+                } else {
+                    McpResponse::error(-1, "Session ID is required for close action".to_string())
+                }
             }
             "cleanup" => {
                 let max_age = params.get("max_age_seconds")

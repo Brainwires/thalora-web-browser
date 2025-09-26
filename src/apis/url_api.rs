@@ -24,21 +24,11 @@ pub fn setup_url_api(context: &mut Context) -> Result<()> {
             };
         }
 
-        if (!window.document) {
-            window.document = {
-                createElement: function(tag) {
-                    return {
-                        tagName: tag.toUpperCase(),
-                        innerHTML: '',
-                        textContent: '',
-                        setAttribute: function(name, value) { this[name] = value; },
-                        getAttribute: function(name) { return this[name]; }
-                    };
-                },
-                getElementById: function(id) { return null; },
-                querySelector: function(sel) { return null; }
-            };
-        }
+        // REMOVED: document polyfill override - use native Boa Document instead
+        // The polyfill was overriding the real Boa Document object which broke querySelector and dispatchEvent
+        // if (!window.document) {
+        //     window.document = { ... fake implementation ... };
+        // }
 
         if (!window.navigator) {
             window.navigator = {
