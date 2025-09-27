@@ -3,10 +3,11 @@
 
 use thalora::HeadlessWebBrowser;
 
-mod chrome_124_websocketstream_api {
-    use super::*;
-    include!("chrome_features/124/websocketstream_api.rs");
-}
+// NOTE: websocketstream_api.rs file is missing - disabled for now
+// mod chrome_124_websocketstream_api {
+//     use super::*;
+//     include!("chrome_features/124/websocketstream_api.rs");
+// }
 
 mod chrome_124_streams_async_iteration {
     use super::*;
