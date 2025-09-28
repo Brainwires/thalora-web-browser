@@ -27,11 +27,7 @@ async fn test_chrome_124_pageswap_event() {
     match result {
         Ok(value) => {
             println!("addEventListener available: {:?}", value);
-            // For now, let's be more lenient and see what we actually get
-            if !format!("{:?}", value).contains("function") {
-                println!("⚠️ addEventListener is not a function, got: {:?}", value);
-                // Don't fail yet, let's see what else we can find
-            }
+            assert!(format!("{:?}", value).contains("function"), "addEventListener should be available");
         },
         Err(e) => panic!("Failed to check addEventListener: {:?}", e),
     }
