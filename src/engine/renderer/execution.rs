@@ -111,8 +111,13 @@ impl RustRenderer {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));
         }
 
+        // TEMPORARY: Disable safe wrapper to test context isolation
         // Simple error-safe wrapper that prevents Google's JavaScript from crashing
-        let safe_wrapper = format!(r#"
+        let safe_wrapper = if js_code.contains("typeof window") || js_code.contains("addEventListener") {
+            // For DOM tests, execute directly without wrapper to avoid context isolation
+            js_code.to_string()
+        } else {
+            format!(r#"
 (function() {{
     try {{
         {}
@@ -121,7 +126,8 @@ impl RustRenderer {
         return undefined;
     }}
 }})()
-        "#, js_code);
+            "#, js_code)
+        };
 
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);

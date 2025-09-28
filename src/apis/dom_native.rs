@@ -1,9 +1,11 @@
 use anyhow::Result;
-use boa_engine::{Context, js_string, JsValue, Source};
+use boa_engine::{Context, js_string, JsValue, JsObject, Source};
 
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
 pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
+    eprintln!("🔍 DEBUG: setup_native_dom_globals called!");
+    eprintln!("🔍 DEBUG: Context has intrinsics available");
 
     // Create instances using constructor functions directly instead of evaluating JavaScript
 
@@ -32,14 +34,18 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     // Set up the global object relationships
     let global = context.global_object();
 
-    // Helper function to set or update global property
-    let mut set_global_property = |name: &str, value: JsValue| -> Result<()> {
-        if global.has_property(js_string!(name), context).unwrap_or(false) {
+    // Helper function to set or update global property with better error reporting
+    fn set_global_property_helper(global: &JsObject, name: &str, value: JsValue, context: &mut Context) -> Result<()> {
+        eprintln!("🔍 DEBUG: Setting global property '{}' with value type: {:?}", name, value.get_type());
+
+        let result = if global.has_property(js_string!(name), context).unwrap_or(false) {
             // Property exists, just update its value
+            eprintln!("🔍 DEBUG: Property '{}' exists, updating...", name);
             global.set(js_string!(name), value, true, context)
-                .map_err(|e| anyhow::Error::msg(format!("Failed to update {} global: {}", name, e)))?;
+                .map_err(|e| anyhow::Error::msg(format!("Failed to update {} global: {}", name, e)))
         } else {
             // Property doesn't exist, define it
+            eprintln!("🔍 DEBUG: Property '{}' doesn't exist, defining...", name);
             global.define_property_or_throw(
                 js_string!(name),
                 boa_engine::property::PropertyDescriptorBuilder::new()
@@ -49,38 +55,49 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
                     .value(value)
                     .build(),
                 context,
-            ).map_err(|e| anyhow::Error::msg(format!("Failed to set {} global: {}", name, e)))?;
+            ).map_err(|e| anyhow::Error::msg(format!("Failed to set {} global: {}", name, e)))
+        };
+
+        match result {
+            Ok(_) => {
+                eprintln!("🔍 DEBUG: Successfully set global property '{}'", name);
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("🔍 DEBUG: Failed to set global property '{}': {}", name, e);
+                Err(e)
+            }
         }
-        Ok(())
-    };
+    }
 
     // Set window as global
-    set_global_property("window", window_value.clone())?;
+    set_global_property_helper(&global, "window", window_value.clone(), context)?;
 
     // Set self as alias for window
-    set_global_property("self", window_value.clone())?;
+    set_global_property_helper(&global, "self", window_value.clone(), context)?;
 
     // Set globalThis as alias for window
-    set_global_property("globalThis", window_value.clone())?;
+    set_global_property_helper(&global, "globalThis", window_value.clone(), context)?;
 
     // Set document as global
-    set_global_property("document", document_value.clone())?;
+    set_global_property_helper(&global, "document", document_value.clone(), context)?;
 
     // Set history as global
-    set_global_property("history", history_value.clone())?;
+    set_global_property_helper(&global, "history", history_value.clone(), context)?;
 
     // Expose constructor functions on the global object (Document, Window, History,
     // Element, Range, Selection) so scripts can access constructors and prototypes
     // directly (e.g. `Document.parseHTMLUnsafe`, `Element.prototype`).
-    set_global_property("Document", JsValue::from(document_constructor.clone()))?;
-    set_global_property("Window", JsValue::from(window_constructor.clone()))?;
-    set_global_property("History", JsValue::from(history_constructor.clone()))?;
-    set_global_property("Element", JsValue::from(element_constructor.clone()))?;
-    set_global_property("Range", JsValue::from(range_constructor.clone()))?;
-    set_global_property("Selection", JsValue::from(selection_constructor.clone()))?;
+    set_global_property_helper(&global, "Document", JsValue::from(document_constructor.clone()), context)?;
+    set_global_property_helper(&global, "Window", JsValue::from(window_constructor.clone()), context)?;
+    set_global_property_helper(&global, "History", JsValue::from(history_constructor.clone()), context)?;
+    set_global_property_helper(&global, "Element", JsValue::from(element_constructor.clone()), context)?;
+    set_global_property_helper(&global, "Range", JsValue::from(range_constructor.clone()), context)?;
+    set_global_property_helper(&global, "Selection", JsValue::from(selection_constructor.clone()), context)?;
 
-    // Setup native PageSwapEvent global constructor (if available)
-    // For now, skip PageSwapEvent as it may not be available in all Boa builds
+    // Setup native PageSwapEvent global constructor
+    let pageswap_event_constructor = context.intrinsics().constructors().pageswap_event().constructor();
+    set_global_property_helper(&global, "PageSwapEvent", JsValue::from(pageswap_event_constructor.clone()), context)?;
 
     // Set up the relationships between window, document, and history
     {
@@ -131,6 +148,18 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
                 .build(),
             context,
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.self: {}", e)))?;
+
+        // Expose window's EventTarget methods globally (ensuring same function references)
+        // This ensures that global addEventListener === window.addEventListener
+        if let Ok(add_event_listener_method) = window_obj.get(js_string!("addEventListener"), context) {
+            set_global_property_helper(&global, "addEventListener", add_event_listener_method, context)?;
+        }
+        if let Ok(remove_event_listener_method) = window_obj.get(js_string!("removeEventListener"), context) {
+            set_global_property_helper(&global, "removeEventListener", remove_event_listener_method, context)?;
+        }
+        if let Ok(dispatch_event_method) = window_obj.get(js_string!("dispatchEvent"), context) {
+            set_global_property_helper(&global, "dispatchEvent", dispatch_event_method, context)?;
+        }
     }
 
     // Initialize document state
