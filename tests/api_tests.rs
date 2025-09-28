@@ -90,3 +90,9 @@ mod geolocation_coordinates_accuracy {
     use super::*;
     include!("apis/geolocation/coordinates_accuracy.rs");
 }
+
+// Worker API tests
+mod worker_basic {
+    use super::*;
+    include!("apis/workers/web_worker_basic.rs");
+}
