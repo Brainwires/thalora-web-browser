@@ -223,4 +223,84 @@ impl HeadlessWebBrowser {
             Ok("No renderer available".to_string())
         }
     }
+
+    /// Dispatch pageswap event before navigation
+    pub async fn dispatch_pageswap_event(&mut self, target_url: &str) -> anyhow::Result<()> {
+        if let Some(ref mut renderer) = self.renderer {
+            // Create NavigationActivation data
+            let current_url = self.current_url.clone().unwrap_or_else(|| "about:blank".to_string());
+
+            // Create navigation activation object with current and target URLs
+            let activation_script = format!(r#"
+                (function() {{
+                    try {{
+                        return {{
+                            entry: {{ url: "{}" }},
+                            from: {{ url: "{}" }},
+                            navigationType: "navigate"
+                        }};
+                    }} catch(e) {{
+                        console.log("Failed to create activation:", e.message);
+                        return null;
+                    }}
+                }})()
+            "#, target_url, current_url);
+
+            let activation_value = match renderer.eval_js(&activation_script) {
+                Ok(val) => Some(val),
+                Err(e) => {
+                    eprintln!("🔍 DEBUG: Failed to create navigation activation: {:?}", e);
+                    None
+                }
+            };
+
+            // Dispatch pageswap event on window
+            let dispatch_script = r#"
+                (function() {
+                    try {
+                        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                            // Create pageswap event
+                            var event = new PageSwapEvent('pageswap', {
+                                bubbles: false,
+                                cancelable: false,
+                                activation: arguments[0] || null,
+                                viewTransition: null
+                            });
+
+                            // Dispatch event on window
+                            window.dispatchEvent(event);
+                            return 'success';
+                        } else {
+                            return 'window.dispatchEvent not available';
+                        }
+                    } catch(e) {
+                        return 'error: ' + e.message;
+                    }
+                })
+            "#;
+
+            match renderer.eval_js(dispatch_script) {
+                Ok(result) => {
+                    let result_str = renderer.js_value_to_string(result);
+                    eprintln!("🔍 DEBUG: PageSwap event dispatch result: {}", result_str);
+
+                    // Call the dispatch function with activation data
+                    if let Some(activation) = activation_value {
+                        let call_script = format!(
+                            "({}).call(null, {})",
+                            dispatch_script,
+                            renderer.js_value_to_string(activation)
+                        );
+                        if let Ok(call_res) = renderer.eval_js(&call_script) {
+                            eprintln!("🔍 DEBUG: PageSwap event with activation result: {}", renderer.js_value_to_string(call_res));
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("🔍 DEBUG: Failed to dispatch pageswap event: {:?}", e);
+                }
+            }
+        }
+        Ok(())
+    }
 }

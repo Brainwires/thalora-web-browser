@@ -85,6 +85,12 @@ impl RustRenderer {
             .unwrap_or_else(|_| "undefined".to_string())
     }
 
+    /// Evaluate JavaScript code and return the result
+    pub fn eval_js(&mut self, source: &str) -> Result<boa_engine::JsValue> {
+        self.js_context.eval(boa_engine::Source::from_bytes(source))
+            .map_err(|e| anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e)))
+    }
+
     /// Update the document's HTML content to enable real DOM querying
     pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
         use boa_engine::js_string;

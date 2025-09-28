@@ -10,6 +10,9 @@ impl super::HeadlessWebBrowser {
     pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_load: bool) -> Result<String> {
         eprintln!("🔍 DEBUG: navigate_to_with_options - URL: {}, wait_for_load: {}", url, wait_for_load);
 
+        // Dispatch pageswap event before navigation
+        self.dispatch_pageswap_event(url).await?;
+
         // Fetch the page content
         let response = self.client.get(url).send().await?;
         let content = response.text().await?;

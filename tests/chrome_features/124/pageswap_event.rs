@@ -4,6 +4,24 @@ async fn test_chrome_124_pageswap_event() {
 
     let browser = HeadlessWebBrowser::new();
 
+    // Test a simple case first - just check if we can access window at all
+    let simple_test = "window";
+    let result = browser.lock().unwrap().execute_javascript(simple_test).await;
+    match result {
+        Ok(value) => {
+            println!("DEBUG Direct window access: {}", value);
+            if value == "undefined" {
+                println!("❌ window is undefined - DOM setup may have failed or is not accessible");
+                println!("💡 This suggests the JavaScript execution context doesn't have access to DOM globals");
+            } else {
+                println!("✅ window exists: {}", value);
+            }
+        },
+        Err(e) => {
+            println!("DEBUG Direct window access: ERROR - {:?}", e);
+        }
+    }
+
     // Test that pageswap event can be listened to
     let result = browser.lock().unwrap().execute_javascript("typeof window.addEventListener").await;
     match result {
