@@ -20,7 +20,6 @@ async fn test_boa_engine_creation() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "v8-engine")]
 #[tokio::test]
 async fn test_v8_engine_creation() -> Result<()> {
     let mut engine = EngineFactory::create_engine(EngineType::V8)?;
@@ -56,7 +55,6 @@ async fn test_engine_compatibility() -> Result<()> {
     println!("Boa result: {:?}", boa_result);
     
     // Test with V8 if available
-    #[cfg(feature = "v8-engine")]
     {
         let mut v8_engine = EngineFactory::create_engine(EngineType::V8)?;
         let v8_result = v8_engine.execute(test_code)?;
@@ -78,12 +76,8 @@ async fn test_available_engines() -> Result<()> {
     // Boa should always be available
     assert!(available.contains(&EngineType::Boa));
     
-    // V8 should be available only if feature is enabled
-    #[cfg(feature = "v8-engine")]
+    // V8 should be available since it's always compiled
     assert!(available.contains(&EngineType::V8));
-    
-    #[cfg(not(feature = "v8-engine"))]
-    assert!(!available.contains(&EngineType::V8));
     
     Ok(())
 }

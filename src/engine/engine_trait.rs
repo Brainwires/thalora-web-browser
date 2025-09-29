@@ -103,17 +103,10 @@ impl EngineFactory {
                 let boa_engine = crate::engine::JavaScriptEngine::new()?;
                 Ok(Box::new(BoaEngineWrapper::new(boa_engine)))
             }
-            #[cfg(feature = "v8-engine")]
             EngineType::V8 => {
                 use thalora_v8_engine::V8JavaScriptEngine;
                 let v8_engine = V8JavaScriptEngine::new()?;
                 Ok(Box::new(V8EngineWrapper::new(v8_engine)))
-            }
-            #[cfg(not(feature = "v8-engine"))]
-            EngineType::V8 => {
-                Err(anyhow::anyhow!(
-                    "V8 engine not available. Build with --features v8-engine to enable V8 support."
-                ))
             }
         }
     }
@@ -125,10 +118,7 @@ impl EngineFactory {
 
     /// List available engines
     pub fn available_engines() -> Vec<EngineType> {
-        let mut engines = vec![EngineType::Boa];
-        #[cfg(feature = "v8-engine")]
-        engines.push(EngineType::V8);
-        engines
+        vec![EngineType::Boa, EngineType::V8]
     }
 }
 
@@ -250,19 +240,16 @@ impl BoaEngineWrapper {
 }
 
 /// Wrapper for V8 engine to implement the common trait
-#[cfg(feature = "v8-engine")]
 pub struct V8EngineWrapper {
     engine: thalora_v8_engine::V8JavaScriptEngine,
 }
 
-#[cfg(feature = "v8-engine")]
 impl V8EngineWrapper {
     pub fn new(engine: thalora_v8_engine::V8JavaScriptEngine) -> Self {
         Self { engine }
     }
 }
 
-#[cfg(feature = "v8-engine")]
 impl ThaloraBrowserEngine for V8EngineWrapper {
     fn execute(&mut self, code: &str) -> Result<Value> {
         futures::executor::block_on(self.engine.execute(code))

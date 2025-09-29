@@ -31,8 +31,8 @@ taffy = "0.5"
 # JavaScript engine (pure Rust) - using local submodule for customization
 boa_engine = { path = "engines/boa/core/engine" }
 
-# V8 engine integration (optional)
-thalora-v8-engine = { path = "engines/v8", optional = true }
+# V8 engine integration 
+thalora-v8-engine = { path = "engines/v8" }
 
 # Async trait support for engine abstraction
 async-trait = "0.1"
@@ -131,7 +131,7 @@ path = "src/main.rs"
 
 [features]
 default = []
-v8-engine = ["dep:thalora-v8-engine"]
+# V8 engine is now always compiled - no feature flag needed
 
 [dev-dependencies]
 tokio-test = "0.4"
