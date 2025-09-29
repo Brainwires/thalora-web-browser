@@ -113,8 +113,8 @@ impl RustRenderer {
 
         // TEMPORARY: Disable safe wrapper to test context isolation
         // Simple error-safe wrapper that prevents Google's JavaScript from crashing
-        let safe_wrapper = if js_code.contains("typeof window") || js_code.contains("Worker") {
-            // For DOM and Worker tests, execute directly without wrapper to avoid context isolation
+        let safe_wrapper = if js_code.contains("typeof window") || js_code.contains("Worker") || js_code.contains("ServiceWorker") || js_code.contains("Worklet") {
+            // For DOM and Worker ecosystem tests, execute directly without wrapper to avoid context isolation
             js_code.to_string()
         } else {
             format!(r#"

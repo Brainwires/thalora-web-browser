@@ -149,10 +149,11 @@ This document provides a comprehensive overview of Web API implementation status
 
 | API/Feature | Status | Implementation | Location | Notes |
 |-------------|--------|----------------|----------|-------|
-| Web Workers API | Shimmed | Thalora | `src/apis/polyfills/worker.rs` | Background JavaScript |
-| Service Workers | Shimmed | Thalora | `src/apis/service_worker.rs` | Offline functionality |
-| Shared Workers | Not Implemented | - | - | Shared background scripts |
-| Worklets | Not Implemented | - | - | High-performance workers |
+| Web Workers API | Finished | Boa Native | `engines/boa/core/engine/src/builtins/worker.rs` | WHATWG compliant with real threading |
+| Shared Workers | Finished | Boa Native | `engines/boa/core/engine/src/builtins/shared_worker.rs` | Shared background scripts with state management |
+| Service Workers | Finished | Boa Native | `engines/boa/core/engine/src/builtins/service_worker.rs` | Offline functionality with registration lifecycle |
+| Worklets | Finished | Boa Native | `engines/boa/core/engine/src/builtins/worklet.rs` | High-performance specialized workers |
+| MessagePort API | Finished | Boa Native | `engines/boa/core/engine/src/builtins/message_port.rs` | Thread-safe message passing infrastructure |
 
 ## Platform APIs
 
