@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use crate::apis::WebApis;
 // events API is now natively implemented in Boa engine
-use crate::features::AdvancedWebAssemblyEngine;
+// WebAssembly is now natively implemented in Boa engine
 
 #[allow(dead_code)]
 pub struct RustRenderer {
@@ -12,7 +12,7 @@ pub struct RustRenderer {
     pub(super) web_apis: WebApis,
     pub(super) history_initialized: bool,
     // event manager is now handled by Boa engine
-    pub(super) wasm_api: Option<AdvancedWebAssemblyEngine>,
+    // WebAssembly API is now natively implemented in Boa engine
     // Guard to prevent re-entrant updates/evaluations which previously caused
     // infinite recursion / stack overflows when JS evaluation or window getters
     // triggered additional document updates.
@@ -44,21 +44,14 @@ impl RustRenderer {
 
         // events API is now natively handled by Boa engine
 
-        // Setup REAL WebAssembly API (replaces mock implementations)
-        let wasm_api = match AdvancedWebAssemblyEngine::new() {
-            Ok(api) => {
-                api.setup_webassembly_api(&mut context).unwrap();
-                Some(api)
-            },
-            Err(_e) => None
-        };
+        // WebAssembly API is now natively implemented in Boa engine
 
         Self {
             js_context: context,
             web_apis,
             history_initialized: false,
             // event_manager is now handled by Boa engine
-            wasm_api,
+            // wasm_api is now handled by Boa engine
             in_update: false,
         }
     }

@@ -12,7 +12,7 @@ pub mod dom_native;
 pub mod credentials;
 
 // Full-featured browser APIs
-pub mod webassembly;
+// webassembly API is now natively implemented in Boa engine
 pub mod geolocation;
 pub mod webrtc;
 pub mod media;
@@ -55,8 +55,7 @@ impl WebApis {
         // Storage APIs (localStorage/sessionStorage) are now natively implemented in Boa engine
 
         // Setup full-featured browser APIs
-        let wasm_manager = webassembly::WebAssemblyManager::new();
-        wasm_manager.setup_webassembly_api(context).map_err(|e| anyhow::Error::msg(format!("WebAssembly setup failed: {:?}", e)))?;
+        // WebAssembly API is now natively implemented in Boa engine
 
         let geo_manager = geolocation::GeolocationManager::new();
         geo_manager.setup_geolocation_api(context).map_err(|e| anyhow::Error::msg(format!("Geolocation setup failed: {:?}", e)))?;
