@@ -133,8 +133,8 @@ let start = std::time::Instant::now();
 let v8_result = v8_engine.execute(test_code)?;
 let v8_time = start.elapsed();
 
-println!("Boa: {:?} in {:?}", boa_result, boa_time);
-println!("Custom V8: {:?} in {:?}", v8_result, v8_time);
+eprintln!("Boa: {:?} in {:?}", boa_result, boa_time);
+eprintln!("Custom V8: {:?} in {:?}", v8_result, v8_time);
 ```
 
 ## Development Workflow

@@ -2,9 +2,9 @@ use std::env;
 use std::path::Path;
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=v8-source");
-    println!("cargo:rerun-if-env-changed=V8_FROM_SOURCE");
+    eprintln!("cargo:rerun-if-changed=build.rs");
+    eprintln!("cargo:rerun-if-changed=v8-source");
+    eprintln!("cargo:rerun-if-env-changed=V8_FROM_SOURCE");
 
     // Force building V8 from source using our local v8-source directory
     env::set_var("V8_FROM_SOURCE", "1");
@@ -36,13 +36,13 @@ fn main() {
     env::set_var("GN_ARGS", gn_args);
     
     // Print build configuration
-    println!("cargo:warning=Thalora V8 Build Configuration:");
-    println!("cargo:warning=  Source: Local directory ({})", full_v8_path.display());
-    println!("cargo:warning=  Building from source: enabled");
-    println!("cargo:warning=  Pre-built binaries: disabled");
-    println!("cargo:warning=");
-    println!("cargo:warning=V8 build may take 15-30 minutes on first compile");
-    println!("cargo:warning=Subsequent builds will be much faster (incremental)");
+    eprintln!("cargo:warning=Thalora V8 Build Configuration:");
+    eprintln!("cargo:warning=  Source: Local directory ({})", full_v8_path.display());
+    eprintln!("cargo:warning=  Building from source: enabled");
+    eprintln!("cargo:warning=  Pre-built binaries: disabled");
+    eprintln!("cargo:warning=");
+    eprintln!("cargo:warning=V8 build may take 15-30 minutes on first compile");
+    eprintln!("cargo:warning=Subsequent builds will be much faster (incremental)");
     
     // Check build requirements
     check_build_requirements();
@@ -51,12 +51,12 @@ fn main() {
 fn check_build_requirements() {
     // Check for Python (required by V8 build system)
     if which::which("python3").is_err() && which::which("python").is_err() {
-        println!("cargo:warning=WARNING: Python not found - V8 build requires Python 3.6+");
+        eprintln!("cargo:warning=WARNING: Python not found - V8 build requires Python 3.6+");
     }
 
     // Check for git (required for submodule management)
     if which::which("git").is_err() {
-        println!("cargo:warning=WARNING: Git not found - required for submodule management");
+        eprintln!("cargo:warning=WARNING: Git not found - required for submodule management");
     }
 
     // Platform-specific build tool checks
@@ -73,28 +73,28 @@ fn check_build_requirements() {
 #[cfg(target_os = "linux")]
 fn check_linux_requirements() {
     if which::which("clang").is_err() && which::which("gcc").is_err() {
-        println!("cargo:warning=WARNING: No C++ compiler found - install clang or gcc");
+        eprintln!("cargo:warning=WARNING: No C++ compiler found - install clang or gcc");
     }
     if which::which("ninja").is_err() {
-        println!("cargo:warning=WARNING: ninja not found - install ninja-build package");
+        eprintln!("cargo:warning=WARNING: ninja not found - install ninja-build package");
     }
     if which::which("pkg-config").is_err() {
-        println!("cargo:warning=WARNING: pkg-config not found - may be needed for dependencies");
+        eprintln!("cargo:warning=WARNING: pkg-config not found - may be needed for dependencies");
     }
 }
 
 #[cfg(target_os = "macos")]  
 fn check_macos_requirements() {
     if which::which("clang").is_err() {
-        println!("cargo:warning=WARNING: clang not found - install Xcode command line tools");
+        eprintln!("cargo:warning=WARNING: clang not found - install Xcode command line tools");
     }
     if which::which("ninja").is_err() {
-        println!("cargo:warning=WARNING: ninja not found - install with 'brew install ninja'");
+        eprintln!("cargo:warning=WARNING: ninja not found - install with 'brew install ninja'");
     }
 }
 
 #[cfg(target_os = "windows")]
 fn check_windows_requirements() {
-    println!("cargo:warning=NOTE: Windows V8 build requires Visual Studio 2019+ with C++ tools");
-    println!("cargo:warning=NOTE: Ensure Windows SDK is installed");
+    eprintln!("cargo:warning=NOTE: Windows V8 build requires Visual Studio 2019+ with C++ tools");
+    eprintln!("cargo:warning=NOTE: Ensure Windows SDK is installed");
 }
