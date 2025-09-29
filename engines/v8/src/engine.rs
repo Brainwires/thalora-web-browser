@@ -149,7 +149,6 @@ impl V8JavaScriptEngine {
 
     /// Run pending microtasks (similar to Boa's run_jobs)
     pub fn run_jobs(&mut self) -> Result<()> {
-        let scope = &mut HandleScope::new(&mut self.isolate);
         self.isolate.perform_microtask_checkpoint();
         Ok(())
     }
@@ -162,36 +161,35 @@ impl V8JavaScriptEngine {
         let scope = &mut v8::ContextScope::new(scope, context);
 
         // Setup basic console object (Boa has this natively)
-        self.setup_console(scope)?;
+        Self::setup_console(scope)?;
         
         // Setup timer functions (Boa has these natively)
-        self.setup_timers(scope)?;
+        Self::setup_timers(scope)?;
 
         // Setup fetch placeholder (Boa has this natively)
-        self.setup_fetch_placeholder(scope)?;
+        Self::setup_fetch_placeholder(scope)?;
         
         // Setup storage APIs (Boa has these natively)
-        self.setup_storage_apis(scope)?;
+        Self::setup_storage_apis(scope)?;
         
         // Setup event system (Boa has this natively)
-        self.setup_event_system(scope)?;
+        Self::setup_event_system(scope)?;
         
         // Setup WebSocket placeholder (Boa has this natively)
-        self.setup_websocket_placeholder(scope)?;
+        Self::setup_websocket_placeholder(scope)?;
 
         Ok(())
     }
 
     /// Setup console object with basic logging
-    fn setup_console(&mut self, scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
+    fn setup_console(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         let console_obj = v8::Object::new(scope);
         let global = scope.get_current_context().global(scope);
 
         // console.log function
-        let log_func = v8::Function::new(scope, |scope, args, _rv, _data| {
-            let messages: Vec<String> = args
-                .iter()
-                .map(|arg| arg.to_rust_string_lossy(scope))
+        let log_func = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, _rv| {
+            let messages: Vec<String> = (0..args.length())
+                .map(|i| args.get(i).to_rust_string_lossy(scope))
                 .collect();
             tracing::info!("[V8 Console] {}", messages.join(" "));
         }).unwrap();
@@ -206,20 +204,18 @@ impl V8JavaScriptEngine {
     }
 
     /// Setup timer functions (setTimeout, setInterval, clearTimeout, clearInterval)
-    fn setup_timers(&mut self, scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
+    fn setup_timers(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         let global = scope.get_current_context().global(scope);
 
         // setTimeout function (simplified)
-        let set_timeout = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if args.len() >= 2 {
-                let callback = args[0].to_rust_string_lossy(scope);
-                let timeout = args[1].int32_value(scope).unwrap_or(0);
+        let set_timeout = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() >= 2 {
+                let callback = args.get(0).to_rust_string_lossy(scope);
+                let timeout = args.get(1).int32_value(scope).unwrap_or(0);
                 tracing::debug!("[V8 Timer] setTimeout called with callback and {}ms timeout", timeout);
-                // Return a mock timer ID
+                // Return a timer ID
                 let timer_id = v8::Integer::new(scope, 1);
-                Some(timer_id.into())
-            } else {
-                None
+                rv.set(timer_id.into());
             }
         }).unwrap();
 
@@ -227,10 +223,10 @@ impl V8JavaScriptEngine {
         global.set(scope, set_timeout_key.into(), set_timeout.into());
 
         // clearTimeout function
-        let clear_timeout = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if !args.is_empty() {
-                let timer_id = args[0].int32_value(scope).unwrap_or(0);
-                tracing::debug!("[V8 Timer] clearTimeout called for timer {}", timer_id);
+        let clear_timeout = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, _rv| {
+            if args.length() > 0 {
+                let timer_id = args.get(0).int32_value(scope).unwrap_or(0);
+                tracing::debug!("[V8 Timer] clearTimeout called with ID: {}", timer_id);
             }
         }).unwrap();
 
@@ -240,13 +236,13 @@ impl V8JavaScriptEngine {
         Ok(())
     }
 
-    /// Setup fetch placeholder
-    fn setup_fetch_placeholder(&mut self, scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
+    /// Setup fetch API placeholder
+    fn setup_fetch_placeholder(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         let global = scope.get_current_context().global(scope);
 
-        let fetch_func = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if !args.is_empty() {
-                let url = args[0].to_rust_string_lossy(scope);
+        let fetch_func = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() > 0 {
+                let url = args.get(0).to_rust_string_lossy(scope);
                 tracing::warn!("[V8 Fetch] fetch('{}') called - not implemented yet", url);
             }
             
@@ -264,15 +260,15 @@ impl V8JavaScriptEngine {
     }
 
     /// Setup storage APIs (localStorage, sessionStorage) - Boa has these natively
-    fn setup_storage_apis(&mut self, scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
+    fn setup_storage_apis(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         let global = scope.get_current_context().global(scope);
 
         // localStorage placeholder
         let local_storage_obj = v8::Object::new(scope);
         
-        let get_item = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if !args.is_empty() {
-                let key = args[0].to_rust_string_lossy(scope);
+        let get_item = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() > 0 {
+                let key = args.get(0).to_rust_string_lossy(scope);
                 tracing::debug!("[V8 Storage] localStorage.getItem('{}')", key);
             }
             Some(v8::null(scope).into())
@@ -299,13 +295,13 @@ impl V8JavaScriptEngine {
     }
 
     /// Setup basic event system - Boa has this natively
-    fn setup_event_system(&mut self, scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
+    fn setup_event_system(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         let global = scope.get_current_context().global(scope);
 
         // Event constructor
-        let event_constructor = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if !args.is_empty() {
-                let event_type = args[0].to_rust_string_lossy(scope);
+        let event_constructor = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() > 0 {
+                let event_type = args.get(0).to_rust_string_lossy(scope);
                 tracing::debug!("[V8 Events] new Event('{}')", event_type);
                 
                 let event_obj = v8::Object::new(scope);
@@ -313,9 +309,7 @@ impl V8JavaScriptEngine {
                 let type_val = v8::String::new(scope, &event_type).unwrap();
                 event_obj.set(scope, type_key.into(), type_val.into());
                 
-                Some(event_obj.into())
-            } else {
-                None
+                rv.set(event_obj.into());
             }
         }).unwrap();
 
@@ -326,17 +320,17 @@ impl V8JavaScriptEngine {
     }
 
     /// Setup WebSocket placeholder - Boa has this natively  
-    fn setup_websocket_placeholder(&mut self, scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
+    fn setup_websocket_placeholder(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         let global = scope.get_current_context().global(scope);
 
-        let websocket_constructor = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if !args.is_empty() {
-                let url = args[0].to_rust_string_lossy(scope);
+        let websocket_constructor = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() > 0 {
+                let url = args.get(0).to_rust_string_lossy(scope);
                 tracing::warn!("[V8 WebSocket] new WebSocket('{}') called - not implemented yet", url);
             }
             
             let ws_obj = v8::Object::new(scope);
-            Some(ws_obj.into())
+            rv.set(ws_obj.into());
         }).unwrap();
 
         let websocket_key = v8::String::new(scope, "WebSocket").unwrap();
@@ -372,7 +366,7 @@ impl V8JavaScriptEngine {
     }
 
     /// Convert JSON value to V8 value
-    fn json_to_v8_value(&self, scope: &mut v8::HandleScope, value: serde_json::Value) -> Result<Local<Value>> {
+    fn json_to_v8_value<'a>(&self, scope: &mut v8::HandleScope<'a>, value: serde_json::Value) -> Result<Local<'a, Value>> {
         match value {
             serde_json::Value::Null => Ok(v8::null(scope).into()),
             serde_json::Value::Bool(b) => Ok(v8::Boolean::new(scope, b).into()),

@@ -145,24 +145,18 @@ impl BoaEngineWrapper {
 
 impl ThaloraBrowserEngine for BoaEngineWrapper {
     fn execute(&mut self, code: &str) -> Result<Value> {
-        // Convert Boa's JsValue to serde_json::Value
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.engine.execute_enhanced(code))
-        })?;
+        // Just execute simple JS directly - we'll create a simple version
+        let result = futures::executor::block_on(self.engine.execute_enhanced(code))?;
         self.boa_to_json_value(result)
     }
 
     fn execute_enhanced(&mut self, code: &str) -> Result<Value> {
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.engine.execute_enhanced(code))
-        })?;
+        let result = futures::executor::block_on(self.engine.execute_enhanced(code))?;
         self.boa_to_json_value(result)
     }
 
     fn execute_v8_compatible(&mut self, code: &str) -> Result<Value> {
-        let result = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.engine.execute_v8_compatible(code))
-        })?;
+        let result = futures::executor::block_on(self.engine.execute_v8_compatible(code))?;
         self.boa_to_json_value(result)
     }
 
@@ -197,6 +191,8 @@ impl ThaloraBrowserEngine for BoaEngineWrapper {
 }
 
 impl BoaEngineWrapper {
+    // Remove the helper methods since we're using a simpler approach
+
     fn boa_to_json_value(&self, js_value: boa_engine::JsValue) -> Result<Value> {
         if js_value.is_undefined() || js_value.is_null() {
             Ok(Value::Null)
@@ -269,21 +265,15 @@ impl V8EngineWrapper {
 #[cfg(feature = "v8-engine")]
 impl ThaloraBrowserEngine for V8EngineWrapper {
     fn execute(&mut self, code: &str) -> Result<Value> {
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.engine.execute(code))
-        })
+        futures::executor::block_on(self.engine.execute(code))
     }
 
     fn execute_enhanced(&mut self, code: &str) -> Result<Value> {
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.engine.execute_enhanced(code))
-        })
+        futures::executor::block_on(self.engine.execute_enhanced(code))
     }
 
     fn execute_v8_compatible(&mut self, code: &str) -> Result<Value> {
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.engine.execute_v8_compatible(code))
-        })
+        futures::executor::block_on(self.engine.execute_v8_compatible(code))
     }
 
     fn get_global_object(&mut self, name: &str) -> Result<Option<Value>> {

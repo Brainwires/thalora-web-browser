@@ -17,7 +17,7 @@ impl V8Context {
     pub fn create_in_isolate(
         scope: &mut HandleScope<'_, ()>,
     ) -> Result<Local<Context>> {
-        let context = Context::new(scope);
+        let context = Context::new(scope, Default::default());
         Ok(context)
     }
 

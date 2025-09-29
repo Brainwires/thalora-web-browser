@@ -1,24 +1,26 @@
 # Thalora V8 Engine Integration
 
-This directory contains the V8 JavaScript engine integration for Thalora, using a **custom V8 fork** at https://github.com/nightness/v8 instead of the standard Chrome V8 libraries.
+This directory contains the V8 JavaScript engine integration for Thalora, using a **custom V8 fork** at https://github.com/nightness/v8. The V8 engine is **ALWAYS** built from source code, never from precompiled binaries.
 
 ## Overview
 
-The V8 engine integration uses `rusty_v8` (published as the `v8` crate), but is configured to build from your custom V8 fork rather than using pre-built Chrome binaries. This allows for custom V8 modifications and optimizations specific to Thalora's needs.
+The V8 engine integration uses `rusty_v8` (published as the `v8` crate), but is **always configured to build from your custom V8 fork** rather than using pre-built Chrome binaries. The build script automatically sets `V8_FROM_SOURCE=1` to ensure this behavior.
 
-## Custom V8 Fork Benefits
+## Why Always Build From Source
 
-- **Custom Modifications**: Your V8 fork can include specific patches and optimizations
-- **Full Control**: Complete control over V8 build configuration and features
-- **Latest Changes**: Access to the latest changes in your V8 development
+- **Custom Modifications**: Your V8 fork includes specific patches and optimizations
+- **Full Control**: Complete control over V8 build configuration and features  
+- **Latest Changes**: Always get the latest changes from your V8 development
+- **Security**: No reliance on potentially compromised binary artifacts
 - **Debugging**: Better debugging capabilities with custom symbols and configurations
+- **Reproducible Builds**: Consistent builds across different environments
 
 ## Build Configuration
 
 ### Environment Variables
 
-- `V8_FROM_SOURCE=1`: Forces building from source (automatically set)
-- `CUSTOM_V8_REPOSITORY`: Override the V8 repository URL (defaults to your fork)
+- `V8_FROM_SOURCE=1`: **Automatically set by build script** - forces building from source (NEVER prebuilt binaries)
+- `CUSTOM_V8_REPOSITORY`: Override the V8 repository URL (defaults to nightness/v8 fork)
 - `CUSTOM_V8_BRANCH`: Specify a custom branch to build from
 - `GN_ARGS`: Additional GN build arguments for V8
 

@@ -23,16 +23,14 @@ impl V8Polyfills {
         let global = scope.get_current_context().global(scope);
 
         // setTimeout with proper promise support
-        let set_timeout = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if args.len() >= 2 {
-                let timeout_ms = args[1].int32_value(scope).unwrap_or(0);
+        let set_timeout = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() >= 2 {
+                let timeout_ms = args.get(1).int32_value(scope).unwrap_or(0);
                 tracing::debug!("[V8 Polyfills] setTimeout: {}ms", timeout_ms);
                 
                 // Return a timer ID (use a simple counter for now)
                 let timer_id = v8::Integer::new(scope, 1);
-                Some(timer_id.into())
-            } else {
-                None
+                rv.set(timer_id.into());
             }
         }).unwrap();
 
@@ -61,9 +59,9 @@ impl V8Polyfills {
         let global = scope.get_current_context().global(scope);
 
         // Basic URL constructor
-        let url_constructor = v8::Function::new(scope, |scope, args, _rv, _data| {
-            if !args.is_empty() {
-                let url_str = args[0].to_rust_string_lossy(scope);
+        let url_constructor = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+            if args.length() > 0 {
+                let url_str = args.get(0).to_rust_string_lossy(scope);
                 tracing::debug!("[V8 Polyfills] URL constructor: {}", url_str);
                 
                 // Return a basic URL object
@@ -89,13 +87,12 @@ impl V8Polyfills {
         let global = scope.get_current_context().global(scope);
 
         // TextEncoder
-        let text_encoder = v8::Function::new(scope, |scope, _args, _rv, _data| {
+        let text_encoder = v8::Function::new(scope, |scope, _args, mut rv| {
             let encoder_obj = v8::Object::new(scope);
             
-            // encode method
-            let encode_func = v8::Function::new(scope, |scope, args, _rv, _data| {
-                if !args.is_empty() {
-                    let text = args[0].to_rust_string_lossy(scope);
+            let encode_func = v8::Function::new(scope, |scope, args: v8::FunctionCallbackArguments, mut rv| {
+                if args.length() > 0 {
+                    let text = args.get(0).to_rust_string_lossy(scope);
                     let bytes = text.as_bytes();
                     
                     // Create a Uint8Array-like object
@@ -114,7 +111,7 @@ impl V8Polyfills {
             let encode_key = v8::String::new(scope, "encode").unwrap();
             encoder_obj.set(scope, encode_key.into(), encode_func.into());
             
-            Some(encoder_obj.into())
+            rv.set(encoder_obj.into());
         }).unwrap();
 
         let text_encoder_key = v8::String::new(scope, "TextEncoder").unwrap();
