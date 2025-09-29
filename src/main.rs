@@ -8,6 +8,7 @@ pub mod features;
 pub mod protocols;
 
 use protocols::mcp_server::McpServer;
+use engine::{EngineType, EngineFactory, EngineConfig};
 
 #[derive(Parser)]
 #[command(name = "thalora")]
@@ -15,6 +16,10 @@ use protocols::mcp_server::McpServer;
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+    
+    /// Use V8 JavaScript engine instead of the default Boa engine
+    #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
+    use_v8_engine: bool,
 }
 
 #[derive(Subcommand)]
@@ -39,9 +44,23 @@ enum Commands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Configure tracing to write to stderr only (MCP protocol requirement)
-    // Disable tracing in silent mode
+    // Create engine configuration from CLI arguments
+    let engine_config = EngineConfig::new(cli.use_v8_engine)?;
+    
+    // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {
+        tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
+            .init();
+        
+        tracing::info!("Using {} JavaScript engine", engine_config.engine_type);
+        
+        // Display available engines for info
+        let available = EngineFactory::available_engines();
+        let available_names: Vec<String> = available.iter().map(|e| e.to_string()).collect();
+        tracing::debug!("Available engines: {}", available_names.join(", "));
+    } else {
+        // Still configure tracing but silent
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
             .init();
@@ -50,18 +69,18 @@ async fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Session { session_id, socket_path, persistent }) => {
             // Run as browser session process
-            run_browser_session(session_id, socket_path, persistent).await
+            run_browser_session(session_id, socket_path, persistent, engine_config).await
         }
         Some(Commands::Server) | None => {
             // Run as MCP server (default)
-            let mut server = McpServer::new();
+            let mut server = McpServer::new_with_engine(engine_config);
             server.run().await
         }
     }
 }
 
 /// Run as browser session process
-async fn run_browser_session(session_id: String, socket_path: String, persistent: bool) -> Result<()> {
+async fn run_browser_session(session_id: String, socket_path: String, persistent: bool, engine_config: EngineConfig) -> Result<()> {
     use protocols::session_manager::{BrowserCommand, BrowserResponse};
     use std::sync::{Arc, Mutex};
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, split};
@@ -75,16 +94,18 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
         session_id: String,
         browser: Arc<Mutex<HeadlessWebBrowser>>,
         persistent: bool,
+        engine_config: EngineConfig,
     }
 
     impl BrowserSessionHandler {
-        fn new(session_id: String, persistent: bool) -> Self {
+        fn new(session_id: String, persistent: bool, engine_config: EngineConfig) -> Self {
             let browser = HeadlessWebBrowser::new(); // This already returns Arc<Mutex<HeadlessWebBrowser>>
 
             Self {
                 session_id,
                 browser,
                 persistent,
+                engine_config,
             }
         }
 
@@ -365,6 +386,7 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
     let handler = Arc::new(BrowserSessionHandler::new(
         session_id.clone(),
         persistent,
+        engine_config,
     ));
 
     // Remove existing socket file if it exists

@@ -24,6 +24,7 @@ pub mod debug_utils;
 // Re-export main components for clean public API
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};
+pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 // EventListener is now natively implemented in Boa engine
 
 // websocket API is now natively implemented in Boa engine

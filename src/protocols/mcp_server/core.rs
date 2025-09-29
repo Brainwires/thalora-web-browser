@@ -15,6 +15,7 @@ use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::cdp_tools::CdpTools;
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::session_manager::SessionManager;
+use crate::engine::EngineConfig;
 
 #[allow(dead_code)]
 pub struct McpServer {
@@ -27,10 +28,17 @@ pub struct McpServer {
     pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
+    /// Engine configuration for JavaScript execution
+    pub(super) engine_config: EngineConfig,
 }
 
 impl McpServer {
     pub fn new() -> Self {
+        // Default to Boa engine for backward compatibility
+        Self::new_with_engine(EngineConfig::new(false).unwrap_or(EngineConfig { engine_type: crate::engine::EngineType::Boa }))
+    }
+
+    pub fn new_with_engine(engine_config: EngineConfig) -> Self {
         let ai_memory = AiMemoryHeap::new_default().unwrap_or_else(|_| {
             tracing::warn!("Failed to load AI memory heap, creating new one");
             AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
@@ -50,6 +58,7 @@ impl McpServer {
             browser_tools: BrowserTools::new(),
             session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
+            engine_config,
         }
     }
 
