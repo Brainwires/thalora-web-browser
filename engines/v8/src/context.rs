@@ -1,5 +1,5 @@
 use anyhow::Result;
-use v8::{Context, HandleScope, Isolate, Local};
+use v8::{Context, HandleScope, Local};
 
 /// V8 Context wrapper for managing JavaScript execution contexts
 pub struct V8Context {
@@ -14,9 +14,9 @@ impl V8Context {
     }
 
     /// Create a context within a given isolate and handle scope
-    pub fn create_in_isolate(
-        scope: &mut HandleScope<'_, ()>,
-    ) -> Result<Local<Context>> {
+    pub fn create_in_isolate<'a>(
+        scope: &'a mut HandleScope<'a, ()>,
+    ) -> Result<Local<'a, Context>> {
         let context = Context::new(scope, Default::default());
         Ok(context)
     }

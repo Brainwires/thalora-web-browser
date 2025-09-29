@@ -35,6 +35,10 @@ parking_lot = "0.12"
 # Collections
 indexmap = "2.0"
 
+[build-dependencies]
+# Build script utilities for checking V8 build requirements
+which = "6.0"
+
 [lib]
 name = "thalora_v8_engine"
 path = "src/lib.rs"

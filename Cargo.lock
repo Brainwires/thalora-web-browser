@@ -6559,7 +6559,6 @@ dependencies = [
  "tokio",
  "tracing",
  "v8",
- "which",
 ]
 
 [[package]]
