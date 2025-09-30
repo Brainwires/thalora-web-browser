@@ -96,12 +96,6 @@ clap = { version = "4.0", features = ["derive"] }
 # Regex for JavaScript processing
 regex = "1.10"
 
-# Enhanced JavaScript and parsing support - using compatible versions
-swc_core = { version = "0.96", features = ["__ecma", "__parser", "ecma_ast"] }
-swc_common = "0.34" 
-swc_ecma_parser = "0.142"
-swc_ecma_ast = "0.112"
-
 # HTML escaping
 html-escape = "0.2"
 
@@ -121,6 +115,16 @@ base64 = "0.22"
 # CDP (Chrome DevTools Protocol) support
 chrono = { version = "0.4", features = ["serde"] }
 
+# GUI dependencies (optional - enable with "gui" feature)
+winit = { version = "0.29", optional = true }
+wgpu = { version = "0.20", optional = true }
+egui = { version = "0.28", optional = true }
+egui-winit = { version = "0.28", optional = true }
+egui-wgpu = { version = "0.28", optional = true }
+pollster = { version = "0.3", optional = true }
+env_logger = { version = "0.11", optional = true }
+log = { version = "0.4", optional = true }
+
 # AI Memory Heap for persistent storage
 dirs = "5.0"
 vfs = { path = "vfs", default-features = false }
@@ -131,6 +135,8 @@ path = "src/main.rs"
 
 [features]
 default = []
+# GUI mode with winit and wgpu for graphical browser interface
+gui = ["winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
 # V8 engine is now always compiled - no feature flag needed
 
 [dev-dependencies]
