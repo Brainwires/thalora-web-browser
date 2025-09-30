@@ -295,6 +295,14 @@ impl BrowserUI {
         self.navigation_state.page_title = title.to_string();
     }
 
+    /// Update UI state from the active tab
+    pub fn update_from_tab(&mut self, tab: &crate::gui::Tab) {
+        self.set_current_url(tab.url());
+        self.set_page_title(tab.title());
+        self.set_loading(tab.is_loading());
+        self.set_navigation_state(tab.can_go_back(), tab.can_go_forward());
+    }
+
     /// Set loading state
     pub fn set_loading(&mut self, loading: bool) {
         self.navigation_state.is_loading = loading;

@@ -175,31 +175,24 @@ pub struct TabManager {
 
 impl TabManager {
     /// Create a new tab manager
-    pub fn new() -> Self {
-        Self {
+    pub async fn new(engine_config: EngineConfig) -> Result<Self> {
+        Ok(Self {
             tabs: HashMap::new(),
             current_tab: None,
             next_tab_id: 1,
-            engine_config: EngineConfig::new(false).unwrap_or_else(|_| {
-                // Fallback engine config if creation fails
-                EngineConfig {
-                    engine_type: crate::engine::EngineType::Boa,
-                }
-            }),
-        }
+            engine_config,
+        })
     }
 
     /// Create a new tab
-    pub fn create_tab(&mut self, initial_url: String, engine_config: EngineConfig) -> Result<TabId> {
+    pub async fn create_tab(&mut self, initial_url: String) -> Result<TabId> {
         let tab_id = self.next_tab_id;
         self.next_tab_id += 1;
 
         tracing::info!("Creating new tab {} with URL: {}", tab_id, initial_url);
 
-        let tab = Tab::new(tab_id, initial_url, engine_config.clone())?;
+        let tab = Tab::new(tab_id, initial_url, self.engine_config.clone())?;
         self.tabs.insert(tab_id, tab);
-        self.current_tab = Some(tab_id);
-        self.engine_config = engine_config;
 
         Ok(tab_id)
     }
@@ -218,8 +211,8 @@ impl TabManager {
         Ok(())
     }
 
-    /// Switch to a specific tab
-    pub fn switch_to_tab(&mut self, tab_id: TabId) -> Result<()> {
+    /// Set active tab
+    pub fn set_active_tab(&mut self, tab_id: TabId) -> Result<()> {
         if self.tabs.contains_key(&tab_id) {
             tracing::debug!("Switching to tab {}", tab_id);
             self.current_tab = Some(tab_id);
@@ -232,6 +225,16 @@ impl TabManager {
     /// Get current tab ID
     pub fn current_tab_id(&self) -> Option<TabId> {
         self.current_tab
+    }
+
+    /// Get active tab ID
+    pub fn get_active_tab_id(&self) -> Option<TabId> {
+        self.current_tab
+    }
+
+    /// Get active tab
+    pub fn get_active_tab(&self) -> Option<&Tab> {
+        self.current_tab.and_then(|id| self.tabs.get(&id))
     }
 
     /// Get a reference to a specific tab
@@ -305,6 +308,16 @@ impl TabManager {
 
 impl Default for TabManager {
     fn default() -> Self {
-        Self::new()
+        // Create with a default engine config
+        let engine_config = EngineConfig {
+            engine_type: crate::engine::EngineType::Boa,
+        };
+        
+        Self {
+            tabs: HashMap::new(),
+            current_tab: None,
+            next_tab_id: 1,
+            engine_config,
+        }
     }
 }

@@ -30,15 +30,14 @@ pub struct WebRenderer {
     egui_renderer: egui_wgpu::Renderer,
     egui_winit: egui_winit::State,
     egui_ctx: egui::Context,
-    window: Arc<Window>,
+    window: std::sync::Arc<Window>,
 }
 
 impl WebRenderer {
     /// Create a new web renderer
-    pub async fn new(window_manager: &WindowManager) -> Result<Self> {
+    pub async fn new(window: &std::sync::Arc<Window>) -> Result<Self> {
         tracing::info!("Initializing web renderer with wgpu");
 
-        let window = window_manager.window();
         let size = window.inner_size();
 
         // Create wgpu instance
@@ -48,7 +47,7 @@ impl WebRenderer {
         });
 
         // Create surface
-        let surface = instance.create_surface(Arc::clone(window))
+        let surface = instance.create_surface(std::sync::Arc::clone(window))
             .context("Failed to create wgpu surface")?;
 
         // Request adapter
@@ -105,7 +104,7 @@ impl WebRenderer {
         let egui_winit = egui_winit::State::new(
             egui_ctx.clone(),
             egui::ViewportId::ROOT,
-            window,
+            window.as_ref(),
             Some(window.scale_factor() as f32),
             Some(2048), // max texture side
         );
@@ -124,12 +123,17 @@ impl WebRenderer {
             egui_renderer,
             egui_winit,
             egui_ctx,
-            window: Arc::clone(window),
+            window: std::sync::Arc::clone(window),
         })
     }
 
+    /// Handle window events (returns true if event was consumed)
+    pub fn handle_event(&mut self, event: &winit::event::WindowEvent) -> bool {
+        self.egui_winit.on_window_event(&self.window, event).consumed
+    }
+
     /// Resize the renderer
-    pub async fn resize(&mut self, new_size: PhysicalSize<u32>) -> Result<()> {
+    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             tracing::debug!("Resizing renderer to: {:?}", new_size);
             
@@ -142,13 +146,11 @@ impl WebRenderer {
                 &self.render_state.surface_config
             );
         }
-        Ok(())
     }
 
     /// Render a single frame
-    pub async fn render_frame(
+    pub fn render(
         &mut self,
-        web_content: &str,
         browser_ui: &mut BrowserUI,
         tab_manager: &TabManager,
     ) -> Result<()> {
@@ -167,7 +169,7 @@ impl WebRenderer {
 
         // Begin render pass for web content
         {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            let _render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Web Content Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: &view,
@@ -193,13 +195,13 @@ impl WebRenderer {
         }
 
         // Render egui UI on top
-        let raw_input = self.egui_winit.take_egui_input(&*self.window);
+        let raw_input = self.egui_winit.take_egui_input(&self.window);
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
             browser_ui.show(ctx, tab_manager);
         });
 
         self.egui_winit.handle_platform_output(
-            &*self.window,
+            &self.window,
             full_output.platform_output,
         );
 
@@ -259,15 +261,5 @@ impl WebRenderer {
         output.present();
 
         Ok(())
-    }
-
-    /// Get the egui context for input handling
-    pub fn egui_ctx(&self) -> &egui::Context {
-        &self.egui_ctx
-    }
-
-    /// Get mutable reference to egui winit state
-    pub fn egui_winit_mut(&mut self) -> &mut egui_winit::State {
-        &mut self.egui_winit
     }
 }
