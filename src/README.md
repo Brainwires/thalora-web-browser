@@ -205,7 +205,7 @@ graph TD
 ## 🎯 Future Enhancements
 
 ### Planned Features
-- **WebAssembly Support** - Execute WASM modules safely
+- **WebAssembly Support** - Execute WASM modules safely (now natively implemented in Boa engine)
 - **Distributed Scraping** - Multi-node coordination
 - **Real-time Updates** - WebSocket and SSE support
 - **Plugin System** - External modules for specialized scraping

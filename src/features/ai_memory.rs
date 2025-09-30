@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::fs;
+use vfs::fs;
 use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use base64::{Engine as _, engine::general_purpose};
@@ -488,7 +488,7 @@ impl AiMemoryHeap {
             bookmark.last_accessed = Some(Utc::now());
             bookmark.access_count += 1;
             let result = Some(bookmark.clone());
-            let _ = self.save(); // Ignore save errors for access tracking
+            drop(self.save()); // Ignore save errors for access tracking
             result
         } else {
             None

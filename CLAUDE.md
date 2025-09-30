@@ -2,17 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## PRIORITY DIRECTIVES
+
+* WE DON'T DO SIMPLER APPROACHES!
+* We will not be simplifying code
+* We will not be mocking code. If we are missing a huge library, and a crate is not available... Writing the new code becomes the next task (REGARDLESS OF HOW LONG IT COULD TAKE!); so the main project can progress!
+* This statement scares the shit out of me... Every time you say it, something breaks... "Actually, let me try a simpler approach." Let's ALWAYS take the proper approach... Prioritize doing tasks properly rather than quickly. When you have the desire to "simplify", instead use thinking to resolve the problem.
+* Don't ever worry if the work is taking too long!!! Take your time and do it right.
+
 ## Development Commands
 
 ### Build System
 ```bash
-# Build the project (development) - ALWAYS use 15+ minute timeout for wasmtime compilation
+# Build the project (development) - 10 HOUR TIMEOUTS!!!!!!!!!
 cargo build
 
-# Build optimized release - ALWAYS use 15+ minute timeout
+# Build optimized release - 10 HOUR TIMEOUTS!!!!!!!!!
 cargo build --release
 
-# Check code without building - ALWAYS use 15+ minute timeout
+# Check code without building - 10 HOUR TIMEOUTS!!!!!!!!
 cargo check
 
 # Run the MCP server
@@ -21,17 +29,17 @@ cargo check
 cargo run
 ```
 
-**CRITICAL BUILD NOTE**: All cargo build/check/test commands require 15+ minute timeouts due to wasmtime compilation complexity. Build timeouts are normal and expected for this codebase.
+**CRITICAL BUILD NOTE**: Wasmtime compilation is complex and takes time. DO NOT use timeouts on cargo build/check/test commands - let them run to completion naturally.
 
 ### Testing
 ```bash
-# Run all tests - ALWAYS use 15+ minute timeout
+# Run all tests
 cargo test
 
-# Run tests with output - ALWAYS use 15+ minute timeout
+# Run tests with output
 cargo test -- --nocapture
 
-# Run specific test modules - ALWAYS use 15+ minute timeout
+# Run specific test modules
 cargo test --test browser_test
 cargo test --test mcp_test
 cargo test engine
@@ -39,20 +47,20 @@ cargo test apis
 cargo test features
 cargo test protocols
 
-# Run tests with debug output - ALWAYS use 15+ minute timeout
+# Run tests with debug output
 RUST_BACKTRACE=1 cargo test
 
-# Run tests quietly (less output) - ALWAYS use 15+ minute timeout
+# Run tests quietly (less output)
 cargo test --quiet
 ```
 
 ### Debugging and Analysis
 ```bash
-# Test with debug logging - ALWAYS use 15+ minute timeout
+# Test with debug logging
 RUST_LOG=debug cargo test test_name -- --nocapture
 RUST_LOG=debug cargo run
 
-# Generate documentation - ALWAYS use 15+ minute timeout
+# Generate documentation
 cargo doc --open
 ```
 
@@ -139,6 +147,19 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "sc
 3. Export public APIs in `lib.rs` if needed
 4. Create corresponding test in `tests/` directory
 5. Run full test suite to ensure compatibility
+
+### Modifying the Boa JavaScript Engine
+**IMPORTANT**: When adding features to the Boa engine (`engines/boa/`):
+1. **Update Documentation**: Always update `engines/boa/ADDED-FEATURES.md` to document new Web APIs or engine features
+2. **Follow Boa Patterns**: Use Boa's builtin system (`IntrinsicObject`, `BuiltInObject`, `BuiltInConstructor`)
+3. **Real Implementation**: No mocks - implement actual functionality with real networking/system calls
+4. **Standards Compliance**: Follow WHATWG/W3C specifications exactly
+5. **Integration Steps**:
+   - Add new builtin modules to `core/engine/src/builtins/mod.rs`
+   - Register intrinsics in `core/engine/src/context/intrinsics.rs`
+   - Add dependencies to `core/engine/Cargo.toml` if needed
+   - Update string constants in `core/string/src/common.rs` for optimization
+6. **Git Workflow**: Commit changes to Boa submodule with descriptive messages
 
 ### Security Considerations
 - JavaScript execution is sandboxed with 5-second timeouts

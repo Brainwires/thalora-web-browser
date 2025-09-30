@@ -1,65 +1,56 @@
-# Test Structure
+Tests directory organization
+===========================
 
-This directory contains tests organized to match the `src/` directory structure.
+This repository contains a large number of tests under the `tests/` directory. This README explains recommended conventions, how to find duplicate files, and next steps for reorganization.
 
-## Directory Organization
+Goals
+-----
+- Make tests easy to find by feature and category
+- Avoid near-duplicate or exact-duplicate files
+- Provide clear naming conventions so new tests end up in the right place
 
-```
-tests/
-├── engine/                  # Tests for src/engine/
-│   ├── browser_test.rs     # Tests src/engine/browser.rs
-│   ├── browser_scraping_test.rs # Tests browser scraping functionality
-│   ├── renderer_test.rs    # Tests src/engine/renderer.rs
-│   ├── dom_test.rs        # Tests src/engine/dom.rs
-│   ├── engine_js_test.rs  # Tests src/engine/engine.rs (JavaScript engine)
-│   ├── engine_js_simple_test.rs    # Simple JS engine tests
-│   └── engine_js_advanced_test.rs  # Advanced JS engine tests
-│
-├── apis/                   # Tests for src/apis/
-│   ├── websocket_test.rs   # Tests src/apis/websocket.rs
-│   ├── storage_test.rs     # Tests src/apis/storage.rs
-│   ├── events_test.rs      # Tests src/apis/events.rs
-│   └── polyfills/          # Tests for src/apis/polyfills/
-│       └── console_test.rs # Tests src/apis/polyfills/console.rs
-│
-├── features/               # Tests for src/features/
-│   ├── ai_memory_test.rs   # Tests src/features/ai_memory.rs
-│   ├── react_processor_test.rs # Tests src/features/react_processor.rs
-│   └── fingerprinting_test.rs  # Tests src/features/fingerprinting.rs
-│
-└── protocols/              # Tests for src/protocols/
-    ├── mcp_test.rs        # Tests src/protocols/mcp.rs
-    └── cdp_test.rs        # Tests src/protocols/cdp.rs
-```
+High-level recommended layout
+-----------------------------
+- `tests/apis/` - tests that target specific web platform APIs (fetch, geolocation, service worker, etc.)
+- `tests/features/` - higher-level feature tests and transformations (transpilation, engine behaviors)
+- `tests/compatibility/` - cross-engine or browser compatibility suites
+- `tests/integration/` - full-app or end-to-end style tests relying on multiple subsystems
+- `tests/engine/` - engine-specific behavior and performance tests
+- `tests/utils/` - test helpers and shared utilities
 
-## Test Naming Convention
+Naming conventions
+------------------
+- Use snake_case and end filenames with `_test.rs` when they contain Rust test harness code.
+- For grouped tests in subfolders, use a clear prefix (e.g. `geolocation/` contains geolocation-specific tests).
 
-- **File naming**: `{module}_test.rs` - matches the source file being tested
-- **Test module naming**: `{module}_tests` - consistent module names
-- **Test function naming**: `test_{functionality}` - descriptive test names
+Deduplication workflow
+----------------------
+1. Use the included script `scripts/dedupe_tests.py` to scan for duplicate files.
+   - Dry-run: `python3 scripts/dedupe_tests.py --root tests --output scripts/dedupe_report.json`
+   - Normalize whitespace variant: `python3 scripts/dedupe_tests.py --root tests --output scripts/dedupe_report.json --normalize`
+2. Inspect `scripts/dedupe_report.json` to see groups of duplicate files.
+3. For exact duplicates decide on a canonical location to keep one copy. You can either:
+   - Replace duplicates with a relative symlink to the canonical copy using `--apply` (fast), or
+   - Move duplicates into an `archive/` dir while creating a symlink pointing to the kept copy: `--apply --archive archived_tests`
 
-## Running Tests
+Recommendations for non-exact duplicates
+--------------------------------------
+- If tests are nearly identical but differ in small details, prefer merging them into a single parametrized test, or add small helper functions in `tests/utils/`.
+- If tests have different names but same content because of copying for historical reasons, prefer keeping one and removing copies.
 
-```bash
-# Run all tests
-cargo test
+Edge cases and safety
+---------------------
+- The script does not modify files by default. Use `--apply` to make changes.
+- When applying, backups are created with a `.bak` suffix or moved to the `archive` folder.
+- Symlinks are relative, preserving repository portability.
 
-# Run tests for specific module
-cargo test --test engine_tests
-cargo test --test browser_test
+Next steps for maintainers
+-------------------------
+1. Run the dedupe script and review the generated JSON report.
+2. Decide canonical locations for duplicate groups.
+3. Run `--apply` during a branch so changes can be reviewed in a PR.
+4. Optionally add CI checks to prevent duplicate test content (hash-based check) if desired.
 
-# Run tests in specific directory
-cargo test tests/engine
-cargo test tests/apis
-cargo test tests/features
-cargo test tests/protocols
-```
-
-## Test Coverage
-
-Each test file corresponds to a source file in `src/` and tests the key functionality of that module. Tests are organized by the architectural layers:
-
-1. **Engine Tests**: Core browser functionality
-2. **APIs Tests**: Web standards and JavaScript APIs
-3. **Features Tests**: Advanced browser capabilities
-4. **Protocols Tests**: Communication protocols (MCP, CDP)
+Contact
+-------
+If you want help applying the dedupe changes or designing a concrete reorganization plan, open an issue or ask here and include the generated report.

@@ -3,7 +3,7 @@ use boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, Nat
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use vfs::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -563,12 +563,12 @@ impl ServiceWorkerManager {
         let push_subscriptions_clone = Arc::clone(&self.push_subscriptions);
         let subscribe_fn = unsafe {
             NativeFunction::from_closure(move |_, _args, context| {
-                // Create a mock push subscription
+                // MOCK: Creates fake push subscription with hardcoded FCM endpoint
                 let subscription_obj = JsObject::default();
                 subscription_obj.set(
                     js_string!("endpoint"),
                     JsValue::from(js_string!(
-                        "https://fcm.googleapis.com/fcm/send/mock-endpoint"
+                        "https://fcm.googleapis.com/fcm/send/mock-endpoint" // MOCK endpoint
                     )),
                     false,
                     context,
@@ -577,13 +577,13 @@ impl ServiceWorkerManager {
                 let keys_obj = JsObject::default();
                 keys_obj.set(
                     js_string!("p256dh"),
-                    JsValue::from(js_string!("mock-p256dh-key")),
+                    JsValue::from(js_string!("mock-p256dh-key")), // MOCK key
                     false,
                     context,
                 )?;
                 keys_obj.set(
                     js_string!("auth"),
-                    JsValue::from(js_string!("mock-auth-key")),
+                    JsValue::from(js_string!("mock-auth-key")), // MOCK auth key
                     false,
                     context,
                 )?;
@@ -598,10 +598,10 @@ impl ServiceWorkerManager {
                 {
                     let mut subscriptions = push_subscriptions_clone.lock().unwrap();
                     subscriptions.push(PushSubscription {
-                        endpoint: "https://fcm.googleapis.com/fcm/send/mock-endpoint".to_string(),
+                        endpoint: "https://fcm.googleapis.com/fcm/send/mock-endpoint".to_string(), // MOCK
                         keys: PushKeys {
-                            p256dh: "mock-p256dh-key".to_string(),
-                            auth: "mock-auth-key".to_string(),
+                            p256dh: "mock-p256dh-key".to_string(), // MOCK
+                            auth: "mock-auth-key".to_string(), // MOCK
                         },
                         created_at: SystemTime::now()
                             .duration_since(UNIX_EPOCH)

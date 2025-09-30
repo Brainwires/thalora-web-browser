@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
-use boa_engine::{Context, JsValue, Source, js_string};
+use boa_engine::{Context, JsValue, Source, js_string, module::IdleModuleLoader};
+use std::rc::Rc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -7,6 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;
 
+#[allow(dead_code)]
 pub struct JavaScriptEngine {
     context: Context,
     timers: Arc<Mutex<HashMap<u32, TimerHandle>>>,
@@ -16,6 +18,7 @@ pub struct JavaScriptEngine {
     syntax_transformer: SyntaxTransformer,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct TimerHandle {
     id: u32,
@@ -26,7 +29,10 @@ struct TimerHandle {
 
 impl JavaScriptEngine {
     pub fn new() -> Result<Self> {
-        let mut context = Context::default();
+        let mut context = Context::builder()
+            .module_loader(Rc::new(IdleModuleLoader))
+            .build()
+            .map_err(|e| anyhow!("failed to build JS context: {}", e))?;
         let timers = Arc::new(Mutex::new(HashMap::new()));
         let next_timer_id = Arc::new(Mutex::new(1));
 
@@ -85,5 +91,14 @@ impl JavaScriptEngine {
     /// Get engine version information
     pub fn version_info(&self) -> String {
         "Enhanced JavaScript Engine v3.0 (ES2025+ Compatible)".to_string()
+    }
+
+    /// Run pending microtasks / jobs on the engine's JS context. Useful in tests to
+    /// flush promise resolution and async module loading.
+    pub fn run_jobs(&mut self) -> Result<()> {
+        self.context
+            .run_jobs()
+            .map_err(|e| anyhow!("JS job executor error: {}", e))?;
+        Ok(())
     }
 }

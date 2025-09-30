@@ -1,3 +1,11 @@
+#![allow(dead_code)]
+#![allow(missing_docs)]
+#![allow(unused)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
+#![allow(unused_must_use)]
+#![allow(let_underscore_drop)]
 // Core browser engine
 pub mod engine;
 
@@ -10,14 +18,18 @@ pub mod features;
 // Communication protocols
 pub mod protocols;
 
+// Debug utilities
+pub mod debug_utils;
+
 // Re-export main components for clean public API
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};
-pub use engine::{DomElement, EnhancedDom, EventListener, DomMutation};
+pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
+// EventListener is now natively implemented in Boa engine
 
-pub use apis::websocket::{WebSocketManager, WebSocketConnection, WebSocketMessage, WebSocketJsApi};
-pub use apis::storage::WebStorage;
-pub use apis::events::DomEvent;
+// websocket API is now natively implemented in Boa engine
+// WebStorage is now natively implemented in Boa engine
+// events API is now natively implemented in Boa engine
 
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};

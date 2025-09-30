@@ -1,0 +1,6 @@
+[submodule "engines/boa"]
+	path = engines/boa
+	url = https://github.com/boa-dev/boa.git
+[submodule "engines/v8/v8-source"]
+	path = engines/v8/v8-source
+	url = https://github.com/nightness/v8.git

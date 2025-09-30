@@ -1,0 +1,44 @@
+[package]
+name = "thalora-v8-engine"
+version = "0.1.0"
+edition = "2021"
+description = "V8 JavaScript engine integration for Thalora - builds from nightness/v8 fork source"
+authors = ["Brainwires Team"]
+license = "MIT"
+
+# V8 engine is ALWAYS built from source using the nightness/v8 fork
+# This ensures we get the latest features and customizations from the fork
+# The build script automatically sets V8_FROM_SOURCE=1
+
+[dependencies]
+# V8 JavaScript engine - builds from source via git submodule
+v8 = { version = "130.0", default-features = false }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Async utilities
+tokio = { version = "1", features = ["sync", "time"] }
+futures = "0.3"
+
+# JSON serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# Concurrency
+parking_lot = "0.12"
+
+# Collections
+indexmap = "2.0"
+
+[build-dependencies]
+# Build script utilities for checking V8 build requirements
+which = "6.0"
+
+[lib]
+name = "thalora_v8_engine"
+path = "src/lib.rs"

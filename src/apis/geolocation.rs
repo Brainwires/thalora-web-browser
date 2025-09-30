@@ -5,17 +5,20 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Real Geolocation API implementation with actual location detection
+#[allow(dead_code)]
 pub struct GeolocationManager {
     watch_positions: Arc<Mutex<HashMap<u32, GeolocationWatch>>>,
     next_watch_id: Arc<Mutex<u32>>,
 }
 
+#[allow(dead_code)]
 struct GeolocationWatch {
     callback: String, // In real impl, would store JS function reference
     options: GeolocationOptions,
     active: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 struct GeolocationOptions {
     enable_high_accuracy: bool,
@@ -35,7 +38,7 @@ impl GeolocationManager {
     pub fn setup_geolocation_api(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
         // Create navigator object if it doesn't exist
         let navigator = if let Ok(nav) = context.global_object().get(js_string!("navigator"), context) {
-            nav.as_object().cloned().unwrap_or_else(|| JsObject::default())
+            nav.as_object().map(|obj| obj.clone()).unwrap_or_else(|| JsObject::default())
         } else {
             let nav = JsObject::default();
             context.register_global_property(js_string!("navigator"), JsValue::from(nav.clone()), Attribute::all())?;

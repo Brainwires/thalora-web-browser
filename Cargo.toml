@@ -17,7 +17,7 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart"], default-features = false }
 
 # HTML parsing
 scraper = "0.24"
@@ -28,11 +28,23 @@ kuchikiki = "0.8"
 lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
 
-# JavaScript engine (pure Rust)
-boa_engine = "0.20"
+# JavaScript engine (pure Rust) - using local submodule for customization
+boa_engine = { path = "engines/boa/core/engine" }
 
-# WebAssembly runtime
-wasmtime = "21.0"
+# V8 engine integration 
+thalora-v8-engine = { path = "engines/v8" }
+
+# Async trait support for engine abstraction
+async-trait = "0.1"
+
+# WebAssembly runtime - Full V8-compatible stack
+wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"] }
+wasmtime-wasi = "21.0"
+wasmtime-wast = "21.0"
+wasm-bindgen = "0.2"
+wat = "1.0"
+wasmparser = "0.121"
+wasm-encoder = "0.38"
 
 # Geolocation services
 sysinfo = "0.31"
@@ -66,20 +78,23 @@ url = "2.5"
 # Random number generation for human-like behavior
 rand = "0.8"
 
+# Concurrency-friendly mutexes and synchronization primitives
+parking_lot = "0.12"
+
+# URL decoding helper used by scraping utilities
+urlencoding = "2.1"
+
 # Async utilities
 futures = "0.3"
 
 # STDIO handling
 tokio-util = { version = "0.7", features = ["codec"] }
 
+# Command line argument parsing
+clap = { version = "4.0", features = ["derive"] }
+
 # Regex for JavaScript processing
 regex = "1.10"
-
-# Enhanced JavaScript and parsing support - using compatible versions
-swc_core = { version = "0.96", features = ["__ecma", "__parser", "ecma_ast"] }
-swc_common = "0.34" 
-swc_ecma_parser = "0.142"
-swc_ecma_ast = "0.112"
 
 # HTML escaping
 html-escape = "0.2"
@@ -100,12 +115,29 @@ base64 = "0.22"
 # CDP (Chrome DevTools Protocol) support
 chrono = { version = "0.4", features = ["serde"] }
 
+# GUI dependencies (optional - enable with "gui" feature)
+winit = { version = "0.29", optional = true }
+wgpu = { version = "0.20", optional = true }
+egui = { version = "0.28", optional = true }
+egui-winit = { version = "0.28", optional = true }
+egui-wgpu = { version = "0.28", optional = true }
+pollster = { version = "0.3", optional = true }
+env_logger = { version = "0.11", optional = true }
+log = { version = "0.4", optional = true }
+
 # AI Memory Heap for persistent storage
 dirs = "5.0"
+vfs = { path = "vfs", default-features = false }
 
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
+
+[features]
+default = []
+# GUI mode with winit and wgpu for graphical browser interface
+gui = ["winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
+# V8 engine is now always compiled - no feature flag needed
 
 [dev-dependencies]
 tokio-test = "0.4"

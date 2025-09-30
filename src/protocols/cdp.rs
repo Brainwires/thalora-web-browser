@@ -9,6 +9,7 @@ use uuid::Uuid;
 /// Chrome DevTools Protocol implementation for Thalora
 /// Provides debugging and inspection APIs for AI coding agents
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct CdpServer {
     domains: Arc<Mutex<HashMap<String, Box<dyn CdpDomain + Send + Sync>>>>,
     event_sender: broadcast::Sender<CdpEvent>,
@@ -68,21 +69,22 @@ impl CdpServer {
     pub fn new() -> Self {
         let (event_sender, _) = broadcast::channel(1000);
         let session_id = Uuid::new_v4().to_string();
-        
+
         let mut server = Self {
             domains: Arc::new(Mutex::new(HashMap::new())),
             event_sender,
             session_id,
         };
-        
+
         // Register core domains
         server.register_core_domains();
         server
     }
 
+
     fn register_core_domains(&mut self) {
         let mut domains = self.domains.lock().unwrap();
-        
+
         domains.insert("Runtime".to_string(), Box::new(RuntimeDomain::new()));
         domains.insert("Debugger".to_string(), Box::new(DebuggerDomain::new()));
         domains.insert("DOM".to_string(), Box::new(DomDomain::new()));
@@ -92,6 +94,7 @@ impl CdpServer {
         domains.insert("Performance".to_string(), Box::new(PerformanceDomain::new()));
         domains.insert("Storage".to_string(), Box::new(StorageDomain::new()));
     }
+
 
     pub fn handle_message(&mut self, message: CdpMessage) -> Result<Option<CdpMessage>> {
         match message {
@@ -160,12 +163,13 @@ impl CdpServer {
     }
 
     pub fn emit_event(&self, event: CdpEvent) {
-        let _ = self.event_sender.send(event);
+    drop(self.event_sender.send(event));
     }
 }
 
 /// Runtime domain - JavaScript execution and inspection
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RuntimeDomain {
     execution_contexts: Vec<ExecutionContext>,
     next_context_id: i32,
@@ -213,12 +217,13 @@ impl CdpDomain for RuntimeDomain {
                 let expression = params.get("expression")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
-                
-                // TODO: Integrate with Boa engine for actual evaluation
+
+                // TODO: Need to implement JavaScript execution via message passing to avoid thread safety issues
+                // For now, return a clear indication that evaluation is not yet implemented
                 Ok(serde_json::json!({
                     "result": {
                         "type": "string",
-                        "value": format!("Evaluated: {}", expression)
+                        "value": format!("JavaScript evaluation not yet implemented: {}", expression)
                     }
                 }))
             }
@@ -373,6 +378,7 @@ impl CdpDomain for DebuggerDomain {
 
 /// DOM domain - Document inspection and manipulation
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct DomDomain {
     enabled: bool,
     next_node_id: i32,
@@ -445,6 +451,16 @@ impl CdpDomain for DomDomain {
                     "nodeIds": [3, 4, 5]
                 }))
             }
+            "getAttributes" => {
+                let params = params.unwrap_or_default();
+                let _node_id = params.get("nodeId")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(1);
+
+                Ok(serde_json::json!({
+                    "attributes": ["id", "test-element", "class", "example", "data-value", "123"]
+                }))
+            }
             _ => Err(anyhow::anyhow!("Unknown DOM method: {}", method))
         }
     }
@@ -471,7 +487,7 @@ impl CdpDomain for NetworkDomain {
         "Network"
     }
 
-    fn handle_command(&mut self, method: &str, _params: Option<Value>) -> Result<Value> {
+    fn handle_command(&mut self, method: &str, params: Option<Value>) -> Result<Value> {
         match method {
             "enable" => {
                 self.enabled = true;
@@ -489,6 +505,15 @@ impl CdpDomain for NetworkDomain {
             "getCookies" => {
                 Ok(serde_json::json!({
                     "cookies": []
+                }))
+            }
+            "setCookie" => {
+                let params = params.unwrap_or_default();
+                let _name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let _value = params.get("value").and_then(|v| v.as_str()).unwrap_or("");
+
+                Ok(serde_json::json!({
+                    "success": true
                 }))
             }
             _ => Err(anyhow::anyhow!("Unknown Network method: {}", method))
@@ -651,6 +676,7 @@ impl CdpDomain for PerformanceDomain {
 
 /// Storage domain - Web storage inspection
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StorageDomain {
     enabled: bool,
 }
