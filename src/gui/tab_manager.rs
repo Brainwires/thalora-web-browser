@@ -24,8 +24,8 @@ pub struct Tab {
 
 impl Tab {
     /// Create a new tab
-    fn new(id: TabId, initial_url: String, _engine_config: EngineConfig) -> Result<Self> {
-        let browser = HeadlessWebBrowser::new();
+    fn new(id: TabId, initial_url: String, engine_config: EngineConfig) -> Result<Self> {
+        let browser = HeadlessWebBrowser::new_with_engine(engine_config.engine_type);
         
         Ok(Self {
             id,
@@ -107,6 +107,28 @@ impl Tab {
     pub async fn get_content(&self) -> Result<String> {
         let browser = self.browser.lock().unwrap();
         Ok(browser.get_current_content())
+    }
+
+    /// Get rendered DOM structure by querying document.body.innerHTML
+    pub async fn get_rendered_dom(&self) -> Result<String> {
+        let browser = self.browser.lock().unwrap();
+
+        // For V8 engine or if JavaScript execution fails, use raw HTML content
+        // TODO: Implement V8 DOM support
+        let content = browser.get_current_content();
+
+        // If we have content, return it; otherwise try JavaScript execution for Boa
+        if !content.is_empty() && content != "about:blank" {
+            Ok(content)
+        } else {
+            // Try JavaScript execution (will work with Boa if DOM is loaded)
+            drop(browser); // Release lock before async operation
+            let mut browser = self.browser.lock().unwrap();
+            match browser.execute_javascript("document.body ? document.body.innerHTML : document.documentElement.innerHTML").await {
+                Ok(result) if !result.is_empty() => Ok(result),
+                _ => Ok(content), // Fallback to raw HTML
+            }
+        }
     }
 
     /// Reload the current page

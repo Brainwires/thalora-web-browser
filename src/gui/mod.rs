@@ -133,6 +133,16 @@ impl GraphicalBrowser {
                     }
                 }
                 Event::AboutToWait => {
+                    // Check for pending navigation from UI
+                    if let Some(url) = browser_ui.take_pending_navigation() {
+                        if let Some(active_id) = tab_manager.get_active_tab_id() {
+                            tracing::info!("Processing pending navigation to: {}", url);
+                            if let Err(e) = pollster::block_on(tab_manager.navigate_tab(active_id, &url)) {
+                                tracing::error!("Navigation failed: {}", e);
+                            }
+                        }
+                    }
+
                     // Update browser UI state
                     if let Some(active_tab) = tab_manager.get_active_tab() {
                         browser_ui.update_from_tab(active_tab);
@@ -142,7 +152,7 @@ impl GraphicalBrowser {
                     if let Err(e) = renderer.render(&mut browser_ui, &tab_manager) {
                         tracing::error!("Render error: {}", e);
                     }
-                    
+
                     // Request redraw
                     window.request_redraw();
                 }

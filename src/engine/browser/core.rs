@@ -24,6 +24,10 @@ pub struct HeadlessWebBrowser {
 
 impl HeadlessWebBrowser {
     pub fn new() -> Arc<Mutex<Self>> {
+        Self::new_with_engine(crate::engine::engine_trait::EngineType::Boa)
+    }
+
+    pub fn new_with_engine(engine_type: crate::engine::engine_trait::EngineType) -> Arc<Mutex<Self>> {
         // Configure client with enhanced stealth capabilities
         let client = reqwest::Client::builder()
             .cookie_store(true)
@@ -39,7 +43,7 @@ impl HeadlessWebBrowser {
             .build()
             .expect("Failed to create HTTP client");
 
-    let renderer = RustRenderer::new();
+    let renderer = RustRenderer::new_with_engine(engine_type);
 
         let auth_context = AuthContext {
             cookies: HashMap::new(),

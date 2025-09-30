@@ -32,18 +32,23 @@ impl RustRenderer {
         // Execute JavaScript directly without wrapper for form interactions
         let source = Source::from_bytes(js_code);
         eprintln!("🔍 DEBUG: About to eval direct JavaScript: {}", if js_code.len() > 200 { &js_code[..200] } else { js_code });
-        match self.js_context.eval(source) {
-            Ok(value) => {
-                eprintln!("🔍 DEBUG: Direct JavaScript eval succeeded, value type: {:?}", value.get_type());
-                // Convert JS value to string - this should preserve JSON strings
-                let result = self.js_value_to_string(value);
-                eprintln!("🔍 DEBUG: Direct conversion to string: {}", result);
-                Ok(result)
-            },
-            Err(e) => {
-                eprintln!("🔍 DEBUG: Direct JavaScript execution error: {:?}", e);
-                Err(anyhow!("JavaScript execution failed: {}", e))
+
+        if let Some(ctx) = &mut self.js_context {
+            match ctx.eval(source) {
+                Ok(value) => {
+                    eprintln!("🔍 DEBUG: Direct JavaScript eval succeeded, value type: {:?}", value.get_type());
+                    // Convert JS value to string - this should preserve JSON strings
+                    let result = self.js_value_to_string(value);
+                    eprintln!("🔍 DEBUG: Direct conversion to string: {}", result);
+                    Ok(result)
+                },
+                Err(e) => {
+                    eprintln!("🔍 DEBUG: Direct JavaScript execution error: {:?}", e);
+                    Err(anyhow!("JavaScript execution failed: {}", e))
+                }
             }
+        } else {
+            Err(anyhow!("JavaScript context not available"))
         }
     }
 
@@ -58,9 +63,13 @@ impl RustRenderer {
 
         // Execute JavaScript without wrapper for testing
         let source = Source::from_bytes(js_code);
-        match self.js_context.eval(source) {
-            Ok(value) => Ok(value),
-            Err(e) => Err(anyhow!("JavaScript execution failed: {}", e))
+        if let Some(ctx) = &mut self.js_context {
+            match ctx.eval(source) {
+                Ok(value) => Ok(value),
+                Err(e) => Err(anyhow!("JavaScript execution failed: {}", e))
+            }
+        } else {
+            Err(anyhow!("JavaScript context not available"))
         }
     }
 
@@ -132,19 +141,24 @@ impl RustRenderer {
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);
         eprintln!("🔍 DEBUG: About to eval JavaScript: {}", if safe_wrapper.len() > 200 { &safe_wrapper[..200] } else { &safe_wrapper });
-        match self.js_context.eval(source) {
-            Ok(value) => {
-                eprintln!("🔍 DEBUG: JavaScript eval succeeded, value type: {:?}", value.get_type());
-                // Convert JS value to string
-                let result = self.js_value_to_string(value);
-                eprintln!("🔍 DEBUG: Converted to string: {}", result);
-                Ok(result)
-            },
-            Err(e) => {
-                // For Google's JavaScript, we'll be more forgiving of errors
-                eprintln!("🔍 DEBUG: JavaScript execution had recoverable error: {:?}", e);
-                Ok("undefined".to_string()) // Return success with undefined result
+
+        if let Some(ctx) = &mut self.js_context {
+            match ctx.eval(source) {
+                Ok(value) => {
+                    eprintln!("🔍 DEBUG: JavaScript eval succeeded, value type: {:?}", value.get_type());
+                    // Convert JS value to string
+                    let result = self.js_value_to_string(value);
+                    eprintln!("🔍 DEBUG: Converted to string: {}", result);
+                    Ok(result)
+                },
+                Err(e) => {
+                    // For Google's JavaScript, we'll be more forgiving of errors
+                    eprintln!("🔍 DEBUG: JavaScript execution had recoverable error: {:?}", e);
+                    Ok("undefined".to_string()) // Return success with undefined result
+                }
             }
+        } else {
+            Ok("undefined".to_string())
         }
     }
 }
