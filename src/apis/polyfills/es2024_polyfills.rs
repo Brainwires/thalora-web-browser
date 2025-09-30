@@ -1,19 +1,9 @@
 use boa_engine::{Context, JsResult, Source};
 
-/// Setup ES2024 polyfills (Temporal API, RegExp v flag, Promise.withResolvers, etc.)
+/// Setup ES2024 polyfills (Temporal API, RegExp v flag, etc.)
 pub fn setup_es2024_polyfills(context: &mut Context) -> JsResult<()> {
     context.eval(Source::from_bytes(r#"
-        // Promise.withResolvers (ES2024)
-        if (!Promise.withResolvers) {
-            Promise.withResolvers = function() {
-                var resolve, reject;
-                var promise = new Promise(function(res, rej) {
-                    resolve = res;
-                    reject = rej;
-                });
-                return { promise: promise, resolve: resolve, reject: reject };
-            };
-        }
+        // Promise.withResolvers (ES2024) - natively implemented in Boa engine
 
         // Object.groupBy (ES2024)
         if (!Object.groupBy) {

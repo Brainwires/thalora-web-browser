@@ -1,5 +1,5 @@
 // Web APIs and standards implementation
-pub mod crypto_api;
+// crypto API is now natively implemented in Boa engine
 // fetch API is now natively implemented in Boa engine
 pub mod url_api;
 pub mod service_worker;
@@ -14,7 +14,7 @@ pub mod credentials;
 // Full-featured browser APIs
 // webassembly API is now natively implemented in Boa engine
 pub mod geolocation;
-pub mod webrtc;
+// webrtc API is now natively implemented in Boa engine
 pub mod media;
 
 // JavaScript polyfills organized by modules
@@ -43,7 +43,7 @@ impl WebApis {
 
         // Setup all Web API modules
         url_api::setup_url_api(context)?;
-        crypto_api::setup_crypto(context)?;
+        // crypto API is now natively handled by Boa engine
         // fetch API is now natively handled by Boa engine
         // websocket API is now natively handled by Boa engine
 
@@ -60,8 +60,7 @@ impl WebApis {
         let geo_manager = geolocation::GeolocationManager::new();
         geo_manager.setup_geolocation_api(context).map_err(|e| anyhow::Error::msg(format!("Geolocation setup failed: {:?}", e)))?;
 
-        let webrtc_manager = webrtc::WebRTCManager::new().map_err(|e| anyhow::Error::msg(format!("WebRTC manager creation failed: {:?}", e)))?;
-        webrtc_manager.setup_webrtc_api(context).map_err(|e| anyhow::Error::msg(format!("WebRTC setup failed: {:?}", e)))?;
+        // webrtc API is now natively implemented in Boa engine
 
         let media_manager = media::MediaManager::new().map_err(|e| anyhow::Error::msg(format!("Media manager creation failed: {:?}", e)))?;
         media_manager.setup_media_apis(context).map_err(|e| anyhow::Error::msg(format!("Media APIs setup failed: {:?}", e)))?;

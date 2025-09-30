@@ -12,7 +12,6 @@ impl V8Polyfills {
     /// Setup all polyfills
     pub fn setup_all(scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
         Self::setup_timers(scope)?;
-        Self::setup_promises(scope)?;
         Self::setup_console_enhancements(scope)?;
         Self::setup_url_api(scope)?;
         Self::setup_text_encoder(scope)?;
@@ -44,11 +43,6 @@ impl V8Polyfills {
         Ok(())
     }
 
-    /// Setup Promise polyfills
-    fn setup_promises(_scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {
-        tracing::debug!("[V8 Polyfills] Promise support verified");
-        Ok(())
-    }
 
     /// Setup additional console methods
     fn setup_console_enhancements(_scope: &mut v8::ContextScope<HandleScope>) -> Result<()> {

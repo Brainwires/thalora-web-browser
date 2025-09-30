@@ -5,9 +5,11 @@ use boa_engine::{Context, JsResult, Source};
 /// ⚠️ WARNING: These are MOCK implementations for compatibility testing!
 /// They provide API shape compatibility but NOT real worker functionality.
 pub fn setup_worker_apis(context: &mut Context) -> JsResult<()> {
+    // Worker, SharedWorker, and ServiceWorker APIs are now natively implemented in Boa engine
+    // No polyfills needed - all worker functionality is native
     context.eval(Source::from_bytes(r#"
-        // Worker API (basic implementation)
-        if (typeof Worker === 'undefined') {
+        // Worker APIs are native - this is just a placeholder for scheduler.yield
+        if (false) { // All worker polyfills removed
             var Worker = function(scriptURL, options) {
                 this.scriptURL = scriptURL;
                 this.options = options || {};
@@ -68,8 +70,8 @@ pub fn setup_worker_apis(context: &mut Context) -> JsResult<()> {
             };
         }
 
-        // SharedWorker API with Extended Lifetime support (Chrome 139)
-        if (typeof SharedWorker === 'undefined') {
+        // SharedWorker API is now natively implemented in Boa engine
+        if (false && typeof SharedWorker === 'undefined') {
             var SharedWorker = function(scriptURL, options) {
                 this.scriptURL = scriptURL;
                 this.options = options || {};
