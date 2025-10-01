@@ -108,19 +108,19 @@ impl IntrinsicObject for File {
                 js_string!("name"),
                 Some(get_name),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("lastModified"),
                 Some(get_last_modified),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("webkitRelativePath"),
                 Some(get_webkit_relative_path),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
 
             // Inherited Blob properties
@@ -128,13 +128,13 @@ impl IntrinsicObject for File {
                 js_string!("size"),
                 Some(get_size),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("type"),
                 Some(get_type),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .build();
     }
@@ -281,12 +281,12 @@ impl File {
             } else {
                 let start_int = start_val.to_integer_or_infinity(context)?;
                 match start_int {
-                    crate::value::IntegerOrInfinity::Integer(i) if i < 0 => {
+                    boa_engine::value::IntegerOrInfinity::Integer(i) if i < 0 => {
                         (data_len as i64 + i).max(0) as usize
                     }
-                    crate::value::IntegerOrInfinity::Integer(i) => (i as usize).min(data_len),
-                    crate::value::IntegerOrInfinity::NegativeInfinity => 0,
-                    crate::value::IntegerOrInfinity::PositiveInfinity => data_len,
+                    boa_engine::value::IntegerOrInfinity::Integer(i) => (i as usize).min(data_len),
+                    boa_engine::value::IntegerOrInfinity::NegativeInfinity => 0,
+                    boa_engine::value::IntegerOrInfinity::PositiveInfinity => data_len,
                 }
             }
         } else {
@@ -300,12 +300,12 @@ impl File {
             } else {
                 let end_int = end_val.to_integer_or_infinity(context)?;
                 match end_int {
-                    crate::value::IntegerOrInfinity::Integer(i) if i < 0 => {
+                    boa_engine::value::IntegerOrInfinity::Integer(i) if i < 0 => {
                         (data_len as i64 + i).max(0) as usize
                     }
-                    crate::value::IntegerOrInfinity::Integer(i) => (i as usize).min(data_len),
-                    crate::value::IntegerOrInfinity::NegativeInfinity => 0,
-                    crate::value::IntegerOrInfinity::PositiveInfinity => data_len,
+                    boa_engine::value::IntegerOrInfinity::Integer(i) => (i as usize).min(data_len),
+                    boa_engine::value::IntegerOrInfinity::NegativeInfinity => 0,
+                    boa_engine::value::IntegerOrInfinity::PositiveInfinity => data_len,
                 }
             }
         } else {

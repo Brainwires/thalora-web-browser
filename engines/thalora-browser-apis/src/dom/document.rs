@@ -160,7 +160,7 @@ impl DocumentData {
         // Set up DOM sync bridge - connect Element changes to Document updates
         use crate::dom::element::GLOBAL_DOM_SYNC;
         let html_content_ref = doc_data.html_content.clone();
-        GLOBAL_DOM_SYNC.get_or_init(|| crate::builtins::element::DomSync::new())
+        GLOBAL_DOM_SYNC.get_or_init(|| boa_engine::builtins::element::DomSync::new())
             .set_updater(Box::new(move |html| {
                 *html_content_ref.lock().unwrap() = html.to_string();
             }));
@@ -432,7 +432,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
         // Create a proper Element object using Element constructor pattern
         let element_constructor = context.intrinsics().constructors().element().constructor();
-        let element = crate::builtins::element::Element::constructor(
+        let element = boa_engine::builtins::element::Element::constructor(
             &element_constructor.clone().into(),
             &[],
             context,
@@ -454,7 +454,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         )?;
 
         // Set the tag name in the element data
-        if let Some(element_data) = element_obj.downcast_ref::<crate::builtins::element::ElementData>() {
+        if let Some(element_data) = element_obj.downcast_ref::<boa_engine::builtins::element::ElementData>() {
             element_data.set_tag_name(tag_name_upper.clone());
         }
 

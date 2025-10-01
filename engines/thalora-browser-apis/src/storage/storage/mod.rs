@@ -22,8 +22,8 @@ use boa_engine::{
     realm::Realm,
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
-use crate::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
-use crate::context::intrinsics::StandardConstructor;
+use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use boa_engine::context::intrinsics::StandardConstructor;
 
 /// Serializable storage data for persistence
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,7 +239,7 @@ impl BuiltInConstructor for Storage {
     const P: usize = 0;
     const SP: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &StandardConstructor =
+    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| constructors.storage();
 
     fn constructor(

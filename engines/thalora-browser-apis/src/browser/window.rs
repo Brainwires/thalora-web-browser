@@ -724,7 +724,7 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             )?;
 
             // Add Web Locks API (navigator.locks)
-            let lock_manager = crate::builtins::web_locks::LockManagerObject::create_lock_manager();
+            let lock_manager = boa_engine::builtins::web_locks::LockManagerObject::create_lock_manager();
             let lock_manager_prototype = context.intrinsics().constructors().lock_manager().prototype();
             lock_manager.set_prototype(Some(lock_manager_prototype));
 

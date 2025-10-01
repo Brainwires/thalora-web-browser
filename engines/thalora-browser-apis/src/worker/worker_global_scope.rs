@@ -252,7 +252,7 @@ impl WorkerGlobalScope {
                 event_obj.set(js_string!("cancelable"), false, false, context)?;
 
                 // Add ports array with the connecting port
-                let ports_array = crate::builtins::Array::array_create(1, None, context)?;
+                let ports_array = boa_engine::builtins::Array::array_create(1, None, context)?;
                 ports_array.set(0, port_arg.clone(), true, context)?;
                 event_obj.set(js_string!("ports"), ports_array, false, context)?;
 
@@ -508,7 +508,7 @@ impl WorkerGlobalScope {
         };
 
         // Create proper MessageEvent using the built-in constructor
-        let message_event = super::message_event::create_message_event(
+        let message_event = boa_engine::builtins::message_event::create_message_event(
             deserialized_data,
             origin,
             None, // source: we could pass the worker object reference here

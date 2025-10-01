@@ -324,8 +324,8 @@ pub(crate) fn create_performance_object(context: &mut Context) -> JsResult<JsVal
 }
 
 impl Performance {
-    const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &crate::context::intrinsics::StandardConstructor =
-        crate::context::intrinsics::StandardConstructors::performance;
+    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
+        boa_engine::context::intrinsics::StandardConstructors::performance;
 
     /// `performance.now()` - Returns current high-resolution time
     fn now(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
@@ -653,7 +653,7 @@ impl Performance {
         // Using direct property descriptor set to avoid context requirement
         obj.insert_property(
             js_string!("navigationStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.navigation_start)
                 .writable(false)
                 .enumerable(true)
@@ -663,7 +663,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("unloadEventStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.unload_event_start)
                 .writable(false)
                 .enumerable(true)
@@ -673,7 +673,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("unloadEventEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.unload_event_end)
                 .writable(false)
                 .enumerable(true)
@@ -683,7 +683,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("redirectStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.redirect_start)
                 .writable(false)
                 .enumerable(true)
@@ -693,7 +693,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("redirectEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.redirect_end)
                 .writable(false)
                 .enumerable(true)
@@ -703,7 +703,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("fetchStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.fetch_start)
                 .writable(false)
                 .enumerable(true)
@@ -713,7 +713,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domainLookupStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.domain_lookup_start)
                 .writable(false)
                 .enumerable(true)
@@ -723,7 +723,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domainLookupEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.domain_lookup_end)
                 .writable(false)
                 .enumerable(true)
@@ -733,7 +733,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("connectStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.connect_start)
                 .writable(false)
                 .enumerable(true)
@@ -743,7 +743,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("connectEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.connect_end)
                 .writable(false)
                 .enumerable(true)
@@ -753,7 +753,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("secureConnectionStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.secure_connection_start)
                 .writable(false)
                 .enumerable(true)
@@ -763,7 +763,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("requestStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.request_start)
                 .writable(false)
                 .enumerable(true)
@@ -773,7 +773,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("responseStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.response_start)
                 .writable(false)
                 .enumerable(true)
@@ -783,7 +783,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("responseEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.response_end)
                 .writable(false)
                 .enumerable(true)
@@ -793,7 +793,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domLoading"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.dom_loading)
                 .writable(false)
                 .enumerable(true)
@@ -803,7 +803,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domInteractive"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.dom_interactive)
                 .writable(false)
                 .enumerable(true)
@@ -813,7 +813,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domContentLoadedEventStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.dom_content_loaded_event_start)
                 .writable(false)
                 .enumerable(true)
@@ -823,7 +823,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domContentLoadedEventEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.dom_content_loaded_event_end)
                 .writable(false)
                 .enumerable(true)
@@ -833,7 +833,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("domComplete"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.dom_complete)
                 .writable(false)
                 .enumerable(true)
@@ -843,7 +843,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("loadEventStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.load_event_start)
                 .writable(false)
                 .enumerable(true)
@@ -853,7 +853,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("loadEventEnd"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.load_event_end)
                 .writable(false)
                 .enumerable(true)

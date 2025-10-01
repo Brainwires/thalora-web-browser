@@ -1074,7 +1074,7 @@ fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
 
     if let Some(_element) = this_obj.downcast_ref::<ElementData>() {
         // Create or return a DOMTokenList bound to this element
-        let list = crate::builtins::DOMTokenList::create_for_element(this_obj.clone(), context)?;
+        let list = boa_engine::builtins::domtokenlist::DOMTokenList::create_for_element(this_obj.clone(), context)?;
         Ok(list.into())
     } else {
         Err(JsNativeError::typ()
@@ -1379,7 +1379,7 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
             let shadow_init = if let Some(options_obj) = options.as_object() {
                 let mode = if let Ok(mode_value) = options_obj.get(js_string!("mode"), context) {
                     let mode_str = mode_value.to_string(context)?.to_std_string_escaped();
-                    crate::builtins::shadow_root::ShadowRootMode::from_string(&mode_str)
+                    boa_engine::builtins::shadow_root::ShadowRootMode::from_string(&mode_str)
                         .ok_or_else(|| JsNativeError::typ()
                             .with_message("attachShadow mode must be 'open' or 'closed'"))?
                 } else {
@@ -1406,7 +1406,7 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
                     false
                 };
 
-                crate::builtins::shadow_root::ShadowRootInit {
+                boa_engine::builtins::shadow_root::ShadowRootInit {
                     mode,
                     clonable,
                     serializable,
@@ -1446,23 +1446,23 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     }
 
     // Create a proper ShadowRoot using the new implementation
-    let shadow_root = crate::builtins::shadow_root::ShadowRoot::create_shadow_root(
+    let shadow_root = boa_engine::builtins::shadow_root::ShadowRoot::create_shadow_root(
         shadow_init.mode.clone(),
         &shadow_init,
         context,
     )?;
 
     // Set the host element for the shadow root
-    if let Some(shadow_data) = shadow_root.downcast_ref::<crate::builtins::shadow_root::ShadowRootData>() {
+    if let Some(shadow_data) = shadow_root.downcast_ref::<boa_engine::builtins::shadow_root::ShadowRootData>() {
         shadow_data.set_host(this_obj.clone());
     }
 
     // Set shadowRoot property on the element according to mode
     match shadow_init.mode {
-        crate::builtins::shadow_root::ShadowRootMode::Open => {
+        boa_engine::builtins::shadow_root::ShadowRootMode::Open => {
             this_obj.define_property_or_throw(
                 js_string!("shadowRoot"),
-                crate::property::PropertyDescriptorBuilder::new()
+                boa_engine::property::PropertyDescriptorBuilder::new()
                     .value(shadow_root.clone())
                     .writable(false)
                     .enumerable(false)
@@ -1471,11 +1471,11 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
                 context,
             )?;
         }
-        crate::builtins::shadow_root::ShadowRootMode::Closed => {
+        boa_engine::builtins::shadow_root::ShadowRootMode::Closed => {
             // For 'closed' mode, shadowRoot property should be null
             this_obj.define_property_or_throw(
                 js_string!("shadowRoot"),
-                crate::property::PropertyDescriptorBuilder::new()
+                boa_engine::property::PropertyDescriptorBuilder::new()
                     .value(JsValue::null())
                     .writable(false)
                     .enumerable(false)

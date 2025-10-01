@@ -399,7 +399,7 @@ struct ShadowRoot {
 }
 
 /// Setup parseHTMLUnsafe as static method on Document constructor
-pub fn setup_parse_html_unsafe(realm: &crate::realm::Realm) {
+pub fn setup_parse_html_unsafe(realm: &boa_engine::realm::Realm) {
     let document_constructor = realm.intrinsics().constructors().document().constructor();
 
     let parse_html_unsafe_func = BuiltInBuilder::callable(realm, parse_html_unsafe)

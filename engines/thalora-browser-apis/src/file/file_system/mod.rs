@@ -55,7 +55,7 @@ impl BuiltInObject for FileSystemHandle {
 }
 
 impl IntrinsicObject for FileSystemHandle {
-    fn init(realm: &crate::realm::Realm) {
+    fn init(realm: &boa_engine::realm::Realm) {
         let _prototype = BuiltInBuilder::callable(realm, Self::constructor)
             .name(Self::NAME)
             .length(Self::LENGTH)
@@ -71,8 +71,8 @@ impl BuiltInConstructor for FileSystemHandle {
     const LENGTH: usize = 0;
     const P: usize = 0;
     const SP: usize = 0;
-    const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &crate::context::intrinsics::StandardConstructor =
-        crate::context::intrinsics::StandardConstructors::file_system_handle;
+    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
+        boa_engine::context::intrinsics::StandardConstructors::file_system_handle;
 
     fn constructor(
         _new_target: &JsValue,
@@ -159,7 +159,7 @@ impl BuiltInObject for FileSystemFileHandle {
 }
 
 impl IntrinsicObject for FileSystemFileHandle {
-    fn init(realm: &crate::realm::Realm) {
+    fn init(realm: &boa_engine::realm::Realm) {
         let _prototype = BuiltInBuilder::callable(realm, Self::constructor)
             .name(Self::NAME)
             .length(Self::LENGTH)
@@ -175,8 +175,8 @@ impl BuiltInConstructor for FileSystemFileHandle {
     const LENGTH: usize = 0;
     const P: usize = 0;
     const SP: usize = 0;
-    const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &crate::context::intrinsics::StandardConstructor =
-        crate::context::intrinsics::StandardConstructors::file_system_file_handle;
+    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
+        boa_engine::context::intrinsics::StandardConstructors::file_system_file_handle;
 
     fn constructor(
         _new_target: &JsValue,
@@ -448,7 +448,7 @@ impl BuiltInObject for FileSystemDirectoryHandle {
 }
 
 impl IntrinsicObject for FileSystemDirectoryHandle {
-    fn init(realm: &crate::realm::Realm) {
+    fn init(realm: &boa_engine::realm::Realm) {
         let _prototype = BuiltInBuilder::callable(realm, Self::constructor)
             .name(Self::NAME)
             .length(Self::LENGTH)
@@ -464,8 +464,8 @@ impl BuiltInConstructor for FileSystemDirectoryHandle {
     const LENGTH: usize = 0;
     const P: usize = 0;
     const SP: usize = 0;
-    const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &crate::context::intrinsics::StandardConstructor =
-        crate::context::intrinsics::StandardConstructors::file_system_directory_handle;
+    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
+        boa_engine::context::intrinsics::StandardConstructors::file_system_directory_handle;
 
     fn constructor(
         _new_target: &JsValue,
@@ -615,7 +615,7 @@ pub(crate) fn show_open_file_picker(
     );
 
     // Return array with single file handle
-    let array = crate::builtins::Array::array_create(1, None, context)?;
+    let array = boa_engine::builtins::Array::array_create(1, None, context)?;
     array.set(0, file_handle_obj, true, context)?;
 
     // Create a resolved Promise

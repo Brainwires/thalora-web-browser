@@ -213,7 +213,7 @@ impl BuiltInConstructor for Navigator {
     const P: usize = 0;
     const SP: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &StandardConstructor =
+    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| constructors.navigator();
 
     fn constructor(
@@ -253,7 +253,7 @@ impl Navigator {
             JsValue::from(js_string!("en")),
         ];
 
-        let array = crate::builtins::Array::array_create(languages.len() as u64, None, context)?;
+        let array = boa_engine::builtins::Array::array_create(languages.len() as u64, None, context)?;
 
         for (i, lang) in languages.into_iter().enumerate() {
             array.create_data_property_or_throw(i, lang, context)?;
@@ -265,7 +265,7 @@ impl Navigator {
     /// `navigator.plugins` getter - returns empty PluginArray for security
     fn plugins_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Return empty plugin array for security/privacy
-        let plugin_array = crate::builtins::Array::array_create(0, None, context)?;
+        let plugin_array = boa_engine::builtins::Array::array_create(0, None, context)?;
 
         // Add length property
         plugin_array.create_data_property_or_throw(
@@ -280,7 +280,7 @@ impl Navigator {
     /// `navigator.mimeTypes` getter - returns empty MimeTypeArray for security
     fn mime_types_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Return empty mime types array for security/privacy
-        let mime_array = crate::builtins::Array::array_create(0, None, context)?;
+        let mime_array = boa_engine::builtins::Array::array_create(0, None, context)?;
 
         // Add length property
         mime_array.create_data_property_or_throw(

@@ -109,11 +109,11 @@ impl WorkerEvent {
 /// Add event handler properties to a Worker object
 pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsResult<()> {
     // Add onmessage property
-    let onmessage_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), get_onmessage)
+    let onmessage_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onmessage)
         .name(js_string!("get onmessage"))
         .build();
 
-    let onmessage_setter = crate::builtins::BuiltInBuilder::callable(context.realm(), set_onmessage)
+    let onmessage_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onmessage)
         .name(js_string!("set onmessage"))
         .build();
 
@@ -128,11 +128,11 @@ pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsRes
     )?;
 
     // Add onerror property
-    let onerror_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), get_onerror)
+    let onerror_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onerror)
         .name(js_string!("get onerror"))
         .build();
 
-    let onerror_setter = crate::builtins::BuiltInBuilder::callable(context.realm(), set_onerror)
+    let onerror_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onerror)
         .name(js_string!("set onerror"))
         .build();
 
@@ -147,11 +147,11 @@ pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsRes
     )?;
 
     // Add onmessageerror property
-    let onmessageerror_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), get_onmessageerror)
+    let onmessageerror_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onmessageerror)
         .name(js_string!("get onmessageerror"))
         .build();
 
-    let onmessageerror_setter = crate::builtins::BuiltInBuilder::callable(context.realm(), set_onmessageerror)
+    let onmessageerror_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onmessageerror)
         .name(js_string!("set onmessageerror"))
         .build();
 

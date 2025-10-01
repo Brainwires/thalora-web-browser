@@ -105,7 +105,7 @@ impl WorkerNavigator {
         // Add all getters as accessor properties
         navigator_obj.define_property_or_throw(
             js_string!("userAgent"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(user_agent_getter)
                 .configurable(true)
                 .build(),
@@ -114,7 +114,7 @@ impl WorkerNavigator {
 
         navigator_obj.define_property_or_throw(
             js_string!("platform"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(platform_getter)
                 .configurable(true)
                 .build(),
@@ -123,7 +123,7 @@ impl WorkerNavigator {
 
         navigator_obj.define_property_or_throw(
             js_string!("language"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(language_getter)
                 .configurable(true)
                 .build(),
@@ -132,7 +132,7 @@ impl WorkerNavigator {
 
         navigator_obj.define_property_or_throw(
             js_string!("languages"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(languages_getter)
                 .configurable(true)
                 .build(),
@@ -141,7 +141,7 @@ impl WorkerNavigator {
 
         navigator_obj.define_property_or_throw(
             js_string!("onLine"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(online_getter)
                 .configurable(true)
                 .build(),
@@ -150,7 +150,7 @@ impl WorkerNavigator {
 
         navigator_obj.define_property_or_throw(
             js_string!("hardwareConcurrency"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(hardware_concurrency_getter)
                 .configurable(true)
                 .build(),
@@ -216,7 +216,7 @@ fn get_languages(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResu
     };
 
     // Create JavaScript array from languages
-    let js_array = crate::builtins::Array::array_create(languages.len() as u64, None, context)?;
+    let js_array = boa_engine::builtins::Array::array_create(languages.len() as u64, None, context)?;
     for (i, lang) in languages.iter().enumerate() {
         js_array.set(i, js_string!(lang.clone()), true, context)?;
     }

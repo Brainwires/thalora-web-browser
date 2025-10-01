@@ -7221,7 +7221,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.22.1",
- "boa_engine",
  "chrono",
  "clap",
  "cpal",
@@ -7251,6 +7250,7 @@ dependencies = [
  "symphonia",
  "sysinfo",
  "taffy",
+ "thalora-browser-apis",
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
@@ -7279,6 +7279,40 @@ dependencies = [
  "wgpu",
  "winit",
  "wiremock",
+]
+
+[[package]]
+name = "thalora-browser-apis"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "boa_engine",
+ "boa_gc",
+ "bytes",
+ "cfg-if",
+ "crossbeam-channel",
+ "futures",
+ "futures-channel",
+ "futures-util",
+ "html5ever 0.27.0",
+ "indexmap 2.11.4",
+ "kuchikiki",
+ "parking_lot",
+ "rand 0.8.5",
+ "reqwest 0.11.27",
+ "scraper 0.20.0",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "time",
+ "tokio",
+ "tokio-tungstenite",
+ "url",
+ "uuid",
+ "vfs",
+ "wasmtime",
+ "webrtc 0.10.1",
 ]
 
 [[package]]

@@ -582,7 +582,7 @@ impl NodeData {
             // TODO: Return a proper live NodeList object
             // For now, return an array-like object
             let children = node.get_child_nodes();
-            let array = crate::builtins::Array::array_create(children.len() as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(children.len() as u64, None, context)?;
 
             for (i, child) in children.iter().enumerate() {
                 array.set(i, child.clone(), false, context)?;

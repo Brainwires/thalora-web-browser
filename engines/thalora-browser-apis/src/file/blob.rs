@@ -34,7 +34,7 @@ fn pull_stream(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 /// Simple cancel function for blob streams
 fn cancel_stream(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-    crate::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
 }
 
 /// JavaScript `Blob` constructor implementation.
@@ -177,13 +177,13 @@ impl IntrinsicObject for Blob {
                 js_string!("size"),
                 Some(get_size),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("type"),
                 Some(get_type),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .build();
     }
@@ -465,7 +465,7 @@ impl Blob {
 
         // Return a resolved Promise with the text
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        crate::builtins::Promise::resolve(&promise_constructor.into(), &[text_value], context)
+        boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[text_value], context)
     }
 
     /// `Blob.prototype.arrayBuffer()`
@@ -489,7 +489,7 @@ impl Blob {
 
         // Return resolved promise with ArrayBuffer
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        crate::builtins::Promise::resolve(&promise_constructor.into(), &[buffer_obj.into()], context)
+        boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[buffer_obj.into()], context)
     }
 
 }

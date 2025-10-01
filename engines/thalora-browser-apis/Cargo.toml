@@ -11,17 +11,8 @@ license = "MIT"
 boa_engine = { path = "../boa/core/engine" }
 boa_gc = { path = "../boa/core/gc" }
 
-# HTML/DOM parsing (matching Boa versions)
-scraper = "0.20"
-html5ever = "0.27"
-kuchikiki = "0.8"
-
-# File system abstraction
-vfs = { path = "../../vfs", default-features = false }
-
-# Async runtime and utilities (matching Boa)
+# Async runtime and utilities (matching Boa exact versions from Cargo.lock)
 tokio = { version = "1.0", features = ["full"] }
-futures = "0.3"
 futures-util = "0.3"
 futures-channel = "0.3"
 crossbeam-channel = "0.5"
@@ -35,6 +26,11 @@ tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
 
 # URL handling (matching Boa)
 url = "2.4"
+
+# HTML/DOM parsing (matching Boa exact versions)
+scraper = "0.20"
+html5ever = "0.27"
+kuchikiki = "0.8"
 
 # Serialization (matching Boa)
 serde = { version = "1.0", features = ["derive", "rc"] }
@@ -64,6 +60,9 @@ wasmtime = { version = "21.0", features = ["component-model", "async", "runtime"
 
 # UUID generation
 uuid = { version = "1.0", features = ["v4"] }
+
+# VFS for File System API (matching Boa path)
+vfs = { path = "../../vfs", default-features = false }
 
 # Other utilities
 cfg-if = "1.0"

@@ -159,7 +159,7 @@ impl NodeListData {
             // Create an array iterator over the indices
             let length = nodelist_data.length();
             let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
-            let array = crate::builtins::Array::array_create(length as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
 
             for (i, index) in indices.iter().enumerate() {
                 array.create_data_property_or_throw(i, index.clone(), context)?;
@@ -184,7 +184,7 @@ impl NodeListData {
         if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
             // Create an array with the node values
             let nodes = nodelist_data.nodes();
-            let array = crate::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
 
             for (i, node) in nodes.iter().enumerate() {
                 array.create_data_property_or_throw(i, node.clone(), context)?;
@@ -209,10 +209,10 @@ impl NodeListData {
         if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
             // Create an array of [index, node] pairs
             let nodes = nodelist_data.nodes();
-            let array = crate::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
 
             for (i, node) in nodes.iter().enumerate() {
-                let entry = crate::builtins::Array::array_create(2, None, context)?;
+                let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
                 entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
                 entry.create_data_property_or_throw(1, node.clone(), context)?;
                 array.create_data_property_or_throw(i, entry, context)?;
@@ -307,7 +307,7 @@ impl NodeList {
         if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
             let length = nodelist_data.length();
             let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
-            let array = crate::builtins::Array::array_create(length as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
 
             for (i, index) in indices.iter().enumerate() {
                 array.create_data_property_or_throw(i, index.clone(), context)?;
@@ -328,7 +328,7 @@ impl NodeList {
 
         if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
             let nodes = nodelist_data.nodes();
-            let array = crate::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
 
             for (i, node) in nodes.iter().enumerate() {
                 array.create_data_property_or_throw(i, node.clone(), context)?;
@@ -349,10 +349,10 @@ impl NodeList {
 
         if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
             let nodes = nodelist_data.nodes();
-            let array = crate::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
 
             for (i, node) in nodes.iter().enumerate() {
-                let entry = crate::builtins::Array::array_create(2, None, context)?;
+                let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
                 entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
                 entry.create_data_property_or_throw(1, node.clone(), context)?;
                 array.create_data_property_or_throw(i, entry, context)?;

@@ -197,19 +197,19 @@ impl IntrinsicObject for FileReader {
                 js_string!("readyState"),
                 Some(get_ready_state),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("result"),
                 Some(get_result),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("error"),
                 Some(get_error),
                 None,
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
 
             // Event handlers
@@ -217,43 +217,43 @@ impl IntrinsicObject for FileReader {
                 js_string!("onloadstart"),
                 Some(get_onloadstart),
                 Some(set_onloadstart),
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onprogress"),
                 Some(get_onprogress),
                 Some(set_onprogress),
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onload"),
                 Some(get_onload),
                 Some(set_onload),
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onloadend"),
                 Some(get_onloadend),
                 Some(set_onloadend),
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onerror"),
                 Some(get_onerror),
                 Some(set_onerror),
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onabort"),
                 Some(get_onabort),
                 Some(set_onabort),
-                crate::property::Attribute::ENUMERABLE | crate::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
             )
 
             // Constants
-            .property(js_string!("EMPTY"), ReadyState::Empty.as_u16(), crate::property::Attribute::NON_ENUMERABLE)
-            .property(js_string!("LOADING"), ReadyState::Loading.as_u16(), crate::property::Attribute::NON_ENUMERABLE)
-            .property(js_string!("DONE"), ReadyState::Done.as_u16(), crate::property::Attribute::NON_ENUMERABLE)
+            .property(js_string!("EMPTY"), ReadyState::Empty.as_u16(), boa_engine::property::Attribute::NON_ENUMERABLE)
+            .property(js_string!("LOADING"), ReadyState::Loading.as_u16(), boa_engine::property::Attribute::NON_ENUMERABLE)
+            .property(js_string!("DONE"), ReadyState::Done.as_u16(), boa_engine::property::Attribute::NON_ENUMERABLE)
             .build();
     }
 
