@@ -303,13 +303,14 @@ fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
         JsNativeError::typ().with_message("Document.prototype.readyState called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        Ok(JsString::from(document.get_ready_state()).into())
+    let value = if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.get_ready_state()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.readyState called on non-Document object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Document.prototype.URL` getter
@@ -318,13 +319,14 @@ fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Document.prototype.URL called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        Ok(JsString::from(document.get_url()).into())
+    let value = if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.get_url()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.URL called on non-Document object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Document.prototype.title` getter
@@ -333,13 +335,14 @@ fn get_title(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("Document.prototype.title called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        Ok(JsString::from(document.get_title()).into())
+    let value = if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
+        document.get_title()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Document.prototype.title called on non-Document object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Document.prototype.title` setter

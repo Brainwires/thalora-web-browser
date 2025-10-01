@@ -132,13 +132,14 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.name called on non-object")
         })?;
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            Ok(JsString::from(attr_data.name()).into())
+        let value = if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+            attr_data.name()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Attr.prototype.name called on non-Attr object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsString::from(value).into())
     }
 
     /// Get the value property
@@ -147,13 +148,14 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.value called on non-object")
         })?;
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            Ok(JsString::from(attr_data.value()).into())
+        let value = if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+            attr_data.value()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Attr.prototype.value called on non-Attr object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsString::from(value).into())
     }
 
     /// Set the value property
@@ -180,15 +182,16 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.ownerElement called on non-object")
         })?;
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            match attr_data.owner_element() {
-                Some(element) => Ok(element.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+            attr_data.owner_element()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Attr.prototype.ownerElement called on non-Attr object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(element) => Ok(element.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -198,15 +201,16 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.namespaceURI called on non-object")
         })?;
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            match attr_data.namespace_uri() {
-                Some(uri) => Ok(JsString::from(uri).into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+            attr_data.namespace_uri()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Attr.prototype.namespaceURI called on non-Attr object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(uri) => Ok(JsString::from(uri).into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -216,15 +220,16 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.localName called on non-object")
         })?;
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            match attr_data.local_name() {
-                Some(name) => Ok(JsString::from(name).into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+            attr_data.local_name()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Attr.prototype.localName called on non-Attr object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(name) => Ok(JsString::from(name).into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -234,15 +239,16 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.prefix called on non-object")
         })?;
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            match attr_data.prefix() {
-                Some(prefix) => Ok(JsString::from(prefix).into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+            attr_data.prefix()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Attr.prototype.prefix called on non-Attr object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(prefix) => Ok(JsString::from(prefix).into()),
+            None => Ok(JsValue::null()),
         }
     }
 

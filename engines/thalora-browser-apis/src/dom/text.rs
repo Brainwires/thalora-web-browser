@@ -111,15 +111,16 @@ impl TextData {
             JsNativeError::typ().with_message("Text.assignedSlot called on non-object")
         })?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.get_assigned_slot() {
-                Some(slot) => Ok(slot.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
+            text_data.get_assigned_slot()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Text.assignedSlot called on non-Text object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(slot) => Ok(slot.into()),
+            None => Ok(JsValue::null()),
         }
     }
 

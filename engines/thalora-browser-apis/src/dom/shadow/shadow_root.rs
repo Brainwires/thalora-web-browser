@@ -350,15 +350,16 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.host called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            match shadow_data.get_host() {
-                Some(host) => Ok(host.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
+            shadow_data.get_host()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("ShadowRoot.host called on non-ShadowRoot object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(host) => Ok(host.into()),
+            None => Ok(JsValue::null()),
         }
     }
 

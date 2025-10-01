@@ -544,15 +544,16 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.ownerDocument called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_owner_document() {
-                Some(doc) => Ok(doc.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_owner_document()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.ownerDocument called on non-Node object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(doc) => Ok(doc.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -561,15 +562,16 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.parentNode called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_parent_node() {
-                Some(parent) => Ok(parent.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_parent_node()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.parentNode called on non-Node object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(parent) => Ok(parent.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -601,15 +603,16 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.firstChild called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_first_child() {
-                Some(child) => Ok(child.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_first_child()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.firstChild called on non-Node object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(child) => Ok(child.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -618,15 +621,16 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.lastChild called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_last_child() {
-                Some(child) => Ok(child.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_last_child()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.lastChild called on non-Node object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(child) => Ok(child.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -635,15 +639,16 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.previousSibling called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_previous_sibling() {
-                Some(sibling) => Ok(sibling.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_previous_sibling()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.previousSibling called on non-Node object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(sibling) => Ok(sibling.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -652,15 +657,16 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nextSibling called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_next_sibling() {
-                Some(sibling) => Ok(sibling.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_next_sibling()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.nextSibling called on non-Node object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(sibling) => Ok(sibling.into()),
+            None => Ok(JsValue::null()),
         }
     }
 

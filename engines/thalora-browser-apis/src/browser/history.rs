@@ -304,13 +304,14 @@ fn get_scroll_restoration(this: &JsValue, _args: &[JsValue], _context: &mut Cont
         JsNativeError::typ().with_message("History.prototype.scrollRestoration called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        Ok(JsString::from(history.get_scroll_restoration()).into())
+    let value = if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
+        history.get_scroll_restoration()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("History.prototype.scrollRestoration called on non-History object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `History.prototype.scrollRestoration` setter

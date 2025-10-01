@@ -863,13 +863,14 @@ fn get_tag_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.tagName called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        Ok(JsString::from(element.get_tag_name()).into())
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.get_tag_name()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.tagName called on non-Element object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Element.prototype.id` getter
@@ -878,13 +879,14 @@ fn get_id(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Element.prototype.id called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        Ok(JsString::from(element.get_id()).into())
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.get_id()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.id called on non-Element object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Element.prototype.id` setter
@@ -910,13 +912,14 @@ fn get_class_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.className called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        Ok(JsString::from(element.get_class_name()).into())
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.get_class_name()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.className called on non-Element object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Element.prototype.className` setter
@@ -942,13 +945,14 @@ fn get_inner_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.innerHTML called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        Ok(JsString::from(element.get_inner_html()).into())
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.get_inner_html()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.innerHTML called on non-Element object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Element.prototype.innerHTML` setter
@@ -975,13 +979,14 @@ fn get_text_content(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
         JsNativeError::typ().with_message("Element.prototype.textContent called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        Ok(JsString::from(element.get_text_content()).into())
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.get_text_content()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.textContent called on non-Element object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsString::from(value).into())
 }
 
 /// `Element.prototype.textContent` setter

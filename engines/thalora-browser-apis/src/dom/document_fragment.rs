@@ -170,15 +170,16 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.firstElementChild called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            match fragment_data.get_first_element_child() {
-                Some(element) => Ok(element.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
+            fragment_data.get_first_element_child()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("DocumentFragment.firstElementChild called on non-DocumentFragment object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(element) => Ok(element.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -188,15 +189,16 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.lastElementChild called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            match fragment_data.get_last_element_child() {
-                Some(element) => Ok(element.into()),
-                None => Ok(JsValue::null()),
-            }
+        let value = if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
+            fragment_data.get_last_element_child()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("DocumentFragment.lastElementChild called on non-DocumentFragment object")
-                .into())
+                .into());
+        };
+        match value {
+            Some(element) => Ok(element.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
