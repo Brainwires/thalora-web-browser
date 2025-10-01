@@ -21,9 +21,9 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
     
-    /// Use Boa JavaScript engine instead of the default V8 engine
-    #[arg(long = "use-boa-engine", help = "Use Boa JavaScript engine for execution")]
-    use_boa_engine: bool,
+    /// Use V8 JavaScript engine instead of the default Boa engine
+    #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
+    use_v8_engine: bool,
 }
 
 #[derive(Subcommand)]
@@ -67,8 +67,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Determine which engine to use based on CLI flags or default
-    let use_v8 = if cli.use_boa_engine {
-        false  // Override to use Boa
+    let use_v8 = if cli.use_v8_engine {
+        true  // Override to use V8
     } else {
         // No flags specified, use the default from EngineFactory
         EngineFactory::default_engine() == EngineType::V8

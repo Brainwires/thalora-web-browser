@@ -29,10 +29,11 @@ lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
 
 # JavaScript engine (pure Rust) - using local submodule for customization
+# Boa includes complete browser APIs (DOM, Fetch, WebSocket, Storage, Workers, etc.)
 boa_engine = { path = "engines/boa/core/engine" }
 
-# V8 engine integration 
-thalora-v8-engine = { path = "engines/v8" }
+# Browser APIs extraction attempted but not completed - APIs remain in Boa
+# thalora-browser-apis = { path = "engines/thalora-browser-apis" }
 
 # Async trait support for engine abstraction
 async-trait = "0.1"
@@ -137,7 +138,6 @@ path = "src/main.rs"
 default = []
 # GUI mode with winit and wgpu for graphical browser interface
 gui = ["winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
-# V8 engine is now always compiled - no feature flag needed
 
 [dev-dependencies]
 tokio-test = "0.4"

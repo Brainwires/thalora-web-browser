@@ -104,9 +104,8 @@ impl EngineFactory {
                 Ok(Box::new(BoaEngineWrapper::new(boa_engine)))
             }
             EngineType::V8 => {
-                use thalora_v8_engine::V8JavaScriptEngine;
-                let v8_engine = V8JavaScriptEngine::new()?;
-                Ok(Box::new(V8EngineWrapper::new(v8_engine)))
+                // V8 engine removed - use Boa instead
+                Err(anyhow::anyhow!("V8 engine is not currently available. V8 subproject was removed. Use Boa engine instead."))
             }
         }
     }
@@ -119,7 +118,7 @@ impl EngineFactory {
                 return engine_type;
             }
         }
-        EngineType::V8
+        EngineType::Boa
     }
 
     /// Create an engine using the default/configured engine type
@@ -130,7 +129,8 @@ impl EngineFactory {
 
     /// List available engines
     pub fn available_engines() -> Vec<EngineType> {
-        vec![EngineType::Boa, EngineType::V8]
+        vec![EngineType::Boa]
+        // V8 was removed - only Boa is available now
     }
 }
 
@@ -251,6 +251,9 @@ impl BoaEngineWrapper {
     }
 }
 
+// V8 engine wrapper removed - V8 subproject was removed
+// Use Boa engine instead or re-add V8 engine integration if needed
+/*
 /// Wrapper for V8 engine to implement the common trait
 pub struct V8EngineWrapper {
     engine: thalora_v8_engine::V8JavaScriptEngine,
@@ -300,3 +303,4 @@ impl ThaloraBrowserEngine for V8EngineWrapper {
         "v8"
     }
 }
+*/
