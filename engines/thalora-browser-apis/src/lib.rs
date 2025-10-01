@@ -35,6 +35,21 @@ pub mod console;
 // Timer APIs
 pub mod timers;
 
+// WebRTC APIs
+pub mod webrtc;
+
+// Streams APIs
+pub mod streams;
+
+// Observer APIs
+pub mod observers;
+
+// Messaging APIs
+pub mod messaging;
+
+// Miscellaneous APIs
+pub mod misc;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> anyhow::Result<()> {
     // APIs are initialized within Boa engine for now
