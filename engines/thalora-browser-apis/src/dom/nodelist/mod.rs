@@ -138,7 +138,10 @@ impl NodeListData {
             let nodes = nodelist_data.nodes();
             for (index, node) in nodes.iter().enumerate() {
                 let args = [node.clone().into(), JsValue::new(index), this.clone()];
-                callback.call(this_arg, &args, context)?;
+                // Use public API - get callable and call it
+                if let Some(func) = callback.as_callable() {
+                    func.call(this_arg, &args, context)?;
+                }
             }
 
             Ok(JsValue::undefined())
@@ -288,7 +291,10 @@ impl NodeList {
             let nodes = nodelist_data.nodes();
             for (index, node) in nodes.iter().enumerate() {
                 let args = [node.clone().into(), JsValue::new(index), this.clone()];
-                callback.call(this_arg, &args, context)?;
+                // Use public API - get callable and call it
+                if let Some(func) = callback.as_callable() {
+                    func.call(this_arg, &args, context)?;
+                }
             }
 
             Ok(JsValue::undefined())

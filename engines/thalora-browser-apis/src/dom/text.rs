@@ -96,13 +96,14 @@ impl TextData {
             JsNativeError::typ().with_message("Text.wholeText called on non-object")
         })?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            Ok(JsValue::from(js_string!(text_data.get_whole_text())))
+        let value = if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
+            text_data.get_whole_text()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Text.wholeText called on non-Text object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(js_string!(value)))
     }
 
     /// `Text.prototype.assignedSlot` getter

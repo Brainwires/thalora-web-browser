@@ -155,13 +155,14 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.childElementCount called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            Ok(JsValue::from(fragment_data.get_child_element_count()))
+        let value = if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
+            fragment_data.get_child_element_count()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("DocumentFragment.childElementCount called on non-DocumentFragment object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     /// `DocumentFragment.prototype.firstElementChild` getter

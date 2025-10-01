@@ -303,11 +303,12 @@ fn get_anchor_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        Ok(JsValue::from(selection_data.get_anchor_offset()))
+    let value = if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
+        selection_data.get_anchor_offset()
     } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get the focus node of the selection.
@@ -329,11 +330,12 @@ fn get_focus_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        Ok(JsValue::from(selection_data.get_focus_offset()))
+    let value = if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
+        selection_data.get_focus_offset()
     } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the selection is collapsed.
@@ -342,11 +344,12 @@ fn get_is_collapsed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        Ok(JsValue::from(selection_data.is_collapsed()))
+    let value = if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
+        selection_data.is_collapsed()
     } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get the range count of the selection.
@@ -355,11 +358,12 @@ fn get_range_count(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        Ok(JsValue::from(selection_data.get_range_count()))
+    let value = if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
+        selection_data.get_range_count()
     } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get the type of the selection.

@@ -305,13 +305,14 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.clonable called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            Ok(JsValue::from(shadow_data.is_clonable()))
+        let value = if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
+            shadow_data.is_clonable()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("ShadowRoot.clonable called on non-ShadowRoot object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     /// `ShadowRoot.prototype.serializable` getter
@@ -320,13 +321,14 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.serializable called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            Ok(JsValue::from(shadow_data.is_serializable()))
+        let value = if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
+            shadow_data.is_serializable()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("ShadowRoot.serializable called on non-ShadowRoot object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     /// `ShadowRoot.prototype.delegatesFocus` getter
@@ -335,13 +337,14 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.delegatesFocus called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            Ok(JsValue::from(shadow_data.delegates_focus()))
+        let value = if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
+            shadow_data.delegates_focus()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("ShadowRoot.delegatesFocus called on non-ShadowRoot object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     /// `ShadowRoot.prototype.host` getter

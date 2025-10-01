@@ -130,8 +130,9 @@ impl EventTargetData {
                 }
 
                 // Call the listener
-                if listener.callback.is_callable() {
-                    let result = listener.callback.call(&JsValue::undefined(), &[event.clone().into()], context);
+                // Use public API - get callable and call it
+                if let Some(func) = listener.callback.as_callable() {
+                    let result = func.call(&JsValue::undefined(), &[event.clone().into()], context);
 
                     // Check if preventDefault was called on the event
                     if let Ok(default_prevented) = event.get(js_string!("defaultPrevented"), context) {

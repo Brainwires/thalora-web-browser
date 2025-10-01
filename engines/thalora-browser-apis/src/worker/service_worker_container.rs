@@ -467,7 +467,7 @@ impl ServiceWorkerContainer {
             .build();
         container.define_property_or_throw(
             js_string!("ready"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .get(ready_getter)
                 .configurable(true)
                 .enumerable(false)
@@ -489,7 +489,7 @@ impl ServiceWorkerContainer {
             .build();
         container.define_property_or_throw(
             js_string!("oncontrollerchange"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .get(oncontrollerchange_getter)
                 .set(oncontrollerchange_setter)
                 .configurable(true)
@@ -506,7 +506,7 @@ impl ServiceWorkerContainer {
             .build();
         container.define_property_or_throw(
             js_string!("onmessage"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .get(onmessage_getter)
                 .set(onmessage_setter)
                 .configurable(true)
@@ -523,7 +523,7 @@ impl ServiceWorkerContainer {
             .build();
         container.define_property_or_throw(
             js_string!("onmessageerror"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .get(onmessageerror_getter)
                 .set(onmessageerror_setter)
                 .configurable(true)

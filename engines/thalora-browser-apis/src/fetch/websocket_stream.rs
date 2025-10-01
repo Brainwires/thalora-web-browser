@@ -165,13 +165,14 @@ fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
         JsNativeError::typ().with_message("WebSocketStream.prototype.readyState called on non-object")
     })?;
 
-    if let Some(websocket_stream) = this_obj.downcast_ref::<WebSocketStreamData>() {
-        Ok(JsValue::from(websocket_stream.get_ready_state()))
+    let value = if let Some(websocket_stream) = this_obj.downcast_ref::<WebSocketStreamData>() {
+        websocket_stream.get_ready_state()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("WebSocketStream.prototype.readyState called on non-WebSocketStream object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// `WebSocketStream.prototype.close(code, reason)`

@@ -157,13 +157,14 @@ impl CharacterDataData {
             JsNativeError::typ().with_message("CharacterData.data called on non-object")
         })?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
-            Ok(JsValue::from(js_string!(char_data.get_data())))
+        let value = if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
+            char_data.get_data()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("CharacterData.data called on non-CharacterData object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(js_string!(value)))
     }
 
     /// `CharacterData.prototype.data` setter
@@ -191,13 +192,14 @@ impl CharacterDataData {
             JsNativeError::typ().with_message("CharacterData.length called on non-object")
         })?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
-            Ok(JsValue::from(char_data.get_length()))
+        let value = if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
+            char_data.get_length()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("CharacterData.length called on non-CharacterData object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     /// `CharacterData.prototype.substringData(offset, count)`

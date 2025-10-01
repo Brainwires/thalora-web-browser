@@ -674,7 +674,7 @@ impl Performance {
         // Using direct property descriptor set to avoid context requirement
         obj.insert_property(
             js_string!("navigationStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.navigation_start)
                 .writable(false)
                 .enumerable(true)
@@ -684,7 +684,7 @@ impl Performance {
 
         obj.insert_property(
             js_string!("unloadEventStart"),
-            crate::property::PropertyDescriptor::builder()
+            boa_engine::property::PropertyDescriptor::builder()
                 .value(timing.unload_event_start)
                 .writable(false)
                 .enumerable(true)
@@ -716,7 +716,7 @@ impl Performance {
         ] {
             obj.insert_property(
                 js_string!(name),
-                crate::property::PropertyDescriptor::builder()
+                boa_engine::property::PropertyDescriptor::builder()
                     .value(value)
                     .writable(false)
                     .enumerable(true)

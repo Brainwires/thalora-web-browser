@@ -169,6 +169,153 @@ def fix_lifetime_pattern(content):
 
     content = pattern5.sub(replace5, content)
 
+    # Pattern 6: Ok(JsValue::from(js_string!(data.method())))
+    pattern6 = re.compile(
+        r'([ \t]+)if let Some\((\w+)\) = this_obj\.downcast_ref::<(\w+)>\(\) \{\s*'
+        r'Ok\(JsValue::from\(js_string!\(\2\.(\w+)\(\)\)\)\)\s*'
+        r'\} else \{\s*'
+        r'(Err\([^}]+\))\s*'
+        r'\}',
+        re.MULTILINE | re.DOTALL
+    )
+
+    def replace6(match):
+        indent = match.group(1)
+        var = match.group(2)
+        type_name = match.group(3)
+        method = match.group(4)
+        err = match.group(5)
+
+        return f'''{indent}let value = if let Some({var}) = this_obj.downcast_ref::<{type_name}>() {{
+{indent}    {var}.{method}()
+{indent}}} else {{
+{indent}    return {err};
+{indent}}};
+{indent}Ok(JsValue::from(js_string!(value)))'''
+
+    content = pattern6.sub(replace6, content)
+
+    # Pattern 7: Setter with if let Some
+    pattern7 = re.compile(
+        r'([ \t]+)if let Some\((\w+)\) = this_obj\.downcast_ref::<(\w+)>\(\) \{\s*'
+        r'\2\.([^(]+)\(([^)]+)\);?\s*'
+        r'Ok\(JsValue::undefined\(\)\)\s*'
+        r'\} else \{\s*'
+        r'(Err\([^}]+\))\s*'
+        r'\}',
+        re.MULTILINE | re.DOTALL
+    )
+
+    def replace7(match):
+        indent = match.group(1)
+        var = match.group(2)
+        type_name = match.group(3)
+        method = match.group(4)
+        args = match.group(5)
+        err = match.group(6)
+
+        return f'''{indent}if let Some({var}) = this_obj.downcast_ref::<{type_name}>() {{
+{indent}    {var}.{method}({args});
+{indent}    Ok(JsValue::undefined())
+{indent}}} else {{
+{indent}    {err}
+{indent}}}'''
+
+    content = pattern7.sub(replace7, content)
+
+    # Pattern 8: Ok(JsValue::from(data.method())) without js_string
+    pattern8 = re.compile(
+        r'([ \t]+)if let Some\((\w+)\) = this_obj\.downcast_ref::<(\w+)>\(\) \{\s*'
+        r'Ok\(JsValue::from\(\2\.(\w+)\(\)\)\)\s*'
+        r'\} else \{\s*'
+        r'(Err\([^}]+\))\s*'
+        r'\}',
+        re.MULTILINE | re.DOTALL
+    )
+
+    def replace8(match):
+        indent = match.group(1)
+        var = match.group(2)
+        type_name = match.group(3)
+        method = match.group(4)
+        err = match.group(5)
+
+        return f'''{indent}let value = if let Some({var}) = this_obj.downcast_ref::<{type_name}>() {{
+{indent}    {var}.{method}()
+{indent}}} else {{
+{indent}    return {err};
+{indent}}};
+{indent}Ok(JsValue::from(value))'''
+
+    content = pattern8.sub(replace8, content)
+
+    # Pattern 9: Setter with context conversion - multiline
+    pattern9 = re.compile(
+        r'([ \t]+)if let Some\((\w+)\) = this_obj\.downcast_ref::<(\w+)>\(\) \{\s*'
+        r'let (\w+) = ([^;]+\.to_string\(context\)\?);?\s*'
+        r'([^}]+)\s*'
+        r'Ok\(JsValue::undefined\(\)\)\s*'
+        r'\} else \{\s*'
+        r'(Err\([^}]+\))\s*'
+        r'\}',
+        re.MULTILINE | re.DOTALL
+    )
+
+    def replace9(match):
+        indent = match.group(1)
+        var = match.group(2)
+        type_name = match.group(3)
+        let_var = match.group(4)
+        conversion = match.group(5)
+        body = match.group(6).strip()
+        err = match.group(7)
+
+        return f'''{indent}if let Some({var}) = this_obj.downcast_ref::<{type_name}>() {{
+{indent}    let {let_var} = {conversion};
+{indent}    {body}
+{indent}    Ok(JsValue::undefined())
+{indent}}} else {{
+{indent}    {err}
+{indent}}}'''
+
+    content = pattern9.sub(replace9, content)
+
+    # Pattern 10: Getter with method call returning Option<JsObject>
+    pattern10 = re.compile(
+        r'([ \t]+)if let Some\((\w+)\) = this_obj\.downcast_ref::<(\w+)>\(\) \{\s*'
+        r'(?://[^\n]*\n\s*)?'  # Optional comment
+        r'if let Some\((\w+)\) = \2\.([^{]+) \{\s*'
+        r'Ok\(\4\.into\(\)\)\s*'
+        r'\} else \{\s*'
+        r'Ok\(JsValue::null\(\)\)\s*'
+        r'\}\s*'
+        r'\} else \{\s*'
+        r'(Err\([^}]+\))\s*'
+        r'\}',
+        re.MULTILINE | re.DOTALL
+    )
+
+    def replace10(match):
+        indent = match.group(1)
+        var = match.group(2)
+        type_name = match.group(3)
+        result_var = match.group(4)
+        method_call = match.group(5).strip()
+        err = match.group(6)
+
+        return f'''{indent}let opt_value = if let Some({var}) = this_obj.downcast_ref::<{type_name}>() {{
+{indent}    {var}.{method_call}
+{indent}}} else {{
+{indent}    return {err};
+{indent}}};
+{indent}if let Some({result_var}) = opt_value {{
+{indent}    Ok({result_var}.into())
+{indent}}} else {{
+{indent}    Ok(JsValue::null())
+{indent}}}'''
+
+    content = pattern10.sub(replace10, content)
+
     return content
 
 def fix_file(file_path):

@@ -57,7 +57,7 @@ impl ReadableStreamDefaultReader {
             .build();
         reader.define_property_or_throw(
             js_string!("closed"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(closed_getter)
                 .configurable(true)
                 .enumerable(true),
@@ -231,7 +231,7 @@ impl ReadableStreamBYOBReader {
             .build();
         reader.define_property_or_throw(
             js_string!("closed"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(closed_getter)
                 .configurable(true)
                 .enumerable(true),

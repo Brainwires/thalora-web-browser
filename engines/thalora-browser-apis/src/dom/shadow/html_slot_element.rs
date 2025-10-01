@@ -169,13 +169,14 @@ impl HTMLSlotElementData {
             JsNativeError::typ().with_message("HTMLSlotElement.name called on non-object")
         })?;
 
-        if let Some(slot_data) = this_obj.downcast_ref::<HTMLSlotElementData>() {
-            Ok(JsValue::from(js_string!(slot_data.get_name())))
+        let value = if let Some(slot_data) = this_obj.downcast_ref::<HTMLSlotElementData>() {
+            slot_data.get_name()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("HTMLSlotElement.name called on non-HTMLSlotElement object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(js_string!(value)))
     }
 
     /// `HTMLSlotElement.prototype.name` setter

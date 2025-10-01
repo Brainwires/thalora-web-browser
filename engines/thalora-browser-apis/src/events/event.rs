@@ -321,11 +321,12 @@ fn get_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(js_string!(event_data.get_type())))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_type()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(js_string!(value)))
 }
 
 /// Get whether the event bubbles.
@@ -334,11 +335,12 @@ fn get_bubbles(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVal
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(event_data.get_bubbles()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_bubbles()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the event is cancelable.
@@ -347,11 +349,12 @@ fn get_cancelable(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(event_data.get_cancelable()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_cancelable()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether preventDefault() has been called.
@@ -360,11 +363,12 @@ fn get_default_prevented(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(event_data.get_default_prevented()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_default_prevented()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get the current event phase.
@@ -418,11 +422,12 @@ fn get_timestamp(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(event_data.get_timestamp()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_timestamp()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the event is trusted.
@@ -431,11 +436,12 @@ fn get_is_trusted(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(event_data.get_is_trusted()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_is_trusted()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the event is composed.
@@ -444,11 +450,12 @@ fn get_composed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(JsValue::from(event_data.get_composed()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_composed()
     } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 // Event methods

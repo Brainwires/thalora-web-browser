@@ -227,7 +227,7 @@ impl WritableStreamDefaultWriter {
             .build();
         writer.define_property_or_throw(
             js_string!("closed"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(closed_getter)
                 .configurable(true)
                 .enumerable(true),
@@ -239,7 +239,7 @@ impl WritableStreamDefaultWriter {
             .build();
         writer.define_property_or_throw(
             js_string!("ready"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(ready_getter)
                 .configurable(true)
                 .enumerable(true),
@@ -251,7 +251,7 @@ impl WritableStreamDefaultWriter {
             .build();
         writer.define_property_or_throw(
             js_string!("desiredSize"),
-            crate::property::PropertyDescriptorBuilder::new()
+            boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(desired_size_getter)
                 .configurable(true)
                 .enumerable(true),

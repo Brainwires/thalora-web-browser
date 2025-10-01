@@ -164,10 +164,12 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.value setter called on non-object")
         })?;
 
+        let new_value = args.get_or_undefined(0).to_string(context)?;
+        let new_value_string = new_value.to_std_string().unwrap_or_default();
+
         if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
-            let new_value = args.get_or_undefined(0).to_string(context)?;
             // Don't escape - preserve the raw string value
-            attr_data.set_value(new_value.to_std_string().unwrap_or_default());
+            attr_data.set_value(new_value_string);
             Ok(JsValue::undefined())
         } else {
             Err(JsNativeError::typ()
@@ -258,7 +260,7 @@ impl Attr {
             JsNativeError::typ().with_message("Attr.prototype.specified called on non-object")
         })?;
 
-        if let Some(_attr_data) = this_obj.downcast_ref::<AttrData>() {
+        if this_obj.downcast_ref::<AttrData>().is_some() {
             Ok(JsValue::new(true))
         } else {
             Err(JsNativeError::typ()

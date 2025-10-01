@@ -265,13 +265,14 @@ fn get_length(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("History.prototype.length called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        Ok(JsValue::from(history.get_length()))
+    let value = if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
+        history.get_length()
     } else {
-        Err(JsNativeError::typ()
+        return Err(JsNativeError::typ()
             .with_message("History.prototype.length called on non-History object")
-            .into())
-    }
+            .into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// `History.prototype.state` getter

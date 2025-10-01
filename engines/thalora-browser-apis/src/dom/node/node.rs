@@ -461,13 +461,14 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nodeName called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            Ok(JsValue::from(js_string!(node.get_node_name())))
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.get_node_name()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.nodeName called on non-Node object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(js_string!(value)))
     }
 
     fn get_node_value_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -530,13 +531,14 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.isConnected called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            Ok(JsValue::from(node.is_connected()))
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.is_connected()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.isConnected called on non-Node object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     fn get_owner_document_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -1093,13 +1095,14 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.hasChildNodes called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            Ok(JsValue::from(node.has_child_nodes()))
+        let value = if let Some(node) = this_obj.downcast_ref::<NodeData>() {
+            node.has_child_nodes()
         } else {
-            Err(JsNativeError::typ()
+            return Err(JsNativeError::typ()
                 .with_message("Node.hasChildNodes called on non-Node object")
-                .into())
-        }
+                .into());
+        };
+        Ok(JsValue::from(value))
     }
 
     /// `Node.prototype.getRootNode(options)`
