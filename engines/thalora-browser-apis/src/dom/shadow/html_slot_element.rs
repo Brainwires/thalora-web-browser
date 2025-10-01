@@ -5,8 +5,6 @@
 
 use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
-    builtins::element::ElementData,
-    builtins::shadow_root::ShadowRootData,
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{internal_methods::get_prototype_from_constructor, JsObject},
@@ -15,6 +13,10 @@ use boa_engine::{
     string::{StaticJsStrings, JsString},
     value::JsValue,
     Context, JsArgs, JsData, JsNativeError, JsResult,
+};
+use crate::dom::{
+    element::ElementData,
+    shadow::shadow_root::ShadowRootData,
 };
 use boa_gc::{Finalize, Trace, GcRefCell};
 use std::collections::{HashMap, VecDeque};

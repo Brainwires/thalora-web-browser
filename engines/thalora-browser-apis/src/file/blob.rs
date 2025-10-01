@@ -7,8 +7,7 @@
 
 
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, promise::PromiseCapability,
-               readable_stream::{ReadableStreamData, StreamState}},
+    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, promise::PromiseCapability},
     object::JsObject,
     value::{JsValue, IntegerOrInfinity},
     Context, JsResult, js_string, JsNativeError, JsArgs,
@@ -16,6 +15,7 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     property::Attribute
 };
+use crate::streams::readable_stream::{ReadableStreamData, StreamState};
 use boa_gc::{Finalize, Trace};
 use std::sync::Arc;
 use std::{thread, sync::mpsc};

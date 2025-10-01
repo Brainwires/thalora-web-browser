@@ -160,7 +160,7 @@ impl DocumentData {
         // Set up DOM sync bridge - connect Element changes to Document updates
         use crate::dom::element::GLOBAL_DOM_SYNC;
         let html_content_ref = doc_data.html_content.clone();
-        GLOBAL_DOM_SYNC.get_or_init(|| boa_engine::builtins::element::DomSync::new())
+        GLOBAL_DOM_SYNC.get_or_init(|| crate::dom::element::DomSync::new())
             .set_updater(Box::new(move |html| {
                 *html_content_ref.lock().unwrap() = html.to_string();
             }));
@@ -264,7 +264,7 @@ impl DocumentData {
     /// Add form metadata that can be used when creating form elements in JavaScript
     fn add_form_metadata(&self, form_id: String, inputs: Vec<(String, String, String)>) {
         // Create an HTMLFormElement with proper elements collection
-        use boa_engine::builtins::form::{HTMLFormElement, HTMLInputElement, HTMLFormControlsCollection};
+        use crate::misc::form::{HTMLFormElement, HTMLInputElement, HTMLFormControlsCollection};
         use boa_engine::{Context, object::ObjectInitializer, js_string};
 
         // For now, store the metadata - we'll need a context to create the actual objects
@@ -303,13 +303,13 @@ fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
         JsNativeError::typ().with_message("Document.prototype.readyState called on non-object")
     })?;
 
-    let value = if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        document.get_ready_state()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Document.prototype.readyState called on non-Document object")
-            .into());
-    };
+    let value = {
+            let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("Document.prototype.readyState called on non-Document object")
+            })?;
+            document.get_ready_state()
+        };
     Ok(JsString::from(value).into())
 }
 
@@ -319,13 +319,13 @@ fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Document.prototype.URL called on non-object")
     })?;
 
-    let value = if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        document.get_url()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Document.prototype.URL called on non-Document object")
-            .into());
-    };
+    let value = {
+            let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("Document.prototype.URL called on non-Document object")
+            })?;
+            document.get_url()
+        };
     Ok(JsString::from(value).into())
 }
 
@@ -335,13 +335,13 @@ fn get_title(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("Document.prototype.title called on non-object")
     })?;
 
-    let value = if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        document.get_title()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Document.prototype.title called on non-Document object")
-            .into());
-    };
+    let value = {
+            let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("Document.prototype.title called on non-Document object")
+            })?;
+            document.get_title()
+        };
     Ok(JsString::from(value).into())
 }
 
@@ -435,7 +435,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
         // Create a proper Element object using Element constructor pattern
         let element_constructor = context.intrinsics().constructors().element().constructor();
-        let element = boa_engine::builtins::element::Element::constructor(
+        let element = crate::dom::element::Element::constructor(
             &element_constructor.clone().into(),
             &[],
             context,
@@ -457,7 +457,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         )?;
 
         // Set the tag name in the element data
-        if let Some(element_data) = element_obj.downcast_ref::<boa_engine::builtins::element::ElementData>() {
+        if let Some(element_data) = element_obj.downcast_ref::<crate::dom::element::ElementData>() {
             element_data.set_tag_name(tag_name_upper.clone());
         }
 

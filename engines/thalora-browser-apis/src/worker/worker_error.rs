@@ -10,11 +10,9 @@
 
 use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, JsObject, js_string,
-    builtins::{
-        worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event},
-    },
     property::Attribute,
 };
+use crate::worker::worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event};
 use boa_gc::{Finalize, Trace};
 
 /// Types of worker errors according to WHATWG specification

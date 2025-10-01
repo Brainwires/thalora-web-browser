@@ -1,5 +1,7 @@
 //! Web Workers APIs
 
+pub mod service_worker;
+pub mod service_worker_container;
 pub mod worker;
 pub mod worker_error;
 pub mod worker_events;

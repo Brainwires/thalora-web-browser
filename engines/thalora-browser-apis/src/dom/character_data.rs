@@ -176,14 +176,14 @@ impl CharacterDataData {
         let data_arg = args.get_or_undefined(0);
         let data_string = data_arg.to_string(_context)?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
+        {
+            let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("CharacterData.data called on non-CharacterData object")
+            })?;
             char_data.set_data(data_string.to_std_string_escaped());
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("CharacterData.data called on non-CharacterData object")
-                .into())
         }
+        Ok(JsValue::undefined())
     }
 
     /// `CharacterData.prototype.length` getter
@@ -214,17 +214,16 @@ impl CharacterDataData {
         let offset = offset_arg.to_u32(context)?;
         let count = count_arg.to_u32(context)?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
-            match char_data.substring_data_impl(offset, count) {
-                Ok(result) => Ok(JsValue::from(js_string!(result))),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("CharacterData.substringData called on non-CharacterData object")
-                .into())
+        })?;
+
+        match char_data.substring_data_impl(offset, count) {
+            Ok(result) => Ok(JsValue::from(js_string!(result))),
+            Err(err) => Err(JsNativeError::range()
+                .with_message(err)
+                .into()),
         }
     }
 

@@ -265,13 +265,13 @@ fn get_length(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("History.prototype.length called on non-object")
     })?;
 
-    let value = if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        history.get_length()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("History.prototype.length called on non-History object")
-            .into());
-    };
+    let value = {
+            let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("History.prototype.length called on non-History object")
+            })?;
+            history.get_length()
+        };
     Ok(JsValue::from(value))
 }
 
@@ -305,13 +305,13 @@ fn get_scroll_restoration(this: &JsValue, _args: &[JsValue], _context: &mut Cont
         JsNativeError::typ().with_message("History.prototype.scrollRestoration called on non-object")
     })?;
 
-    let value = if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        history.get_scroll_restoration()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("History.prototype.scrollRestoration called on non-History object")
-            .into());
-    };
+    let value = {
+            let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("History.prototype.scrollRestoration called on non-History object")
+            })?;
+            history.get_scroll_restoration()
+        };
     Ok(JsString::from(value).into())
 }
 

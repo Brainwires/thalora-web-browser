@@ -4,15 +4,17 @@
 //! https://dom.spec.whatwg.org/#concept-shadow-including-tree-order
 
 use boa_engine::{
-    builtins::{
-        element::ElementData,
-        shadow_root::ShadowRootData,
-        html_slot_element::HTMLSlotElementData,
-        node::NodeData,
-    },
     object::JsObject,
     value::JsValue,
     Context, JsResult,
+};
+use crate::dom::{
+    element::ElementData,
+    shadow::{
+        shadow_root::ShadowRootData,
+        html_slot_element::HTMLSlotElementData,
+    },
+    node::NodeData,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::{VecDeque, HashSet};
@@ -935,8 +937,8 @@ impl EventPath {
         if let Some(shadow_data) = node.downcast_ref::<ShadowRootData>() {
             // Closed shadow roots block non-composed events
             match shadow_data.mode() {
-                boa_engine::builtins::shadow_root::ShadowRootMode::Closed => false,
-                boa_engine::builtins::shadow_root::ShadowRootMode::Open => true,
+                crate::dom::shadow::shadow_root::ShadowRootMode::Closed => false,
+                crate::dom::shadow::shadow_root::ShadowRootMode::Open => true,
             }
         } else {
             true

@@ -167,15 +167,16 @@ impl Attr {
         let new_value = args.get_or_undefined(0).to_string(context)?;
         let new_value_string = new_value.to_std_string().unwrap_or_default();
 
-        if let Some(attr_data) = this_obj.downcast_ref::<AttrData>() {
+        // Extract data while borrow is active
+        {
+            let attr_data = this_obj.downcast_ref::<AttrData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("Attr.prototype.value setter called on non-Attr object")
+            })?;
             // Don't escape - preserve the raw string value
             attr_data.set_value(new_value_string);
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Attr.prototype.value setter called on non-Attr object")
-                .into())
         }
+        Ok(JsValue::undefined())
     }
 
     /// Get the ownerElement property

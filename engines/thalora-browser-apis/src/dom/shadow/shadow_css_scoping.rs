@@ -4,14 +4,14 @@
 //! https://drafts.csswg.org/css-scoping-1/
 
 use boa_engine::{
-    builtins::{
-        element::ElementData,
-        shadow_root::ShadowRootData,
-        node::NodeData,
-    },
     object::JsObject,
     value::JsValue,
     Context, JsResult, JsNativeError,
+};
+use crate::dom::{
+    element::ElementData,
+    shadow::shadow_root::ShadowRootData,
+    node::NodeData,
 };
 use boa_gc::{Finalize, Trace, GcRefCell};
 use std::collections::{HashMap, HashSet};
@@ -282,7 +282,7 @@ impl ShadowCSSScoping {
         let slots = Self::find_slots_in_tree(shadow_root);
 
         for slot in slots {
-            if let Some(slot_data) = slot.downcast_ref::<boa_engine::builtins::html_slot_element::HTMLSlotElementData>() {
+            if let Some(slot_data) = slot.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>() {
                 let assigned = slot_data.get_assigned_nodes();
                 slotted.extend(assigned);
             }
@@ -301,7 +301,7 @@ impl ShadowCSSScoping {
     /// Recursively collect slot elements
     fn collect_slots_recursive(node: &JsObject, slots: &mut Vec<JsObject>) {
         // Check if this node is a slot element
-        if node.downcast_ref::<boa_engine::builtins::html_slot_element::HTMLSlotElementData>().is_some() {
+        if node.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>().is_some() {
             slots.push(node.clone());
         }
 

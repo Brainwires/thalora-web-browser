@@ -6,13 +6,13 @@ use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, Source, JsArgs, js_string,
     object::JsObject,
     module::Module,
-    builtins::{
-        worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event},
-        worker_global_scope::{WorkerGlobalScope, WorkerGlobalScopeType, WorkerMessage, MessageSource},
-        worker_error::{WorkerErrorHandler, WorkerErrorType, WorkerError, error_helpers},
-        structured_clone::{StructuredCloneValue, structured_clone, structured_deserialize, TransferList},
-    },
 };
+use crate::worker::{
+    worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event},
+    worker_global_scope::{WorkerGlobalScope, WorkerGlobalScopeType, WorkerMessage, MessageSource},
+    worker_error::{WorkerErrorHandler, WorkerErrorType, WorkerError, error_helpers},
+};
+use crate::misc::structured_clone::{StructuredCloneValue, structured_clone, structured_deserialize, TransferList};
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;

@@ -19,8 +19,9 @@ use boa_engine::{
 };
 use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
-use boa_engine::builtins::web_locks::LockManagerObject;
-use boa_engine::builtins::service_worker_container::ServiceWorkerContainer;
+// TODO: Implement web_locks module
+// use crate::browser::web_locks::LockManagerObject;
+use crate::worker::service_worker_container::ServiceWorkerContainer;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -229,14 +230,10 @@ impl BuiltInConstructor for Navigator {
 // Navigator prototype methods and getters
 impl Navigator {
     /// `navigator.locks` getter
-    fn locks_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        // Create and return a LockManager instance
-        let lock_manager = LockManagerObject::new();
-        let lock_manager_obj = JsObject::from_proto_and_data(
-            Some(context.intrinsics().constructors().lock_manager().prototype()),
-            lock_manager
-        );
-        Ok(JsValue::from(lock_manager_obj))
+    fn locks_getter(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        // TODO: Implement web_locks module and return actual LockManager instance
+        // For now, return undefined to avoid compilation errors
+        Ok(JsValue::undefined())
     }
 
     /// `navigator.serviceWorker` getter

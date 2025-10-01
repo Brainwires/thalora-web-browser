@@ -5,7 +5,6 @@
 
 use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
-    builtins::document_fragment::DocumentFragmentData,
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{internal_methods::get_prototype_from_constructor, JsObject},
@@ -15,6 +14,7 @@ use boa_engine::{
     value::JsValue,
     Context, JsArgs, JsData, JsNativeError, JsResult,
 };
+use crate::dom::document_fragment::DocumentFragmentData;
 use boa_gc::{Finalize, Trace, GcRefCell};
 use std::collections::HashMap;
 
@@ -144,7 +144,7 @@ impl ShadowRootData {
         // Traverse child nodes looking for slot elements
         let children = self.fragment_data().get_children();
         for child in &children {
-            if let Some(_slot_data) = child.downcast_ref::<boa_engine::builtins::html_slot_element::HTMLSlotElementData>() {
+            if let Some(_slot_data) = child.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>() {
                 slots.push(child.clone());
             }
             // Recursively check child elements
@@ -158,10 +158,10 @@ impl ShadowRootData {
     fn find_slots_in_subtree(&self, node: &JsObject) -> Vec<JsObject> {
         let mut slots = Vec::new();
 
-        if let Some(element_data) = node.downcast_ref::<boa_engine::builtins::element::ElementData>() {
+        if let Some(element_data) = node.downcast_ref::<crate::dom::element::ElementData>() {
             let children = element_data.get_children();
             for child in &children {
-                if let Some(_slot_data) = child.downcast_ref::<boa_engine::builtins::html_slot_element::HTMLSlotElementData>() {
+                if let Some(_slot_data) = child.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>() {
                     slots.push(child.clone());
                 }
                 // Recursively check child elements
@@ -237,14 +237,14 @@ impl ShadowRootData {
 
     /// Apply basic CSS scoping transformations
     fn apply_basic_css_scoping(css_text: &str) -> String {
-        use boa_engine::builtins::shadow_css_scoping::ShadowCSSScoping;
+        use crate::dom::shadow::shadow_css_scoping::ShadowCSSScoping;
         ShadowCSSScoping::sanitize_shadow_css(css_text)
     }
 
     /// Compute composed path for event retargeting
     pub fn compute_composed_path(&self, target: JsObject, composed: bool) -> Vec<JsObject> {
         // Use the proper WHATWG event path computation
-        boa_engine::builtins::shadow_tree_traversal::EventPath::compute_composed_path(&target, composed)
+        crate::dom::shadow::shadow_tree_traversal::EventPath::compute_composed_path(&target, composed)
     }
 
     /// Retarget an event for Shadow DOM encapsulation

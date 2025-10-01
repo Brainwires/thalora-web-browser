@@ -6,14 +6,14 @@
 use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, Source, JsArgs, js_string,
     object::JsObject,
-    builtins::{
-        BuiltInBuilder,
-        worker_events::{WorkerEvent, dispatch_worker_event},
-        worker_navigator::WorkerNavigator,
-        structured_clone::{StructuredCloneValue, structured_clone, structured_deserialize, TransferList},
-    },
+    builtins::BuiltInBuilder,
     property::{PropertyDescriptorBuilder, Attribute},
 };
+use crate::worker::{
+    worker_events::{WorkerEvent, dispatch_worker_event},
+    worker_navigator::WorkerNavigator,
+};
+use crate::misc::structured_clone::{StructuredCloneValue, structured_clone, structured_deserialize, TransferList};
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 use crossbeam_channel::{Sender, Receiver, unbounded};
@@ -508,7 +508,7 @@ impl WorkerGlobalScope {
         };
 
         // Create proper MessageEvent using the built-in constructor
-        let message_event = boa_engine::builtins::message_event::create_message_event(
+        let message_event = crate::events::message_event::create_message_event(
             deserialized_data,
             origin,
             None, // source: we could pass the worker object reference here

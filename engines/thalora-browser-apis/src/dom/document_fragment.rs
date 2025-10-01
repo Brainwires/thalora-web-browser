@@ -155,12 +155,12 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.childElementCount called on non-object")
         })?;
 
-        let value = if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
+        let value = {
+            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("DocumentFragment.childElementCount called on non-DocumentFragment object")
+            })?;
             fragment_data.get_child_element_count()
-        } else {
-            return Err(JsNativeError::typ()
-                .with_message("DocumentFragment.childElementCount called on non-DocumentFragment object")
-                .into());
         };
         Ok(JsValue::from(value))
     }
@@ -171,12 +171,12 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.firstElementChild called on non-object")
         })?;
 
-        let value = if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
+        let value = {
+            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("DocumentFragment.firstElementChild called on non-DocumentFragment object")
+            })?;
             fragment_data.get_first_element_child()
-        } else {
-            return Err(JsNativeError::typ()
-                .with_message("DocumentFragment.firstElementChild called on non-DocumentFragment object")
-                .into());
         };
         match value {
             Some(element) => Ok(element.into()),
@@ -190,12 +190,12 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.lastElementChild called on non-object")
         })?;
 
-        let value = if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
+        let value = {
+            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("DocumentFragment.lastElementChild called on non-DocumentFragment object")
+            })?;
             fragment_data.get_last_element_child()
-        } else {
-            return Err(JsNativeError::typ()
-                .with_message("DocumentFragment.lastElementChild called on non-DocumentFragment object")
-                .into());
         };
         match value {
             Some(element) => Ok(element.into()),

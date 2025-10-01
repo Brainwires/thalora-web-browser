@@ -4,14 +4,16 @@
 //! https://html.spec.whatwg.org/multipage/scripting.html#declarative-shadow-roots
 
 use boa_engine::{
-    builtins::{
-        element::ElementData,
-        shadow_root::{ShadowRootData, ShadowRootMode},
-        html_slot_element::HTMLSlotElementData,
-    },
     object::JsObject,
     value::JsValue,
     Context, JsResult, JsNativeError,
+};
+use crate::dom::{
+    element::ElementData,
+    shadow::{
+        shadow_root::{ShadowRootData, ShadowRootMode},
+        html_slot_element::HTMLSlotElementData,
+    },
 };
 use boa_gc::{Finalize, Trace, GcRefCell};
 use std::collections::HashMap;
@@ -494,7 +496,7 @@ impl DeclarativeShadowDOMParser {
     ) -> JsResult<bool> {
         // Check if element can have a shadow root (from element validation)
         if let Some(element_data) = template_element.downcast_ref::<ElementData>() {
-            use boa_engine::builtins::element::can_have_shadow_root;
+            use crate::dom::element::can_have_shadow_root;
 
             if !can_have_shadow_root(&element_data) {
                 return Ok(false);

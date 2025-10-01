@@ -863,12 +863,24 @@ fn get_tag_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.tagName called on non-object")
     })?;
 
-    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let value = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.tagName called on non-Element object")
+
+
+        })?;
+
+
         element.get_tag_name()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.tagName called on non-Element object")
-            .into());
+
+
     };
     Ok(JsString::from(value).into())
 }
@@ -879,12 +891,24 @@ fn get_id(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Element.prototype.id called on non-object")
     })?;
 
-    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let value = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.id called on non-Element object")
+
+
+        })?;
+
+
         element.get_id()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.id called on non-Element object")
-            .into());
+
+
     };
     Ok(JsString::from(value).into())
 }
@@ -919,12 +943,24 @@ fn get_class_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.className called on non-object")
     })?;
 
-    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let value = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.className called on non-Element object")
+
+
+        })?;
+
+
         element.get_class_name()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.className called on non-Element object")
-            .into());
+
+
     };
     Ok(JsString::from(value).into())
 }
@@ -959,12 +995,24 @@ fn get_inner_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.innerHTML called on non-object")
     })?;
 
-    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let value = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.innerHTML called on non-Element object")
+
+
+        })?;
+
+
         element.get_inner_html()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.innerHTML called on non-Element object")
-            .into());
+
+
     };
     Ok(JsString::from(value).into())
 }
@@ -1000,12 +1048,24 @@ fn get_text_content(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
         JsNativeError::typ().with_message("Element.prototype.textContent called on non-object")
     })?;
 
-    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let value = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.textContent called on non-Element object")
+
+
+        })?;
+
+
         element.get_text_content()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.textContent called on non-Element object")
-            .into());
+
+
     };
     Ok(JsString::from(value).into())
 }
@@ -1040,12 +1100,24 @@ fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Element.prototype.children called on non-object")
     })?;
 
-    let children = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let children = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.children called on non-Element object")
+
+
+        })?;
+
+
         element.get_children()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.children called on non-Element object")
-            .into());
+
+
     };
 
     use boa_engine::builtins::Array;
@@ -1060,12 +1132,24 @@ fn get_parent_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
         JsNativeError::typ().with_message("Element.prototype.parentNode called on non-object")
     })?;
 
-    let parent_node = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+    let parent_node = {
+
+
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+
+
+            JsNativeError::typ()
+
+
+                .with_message("Element.prototype.parentNode called on non-Element object")
+
+
+        })?;
+
+
         element.get_parent_node()
-    } else {
-        return Err(JsNativeError::typ()
-            .with_message("Element.prototype.parentNode called on non-Element object")
-            .into());
+
+
     };
 
     Ok(parent_node.map(|parent| parent.into()).unwrap_or(JsValue::null()))
@@ -1122,7 +1206,7 @@ fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
     }
 
     // Create or return a DOMTokenList bound to this element
-    let list = boa_engine::builtins::domtokenlist::DOMTokenList::create_for_element(this_obj.clone(), context)?;
+    let list = crate::dom::domtokenlist::DOMTokenList::create_for_element(this_obj.clone(), context)?;
     Ok(list.into())
 }
 
@@ -1421,7 +1505,7 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
             let shadow_init = if let Some(options_obj) = options.as_object() {
                 let mode = if let Ok(mode_value) = options_obj.get(js_string!("mode"), context) {
                     let mode_str = mode_value.to_string(context)?.to_std_string_escaped();
-                    boa_engine::builtins::shadow_root::ShadowRootMode::from_string(&mode_str)
+                    crate::dom::shadow::shadow_root::ShadowRootMode::from_string(&mode_str)
                         .ok_or_else(|| JsNativeError::typ()
                             .with_message("attachShadow mode must be 'open' or 'closed'"))?
                 } else {
@@ -1448,7 +1532,7 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
                     false
                 };
 
-                boa_engine::builtins::shadow_root::ShadowRootInit {
+                crate::dom::shadow::shadow_root::ShadowRootInit {
                     mode,
                     clonable,
                     serializable,
@@ -1488,20 +1572,20 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     }
 
     // Create a proper ShadowRoot using the new implementation
-    let shadow_root = boa_engine::builtins::shadow_root::ShadowRoot::create_shadow_root(
+    let shadow_root = crate::dom::shadow::shadow_root::ShadowRoot::create_shadow_root(
         shadow_init.mode.clone(),
         &shadow_init,
         context,
     )?;
 
     // Set the host element for the shadow root
-    if let Some(shadow_data) = shadow_root.downcast_ref::<boa_engine::builtins::shadow_root::ShadowRootData>() {
+    if let Some(shadow_data) = shadow_root.downcast_ref::<crate::dom::shadow::shadow_root::ShadowRootData>() {
         shadow_data.set_host(this_obj.clone());
     }
 
     // Set shadowRoot property on the element according to mode
     match shadow_init.mode {
-        boa_engine::builtins::shadow_root::ShadowRootMode::Open => {
+        crate::dom::shadow::shadow_root::ShadowRootMode::Open => {
             this_obj.define_property_or_throw(
                 js_string!("shadowRoot"),
                 boa_engine::property::PropertyDescriptorBuilder::new()
@@ -1513,7 +1597,7 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
                 context,
             )?;
         }
-        boa_engine::builtins::shadow_root::ShadowRootMode::Closed => {
+        crate::dom::shadow::shadow_root::ShadowRootMode::Closed => {
             // For 'closed' mode, shadowRoot property should be null
             this_obj.define_property_or_throw(
                 js_string!("shadowRoot"),

@@ -4,18 +4,19 @@
 //! https://dom.spec.whatwg.org/#mutation-algorithms
 
 use boa_engine::{
-    builtins::{
-        element::ElementData,
-        html_slot_element::HTMLSlotElementData,
-        shadow_root::ShadowRootData,
-        event::EventData,
-        custom_event::CustomEventData,
-    },
     object::JsObject,
     value::JsValue,
     Context, JsResult, JsNativeError,
     js_string,
 };
+use crate::dom::{
+    element::ElementData,
+    shadow::{
+        html_slot_element::HTMLSlotElementData,
+        shadow_root::ShadowRootData,
+    },
+};
+use crate::events::event::EventData;
 use boa_gc::{Finalize, Trace, GcRefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -91,12 +92,11 @@ impl SlotChangeEventSystem {
 
     /// Create slotchange event object
     fn create_slotchange_event(context: &mut Context) -> JsResult<JsObject> {
-        // Create custom event for slotchange
-        let event_data = CustomEventData::new(
+        // Create event for slotchange (using EventData since CustomEventData was removed)
+        let event_data = EventData::new(
             "slotchange".to_string(),
             false, // bubbles
             false, // cancelable
-            JsValue::undefined(), // detail
         );
 
         let realm = context.realm().clone();
