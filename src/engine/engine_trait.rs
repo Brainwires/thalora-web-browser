@@ -111,9 +111,21 @@ impl EngineFactory {
         }
     }
 
-    /// Get the default engine type
+    /// Get the default engine type (can be overridden by THALORA_TEST_ENGINE env var)
     pub fn default_engine() -> EngineType {
-        EngineType::Boa
+        // Check for test engine override via environment variable
+        if let Ok(engine_str) = std::env::var("THALORA_TEST_ENGINE") {
+            if let Ok(engine_type) = engine_str.parse::<EngineType>() {
+                return engine_type;
+            }
+        }
+        EngineType::V8
+    }
+
+    /// Create an engine using the default/configured engine type
+    /// This respects the THALORA_TEST_ENGINE environment variable
+    pub fn create_default_engine() -> Result<Box<dyn ThaloraBrowserEngine>> {
+        Self::create_engine(Self::default_engine())
     }
 
     /// List available engines

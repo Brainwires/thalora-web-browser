@@ -904,7 +904,7 @@ impl McpServer {
                 }),
                 serde_json::json!({
                     "name": "browser_navigate_to",
-                    "description": "Navigate to a specific URL in a browser session",
+                    "description": "Navigate to a specific URL in a browser session with optional JavaScript execution",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -915,6 +915,10 @@ impl McpServer {
                             "wait_for_load": {
                                 "type": "boolean",
                                 "description": "Whether to wait for page to fully load (default: true)"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to execute page JavaScript and wait for DOM to stabilize (default: false). Enable for SPAs and dynamic sites."
                             },
                             "session_id": {
                                 "type": "string",
@@ -1073,7 +1077,7 @@ impl McpServer {
             // User Events Simulation
             "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
             "browser_type_text" => self.browser_tools.handle_type_text(args_for_call.clone()).await,
-            "browser_wait_for_element" => McpResponse::error(-32601, "Tool not implemented yet: browser_wait_for_element".to_string()),
+            "browser_wait_for_element" => self.browser_tools.handle_wait_for_element(args_for_call.clone()).await,
             "browser_prepare_form_submission" => self.browser_tools.handle_prepare_form_submission(args_for_call.clone()).await,
             "browser_validate_session" => self.browser_tools.handle_validate_session(args_for_call.clone()).await,
 

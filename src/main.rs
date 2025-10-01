@@ -21,9 +21,9 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
     
-    /// Use V8 JavaScript engine instead of the default Boa engine
-    #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
-    use_v8_engine: bool,
+    /// Use Boa JavaScript engine instead of the default V8 engine
+    #[arg(long = "use-boa-engine", help = "Use Boa JavaScript engine for execution")]
+    use_boa_engine: bool,
 }
 
 #[derive(Subcommand)]
@@ -66,8 +66,16 @@ enum Commands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Create engine configuration from CLI arguments
-    let engine_config = EngineConfig::new(cli.use_v8_engine)?;
+    // Determine which engine to use based on CLI flags or default
+    let use_v8 = if cli.use_boa_engine {
+        false  // Override to use Boa
+    } else {
+        // No flags specified, use the default from EngineFactory
+        EngineFactory::default_engine() == EngineType::V8
+    };
+
+    // Create engine configuration
+    let engine_config = EngineConfig::new(use_v8)?;
     
     // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {
