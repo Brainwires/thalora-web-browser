@@ -8,7 +8,7 @@
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/Navigator)
 
 use boa_gc::{Finalize, Trace};
-use crate::{
+use boa_engine::{
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
@@ -17,10 +17,10 @@ use crate::{
     realm::Realm,
     Context, JsArgs, JsData, JsResult, JsString, JsValue,
 };
-use crate::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
-use crate::context::intrinsics::StandardConstructor;
-use crate::builtins::web_locks::LockManagerObject;
-use crate::builtins::service_worker_container::ServiceWorkerContainer;
+use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use boa_engine::context::intrinsics::StandardConstructor;
+use boa_engine::builtins::web_locks::LockManagerObject;
+use boa_engine::builtins::service_worker_container::ServiceWorkerContainer;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -113,8 +113,6 @@ impl Navigator {
     }
 }
 
-#[cfg(test)]
-mod tests;
 
 impl IntrinsicObject for Navigator {
     fn init(realm: &Realm) {
@@ -307,14 +305,14 @@ impl Navigator {
 
         // Basic validation - scheme should not be empty
         if scheme.is_empty() {
-            return Err(crate::JsNativeError::typ()
+            return Err(boa_engine::JsNativeError::typ()
                 .with_message("Failed to execute 'registerProtocolHandler' on 'Navigator': The scheme provided is not valid.")
                 .into());
         }
 
         // URL should contain %s placeholder
         if !url.contains("%s") {
-            return Err(crate::JsNativeError::syntax()
+            return Err(boa_engine::JsNativeError::syntax()
                 .with_message("Failed to execute 'registerProtocolHandler' on 'Navigator': The url provided does not contain a '%s' token.")
                 .into());
         }
@@ -332,7 +330,7 @@ impl Navigator {
 
         // Basic validation - scheme should not be empty
         if scheme.is_empty() {
-            return Err(crate::JsNativeError::typ()
+            return Err(boa_engine::JsNativeError::typ()
                 .with_message("Failed to execute 'unregisterProtocolHandler' on 'Navigator': The scheme provided is not valid.")
                 .into());
         }

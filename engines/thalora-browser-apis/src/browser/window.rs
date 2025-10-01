@@ -3,7 +3,7 @@
 //! Native implementation of Window standard
 //! https://html.spec.whatwg.org/#the-window-object
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, storage::Storage,
                file_system::{show_open_file_picker, show_save_file_picker, show_directory_picker}},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
@@ -527,7 +527,7 @@ fn get_document(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
         // Initialize document if needed
         if !document.has_property(js_string!("readyState"), context)? {
             // Create a new Document instance
-            use crate::builtins::document::Document;
+            use crate::dom::document::Document;
 
             let document_constructor_args: &[JsValue] = &[];
             let new_document = Document::constructor(&JsValue::undefined(), document_constructor_args, context)?;
@@ -594,7 +594,7 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             )?;
 
             // Add languages array property
-            use crate::builtins::array::Array;
+            use boa_engine::builtins::array::Array;
             let languages_array = Array::create_array_from_list([
                 JsString::from("en-US").into(),
                 JsString::from("en").into(),
@@ -764,7 +764,7 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             )?;
 
             // Add Storage API (navigator.storage)
-            use crate::builtins::storage_manager::StorageManager;
+            use crate::storage::storage_manager::StorageManager;
             let storage_manager = StorageManager::create_storage_manager();
             let storage_manager_prototype = context.intrinsics().constructors().storage_manager().prototype();
             storage_manager.set_prototype(Some(storage_manager_prototype));
@@ -1731,7 +1731,7 @@ fn get_session_storage(_this: &JsValue, _args: &[JsValue], context: &mut Context
 /// `window.indexedDB` getter
 fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Create IndexedDB factory instance with proper prototype
-    use crate::builtins::indexed_db::IdbFactory;
+    use boa_engine::builtins::indexed_db::IdbFactory;
 
     let factory_data = IdbFactory::new();
     let idb_factory_prototype = context.intrinsics().constructors().idb_factory().prototype();
@@ -1747,8 +1747,8 @@ fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
 
 fn get_selection(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Create a new Selection instance using the Selection constructor
-    use crate::builtins::selection::Selection;
-    use crate::builtins::IntrinsicObject;
+    use boa_engine::builtins::selection::Selection;
+    use boa_engine::builtins::IntrinsicObject;
 
     let selection_constructor = Selection::get(context.intrinsics());
     let selection_args = [];
@@ -1764,8 +1764,8 @@ fn get_selection(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
 /// `window.performance` getter
 fn get_performance(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Create a new Performance instance using the Performance constructor
-    use crate::builtins::performance::Performance;
-    use crate::builtins::IntrinsicObject;
+    use crate::browser::performance::Performance;
+    use boa_engine::builtins::IntrinsicObject;
 
     let performance_constructor = Performance::get(context.intrinsics());
     let performance_args = [];

@@ -2,7 +2,7 @@
 //!
 //! Handles fetching, parsing, and executing JavaScript files in isolated Worker contexts
 
-use crate::{
+use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, Source, JsArgs, js_string,
     object::JsObject,
     module::Module,

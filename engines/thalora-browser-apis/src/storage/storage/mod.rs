@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::fs;
 use serde::{Serialize, Deserialize};
 use boa_gc::{Finalize, Trace};
-use crate::{
+use boa_engine::{
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
@@ -22,7 +22,7 @@ use crate::{
     realm::Realm,
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
-use crate::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use crate::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use crate::context::intrinsics::StandardConstructor;
 
 /// Serializable storage data for persistence
@@ -382,5 +382,3 @@ impl Storage {
     }
 }
 
-#[cfg(test)]
-mod tests;

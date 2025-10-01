@@ -4,7 +4,7 @@
 //! It represents a single node in the document tree.
 //! https://dom.spec.whatwg.org/#interface-node
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,

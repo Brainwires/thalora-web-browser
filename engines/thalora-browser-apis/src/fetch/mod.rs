@@ -1,3 +1,5 @@
+//! Fetch & Networking APIs
+
 pub mod event_source;
 pub mod fetch;
 pub mod websocket;

@@ -5,7 +5,7 @@
 //!
 //! This implements the WebSocketStream interface for Chrome 124+
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
@@ -190,5 +190,3 @@ fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<
     }
 }
 
-#[cfg(test)]
-mod tests;

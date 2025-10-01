@@ -6,7 +6,7 @@
 //! The EventSource interface represents a connection to a server-sent event source.
 //! It allows for real-time communication via HTTP streaming.
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,

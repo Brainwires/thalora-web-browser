@@ -4,7 +4,7 @@
 //! with real HTML parsing, Shadow DOM support, and sanitization options.
 //! https://developer.mozilla.org/en-US/docs/Web/API/Document/parseHTMLUnsafe_static
 
-use crate::{
+use boa_engine::{
     builtins::BuiltInBuilder,
     object::JsObject,
     value::JsValue,

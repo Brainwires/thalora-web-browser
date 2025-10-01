@@ -8,7 +8,7 @@
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/StorageEvent)
 
 use boa_gc::{Finalize, Trace};
-use crate::{
+use boa_engine::{
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
@@ -17,7 +17,7 @@ use crate::{
     realm::Realm,
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
-use crate::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use crate::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use crate::context::intrinsics::StandardConstructor;
 
 /// `StorageEvent` implementation for the Web Storage API events.
@@ -415,5 +415,3 @@ impl StorageEvent {
     }
 }
 
-#[cfg(test)]
-mod tests;

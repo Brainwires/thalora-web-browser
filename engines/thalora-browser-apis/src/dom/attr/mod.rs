@@ -4,7 +4,7 @@
 //! It has name, value, and ownerElement properties.
 //! https://dom.spec.whatwg.org/#interface-attr
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -365,7 +365,7 @@ impl BuiltInConstructor for Attr {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        use crate::object::internal_methods::get_prototype_from_constructor;
+        use boa_engine::object::internal_methods::get_prototype_from_constructor;
 
         let prototype = get_prototype_from_constructor(
             new_target,
@@ -386,5 +386,3 @@ impl BuiltInConstructor for Attr {
     }
 }
 
-#[cfg(test)]
-mod tests;

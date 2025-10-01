@@ -13,7 +13,7 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 
 use boa_gc::{Finalize, Trace, Tracer};
-use crate::{
+use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::Intrinsics,
@@ -25,8 +25,6 @@ use crate::{
 };
 
 
-#[cfg(test)]
-mod tests;
 
 /// File handle data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]

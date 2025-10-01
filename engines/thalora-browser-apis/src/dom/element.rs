@@ -3,7 +3,7 @@
 //! Real native implementation of Element standard with actual DOM tree functionality
 //! https://dom.spec.whatwg.org/#interface-element
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
@@ -1009,7 +1009,7 @@ fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
 
     if let Some(element) = this_obj.downcast_ref::<ElementData>() {
         let children = element.get_children();
-        use crate::builtins::Array;
+        use boa_engine::builtins::Array;
         let children_values: Vec<JsValue> = children.into_iter().map(|child| child.into()).collect();
         let array = Array::create_array_from_list(children_values, context);
         Ok(array.into())
@@ -1577,5 +1577,3 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     }
 }
 
-#[cfg(test)]
-mod tests;

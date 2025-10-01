@@ -28,12 +28,8 @@ kuchikiki = "0.8"
 lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
 
-# JavaScript engine (pure Rust) - using local submodule for customization
-# Boa includes complete browser APIs (DOM, Fetch, WebSocket, Storage, Workers, etc.)
-boa_engine = { path = "engines/boa/core/engine" }
-
-# Browser APIs extraction attempted but not completed - APIs remain in Boa
-# thalora-browser-apis = { path = "engines/thalora-browser-apis" }
+# Browser APIs - extracted from Boa engine for modular architecture
+thalora-browser-apis = { path = "engines/thalora-browser-apis" }
 
 # Async trait support for engine abstraction
 async-trait = "0.1"

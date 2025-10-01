@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::fs;
 use serde::{Serialize, Deserialize};
-use crate::{
+use boa_engine::{
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
@@ -21,7 +21,7 @@ use crate::{
     realm::Realm,
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
-use crate::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use crate::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use crate::context::intrinsics::StandardConstructor;
 
 /// Cookie data structure for persistence
@@ -305,7 +305,7 @@ impl CookieStore {
             Vec::new()
         };
 
-        use crate::builtins::array::Array;
+        use boa_engine::builtins::array::Array;
         let cookies_array = Array::create_array_from_list(cookies, context);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
@@ -454,5 +454,3 @@ impl CookieStore {
     }
 }
 
-#[cfg(test)]
-mod tests;

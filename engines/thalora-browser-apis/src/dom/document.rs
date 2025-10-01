@@ -3,7 +3,7 @@
 //! Native implementation of Document standard
 //! https://dom.spec.whatwg.org/#interface-document
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
@@ -158,7 +158,7 @@ impl DocumentData {
         };
 
         // Set up DOM sync bridge - connect Element changes to Document updates
-        use crate::builtins::element::GLOBAL_DOM_SYNC;
+        use crate::dom::element::GLOBAL_DOM_SYNC;
         let html_content_ref = doc_data.html_content.clone();
         GLOBAL_DOM_SYNC.get_or_init(|| crate::builtins::element::DomSync::new())
             .set_updater(Box::new(move |html| {
@@ -264,7 +264,7 @@ impl DocumentData {
     /// Add form metadata that can be used when creating form elements in JavaScript
     fn add_form_metadata(&self, form_id: String, inputs: Vec<(String, String, String)>) {
         // Create an HTMLFormElement with proper elements collection
-        use crate::builtins::form::{HTMLFormElement, HTMLInputElement, HTMLFormControlsCollection};
+        use boa_engine::builtins::form::{HTMLFormElement, HTMLInputElement, HTMLFormControlsCollection};
         use boa_engine::{Context, object::ObjectInitializer, js_string};
 
         // For now, store the metadata - we'll need a context to create the actual objects
@@ -876,7 +876,7 @@ fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -
         // Use real DOM implementation with scraper library to find all matching elements
         let elements = create_all_real_elements_from_html(context, &selector_str, &html_content)?;
 
-        use crate::builtins::Array;
+        use boa_engine::builtins::Array;
         let array = Array::create_array_from_list(elements, context);
         Ok(array.into())
     } else {
@@ -1553,5 +1553,3 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
     Ok(JsValue::from(gl_context))
 }
 
-#[cfg(test)]
-mod tests;

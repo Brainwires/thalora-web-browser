@@ -3,7 +3,7 @@
 //! Provides a common event handling system for all Worker APIs
 //! Implements event handler properties and event dispatching
 
-use crate::{
+use boa_engine::{
     value::JsValue,
     Context, JsResult, JsString, js_string, JsArgs,
     object::JsObject,

@@ -4,7 +4,7 @@
 //! It is implemented by all objects that can receive and handle events.
 //! https://dom.spec.whatwg.org/#interface-eventtarget
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -343,5 +343,3 @@ impl BuiltInConstructor for EventTarget {
     }
 }
 
-#[cfg(test)]
-mod tests;

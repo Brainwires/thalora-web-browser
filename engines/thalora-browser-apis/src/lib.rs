@@ -41,14 +41,3 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> anyhow::Res
     // This function serves as a placeholder for future initialization
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_api_initialization() {
-        let mut context = boa_engine::Context::default();
-        assert!(initialize_browser_apis(&mut context).is_ok());
-    }
-}

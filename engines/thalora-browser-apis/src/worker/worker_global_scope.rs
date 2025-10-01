@@ -3,7 +3,7 @@
 //! Implements DedicatedWorkerGlobalScope, SharedWorkerGlobalScope, and ServiceWorkerGlobalScope
 //! https://html.spec.whatwg.org/multipage/workers.html#the-workerglobalscope-common-interface
 
-use crate::{
+use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, Source, JsArgs, js_string,
     object::JsObject,
     builtins::{

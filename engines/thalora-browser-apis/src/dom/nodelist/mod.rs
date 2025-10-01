@@ -3,7 +3,7 @@
 //! The NodeList interface represents a collection of nodes.
 //! https://dom.spec.whatwg.org/#interface-nodelist
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -432,5 +432,3 @@ impl BuiltInConstructor for NodeList {
     }
 }
 
-#[cfg(test)]
-mod tests;

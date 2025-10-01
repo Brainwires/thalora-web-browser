@@ -1,3 +1,5 @@
+//! Web Workers APIs
+
 pub mod worker;
 pub mod worker_error;
 pub mod worker_events;

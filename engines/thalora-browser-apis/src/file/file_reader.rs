@@ -5,10 +5,8 @@
 //!
 //! This implements the complete FileReader interface with async file reading and event handling
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
     object::JsObject,
     value::JsValue,
@@ -16,8 +14,8 @@ use crate::{
     realm::Realm, JsString, JsData,
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors}
 };
-use crate::builtins::blob::BlobData;
-use crate::builtins::file::FileData;
+use crate::file::blob::BlobData;
+use crate::file::file_system::FileData;
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;

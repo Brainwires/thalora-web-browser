@@ -9,7 +9,7 @@
 //! - [W3C Web Crypto API Specification](https://w3c.github.io/webcrypto/)
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},

@@ -1,7 +1,7 @@
+//! DOM APIs - Document Object Model
+
 pub mod attr;
-pub mod css;
 pub mod document;
-pub mod document_fragment;
 pub mod document_parse;
 pub mod domtokenlist;
 pub mod element;

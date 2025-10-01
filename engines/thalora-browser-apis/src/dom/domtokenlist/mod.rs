@@ -1,13 +1,13 @@
 //! DOMTokenList implementation (classList) - minimal spec-aligned subset
 //!
 //! Implements: add, remove, toggle, contains, item, length, toString
-use crate::{
+use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject, BuiltInConstructor},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string, object::JsObject, property::Attribute, realm::Realm,
     string::JsString, Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
 };
-use crate::builtins::element::ElementData;
+use crate::dom::element::ElementData;
 use boa_gc::{Finalize, Trace};
 
 /// Internal data for DOMTokenList objects

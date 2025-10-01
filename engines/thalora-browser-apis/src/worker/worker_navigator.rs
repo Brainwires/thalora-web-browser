@@ -5,7 +5,7 @@
 //!
 //! WorkerNavigator provides a subset of Navigator functionality available in workers
 
-use crate::{
+use boa_engine::{
     builtins::BuiltInBuilder,
     object::JsObject,
     property::Attribute,
@@ -166,7 +166,7 @@ impl WorkerNavigator {
 /// `WorkerNavigator.prototype.userAgent` getter
 fn get_user_agent(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        crate::JsNativeError::typ().with_message("WorkerNavigator.userAgent getter called on non-object")
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.userAgent getter called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
@@ -179,7 +179,7 @@ fn get_user_agent(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
 /// `WorkerNavigator.prototype.platform` getter
 fn get_platform(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        crate::JsNativeError::typ().with_message("WorkerNavigator.platform getter called on non-object")
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.platform getter called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
@@ -192,7 +192,7 @@ fn get_platform(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
 /// `WorkerNavigator.prototype.language` getter
 fn get_language(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        crate::JsNativeError::typ().with_message("WorkerNavigator.language getter called on non-object")
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.language getter called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
@@ -205,7 +205,7 @@ fn get_language(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
 /// `WorkerNavigator.prototype.languages` getter
 fn get_languages(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        crate::JsNativeError::typ().with_message("WorkerNavigator.languages getter called on non-object")
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.languages getter called on non-object")
     })?;
 
     // Get languages data, cloning to avoid lifetime issues
@@ -227,7 +227,7 @@ fn get_languages(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResu
 /// `WorkerNavigator.prototype.onLine` getter
 fn get_online(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        crate::JsNativeError::typ().with_message("WorkerNavigator.onLine getter called on non-object")
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.onLine getter called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
@@ -240,7 +240,7 @@ fn get_online(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValu
 /// `WorkerNavigator.prototype.hardwareConcurrency` getter
 fn get_hardware_concurrency(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        crate::JsNativeError::typ().with_message("WorkerNavigator.hardwareConcurrency getter called on non-object")
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.hardwareConcurrency getter called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {

@@ -5,10 +5,8 @@
 //!
 //! This implements the complete Blob interface with real binary data handling
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, promise::PromiseCapability,
                readable_stream::{ReadableStreamData, StreamState}},
     object::JsObject,

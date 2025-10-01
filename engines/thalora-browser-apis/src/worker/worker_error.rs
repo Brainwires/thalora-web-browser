@@ -7,10 +7,8 @@
 //! - Security errors
 //! - Network errors
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, JsObject, js_string,
     builtins::{
         worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event},

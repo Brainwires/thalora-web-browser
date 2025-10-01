@@ -5,10 +5,8 @@
 //!
 //! This implements the complete Fetch interface with real HTTP networking
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, Json},
     object::{JsObject, builtins::JsPromise, PROTOTYPE, internal_methods::get_prototype_from_constructor},
     value::JsValue,

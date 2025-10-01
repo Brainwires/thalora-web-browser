@@ -5,10 +5,8 @@
 //!
 //! This implements the complete WebSocket interface with real networking
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},

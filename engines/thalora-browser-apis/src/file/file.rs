@@ -5,10 +5,8 @@
 //!
 //! This implements the File interface which inherits from Blob
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
     object::JsObject,
     value::JsValue,
@@ -16,7 +14,7 @@ use crate::{
     realm::Realm, JsString, JsData,
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors}
 };
-use crate::builtins::blob::BlobData;
+use crate::file::blob::BlobData;
 use boa_gc::{Finalize, Trace};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};

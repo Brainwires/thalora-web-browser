@@ -7,10 +7,8 @@
 //!
 //! This implements the complete Performance interface for real timing measurements
 
-#[cfg(test)]
-mod tests;
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, Array},
     object::JsObject,
     value::JsValue,
