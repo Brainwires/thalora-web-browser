@@ -190,14 +190,14 @@ fn start(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         JsNativeError::typ().with_message("MessagePort.start called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<MessagePortData>() {
-        data.start();
+    {
+            let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("MessagePort.start called on invalid object")
+            })?;
+            data.start();
+        }
         Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("MessagePort.start called on invalid object")
-            .into())
-    }
 }
 
 /// `MessagePort.prototype.close()`
@@ -206,12 +206,12 @@ fn close(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         JsNativeError::typ().with_message("MessagePort.close called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<MessagePortData>() {
-        data.close();
+    {
+            let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("MessagePort.close called on invalid object")
+            })?;
+            data.close();
+        }
         Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("MessagePort.close called on invalid object")
-            .into())
-    }
 }

@@ -181,13 +181,13 @@ fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("WebSocketStream.prototype.close called on non-object")
     })?;
 
-    if let Some(websocket_stream) = this_obj.downcast_ref::<WebSocketStreamData>() {
-        websocket_stream.close();
+    {
+            let websocket_stream = this_obj.downcast_ref::<WebSocketStreamData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("WebSocketStream.prototype.close called on non-WebSocketStream object")
+            })?;
+            websocket_stream.close();
+        }
         Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("WebSocketStream.prototype.close called on non-WebSocketStream object")
-            .into())
-    }
 }
 

@@ -311,18 +311,18 @@ impl DocumentFragmentData {
         let selectors_arg = args.get_or_undefined(0);
         let selectors = selectors_arg.to_string(context)?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            match fragment_data.query_selector_impl(selectors.to_std_string_escaped()) {
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("DocumentFragment.querySelector called on non-DocumentFragment object")
+        })?;
+
+        match fragment_data.query_selector_impl(selectors.to_std_string_escaped()) {
                 Ok(Some(element)) => Ok(element.into()),
                 Ok(None) => Ok(JsValue::null()),
                 Err(err) => Err(JsNativeError::error()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("DocumentFragment.querySelector called on non-DocumentFragment object")
-                .into())
+
         }
     }
 
@@ -335,8 +335,12 @@ impl DocumentFragmentData {
         let selectors_arg = args.get_or_undefined(0);
         let selectors = selectors_arg.to_string(context)?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            match fragment_data.query_selector_all_impl(selectors.to_std_string_escaped()) {
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("DocumentFragment.querySelectorAll called on non-DocumentFragment object")
+        })?;
+
+        match fragment_data.query_selector_all_impl(selectors.to_std_string_escaped()) {
                 Ok(elements) => {
                     // Return as NodeList-like array
                     let array = boa_engine::builtins::Array::array_create(elements.len() as u64, None, context)?;
@@ -348,11 +352,7 @@ impl DocumentFragmentData {
                 Err(err) => Err(JsNativeError::error()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("DocumentFragment.querySelectorAll called on non-DocumentFragment object")
-                .into())
+
         }
     }
 
@@ -365,18 +365,18 @@ impl DocumentFragmentData {
         let id_arg = args.get_or_undefined(0);
         let id = id_arg.to_string(context)?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            match fragment_data.get_element_by_id_impl(id.to_std_string_escaped()) {
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("DocumentFragment.getElementById called on non-DocumentFragment object")
+        })?;
+
+        match fragment_data.get_element_by_id_impl(id.to_std_string_escaped()) {
                 Ok(Some(element)) => Ok(element.into()),
                 Ok(None) => Ok(JsValue::null()),
                 Err(err) => Err(JsNativeError::error()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("DocumentFragment.getElementById called on non-DocumentFragment object")
-                .into())
+
         }
     }
 }

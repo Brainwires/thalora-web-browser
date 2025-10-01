@@ -236,14 +236,14 @@ impl CharacterDataData {
         let data_arg = args.get_or_undefined(0);
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
+        {
+            let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("CharacterData.appendData called on non-CharacterData object")
+            })?;
             char_data.append_data_impl(data_string.to_std_string_escaped());
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("CharacterData.appendData called on non-CharacterData object")
-                .into())
         }
+        Ok(JsValue::undefined())
     }
 
     /// `CharacterData.prototype.insertData(offset, data)`
@@ -258,17 +258,16 @@ impl CharacterDataData {
         let offset = offset_arg.to_u32(context)?;
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
-            match char_data.insert_data_impl(offset, data_string.to_std_string_escaped()) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("CharacterData.insertData called on non-CharacterData object")
-                .into())
+        })?;
+
+        match char_data.insert_data_impl(offset, data_string.to_std_string_escaped()) {
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::range()
+                .with_message(err)
+                .into()),
         }
     }
 
@@ -284,17 +283,16 @@ impl CharacterDataData {
         let offset = offset_arg.to_u32(context)?;
         let count = count_arg.to_u32(context)?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
-            match char_data.delete_data_impl(offset, count) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("CharacterData.deleteData called on non-CharacterData object")
-                .into())
+        })?;
+
+        match char_data.delete_data_impl(offset, count) {
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::range()
+                .with_message(err)
+                .into()),
         }
     }
 
@@ -312,17 +310,16 @@ impl CharacterDataData {
         let count = count_arg.to_u32(context)?;
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(char_data) = this_obj.downcast_ref::<CharacterDataData>() {
-            match char_data.replace_data_impl(offset, count, data_string.to_std_string_escaped()) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("CharacterData.replaceData called on non-CharacterData object")
-                .into())
+        })?;
+
+        match char_data.replace_data_impl(offset, count, data_string.to_std_string_escaped()) {
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::range()
+                .with_message(err)
+                .into()),
         }
     }
 }

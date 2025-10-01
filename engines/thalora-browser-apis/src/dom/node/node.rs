@@ -526,15 +526,15 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.baseURI called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_base_uri() {
+        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.baseURI called on non-Node object")
+        })?;
+
+        match node.get_base_uri() {
                 Some(uri) => Ok(JsValue::from(js_string!(uri))),
                 None => Ok(JsValue::null()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Node.baseURI called on non-Node object")
-                .into())
+
         }
     }
 
@@ -773,15 +773,15 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.textContent called on non-object")
         })?;
 
-        if let Some(node) = this_obj.downcast_ref::<NodeData>() {
-            match node.get_text_content() {
+        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.textContent called on non-Node object")
+        })?;
+
+        match node.get_text_content() {
                 Some(content) => Ok(JsValue::from(js_string!(content))),
                 None => Ok(JsValue::null()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Node.textContent called on non-Node object")
-                .into())
+
         }
     }
 

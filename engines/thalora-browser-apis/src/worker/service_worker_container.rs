@@ -407,7 +407,7 @@ impl ServiceWorkerContainer {
         registration_obj.set(js_string!("updateViaCache"), js_string!("imports"), false, context)?;
 
         // Add stub methods (would need real implementation)
-        let update_func = crate::builtins::BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        let update_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
             eprintln!("ServiceWorkerRegistration.update() called - not implemented");
             Ok(JsValue::undefined())
         })
@@ -415,7 +415,7 @@ impl ServiceWorkerContainer {
         .build();
         registration_obj.set(js_string!("update"), update_func, false, context)?;
 
-        let unregister_func = crate::builtins::BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        let unregister_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
             eprintln!("ServiceWorkerRegistration.unregister() called - not implemented");
             Ok(JsValue::undefined())
         })
@@ -438,32 +438,32 @@ impl ServiceWorkerContainer {
         container.set(js_string!("controller"), JsValue::null(), false, context)?;
 
         // Add methods
-        let register_func = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::register)
+        let register_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::register)
             .name(js_string!("register"))
             .length(1)
             .build();
         container.set(js_string!("register"), register_func, false, context)?;
 
-        let get_registration_func = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registration)
+        let get_registration_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registration)
             .name(js_string!("getRegistration"))
             .length(0)
             .build();
         container.set(js_string!("getRegistration"), get_registration_func, false, context)?;
 
-        let get_registrations_func = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registrations)
+        let get_registrations_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registrations)
             .name(js_string!("getRegistrations"))
             .length(0)
             .build();
         container.set(js_string!("getRegistrations"), get_registrations_func, false, context)?;
 
-        let start_messages_func = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::start_messages)
+        let start_messages_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::start_messages)
             .name(js_string!("startMessages"))
             .length(0)
             .build();
         container.set(js_string!("startMessages"), start_messages_func, false, context)?;
 
         // Add ready getter
-        let ready_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::get_ready)
+        let ready_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_ready)
             .name(js_string!("get ready"))
             .build();
         container.define_property_or_throw(
@@ -482,10 +482,10 @@ impl ServiceWorkerContainer {
         container.set(js_string!("__onmessageerror"), JsValue::null(), false, context)?;
 
         // Add event handler accessors
-        let oncontrollerchange_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::get_oncontrollerchange)
+        let oncontrollerchange_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_oncontrollerchange)
             .name(js_string!("get oncontrollerchange"))
             .build();
-        let oncontrollerchange_setter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::set_oncontrollerchange)
+        let oncontrollerchange_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_oncontrollerchange)
             .name(js_string!("set oncontrollerchange"))
             .build();
         container.define_property_or_throw(
@@ -499,10 +499,10 @@ impl ServiceWorkerContainer {
             context,
         )?;
 
-        let onmessage_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessage)
+        let onmessage_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessage)
             .name(js_string!("get onmessage"))
             .build();
-        let onmessage_setter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessage)
+        let onmessage_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessage)
             .name(js_string!("set onmessage"))
             .build();
         container.define_property_or_throw(
@@ -516,10 +516,10 @@ impl ServiceWorkerContainer {
             context,
         )?;
 
-        let onmessageerror_getter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessageerror)
+        let onmessageerror_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessageerror)
             .name(js_string!("get onmessageerror"))
             .build();
-        let onmessageerror_setter = crate::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessageerror)
+        let onmessageerror_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessageerror)
             .name(js_string!("set onmessageerror"))
             .build();
         container.define_property_or_throw(

@@ -413,11 +413,10 @@ fn get_start_container(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResu
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        Ok(range_data.start_container.clone().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    Ok(range_data.start_container.clone().unwrap_or(JsValue::null()))
 }
 
 /// Get the start offset of the range.
@@ -426,11 +425,10 @@ fn get_start_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        Ok(JsValue::from(range_data.start_offset))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    Ok(JsValue::from(range_data.start_offset))
 }
 
 /// Get the end container of the range.
@@ -439,11 +437,10 @@ fn get_end_container(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        Ok(range_data.end_container.clone().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    Ok(range_data.end_container.clone().unwrap_or(JsValue::null()))
 }
 
 /// Get the end offset of the range.
@@ -452,11 +449,10 @@ fn get_end_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        Ok(JsValue::from(range_data.end_offset))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    Ok(JsValue::from(range_data.end_offset))
 }
 
 /// Get whether the range is collapsed.
@@ -465,11 +461,10 @@ fn get_collapsed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        Ok(JsValue::from(range_data.collapsed))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    Ok(JsValue::from(range_data.collapsed))
 }
 
 /// Get the common ancestor container.
@@ -478,11 +473,10 @@ fn get_common_ancestor_container(this: &JsValue, _: &[JsValue], _: &mut Context)
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        Ok(range_data.common_ancestor_container.clone().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    Ok(range_data.common_ancestor_container.clone().unwrap_or(JsValue::null()))
 }
 
 /// Set the start of the range.
@@ -659,16 +653,16 @@ fn compare_boundary_points(this: &JsValue, args: &[JsValue], context: &mut Conte
         JsNativeError::typ().with_message("Second argument must be a Range object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        if let Some(other_range_data) = other_range_obj.downcast_ref::<RangeData>() {
-            let result = range_data.compare_boundary_points(how, &other_range_data);
-            Ok(JsValue::from(result))
-        } else {
-            Err(JsNativeError::typ().with_message("Second argument must be a Range object").into())
-        }
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    let other_range_data = other_range_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Second argument must be a Range object")
+    })?;
+
+    let result = range_data.compare_boundary_points(how, &other_range_data);
+    Ok(JsValue::from(result))
 }
 
 /// Delete the contents of the range.
@@ -705,11 +699,10 @@ fn clone_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        range_data.clone_contents()
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+    range_data.clone_contents()
 }
 
 /// Insert a node at the start of the range.
@@ -748,19 +741,19 @@ fn clone_range(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(range_data) = this_obj.downcast_ref::<RangeData>() {
-        let cloned_data = range_data.clone_range();
-        let range_constructor = StandardConstructors::range(context.intrinsics().constructors()).constructor();
-        let prototype = get_prototype_from_constructor(&range_constructor.into(), StandardConstructors::range, context)?;
-        let cloned_range = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            prototype,
-            cloned_data
-        );
-        Ok(cloned_range.into())
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    let cloned_data = range_data.clone_range();
+    let range_constructor = StandardConstructors::range(context.intrinsics().constructors()).constructor();
+    let prototype = get_prototype_from_constructor(&range_constructor.into(), StandardConstructors::range, context)?;
+    let cloned_range = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        prototype,
+        cloned_data
+    );
+    Ok(cloned_range.into())
 }
 
 /// Convert the range to a string.

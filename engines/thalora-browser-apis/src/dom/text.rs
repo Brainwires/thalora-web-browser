@@ -134,8 +134,12 @@ impl TextData {
         let offset_arg = args.get_or_undefined(0);
         let offset = offset_arg.to_u32(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.split_text_impl(offset) {
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Text.splitText called on non-Text object")
+        })?;
+
+        match text_data.split_text_impl(offset) {
                 Ok(new_text_node) => {
                     // Create a new Text object
                     let text_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -148,11 +152,7 @@ impl TextData {
                 Err(err) => Err(JsNativeError::range()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Text.splitText called on non-Text object")
-                .into())
+
         }
     }
 
@@ -165,17 +165,17 @@ impl TextData {
         let content_arg = args.get_or_undefined(0);
         let content_string = content_arg.to_string(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.replace_whole_text_impl(content_string.to_std_string_escaped()) {
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Text.replaceWholeText called on non-Text object")
+        })?;
+
+        match text_data.replace_whole_text_impl(content_string.to_std_string_escaped()) {
                 Ok(_) => Ok(this_obj.clone().into()),
                 Err(err) => Err(JsNativeError::error()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Text.replaceWholeText called on non-Text object")
-                .into())
+
         }
     }
 
@@ -237,17 +237,17 @@ impl TextData {
         let offset = offset_arg.to_u32(context)?;
         let count = count_arg.to_u32(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.character_data.substring_data_impl(offset, count) {
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Text.substringData called on non-Text object")
+        })?;
+
+        match text_data.character_data.substring_data_impl(offset, count) {
                 Ok(result) => Ok(JsValue::from(js_string!(result))),
                 Err(err) => Err(JsNativeError::range()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Text.substringData called on non-Text object")
-                .into())
+
         }
     }
 
@@ -280,17 +280,17 @@ impl TextData {
         let offset = offset_arg.to_u32(context)?;
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.character_data.insert_data_impl(offset, data_string.to_std_string_escaped()) {
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Text.insertData called on non-Text object")
+        })?;
+
+        match text_data.character_data.insert_data_impl(offset, data_string.to_std_string_escaped()) {
                 Ok(_) => Ok(JsValue::undefined()),
                 Err(err) => Err(JsNativeError::range()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Text.insertData called on non-Text object")
-                .into())
+
         }
     }
 
@@ -305,17 +305,17 @@ impl TextData {
         let offset = offset_arg.to_u32(context)?;
         let count = count_arg.to_u32(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.character_data.delete_data_impl(offset, count) {
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Text.deleteData called on non-Text object")
+        })?;
+
+        match text_data.character_data.delete_data_impl(offset, count) {
                 Ok(_) => Ok(JsValue::undefined()),
                 Err(err) => Err(JsNativeError::range()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Text.deleteData called on non-Text object")
-                .into())
+
         }
     }
 
@@ -332,17 +332,17 @@ impl TextData {
         let count = count_arg.to_u32(context)?;
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            match text_data.character_data.replace_data_impl(offset, count, data_string.to_std_string_escaped()) {
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Text.replaceData called on non-Text object")
+        })?;
+
+        match text_data.character_data.replace_data_impl(offset, count, data_string.to_std_string_escaped()) {
                 Ok(_) => Ok(JsValue::undefined()),
                 Err(err) => Err(JsNativeError::range()
                     .with_message(err)
                     .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Text.replaceData called on non-Text object")
-                .into())
+
         }
     }
 }

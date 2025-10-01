@@ -391,15 +391,15 @@ impl ShadowRootData {
         let html_value = args.get_or_undefined(0);
         let html_string = html_value.to_string(context)?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            match shadow_data.set_inner_html(&html_string.to_std_string_escaped()) {
+        let shadow_data = this_obj.downcast_ref::<ShadowRootData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("ShadowRoot.innerHTML setter called on non-ShadowRoot object")
+        })?;
+
+        match shadow_data.set_inner_html(&html_string.to_std_string_escaped()) {
                 Ok(()) => Ok(JsValue::undefined()),
                 Err(err) => Err(JsNativeError::error().with_message(err).into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("ShadowRoot.innerHTML setter called on non-ShadowRoot object")
-                .into())
+
         }
     }
 
