@@ -9,6 +9,7 @@ pub mod renderer;
 pub mod browser_ui;
 pub mod tab_manager;
 pub mod input_handler;
+pub mod fonts;
 
 // Re-export main types
 pub use window::WindowManager;
@@ -16,6 +17,7 @@ pub use renderer::{WebRenderer, RenderState};
 pub use browser_ui::{BrowserUI, NavigationState};
 pub use tab_manager::{TabManager, Tab, TabId};
 pub use input_handler::InputHandler;
+pub use fonts::{FontManager, FontDescriptor, FontWeight, FontStyle, FontSize};
 
 use crate::engine::EngineConfig;
 use anyhow::Result;

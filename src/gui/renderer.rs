@@ -196,6 +196,13 @@ impl WebRenderer {
 
         // Render egui UI on top
         let raw_input = self.egui_winit.take_egui_input(&self.window);
+
+        // Initialize fonts once
+        static FONTS_INITIALIZED: std::sync::Once = std::sync::Once::new();
+        FONTS_INITIALIZED.call_once(|| {
+            browser_ui.init_fonts(&self.egui_ctx);
+        });
+
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
             browser_ui.show(ctx, tab_manager);
         });

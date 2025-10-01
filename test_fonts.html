@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Font Rendering Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .serif {
+            font-family: serif;
+        }
+        .monospace {
+            font-family: monospace;
+        }
+        .large {
+            font-size: 24px;
+        }
+        .small {
+            font-size: 12px;
+        }
+        .bold {
+            font-weight: bold;
+        }
+        .italic {
+            font-style: italic;
+        }
+        .colored {
+            color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Font System Test</h1>
+    <h2>Heading Level 2</h2>
+    <h3>Heading Level 3</h3>
+    <h4>Heading Level 4</h4>
+
+    <p>This is a normal paragraph with <strong>bold text</strong> and <em>italic text</em>.</p>
+
+    <p class="serif">This paragraph uses a serif font family.</p>
+    <p class="monospace">This paragraph uses a monospace font family.</p>
+
+    <p class="large">This is large text (24px).</p>
+    <p class="small">This is small text (12px).</p>
+
+    <p class="bold">This entire paragraph is bold.</p>
+    <p class="colored">This paragraph has a custom color.</p>
+
+    <p style="font-size: 18px; color: #ff6600; font-weight: 600;">
+        This paragraph has inline styles: 18px, orange, semi-bold.
+    </p>
+
+    <div style="background-color: #e0f0ff; padding: 15px; border-radius: 5px;">
+        <h3 style="color: #003366;">Styled Container</h3>
+        <p style="font-size: 14px;">Content inside a styled container with background, padding, and border radius.</p>
+    </div>
+</body>
+</html>
