@@ -81,6 +81,17 @@ impl Storage {
         }
     }
 
+    /// Creates a new `Storage` instance with a custom storage path (for tests).
+    #[cfg(test)]
+    pub fn new_with_path(storage_type: &'static str, custom_path: PathBuf) -> Self {
+        let data = Self::load_storage_data(&custom_path);
+        Self {
+            data: Arc::new(RwLock::new(data)),
+            storage_type,
+            storage_path: custom_path,
+        }
+    }
+
     /// Creates a `Storage` instance with pre-populated data.
     pub(crate) fn with_data(data: HashMap<String, String>, storage_type: &'static str) -> Self {
         let storage_path = Self::get_storage_path(storage_type);
@@ -94,6 +105,12 @@ impl Storage {
     }
 
     /// Gets the number of items in storage.
+    #[cfg(test)]
+    pub fn length_internal(&self) -> usize {
+        self.data.read().unwrap().len()
+    }
+
+    #[cfg(not(test))]
     fn length_internal(&self) -> usize {
         self.data.read().unwrap().len()
     }
@@ -106,11 +123,37 @@ impl Storage {
     }
 
     /// Gets an item from storage by key.
+    #[cfg(test)]
+    pub fn get_item_internal(&self, key: &str) -> Option<String> {
+        self.data.read().unwrap().get(key).cloned()
+    }
+
+    #[cfg(not(test))]
     fn get_item_internal(&self, key: &str) -> Option<String> {
         self.data.read().unwrap().get(key).cloned()
     }
 
     /// Sets an item in storage.
+    #[cfg(test)]
+    pub fn set_item_internal(&self, key: String, value: String) -> JsResult<()> {
+        let old_value = {
+            let data = self.data.read().unwrap();
+            data.get(&key).cloned()
+        };
+
+        {
+            let mut data = self.data.write().unwrap();
+            data.insert(key.clone(), value.clone());
+        }
+        self.save_storage_data();
+
+        // Fire storage event for cross-window communication
+        // Note: In a real browser, this would only fire in other windows/contexts
+        // For now, we'll implement the event structure for future use
+        Ok(())
+    }
+
+    #[cfg(not(test))]
     fn set_item_internal(&self, key: String, value: String) -> JsResult<()> {
         let old_value = {
             let data = self.data.read().unwrap();

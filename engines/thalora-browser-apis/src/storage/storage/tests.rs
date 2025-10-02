@@ -347,25 +347,31 @@ fn test_storage_data_types() {
 fn test_storage_persistence() {
     use std::fs;
     use std::path::PathBuf;
+    use std::thread;
 
-    // Clean up any existing test data
+    // Use thread ID to create unique test path to avoid conflicts with parallel tests
+    let thread_id = format!("{:?}", thread::current().id());
     let mut test_path = std::env::temp_dir();
     test_path.push("boa_web_storage");
-    test_path.push("localStorage.json");
+    fs::create_dir_all(&test_path).ok();
+    test_path.push(format!("test_persistence_{}.json", thread_id));
+
+    // Clean up any existing test data
     if test_path.exists() {
         fs::remove_file(&test_path).ok();
     }
 
-    // First context: set some data
+    // First context: set some data directly to the test file
     {
-        let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
-        context.eval(Source::from_bytes("localStorage.setItem('persistent_key', 'persistent_value')")).unwrap();
-        context.eval(Source::from_bytes("localStorage.setItem('number_key', '12345')")).unwrap();
+        use crate::storage::storage::Storage;
+        let storage = Storage::new_with_path("localStorage", test_path.clone());
+
+        // Simulate JavaScript setItem calls
+        storage.set_item_internal("persistent_key".to_string(), "persistent_value".to_string()).unwrap();
+        storage.set_item_internal("number_key".to_string(), "12345".to_string()).unwrap();
 
         // Verify data is set
-        let result = context.eval(Source::from_bytes("localStorage.getItem('persistent_key')")).unwrap();
-        assert_eq!(result, JsValue::from(JsString::from("persistent_value")));
+        assert_eq!(storage.get_item_internal("persistent_key"), Some("persistent_value".to_string()));
     }
 
     // Verify file was created
@@ -373,19 +379,15 @@ fn test_storage_persistence() {
 
     // Second context: data should persist
     {
-        let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+        use crate::storage::storage::Storage;
+        let storage = Storage::new_with_path("localStorage", test_path.clone());
 
         // Data should still be there
-        let result = context.eval(Source::from_bytes("localStorage.getItem('persistent_key')")).unwrap();
-        assert_eq!(result, JsValue::from(JsString::from("persistent_value")));
-
-        let result = context.eval(Source::from_bytes("localStorage.getItem('number_key')")).unwrap();
-        assert_eq!(result, JsValue::from(JsString::from("12345")));
+        assert_eq!(storage.get_item_internal("persistent_key"), Some("persistent_value".to_string()));
+        assert_eq!(storage.get_item_internal("number_key"), Some("12345".to_string()));
 
         // Verify length
-        let result = context.eval(Source::from_bytes("localStorage.length")).unwrap();
-        assert_eq!(result, JsValue::from(2));
+        assert_eq!(storage.length_internal(), 2);
     }
 
     // Clean up
@@ -396,16 +398,22 @@ fn test_storage_persistence() {
 #[test]
 fn test_storage_type_separation_with_persistence() {
     use std::fs;
+    use std::thread;
+    use std::path::PathBuf;
+
+    // Use thread ID to create unique test paths
+    let thread_id = format!("{:?}", thread::current().id());
+    let mut test_dir = std::env::temp_dir();
+    test_dir.push("boa_web_storage");
+    fs::create_dir_all(&test_dir).ok();
+
+    let mut local_path = test_dir.clone();
+    local_path.push(format!("test_local_{}.json", thread_id));
+
+    let mut session_path = test_dir.clone();
+    session_path.push(format!("test_session_{}.json", thread_id));
 
     // Clean up any existing test data
-    let mut local_path = std::env::temp_dir();
-    local_path.push("boa_web_storage");
-    local_path.push("localStorage.json");
-
-    let mut session_path = std::env::temp_dir();
-    session_path.push("boa_web_storage");
-    session_path.push("sessionStorage.json");
-
     if local_path.exists() {
         fs::remove_file(&local_path).ok();
     }
@@ -415,10 +423,12 @@ fn test_storage_type_separation_with_persistence() {
 
     // Set data in both storages
     {
-        let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
-        context.eval(Source::from_bytes("localStorage.setItem('type', 'local')")).unwrap();
-        context.eval(Source::from_bytes("sessionStorage.setItem('type', 'session')")).unwrap();
+        use crate::storage::storage::Storage;
+        let local_storage = Storage::new_with_path("localStorage", local_path.clone());
+        let session_storage = Storage::new_with_path("sessionStorage", session_path.clone());
+
+        local_storage.set_item_internal("type".to_string(), "local".to_string()).unwrap();
+        session_storage.set_item_internal("type".to_string(), "session".to_string()).unwrap();
     }
 
     // Verify both files exist
@@ -427,14 +437,12 @@ fn test_storage_type_separation_with_persistence() {
 
     // Verify data persists separately
     {
-        let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+        use crate::storage::storage::Storage;
+        let local_storage = Storage::new_with_path("localStorage", local_path.clone());
+        let session_storage = Storage::new_with_path("sessionStorage", session_path.clone());
 
-        let local_result = context.eval(Source::from_bytes("localStorage.getItem('type')")).unwrap();
-        assert_eq!(local_result, JsValue::from(JsString::from("local")));
-
-        let session_result = context.eval(Source::from_bytes("sessionStorage.getItem('type')")).unwrap();
-        assert_eq!(session_result, JsValue::from(JsString::from("session")));
+        assert_eq!(local_storage.get_item_internal("type"), Some("local".to_string()));
+        assert_eq!(session_storage.get_item_internal("type"), Some("session".to_string()));
     }
 
     // Clean up

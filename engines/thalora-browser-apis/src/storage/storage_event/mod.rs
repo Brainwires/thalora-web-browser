@@ -24,26 +24,26 @@ use boa_engine::context::intrinsics::StandardConstructor;
 #[derive(Debug, Clone, Finalize)]
 pub struct StorageEvent {
     /// The key being changed. null if clear() was called.
-    key: Option<String>,
+    key: std::cell::RefCell<Option<String>>,
     /// The old value. null if the key is new.
-    old_value: Option<String>,
+    old_value: std::cell::RefCell<Option<String>>,
     /// The new value. null if the key was deleted.
-    new_value: Option<String>,
+    new_value: std::cell::RefCell<Option<String>>,
     /// The URL of the document whose key changed.
-    url: String,
+    url: std::cell::RefCell<String>,
     /// The Storage object that was affected.
-    storage_area: Option<JsObject>,
+    storage_area: std::cell::RefCell<Option<JsObject>>,
 }
 
 unsafe impl Trace for StorageEvent {
     unsafe fn trace(&self, tracer: &mut boa_gc::Tracer) {
-        if let Some(ref storage_area) = self.storage_area {
+        if let Some(ref storage_area) = *self.storage_area.borrow() {
             unsafe { storage_area.trace(tracer); }
         }
     }
 
     unsafe fn trace_non_roots(&self) {
-        if let Some(ref storage_area) = self.storage_area {
+        if let Some(ref storage_area) = *self.storage_area.borrow() {
             unsafe { storage_area.trace_non_roots(); }
         }
     }
@@ -65,11 +65,11 @@ impl StorageEvent {
         storage_area: Option<JsObject>,
     ) -> Self {
         Self {
-            key,
-            old_value,
-            new_value,
-            url,
-            storage_area,
+            key: std::cell::RefCell::new(key),
+            old_value: std::cell::RefCell::new(old_value),
+            new_value: std::cell::RefCell::new(new_value),
+            url: std::cell::RefCell::new(url),
+            storage_area: std::cell::RefCell::new(storage_area),
         }
     }
 
@@ -271,8 +271,9 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        Ok(storage_event.key.as_ref()
-            .map(|k| JsValue::from(JsString::from(k.clone())))
+        let key_value = storage_event.key.borrow().clone();
+        Ok(key_value
+            .map(|k| JsValue::from(JsString::from(k)))
             .unwrap_or(JsValue::null()))
     }
 
@@ -291,8 +292,9 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        Ok(storage_event.old_value.as_ref()
-            .map(|v| JsValue::from(JsString::from(v.clone())))
+        let old_value = storage_event.old_value.borrow().clone();
+        Ok(old_value
+            .map(|v| JsValue::from(JsString::from(v)))
             .unwrap_or(JsValue::null()))
     }
 
@@ -311,8 +313,9 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        Ok(storage_event.new_value.as_ref()
-            .map(|v| JsValue::from(JsString::from(v.clone())))
+        let new_value = storage_event.new_value.borrow().clone();
+        Ok(new_value
+            .map(|v| JsValue::from(JsString::from(v)))
             .unwrap_or(JsValue::null()))
     }
 
@@ -331,7 +334,8 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        Ok(JsValue::from(JsString::from(storage_event.url.clone())))
+        let url = storage_event.url.borrow().clone();
+        Ok(JsValue::from(JsString::from(url)))
     }
 
     /// `StorageEvent.prototype.storageArea` getter
@@ -349,13 +353,46 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        Ok(storage_event.storage_area.as_ref()
-            .map(|s| JsValue::from(s.clone()))
+        let storage_area = storage_event.storage_area.borrow().clone();
+        Ok(storage_area
+            .map(|s| JsValue::from(s))
             .unwrap_or(JsValue::null()))
     }
 
     /// `StorageEvent.prototype.initStorageEvent(type, bubbles, cancelable, key, oldValue, newValue, url, storageArea)`
     fn init_storage_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        // First, extract all values from args before borrowing the object
+        let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let _bubbles = args.get_or_undefined(1).to_boolean();
+        let _cancelable = args.get_or_undefined(2).to_boolean();
+
+        let key_value = if args.get_or_undefined(3).is_null() || args.get_or_undefined(3).is_undefined() {
+            None
+        } else {
+            Some(args.get_or_undefined(3).to_string(context)?.to_std_string_escaped())
+        };
+
+        let old_value = if args.get_or_undefined(4).is_null() || args.get_or_undefined(4).is_undefined() {
+            None
+        } else {
+            Some(args.get_or_undefined(4).to_string(context)?.to_std_string_escaped())
+        };
+
+        let new_value = if args.get_or_undefined(5).is_null() || args.get_or_undefined(5).is_undefined() {
+            None
+        } else {
+            Some(args.get_or_undefined(5).to_string(context)?.to_std_string_escaped())
+        };
+
+        let url_value = args.get_or_undefined(6).to_string(context)?.to_std_string_escaped();
+
+        let storage_area_value = if args.get_or_undefined(7).is_null() || args.get_or_undefined(7).is_undefined() {
+            None
+        } else {
+            args.get_or_undefined(7).as_object().map(|o| o.clone())
+        };
+
+        // Now borrow the object and update fields
         let obj = this
             .as_object()
             .ok_or_else(|| {
@@ -363,53 +400,23 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        let _storage_event = obj.downcast_ref::<StorageEvent>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a StorageEvent object")
-            })?;
+        {
+            let storage_event = obj.downcast_ref::<StorageEvent>()
+                .ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("'this' is not a StorageEvent object")
+                })?;
 
-        let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let _bubbles = args.get_or_undefined(1).to_boolean();
-        let _cancelable = args.get_or_undefined(2).to_boolean();
-        let key = args.get_or_undefined(3);
-        let old_value = args.get_or_undefined(4);
-        let new_value = args.get_or_undefined(5);
-        let url = args.get_or_undefined(6).to_string(context)?.to_std_string_escaped();
-        let storage_area = args.get_or_undefined(7);
+            // Update internal fields using RefCell::replace()
+            storage_event.key.replace(key_value);
+            storage_event.old_value.replace(old_value);
+            storage_event.new_value.replace(new_value);
+            storage_event.url.replace(url_value);
+            storage_event.storage_area.replace(storage_area_value);
+        } // Drop storage_event reference here
 
-        // Set properties on the event object
+        // Set properties on the event object for compatibility
         obj.set(js_string!("type"), JsValue::from(JsString::from(event_type)), false, context)?;
-
-        obj.set(
-            js_string!("key"),
-            if key.is_null() { JsValue::null() } else { key.clone() },
-            false,
-            context
-        )?;
-
-        obj.set(
-            js_string!("oldValue"),
-            if old_value.is_null() { JsValue::null() } else { old_value.clone() },
-            false,
-            context
-        )?;
-
-        obj.set(
-            js_string!("newValue"),
-            if new_value.is_null() { JsValue::null() } else { new_value.clone() },
-            false,
-            context
-        )?;
-
-        obj.set(js_string!("url"), JsValue::from(JsString::from(url)), false, context)?;
-
-        obj.set(
-            js_string!("storageArea"),
-            if storage_area.is_null() { JsValue::null() } else { storage_area.clone() },
-            false,
-            context
-        )?;
 
         Ok(JsValue::undefined())
     }
