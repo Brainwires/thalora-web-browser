@@ -477,17 +477,16 @@ fn worklet_add_module(this: &JsValue, args: &[JsValue], context: &mut Context) -
         JsNativeError::typ().with_message("addModule called on non-object")
     })?;
 
-    if let Some(mut worklet_data) = this_obj.downcast_mut::<CssWorkletData>() {
-        let module_url = args.get_or_undefined(0).to_string(context)?;
-        let module_url_str = module_url.to_std_string_escaped();
-
-        worklet_data.add_module(module_url_str);
-
-        // Return a resolved promise
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let mut worklet_data = this_obj.downcast_mut::<CssWorkletData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("addModule called on non-worklet object")
-            .into())
-    }
+    })?;
+
+    let module_url = args.get_or_undefined(0).to_string(context)?;
+    let module_url_str = module_url.to_std_string_escaped();
+
+    worklet_data.add_module(module_url_str);
+
+    // Return a resolved promise
+    Ok(JsValue::undefined())
 }

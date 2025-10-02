@@ -321,11 +321,11 @@ fn get_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        event_data.get_type()
-    } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
-    };
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Event method called on non-Event object")
+    })?;
+
+    let value = event_data.get_type();
     Ok(JsValue::from(js_string!(value)))
 }
 
@@ -377,17 +377,17 @@ fn get_event_phase(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        let phase_num = match event_data.get_phase() {
-            EventPhase::None => 0u32,
-            EventPhase::CapturingPhase => 1u32,
-            EventPhase::AtTarget => 2u32,
-            EventPhase::BubblingPhase => 3u32,
-        };
-        Ok(JsValue::from(phase_num))
-    } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Event method called on non-Event object")
+    })?;
+
+    let phase_num = match event_data.get_phase() {
+        EventPhase::None => 0u32,
+        EventPhase::CapturingPhase => 1u32,
+        EventPhase::AtTarget => 2u32,
+        EventPhase::BubblingPhase => 3u32,
+    };
+    Ok(JsValue::from(phase_num))
 }
 
 /// Get the current target.
@@ -396,11 +396,11 @@ fn get_current_target(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(event_data.get_current_target().map_or(JsValue::null(), |obj| obj.into()))
-    } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Event method called on non-Event object")
+    })?;
+
+    Ok(event_data.get_current_target().map_or(JsValue::null(), |obj| obj.into()))
 }
 
 /// Get the event target.
@@ -409,11 +409,11 @@ fn get_target(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValu
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        Ok(event_data.get_target().map_or(JsValue::null(), |obj| obj.into()))
-    } else {
-        Err(JsNativeError::typ().with_message("Event method called on non-Event object").into())
-    }
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Event method called on non-Event object")
+    })?;
+
+    Ok(event_data.get_target().map_or(JsValue::null(), |obj| obj.into()))
 }
 
 /// Get the event timestamp.

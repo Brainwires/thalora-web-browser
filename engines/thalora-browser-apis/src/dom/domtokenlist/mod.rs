@@ -78,111 +78,117 @@ impl DOMTokenList {
     /* Prototype methods */
     fn contains(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.contains called on non-object"))?;
-        if let Some(data) = this_obj.downcast_ref::<DOMTokenListData>() {
-            let token = args.get_or_undefined(0).to_string(context)?;
-            let token_std = token.to_std_string_escaped();
-            Self::validate_token(&token_std)?;
-            if let Some(class_name) = data.class_name(context) {
-                let tokens = Self::split_tokens(&class_name);
-                return Ok(JsValue::new(tokens.contains(&token_std)));
-            }
-            Ok(JsValue::new(false))
-        } else {
-            Err(JsNativeError::typ().with_message("DOMTokenList.contains called on non-DOMTokenList object").into())
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.contains called on non-DOMTokenList object")
+        })?;
+
+        let token = args.get_or_undefined(0).to_string(context)?;
+        let token_std = token.to_std_string_escaped();
+        Self::validate_token(&token_std)?;
+        if let Some(class_name) = data.class_name(context) {
+            let tokens = Self::split_tokens(&class_name);
+            return Ok(JsValue::new(tokens.contains(&token_std)));
         }
+        Ok(JsValue::new(false))
     }
 
     fn add(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.add called on non-object"))?;
-        if let Some(data) = this_obj.downcast_ref::<DOMTokenListData>() {
-            let mut class = data.class_name(context).unwrap_or_default();
-            let mut tokens = Self::split_tokens(&class);
-            for arg in args.iter() {
-                let token = arg.to_string(context)?;
-                let token_std = token.to_std_string_escaped();
-                Self::validate_token(&token_std)?;
-                if !tokens.contains(&token_std) {
-                    tokens.push(token_std);
-                }
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.add called on non-DOMTokenList object")
+        })?;
+
+        let mut class = data.class_name(context).unwrap_or_default();
+        let mut tokens = Self::split_tokens(&class);
+        for arg in args.iter() {
+            let token = arg.to_string(context)?;
+            let token_std = token.to_std_string_escaped();
+            Self::validate_token(&token_std)?;
+            if !tokens.contains(&token_std) {
+                tokens.push(token_std);
             }
-            class = Self::join_tokens(&tokens);
-            data.set_class_name(class);
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ().with_message("DOMTokenList.add called on non-DOMTokenList object").into())
         }
+        class = Self::join_tokens(&tokens);
+        data.set_class_name(class);
+        Ok(JsValue::undefined())
     }
 
     fn remove(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.remove called on non-object"))?;
-        if let Some(data) = this_obj.downcast_ref::<DOMTokenListData>() {
-            let mut class = data.class_name(context).unwrap_or_default();
-            let mut tokens = Self::split_tokens(&class);
-            for arg in args.iter() {
-                let token = arg.to_string(context)?;
-                let token_std = token.to_std_string_escaped();
-                Self::validate_token(&token_std)?;
-                tokens.retain(|x| x != &token_std);
-            }
-            class = Self::join_tokens(&tokens);
-            data.set_class_name(class);
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ().with_message("DOMTokenList.remove called on non-DOMTokenList object").into())
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.remove called on non-DOMTokenList object")
+        })?;
+
+        let mut class = data.class_name(context).unwrap_or_default();
+        let mut tokens = Self::split_tokens(&class);
+        for arg in args.iter() {
+            let token = arg.to_string(context)?;
+            let token_std = token.to_std_string_escaped();
+            Self::validate_token(&token_std)?;
+            tokens.retain(|x| x != &token_std);
         }
+        class = Self::join_tokens(&tokens);
+        data.set_class_name(class);
+        Ok(JsValue::undefined())
     }
 
     fn toggle(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.toggle called on non-object"))?;
-        if let Some(data) = this_obj.downcast_ref::<DOMTokenListData>() {
-            let token = args.get_or_undefined(0).to_string(context)?;
-            let token_std = token.to_std_string_escaped();
-            Self::validate_token(&token_std)?;
-            let mut class = data.class_name(context).unwrap_or_default();
-            let mut tokens = Self::split_tokens(&class);
-            if tokens.contains(&token_std) {
-                tokens.retain(|x| x != &token_std);
-                class = Self::join_tokens(&tokens);
-                data.set_class_name(class);
-                return Ok(JsValue::new(false));
-            } else {
-                tokens.push(token_std);
-                class = Self::join_tokens(&tokens);
-                data.set_class_name(class);
-                return Ok(JsValue::new(true));
-            }
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.toggle called on non-DOMTokenList object")
+        })?;
+
+        let token = args.get_or_undefined(0).to_string(context)?;
+        let token_std = token.to_std_string_escaped();
+        Self::validate_token(&token_std)?;
+        let mut class = data.class_name(context).unwrap_or_default();
+        let mut tokens = Self::split_tokens(&class);
+        if tokens.contains(&token_std) {
+            tokens.retain(|x| x != &token_std);
+            class = Self::join_tokens(&tokens);
+            data.set_class_name(class);
+            return Ok(JsValue::new(false));
         } else {
-            Err(JsNativeError::typ().with_message("DOMTokenList.toggle called on non-DOMTokenList object").into())
+            tokens.push(token_std);
+            class = Self::join_tokens(&tokens);
+            data.set_class_name(class);
+            return Ok(JsValue::new(true));
         }
     }
 
     fn item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.item called on non-object"))?;
-        if let Some(data) = this_obj.downcast_ref::<DOMTokenListData>() {
-            let index = args.get_or_undefined(0).to_length(context)? as usize;
-            if let Some(class_name) = data.class_name(context) {
-                let tokens = Self::split_tokens(&class_name);
-                if let Some(t) = tokens.get(index) {
-                    return Ok(JsValue::from(JsString::from(t.clone())));
-                }
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.item called on non-DOMTokenList object")
+        })?;
+
+        let index = args.get_or_undefined(0).to_length(context)? as usize;
+        if let Some(class_name) = data.class_name(context) {
+            let tokens = Self::split_tokens(&class_name);
+            if let Some(t) = tokens.get(index) {
+                return Ok(JsValue::from(JsString::from(t.clone())));
             }
-            Ok(JsValue::null())
-        } else {
-            Err(JsNativeError::typ().with_message("DOMTokenList.item called on non-DOMTokenList object").into())
         }
+        Ok(JsValue::null())
     }
 
     fn get_length(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.length called on non-object"))?;
-        if let Some(data) = this_obj.downcast_ref::<DOMTokenListData>() {
-            if let Some(class_name) = data.class_name(context) {
-                let tokens = Self::split_tokens(&class_name);
-                return Ok(JsValue::new(tokens.len() as i32));
-            }
-            Ok(JsValue::new(0))
-        } else {
-            Err(JsNativeError::typ().with_message("DOMTokenList.length called on non-DOMTokenList object").into())
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.length called on non-DOMTokenList object")
+        })?;
+
+        if let Some(class_name) = data.class_name(context) {
+            let tokens = Self::split_tokens(&class_name);
+            return Ok(JsValue::new(tokens.len() as i32));
         }
+        Ok(JsValue::new(0))
     }
 }
 

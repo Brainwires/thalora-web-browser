@@ -290,11 +290,11 @@ fn get_anchor_node(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        Ok(selection_data.get_anchor_node().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Selection method called on non-Selection object")
+    })?;
+
+    Ok(selection_data.get_anchor_node().unwrap_or(JsValue::null()))
 }
 
 /// Get the anchor offset of the selection.
@@ -319,11 +319,11 @@ fn get_focus_node(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        Ok(selection_data.get_focus_node().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Selection method called on non-Selection object")
+    })?;
+
+    Ok(selection_data.get_focus_node().unwrap_or(JsValue::null()))
 }
 
 /// Get the focus offset of the selection.
@@ -380,12 +380,12 @@ fn get_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        let type_str = selection_data.get_type_string();
-        Ok(JsValue::from(js_string!(type_str)))
-    } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Selection method called on non-Selection object")
+    })?;
+
+    let type_str = selection_data.get_type_string();
+    Ok(JsValue::from(js_string!(type_str)))
 }
 
 /// Get the direction of the selection (Chrome 137 feature).
@@ -394,12 +394,12 @@ fn get_direction(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        let direction = selection_data.get_direction();
-        Ok(JsValue::from(js_string!(direction)))
-    } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Selection method called on non-Selection object")
+    })?;
+
+    let direction = selection_data.get_direction();
+    Ok(JsValue::from(js_string!(direction)))
 }
 
 /// Add a range to the selection.
@@ -653,18 +653,18 @@ fn selection_to_string(this: &JsValue, _args: &[JsValue], _context: &mut Context
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        // In a real implementation, this would extract the text content from the selected ranges
-        // For now, return empty string for collapsed selections or placeholder text
-        let text = if selection_data.is_collapsed() {
-            ""
-        } else {
-            "selected text" // Placeholder - would extract actual text from DOM
-        };
-        Ok(JsValue::from(js_string!(text)))
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Selection method called on non-Selection object")
+    })?;
+
+    // In a real implementation, this would extract the text content from the selected ranges
+    // For now, return empty string for collapsed selections or placeholder text
+    let text = if selection_data.is_collapsed() {
+        ""
     } else {
-        Ok(JsValue::from(js_string!("")))
-    }
+        "selected text" // Placeholder - would extract actual text from DOM
+    };
+    Ok(JsValue::from(js_string!(text)))
 }
 
 /// Collapse the selection to the start of the first range.
@@ -792,19 +792,19 @@ fn contains_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     let node = args.get_or_undefined(0);
     let allow_partial_containment = args.get_or_undefined(1).to_boolean();
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        // In a real implementation, this would check if the node is contained in any range
-        // For now, do a simple check against anchor/focus nodes
-        let contains = if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
-            // Simplified containment check
-            node.strict_equals(&anchor) || node.strict_equals(&focus) || allow_partial_containment
-        } else {
-            false
-        };
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Selection method called on non-Selection object")
+    })?;
 
-        eprintln!("Selection.containsNode called with allowPartialContainment: {} - delegated to FrameSelection", allow_partial_containment);
-        Ok(JsValue::from(contains))
+    // In a real implementation, this would check if the node is contained in any range
+    // For now, do a simple check against anchor/focus nodes
+    let contains = if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
+        // Simplified containment check
+        node.strict_equals(&anchor) || node.strict_equals(&focus) || allow_partial_containment
     } else {
-        Ok(JsValue::from(false))
-    }
+        false
+    };
+
+    eprintln!("Selection.containsNode called with allowPartialContainment: {} - delegated to FrameSelection", allow_partial_containment);
+    Ok(JsValue::from(contains))
 }

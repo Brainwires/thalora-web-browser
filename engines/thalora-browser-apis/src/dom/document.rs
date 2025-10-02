@@ -351,15 +351,14 @@ fn set_title(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Document.prototype.title setter called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let title = args.get_or_undefined(0).to_string(context)?;
-        document.set_title(&title.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.title setter called on non-Document object")
-            .into())
-    }
+    })?;
+
+    let title = args.get_or_undefined(0).to_string(context)?;
+    document.set_title(&title.to_std_string_escaped());
+    Ok(JsValue::undefined())
 }
 
 /// `Document.prototype.body` getter
@@ -368,22 +367,21 @@ fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Document.prototype.body called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        // Create body element if it doesn't exist
-        if let Some(body) = document.get_element("body") {
-            Ok(body.into())
-        } else {
-            // Create a new body element using the Element constructor
-            let element_constructor = context.intrinsics().constructors().element().constructor();
-            let body_element = element_constructor.construct(&[], None, context)?;
-
-            document.add_element("body".to_string(), body_element.clone());
-            Ok(body_element.into())
-        }
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.body called on non-Document object")
-            .into())
+    })?;
+
+    // Create body element if it doesn't exist
+    if let Some(body) = document.get_element("body") {
+        Ok(body.into())
+    } else {
+        // Create a new body element using the Element constructor
+        let element_constructor = context.intrinsics().constructors().element().constructor();
+        let body_element = element_constructor.construct(&[], None, context)?;
+
+        document.add_element("body".to_string(), body_element.clone());
+        Ok(body_element.into())
     }
 }
 
@@ -393,33 +391,32 @@ fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Document.prototype.head called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        // Create head element if it doesn't exist
-        if let Some(head) = document.get_element("head") {
-            Ok(head.into())
-        } else {
-            // Create a new head element
-            let head_element = JsObject::default();
-
-            // Add tagName property
-            head_element.define_property_or_throw(
-                js_string!("tagName"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsString::from("HEAD"))
-                    .build(),
-                context,
-            )?;
-
-            document.add_element("head".to_string(), head_element.clone());
-            Ok(head_element.into())
-        }
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.head called on non-Document object")
-            .into())
+    })?;
+
+    // Create head element if it doesn't exist
+    if let Some(head) = document.get_element("head") {
+        Ok(head.into())
+    } else {
+        // Create a new head element
+        let head_element = JsObject::default();
+
+        // Add tagName property
+        head_element.define_property_or_throw(
+            js_string!("tagName"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsString::from("HEAD"))
+                .build(),
+            context,
+        )?;
+
+        document.add_element("head".to_string(), head_element.clone());
+        Ok(head_element.into())
     }
 }
 
@@ -429,209 +426,208 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Document.prototype.createElement called on non-object")
     })?;
 
-    if let Some(_document) = this_obj.downcast_ref::<DocumentData>() {
-        let tag_name = args.get_or_undefined(0).to_string(context)?;
-        let tag_name_upper = tag_name.to_std_string_escaped().to_uppercase();
+    let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.createElement called on non-Document object")
+    })?;
 
-        // Create a proper Element object using Element constructor pattern
-        let element_constructor = context.intrinsics().constructors().element().constructor();
-        let element = crate::dom::element::Element::constructor(
-            &element_constructor.clone().into(),
-            &[],
-            context,
-        )?;
+    let tag_name = args.get_or_undefined(0).to_string(context)?;
+    let tag_name_upper = tag_name.to_std_string_escaped().to_uppercase();
 
-        // Get the Element object from the JsValue
-        let element_obj = element.as_object().unwrap();
+    // Create a proper Element object using Element constructor pattern
+    let element_constructor = context.intrinsics().constructors().element().constructor();
+    let element = crate::dom::element::Element::constructor(
+        &element_constructor.clone().into(),
+        &[],
+        context,
+    )?;
 
-        // Add tagName property (this should be done by ElementData, but make it explicit)
-        element_obj.define_property_or_throw(
-            js_string!("tagName"),
-            PropertyDescriptorBuilder::new()
-                .configurable(false)
-                .enumerable(true)
-                .writable(false)
-                .value(JsString::from(tag_name_upper.as_str()))
-                .build(),
-            context,
-        )?;
+    // Get the Element object from the JsValue
+    let element_obj = element.as_object().unwrap();
 
-        // Set the tag name in the element data
-        if let Some(element_data) = element_obj.downcast_ref::<crate::dom::element::ElementData>() {
-            element_data.set_tag_name(tag_name_upper.clone());
-        }
+    // Add tagName property (this should be done by ElementData, but make it explicit)
+    element_obj.define_property_or_throw(
+        js_string!("tagName"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(JsString::from(tag_name_upper.as_str()))
+            .build(),
+        context,
+    )?;
 
-        // Add style property as empty object
-        let style_obj = JsObject::default();
-        element_obj.define_property_or_throw(
-            js_string!("style"),
+    // Set the tag name in the element data
+    if let Some(element_data) = element_obj.downcast_ref::<crate::dom::element::ElementData>() {
+        element_data.set_tag_name(tag_name_upper.clone());
+    }
+
+    // Add style property as empty object
+    let style_obj = JsObject::default();
+    element_obj.define_property_or_throw(
+        js_string!("style"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(style_obj)
+            .build(),
+        context,
+    )?;
+
+    // Add Form-specific functionality for <form> elements
+    if tag_name_upper == "FORM" {
+        // Create elements collection that Google's code expects
+        let elements_collection = JsObject::default();
+
+        // Add common form controls as properties of elements collection
+        // Google often checks for elements like 'q' (search query)
+        let q_element = JsObject::default();
+        q_element.define_property_or_throw(
+            js_string!("value"),
             PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
-                .value(style_obj)
+                .value(js_string!(""))
                 .build(),
             context,
         )?;
 
-        // Add Form-specific functionality for <form> elements
-        if tag_name_upper == "FORM" {
-            // Create elements collection that Google's code expects
-            let elements_collection = JsObject::default();
+        elements_collection.define_property_or_throw(
+            js_string!("q"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(q_element)
+                .build(),
+            context,
+        )?;
 
-            // Add common form controls as properties of elements collection
-            // Google often checks for elements like 'q' (search query)
-            let q_element = JsObject::default();
-            q_element.define_property_or_throw(
-                js_string!("value"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(js_string!(""))
-                    .build(),
-                context,
-            )?;
+        // Add elements collection to form
+        element_obj.define_property_or_throw(
+            js_string!("elements"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(elements_collection)
+                .build(),
+            context,
+        )?;
 
-            elements_collection.define_property_or_throw(
-                js_string!("q"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(q_element)
-                    .build(),
-                context,
-            )?;
+        // Add getAttribute method that Google's code uses
+        let get_attribute_func = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+            let attr_name = args.get_or_undefined(0).to_string(ctx)?;
+            let attr_name_str = attr_name.to_std_string_escaped();
 
-            // Add elements collection to form
-            element_obj.define_property_or_throw(
-                js_string!("elements"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(elements_collection)
-                    .build(),
-                context,
-            )?;
+            // Return common attributes that Google checks
+            match attr_name_str.as_str() {
+                "data-submitfalse" => Ok(JsValue::null()), // Google checks this
+                _ => Ok(JsValue::null())
+            }
+        })
+        .name(js_string!("getAttribute"))
+        .build();
 
-            // Add getAttribute method that Google's code uses
-            let get_attribute_func = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
-                let attr_name = args.get_or_undefined(0).to_string(ctx)?;
-                let attr_name_str = attr_name.to_std_string_escaped();
+        element_obj.define_property_or_throw(
+            js_string!("getAttribute"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(get_attribute_func)
+                .build(),
+            context,
+        )?;
+    }
 
-                // Return common attributes that Google checks
-                match attr_name_str.as_str() {
-                    "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                    _ => Ok(JsValue::null())
-                }
-            })
-            .name(js_string!("getAttribute"))
+    // Add Button-specific functionality for <button> elements
+    if tag_name_upper == "BUTTON" {
+        // Add button-specific properties
+        element_obj.define_property_or_throw(
+            js_string!("type"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(js_string!("button"))
+                .build(),
+            context,
+        )?;
+
+        element_obj.define_property_or_throw(
+            js_string!("value"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(js_string!(""))
+                .build(),
+            context,
+        )?;
+    }
+
+    // Add Canvas-specific functionality for <canvas> elements
+    if tag_name_upper == "CANVAS" {
+        // Add width and height properties with default values
+        element_obj.define_property_or_throw(
+            js_string!("width"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(300) // Default canvas width
+                .build(),
+            context,
+        )?;
+
+        element_obj.define_property_or_throw(
+            js_string!("height"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(150) // Default canvas height
+                .build(),
+            context,
+        )?;
+
+        // Add getContext method
+        let get_context_func = BuiltInBuilder::callable(context.realm(), canvas_get_context)
+            .name(js_string!("getContext"))
             .build();
 
-            element_obj.define_property_or_throw(
-                js_string!("getAttribute"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(get_attribute_func)
-                    .build(),
-                context,
-            )?;
-        }
+        element_obj.define_property_or_throw(
+            js_string!("getContext"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(get_context_func)
+                .build(),
+            context,
+        )?;
 
-        // Add Button-specific functionality for <button> elements
-        if tag_name_upper == "BUTTON" {
-            // Add button-specific properties
-            element_obj.define_property_or_throw(
-                js_string!("type"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(js_string!("button"))
-                    .build(),
-                context,
-            )?;
+        // Add toDataURL method
+        let to_data_url_func = BuiltInBuilder::callable(context.realm(), canvas_to_data_url)
+            .name(js_string!("toDataURL"))
+            .build();
 
-            element_obj.define_property_or_throw(
-                js_string!("value"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(js_string!(""))
-                    .build(),
-                context,
-            )?;
-        }
-
-        // Add Canvas-specific functionality for <canvas> elements
-        if tag_name_upper == "CANVAS" {
-            // Add width and height properties with default values
-            element_obj.define_property_or_throw(
-                js_string!("width"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(300) // Default canvas width
-                    .build(),
-                context,
-            )?;
-
-            element_obj.define_property_or_throw(
-                js_string!("height"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(150) // Default canvas height
-                    .build(),
-                context,
-            )?;
-
-            // Add getContext method
-            let get_context_func = BuiltInBuilder::callable(context.realm(), canvas_get_context)
-                .name(js_string!("getContext"))
-                .build();
-
-            element_obj.define_property_or_throw(
-                js_string!("getContext"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(get_context_func)
-                    .build(),
-                context,
-            )?;
-
-            // Add toDataURL method
-            let to_data_url_func = BuiltInBuilder::callable(context.realm(), canvas_to_data_url)
-                .name(js_string!("toDataURL"))
-                .build();
-
-            element_obj.define_property_or_throw(
-                js_string!("toDataURL"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(to_data_url_func)
-                    .build(),
-                context,
-            )?;
-        }
-
-        Ok(element)
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Document.prototype.createElement called on non-Document object")
-            .into())
+        element_obj.define_property_or_throw(
+            js_string!("toDataURL"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(to_data_url_func)
+                .build(),
+            context,
+        )?;
     }
+
+    Ok(element)
 }
 
 /// `Document.prototype.getElementById(id)`
@@ -640,18 +636,17 @@ fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) ->
         JsNativeError::typ().with_message("Document.prototype.getElementById called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let id = args.get_or_undefined(0).to_string(context)?;
-
-        if let Some(element) = document.get_element(&id.to_std_string_escaped()) {
-            Ok(element.into())
-        } else {
-            Ok(JsValue::null())
-        }
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.getElementById called on non-Document object")
-            .into())
+    })?;
+
+    let id = args.get_or_undefined(0).to_string(context)?;
+
+    if let Some(element) = document.get_element(&id.to_std_string_escaped()) {
+        Ok(element.into())
+    } else {
+        Ok(JsValue::null())
     }
 }
 
@@ -663,27 +658,26 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Document.prototype.querySelector called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let selector = args.get_or_undefined(0).to_string(context)?;
-        let selector_str = selector.to_std_string_escaped();
-        eprintln!("DEBUG: query_selector selector: {}", selector_str);
-
-        // Get the HTML content from the document
-        let html_content = document.get_html_content();
-        eprintln!("DEBUG: query_selector HTML content length: {}", html_content.len());
-
-        // Use real DOM implementation with scraper library
-        if let Some(element) = create_real_element_from_html(context, &selector_str, &html_content)? {
-            return Ok(element.into());
-        }
-
-        eprintln!("DEBUG: query_selector returning null - no element found");
-        Ok(JsValue::null())
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.querySelector called on non-Document object")
-            .into())
+    })?;
+
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+    eprintln!("DEBUG: query_selector selector: {}", selector_str);
+
+    // Get the HTML content from the document
+    let html_content = document.get_html_content();
+    eprintln!("DEBUG: query_selector HTML content length: {}", html_content.len());
+
+    // Use real DOM implementation with scraper library
+    if let Some(element) = create_real_element_from_html(context, &selector_str, &html_content)? {
+        return Ok(element.into());
     }
+
+    eprintln!("DEBUG: query_selector returning null - no element found");
+    Ok(JsValue::null())
 }
 
 /// Real DOM element creation using scraper library and actual HTML content
@@ -869,24 +863,23 @@ fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -
         JsNativeError::typ().with_message("Document.prototype.querySelectorAll called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let selector = args.get_or_undefined(0).to_string(context)?;
-        let selector_str = selector.to_std_string_escaped();
-
-        // Get the HTML content from the document
-        let html_content = document.get_html_content();
-
-        // Use real DOM implementation with scraper library to find all matching elements
-        let elements = create_all_real_elements_from_html(context, &selector_str, &html_content)?;
-
-        use boa_engine::builtins::Array;
-        let array = Array::create_array_from_list(elements, context);
-        Ok(array.into())
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.querySelectorAll called on non-Document object")
-            .into())
-    }
+    })?;
+
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+
+    // Get the HTML content from the document
+    let html_content = document.get_html_content();
+
+    // Use real DOM implementation with scraper library to find all matching elements
+    let elements = create_all_real_elements_from_html(context, &selector_str, &html_content)?;
+
+    use boa_engine::builtins::Array;
+    let array = Array::create_array_from_list(elements, context);
+    Ok(array.into())
 }
 
 /// `Document.prototype.addEventListener(type, listener)`
@@ -895,17 +888,16 @@ fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -
         JsNativeError::typ().with_message("Document.prototype.addEventListener called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let listener = args.get_or_undefined(1).clone();
-
-        document.add_event_listener(event_type.to_std_string_escaped(), listener);
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.addEventListener called on non-Document object")
-            .into())
-    }
+    })?;
+
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1).clone();
+
+    document.add_event_listener(event_type.to_std_string_escaped(), listener);
+    Ok(JsValue::undefined())
 }
 
 /// `Document.prototype.removeEventListener(type, listener)`
@@ -914,17 +906,16 @@ fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Document.prototype.removeEventListener called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let listener = args.get_or_undefined(1);
-
-        document.remove_event_listener(&event_type.to_std_string_escaped(), listener);
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Document.prototype.removeEventListener called on non-Document object")
-            .into())
-    }
+    })?;
+
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1);
+
+    document.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    Ok(JsValue::undefined())
 }
 
 /// `Document.prototype.dispatchEvent(event)`
@@ -933,36 +924,35 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Document.prototype.dispatchEvent called on non-object")
     })?;
 
-    if let Some(document) = this_obj.downcast_ref::<DocumentData>() {
-        let event = args.get_or_undefined(0);
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.dispatchEvent called on non-Document object")
+    })?;
 
-        // Get event type from event object
-        if event.is_object() {
-            if let Some(event_obj) = event.as_object() {
-                if let Ok(type_val) = event_obj.get(js_string!("type"), context) {
-                    let event_type = type_val.to_string(context)?;
-                    let listeners = document.get_event_listeners(&event_type.to_std_string_escaped());
+    let event = args.get_or_undefined(0);
 
-                    // Call each listener
-                    for listener in listeners {
-                        if listener.is_callable() {
-                            let _ = listener.as_callable().unwrap().call(
-                                &this_obj.clone().into(),
-                                &[event.clone()],
-                                context,
-                            );
-                        }
+    // Get event type from event object
+    if event.is_object() {
+        if let Some(event_obj) = event.as_object() {
+            if let Ok(type_val) = event_obj.get(js_string!("type"), context) {
+                let event_type = type_val.to_string(context)?;
+                let listeners = document.get_event_listeners(&event_type.to_std_string_escaped());
+
+                // Call each listener
+                for listener in listeners {
+                    if listener.is_callable() {
+                        let _ = listener.as_callable().unwrap().call(
+                            &this_obj.clone().into(),
+                            &[event.clone()],
+                            context,
+                        );
                     }
                 }
             }
         }
-
-        Ok(true.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Document.prototype.dispatchEvent called on non-Document object")
-            .into())
     }
+
+    Ok(true.into())
 }
 
 /// `Document.prototype.startViewTransition(callback)`
@@ -971,93 +961,92 @@ fn start_view_transition(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Document.prototype.startViewTransition called on non-object")
     })?;
 
-    if let Some(_document) = this_obj.downcast_ref::<DocumentData>() {
-        let callback = args.get_or_undefined(0);
+    let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.startViewTransition called on non-Document object")
+    })?;
 
-        // Create transition object
-        let transition = JsObject::default();
+    let callback = args.get_or_undefined(0);
 
-        // Add finished property as resolved Promise
-        let finished_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
-        transition.define_property_or_throw(
-            js_string!("finished"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(finished_promise)
-                .build(),
-            context,
-        )?;
+    // Create transition object
+    let transition = JsObject::default();
 
-        // Add ready property as resolved Promise
-        let ready_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
-        transition.define_property_or_throw(
-            js_string!("ready"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(ready_promise)
-                .build(),
-            context,
-        )?;
+    // Add finished property as resolved Promise
+    let finished_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
+    transition.define_property_or_throw(
+        js_string!("finished"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(false)
+            .value(finished_promise)
+            .build(),
+        context,
+    )?;
 
-        // Handle callback if provided
-        let mut callback_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
-        if !callback.is_undefined() && callback.is_callable() {
-            // Call the callback function
-            if let Ok(result) = callback.as_callable()
-                .unwrap()
-                .call(&JsValue::undefined(), &[], context) {
+    // Add ready property as resolved Promise
+    let ready_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
+    transition.define_property_or_throw(
+        js_string!("ready"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(false)
+            .value(ready_promise)
+            .build(),
+        context,
+    )?;
 
-                // Check if result is a promise
-                if result.is_object() {
-                    if let Some(obj) = result.as_object() {
-                        if obj.has_property(js_string!("then"), context)? {
-                            callback_promise = result;
-                        }
+    // Handle callback if provided
+    let mut callback_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
+    if !callback.is_undefined() && callback.is_callable() {
+        // Call the callback function
+        if let Ok(result) = callback.as_callable()
+            .unwrap()
+            .call(&JsValue::undefined(), &[], context) {
+
+            // Check if result is a promise
+            if result.is_object() {
+                if let Some(obj) = result.as_object() {
+                    if obj.has_property(js_string!("then"), context)? {
+                        callback_promise = result;
                     }
                 }
             }
         }
-
-        // Add updateCallbackDone property
-        transition.define_property_or_throw(
-            js_string!("updateCallbackDone"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(callback_promise)
-                .build(),
-            context,
-        )?;
-
-        // Add skipTransition method
-        let skip_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-            Ok(JsValue::undefined())
-        })
-        .name(js_string!("skipTransition"))
-        .build();
-
-        transition.define_property_or_throw(
-            js_string!("skipTransition"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(skip_function)
-                .build(),
-            context,
-        )?;
-
-        Ok(transition.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Document.prototype.startViewTransition called on non-Document object")
-            .into())
     }
+
+    // Add updateCallbackDone property
+    transition.define_property_or_throw(
+        js_string!("updateCallbackDone"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(false)
+            .value(callback_promise)
+            .build(),
+        context,
+    )?;
+
+    // Add skipTransition method
+    let skip_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        Ok(JsValue::undefined())
+    })
+    .name(js_string!("skipTransition"))
+    .build();
+
+    transition.define_property_or_throw(
+        js_string!("skipTransition"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(false)
+            .value(skip_function)
+            .build(),
+        context,
+    )?;
+
+    Ok(transition.into())
 }
 
 /// Canvas `getContext(contextType)` method implementation

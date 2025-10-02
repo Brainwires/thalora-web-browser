@@ -190,20 +190,19 @@ impl HTMLSlotElementData {
         let name_value = args.get_or_undefined(0);
         let name_string = name_value.to_string(context)?;
 
-        if let Some(slot_data) = this_obj.downcast_ref::<HTMLSlotElementData>() {
-            let new_name = name_string.to_std_string_escaped();
-            slot_data.set_name(new_name.clone());
-
-            // Update the name attribute on the element
-            slot_data.element_data().set_attribute("name".to_string(), new_name);
-
-            // TODO: Run assign slottables algorithm
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("HTMLSlotElement.name setter called on non-HTMLSlotElement object")
-                .into())
-        }
+        })?;
+
+        let new_name = name_string.to_std_string_escaped();
+        slot_data.set_name(new_name.clone());
+
+        // Update the name attribute on the element
+        slot_data.element_data().set_attribute("name".to_string(), new_name);
+
+        // TODO: Run assign slottables algorithm
+        Ok(JsValue::undefined())
     }
 
     /// `HTMLSlotElement.prototype.assignedNodes(options)`
@@ -292,24 +291,23 @@ impl HTMLSlotElementData {
             JsNativeError::typ().with_message("HTMLSlotElement.assign called on non-object")
         })?;
 
-        if let Some(slot_data) = this_obj.downcast_ref::<HTMLSlotElementData>() {
-            let mut nodes = Vec::new();
-
-            // Convert arguments to nodes
-            for arg in args {
-                if let Some(node_obj) = arg.as_object() {
-                    nodes.push(node_obj.clone());
-                }
-                // TODO: Handle strings (convert to text nodes)
-            }
-
-            slot_data.assign_nodes(nodes);
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("HTMLSlotElement.assign called on non-HTMLSlotElement object")
-                .into())
+        })?;
+
+        let mut nodes = Vec::new();
+
+        // Convert arguments to nodes
+        for arg in args {
+            if let Some(node_obj) = arg.as_object() {
+                nodes.push(node_obj.clone());
+            }
+            // TODO: Handle strings (convert to text nodes)
         }
+
+        slot_data.assign_nodes(nodes);
+        Ok(JsValue::undefined())
     }
 }
 

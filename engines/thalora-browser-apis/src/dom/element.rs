@@ -919,20 +919,15 @@ fn set_id(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Element.prototype.id setter called on non-object")
     })?;
 
-    // Verify type first
-    if this_obj.downcast_ref::<ElementData>().is_none() {
-        return Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.id setter called on non-Element object")
-            .into());
-    }
+    })?;
 
     let id = args.get_or_undefined(0).to_string(context)?;
     let id_string = id.to_std_string_escaped();
 
-    // Now set the value (borrow is fresh)
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_id(id_string);
-    }
+    element.set_id(id_string);
 
     Ok(JsValue::undefined())
 }
@@ -971,20 +966,15 @@ fn set_class_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.className setter called on non-object")
     })?;
 
-    // Verify type first
-    if this_obj.downcast_ref::<ElementData>().is_none() {
-        return Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.className setter called on non-Element object")
-            .into());
-    }
+    })?;
 
     let class_name = args.get_or_undefined(0).to_string(context)?;
     let class_name_string = class_name.to_std_string_escaped();
 
-    // Set value with fresh borrow
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_class_name(class_name_string);
-    }
+    element.set_class_name(class_name_string);
 
     Ok(JsValue::undefined())
 }
@@ -1024,20 +1014,15 @@ fn set_inner_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.innerHTML setter called on non-object")
     })?;
 
-    // Verify type first
-    if this_obj.downcast_ref::<ElementData>().is_none() {
-        return Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.innerHTML setter called on non-Element object")
-            .into());
-    }
+    })?;
 
     let html = args.get_or_undefined(0).to_string(context)?;
     let html_string = html.to_std_string_escaped();
 
-    // Set value with fresh borrow
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_inner_html(html_string);
-    }
+    element.set_inner_html(html_string);
 
     Ok(JsValue::undefined())
 }
@@ -1076,20 +1061,15 @@ fn set_text_content(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.textContent setter called on non-object")
     })?;
 
-    // Verify type first
-    if this_obj.downcast_ref::<ElementData>().is_none() {
-        return Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.textContent setter called on non-Element object")
-            .into());
-    }
+    })?;
 
     let content = args.get_or_undefined(0).to_string(context)?;
     let content_string = content.to_std_string_escaped();
 
-    // Set value with fresh borrow
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_text_content(content_string);
-    }
+    element.set_text_content(content_string);
 
     Ok(JsValue::undefined())
 }
@@ -1216,16 +1196,15 @@ fn set_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Element.prototype.setAttribute called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let name = args.get_or_undefined(0).to_string(context)?;
-        let value = args.get_or_undefined(1).to_string(context)?;
-        element.set_attribute(name.to_std_string_escaped(), value.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.setAttribute called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let value = args.get_or_undefined(1).to_string(context)?;
+    element.set_attribute(name.to_std_string_escaped(), value.to_std_string_escaped());
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.getAttribute(name)`
@@ -1234,17 +1213,16 @@ fn get_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Element.prototype.getAttribute called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let name = args.get_or_undefined(0).to_string(context)?;
-        if let Some(value) = element.get_attribute(&name.to_std_string_escaped()) {
-            Ok(JsString::from(value).into())
-        } else {
-            Ok(JsValue::null())
-        }
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.getAttribute called on non-Element object")
-            .into())
+    })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    if let Some(value) = element.get_attribute(&name.to_std_string_escaped()) {
+        Ok(JsString::from(value).into())
+    } else {
+        Ok(JsValue::null())
     }
 }
 
@@ -1254,14 +1232,13 @@ fn has_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Element.prototype.hasAttribute called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let name = args.get_or_undefined(0).to_string(context)?;
-        Ok(element.has_attribute(&name.to_std_string_escaped()).into())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.hasAttribute called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    Ok(element.has_attribute(&name.to_std_string_escaped()).into())
 }
 
 /// `Element.prototype.removeAttribute(name)`
@@ -1270,15 +1247,14 @@ fn remove_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.removeAttribute called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let name = args.get_or_undefined(0).to_string(context)?;
-        element.remove_attribute(&name.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.removeAttribute called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    element.remove_attribute(&name.to_std_string_escaped());
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.appendChild(child)`
@@ -1287,23 +1263,22 @@ fn append_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Element.prototype.appendChild called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let child_value = args.get_or_undefined(0);
-        if let Some(child_obj) = child_value.as_object() {
-            // Set parent relationship
-            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                child_element.set_parent_node(Some(this_obj.clone()));
-            }
-            element.append_child(child_obj.clone());
-            Ok(child_value.clone())
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Element.prototype.appendChild requires an Element argument")
-                .into())
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.appendChild called on non-Element object")
+    })?;
+
+    let child_value = args.get_or_undefined(0);
+    if let Some(child_obj) = child_value.as_object() {
+        // Set parent relationship
+        if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+            child_element.set_parent_node(Some(this_obj.clone()));
         }
+        element.append_child(child_obj.clone());
+        Ok(child_value.clone())
     } else {
         Err(JsNativeError::typ()
-            .with_message("Element.prototype.appendChild called on non-Element object")
+            .with_message("Element.prototype.appendChild requires an Element argument")
             .into())
     }
 }
@@ -1314,23 +1289,22 @@ fn remove_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Element.prototype.removeChild called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let child_value = args.get_or_undefined(0);
-        if let Some(child_obj) = child_value.as_object() {
-            // Remove parent relationship
-            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                child_element.set_parent_node(None);
-            }
-            element.remove_child(&child_obj);
-            Ok(child_value.clone())
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("Element.prototype.removeChild requires an Element argument")
-                .into())
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.removeChild called on non-Element object")
+    })?;
+
+    let child_value = args.get_or_undefined(0);
+    if let Some(child_obj) = child_value.as_object() {
+        // Remove parent relationship
+        if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+            child_element.set_parent_node(None);
         }
+        element.remove_child(&child_obj);
+        Ok(child_value.clone())
     } else {
         Err(JsNativeError::typ()
-            .with_message("Element.prototype.removeChild called on non-Element object")
+            .with_message("Element.prototype.removeChild requires an Element argument")
             .into())
     }
 }
@@ -1341,19 +1315,18 @@ fn set_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Element.prototype.setHTML called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let input = args.get_or_undefined(0).to_string(context)?;
-        let _options = args.get(1).cloned().unwrap_or(JsValue::undefined());
-
-        // In a real implementation, this would sanitize the HTML
-        // For now, we just set it as innerHTML
-        element.set_inner_html(input.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.setHTML called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let input = args.get_or_undefined(0).to_string(context)?;
+    let _options = args.get(1).cloned().unwrap_or(JsValue::undefined());
+
+    // In a real implementation, this would sanitize the HTML
+    // For now, we just set it as innerHTML
+    element.set_inner_html(input.to_std_string_escaped());
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.setHTMLUnsafe(input)` - Chrome 124
@@ -1362,16 +1335,15 @@ fn set_html_unsafe(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
         JsNativeError::typ().with_message("Element.prototype.setHTMLUnsafe called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let input = args.get_or_undefined(0).to_string(context)?;
-        // Set HTML without sanitization
-        element.set_inner_html(input.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.setHTMLUnsafe called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let input = args.get_or_undefined(0).to_string(context)?;
+    // Set HTML without sanitization
+    element.set_inner_html(input.to_std_string_escaped());
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.attachShadow(options)` - Shadow DOM API
@@ -1498,7 +1470,12 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 
     // First, check if this is an ElementData and perform validation
     let (shadow_init, has_shadow_root, can_have_shadow) = {
-        if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Element.prototype.attachShadow called on non-Element object")
+        })?;
+
+        {
             let options = args.get_or_undefined(0);
 
             // Parse options object according to WHATWG spec
@@ -1551,10 +1528,6 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
             let can_have_shadow = can_have_shadow_root(&element);
 
             (shadow_init, has_shadow_root, can_have_shadow)
-        } else {
-            return Err(JsNativeError::typ()
-                .with_message("Element.prototype.attachShadow called on non-Element object")
-                .into());
         }
     }; // Release the borrow here
 
@@ -1613,9 +1586,11 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     }
 
     // Store the shadow root internally in element data (get a fresh borrow)
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.attach_shadow_root(shadow_root.clone());
-    }
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.attachShadow called on non-Element object")
+    })?;
+    element.attach_shadow_root(shadow_root.clone());
 
     Ok(shadow_root.into())
 }
@@ -1627,17 +1602,16 @@ fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -
         JsNativeError::typ().with_message("Element.prototype.addEventListener called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let listener = args.get_or_undefined(1);
-
-        element.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.addEventListener called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1);
+
+    element.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.removeEventListener(type, listener[, options])`
@@ -1647,17 +1621,16 @@ fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Element.prototype.removeEventListener called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let listener = args.get_or_undefined(1);
-
-        element.remove_event_listener(&event_type.to_std_string_escaped(), &listener);
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Element.prototype.removeEventListener called on non-Element object")
-            .into())
-    }
+    })?;
+
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1);
+
+    element.remove_event_listener(&event_type.to_std_string_escaped(), &listener);
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.dispatchEvent(event)`
@@ -1667,28 +1640,27 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.dispatchEvent called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let event = args.get_or_undefined(0);
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.dispatchEvent called on non-Element object")
+    })?;
 
-        // Get event type from event object
-        if event.is_object() {
-            if let Some(event_obj) = event.as_object() {
-                // Get the 'type' property from the event object
-                let event_type_value = event_obj.get(js_string!("type"), context)
-                    .unwrap_or(JsValue::undefined());
+    let event = args.get_or_undefined(0);
 
-                if !event_type_value.is_undefined() {
-                    let event_type = event_type_value.to_string(context)?;
-                    element.dispatch_event(&event_type.to_std_string_escaped(), &event, context)?;
-                    Ok(JsValue::from(true)) // Return true (event was dispatched successfully)
-                } else {
-                    Err(JsNativeError::typ()
-                        .with_message("Event object must have a 'type' property")
-                        .into())
-                }
+    // Get event type from event object
+    if event.is_object() {
+        if let Some(event_obj) = event.as_object() {
+            // Get the 'type' property from the event object
+            let event_type_value = event_obj.get(js_string!("type"), context)
+                .unwrap_or(JsValue::undefined());
+
+            if !event_type_value.is_undefined() {
+                let event_type = event_type_value.to_string(context)?;
+                element.dispatch_event(&event_type.to_std_string_escaped(), &event, context)?;
+                Ok(JsValue::from(true)) // Return true (event was dispatched successfully)
             } else {
                 Err(JsNativeError::typ()
-                    .with_message("dispatchEvent requires an Event object")
+                    .with_message("Event object must have a 'type' property")
                     .into())
             }
         } else {
@@ -1698,7 +1670,7 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         }
     } else {
         Err(JsNativeError::typ()
-            .with_message("Element.prototype.dispatchEvent called on non-Element object")
+            .with_message("dispatchEvent requires an Event object")
             .into())
     }
 }

@@ -193,23 +193,22 @@ impl IntersectionObserver {
             JsNativeError::typ().with_message("IntersectionObserver.takeRecords called on non-object")
         })?;
 
-        if let Some(mut observer_data) = observer_obj.downcast_mut::<IntersectionObserverData>() {
-            // Create array of intersection records
-            let records_array = context.intrinsics().constructors().array().constructor().construct(
-                &[JsValue::from(observer_data.records.len())],
-                None,
-                context,
-            )?;
-
-            // For now, return empty array (real implementation would populate with actual IntersectionObserverEntry objects)
-            observer_data.records.clear();
-
-            Ok(records_array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let mut observer_data = observer_obj.downcast_mut::<IntersectionObserverData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("IntersectionObserver.takeRecords called on non-IntersectionObserver object")
-                .into())
-        }
+        })?;
+
+        // Create array of intersection records
+        let records_array = context.intrinsics().constructors().array().constructor().construct(
+            &[JsValue::from(observer_data.records.len())],
+            None,
+            context,
+        )?;
+
+        // For now, return empty array (real implementation would populate with actual IntersectionObserverEntry objects)
+        observer_data.records.clear();
+
+        Ok(records_array.into())
     }
 }
 

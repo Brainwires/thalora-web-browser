@@ -453,11 +453,11 @@ impl Response {
             JsNativeError::typ().with_message("Response.prototype.status getter called on non-object")
         })?;
 
-        if let Some(data) = this_obj.downcast_ref::<ResponseData>() {
-            Ok(JsValue::from(data.status))
-        } else {
-            Ok(JsValue::undefined())
-        }
+        let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Response.prototype.status getter called on non-Response object")
+        })?;
+
+        Ok(JsValue::from(data.status))
     }
 
     /// `get Response.prototype.statusText` getter
@@ -466,11 +466,11 @@ impl Response {
             JsNativeError::typ().with_message("Response.prototype.statusText getter called on non-object")
         })?;
 
-        if let Some(data) = this_obj.downcast_ref::<ResponseData>() {
-            Ok(JsValue::from(js_string!(data.status_text.clone())))
-        } else {
-            Ok(JsValue::undefined())
-        }
+        let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Response.prototype.statusText getter called on non-Response object")
+        })?;
+
+        Ok(JsValue::from(js_string!(data.status_text.clone())))
     }
 
     /// `get Response.prototype.ok` getter
@@ -479,11 +479,11 @@ impl Response {
             JsNativeError::typ().with_message("Response.prototype.ok getter called on non-object")
         })?;
 
-        if let Some(data) = this_obj.downcast_ref::<ResponseData>() {
-            Ok(JsValue::from(data.status >= 200 && data.status < 300))
-        } else {
-            Ok(JsValue::undefined())
-        }
+        let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Response.prototype.ok getter called on non-Response object")
+        })?;
+
+        Ok(JsValue::from(data.status >= 200 && data.status < 300))
     }
 
     /// `get Response.prototype.url` getter
@@ -492,11 +492,11 @@ impl Response {
             JsNativeError::typ().with_message("Response.prototype.url getter called on non-object")
         })?;
 
-        if let Some(data) = this_obj.downcast_ref::<ResponseData>() {
-            Ok(JsValue::from(js_string!(data.url.clone())))
-        } else {
-            Ok(JsValue::undefined())
-        }
+        let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Response.prototype.url getter called on non-Response object")
+        })?;
+
+        Ok(JsValue::from(js_string!(data.url.clone())))
     }
 
     /// `Response.prototype.text()` method

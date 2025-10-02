@@ -166,13 +166,12 @@ fn get_name(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
         JsNativeError::typ().with_message("BroadcastChannel.name getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<BroadcastChannelData>() {
-        Ok(JsValue::from(js_string!(data.name.clone())))
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<BroadcastChannelData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("BroadcastChannel.name getter called on invalid object")
-            .into())
-    }
+    })?;
+
+    Ok(JsValue::from(js_string!(data.name.clone())))
 }
 
 /// `BroadcastChannel.prototype.postMessage(message)`
@@ -181,28 +180,27 @@ fn post_message(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
         JsNativeError::typ().with_message("BroadcastChannel.postMessage called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<BroadcastChannelData>() {
-        if data.is_closed() {
-            return Err(JsNativeError::error()
-                .with_message("BroadcastChannel is closed")
-                .into());
-        }
-
-        let message = args.get_or_undefined(0);
-
-        // In a real implementation, we would:
-        // 1. Perform structured cloning of the message
-        // 2. Check for transferable objects (BroadcastChannel doesn't support transfer)
-        // 3. Queue the message for async delivery to other channels with same name
-
-        eprintln!("BroadcastChannel '{}' posting message: {:?}", data.name, message);
-
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<BroadcastChannelData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("BroadcastChannel.postMessage called on invalid object")
-            .into())
+    })?;
+
+    if data.is_closed() {
+        return Err(JsNativeError::error()
+            .with_message("BroadcastChannel is closed")
+            .into());
     }
+
+    let message = args.get_or_undefined(0);
+
+    // In a real implementation, we would:
+    // 1. Perform structured cloning of the message
+    // 2. Check for transferable objects (BroadcastChannel doesn't support transfer)
+    // 3. Queue the message for async delivery to other channels with same name
+
+    eprintln!("BroadcastChannel '{}' posting message: {:?}", data.name, message);
+
+    Ok(JsValue::undefined())
 }
 
 /// `BroadcastChannel.prototype.close()`
@@ -211,15 +209,14 @@ fn close(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         JsNativeError::typ().with_message("BroadcastChannel.close called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<BroadcastChannelData>() {
-        data.close();
-
-        eprintln!("BroadcastChannel '{}' closed", data.name);
-
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<BroadcastChannelData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("BroadcastChannel.close called on invalid object")
-            .into())
-    }
+    })?;
+
+    data.close();
+
+    eprintln!("BroadcastChannel '{}' closed", data.name);
+
+    Ok(JsValue::undefined())
 }

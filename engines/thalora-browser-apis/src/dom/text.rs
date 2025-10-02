@@ -185,13 +185,12 @@ impl TextData {
             JsNativeError::typ().with_message("Text.data called on non-object")
         })?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            Ok(JsValue::from(js_string!(text_data.character_data.get_data())))
-        } else {
-            Err(JsNativeError::typ()
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("Text.data called on non-Text object")
-                .into())
-        }
+        })?;
+
+        Ok(JsValue::from(js_string!(text_data.character_data.get_data())))
     }
 
     fn set_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -202,14 +201,13 @@ impl TextData {
         let data_arg = args.get_or_undefined(0);
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            text_data.character_data.set_data(data_string.to_std_string_escaped());
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("Text.data called on non-Text object")
-                .into())
-        }
+        })?;
+
+        text_data.character_data.set_data(data_string.to_std_string_escaped());
+        Ok(JsValue::undefined())
     }
 
     fn get_length_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -217,13 +215,12 @@ impl TextData {
             JsNativeError::typ().with_message("Text.length called on non-object")
         })?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            Ok(JsValue::from(text_data.character_data.get_length()))
-        } else {
-            Err(JsNativeError::typ()
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("Text.length called on non-Text object")
-                .into())
-        }
+        })?;
+
+        Ok(JsValue::from(text_data.character_data.get_length()))
     }
 
     fn substring_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -259,14 +256,13 @@ impl TextData {
         let data_arg = args.get_or_undefined(0);
         let data_string = data_arg.to_string(context)?;
 
-        if let Some(text_data) = this_obj.downcast_ref::<TextData>() {
-            text_data.character_data.append_data_impl(data_string.to_std_string_escaped());
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("Text.appendData called on non-Text object")
-                .into())
-        }
+        })?;
+
+        text_data.character_data.append_data_impl(data_string.to_std_string_escaped());
+        Ok(JsValue::undefined())
     }
 
     fn insert_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {

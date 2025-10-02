@@ -686,11 +686,11 @@ fn extract_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(mut range_data) = this_obj.downcast_mut::<RangeData>() {
-        range_data.extract_contents()
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let mut range_data = this_obj.downcast_mut::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    range_data.extract_contents()
 }
 
 /// Clone the contents of the range.
@@ -762,12 +762,12 @@ fn to_string(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue
         JsNativeError::typ().with_message("Range method called on non-object")
     })?;
 
-    if let Some(_range_data) = this_obj.downcast_ref::<RangeData>() {
-        // In a real implementation, this would return the text content of the range
-        Ok(JsValue::from(js_string!("")))
-    } else {
-        Err(JsNativeError::typ().with_message("Range method called on non-Range object").into())
-    }
+    let _range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    // In a real implementation, this would return the text content of the range
+    Ok(JsValue::from(js_string!("")))
 }
 
 /// Detach the range.

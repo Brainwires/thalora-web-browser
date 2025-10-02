@@ -173,15 +173,14 @@ fn post_message(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
         JsNativeError::typ().with_message("MessagePort.postMessage called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<MessagePortData>() {
-        let message = args.get_or_undefined(0);
-        data.post_message(message.clone())?;
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("MessagePort.postMessage called on invalid object")
-            .into())
-    }
+    })?;
+
+    let message = args.get_or_undefined(0);
+    data.post_message(message.clone())?;
+    Ok(JsValue::undefined())
 }
 
 /// `MessagePort.prototype.start()`

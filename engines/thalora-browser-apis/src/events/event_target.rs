@@ -195,45 +195,44 @@ impl EventTarget {
             JsNativeError::typ().with_message("EventTarget.addEventListener called on non-object")
         })?;
 
-        if let Some(target_data) = this_obj.downcast_ref::<EventTargetData>() {
-            let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-            let callback = args.get_or_undefined(1);
-            let options = args.get_or_undefined(2);
+        let target_data = this_obj.downcast_ref::<EventTargetData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("EventTarget.addEventListener called on non-EventTarget object")
+        })?;
 
-            // Parse options (can be boolean for capture or object)
-            let (capture, once, passive) = if options.is_boolean() {
-                (options.to_boolean(), false, false)
-            } else if let Some(options_obj) = options.as_object() {
-                let capture = if let Ok(cap) = options_obj.get(js_string!("capture"), context) {
-                    cap.to_boolean()
-                } else {
-                    false
-                };
+        let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let callback = args.get_or_undefined(1);
+        let options = args.get_or_undefined(2);
 
-                let once = if let Ok(once_prop) = options_obj.get(js_string!("once"), context) {
-                    once_prop.to_boolean()
-                } else {
-                    false
-                };
-
-                let passive = if let Ok(passive_prop) = options_obj.get(js_string!("passive"), context) {
-                    passive_prop.to_boolean()
-                } else {
-                    false
-                };
-
-                (capture, once, passive)
+        // Parse options (can be boolean for capture or object)
+        let (capture, once, passive) = if options.is_boolean() {
+            (options.to_boolean(), false, false)
+        } else if let Some(options_obj) = options.as_object() {
+            let capture = if let Ok(cap) = options_obj.get(js_string!("capture"), context) {
+                cap.to_boolean()
             } else {
-                (false, false, false)
+                false
             };
 
-            target_data.add_event_listener(event_type, callback.clone(), capture, once, passive);
-            Ok(JsValue::undefined())
+            let once = if let Ok(once_prop) = options_obj.get(js_string!("once"), context) {
+                once_prop.to_boolean()
+            } else {
+                false
+            };
+
+            let passive = if let Ok(passive_prop) = options_obj.get(js_string!("passive"), context) {
+                passive_prop.to_boolean()
+            } else {
+                false
+            };
+
+            (capture, once, passive)
         } else {
-            Err(JsNativeError::typ()
-                .with_message("EventTarget.addEventListener called on non-EventTarget object")
-                .into())
-        }
+            (false, false, false)
+        };
+
+        target_data.add_event_listener(event_type, callback.clone(), capture, once, passive);
+        Ok(JsValue::undefined())
     }
 
     fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -241,31 +240,30 @@ impl EventTarget {
             JsNativeError::typ().with_message("EventTarget.removeEventListener called on non-object")
         })?;
 
-        if let Some(target_data) = this_obj.downcast_ref::<EventTargetData>() {
-            let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-            let callback = args.get_or_undefined(1);
-            let options = args.get_or_undefined(2);
+        let target_data = this_obj.downcast_ref::<EventTargetData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("EventTarget.removeEventListener called on non-EventTarget object")
+        })?;
 
-            // Parse capture option (can be boolean for capture or object)
-            let capture = if options.is_boolean() {
-                options.to_boolean()
-            } else if let Some(options_obj) = options.as_object() {
-                if let Ok(cap) = options_obj.get(js_string!("capture"), context) {
-                    cap.to_boolean()
-                } else {
-                    false
-                }
+        let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let callback = args.get_or_undefined(1);
+        let options = args.get_or_undefined(2);
+
+        // Parse capture option (can be boolean for capture or object)
+        let capture = if options.is_boolean() {
+            options.to_boolean()
+        } else if let Some(options_obj) = options.as_object() {
+            if let Ok(cap) = options_obj.get(js_string!("capture"), context) {
+                cap.to_boolean()
             } else {
                 false
-            };
-
-            target_data.remove_event_listener(&event_type, &callback, capture);
-            Ok(JsValue::undefined())
+            }
         } else {
-            Err(JsNativeError::typ()
-                .with_message("EventTarget.removeEventListener called on non-EventTarget object")
-                .into())
-        }
+            false
+        };
+
+        target_data.remove_event_listener(&event_type, &callback, capture);
+        Ok(JsValue::undefined())
     }
 
     fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -273,20 +271,19 @@ impl EventTarget {
             JsNativeError::typ().with_message("EventTarget.dispatchEvent called on non-object")
         })?;
 
-        if let Some(target_data) = this_obj.downcast_ref::<EventTargetData>() {
-            let event_arg = args.get_or_undefined(0);
+        let target_data = this_obj.downcast_ref::<EventTargetData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("EventTarget.dispatchEvent called on non-EventTarget object")
+        })?;
 
-            if let Some(event_obj) = event_arg.as_object() {
-                let result = target_data.dispatch_event(&event_obj, context)?;
-                Ok(JsValue::new(result))
-            } else {
-                Err(JsNativeError::typ()
-                    .with_message("EventTarget.dispatchEvent requires an Event object")
-                    .into())
-            }
+        let event_arg = args.get_or_undefined(0);
+
+        if let Some(event_obj) = event_arg.as_object() {
+            let result = target_data.dispatch_event(&event_obj, context)?;
+            Ok(JsValue::new(result))
         } else {
             Err(JsNativeError::typ()
-                .with_message("EventTarget.dispatchEvent called on non-EventTarget object")
+                .with_message("EventTarget.dispatchEvent requires an Event object")
                 .into())
         }
     }

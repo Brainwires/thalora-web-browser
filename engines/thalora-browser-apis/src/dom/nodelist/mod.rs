@@ -90,13 +90,12 @@ impl NodeListData {
             JsNativeError::typ().with_message("NodeList.length called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            Ok(JsValue::new(nodelist_data.length() as i32))
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.length called on non-NodeList object")
-                .into())
-        }
+        })?;
+
+        Ok(JsValue::new(nodelist_data.length() as i32))
     }
 
     /// `NodeList.prototype.item(index)`
@@ -105,17 +104,16 @@ impl NodeListData {
             JsNativeError::typ().with_message("NodeList.item called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let index = args.get_or_undefined(0).to_length(context)? as usize;
-
-            match nodelist_data.get_item(index) {
-                Some(node) => Ok(node.into()),
-                None => Ok(JsValue::null()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.item called on non-NodeList object")
-                .into())
+        })?;
+
+        let index = args.get_or_undefined(0).to_length(context)? as usize;
+
+        match nodelist_data.get_item(index) {
+            Some(node) => Ok(node.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -125,31 +123,30 @@ impl NodeListData {
             JsNativeError::typ().with_message("NodeList.forEach called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let callback = args.get_or_undefined(0);
-            let this_arg = args.get_or_undefined(1);
-
-            if !callback.is_callable() {
-                return Err(JsNativeError::typ()
-                    .with_message("NodeList.forEach callback is not callable")
-                    .into());
-            }
-
-            let nodes = nodelist_data.nodes();
-            for (index, node) in nodes.iter().enumerate() {
-                let args = [node.clone().into(), JsValue::new(index), this.clone()];
-                // Use public API - get callable and call it
-                if let Some(func) = callback.as_callable() {
-                    func.call(this_arg, &args, context)?;
-                }
-            }
-
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.forEach called on non-NodeList object")
-                .into())
+        })?;
+
+        let callback = args.get_or_undefined(0);
+        let this_arg = args.get_or_undefined(1);
+
+        if !callback.is_callable() {
+            return Err(JsNativeError::typ()
+                .with_message("NodeList.forEach callback is not callable")
+                .into());
         }
+
+        let nodes = nodelist_data.nodes();
+        for (index, node) in nodes.iter().enumerate() {
+            let args = [node.clone().into(), JsValue::new(index), this.clone()];
+            // Use public API - get callable and call it
+            if let Some(func) = callback.as_callable() {
+                func.call(this_arg, &args, context)?;
+            }
+        }
+
+        Ok(JsValue::undefined())
     }
 
     /// `NodeList.prototype.keys()`
@@ -158,24 +155,23 @@ impl NodeListData {
             JsNativeError::typ().with_message("NodeList.keys called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            // Create an array iterator over the indices
-            let length = nodelist_data.length();
-            let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
-            let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
-
-            for (i, index) in indices.iter().enumerate() {
-                array.create_data_property_or_throw(i, index.clone(), context)?;
-            }
-
-            // Return array iterator (simplified implementation)
-            // In a full implementation, this would return a proper Iterator
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.keys called on non-NodeList object")
-                .into())
+        })?;
+
+        // Create an array iterator over the indices
+        let length = nodelist_data.length();
+        let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
+        let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
+
+        for (i, index) in indices.iter().enumerate() {
+            array.create_data_property_or_throw(i, index.clone(), context)?;
         }
+
+        // Return array iterator (simplified implementation)
+        // In a full implementation, this would return a proper Iterator
+        Ok(array.into())
     }
 
     /// `NodeList.prototype.values()`
@@ -184,23 +180,22 @@ impl NodeListData {
             JsNativeError::typ().with_message("NodeList.values called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            // Create an array with the node values
-            let nodes = nodelist_data.nodes();
-            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
-
-            for (i, node) in nodes.iter().enumerate() {
-                array.create_data_property_or_throw(i, node.clone(), context)?;
-            }
-
-            // Return array (simplified implementation)
-            // In a full implementation, this would return a proper Iterator
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.values called on non-NodeList object")
-                .into())
+        })?;
+
+        // Create an array with the node values
+        let nodes = nodelist_data.nodes();
+        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+
+        for (i, node) in nodes.iter().enumerate() {
+            array.create_data_property_or_throw(i, node.clone(), context)?;
         }
+
+        // Return array (simplified implementation)
+        // In a full implementation, this would return a proper Iterator
+        Ok(array.into())
     }
 
     /// `NodeList.prototype.entries()`
@@ -209,26 +204,25 @@ impl NodeListData {
             JsNativeError::typ().with_message("NodeList.entries called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            // Create an array of [index, node] pairs
-            let nodes = nodelist_data.nodes();
-            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
-
-            for (i, node) in nodes.iter().enumerate() {
-                let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
-                entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
-                entry.create_data_property_or_throw(1, node.clone(), context)?;
-                array.create_data_property_or_throw(i, entry, context)?;
-            }
-
-            // Return array (simplified implementation)
-            // In a full implementation, this would return a proper Iterator
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.entries called on non-NodeList object")
-                .into())
+        })?;
+
+        // Create an array of [index, node] pairs
+        let nodes = nodelist_data.nodes();
+        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+
+        for (i, node) in nodes.iter().enumerate() {
+            let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
+            entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
+            entry.create_data_property_or_throw(1, node.clone(), context)?;
+            array.create_data_property_or_throw(i, entry, context)?;
         }
+
+        // Return array (simplified implementation)
+        // In a full implementation, this would return a proper Iterator
+        Ok(array.into())
     }
 }
 
@@ -260,16 +254,15 @@ impl NodeList {
             JsNativeError::typ().with_message("NodeList.item called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let index = args.get_or_undefined(0).to_length(context)? as usize;
-            match nodelist_data.get_item(index) {
-                Some(node) => Ok(node.into()),
-                None => Ok(JsValue::null()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.item called on non-NodeList object")
-                .into())
+        })?;
+
+        let index = args.get_or_undefined(0).to_length(context)? as usize;
+        match nodelist_data.get_item(index) {
+            Some(node) => Ok(node.into()),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -278,31 +271,30 @@ impl NodeList {
             JsNativeError::typ().with_message("NodeList.forEach called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let callback = args.get_or_undefined(0);
-            let this_arg = args.get_or_undefined(1);
-
-            if !callback.is_callable() {
-                return Err(JsNativeError::typ()
-                    .with_message("NodeList.forEach callback is not callable")
-                    .into());
-            }
-
-            let nodes = nodelist_data.nodes();
-            for (index, node) in nodes.iter().enumerate() {
-                let args = [node.clone().into(), JsValue::new(index), this.clone()];
-                // Use public API - get callable and call it
-                if let Some(func) = callback.as_callable() {
-                    func.call(this_arg, &args, context)?;
-                }
-            }
-
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.forEach called on non-NodeList object")
-                .into())
+        })?;
+
+        let callback = args.get_or_undefined(0);
+        let this_arg = args.get_or_undefined(1);
+
+        if !callback.is_callable() {
+            return Err(JsNativeError::typ()
+                .with_message("NodeList.forEach callback is not callable")
+                .into());
         }
+
+        let nodes = nodelist_data.nodes();
+        for (index, node) in nodes.iter().enumerate() {
+            let args = [node.clone().into(), JsValue::new(index), this.clone()];
+            // Use public API - get callable and call it
+            if let Some(func) = callback.as_callable() {
+                func.call(this_arg, &args, context)?;
+            }
+        }
+
+        Ok(JsValue::undefined())
     }
 
     fn keys(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -310,21 +302,20 @@ impl NodeList {
             JsNativeError::typ().with_message("NodeList.keys called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let length = nodelist_data.length();
-            let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
-            let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
-
-            for (i, index) in indices.iter().enumerate() {
-                array.create_data_property_or_throw(i, index.clone(), context)?;
-            }
-
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.keys called on non-NodeList object")
-                .into())
+        })?;
+
+        let length = nodelist_data.length();
+        let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
+        let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
+
+        for (i, index) in indices.iter().enumerate() {
+            array.create_data_property_or_throw(i, index.clone(), context)?;
         }
+
+        Ok(array.into())
     }
 
     fn values(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -332,20 +323,19 @@ impl NodeList {
             JsNativeError::typ().with_message("NodeList.values called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let nodes = nodelist_data.nodes();
-            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
-
-            for (i, node) in nodes.iter().enumerate() {
-                array.create_data_property_or_throw(i, node.clone(), context)?;
-            }
-
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.values called on non-NodeList object")
-                .into())
+        })?;
+
+        let nodes = nodelist_data.nodes();
+        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+
+        for (i, node) in nodes.iter().enumerate() {
+            array.create_data_property_or_throw(i, node.clone(), context)?;
         }
+
+        Ok(array.into())
     }
 
     fn entries(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -353,23 +343,22 @@ impl NodeList {
             JsNativeError::typ().with_message("NodeList.entries called on non-object")
         })?;
 
-        if let Some(nodelist_data) = this_obj.downcast_ref::<NodeListData>() {
-            let nodes = nodelist_data.nodes();
-            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
-
-            for (i, node) in nodes.iter().enumerate() {
-                let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
-                entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
-                entry.create_data_property_or_throw(1, node.clone(), context)?;
-                array.create_data_property_or_throw(i, entry, context)?;
-            }
-
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("NodeList.entries called on non-NodeList object")
-                .into())
+        })?;
+
+        let nodes = nodelist_data.nodes();
+        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+
+        for (i, node) in nodes.iter().enumerate() {
+            let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
+            entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
+            entry.create_data_property_or_throw(1, node.clone(), context)?;
+            array.create_data_property_or_throw(i, entry, context)?;
         }
+
+        Ok(array.into())
     }
 }
 

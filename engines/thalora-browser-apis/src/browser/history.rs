@@ -281,21 +281,20 @@ fn get_state(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
         JsNativeError::typ().with_message("History.prototype.state called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        if let Some(state_json) = history.get_current_state() {
-            // Parse JSON state
-            let parse_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.parse('{}')", state_json)));
-            match parse_result {
-                Ok(value) => Ok(value),
-                Err(_) => Ok(JsValue::null()),
-            }
-        } else {
-            Ok(JsValue::null())
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("History.prototype.state called on non-History object")
+    })?;
+
+    if let Some(state_json) = history.get_current_state() {
+        // Parse JSON state
+        let parse_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.parse('{}')", state_json)));
+        match parse_result {
+            Ok(value) => Ok(value),
+            Err(_) => Ok(JsValue::null()),
         }
     } else {
-        Err(JsNativeError::typ()
-            .with_message("History.prototype.state called on non-History object")
-            .into())
+        Ok(JsValue::null())
     }
 }
 
@@ -321,15 +320,14 @@ fn set_scroll_restoration(this: &JsValue, args: &[JsValue], context: &mut Contex
         JsNativeError::typ().with_message("History.prototype.scrollRestoration setter called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        let value = args.get_or_undefined(0).to_string(context)?;
-        history.set_scroll_restoration(value.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("History.prototype.scrollRestoration setter called on non-History object")
-            .into())
-    }
+    })?;
+
+    let value = args.get_or_undefined(0).to_string(context)?;
+    history.set_scroll_restoration(value.to_std_string_escaped());
+    Ok(JsValue::undefined())
 }
 
 /// `History.prototype.back()`
@@ -338,15 +336,14 @@ fn back(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("History.prototype.back called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        history.back();
-        // In a real implementation, this would trigger pageswap event and navigation
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("History.prototype.back called on non-History object")
-            .into())
-    }
+    })?;
+
+    history.back();
+    // In a real implementation, this would trigger pageswap event and navigation
+    Ok(JsValue::undefined())
 }
 
 /// `History.prototype.forward()`
@@ -355,15 +352,14 @@ fn forward(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("History.prototype.forward called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        history.forward();
-        // In a real implementation, this would trigger pageswap event and navigation
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("History.prototype.forward called on non-History object")
-            .into())
-    }
+    })?;
+
+    history.forward();
+    // In a real implementation, this would trigger pageswap event and navigation
+    Ok(JsValue::undefined())
 }
 
 /// `History.prototype.go(delta)`
@@ -372,16 +368,15 @@ fn go(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVal
         JsNativeError::typ().with_message("History.prototype.go called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        let delta = args.get_or_undefined(0).to_i32(context)?;
-        history.go(delta);
-        // In a real implementation, this would trigger pageswap event and navigation
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("History.prototype.go called on non-History object")
-            .into())
-    }
+    })?;
+
+    let delta = args.get_or_undefined(0).to_i32(context)?;
+    history.go(delta);
+    // In a real implementation, this would trigger pageswap event and navigation
+    Ok(JsValue::undefined())
 }
 
 /// `History.prototype.pushState(state, title, url)`
@@ -390,41 +385,40 @@ fn push_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         JsNativeError::typ().with_message("History.prototype.pushState called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        let state = args.get_or_undefined(0);
-        let title = args.get_or_undefined(1).to_string(context)?;
-        let url = args.get(2);
-
-        // Serialize state to JSON if not null/undefined
-        let state_json = if state.is_null() || state.is_undefined() {
-            None
-        } else {
-            // Use JSON.stringify to serialize state
-            let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
-            match stringify_result {
-                Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
-                Err(_) => None,
-            }
-        };
-
-        let url_string = if let Some(url_val) = url {
-            if !url_val.is_null() && !url_val.is_undefined() {
-                Some(url_val.to_string(context)?.to_std_string_escaped())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        history.push_state(state_json, title.to_std_string_escaped(), url_string);
-        // In a real implementation, this would trigger pageswap event and update URL
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("History.prototype.pushState called on non-History object")
-            .into())
-    }
+    })?;
+
+    let state = args.get_or_undefined(0);
+    let title = args.get_or_undefined(1).to_string(context)?;
+    let url = args.get(2);
+
+    // Serialize state to JSON if not null/undefined
+    let state_json = if state.is_null() || state.is_undefined() {
+        None
+    } else {
+        // Use JSON.stringify to serialize state
+        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
+        match stringify_result {
+            Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
+            Err(_) => None,
+        }
+    };
+
+    let url_string = if let Some(url_val) = url {
+        if !url_val.is_null() && !url_val.is_undefined() {
+            Some(url_val.to_string(context)?.to_std_string_escaped())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    history.push_state(state_json, title.to_std_string_escaped(), url_string);
+    // In a real implementation, this would trigger pageswap event and update URL
+    Ok(JsValue::undefined())
 }
 
 /// `History.prototype.replaceState(state, title, url)`
@@ -433,39 +427,38 @@ fn replace_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("History.prototype.replaceState called on non-object")
     })?;
 
-    if let Some(history) = this_obj.downcast_ref::<HistoryData>() {
-        let state = args.get_or_undefined(0);
-        let title = args.get_or_undefined(1).to_string(context)?;
-        let url = args.get(2);
-
-        // Serialize state to JSON if not null/undefined
-        let state_json = if state.is_null() || state.is_undefined() {
-            None
-        } else {
-            // Use JSON.stringify to serialize state
-            let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
-            match stringify_result {
-                Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
-                Err(_) => None,
-            }
-        };
-
-        let url_string = if let Some(url_val) = url {
-            if !url_val.is_null() && !url_val.is_undefined() {
-                Some(url_val.to_string(context)?.to_std_string_escaped())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        history.replace_state(state_json, title.to_std_string_escaped(), url_string);
-        // In a real implementation, this would trigger pageswap event and update URL
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("History.prototype.replaceState called on non-History object")
-            .into())
-    }
+    })?;
+
+    let state = args.get_or_undefined(0);
+    let title = args.get_or_undefined(1).to_string(context)?;
+    let url = args.get(2);
+
+    // Serialize state to JSON if not null/undefined
+    let state_json = if state.is_null() || state.is_undefined() {
+        None
+    } else {
+        // Use JSON.stringify to serialize state
+        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
+        match stringify_result {
+            Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
+            Err(_) => None,
+        }
+    };
+
+    let url_string = if let Some(url_val) = url {
+        if !url_val.is_null() && !url_val.is_undefined() {
+            Some(url_val.to_string(context)?.to_std_string_escaped())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    history.replace_state(state_json, title.to_std_string_escaped(), url_string);
+    // In a real implementation, this would trigger pageswap event and update URL
+    Ok(JsValue::undefined())
 }

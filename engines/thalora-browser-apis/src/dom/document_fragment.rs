@@ -209,20 +209,19 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.children called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            let children = fragment_data.get_children();
-            // In a full implementation, this would return an HTMLCollection
-            // For now, return an array-like object
-            let array = boa_engine::builtins::Array::array_create(children.len() as u64, None, _context)?;
-            for (i, child) in children.iter().enumerate() {
-                array.create_data_property_or_throw(i, child.clone(), _context)?;
-            }
-            Ok(array.into())
-        } else {
-            Err(JsNativeError::typ()
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("DocumentFragment.children called on non-DocumentFragment object")
-                .into())
+        })?;
+
+        let children = fragment_data.get_children();
+        // In a full implementation, this would return an HTMLCollection
+        // For now, return an array-like object
+        let array = boa_engine::builtins::Array::array_create(children.len() as u64, None, _context)?;
+        for (i, child) in children.iter().enumerate() {
+            array.create_data_property_or_throw(i, child.clone(), _context)?;
         }
+        Ok(array.into())
     }
 
     /// `DocumentFragment.prototype.append(...nodes)`
@@ -231,24 +230,23 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.append called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            for arg in args {
-                if let Some(node_obj) = arg.as_object() {
-                    match fragment_data.append_impl(node_obj.clone()) {
-                        Ok(_) => {},
-                        Err(err) => return Err(JsNativeError::error()
-                            .with_message(err)
-                            .into()),
-                    }
-                }
-                // Note: In full implementation, would also handle string arguments
-            }
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("DocumentFragment.append called on non-DocumentFragment object")
-                .into())
+        })?;
+
+        for arg in args {
+            if let Some(node_obj) = arg.as_object() {
+                match fragment_data.append_impl(node_obj.clone()) {
+                    Ok(_) => {},
+                    Err(err) => return Err(JsNativeError::error()
+                        .with_message(err)
+                        .into()),
+                }
+            }
+            // Note: In full implementation, would also handle string arguments
         }
+        Ok(JsValue::undefined())
     }
 
     /// `DocumentFragment.prototype.prepend(...nodes)`
@@ -257,22 +255,21 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.prepend called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            // Process arguments in normal order, inserting each at position 0
-            // This results in final order: [last_arg, second_last_arg, first_arg, existing_children]
-            for arg in args.iter() {
-                if let Some(node_obj) = arg.as_object() {
-                    fragment_data.children.borrow_mut().insert(0, node_obj.clone());
-                    fragment_data.element_children.borrow_mut().insert(0, node_obj.clone());
-                }
-            }
-
-            Ok(JsValue::undefined())
-        } else {
-            Err(JsNativeError::typ()
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("DocumentFragment.prepend called on non-DocumentFragment object")
-                .into())
+        })?;
+
+        // Process arguments in normal order, inserting each at position 0
+        // This results in final order: [last_arg, second_last_arg, first_arg, existing_children]
+        for arg in args.iter() {
+            if let Some(node_obj) = arg.as_object() {
+                fragment_data.children.borrow_mut().insert(0, node_obj.clone());
+                fragment_data.element_children.borrow_mut().insert(0, node_obj.clone());
+            }
         }
+
+        Ok(JsValue::undefined())
     }
 
     /// `DocumentFragment.prototype.replaceChildren(...nodes)`
@@ -281,24 +278,23 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.replaceChildren called on non-object")
         })?;
 
-        if let Some(fragment_data) = this_obj.downcast_ref::<DocumentFragmentData>() {
-            let mut nodes = Vec::new();
-            for arg in args {
-                if let Some(node_obj) = arg.as_object() {
-                    nodes.push(node_obj.clone());
-                }
-            }
-
-            match fragment_data.replace_children_impl(nodes) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::error()
-                    .with_message(err)
-                    .into()),
-            }
-        } else {
-            Err(JsNativeError::typ()
+        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("DocumentFragment.replaceChildren called on non-DocumentFragment object")
-                .into())
+        })?;
+
+        let mut nodes = Vec::new();
+        for arg in args {
+            if let Some(node_obj) = arg.as_object() {
+                nodes.push(node_obj.clone());
+            }
+        }
+
+        match fragment_data.replace_children_impl(nodes) {
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::error()
+                .with_message(err)
+                .into()),
         }
     }
 

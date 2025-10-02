@@ -391,11 +391,10 @@ fn get_url(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> 
         JsNativeError::typ().with_message("WebSocket.prototype.url getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WebSocketData>() {
-        Ok(JsValue::from(js_string!(data.url.clone())))
-    } else {
-        Ok(JsValue::undefined())
-    }
+    let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("WebSocket.prototype.url getter called on non-WebSocket")
+    })?;
+    Ok(JsValue::from(js_string!(data.url.clone())))
 }
 
 fn get_ready_state(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -403,17 +402,23 @@ fn get_ready_state(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("WebSocket.prototype.readyState getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WebSocketData>() {
-        // We need to use try_lock since we can't await in a synchronous function
-        if let Ok(conn) = data.connection.try_lock() {
-            Ok(JsValue::from(conn.state as u32))
-        } else {
-            // If we can't get the lock, assume connecting state
-            Ok(JsValue::from(ReadyState::Connecting as u32))
-        }
+    // Clone the Arc to avoid lifetime issues with GcRef
+    let connection = {
+        let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WebSocket.prototype.readyState getter called on non-WebSocket")
+        })?;
+        data.connection.clone()
+    };
+
+    // We need to use try_lock since we can't await in a synchronous function
+    let result = if let Ok(conn) = connection.try_lock() {
+        conn.state as u32
     } else {
-        Ok(JsValue::from(ReadyState::Closed as u32))
-    }
+        // If we can't get the lock, assume connecting state
+        ReadyState::Connecting as u32
+    };
+
+    Ok(JsValue::from(result))
 }
 
 fn get_buffered_amount(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -421,15 +426,21 @@ fn get_buffered_amount(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResu
         JsNativeError::typ().with_message("WebSocket.prototype.bufferedAmount getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WebSocketData>() {
-        if let Ok(conn) = data.connection.try_lock() {
-            Ok(JsValue::from(conn.buffered_amount))
-        } else {
-            Ok(JsValue::from(0))
-        }
+    // Clone the Arc to avoid lifetime issues with GcRef
+    let connection = {
+        let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WebSocket.prototype.bufferedAmount getter called on non-WebSocket")
+        })?;
+        data.connection.clone()
+    };
+
+    let result = if let Ok(conn) = connection.try_lock() {
+        conn.buffered_amount
     } else {
-        Ok(JsValue::from(0))
-    }
+        0
+    };
+
+    Ok(JsValue::from(result))
 }
 
 fn get_extensions(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -437,11 +448,10 @@ fn get_extensions(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("WebSocket.prototype.extensions getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WebSocketData>() {
-        Ok(JsValue::from(js_string!(data.extensions.clone())))
-    } else {
-        Ok(JsValue::from(js_string!("")))
-    }
+    let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("WebSocket.prototype.extensions getter called on non-WebSocket")
+    })?;
+    Ok(JsValue::from(js_string!(data.extensions.clone())))
 }
 
 fn get_protocol(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -449,12 +459,11 @@ fn get_protocol(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WebSocketData>() {
-        let protocol = data.protocols.first().cloned().unwrap_or_default();
-        Ok(JsValue::from(js_string!(protocol)))
-    } else {
-        Ok(JsValue::from(js_string!("")))
-    }
+    let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-WebSocket")
+    })?;
+    let protocol = data.protocols.first().cloned().unwrap_or_default();
+    Ok(JsValue::from(js_string!(protocol)))
 }
 
 fn get_binary_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -462,9 +471,8 @@ fn get_binary_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("WebSocket.prototype.binaryType getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WebSocketData>() {
-        Ok(JsValue::from(js_string!(data.binary_type.clone())))
-    } else {
-        Ok(JsValue::from(js_string!("blob")))
-    }
+    let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("WebSocket.prototype.binaryType getter called on non-WebSocket")
+    })?;
+    Ok(JsValue::from(js_string!(data.binary_type.clone())))
 }

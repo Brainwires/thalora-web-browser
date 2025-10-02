@@ -169,11 +169,11 @@ fn get_user_agent(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         boa_engine::JsNativeError::typ().with_message("WorkerNavigator.userAgent getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
-        Ok(JsValue::from(js_string!(data.user_agent.clone())))
-    } else {
-        Ok(JsValue::from(js_string!("Thalora/1.0 (Boa JavaScript Engine)")))
-    }
+    let data = this_obj.downcast_ref::<WorkerNavigatorData>().ok_or_else(|| {
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.userAgent getter called on non-WorkerNavigator object")
+    })?;
+
+    Ok(JsValue::from(js_string!(data.user_agent.clone())))
 }
 
 /// `WorkerNavigator.prototype.platform` getter
@@ -182,11 +182,11 @@ fn get_platform(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
         boa_engine::JsNativeError::typ().with_message("WorkerNavigator.platform getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
-        Ok(JsValue::from(js_string!(data.platform.clone())))
-    } else {
-        Ok(JsValue::from(js_string!(WorkerNavigatorData::detect_platform())))
-    }
+    let data = this_obj.downcast_ref::<WorkerNavigatorData>().ok_or_else(|| {
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.platform getter called on non-WorkerNavigator object")
+    })?;
+
+    Ok(JsValue::from(js_string!(data.platform.clone())))
 }
 
 /// `WorkerNavigator.prototype.language` getter
@@ -195,11 +195,11 @@ fn get_language(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
         boa_engine::JsNativeError::typ().with_message("WorkerNavigator.language getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
-        Ok(JsValue::from(js_string!(data.language.clone())))
-    } else {
-        Ok(JsValue::from(js_string!("en-US")))
-    }
+    let data = this_obj.downcast_ref::<WorkerNavigatorData>().ok_or_else(|| {
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.language getter called on non-WorkerNavigator object")
+    })?;
+
+    Ok(JsValue::from(js_string!(data.language.clone())))
 }
 
 /// `WorkerNavigator.prototype.languages` getter
@@ -230,11 +230,11 @@ fn get_online(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValu
         boa_engine::JsNativeError::typ().with_message("WorkerNavigator.onLine getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
-        Ok(JsValue::from(data.online))
-    } else {
-        Ok(JsValue::from(true)) // Default to online
-    }
+    let data = this_obj.downcast_ref::<WorkerNavigatorData>().ok_or_else(|| {
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.onLine getter called on non-WorkerNavigator object")
+    })?;
+
+    Ok(JsValue::from(data.online))
 }
 
 /// `WorkerNavigator.prototype.hardwareConcurrency` getter
@@ -243,9 +243,9 @@ fn get_hardware_concurrency(this: &JsValue, _: &[JsValue], _: &mut Context) -> J
         boa_engine::JsNativeError::typ().with_message("WorkerNavigator.hardwareConcurrency getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WorkerNavigatorData>() {
-        Ok(JsValue::from(data.hardware_concurrency))
-    } else {
-        Ok(JsValue::from(WorkerNavigatorData::detect_hardware_concurrency()))
-    }
+    let data = this_obj.downcast_ref::<WorkerNavigatorData>().ok_or_else(|| {
+        boa_engine::JsNativeError::typ().with_message("WorkerNavigator.hardwareConcurrency getter called on non-WorkerNavigator object")
+    })?;
+
+    Ok(JsValue::from(data.hardware_concurrency))
 }

@@ -379,36 +379,28 @@ impl WritableStreamDefaultWriter {
             JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.closed getter called on non-object")
         })?;
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(stream_data) = writer_data.stream.downcast_ref::<WritableStreamData>() {
-                match stream_data.state {
-                    StreamState::Closed => {
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-        },
-                    StreamState::Errored => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                },
-                    _ => {
-                        // Return a pending promise
-                        {
-                        let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                    }
-                    }
-                }
-            } else {
-                {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                }
+        let writer_data = this_obj.downcast_ref::<WritableStreamDefaultWriterData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.closed getter called on non-WritableStreamDefaultWriter object")
+        })?;
+
+        let stream_data = writer_data.stream.downcast_ref::<WritableStreamData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
+        })?;
+
+        match stream_data.state {
+            StreamState::Closed => {
+                let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            },
+            StreamState::Errored => {
+                let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            },
+            _ => {
+                // Return a pending promise
+                let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
             }
-        } else {
-            {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                }
         }
     }
 
@@ -422,33 +414,27 @@ impl WritableStreamDefaultWriter {
             JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.ready getter called on non-object")
         })?;
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(stream_data) = writer_data.stream.downcast_ref::<WritableStreamData>() {
-                match stream_data.state {
-                    StreamState::Writable => {
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-        },
-                    StreamState::Errored => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                },
-                    _ => {
-                        let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                    }
-                }
-            } else {
-                {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                }
+        let writer_data = this_obj.downcast_ref::<WritableStreamDefaultWriterData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.ready getter called on non-WritableStreamDefaultWriter object")
+        })?;
+
+        let stream_data = writer_data.stream.downcast_ref::<WritableStreamData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
+        })?;
+
+        match stream_data.state {
+            StreamState::Writable => {
+                let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            },
+            StreamState::Errored => {
+                let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            },
+            _ => {
+                let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
             }
-        } else {
-            {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                }
         }
     }
 
@@ -462,22 +448,22 @@ impl WritableStreamDefaultWriter {
             JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.desiredSize getter called on non-object")
         })?;
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(stream_data) = writer_data.stream.downcast_ref::<WritableStreamData>() {
-                match stream_data.state {
-                    StreamState::Writable => {
-                        // Return high water mark minus current queue size
-                        let desired = stream_data.high_water_mark - stream_data.write_queue.len() as f64;
-                        Ok(JsValue::from(desired))
-                    },
-                    StreamState::Closed | StreamState::Closing => Ok(JsValue::from(0)),
-                    StreamState::Errored => Ok(JsValue::null()),
-                }
-            } else {
-                Ok(JsValue::null())
-            }
-        } else {
-            Ok(JsValue::null())
+        let writer_data = this_obj.downcast_ref::<WritableStreamDefaultWriterData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.desiredSize getter called on non-WritableStreamDefaultWriter object")
+        })?;
+
+        let stream_data = writer_data.stream.downcast_ref::<WritableStreamData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
+        })?;
+
+        match stream_data.state {
+            StreamState::Writable => {
+                // Return high water mark minus current queue size
+                let desired = stream_data.high_water_mark - stream_data.write_queue.len() as f64;
+                Ok(JsValue::from(desired))
+            },
+            StreamState::Closed | StreamState::Closing => Ok(JsValue::from(0)),
+            StreamState::Errored => Ok(JsValue::null()),
         }
     }
 }
@@ -557,9 +543,9 @@ fn get_locked(
         JsNativeError::typ().with_message("WritableStream.prototype.locked getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<WritableStreamData>() {
-        Ok(data.locked.into())
-    } else {
-        Ok(false.into())
-    }
+    let data = this_obj.downcast_ref::<WritableStreamData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("WritableStream.locked getter called on non-WritableStream object")
+    })?;
+
+    Ok(data.locked.into())
 }

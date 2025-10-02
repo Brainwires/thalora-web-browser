@@ -299,11 +299,15 @@ fn get_location(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Window.prototype.location called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let location = window.get_location();
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Window.prototype.location called on non-Window object")
+    })?;
 
-        // Initialize location object if empty
-        if !location.has_property(js_string!("href"), context)? {
+    let location = window.get_location();
+
+    // Initialize location object if empty
+    if !location.has_property(js_string!("href"), context)? {
             let current_url = window.get_current_url();
 
             // Add href property
@@ -362,12 +366,7 @@ fn get_location(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
             )?;
         }
 
-        Ok(location.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Window.prototype.location called on non-Window object")
-            .into())
-    }
+    Ok(location.into())
 }
 
 /// `Window.prototype.history` getter
@@ -376,11 +375,15 @@ fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Window.prototype.history called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let history = window.get_history();
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Window.prototype.history called on non-Window object")
+    })?;
 
-        // Initialize history object if empty
-        if !history.has_property(js_string!("length"), context)? {
+    let history = window.get_history();
+
+    // Initialize history object if empty
+    if !history.has_property(js_string!("length"), context)? {
             // Add length property
             history.define_property_or_throw(
                 js_string!("length"),
@@ -508,12 +511,7 @@ fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
             )?;
         }
 
-        Ok(history.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Window.prototype.history called on non-Window object")
-            .into())
-    }
+    Ok(history.into())
 }
 
 /// `Window.prototype.document` getter
@@ -522,29 +520,28 @@ fn get_document(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
         JsNativeError::typ().with_message("Window.prototype.document called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let document = window.get_document();
-
-        // Initialize document if needed
-        if !document.has_property(js_string!("readyState"), context)? {
-            // Create a new Document instance
-            use crate::dom::document::Document;
-
-            let document_constructor_args: &[JsValue] = &[];
-            let new_document = Document::constructor(&JsValue::undefined(), document_constructor_args, context)?;
-
-            if let Some(doc_obj) = new_document.as_object() {
-                window.set_document(doc_obj.clone());
-                return Ok(new_document);
-            }
-        }
-
-        Ok(document.into())
-    } else {
-        Err(JsNativeError::typ()
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Window.prototype.document called on non-Window object")
-            .into())
+    })?;
+
+    let document = window.get_document();
+
+    // Initialize document if needed
+    if !document.has_property(js_string!("readyState"), context)? {
+        // Create a new Document instance
+        use crate::dom::document::Document;
+
+        let document_constructor_args: &[JsValue] = &[];
+        let new_document = Document::constructor(&JsValue::undefined(), document_constructor_args, context)?;
+
+        if let Some(doc_obj) = new_document.as_object() {
+            window.set_document(doc_obj.clone());
+            return Ok(new_document);
+        }
     }
+
+    Ok(document.into())
 }
 
 /// `Window.prototype.navigator` getter
@@ -553,8 +550,12 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Window.prototype.navigator called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let navigator = window.get_navigator();
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Window.prototype.navigator called on non-Window object")
+    })?;
+
+    let navigator = window.get_navigator();
 
         // Initialize navigator object if empty
         if !navigator.has_property(js_string!("userAgent"), context)? {
@@ -778,12 +779,7 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             )?;
         }
 
-        Ok(navigator.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Window.prototype.navigator called on non-Window object")
-            .into())
-    }
+    Ok(navigator.into())
 }
 
 /// `Window.prototype.addEventListener(type, listener)`
@@ -792,17 +788,16 @@ fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -
         JsNativeError::typ().with_message("Window.prototype.addEventListener called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let listener = args.get_or_undefined(1).clone();
-
-        window.add_event_listener(event_type.to_std_string_escaped(), listener);
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Window.prototype.addEventListener called on non-Window object")
-            .into())
-    }
+    })?;
+
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1).clone();
+
+    window.add_event_listener(event_type.to_std_string_escaped(), listener);
+    Ok(JsValue::undefined())
 }
 
 /// `Window.prototype.removeEventListener(type, listener)`
@@ -811,17 +806,16 @@ fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Window.prototype.removeEventListener called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let listener = args.get_or_undefined(1);
-
-        window.remove_event_listener(&event_type.to_std_string_escaped(), listener);
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("Window.prototype.removeEventListener called on non-Window object")
-            .into())
-    }
+    })?;
+
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1);
+
+    window.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    Ok(JsValue::undefined())
 }
 
 /// `Window.prototype.dispatchEvent(event)`
@@ -830,36 +824,35 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Window.prototype.dispatchEvent called on non-object")
     })?;
 
-    if let Some(window) = this_obj.downcast_ref::<WindowData>() {
-        let event = args.get_or_undefined(0);
+    let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Window.prototype.dispatchEvent called on non-Window object")
+    })?;
 
-        // Get event type from event object
-        if event.is_object() {
-            if let Some(event_obj) = event.as_object() {
-                if let Ok(type_val) = event_obj.get(js_string!("type"), context) {
-                    let event_type = type_val.to_string(context)?;
-                    let listeners = window.get_event_listeners(&event_type.to_std_string_escaped());
+    let event = args.get_or_undefined(0);
 
-                    // Call each listener
-                    for listener in listeners {
-                        if listener.is_callable() {
-                            let _ = listener.as_callable().unwrap().call(
-                                &this_obj.clone().into(),
-                                &[event.clone()],
-                                context,
-                            );
-                        }
+    // Get event type from event object
+    if event.is_object() {
+        if let Some(event_obj) = event.as_object() {
+            if let Ok(type_val) = event_obj.get(js_string!("type"), context) {
+                let event_type = type_val.to_string(context)?;
+                let listeners = window.get_event_listeners(&event_type.to_std_string_escaped());
+
+                // Call each listener
+                for listener in listeners {
+                    if listener.is_callable() {
+                        let _ = listener.as_callable().unwrap().call(
+                            &this_obj.clone().into(),
+                            &[event.clone()],
+                            context,
+                        );
                     }
                 }
             }
         }
-
-        Ok(true.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Window.prototype.dispatchEvent called on non-Window object")
-            .into())
     }
+
+    Ok(true.into())
 }
 
 /// `Window.prototype.matchMedia(mediaQuery)`
@@ -868,8 +861,12 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("Window.prototype.matchMedia called on non-object")
     })?;
 
-    if let Some(_window) = this_obj.downcast_ref::<WindowData>() {
-        let media_query = args.get_or_undefined(0).to_string(context)?;
+    let _window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Window.prototype.matchMedia called on non-Window object")
+    })?;
+
+    let media_query = args.get_or_undefined(0).to_string(context)?;
         let query_str = media_query.to_std_string_escaped();
 
         // Create MediaQueryList object
@@ -965,12 +962,7 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
             context,
         )?;
 
-        Ok(media_query_list.into())
-    } else {
-        Err(JsNativeError::typ()
-            .with_message("Window.prototype.matchMedia called on non-Window object")
-            .into())
-    }
+    Ok(media_query_list.into())
 }
 
 /// Enhanced media query evaluator with better parsing

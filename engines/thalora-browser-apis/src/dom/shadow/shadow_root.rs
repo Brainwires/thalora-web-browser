@@ -290,13 +290,12 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.mode called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            Ok(JsValue::from(js_string!(shadow_data.mode().to_string())))
-        } else {
-            Err(JsNativeError::typ()
+        let shadow_data = this_obj.downcast_ref::<ShadowRootData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("ShadowRoot.mode called on non-ShadowRoot object")
-                .into())
-        }
+        })?;
+
+        Ok(JsValue::from(js_string!(shadow_data.mode().to_string())))
     }
 
     /// `ShadowRoot.prototype.clonable` getter
@@ -372,14 +371,13 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.innerHTML called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            let html = shadow_data.get_inner_html();
-            Ok(JsValue::from(js_string!(html)))
-        } else {
-            Err(JsNativeError::typ()
+        let shadow_data = this_obj.downcast_ref::<ShadowRootData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("ShadowRoot.innerHTML called on non-ShadowRoot object")
-                .into())
-        }
+        })?;
+
+        let html = shadow_data.get_inner_html();
+        Ok(JsValue::from(js_string!(html)))
     }
 
     /// `ShadowRoot.prototype.innerHTML` setter
@@ -409,14 +407,13 @@ impl ShadowRootData {
             JsNativeError::typ().with_message("ShadowRoot.getHTML called on non-object")
         })?;
 
-        if let Some(shadow_data) = this_obj.downcast_ref::<ShadowRootData>() {
-            let html = shadow_data.get_inner_html();
-            Ok(JsValue::from(js_string!(html)))
-        } else {
-            Err(JsNativeError::typ()
+        let shadow_data = this_obj.downcast_ref::<ShadowRootData>().ok_or_else(|| {
+            JsNativeError::typ()
                 .with_message("ShadowRoot.getHTML called on non-ShadowRoot object")
-                .into())
-        }
+        })?;
+
+        let html = shadow_data.get_inner_html();
+        Ok(JsValue::from(js_string!(html)))
     }
 }
 
