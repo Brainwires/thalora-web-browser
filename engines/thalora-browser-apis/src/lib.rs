@@ -240,10 +240,14 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.set(boa_engine::js_string!("window"), window_instance.clone(), false, context)
         .expect("failed to set global window");
 
-    // Create a global navigator instance with default properties using JavaScript 'new'
-    // This ensures proper prototype chain
-    let navigator_instance = context.eval(boa_engine::Source::from_bytes("new Navigator()"))
-        .expect("failed to create navigator instance");
+    // Create navigator instance manually with proper prototype and data
+    let navigator_proto = global_object.get(browser::navigator::Navigator::NAME, context)?
+        .as_object()
+        .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
+        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Navigator prototype not found"))?;
+
+    let mut navigator_data = browser::navigator::Navigator::new();
 
     // Create StorageManager instance for navigator.storage
     let storage_manager_proto = global_object.get(storage::storage_manager::StorageManager::NAME, context)?
@@ -258,13 +262,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         storage_manager_proto,
         storage_manager_data,
     );
-    let storage_manager: boa_engine::JsValue = storage_manager_obj.into();
-
-    // Set navigator.storage
-    if let Some(nav_obj) = navigator_instance.as_object() {
-        nav_obj.set(boa_engine::js_string!("storage"), storage_manager, false, context)
-            .expect("failed to set navigator.storage");
-    }
 
     // Create LockManager instance for navigator.locks
     let lock_manager_proto = global_object.get(locks::lock_manager::LockManager::NAME, context)?
@@ -279,13 +276,30 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         lock_manager_proto,
         lock_manager_data,
     );
-    let lock_manager: boa_engine::JsValue = lock_manager_obj.into();
 
-    // Set navigator.locks
-    if let Some(nav_obj) = navigator_instance.as_object() {
-        nav_obj.set(boa_engine::js_string!("locks"), lock_manager, false, context)
-            .expect("failed to set navigator.locks");
-    }
+    // Set lock_manager on navigator_data BEFORE creating the object
+    eprintln!("DEBUG: Setting lock_manager on Navigator data structure");
+    navigator_data.set_lock_manager(lock_manager_obj.clone());
+
+    // Now create the navigator object with the data that includes lock_manager
+    let navigator_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        navigator_proto,
+        navigator_data,
+    );
+
+    // Set navigator.storage (this works with .set() because storage doesn't have a special getter)
+    navigator_obj.set(
+        boa_engine::js_string!("storage"),
+        storage_manager_obj,
+        false,
+        context
+    ).expect("failed to set navigator.storage");
+
+    let check_storage = navigator_obj.get(boa_engine::js_string!("storage"), context).unwrap();
+    eprintln!("DEBUG: After setting navigator.storage, get('storage') = {:?}", check_storage);
+
+    let navigator_instance: boa_engine::JsValue = navigator_obj.into();
 
     // Now set navigator on the window object (after setting storage and locks)
     if let Some(window_obj) = window_instance.as_object() {
@@ -308,8 +322,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
         .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Storage prototype not found"))?;
 
-    // Create localStorage instance with empty data (tests expect clean storage)
-    let local_storage_data = storage::storage::Storage::new_empty("localStorage");
+    // Create localStorage instance with persistence enabled
+    let local_storage_data = storage::storage::Storage::new("localStorage");
     let local_storage_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
         storage_proto.clone(),
@@ -317,8 +331,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
     let local_storage: boa_engine::JsValue = local_storage_obj.into();
 
-    // Create sessionStorage instance with empty data (tests expect clean storage)
-    let session_storage_data = storage::storage::Storage::new_empty("sessionStorage");
+    // Create sessionStorage instance with persistence enabled
+    let session_storage_data = storage::storage::Storage::new("sessionStorage");
     let session_storage_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
         storage_proto,
@@ -550,5 +564,53 @@ mod test_utils {
             Ok(result) => result,
             Err(_) => false,
         }
+    }
+}
+#[cfg(test)]
+mod debug_navigator_locks {
+    use crate::{Context, Source, JsValue, JsString};
+
+    #[test]
+    fn debug_locks() {
+        let mut context = Context::default();
+        crate::initialize_browser_apis(&mut context).unwrap();
+        
+        println!("=== Testing LockManager ===");
+        
+        // 1. Does LockManager constructor exist?
+        let result = context.eval(Source::from_bytes("typeof LockManager")).unwrap();
+        println!("1. typeof LockManager = {:?}", result);
+        
+        // 2. Does LockManager.prototype.request exist?
+        let result = context.eval(Source::from_bytes("typeof LockManager.prototype.request")).unwrap();
+        println!("2. typeof LockManager.prototype.request = {:?}", result);
+        
+        // 3. Does global navigator exist?
+        let result = context.eval(Source::from_bytes("typeof navigator")).unwrap();
+        println!("3. typeof navigator = {:?}", result);
+        
+        // 4. Does navigator.locks exist?
+        let result = context.eval(Source::from_bytes("typeof navigator.locks")).unwrap();
+        println!("4. typeof navigator.locks = {:?}", result);
+        
+        // 5. Are navigator and window.navigator the same object?
+        let result = context.eval(Source::from_bytes("navigator === window.navigator")).unwrap();
+        println!("5. navigator === window.navigator: {:?}", result);
+        
+        // 6. Does window.navigator have locks?
+        let result = context.eval(Source::from_bytes("typeof window.navigator.locks")).unwrap();
+        println!("6. typeof window.navigator.locks = {:?}", result);
+        
+        // 7. Check what properties navigator has
+        let result = context.eval(Source::from_bytes("Object.keys(navigator)")).unwrap();
+        println!("7. Object.keys(navigator) = {:?}", result);
+
+        // 8. Does navigator.storage work?
+        let result = context.eval(Source::from_bytes("typeof navigator.storage")).unwrap();
+        println!("8. typeof navigator.storage = {:?}", result);
+
+        // 9. Does window.navigator.storage work?
+        let result = context.eval(Source::from_bytes("typeof window.navigator.storage")).unwrap();
+        println!("9. typeof window.navigator.storage = {:?}", result);
     }
 }

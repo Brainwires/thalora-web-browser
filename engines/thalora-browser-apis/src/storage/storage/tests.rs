@@ -68,6 +68,9 @@ fn test_local_storage_set_get_item() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
+    // Clear any persisted data
+    context.eval(Source::from_bytes("localStorage.clear()")).unwrap();
+
     // Initially empty
     let result = context.eval(Source::from_bytes("localStorage.length")).unwrap();
     assert_eq!(result, JsValue::from(0));
@@ -102,6 +105,9 @@ fn test_session_storage_set_get_item() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
+    // Clear any persisted data
+    context.eval(Source::from_bytes("sessionStorage.clear()")).unwrap();
+
     // Initially empty
     let result = context.eval(Source::from_bytes("sessionStorage.length")).unwrap();
     assert_eq!(result, JsValue::from(0));
@@ -126,6 +132,9 @@ fn test_session_storage_set_get_item() {
 fn test_local_storage_remove_item() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Clear any persisted data
+    context.eval(Source::from_bytes("localStorage.clear()")).unwrap();
 
     // Set some items
     context.eval(Source::from_bytes("localStorage.setItem('key1', 'value1')")).unwrap();
@@ -164,6 +173,9 @@ fn test_local_storage_clear() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
+    // Clear any persisted data first
+    context.eval(Source::from_bytes("localStorage.clear()")).unwrap();
+
     // Set some items
     context.eval(Source::from_bytes("localStorage.setItem('key1', 'value1')")).unwrap();
     context.eval(Source::from_bytes("localStorage.setItem('key2', 'value2')")).unwrap();
@@ -196,6 +208,9 @@ fn test_local_storage_clear() {
 fn test_local_storage_key() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Clear any persisted data to start with clean storage
+    context.eval(Source::from_bytes("localStorage.clear()")).unwrap();
 
     // Initially no keys
     let result = context.eval(Source::from_bytes("localStorage.key(0)")).unwrap();
@@ -250,6 +265,10 @@ fn test_storage_separation() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
+    // Clear any persisted data
+    context.eval(Source::from_bytes("localStorage.clear()")).unwrap();
+    context.eval(Source::from_bytes("sessionStorage.clear()")).unwrap();
+
     // Set item in localStorage
     context.eval(Source::from_bytes("localStorage.setItem('sharedKey', 'localValue')")).unwrap();
 
@@ -288,6 +307,9 @@ fn test_storage_separation() {
 fn test_storage_data_types() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Clear any persisted data
+    context.eval(Source::from_bytes("localStorage.clear()")).unwrap();
 
     // Test number
     context.eval(Source::from_bytes("localStorage.setItem('number', 42)")).unwrap();

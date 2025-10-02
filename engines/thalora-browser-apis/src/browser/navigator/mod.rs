@@ -60,6 +60,9 @@ pub struct Navigator {
 
     // Protocol handlers storage
     protocol_handlers: ProtocolHandlers,
+
+    // Web Locks API
+    lock_manager: Option<boa_engine::JsObject>,
 }
 
 unsafe impl Trace for Navigator {
@@ -110,7 +113,15 @@ impl Navigator {
 
             // Protocol handlers
             protocol_handlers: Arc::new(Mutex::new(HashMap::new())),
+
+            // Web Locks API
+            lock_manager: None,
         }
+    }
+
+    /// Set the LockManager instance for navigator.locks
+    pub fn set_lock_manager(&mut self, lock_manager: boa_engine::JsObject) {
+        self.lock_manager = Some(lock_manager);
     }
 }
 
@@ -180,9 +191,9 @@ impl IntrinsicObject for Navigator {
             .property(js_string!("pdfViewerEnabled"), true, Attribute::READONLY | Attribute::NON_ENUMERABLE)
 
             // NavigatorContentUtils methods
-            .static_method(Self::register_protocol_handler, js_string!("registerProtocolHandler"), 2)
-            .static_method(Self::unregister_protocol_handler, js_string!("unregisterProtocolHandler"), 2)
-            .static_method(Self::java_enabled, js_string!("javaEnabled"), 0)
+            .method(Self::register_protocol_handler, js_string!("registerProtocolHandler"), 2)
+            .method(Self::unregister_protocol_handler, js_string!("unregisterProtocolHandler"), 2)
+            .method(Self::java_enabled, js_string!("javaEnabled"), 0)
 
             // Web Locks and Service Workers
             .accessor(
@@ -231,9 +242,21 @@ impl BuiltInConstructor for Navigator {
 impl Navigator {
     /// `navigator.locks` getter
     fn locks_getter(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        // TODO: Implement web_locks module and return actual LockManager instance
-        // For now, return undefined to avoid compilation errors
-        Ok(JsValue::undefined())
+        let obj = _this
+            .as_object()
+            .ok_or_else(|| {
+                boa_engine::JsNativeError::typ()
+                    .with_message("Navigator.prototype.locks called on non-Navigator object")
+            })?;
+
+        let navigator = obj
+            .downcast_ref::<Navigator>()
+            .ok_or_else(|| {
+                boa_engine::JsNativeError::typ()
+                    .with_message("Navigator.prototype.locks called on non-Navigator object")
+            })?;
+
+        Ok(navigator.lock_manager.clone().map(|lm| lm.into()).unwrap_or(JsValue::undefined()))
     }
 
     /// `navigator.serviceWorker` getter
@@ -262,30 +285,16 @@ impl Navigator {
     /// `navigator.plugins` getter - returns empty PluginArray for security
     fn plugins_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Return empty plugin array for security/privacy
+        // Arrays already have a length property set to 0
         let plugin_array = boa_engine::builtins::Array::array_create(0, None, context)?;
-
-        // Add length property
-        plugin_array.create_data_property_or_throw(
-            js_string!("length"),
-            JsValue::from(0),
-            context,
-        )?;
-
         Ok(JsValue::from(plugin_array))
     }
 
     /// `navigator.mimeTypes` getter - returns empty MimeTypeArray for security
     fn mime_types_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Return empty mime types array for security/privacy
+        // Arrays already have a length property set to 0
         let mime_array = boa_engine::builtins::Array::array_create(0, None, context)?;
-
-        // Add length property
-        mime_array.create_data_property_or_throw(
-            js_string!("length"),
-            JsValue::from(0),
-            context,
-        )?;
-
         Ok(JsValue::from(mime_array))
     }
 
