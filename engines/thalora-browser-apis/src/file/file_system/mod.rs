@@ -595,7 +595,7 @@ impl FileSystemDirectoryHandle {
 }
 
 /// The global `window.showOpenFilePicker()` function
-pub(crate) fn show_open_file_picker(
+pub fn show_open_file_picker(
     _this: &JsValue,
     _args: &[JsValue],
     context: &mut Context,
@@ -625,7 +625,7 @@ pub(crate) fn show_open_file_picker(
 }
 
 /// The global `window.showSaveFilePicker()` function
-pub(crate) fn show_save_file_picker(
+pub fn show_save_file_picker(
     _this: &JsValue,
     _args: &[JsValue],
     context: &mut Context,
@@ -651,7 +651,7 @@ pub(crate) fn show_save_file_picker(
 }
 
 /// The global `window.showDirectoryPicker()` function
-pub(crate) fn show_directory_picker(
+pub fn show_directory_picker(
     _this: &JsValue,
     _args: &[JsValue],
     context: &mut Context,

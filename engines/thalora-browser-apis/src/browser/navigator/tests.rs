@@ -21,8 +21,13 @@ fn test_navigator_id_properties() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
+    // Debug: check Navigator.prototype
+    let proto_check = context.eval(Source::from_bytes("Navigator.prototype.appCodeName")).unwrap();
+    eprintln!("DEBUG: Navigator.prototype.appCodeName = {:?}", proto_check);
+
     // Test appCodeName property
     let result = context.eval(Source::from_bytes("window.navigator.appCodeName")).unwrap();
+    eprintln!("DEBUG: window.navigator.appCodeName = {:?}", result);
     assert_eq!(result, JsValue::from(JsString::from("Mozilla")));
 
     // Test appName property

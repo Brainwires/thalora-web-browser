@@ -50,7 +50,7 @@ impl JsData for StorageManager {}
 
 impl StorageManager {
     /// Creates a new `StorageManager` instance.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             quota: 10 * 1024 * 1024 * 1024, // 10GB default quota
             usage_cache: std::sync::Arc::new(std::sync::RwLock::new(HashMap::new())),

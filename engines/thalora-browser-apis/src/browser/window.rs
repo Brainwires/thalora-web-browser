@@ -557,8 +557,24 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
 
     let navigator = window.get_navigator();
 
-        // Initialize navigator object if empty
+        // Initialize navigator object - check if we have a Navigator constructor registered externally
         if !navigator.has_property(js_string!("userAgent"), context)? {
+            // Try to create a proper Navigator instance from external constructor
+            if let Some(nav_constructor) = context.realm().get_external_constructor("Navigator") {
+                use boa_engine::builtins::BuiltInConstructor;
+                use crate::browser::navigator::Navigator;
+
+                let nav_args: &[JsValue] = &[];
+                let nav_fn_value: JsValue = nav_constructor.constructor().clone().into();
+                if let Ok(nav_instance) = Navigator::constructor(&nav_fn_value, nav_args, context) {
+                    if let Some(nav_obj) = nav_instance.as_object() {
+                        window.set_navigator(nav_obj.clone());
+                        return Ok(nav_instance);
+                    }
+                }
+            }
+
+            // Fallback: manually add properties if Navigator constructor not available
             // Add userAgent property - use Windows Chrome to avoid Linux bot detection
             navigator.define_property_or_throw(
                 js_string!("userAgent"),

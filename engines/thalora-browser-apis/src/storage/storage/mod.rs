@@ -71,6 +71,16 @@ impl Storage {
         }
     }
 
+    /// Creates a new `Storage` instance with empty data (for tests).
+    pub fn new_empty(storage_type: &'static str) -> Self {
+        let storage_path = Self::get_storage_path(storage_type);
+        Self {
+            data: Arc::new(RwLock::new(HashMap::new())),
+            storage_type,
+            storage_path,
+        }
+    }
+
     /// Creates a `Storage` instance with pre-populated data.
     pub(crate) fn with_data(data: HashMap<String, String>, storage_type: &'static str) -> Self {
         let storage_path = Self::get_storage_path(storage_type);

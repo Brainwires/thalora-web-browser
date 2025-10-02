@@ -50,6 +50,9 @@ pub mod messaging;
 // Miscellaneous APIs
 pub mod misc;
 
+// Web Locks API
+pub mod locks;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
@@ -71,29 +74,13 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     browser::history::History::init(&realm);
     browser::performance::Performance::init(&realm);
 
-    // Manually register Navigator in Boa's intrinsics (needed after extraction)
-    let navigator_constructor = browser::navigator::Navigator::get(context.intrinsics());
-    let navigator_prototype = navigator_constructor.get(boa_engine::js_string!("prototype"), context)?
-        .as_object()
-        .cloned()
-        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Navigator prototype is not an object"))?;
-
-    let navigator_std_constructor = boa_engine::context::intrinsics::StandardConstructor::new(
-        navigator_constructor.clone().into(),
-        navigator_prototype,
-    );
-
-    // Get mutable access to intrinsics through the realm
-    let mut intrinsics = context.realm().intrinsics().clone();
-    intrinsics.constructors_mut().set_navigator(navigator_std_constructor);
-
-    // Update the realm's intrinsics
-    context.realm_mut().set_intrinsics(intrinsics);
-
     // Initialize Storage APIs
     storage::storage::Storage::init(&realm);
     storage::storage_event::StorageEvent::init(&realm);
     storage::storage_manager::StorageManager::init(&realm);
+
+    // Initialize Web Locks API
+    locks::lock_manager::LockManager::init(&realm);
 
     // Initialize File APIs
     file::file_system::FileSystemFileHandle::init(&realm);
@@ -101,6 +88,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Register browser APIs as global properties
     let global_object = context.global_object();
+
+    // Browser APIs - Navigator needs to be registered
+    global_object.define_property_or_throw(
+        browser::navigator::Navigator::NAME,
+        PropertyDescriptor::builder()
+            .value(browser::navigator::Navigator::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
 
     // DOM APIs
     global_object.define_property_or_throw(
@@ -204,6 +202,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // Register LockManager constructor
+    global_object.define_property_or_throw(
+        locks::lock_manager::LockManager::NAME,
+        PropertyDescriptor::builder()
+            .value(locks::lock_manager::LockManager::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // Create global browser environment objects (moved from Boa test harness)
     use boa_engine::builtins::BuiltInConstructor;
 
@@ -228,8 +237,153 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     ).expect("failed to create window instance");
 
-    global_object.set(boa_engine::js_string!("window"), window_instance, false, context)
+    global_object.set(boa_engine::js_string!("window"), window_instance.clone(), false, context)
         .expect("failed to set global window");
+
+    // Create a global navigator instance with default properties using JavaScript 'new'
+    // This ensures proper prototype chain
+    let navigator_instance = context.eval(boa_engine::Source::from_bytes("new Navigator()"))
+        .expect("failed to create navigator instance");
+
+    // Create StorageManager instance for navigator.storage
+    let storage_manager_proto = global_object.get(storage::storage_manager::StorageManager::NAME, context)?
+        .as_object()
+        .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
+        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("StorageManager prototype not found"))?;
+
+    let storage_manager_data = storage::storage_manager::StorageManager::new();
+    let storage_manager_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        storage_manager_proto,
+        storage_manager_data,
+    );
+    let storage_manager: boa_engine::JsValue = storage_manager_obj.into();
+
+    // Set navigator.storage
+    if let Some(nav_obj) = navigator_instance.as_object() {
+        nav_obj.set(boa_engine::js_string!("storage"), storage_manager, false, context)
+            .expect("failed to set navigator.storage");
+    }
+
+    // Create LockManager instance for navigator.locks
+    let lock_manager_proto = global_object.get(locks::lock_manager::LockManager::NAME, context)?
+        .as_object()
+        .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
+        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("LockManager prototype not found"))?;
+
+    let lock_manager_data = locks::lock_manager::LockManager::new();
+    let lock_manager_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        lock_manager_proto,
+        lock_manager_data,
+    );
+    let lock_manager: boa_engine::JsValue = lock_manager_obj.into();
+
+    // Set navigator.locks
+    if let Some(nav_obj) = navigator_instance.as_object() {
+        nav_obj.set(boa_engine::js_string!("locks"), lock_manager, false, context)
+            .expect("failed to set navigator.locks");
+    }
+
+    // Now set navigator on the window object (after setting storage and locks)
+    if let Some(window_obj) = window_instance.as_object() {
+        if let Some(window_data) = window_obj.downcast_ref::<browser::window::WindowData>() {
+            if let Some(nav_obj) = navigator_instance.as_object() {
+                window_data.set_navigator(nav_obj.clone());
+            }
+        }
+    }
+
+    // Also set as global navigator
+    global_object.set(boa_engine::js_string!("navigator"), navigator_instance.clone(), false, context)
+        .expect("failed to set global navigator");
+
+    // Create localStorage and sessionStorage instances
+    // Storage constructor cannot be called directly, so we create instances manually
+    let storage_proto = global_object.get(storage::storage::Storage::NAME, context)?
+        .as_object()
+        .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
+        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Storage prototype not found"))?;
+
+    // Create localStorage instance with empty data (tests expect clean storage)
+    let local_storage_data = storage::storage::Storage::new_empty("localStorage");
+    let local_storage_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        storage_proto.clone(),
+        local_storage_data,
+    );
+    let local_storage: boa_engine::JsValue = local_storage_obj.into();
+
+    // Create sessionStorage instance with empty data (tests expect clean storage)
+    let session_storage_data = storage::storage::Storage::new_empty("sessionStorage");
+    let session_storage_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        storage_proto,
+        session_storage_data,
+    );
+    let session_storage: boa_engine::JsValue = session_storage_obj.into();
+
+    // Set on window object
+    if let Some(window_obj) = window_instance.as_object() {
+        window_obj.set(boa_engine::js_string!("localStorage"), local_storage.clone(), false, context)
+            .expect("failed to set window.localStorage");
+        window_obj.set(boa_engine::js_string!("sessionStorage"), session_storage.clone(), false, context)
+            .expect("failed to set window.sessionStorage");
+    }
+
+    // Set as globals
+    global_object.set(boa_engine::js_string!("localStorage"), local_storage, false, context)
+        .expect("failed to set global localStorage");
+    global_object.set(boa_engine::js_string!("sessionStorage"), session_storage, false, context)
+        .expect("failed to set global sessionStorage");
+
+    // Register file picker global functions
+    use boa_engine::object::FunctionObjectBuilder;
+
+    let show_open_file_picker_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        boa_engine::NativeFunction::from_fn_ptr(file::file_system::show_open_file_picker),
+    )
+    .name("showOpenFilePicker")
+    .length(0)
+    .build();
+    global_object.set(
+        boa_engine::js_string!("showOpenFilePicker"),
+        show_open_file_picker_fn,
+        false,
+        context,
+    )?;
+
+    let show_save_file_picker_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        boa_engine::NativeFunction::from_fn_ptr(file::file_system::show_save_file_picker),
+    )
+    .name("showSaveFilePicker")
+    .length(0)
+    .build();
+    global_object.set(
+        boa_engine::js_string!("showSaveFilePicker"),
+        show_save_file_picker_fn,
+        false,
+        context,
+    )?;
+
+    let show_directory_picker_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        boa_engine::NativeFunction::from_fn_ptr(file::file_system::show_directory_picker),
+    )
+    .name("showDirectoryPicker")
+    .length(0)
+    .build();
+    global_object.set(
+        boa_engine::js_string!("showDirectoryPicker"),
+        show_directory_picker_fn,
+        false,
+        context,
+    )?;
 
     Ok(())
 }
