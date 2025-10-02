@@ -218,25 +218,29 @@ impl IntrinsicObject for RTCIceCandidateBuiltin {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .property(
+            .accessor(
                 js_string!("candidate"),
-                get_candidate,
-                Attribute::CONFIGURABLE,
+                Some(get_candidate),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
             )
-            .property(
+            .accessor(
                 js_string!("sdpMid"),
-                get_sdp_mid,
-                Attribute::CONFIGURABLE,
+                Some(get_sdp_mid),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
             )
-            .property(
+            .accessor(
                 js_string!("sdpMLineIndex"),
-                get_sdp_m_line_index,
-                Attribute::CONFIGURABLE,
+                Some(get_sdp_m_line_index),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
             )
-            .property(
+            .accessor(
                 js_string!("usernameFragment"),
-                get_username_fragment,
-                Attribute::CONFIGURABLE,
+                Some(get_username_fragment),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
             )
             .method(Self::to_json, js_string!("toJSON"), 0)
             .build();

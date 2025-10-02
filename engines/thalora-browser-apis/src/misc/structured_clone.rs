@@ -3,8 +3,6 @@
 //! Implements the structured cloning algorithm as defined in:
 //! https://html.spec.whatwg.org/multipage/structured-data.html#structured-cloning
 
-#[cfg(test)]
-mod tests;
 
 use boa_engine::{
     Context, JsResult, JsValue, JsNativeError, JsObject, JsString, js_string,

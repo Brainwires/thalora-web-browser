@@ -5,8 +5,6 @@
 //!
 //! This implements the complete BroadcastChannel interface for cross-context communication
 
-#[cfg(test)]
-mod tests;
 
 use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},

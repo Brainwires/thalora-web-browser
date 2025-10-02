@@ -235,13 +235,12 @@ fn get_high_water_mark(
         JsNativeError::typ().with_message("CountQueuingStrategy.prototype.highWaterMark getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<CountQueuingStrategyData>() {
-        Ok(data.high_water_mark.into())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<CountQueuingStrategyData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("CountQueuingStrategy.prototype.highWaterMark getter called on incompatible object")
-            .into())
-    }
+    })?;
+
+    Ok(data.high_water_mark.into())
 }
 
 /// Get the size property of a CountQueuingStrategy
@@ -281,13 +280,12 @@ fn get_byte_high_water_mark(
         JsNativeError::typ().with_message("ByteLengthQueuingStrategy.prototype.highWaterMark getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<ByteLengthQueuingStrategyData>() {
-        Ok(data.high_water_mark.into())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<ByteLengthQueuingStrategyData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("ByteLengthQueuingStrategy.prototype.highWaterMark getter called on incompatible object")
-            .into())
-    }
+    })?;
+
+    Ok(data.high_water_mark.into())
 }
 
 /// Get the size property of a ByteLengthQueuingStrategy

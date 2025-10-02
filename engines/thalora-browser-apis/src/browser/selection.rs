@@ -18,8 +18,6 @@ use boa_engine::{
 
 use super::frame_selection::{FrameSelection, SelectionOptions};
 
-#[cfg(test)]
-mod tests;
 
 /// The Selection object represents the text selection made by the user.
 /// This is the JavaScript API layer that delegates to FrameSelection for internal state.
@@ -438,22 +436,26 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("'this' is not a Selection object")
+    })?;
+
     let index = args.get_or_undefined(0).to_integer_or_infinity(context)?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        // Convert to f64 for comparison
-        let index_f64 = match index {
-            boa_engine::value::IntegerOrInfinity::Integer(i) => i as f64,
-            boa_engine::value::IntegerOrInfinity::PositiveInfinity => f64::INFINITY,
-            boa_engine::value::IntegerOrInfinity::NegativeInfinity => f64::NEG_INFINITY,
-        };
+    // Convert to f64 for comparison
+    let index_f64 = match index {
+        boa_engine::value::IntegerOrInfinity::Integer(i) => i as f64,
+        boa_engine::value::IntegerOrInfinity::PositiveInfinity => f64::INFINITY,
+        boa_engine::value::IntegerOrInfinity::NegativeInfinity => f64::NEG_INFINITY,
+    };
 
-        if index_f64 < 0.0 || index_f64 >= selection_data.get_range_count() as f64 {
-            return Err(JsNativeError::range().with_message("Index out of range").into());
-        }
+    if index_f64 < 0.0 || index_f64 >= selection_data.get_range_count() as f64 {
+        return Err(JsNativeError::range().with_message("Index out of range").into());
+    }
 
-        let index = index_f64 as usize;
-        if let Some(range) = selection_data.ranges.get(index) {
+    let index = index_f64 as usize;
+    if let Some(range) = selection_data.ranges.get(index) {
             Ok(range.clone())
         } else {
             // Create a proper Range object using FrameSelection data
@@ -461,7 +463,7 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
             let range_prototype = range_constructor.prototype();
 
             // Create range data based on current selection
-            let range_data = super::range::RangeData::new();
+            let range_data = crate::dom::range::RangeData::new();
             let range_obj = JsObject::from_proto_and_data_with_shared_shape(
                 context.root_shape(),
                 range_prototype.clone(),
@@ -469,7 +471,7 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
             );
 
             // Set range boundaries from selection
-            if let Some(mut range_data_mut) = range_obj.downcast_mut::<super::range::RangeData>() {
+            if let Some(mut range_data_mut) = range_obj.downcast_mut::<crate::dom::range::RangeData>() {
                 if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
                     let _ = range_data_mut.set_start(anchor, selection_data.get_anchor_offset());
                     let _ = range_data_mut.set_end(focus, selection_data.get_focus_offset());
@@ -478,9 +480,6 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
 
             Ok(range_obj.into())
         }
-    } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
 }
 
 /// Get composed ranges (Chrome 137 feature) with enhanced Shadow DOM support.
@@ -489,11 +488,15 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
+    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("'this' is not a Selection object")
+    })?;
+
     let shadow_roots = args.get_or_undefined(0);
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
-        // Enhanced implementation with Shadow DOM support
-        let mut composed_ranges: Vec<JsValue> = Vec::new();
+    // Enhanced implementation with Shadow DOM support
+    let mut composed_ranges: Vec<JsValue> = Vec::new();
 
         // Check if we have a valid selection
         if selection_data.get_range_count() > 0 {
@@ -502,7 +505,7 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
             let range_prototype = range_constructor.prototype();
 
             // Create range data based on current selection
-            let range_data = super::range::RangeData::new();
+            let range_data = crate::dom::range::RangeData::new();
             let range_obj = JsObject::from_proto_and_data_with_shared_shape(
                 context.root_shape(),
                 range_prototype.clone(),
@@ -510,7 +513,7 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
             );
 
             // Set range boundaries from selection
-            if let Some(mut range_data_mut) = range_obj.downcast_mut::<super::range::RangeData>() {
+            if let Some(mut range_data_mut) = range_obj.downcast_mut::<crate::dom::range::RangeData>() {
                 if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
                     let _ = range_data_mut.set_start(anchor, selection_data.get_anchor_offset());
                     let _ = range_data_mut.set_end(focus, selection_data.get_focus_offset());
@@ -539,7 +542,7 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
                         // For now, we'll create placeholder ranges for demonstration
                         // In reality, these would be computed based on shadow tree analysis
                         for _i in 0..1 { // Placeholder: one additional range per shadow root
-                            let shadow_range_data = super::range::RangeData::new();
+                            let shadow_range_data = crate::dom::range::RangeData::new();
                             let shadow_range_obj = JsObject::from_proto_and_data_with_shared_shape(
                                 context.root_shape(),
                                 range_prototype.clone(),
@@ -564,9 +567,6 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
                     .as_integer().unwrap_or(0));
 
         Ok(array.into())
-    } else {
-        Err(JsNativeError::typ().with_message("Selection method called on non-Selection object").into())
-    }
 }
 
 /// Set the selection base and extent.

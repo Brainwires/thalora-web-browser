@@ -676,3 +676,6 @@ pub(crate) fn show_directory_picker(
     resolvers.resolve.call(&JsValue::undefined(), &[dir_handle_obj.into()], context)?;
     Ok(JsValue::from(promise))
 }
+
+#[cfg(test)]
+mod tests;

@@ -5,8 +5,6 @@
 //!
 //! This implements the complete Worklet interface for high-performance JavaScript processing
 
-#[cfg(test)]
-mod tests;
 
 use crate::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},

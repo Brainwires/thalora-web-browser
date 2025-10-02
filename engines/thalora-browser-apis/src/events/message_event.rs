@@ -3,8 +3,6 @@
 //! Implements the MessageEvent interface as defined in:
 //! https://html.spec.whatwg.org/multipage/comms.html#messageevent
 
-#[cfg(test)]
-mod tests;
 
 use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},

@@ -113,6 +113,26 @@ impl From<RTCIceConnectionState> for JsValue {
     }
 }
 
+/// ICE gathering states according to WHATWG specification
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum RTCIceGatheringState {
+    New = 0,
+    Gathering = 1,
+    Complete = 2,
+}
+
+impl From<RTCIceGatheringState> for JsValue {
+    fn from(state: RTCIceGatheringState) -> Self {
+        let state_str = match state {
+            RTCIceGatheringState::New => "new",
+            RTCIceGatheringState::Gathering => "gathering",
+            RTCIceGatheringState::Complete => "complete",
+        };
+        JsValue::from(js_string!(state_str))
+    }
+}
+
 /// Signaling states according to WHATWG specification
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -151,6 +171,9 @@ pub struct RTCPeerConnectionData {
     /// Current ICE connection state
     #[unsafe_ignore_trace]
     ice_connection_state: Arc<AtomicU32>,
+    /// Current ICE gathering state
+    #[unsafe_ignore_trace]
+    ice_gathering_state: Arc<AtomicU32>,
     /// Current signaling state
     #[unsafe_ignore_trace]
     signaling_state: Arc<AtomicU32>,
@@ -169,6 +192,7 @@ impl RTCPeerConnectionData {
             id,
             connection_state: Arc::new(AtomicU32::new(RTCPeerConnectionStateEnum::New as u32)),
             ice_connection_state: Arc::new(AtomicU32::new(RTCIceConnectionState::New as u32)),
+            ice_gathering_state: Arc::new(AtomicU32::new(RTCIceGatheringState::New as u32)),
             signaling_state: Arc::new(AtomicU32::new(RTCSignalingState::Stable as u32)),
             runtime: Arc::new(runtime),
         })
@@ -208,6 +232,16 @@ impl RTCPeerConnectionData {
             5 => RTCIceConnectionState::Disconnected,
             6 => RTCIceConnectionState::Closed,
             _ => RTCIceConnectionState::New,
+        }
+    }
+
+    /// Get the current ICE gathering state
+    pub fn ice_gathering_state(&self) -> RTCIceGatheringState {
+        match self.ice_gathering_state.load(Ordering::Relaxed) {
+            0 => RTCIceGatheringState::New,
+            1 => RTCIceGatheringState::Gathering,
+            2 => RTCIceGatheringState::Complete,
+            _ => RTCIceGatheringState::New,
         }
     }
 
@@ -329,6 +363,9 @@ impl IntrinsicObject for RTCPeerConnectionBuiltin {
         let ice_connection_state_func = BuiltInBuilder::callable(realm, get_ice_connection_state)
             .name(js_string!("get iceConnectionState"))
             .build();
+        let ice_gathering_state_func = BuiltInBuilder::callable(realm, get_ice_gathering_state)
+            .name(js_string!("get iceGatheringState"))
+            .build();
         let signaling_state_func = BuiltInBuilder::callable(realm, get_signaling_state)
             .name(js_string!("get signalingState"))
             .build();
@@ -344,6 +381,12 @@ impl IntrinsicObject for RTCPeerConnectionBuiltin {
             .accessor(
                 js_string!("iceConnectionState"),
                 Some(ice_connection_state_func),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("iceGatheringState"),
+                Some(ice_gathering_state_func),
                 None,
                 Attribute::READONLY | Attribute::CONFIGURABLE,
             )
@@ -593,6 +636,16 @@ fn get_ice_connection_state(this: &JsValue, _args: &[JsValue], _context: &mut Co
     if let Some(object) = this.as_object() {
         if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
             return Ok(rtc_pc.data.ice_connection_state().into());
+        }
+    }
+    Ok(JsValue::undefined())
+}
+
+/// Get the iceGatheringState property of RTCPeerConnection
+fn get_ice_gathering_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    if let Some(object) = this.as_object() {
+        if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
+            return Ok(rtc_pc.data.ice_gathering_state().into());
         }
     }
     Ok(JsValue::undefined())

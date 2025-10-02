@@ -146,13 +146,12 @@ fn get_readable(
         JsNativeError::typ().with_message("TransformStream.prototype.readable getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<TransformStreamData>() {
-        Ok(JsValue::from(data.readable.clone()))
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<TransformStreamData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("TransformStream.prototype.readable getter called on incompatible object")
-            .into())
-    }
+    })?;
+
+    Ok(JsValue::from(data.readable.clone()))
 }
 
 /// Get the writable property of a TransformStream
@@ -165,11 +164,10 @@ fn get_writable(
         JsNativeError::typ().with_message("TransformStream.prototype.writable getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<TransformStreamData>() {
-        Ok(JsValue::from(data.writable.clone()))
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<TransformStreamData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("TransformStream.prototype.writable getter called on incompatible object")
-            .into())
-    }
+    })?;
+
+    Ok(JsValue::from(data.writable.clone()))
 }

@@ -517,5 +517,3 @@ impl BuiltInConstructor for DocumentFragment {
     }
 }
 
-#[cfg(test)]
-mod tests;

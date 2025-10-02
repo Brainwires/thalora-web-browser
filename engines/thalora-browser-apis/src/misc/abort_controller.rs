@@ -119,29 +119,28 @@ fn get_signal(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("AbortController.prototype.signal called on non-object")
     })?;
 
-    if let Some(abort_controller) = this_obj.downcast_ref::<AbortControllerData>() {
-        // Create AbortSignal object (simplified - real implementation would be more complex)
-        let signal_obj = JsObject::default();
-
-        // Add aborted property
-        let aborted = abort_controller.is_aborted();
-        signal_obj.define_property_or_throw(
-            js_string!("aborted"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(aborted)
-                .build(),
-            context,
-        )?;
-
-        Ok(signal_obj.into())
-    } else {
-        Err(JsNativeError::typ()
+    let abort_controller = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("AbortController.prototype.signal called on non-AbortController object")
-            .into())
-    }
+    })?;
+
+    // Create AbortSignal object (simplified - real implementation would be more complex)
+    let signal_obj = JsObject::default();
+
+    // Add aborted property
+    let aborted = abort_controller.is_aborted();
+    signal_obj.define_property_or_throw(
+        js_string!("aborted"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(false)
+            .value(aborted)
+            .build(),
+        context,
+    )?;
+
+    Ok(signal_obj.into())
 }
 
 /// `AbortController.prototype.abort(reason)`
@@ -150,13 +149,12 @@ fn abort(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("AbortController.prototype.abort called on non-object")
     })?;
 
-    if let Some(abort_controller) = this_obj.downcast_ref::<AbortControllerData>() {
-        let reason = args.get_or_undefined(0).clone();
-        abort_controller.abort(Some(reason));
-        Ok(JsValue::undefined())
-    } else {
-        Err(JsNativeError::typ()
+    let abort_controller = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("AbortController.prototype.abort called on non-AbortController object")
-            .into())
-    }
+    })?;
+
+    let reason = args.get_or_undefined(0).clone();
+    abort_controller.abort(Some(reason));
+    Ok(JsValue::undefined())
 }

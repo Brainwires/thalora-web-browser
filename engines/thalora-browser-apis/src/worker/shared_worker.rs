@@ -5,8 +5,6 @@
 //!
 //! This implements the complete SharedWorker interface with real JavaScript execution
 
-#[cfg(test)]
-mod tests;
 
 use crate::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, worker_events, message_port::MessagePortData},

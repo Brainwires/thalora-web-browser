@@ -317,9 +317,10 @@ fn get_locked(
         JsNativeError::typ().with_message("ReadableStream.prototype.locked getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>() {
-        Ok(data.locked.into())
-    } else {
-        Ok(false.into())
-    }
+    let data = this_obj.downcast_ref::<ReadableStreamData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("ReadableStream.prototype.locked getter called on non-ReadableStream object")
+    })?;
+
+    Ok(data.locked.into())
 }

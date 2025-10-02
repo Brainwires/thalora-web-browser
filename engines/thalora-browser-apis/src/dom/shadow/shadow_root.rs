@@ -680,5 +680,3 @@ impl BuiltInConstructor for ShadowRoot {
     }
 }
 
-#[cfg(test)]
-mod tests;

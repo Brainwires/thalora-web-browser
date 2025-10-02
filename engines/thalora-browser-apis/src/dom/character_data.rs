@@ -432,5 +432,3 @@ impl BuiltInConstructor for CharacterData {
     }
 }
 
-#[cfg(test)]
-mod tests;

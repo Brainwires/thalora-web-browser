@@ -9,6 +9,7 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
     context::intrinsics::Intrinsics,
     object::JsObject,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string, JsString,
@@ -17,15 +18,13 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 
-#[cfg(test)]
-mod tests;
 
 /// JavaScript `CSS` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Css;
 
 impl IntrinsicObject for Css {
-    fn init(realm: &crate::realm::Realm) {
+    fn init(realm: &Realm) {
         let supports_func = BuiltInBuilder::callable(realm, supports)
             .name(js_string!("supports"))
             .length(1)

@@ -223,15 +223,17 @@ impl IntrinsicObject for RTCSessionDescriptionBuiltin {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .property(
+            .accessor(
                 js_string!("type"),
-                get_type,
-                Attribute::CONFIGURABLE,
+                Some(get_type),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
             )
-            .property(
+            .accessor(
                 js_string!("sdp"),
-                get_sdp,
-                Attribute::CONFIGURABLE,
+                Some(get_sdp),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
             )
             .method(Self::to_json, js_string!("toJSON"), 0)
             .build();

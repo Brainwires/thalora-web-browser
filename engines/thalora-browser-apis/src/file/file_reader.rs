@@ -15,7 +15,7 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors}
 };
 use crate::file::blob::BlobData;
-use crate::file::file_system::FileData;
+use crate::file::file::FileData;
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;

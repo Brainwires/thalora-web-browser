@@ -211,38 +211,37 @@ impl HTMLSlotElementData {
             JsNativeError::typ().with_message("HTMLSlotElement.assignedNodes called on non-object")
         })?;
 
-        if let Some(slot_data) = this_obj.downcast_ref::<HTMLSlotElementData>() {
-            let options = args.get_or_undefined(0);
+        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("HTMLSlotElement.assignedNodes called on non-HTMLSlotElement object")
+        })?;
 
-            // Parse options.flatten (default: false)
-            let flatten = if let Some(options_obj) = options.as_object() {
-                if let Ok(flatten_value) = options_obj.get(js_string!("flatten"), context) {
-                    flatten_value.to_boolean()
-                } else {
-                    false
-                }
+        let options = args.get_or_undefined(0);
+
+        // Parse options.flatten (default: false)
+        let flatten = if let Some(options_obj) = options.as_object() {
+            if let Ok(flatten_value) = options_obj.get(js_string!("flatten"), context) {
+                flatten_value.to_boolean()
             } else {
                 false
-            };
-
-            let nodes = if flatten {
-                // TODO: Implement flattened assigned nodes (includes nested slots)
-                slot_data.get_assigned_nodes()
-            } else {
-                slot_data.get_assigned_nodes()
-            };
-
-            // Convert to array
-            let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
-            for (i, node) in nodes.iter().enumerate() {
-                array.create_data_property_or_throw(i, node.clone(), context)?;
             }
-            Ok(array.into())
         } else {
-            Err(JsNativeError::typ()
-                .with_message("HTMLSlotElement.assignedNodes called on non-HTMLSlotElement object")
-                .into())
+            false
+        };
+
+        let nodes = if flatten {
+            // TODO: Implement flattened assigned nodes (includes nested slots)
+            slot_data.get_assigned_nodes()
+        } else {
+            slot_data.get_assigned_nodes()
+        };
+
+        // Convert to array
+        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+        for (i, node) in nodes.iter().enumerate() {
+            array.create_data_property_or_throw(i, node.clone(), context)?;
         }
+        Ok(array.into())
     }
 
     /// `HTMLSlotElement.prototype.assignedElements(options)`
@@ -251,38 +250,37 @@ impl HTMLSlotElementData {
             JsNativeError::typ().with_message("HTMLSlotElement.assignedElements called on non-object")
         })?;
 
-        if let Some(slot_data) = this_obj.downcast_ref::<HTMLSlotElementData>() {
-            let options = args.get_or_undefined(0);
+        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("HTMLSlotElement.assignedElements called on non-HTMLSlotElement object")
+        })?;
 
-            // Parse options.flatten (default: false)
-            let flatten = if let Some(options_obj) = options.as_object() {
-                if let Ok(flatten_value) = options_obj.get(js_string!("flatten"), context) {
-                    flatten_value.to_boolean()
-                } else {
-                    false
-                }
+        let options = args.get_or_undefined(0);
+
+        // Parse options.flatten (default: false)
+        let flatten = if let Some(options_obj) = options.as_object() {
+            if let Ok(flatten_value) = options_obj.get(js_string!("flatten"), context) {
+                flatten_value.to_boolean()
             } else {
                 false
-            };
-
-            let elements = if flatten {
-                // TODO: Implement flattened assigned elements
-                slot_data.get_assigned_elements()
-            } else {
-                slot_data.get_assigned_elements()
-            };
-
-            // Convert to array
-            let array = boa_engine::builtins::Array::array_create(elements.len() as u64, None, context)?;
-            for (i, element) in elements.iter().enumerate() {
-                array.create_data_property_or_throw(i, element.clone(), context)?;
             }
-            Ok(array.into())
         } else {
-            Err(JsNativeError::typ()
-                .with_message("HTMLSlotElement.assignedElements called on non-HTMLSlotElement object")
-                .into())
+            false
+        };
+
+        let elements = if flatten {
+            // TODO: Implement flattened assigned elements
+            slot_data.get_assigned_elements()
+        } else {
+            slot_data.get_assigned_elements()
+        };
+
+        // Convert to array
+        let array = boa_engine::builtins::Array::array_create(elements.len() as u64, None, context)?;
+        for (i, element) in elements.iter().enumerate() {
+            array.create_data_property_or_throw(i, element.clone(), context)?;
         }
+        Ok(array.into())
     }
 
     /// `HTMLSlotElement.prototype.assign(...nodes)` (for manual slot assignment)

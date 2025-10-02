@@ -150,13 +150,12 @@ fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("WebSocketStream.prototype.url called on non-object")
     })?;
 
-    if let Some(websocket_stream) = this_obj.downcast_ref::<WebSocketStreamData>() {
-        Ok(JsString::from(websocket_stream.url.as_str()).into())
-    } else {
-        Err(JsNativeError::typ()
+    let websocket_stream = this_obj.downcast_ref::<WebSocketStreamData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("WebSocketStream.prototype.url called on non-WebSocketStream object")
-            .into())
-    }
+    })?;
+
+    Ok(JsString::from(websocket_stream.url.as_str()).into())
 }
 
 /// `WebSocketStream.prototype.readyState` getter

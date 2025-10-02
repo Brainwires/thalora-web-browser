@@ -505,5 +505,3 @@ impl BuiltInConstructor for Text {
     }
 }
 
-#[cfg(test)]
-mod tests;

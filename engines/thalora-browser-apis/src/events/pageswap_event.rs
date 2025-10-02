@@ -164,13 +164,12 @@ fn get_activation(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("PageSwapEvent.prototype.activation called on non-object")
     })?;
 
-    if let Some(pageswap_event) = this_obj.downcast_ref::<PageSwapEventData>() {
-        Ok(pageswap_event.get_activation().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ()
+    let pageswap_event = this_obj.downcast_ref::<PageSwapEventData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("PageSwapEvent.prototype.activation called on non-PageSwapEvent object")
-            .into())
-    }
+    })?;
+
+    Ok(pageswap_event.get_activation().unwrap_or(JsValue::null()))
 }
 
 /// `PageSwapEvent.prototype.viewTransition` getter
@@ -179,13 +178,12 @@ fn get_view_transition(this: &JsValue, _args: &[JsValue], _context: &mut Context
         JsNativeError::typ().with_message("PageSwapEvent.prototype.viewTransition called on non-object")
     })?;
 
-    if let Some(pageswap_event) = this_obj.downcast_ref::<PageSwapEventData>() {
-        Ok(pageswap_event.get_view_transition().unwrap_or(JsValue::null()))
-    } else {
-        Err(JsNativeError::typ()
+    let pageswap_event = this_obj.downcast_ref::<PageSwapEventData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("PageSwapEvent.prototype.viewTransition called on non-PageSwapEvent object")
-            .into())
-    }
+    })?;
+
+    Ok(pageswap_event.get_view_transition().unwrap_or(JsValue::null()))
 }
 
 /// Navigation activation entry for PageSwap events

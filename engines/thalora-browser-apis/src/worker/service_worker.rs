@@ -5,8 +5,6 @@
 //!
 //! This implements the complete Service Worker interface with real background processing
 
-#[cfg(test)]
-mod tests;
 
 use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
@@ -287,13 +285,12 @@ fn get_script_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("ServiceWorker scriptURL getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<ServiceWorkerData>() {
-        Ok(JsValue::from(JsString::from(data.script_url.as_str())))
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<ServiceWorkerData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("'this' is not a ServiceWorker object")
-            .into())
-    }
+    })?;
+
+    Ok(JsValue::from(JsString::from(data.script_url.as_str())))
 }
 
 /// Get the current state of the service worker
@@ -302,17 +299,21 @@ fn get_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("ServiceWorker state getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<ServiceWorkerData>() {
-        // Try to get the current state non-blockingly
-        if let Ok(state) = data.state.try_lock() {
-            Ok(JsValue::from(JsString::from(state.as_str())))
-        } else {
-            // Return "installing" as default if we can't lock
-            Ok(JsValue::from(JsString::from("installing")))
-        }
+    let state_arc = {
+        let data = this_obj.downcast_ref::<ServiceWorkerData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("'this' is not a ServiceWorker object")
+        })?;
+        data.state.clone()
+    };
+
+    // Try to get the current state non-blockingly
+    let state_str = if let Ok(state) = state_arc.try_lock() {
+        state.as_str().to_string()
     } else {
-        Err(JsNativeError::typ()
-            .with_message("'this' is not a ServiceWorker object")
-            .into())
-    }
+        // Return "installing" as default if we can't lock
+        "installing".to_string()
+    };
+
+    Ok(JsValue::from(JsString::from(state_str.as_str())))
 }

@@ -344,3 +344,6 @@ impl Navigator {
         JsObject::from_proto_and_data(None, navigator)
     }
 }
+
+#[cfg(test)]
+mod tests;

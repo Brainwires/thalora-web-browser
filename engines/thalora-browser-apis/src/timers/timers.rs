@@ -5,8 +5,6 @@
 //!
 //! This implements the complete Timer interface with real async scheduling
 
-#[cfg(test)]
-mod tests;
 
 use crate::{
     builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},

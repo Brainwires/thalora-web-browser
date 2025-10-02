@@ -820,7 +820,8 @@ impl NodeData {
                 .with_message("Node.appendChild called on non-Node object")
         })?;
 
-        let child_node = child_obj.clone().downcast_ref::<NodeData>().ok_or_else(|| {
+        let child_clone = child_obj.clone();
+        let child_node = child_clone.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.appendChild: child must be a Node")
         })?;
@@ -865,7 +866,8 @@ impl NodeData {
                 .with_message("Node.removeChild called on non-Node object")
         })?;
 
-        let child_node = child_obj.clone().downcast_ref::<NodeData>().ok_or_else(|| {
+        let child_clone = child_obj.clone();
+        let child_node = child_clone.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.removeChild: child must be a Node")
         })?;
@@ -922,7 +924,8 @@ impl NodeData {
                 .with_message("Node.insertBefore called on non-Node object")
         })?;
 
-        let new_node_data = new_node_obj.clone().downcast_ref::<NodeData>().ok_or_else(|| {
+        let new_node_clone = new_node_obj.clone();
+        let new_node_data = new_node_clone.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.insertBefore: newNode must be a Node")
         })?;

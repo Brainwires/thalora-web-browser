@@ -380,7 +380,7 @@ impl SlotChangeEventSystem {
                 // Return assigned nodes, recursively flattening nested slots
                 let mut flattened = Vec::new();
                 for node in assigned {
-                    if let Some(_nested_slot_data) = node.downcast_ref::<HTMLSlotElementData>() {
+                    if node.downcast_ref::<HTMLSlotElementData>().is_some() {
                         // Recursively flatten nested slot
                         let nested_nodes = Self::get_flattened_assigned_nodes(&node);
                         flattened.extend(nested_nodes);

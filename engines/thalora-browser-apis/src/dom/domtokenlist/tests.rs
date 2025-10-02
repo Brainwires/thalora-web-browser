@@ -1,10 +1,11 @@
 //! Tests for DOMTokenList (classList)
 use crate::run_test_actions;
 use crate::TestAction;
+use crate::js_string;
 
 #[test]
 fn domtokenlist_basic() {
-    let actions = vec![
+    run_test_actions([
         TestAction::run("var d = document.createElement('div')"),
         TestAction::assert_eq("typeof d.classList", js_string!("object")),
         TestAction::run("d.classList.add('a')"),
@@ -18,6 +19,5 @@ fn domtokenlist_basic() {
         TestAction::assert_eq("d.className", js_string!("a")),
         TestAction::run("d.classList.toggle('x')"),
         TestAction::assert_eq("d.classList.contains('x')", true),
-    ];
-    run_test_actions(actions);
+    ]);
 }

@@ -395,3 +395,6 @@ impl BuiltInConstructor for Attr {
     }
 }
 
+
+#[cfg(test)]
+mod tests;

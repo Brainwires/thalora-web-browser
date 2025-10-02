@@ -3787,6 +3787,8 @@ dependencies = [
  "base64 0.22.1",
  "boa_engine",
  "boa_gc",
+ "boa_macros",
+ "boa_parser",
  "bytes",
  "cfg-if",
  "crossbeam-channel",

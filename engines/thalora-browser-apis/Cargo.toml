@@ -68,6 +68,11 @@ vfs = { path = "../../vfs", default-features = false }
 cfg-if = "1.0"
 parking_lot = "0.12"
 
+[dev-dependencies]
+# For testing - Boa parser and macros to evaluate JavaScript in tests
+boa_parser = { path = "../boa/core/parser" }
+boa_macros = { path = "../boa/core/macros" }
+
 [lib]
 name = "thalora_browser_apis"
 path = "src/lib.rs"

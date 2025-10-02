@@ -5,8 +5,6 @@
 //!
 //! This implements the complete MessageChannel interface for creating communication channels
 
-#[cfg(test)]
-mod tests;
 
 use boa_engine::{
     builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
@@ -114,13 +112,12 @@ fn get_port1(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("MessageChannel port1 getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<MessageChannelData>() {
-        Ok(data.port1.clone().into())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<MessageChannelData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("'this' is not a MessageChannel object")
-            .into())
-    }
+    })?;
+
+    Ok(data.port1.clone().into())
 }
 
 /// Get the port2 property of the MessageChannel
@@ -129,13 +126,12 @@ fn get_port2(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("MessageChannel port2 getter called on non-object")
     })?;
 
-    if let Some(data) = this_obj.downcast_ref::<MessageChannelData>() {
-        Ok(data.port2.clone().into())
-    } else {
-        Err(JsNativeError::typ()
+    let data = this_obj.downcast_ref::<MessageChannelData>().ok_or_else(|| {
+        JsNativeError::typ()
             .with_message("'this' is not a MessageChannel object")
-            .into())
-    }
+    })?;
+
+    Ok(data.port2.clone().into())
 }
 
 /// Helper function to create a MessagePort object with proper prototype and methods

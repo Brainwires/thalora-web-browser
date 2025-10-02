@@ -12,7 +12,75 @@ mod tests {
 
     /// Test helper to create a new context and evaluate JavaScript code
     fn eval_js(code: &str) -> JsResult<JsValue> {
+        use boa_engine::{
+            builtins::{IntrinsicObject, BuiltInObject},
+            js_string,
+            property::Attribute,
+        };
+        use crate::webrtc::{
+            rtc_peer_connection::RTCPeerConnectionBuiltin,
+            rtc_data_channel::RTCDataChannelBuiltin,
+            rtc_ice_candidate::RTCIceCandidateBuiltin,
+            rtc_session_description::RTCSessionDescriptionBuiltin,
+        };
+
         let mut context = Context::default();
+
+        // Initialize WebRTC APIs in the realm
+        let realm = context.realm().clone();
+        RTCPeerConnectionBuiltin::init(&realm);
+        RTCDataChannelBuiltin::init(&realm);
+        RTCIceCandidateBuiltin::init(&realm);
+        RTCSessionDescriptionBuiltin::init(&realm);
+
+        // Get the constructors and register them on the global object
+        let global_obj = context.global_object();
+        let intrinsics = realm.intrinsics();
+
+        // Register core ECMAScript error types (these should be automatic but aren't due to Boa changes)
+        global_obj.set(js_string!("TypeError"), intrinsics.constructors().type_error().constructor(), false, &mut context)?;
+        global_obj.set(js_string!("Error"), intrinsics.constructors().error().constructor(), false, &mut context)?;
+        global_obj.set(js_string!("ReferenceError"), intrinsics.constructors().reference_error().constructor(), false, &mut context)?;
+        global_obj.set(js_string!("RangeError"), intrinsics.constructors().range_error().constructor(), false, &mut context)?;
+        global_obj.set(js_string!("SyntaxError"), intrinsics.constructors().syntax_error().constructor(), false, &mut context)?;
+
+        // Register core ECMAScript objects
+        global_obj.set(js_string!("Object"), intrinsics.constructors().object().constructor(), false, &mut context)?;
+        global_obj.set(js_string!("JSON"), intrinsics.objects().json(), false, &mut context)?;
+
+        // Register WebRTC constructors
+        let rtc_pc_constructor = RTCPeerConnectionBuiltin::get(intrinsics);
+        global_obj.set(
+            js_string!(RTCPeerConnectionBuiltin::NAME),
+            rtc_pc_constructor,
+            false,
+            &mut context,
+        )?;
+
+        let rtc_dc_constructor = RTCDataChannelBuiltin::get(intrinsics);
+        global_obj.set(
+            js_string!(RTCDataChannelBuiltin::NAME),
+            rtc_dc_constructor,
+            false,
+            &mut context,
+        )?;
+
+        let rtc_ic_constructor = RTCIceCandidateBuiltin::get(intrinsics);
+        global_obj.set(
+            js_string!(RTCIceCandidateBuiltin::NAME),
+            rtc_ic_constructor,
+            false,
+            &mut context,
+        )?;
+
+        let rtc_sd_constructor = RTCSessionDescriptionBuiltin::get(intrinsics);
+        global_obj.set(
+            js_string!(RTCSessionDescriptionBuiltin::NAME),
+            rtc_sd_constructor,
+            false,
+            &mut context,
+        )?;
+
         context.eval(boa_parser::Source::from_bytes(code))
     }
 
@@ -26,6 +94,31 @@ mod tests {
     #[test]
     fn test_rtc_peer_connection_constructor_exists() {
         assert!(test_constructor_exists("RTCPeerConnection").unwrap());
+    }
+
+    #[test]
+    fn test_core_builtins_exist() {
+        // First test with a completely fresh context
+        let mut fresh_context = boa_engine::Context::default();
+        let result = fresh_context.eval(boa_parser::Source::from_bytes("typeof TypeError")).unwrap();
+        eprintln!("Fresh context - typeof TypeError: {:?}", result);
+
+        // Then test with our eval_js helper
+        let result2 = eval_js("typeof TypeError").unwrap();
+        eprintln!("eval_js - typeof TypeError: {:?}", result2);
+
+        // Test JSON
+        let json_type = eval_js("typeof JSON").unwrap();
+        eprintln!("typeof JSON: {:?}", json_type);
+
+        let json_parse_type = eval_js("typeof JSON.parse").unwrap();
+        eprintln!("typeof JSON.parse: {:?}", json_parse_type);
+
+        // Verify core JavaScript builtins are available
+        assert!(test_constructor_exists("TypeError").unwrap(), "TypeError should exist");
+        assert!(test_constructor_exists("Object").unwrap(), "Object should exist");
+        assert!(eval_js("typeof JSON === 'object'").unwrap().to_boolean(), "JSON should exist");
+        assert!(eval_js("typeof JSON.parse === 'function'").unwrap().to_boolean(), "JSON.parse should be a function");
     }
 
     #[test]
