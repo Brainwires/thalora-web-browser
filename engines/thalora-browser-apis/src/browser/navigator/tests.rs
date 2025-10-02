@@ -5,6 +5,7 @@ use crate::{Context, JsValue, Source, JsString};
 #[test]
 fn test_navigator_basic() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that window.navigator exists
     let result = context.eval(Source::from_bytes("typeof window.navigator")).unwrap();
@@ -18,6 +19,7 @@ fn test_navigator_basic() {
 #[test]
 fn test_navigator_id_properties() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test appCodeName property
     let result = context.eval(Source::from_bytes("window.navigator.appCodeName")).unwrap();
@@ -54,6 +56,7 @@ fn test_navigator_id_properties() {
 #[test]
 fn test_navigator_properties() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test userAgent property
     let result = context.eval(Source::from_bytes("typeof window.navigator.userAgent")).unwrap();
@@ -94,6 +97,7 @@ fn test_navigator_properties() {
 #[test]
 fn test_navigator_language_properties() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test languages property
     let result = context.eval(Source::from_bytes("typeof window.navigator.languages")).unwrap();
@@ -115,6 +119,7 @@ fn test_navigator_language_properties() {
 #[test]
 fn test_navigator_plugins_properties() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test plugins property
     let result = context.eval(Source::from_bytes("typeof window.navigator.plugins")).unwrap();
@@ -154,6 +159,7 @@ fn test_navigator_plugins_properties() {
 #[test]
 fn test_navigator_protocol_handlers() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test registerProtocolHandler method exists
     let result = context.eval(Source::from_bytes("typeof window.navigator.registerProtocolHandler")).unwrap();
@@ -191,6 +197,7 @@ fn test_navigator_protocol_handlers() {
 #[test]
 fn test_navigator_locks_property() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that navigator.locks exists
     let result = context.eval(Source::from_bytes("typeof window.navigator.locks")).unwrap();
@@ -212,6 +219,7 @@ fn test_navigator_locks_property() {
 #[test]
 fn test_navigator_readonly_properties() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that properties are readonly (attempting to change should not work)
     let result = context.eval(Source::from_bytes(r#"

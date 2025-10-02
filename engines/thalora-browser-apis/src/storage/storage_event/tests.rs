@@ -5,6 +5,7 @@ use crate::{Context, JsValue, Source, JsString};
 #[test]
 fn test_storage_event_constructor() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that StorageEvent constructor exists
     let result = context.eval(Source::from_bytes("typeof StorageEvent")).unwrap();
@@ -24,6 +25,7 @@ fn test_storage_event_constructor() {
 #[test]
 fn test_storage_event_properties() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a StorageEvent with all properties
     context.eval(Source::from_bytes(
@@ -62,6 +64,7 @@ fn test_storage_event_properties() {
 #[test]
 fn test_storage_event_null_values() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a StorageEvent with null values (like for clear operation)
     context.eval(Source::from_bytes(
@@ -86,6 +89,7 @@ fn test_storage_event_null_values() {
 #[test]
 fn test_storage_event_init_storage_event() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a StorageEvent
     context.eval(Source::from_bytes("var event = new StorageEvent('storage')")).unwrap();
@@ -112,6 +116,7 @@ fn test_storage_event_init_storage_event() {
 #[test]
 fn test_storage_event_default_values() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a StorageEvent with minimal arguments
     context.eval(Source::from_bytes("var event = new StorageEvent('storage')")).unwrap();

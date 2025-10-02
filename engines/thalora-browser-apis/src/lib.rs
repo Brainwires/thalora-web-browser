@@ -51,7 +51,7 @@ pub mod messaging;
 pub mod misc;
 
 /// Initialize all browser APIs in a Boa context
-pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> anyhow::Result<()> {
+pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
     use boa_engine::property::PropertyDescriptor;
 
@@ -70,6 +70,25 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> anyhow::Res
     browser::window::Window::init(&realm);
     browser::history::History::init(&realm);
     browser::performance::Performance::init(&realm);
+
+    // Manually register Navigator in Boa's intrinsics (needed after extraction)
+    let navigator_constructor = browser::navigator::Navigator::get(context.intrinsics());
+    let navigator_prototype = navigator_constructor.get(boa_engine::js_string!("prototype"), context)?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Navigator prototype is not an object"))?;
+
+    let navigator_std_constructor = boa_engine::context::intrinsics::StandardConstructor::new(
+        navigator_constructor.clone().into(),
+        navigator_prototype,
+    );
+
+    // Get mutable access to intrinsics through the realm
+    let mut intrinsics = context.realm().intrinsics().clone();
+    intrinsics.constructors_mut().set_navigator(navigator_std_constructor);
+
+    // Update the realm's intrinsics
+    context.realm_mut().set_intrinsics(intrinsics);
 
     // Initialize Storage APIs
     storage::storage::Storage::init(&realm);
@@ -185,7 +204,32 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> anyhow::Res
         context,
     )?;
 
-    // TODO: Register other APIs as needed
+    // Create global browser environment objects (moved from Boa test harness)
+    use boa_engine::builtins::BuiltInConstructor;
+
+    // Create a global document instance
+    let document_constructor = dom::document::Document::get(context.intrinsics());
+    let document_args = [];
+    let document_instance = dom::document::Document::constructor(
+        &document_constructor.clone().into(),
+        &document_args,
+        context,
+    ).expect("failed to create document instance");
+
+    global_object.set(boa_engine::js_string!("document"), document_instance, false, context)
+        .expect("failed to set global document");
+
+    // Create a global window instance
+    let window_constructor = browser::window::Window::get(context.intrinsics());
+    let window_args = [];
+    let window_instance = browser::window::Window::constructor(
+        &window_constructor.clone().into(),
+        &window_args,
+        context,
+    ).expect("failed to create window instance");
+
+    global_object.set(boa_engine::js_string!("window"), window_instance, false, context)
+        .expect("failed to set global window");
 
     Ok(())
 }
@@ -271,7 +315,7 @@ mod test_utils {
         let mut context = Context::default();
 
         // Initialize all browser APIs that the test might need
-        crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+        crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs in test context");
 
         for action in actions {
             match action {

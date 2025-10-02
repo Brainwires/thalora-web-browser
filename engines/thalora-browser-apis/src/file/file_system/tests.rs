@@ -5,6 +5,7 @@ use crate::{Context, JsValue, Source, JsString};
 #[test]
 fn test_file_system_constructors_not_exposed() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // FileSystemHandle constructor should not be exposed globally
     let result = context.eval(Source::from_bytes("new FileSystemHandle()"));
@@ -28,6 +29,7 @@ fn test_file_system_constructors_not_exposed() {
 #[test]
 fn test_file_picker_functions_exist() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that showOpenFilePicker exists and is a function
     let result = context.eval(Source::from_bytes("typeof showOpenFilePicker")).unwrap();
@@ -45,6 +47,7 @@ fn test_file_picker_functions_exist() {
 #[test]
 fn test_file_picker_functions_return_promises() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that showOpenFilePicker returns a Promise
     let result = context.eval(Source::from_bytes("showOpenFilePicker() instanceof Promise")).unwrap();
@@ -62,6 +65,7 @@ fn test_file_picker_functions_return_promises() {
 #[test]
 fn test_file_system_basic_functionality() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a mock test for file system functionality
     context.eval(Source::from_bytes(r#"
@@ -92,6 +96,7 @@ fn test_file_system_basic_functionality() {
 #[test]
 fn test_file_handle_methods_exist() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     context.eval(Source::from_bytes(r#"
         // Test that file handle has expected methods after resolution
@@ -113,6 +118,7 @@ fn test_file_handle_methods_exist() {
 #[test]
 fn test_directory_handle_methods_exist() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     context.eval(Source::from_bytes(r#"
         // Test that directory handle has expected methods after resolution
@@ -135,6 +141,7 @@ fn test_directory_handle_methods_exist() {
 #[test]
 fn test_file_system_vfs_integration() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that file picker functions work with VFS
     let result = context.eval(Source::from_bytes("showOpenFilePicker() instanceof Promise")).unwrap();
@@ -150,6 +157,7 @@ fn test_file_system_vfs_integration() {
 #[test]
 fn test_file_system_handle_common_methods() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     context.eval(Source::from_bytes(r#"
         // Test common FileSystemHandle methods

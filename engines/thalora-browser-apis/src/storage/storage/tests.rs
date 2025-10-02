@@ -6,6 +6,7 @@ use crate::{Context, JsValue, Source, JsString};
 #[test]
 fn test_local_storage_basic() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that localStorage exists
     let result = context.eval(Source::from_bytes("typeof window.localStorage")).unwrap();
@@ -35,6 +36,7 @@ fn test_local_storage_basic() {
 #[test]
 fn test_session_storage_basic() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that sessionStorage exists
     let result = context.eval(Source::from_bytes("typeof window.sessionStorage")).unwrap();
@@ -64,6 +66,7 @@ fn test_session_storage_basic() {
 #[test]
 fn test_local_storage_set_get_item() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Initially empty
     let result = context.eval(Source::from_bytes("localStorage.length")).unwrap();
@@ -97,6 +100,7 @@ fn test_local_storage_set_get_item() {
 #[test]
 fn test_session_storage_set_get_item() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Initially empty
     let result = context.eval(Source::from_bytes("sessionStorage.length")).unwrap();
@@ -121,6 +125,7 @@ fn test_session_storage_set_get_item() {
 #[test]
 fn test_local_storage_remove_item() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Set some items
     context.eval(Source::from_bytes("localStorage.setItem('key1', 'value1')")).unwrap();
@@ -157,6 +162,7 @@ fn test_local_storage_remove_item() {
 #[test]
 fn test_local_storage_clear() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Set some items
     context.eval(Source::from_bytes("localStorage.setItem('key1', 'value1')")).unwrap();
@@ -189,6 +195,7 @@ fn test_local_storage_clear() {
 #[test]
 fn test_local_storage_key() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Initially no keys
     let result = context.eval(Source::from_bytes("localStorage.key(0)")).unwrap();
@@ -227,6 +234,7 @@ fn test_local_storage_key() {
 #[test]
 fn test_storage_constructor_error() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Attempting to construct Storage directly should throw
     let result = context.eval(Source::from_bytes("new Storage()"));
@@ -240,6 +248,7 @@ fn test_storage_constructor_error() {
 #[test]
 fn test_storage_separation() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Set item in localStorage
     context.eval(Source::from_bytes("localStorage.setItem('sharedKey', 'localValue')")).unwrap();
@@ -278,6 +287,7 @@ fn test_storage_separation() {
 #[test]
 fn test_storage_data_types() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test number
     context.eval(Source::from_bytes("localStorage.setItem('number', 42)")).unwrap();
@@ -327,6 +337,7 @@ fn test_storage_persistence() {
     // First context: set some data
     {
         let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
         context.eval(Source::from_bytes("localStorage.setItem('persistent_key', 'persistent_value')")).unwrap();
         context.eval(Source::from_bytes("localStorage.setItem('number_key', '12345')")).unwrap();
 
@@ -341,6 +352,7 @@ fn test_storage_persistence() {
     // Second context: data should persist
     {
         let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
         // Data should still be there
         let result = context.eval(Source::from_bytes("localStorage.getItem('persistent_key')")).unwrap();
@@ -382,6 +394,7 @@ fn test_storage_type_separation_with_persistence() {
     // Set data in both storages
     {
         let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
         context.eval(Source::from_bytes("localStorage.setItem('type', 'local')")).unwrap();
         context.eval(Source::from_bytes("sessionStorage.setItem('type', 'session')")).unwrap();
     }
@@ -393,6 +406,7 @@ fn test_storage_type_separation_with_persistence() {
     // Verify data persists separately
     {
         let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
         let local_result = context.eval(Source::from_bytes("localStorage.getItem('type')")).unwrap();
         assert_eq!(local_result, JsValue::from(JsString::from("local")));

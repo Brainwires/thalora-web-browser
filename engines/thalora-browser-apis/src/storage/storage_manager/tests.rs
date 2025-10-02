@@ -5,6 +5,7 @@ use crate::{Context, JsValue, Source, JsString};
 #[test]
 fn test_storage_manager_exists() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that navigator.storage exists
     let result = context.eval(Source::from_bytes("typeof navigator.storage")).unwrap();
@@ -18,6 +19,7 @@ fn test_storage_manager_exists() {
 #[test]
 fn test_storage_manager_methods() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that all main methods exist
     let result = context.eval(Source::from_bytes("typeof navigator.storage.estimate")).unwrap();
@@ -36,6 +38,7 @@ fn test_storage_manager_methods() {
 #[test]
 fn test_storage_estimate_returns_promise() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that estimate() returns a Promise
     let result = context.eval(Source::from_bytes("navigator.storage.estimate() instanceof Promise")).unwrap();
@@ -45,6 +48,7 @@ fn test_storage_estimate_returns_promise() {
 #[test]
 fn test_storage_persist_returns_promise() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that persist() returns a Promise
     let result = context.eval(Source::from_bytes("navigator.storage.persist() instanceof Promise")).unwrap();
@@ -54,6 +58,7 @@ fn test_storage_persist_returns_promise() {
 #[test]
 fn test_storage_persisted_returns_promise() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that persisted() returns a Promise
     let result = context.eval(Source::from_bytes("navigator.storage.persisted() instanceof Promise")).unwrap();
@@ -63,6 +68,7 @@ fn test_storage_persisted_returns_promise() {
 #[test]
 fn test_storage_get_directory_returns_promise() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that getDirectory() returns a Promise
     let result = context.eval(Source::from_bytes("navigator.storage.getDirectory() instanceof Promise")).unwrap();
@@ -72,6 +78,7 @@ fn test_storage_get_directory_returns_promise() {
 #[test]
 fn test_storage_manager_constructor_error() {
     let mut context = Context::default();
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Attempting to construct StorageManager directly should throw
     let result = context.eval(Source::from_bytes("new StorageManager()"));
