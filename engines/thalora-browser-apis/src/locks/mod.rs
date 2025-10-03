@@ -15,3 +15,6 @@ pub mod lock_info;
 pub use lock_manager::LockManager;
 pub use lock::Lock;
 pub use lock_info::{LockInfo, LockManagerSnapshot};
+
+#[cfg(test)]
+mod tests;

@@ -19,7 +19,7 @@ use boa_gc::{Finalize, Trace};
 
 /// JavaScript `CountQueuingStrategy` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct CountQueuingStrategy;
+pub struct CountQueuingStrategy;
 
 impl IntrinsicObject for CountQueuingStrategy {
     fn init(realm: &Realm) {
@@ -111,7 +111,7 @@ impl BuiltInConstructor for CountQueuingStrategy {
 
 /// JavaScript `ByteLengthQueuingStrategy` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ByteLengthQueuingStrategy;
+pub struct ByteLengthQueuingStrategy;
 
 impl IntrinsicObject for ByteLengthQueuingStrategy {
     fn init(realm: &Realm) {

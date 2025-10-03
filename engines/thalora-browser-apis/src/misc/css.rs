@@ -21,7 +21,7 @@ use std::collections::HashMap;
 
 /// JavaScript `CSS` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Css;
+pub struct Css;
 
 impl IntrinsicObject for Css {
     fn init(realm: &Realm) {
@@ -74,6 +74,7 @@ impl IntrinsicObject for Css {
         // Create CSS object
         BuiltInBuilder::with_intrinsic::<Self>(realm)
             .static_method(supports, js_string!("supports"), 1)
+            .static_method(escape, js_string!("escape"), 1)
             .static_method(register_property, js_string!("registerProperty"), 1)
             .static_method(css_number, js_string!("number"), 1)
             .static_method(css_px, js_string!("px"), 1)
@@ -325,6 +326,74 @@ fn create_worklet_object(context: &mut Context, name: &str) -> JsResult<JsValue>
 }
 
 /// `CSS.supports(property, value)` implementation
+/// CSS.escape() implementation
+/// https://drafts.csswg.org/cssom/#the-css.escape()-method
+fn escape(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let ident = args.get_or_undefined(0).to_string(context)?;
+    let ident_str = ident.to_std_string_escaped();
+
+    if ident_str.is_empty() {
+        return Err(JsNativeError::typ()
+            .with_message("CSS.escape requires a non-empty string")
+            .into());
+    }
+
+    let mut result = String::new();
+    let chars: Vec<char> = ident_str.chars().collect();
+
+    for (i, &c) in chars.iter().enumerate() {
+        // Null character
+        if c == '\0' {
+            result.push('\u{FFFD}'); // Replacement character
+            continue;
+        }
+
+        // First character is a digit
+        if i == 0 && c.is_ascii_digit() {
+            result.push('\\');
+            result.push(c);
+            result.push(' ');
+            continue;
+        }
+
+        // First character is hyphen followed by digit or hyphen
+        if i == 0 && c == '-' && chars.len() > 1 {
+            let next = chars[1];
+            if next.is_ascii_digit() || next == '-' {
+                result.push('\\');
+                result.push(c);
+                continue;
+            }
+        }
+
+        // Second character is a digit (when first is hyphen)
+        if i == 1 && chars[0] == '-' && c.is_ascii_digit() {
+            result.push('\\');
+            result.push(c);
+            result.push(' ');
+            continue;
+        }
+
+        // Non-printable ASCII or special characters that need escaping
+        if c >= '\x01' && c <= '\x1F' || c == '\x7F' ||
+           c == '!' || c == '"' || c == '#' || c == '$' || c == '%' || c == '&' ||
+           c == '\'' || c == '(' || c == ')' || c == '*' || c == '+' || c == ',' ||
+           c == '.' || c == '/' || c == ':' || c == ';' || c == '<' || c == '=' ||
+           c == '>' || c == '?' || c == '@' || c == '[' || c == '\\' || c == ']' ||
+           c == '^' || c == '`' || c == '{' || c == '|' || c == '}' || c == '~' {
+            result.push('\\');
+            result.push(c);
+        } else if c as u32 >= 0x80 {
+            // Non-ASCII characters: escape as hex
+            result.push_str(&format!("\\{:x} ", c as u32));
+        } else {
+            result.push(c);
+        }
+    }
+
+    Ok(JsValue::from(js_string!(result)))
+}
+
 fn supports(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     if args.len() == 1 {
         // CSS.supports("display: flex") format

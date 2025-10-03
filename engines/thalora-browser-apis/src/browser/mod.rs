@@ -8,3 +8,6 @@ pub mod selection;
 // TODO: Implement web_locks module
 // pub mod web_locks;
 pub mod window;
+
+#[cfg(test)]
+mod tests;

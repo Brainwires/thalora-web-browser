@@ -4,3 +4,6 @@ pub mod abort_controller;
 pub mod css;
 pub mod form;
 pub mod structured_clone;
+
+#[cfg(test)]
+mod tests;

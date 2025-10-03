@@ -70,6 +70,8 @@ impl IntrinsicObject for HTMLFormElement {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .static_method(Self::named_getter, js_string!("namedItem"), 1)
+            .method(Self::submit, js_string!("submit"), 0)
+            .method(Self::reset, js_string!("reset"), 0)
             .property(js_string!("length"), 0, Attribute::CONFIGURABLE)
             .build();
     }
@@ -155,6 +157,38 @@ impl HTMLFormElement {
         }
 
         Ok(JsValue::null())
+    }
+
+    /// HTMLFormElement.submit() method
+    /// https://html.spec.whatwg.org/multipage/forms.html#dom-form-submit
+    fn submit(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        let _this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("HTMLFormElement.submit called on non-object")
+        })?;
+
+        // In a real browser, this would:
+        // 1. Construct form data
+        // 2. Submit to action URL
+        // 3. Navigate or trigger submit event
+        // For now, this is a no-op placeholder
+
+        Ok(JsValue::undefined())
+    }
+
+    /// HTMLFormElement.reset() method
+    /// https://html.spec.whatwg.org/multipage/forms.html#dom-form-reset
+    fn reset(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        let _this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("HTMLFormElement.reset called on non-object")
+        })?;
+
+        // In a real implementation, this would:
+        // 1. Iterate through form.elements
+        // 2. Reset each control to its initial value
+        // 3. Fire a reset event
+        // For now, this is a no-op placeholder
+
+        Ok(JsValue::undefined())
     }
 }
 

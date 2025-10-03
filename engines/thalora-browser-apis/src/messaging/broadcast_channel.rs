@@ -26,7 +26,7 @@ use std::sync::OnceLock;
 
 /// JavaScript `BroadcastChannel` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct BroadcastChannel;
+pub struct BroadcastChannel;
 
 impl IntrinsicObject for BroadcastChannel {
     fn init(realm: &Realm) {

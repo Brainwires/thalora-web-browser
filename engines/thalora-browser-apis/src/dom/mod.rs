@@ -18,3 +18,6 @@ mod document_tests;
 
 #[cfg(test)]
 mod element_tests;
+
+#[cfg(test)]
+mod dom_additional_tests;

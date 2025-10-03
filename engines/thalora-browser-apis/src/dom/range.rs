@@ -263,7 +263,7 @@ impl RangeData {
 
 /// The `Range` object.
 #[derive(Debug, Clone, Trace, Finalize)]
-pub(crate) struct Range;
+pub struct Range;
 
 impl IntrinsicObject for Range {
     fn init(realm: &Realm) {

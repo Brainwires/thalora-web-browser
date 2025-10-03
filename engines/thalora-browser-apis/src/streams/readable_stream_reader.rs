@@ -15,7 +15,7 @@ use boa_gc::{Finalize, Trace};
 
 /// JavaScript `ReadableStreamDefaultReader` implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ReadableStreamDefaultReader;
+pub struct ReadableStreamDefaultReader;
 
 impl ReadableStreamDefaultReader {
     /// Create a new ReadableStreamDefaultReader instance
@@ -194,7 +194,7 @@ impl ReadableStreamDefaultReader {
 
 /// JavaScript `ReadableStreamBYOBReader` implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ReadableStreamBYOBReader;
+pub struct ReadableStreamBYOBReader;
 
 impl ReadableStreamBYOBReader {
     /// Create a new ReadableStreamBYOBReader instance

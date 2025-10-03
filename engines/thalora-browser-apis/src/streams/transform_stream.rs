@@ -20,7 +20,7 @@ use super::{readable_stream::ReadableStream, writable_stream::WritableStream};
 
 /// JavaScript `TransformStream` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct TransformStream;
+pub struct TransformStream;
 
 impl IntrinsicObject for TransformStream {
     fn init(realm: &Realm) {

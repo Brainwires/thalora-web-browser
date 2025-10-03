@@ -21,7 +21,7 @@ use super::message_port::MessagePortData;
 
 /// JavaScript `MessageChannel` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct MessageChannel;
+pub struct MessageChannel;
 
 /// Internal data for MessageChannel instances
 #[derive(Debug, Trace, Finalize, JsData)]

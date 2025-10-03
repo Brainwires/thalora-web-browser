@@ -20,7 +20,7 @@ use std::collections::VecDeque;
 
 /// JavaScript `WritableStream` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct WritableStream;
+pub struct WritableStream;
 
 impl IntrinsicObject for WritableStream {
     fn init(realm: &Realm) {

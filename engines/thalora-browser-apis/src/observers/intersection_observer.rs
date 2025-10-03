@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 /// JavaScript `IntersectionObserver` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct IntersectionObserver;
+pub struct IntersectionObserver;
 
 impl IntrinsicObject for IntersectionObserver {
     fn init(realm: &Realm) {

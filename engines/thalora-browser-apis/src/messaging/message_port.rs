@@ -105,7 +105,7 @@ impl MessagePortData {
 
 /// JavaScript `MessagePort` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct MessagePort;
+pub struct MessagePort;
 
 impl IntrinsicObject for MessagePort {
     fn init(realm: &Realm) {

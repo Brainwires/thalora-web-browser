@@ -22,7 +22,7 @@ use super::readable_stream_reader::{ReadableStreamDefaultReader, ReadableStreamB
 
 /// JavaScript `ReadableStream` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ReadableStream;
+pub struct ReadableStream;
 
 impl IntrinsicObject for ReadableStream {
     fn init(realm: &Realm) {

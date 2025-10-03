@@ -79,6 +79,9 @@ impl IntrinsicObject for Document {
                 Attribute::CONFIGURABLE,
             )
             .method(create_element, js_string!("createElement"), 1)
+            .method(create_text_node, js_string!("createTextNode"), 1)
+            .method(create_document_fragment, js_string!("createDocumentFragment"), 0)
+            .method(create_range, js_string!("createRange"), 0)
             .method(get_element_by_id, js_string!("getElementById"), 1)
             .method(query_selector, js_string!("querySelector"), 1)
             .method(query_selector_all, js_string!("querySelectorAll"), 1)
@@ -628,6 +631,47 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     }
 
     Ok(element)
+}
+
+/// `Document.prototype.createTextNode(data)`
+fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let data = args.get_or_undefined(0).to_string(context)?;
+
+    // Create a Text node using the Text constructor
+    let text_constructor = context.intrinsics().constructors().text().constructor();
+    let text = crate::dom::text::Text::constructor(
+        &text_constructor.clone().into(),
+        &[data.into()],
+        context,
+    )?;
+
+    Ok(text)
+}
+
+/// `Document.prototype.createDocumentFragment()`
+fn create_document_fragment(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Create a DocumentFragment using the DocumentFragment constructor
+    let fragment_constructor = context.intrinsics().constructors().document_fragment().constructor();
+    let fragment = crate::dom::document_fragment::DocumentFragment::constructor(
+        &fragment_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    Ok(fragment)
+}
+
+/// `Document.prototype.createRange()`
+fn create_range(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Create a Range using the Range constructor
+    let range_constructor = context.intrinsics().constructors().range().constructor();
+    let range = crate::dom::range::Range::constructor(
+        &range_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    Ok(range)
 }
 
 /// `Document.prototype.getElementById(id)`

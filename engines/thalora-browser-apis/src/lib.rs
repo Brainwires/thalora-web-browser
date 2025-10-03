@@ -77,6 +77,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::domtokenlist::DOMTokenList::init(&realm);
     dom::document::Document::init(&realm);
     dom::element::Element::init(&realm);
+    dom::character_data::CharacterData::init(&realm);
+    dom::text::Text::init(&realm);
+    dom::document_fragment::DocumentFragment::init(&realm);
+    dom::range::Range::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -101,6 +105,29 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Crypto API
     crypto::crypto::Crypto::init(context);
+
+    // Initialize Observer APIs
+    observers::intersection_observer::IntersectionObserver::init(&realm);
+    observers::mutation_observer::MutationObserver::init(&realm);
+    observers::resize_observer::ResizeObserver::init(&realm);
+
+    // Initialize Messaging APIs
+    messaging::broadcast_channel::BroadcastChannel::init(&realm);
+    messaging::message_channel::MessageChannel::init(&realm);
+    messaging::message_port::MessagePort::init(&realm);
+
+    // Initialize Miscellaneous APIs
+    misc::abort_controller::AbortController::init(&realm);
+    misc::css::Css::init(&realm);
+    misc::form::HTMLFormElement::init(&realm);
+    misc::form::HTMLInputElement::init(&realm);
+
+    // Initialize Streams APIs
+    streams::readable_stream::ReadableStream::init(&realm);
+    streams::writable_stream::WritableStream::init(&realm);
+    streams::transform_stream::TransformStream::init(&realm);
+    streams::queuing_strategy::CountQueuingStrategy::init(&realm);
+    streams::queuing_strategy::ByteLengthQueuingStrategy::init(&realm);
 
     // Initialize Fetch APIs
     fetch::fetch::Fetch::init(&realm);
@@ -215,6 +242,160 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // Observer APIs
+    global_object.define_property_or_throw(
+        observers::intersection_observer::IntersectionObserver::NAME,
+        PropertyDescriptor::builder()
+            .value(observers::intersection_observer::IntersectionObserver::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        observers::mutation_observer::MutationObserver::NAME,
+        PropertyDescriptor::builder()
+            .value(observers::mutation_observer::MutationObserver::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        observers::resize_observer::ResizeObserver::NAME,
+        PropertyDescriptor::builder()
+            .value(observers::resize_observer::ResizeObserver::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Messaging APIs
+    global_object.define_property_or_throw(
+        messaging::broadcast_channel::BroadcastChannel::NAME,
+        PropertyDescriptor::builder()
+            .value(messaging::broadcast_channel::BroadcastChannel::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        messaging::message_channel::MessageChannel::NAME,
+        PropertyDescriptor::builder()
+            .value(messaging::message_channel::MessageChannel::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        messaging::message_port::MessagePort::NAME,
+        PropertyDescriptor::builder()
+            .value(messaging::message_port::MessagePort::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Miscellaneous APIs
+    global_object.define_property_or_throw(
+        misc::abort_controller::AbortController::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::abort_controller::AbortController::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        misc::css::Css::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::css::Css::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        misc::form::HTMLFormElement::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::form::HTMLFormElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        misc::form::HTMLInputElement::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::form::HTMLInputElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Streams APIs
+    global_object.define_property_or_throw(
+        streams::readable_stream::ReadableStream::NAME,
+        PropertyDescriptor::builder()
+            .value(streams::readable_stream::ReadableStream::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        streams::writable_stream::WritableStream::NAME,
+        PropertyDescriptor::builder()
+            .value(streams::writable_stream::WritableStream::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        streams::transform_stream::TransformStream::NAME,
+        PropertyDescriptor::builder()
+            .value(streams::transform_stream::TransformStream::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        streams::queuing_strategy::CountQueuingStrategy::NAME,
+        PropertyDescriptor::builder()
+            .value(streams::queuing_strategy::CountQueuingStrategy::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        streams::queuing_strategy::ByteLengthQueuingStrategy::NAME,
+        PropertyDescriptor::builder()
+            .value(streams::queuing_strategy::ByteLengthQueuingStrategy::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // DOM APIs
     global_object.define_property_or_throw(
         dom::node::Node::NAME,
@@ -270,6 +451,46 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         dom::element::Element::NAME,
         PropertyDescriptor::builder()
             .value(dom::element::Element::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        dom::character_data::CharacterData::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::character_data::CharacterData::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        dom::text::Text::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::text::Text::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        dom::document_fragment::DocumentFragment::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::document_fragment::DocumentFragment::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        dom::range::Range::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::range::Range::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),

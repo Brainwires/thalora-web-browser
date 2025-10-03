@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 /// JavaScript `ResizeObserver` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ResizeObserver;
+pub struct ResizeObserver;
 
 impl IntrinsicObject for ResizeObserver {
     fn init(realm: &Realm) {

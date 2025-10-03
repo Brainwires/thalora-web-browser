@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 /// JavaScript `AbortController` builtin implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct AbortController;
+pub struct AbortController;
 
 impl IntrinsicObject for AbortController {
     fn init(realm: &Realm) {
@@ -124,8 +124,15 @@ fn get_signal(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
             .with_message("AbortController.prototype.signal called on non-AbortController object")
     })?;
 
-    // Create AbortSignal object (simplified - real implementation would be more complex)
-    let signal_obj = JsObject::default();
+    // Create AbortSignal as an EventTarget so it has addEventListener
+    let event_target_constructor = context.intrinsics().constructors().event_target().constructor();
+    let signal_obj = crate::events::event_target::EventTarget::constructor(
+        &event_target_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    let signal_obj = signal_obj.as_object().unwrap().clone();
 
     // Add aborted property
     let aborted = abort_controller.is_aborted();

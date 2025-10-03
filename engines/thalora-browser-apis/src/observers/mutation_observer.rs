@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 /// JavaScript `MutationObserver` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct MutationObserver;
+pub struct MutationObserver;
 
 impl IntrinsicObject for MutationObserver {
     fn init(realm: &Realm) {
