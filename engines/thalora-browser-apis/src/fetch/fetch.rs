@@ -23,7 +23,7 @@ use url::Url;
 
 /// JavaScript `fetch()` global function implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Fetch;
+pub struct Fetch;
 
 impl IntrinsicObject for Fetch {
     fn init(realm: &Realm) {
@@ -234,7 +234,7 @@ fn parse_fetch_init(
 
 /// JavaScript `Request` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Request;
+pub struct Request;
 
 impl IntrinsicObject for Request {
     fn init(realm: &Realm) {
@@ -308,7 +308,7 @@ impl Request {
 
 /// JavaScript `Response` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Response;
+pub struct Response;
 
 impl IntrinsicObject for Response {
     fn init(realm: &Realm) {
@@ -547,7 +547,7 @@ impl Response {
 
 /// JavaScript `Headers` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Headers;
+pub struct Headers;
 
 impl IntrinsicObject for Headers {
     fn init(realm: &Realm) {

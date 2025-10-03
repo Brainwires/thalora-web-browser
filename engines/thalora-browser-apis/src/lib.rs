@@ -96,6 +96,15 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     file::file_system::FileSystemFileHandle::init(&realm);
     file::file_system::FileSystemDirectoryHandle::init(&realm);
 
+    // Initialize Crypto API
+    crypto::crypto::Crypto::init(context);
+
+    // Initialize Fetch APIs
+    fetch::fetch::Fetch::init(&realm);
+    fetch::fetch::Request::init(&realm);
+    fetch::fetch::Response::init(&realm);
+    fetch::fetch::Headers::init(&realm);
+
     // Register browser APIs as global properties
     let global_object = context.global_object();
 
@@ -125,6 +134,47 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         events::event_target::EventTarget::NAME,
         PropertyDescriptor::builder()
             .value(events::event_target::EventTarget::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Fetch APIs
+    global_object.define_property_or_throw(
+        js_string!("fetch"),
+        PropertyDescriptor::builder()
+            .value(fetch::fetch::Fetch::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        fetch::fetch::Request::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::fetch::Request::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        fetch::fetch::Response::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::fetch::Response::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        fetch::fetch::Headers::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::fetch::Headers::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -222,6 +272,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
             .configurable(true),
         context,
     )?;
+
 
     global_object.define_property_or_throw(
         storage::storage_manager::StorageManager::NAME,
