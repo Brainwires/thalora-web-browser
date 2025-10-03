@@ -3797,6 +3797,7 @@ dependencies = [
  "html5ever 0.27.0",
  "indexmap 2.11.4",
  "kuchikiki",
+ "once_cell",
  "parking_lot",
  "rand 0.8.5",
  "reqwest",

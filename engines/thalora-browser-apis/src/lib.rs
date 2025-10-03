@@ -60,6 +60,12 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     let realm = context.realm().clone();
 
+    // Initialize Console API (must be early for debugging)
+    console::console::Console::init(context);
+
+    // Initialize Timer APIs (foundational for async operations)
+    timers::timers::Timers::init(context);
+
     // Initialize DOM APIs
     dom::node::Node::init(&realm);
     dom::attr::Attr::init(&realm);
