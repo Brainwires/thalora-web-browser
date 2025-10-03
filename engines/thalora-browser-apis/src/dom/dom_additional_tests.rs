@@ -22,46 +22,45 @@ fn test_character_data_constructor_exists() {
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
-// Note: document.createTextNode is not yet implemented
-// #[test]
-// fn test_character_data_data_property() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let text = document.createTextNode('test');
-//         text.data === 'test';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_character_data_data_property() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = document.createTextNode('test');
+        text.data === 'test';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_character_data_length_property() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let text = document.createTextNode('hello');
-//         text.length === 5;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_character_data_length_property() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = document.createTextNode('hello');
+        text.length === 5;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_character_data_substring_data_method() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let text = document.createTextNode('hello world');
-//         typeof text.substringData === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_character_data_substring_data_method() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = document.createTextNode('hello world');
+        typeof text.substringData === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_character_data_append_data_method() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let text = document.createTextNode('hello');
-//         typeof text.appendData === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_character_data_append_data_method() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = document.createTextNode('hello');
+        typeof text.appendData === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // DocumentFragment Tests
@@ -94,7 +93,8 @@ fn test_document_fragment_constructor_new() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: instanceof check fails due to prototype chain setup
+// Note: instanceof and appendChild require DocumentFragment to properly inherit from Node
+// This requires fixing the prototype chain in Boa's intrinsics system
 // #[test]
 // fn test_document_fragment_is_node() {
 //     let mut context = create_test_context();

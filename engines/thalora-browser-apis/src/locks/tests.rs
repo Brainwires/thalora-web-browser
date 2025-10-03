@@ -125,27 +125,27 @@ fn test_lock_request_with_callback() {
 }
 
 // Note: Advanced lock modes require full async implementation
-// #[test]
-// fn test_lock_exclusive_mode() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         navigator.locks.request('test-lock', { mode: 'exclusive' }, lock => {
-//             return lock.mode === 'exclusive';
-//         });
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_lock_exclusive_mode() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        navigator.locks.request('test-lock', { mode: 'exclusive' }, lock => {
+            return lock.mode === 'exclusive';
+        });
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_lock_shared_mode() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         navigator.locks.request('test-lock', { mode: 'shared' }, lock => {
-//             return lock.mode === 'shared';
-//         });
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_lock_shared_mode() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        navigator.locks.request('test-lock', { mode: 'shared' }, lock => {
+            return lock.mode === 'shared';
+        });
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // Note: Property descriptor check fails due to how navigator.locks is set up
 // #[test]
