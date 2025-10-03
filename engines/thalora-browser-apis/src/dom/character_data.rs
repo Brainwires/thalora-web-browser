@@ -376,6 +376,8 @@ impl IntrinsicObject for CharacterData {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: CharacterData -> Node -> EventTarget
+            .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             .method(Self::substring_data, js_string!("substringData"), 2)
             .method(Self::append_data, js_string!("appendData"), 1)
             .method(Self::insert_data, js_string!("insertData"), 2)

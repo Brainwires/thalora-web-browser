@@ -89,9 +89,9 @@ impl BuiltInConstructor for MessageChannel {
         // Create entangled MessagePort pair
         let (port1_data, port2_data) = MessagePortData::create_entangled_pair();
 
-        // Create MessagePort objects
-        let port1 = create_message_port_object(port1_data, context)?;
-        let port2 = create_message_port_object(port2_data, context)?;
+        // Create MessagePort objects using the proper MessagePort prototype
+        let port1 = port1_data.create_js_object(context)?;
+        let port2 = port2_data.create_js_object(context)?;
 
         // Create the MessageChannel object
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::message_channel, context)?;

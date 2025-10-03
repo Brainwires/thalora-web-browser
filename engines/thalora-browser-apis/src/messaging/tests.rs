@@ -147,16 +147,15 @@ fn test_message_port_constructor_exists() {
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
-// Note: instanceof check fails due to prototype chain setup
-// #[test]
-// fn test_message_port_from_channel() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let mc = new MessageChannel();
-//         mc.port1 instanceof MessagePort;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_message_port_from_channel() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let mc = new MessageChannel();
+        mc.port1 instanceof MessagePort;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 #[test]
 fn test_message_port_postmessage_method() {

@@ -440,6 +440,8 @@ impl IntrinsicObject for DocumentFragment {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: DocumentFragment -> Node -> EventTarget
+            .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             // Methods
             .method(Self::append, js_string!("append"), 0)
             .method(Self::prepend, js_string!("prepend"), 0)

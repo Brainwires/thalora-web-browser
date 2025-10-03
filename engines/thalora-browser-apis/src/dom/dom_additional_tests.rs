@@ -93,28 +93,26 @@ fn test_document_fragment_constructor_new() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: instanceof and appendChild require DocumentFragment to properly inherit from Node
-// This requires fixing the prototype chain in Boa's intrinsics system
-// #[test]
-// fn test_document_fragment_is_node() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let frag = new DocumentFragment();
-//         frag instanceof Node;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_document_fragment_is_node() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let frag = new DocumentFragment();
+        frag instanceof Node;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_document_fragment_append_child() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let frag = new DocumentFragment();
-//         let div = document.createElement('div');
-//         typeof frag.appendChild === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_document_fragment_append_child() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let frag = new DocumentFragment();
+        let div = document.createElement('div');
+        typeof frag.appendChild === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // Range Tests
@@ -208,16 +206,15 @@ fn test_text_constructor_new() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: instanceof check fails due to prototype chain setup
-// #[test]
-// fn test_text_is_character_data() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let text = new Text('test');
-//         text instanceof CharacterData;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_text_is_character_data() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = new Text('test');
+        text instanceof CharacterData;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 #[test]
 fn test_text_whole_text_property() {
@@ -255,18 +252,17 @@ fn test_all_dom_additional_apis_available() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: instanceof checks fail due to prototype chain setup
-// #[test]
-// fn test_text_node_inheritance() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let text = new Text('test');
-//         text instanceof Text &&
-//         text instanceof CharacterData &&
-//         text instanceof Node;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_text_node_inheritance() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = new Text('test');
+        text instanceof Text &&
+        text instanceof CharacterData &&
+        text instanceof Node;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 #[test]
 fn test_document_fragment_children() {
