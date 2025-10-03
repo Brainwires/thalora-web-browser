@@ -48,6 +48,8 @@ impl IntrinsicObject for Document {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: Document -> Node -> EventTarget
+            .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             .accessor(
                 js_string!("readyState"),
                 Some(ready_state_func),

@@ -97,6 +97,8 @@ impl IntrinsicObject for File {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: File -> Blob
+            .inherits(Some(realm.intrinsics().constructors().blob().prototype()))
             // Inherit Blob methods
             .method(Self::slice, js_string!("slice"), 0)
             .method(Self::stream, js_string!("stream"), 0)

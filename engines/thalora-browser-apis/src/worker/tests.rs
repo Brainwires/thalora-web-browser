@@ -76,15 +76,14 @@ fn test_worker_navigator_language() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: navigator.hardwareConcurrency not yet implemented
-// #[test]
-// fn test_worker_navigator_hardware_concurrency() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof navigator.hardwareConcurrency === 'number';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_worker_navigator_hardware_concurrency() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof navigator.hardwareConcurrency === 'number';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // Structured Clone Algorithm Tests

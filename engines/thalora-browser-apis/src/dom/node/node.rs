@@ -1345,6 +1345,8 @@ impl Node {
 impl IntrinsicObject for Node {
     fn init(realm: &Realm) {
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: Node -> EventTarget
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .static_property(js_string!("ELEMENT_NODE"), 1, Attribute::READONLY)
             .static_property(js_string!("ATTRIBUTE_NODE"), 2, Attribute::READONLY)
             .static_property(js_string!("TEXT_NODE"), 3, Attribute::READONLY)

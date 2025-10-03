@@ -185,6 +185,10 @@ impl IntrinsicObject for FileReader {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // ReadyState constants
+            .static_property(js_string!("EMPTY"), 0, boa_engine::property::Attribute::default())
+            .static_property(js_string!("LOADING"), 1, boa_engine::property::Attribute::default())
+            .static_property(js_string!("DONE"), 2, boa_engine::property::Attribute::default())
             // Read methods
             .method(Self::read_as_array_buffer, js_string!("readAsArrayBuffer"), 1)
             .method(Self::read_as_binary_string, js_string!("readAsBinaryString"), 1)
@@ -275,10 +279,17 @@ impl BuiltInConstructor for FileReader {
 
     /// `new FileReader()`
     fn constructor(
-        _new_target: &JsValue,
+        new_target: &JsValue,
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
+        // FileReader constructor requires 'new'
+        if new_target.is_undefined() {
+            return Err(JsNativeError::typ()
+                .with_message("Constructor FileReader requires 'new'")
+                .into());
+        }
+
         let reader_data = FileReaderData::new();
 
         let prototype = Self::get(context.intrinsics())

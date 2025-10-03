@@ -377,27 +377,25 @@ fn test_document_query_selector_all_without_argument() {
 // Document Inheritance Tests
 // ============================================================================
 
-// Note: Document inheritance isn't fully implemented yet
-// Commenting out these tests for now
-// #[test]
-// fn test_document_inherits_from_node() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let doc = new Document();
-//         doc instanceof Node;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_document_inherits_from_node() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let doc = new Document();
+        doc instanceof Node;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_document_inherits_from_event_target() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let doc = new Document();
-//         doc instanceof EventTarget;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_document_inherits_from_event_target() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let doc = new Document();
+        doc instanceof EventTarget;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // Document Property Descriptors

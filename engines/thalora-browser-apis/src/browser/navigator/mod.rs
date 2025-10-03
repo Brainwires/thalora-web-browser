@@ -172,6 +172,15 @@ impl IntrinsicObject for Navigator {
             // NavigatorOnLine properties
             .property(js_string!("onLine"), true, Attribute::READONLY | Attribute::NON_ENUMERABLE)
 
+            // NavigatorConcurrentHardware properties
+            .property(
+                js_string!("hardwareConcurrency"),
+                std::thread::available_parallelism()
+                    .map(|n| n.get() as i32)
+                    .unwrap_or(4),
+                Attribute::READONLY | Attribute::NON_ENUMERABLE
+            )
+
             // NavigatorCookies properties
             .property(js_string!("cookieEnabled"), true, Attribute::READONLY | Attribute::NON_ENUMERABLE)
 

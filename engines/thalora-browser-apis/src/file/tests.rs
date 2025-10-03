@@ -285,17 +285,16 @@ fn test_filereader_abort_method() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: FileReader constants (EMPTY, LOADING, DONE) not yet defined on constructor
-// #[test]
-// fn test_filereader_constants() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         FileReader.EMPTY === 0 &&
-//         FileReader.LOADING === 1 &&
-//         FileReader.DONE === 2;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_filereader_constants() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        FileReader.EMPTY === 0 &&
+        FileReader.LOADING === 1 &&
+        FileReader.DONE === 2;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // FileReader Event Handlers
@@ -371,17 +370,15 @@ fn test_filereader_onprogress_handler() {
 // Blob/File Integration Tests
 // ============================================================================
 
-// Note: instanceof checks not working due to prototype chain setup
-// File should inherit from Blob but inheritance not fully implemented yet
-// #[test]
-// fn test_file_is_blob() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let file = new File(['content'], 'test.txt');
-//         file instanceof Blob;
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_file_is_blob() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let file = new File(['content'], 'test.txt');
+        file instanceof Blob;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // #[test]
 // fn test_blob_slice_returns_blob() {
@@ -457,20 +454,19 @@ fn test_file_constructor_requires_name() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: FileReader() without new doesn't throw in current implementation
-// #[test]
-// fn test_filereader_requires_new() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         try {
-//             FileReader();
-//             false;
-//         } catch(e) {
-//             true;
-//         }
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_filereader_requires_new() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            FileReader();
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // File System API Tests
