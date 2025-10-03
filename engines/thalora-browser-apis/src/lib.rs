@@ -93,6 +93,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     locks::lock_manager::LockManager::init(&realm);
 
     // Initialize File APIs
+    file::blob::Blob::init(&realm);
+    file::file::File::init(&realm);
+    file::file_reader::FileReader::init(&realm);
     file::file_system::FileSystemFileHandle::init(&realm);
     file::file_system::FileSystemDirectoryHandle::init(&realm);
 
@@ -175,6 +178,37 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         fetch::fetch::Headers::NAME,
         PropertyDescriptor::builder()
             .value(fetch::fetch::Headers::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // File APIs
+    global_object.define_property_or_throw(
+        file::blob::Blob::NAME,
+        PropertyDescriptor::builder()
+            .value(file::blob::Blob::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        file::file::File::NAME,
+        PropertyDescriptor::builder()
+            .value(file::file::File::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        file::file_reader::FileReader::NAME,
+        PropertyDescriptor::builder()
+            .value(file::file_reader::FileReader::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -480,6 +514,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         false,
         context,
     )?;
+
+    // Add 'self' reference to global scope (Worker/browser compatibility)
+    global_object.set(js_string!("self"), global_object.clone(), false, context)?;
 
     Ok(())
 }

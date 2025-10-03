@@ -39,7 +39,7 @@ fn cancel_stream(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
 
 /// JavaScript `Blob` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct Blob;
+pub struct Blob;
 
 /// Internal data for Blob objects
 #[derive(Debug, Clone, Trace, Finalize, JsData)]

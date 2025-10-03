@@ -21,7 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// JavaScript `File` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct File;
+pub struct File;
 
 /// Internal data for File objects (extends BlobData)
 #[derive(Debug, Clone, Trace, Finalize, JsData)]

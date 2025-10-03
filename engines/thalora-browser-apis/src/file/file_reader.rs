@@ -55,7 +55,7 @@ pub enum FileReaderError {
 
 /// JavaScript `FileReader` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct FileReader;
+pub struct FileReader;
 
 /// Internal data for FileReader objects
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
