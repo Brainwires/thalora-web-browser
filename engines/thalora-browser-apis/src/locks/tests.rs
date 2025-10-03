@@ -147,16 +147,16 @@ fn test_lock_shared_mode() {
     assert_eq!(result.to_boolean(), true);
 }
 
-// Note: Property descriptor check fails due to how navigator.locks is set up
-// #[test]
-// fn test_navigator_locks_property_descriptor() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         let desc = Object.getOwnPropertyDescriptor(navigator, 'locks');
-//         desc !== undefined && typeof desc.value === 'object';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+// Note: Property descriptor for navigator.locks
+#[test]
+fn test_navigator_locks_property_descriptor() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let desc = Object.getOwnPropertyDescriptor(navigator, 'locks');
+        desc !== undefined && typeof desc.value === 'object';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 #[test]
 fn test_lock_manager_request_returns_promise() {

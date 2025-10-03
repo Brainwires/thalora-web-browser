@@ -205,12 +205,7 @@ impl IntrinsicObject for Navigator {
             .method(Self::java_enabled, js_string!("javaEnabled"), 0)
 
             // Web Locks and Service Workers
-            .accessor(
-                js_string!("locks"),
-                Some(locks_getter_func),
-                None,
-                Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
-            )
+            // Note: locks is set as an instance property, not a prototype accessor
             .accessor(
                 js_string!("serviceWorker"),
                 Some(service_worker_getter_func),

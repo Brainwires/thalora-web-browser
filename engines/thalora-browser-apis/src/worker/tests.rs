@@ -200,50 +200,50 @@ fn test_worker_message_event_structure() {
 
 // Note: Location object is browser-specific and not available in this test context
 // Location tests would pass in actual worker contexts but not in unit test environment
-// #[test]
-// fn test_location_properties() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof location === 'object';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_location_properties() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof location === 'object';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_location_href() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof location.href === 'string';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_location_href() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof location.href === 'string';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_location_origin() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof location.origin === 'string';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_location_origin() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof location.origin === 'string';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_location_protocol() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof location.protocol === 'string';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_location_protocol() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof location.protocol === 'string';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_location_host() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof location.host === 'string';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_location_host() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof location.host === 'string';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // Worker Error Handling Tests
@@ -379,34 +379,33 @@ fn test_worker_scope_isolation() {
 // Worker Event Target Tests
 // ============================================================================
 
-// Note: Global addEventListener/removeEventListener/dispatchEvent not yet exposed on globalThis
-// These would be available in actual worker contexts via WorkerGlobalScope
-// #[test]
-// fn test_addeventlistener_in_worker() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof addEventListener === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+// Note: Global addEventListener/removeEventListener/dispatchEvent now exposed on globalThis
+#[test]
+fn test_addeventlistener_in_worker() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof addEventListener === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_removeeventlistener_in_worker() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof removeEventListener === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_removeeventlistener_in_worker() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof removeEventListener === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_dispatchevent_in_worker() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof dispatchEvent === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_dispatchevent_in_worker() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof dispatchEvent === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // Crypto in Worker Context Tests
@@ -443,25 +442,24 @@ fn test_crypto_randomuuid_in_worker() {
 // Performance API in Worker Context Tests
 // ============================================================================
 
-// Note: Performance API not yet exposed as global
-// It exists as Performance constructor but needs global instance
-// #[test]
-// fn test_performance_in_worker() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof performance === 'object';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+// Note: Performance API now exposed as global
+#[test]
+fn test_performance_in_worker() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof performance === 'object';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
-// #[test]
-// fn test_performance_now_in_worker() {
-//     let mut context = create_test_context();
-//     let result = context.eval(Source::from_bytes(r#"
-//         typeof performance.now === 'function';
-//     "#)).unwrap();
-//     assert_eq!(result.to_boolean(), true);
-// }
+#[test]
+fn test_performance_now_in_worker() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof performance.now === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
 
 // ============================================================================
 // Integration Tests

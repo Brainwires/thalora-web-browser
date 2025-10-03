@@ -86,6 +86,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     browser::navigator::Navigator::init(&realm);
     browser::window::Window::init(&realm);
     browser::history::History::init(&realm);
+    browser::location::Location::init(&realm);
     browser::performance::Performance::init(&realm);
 
     // Initialize Storage APIs
@@ -636,6 +637,18 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     let check_storage = navigator_obj.get(boa_engine::js_string!("storage"), context).unwrap();
     eprintln!("DEBUG: After setting navigator.storage, get('storage') = {:?}", check_storage);
 
+    // Set navigator.locks as a value property (not accessor) for proper descriptor
+    navigator_obj.define_property_or_throw(
+        boa_engine::js_string!("locks"),
+        boa_engine::property::PropertyDescriptor::builder()
+            .value(lock_manager_obj)
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    ).expect("failed to set navigator.locks");
+
     let navigator_instance: boa_engine::JsValue = navigator_obj.into();
 
     // Now set navigator on the window object (after setting storage and locks)
@@ -650,6 +663,78 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // Also set as global navigator
     global_object.set(boa_engine::js_string!("navigator"), navigator_instance.clone(), false, context)
         .expect("failed to set global navigator");
+
+    // Create and set global location object
+    let location_constructor = context.intrinsics().constructors().location().constructor();
+    let location_instance = browser::location::Location::constructor(
+        &location_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+    global_object.set(boa_engine::js_string!("location"), location_instance, false, context)
+        .expect("failed to set global location");
+
+    // Create and set global performance object
+    let performance_instance = browser::performance::create_performance_object(context)?;
+    global_object.set(boa_engine::js_string!("performance"), performance_instance, false, context)
+        .expect("failed to set global performance");
+
+    // Add EventTarget functionality to globalThis for WorkerGlobalScope compatibility
+    // Store the global event target as a hidden non-enumerable property on globalThis
+    let global_event_target = events::event_target::EventTarget::create(context)?;
+    let global_event_target_value: boa_engine::JsValue = global_event_target.clone().into();
+    global_object.insert_property(
+        boa_engine::js_string!("__globalEventTarget__"),
+        boa_engine::property::PropertyDescriptor::builder()
+            .value(global_event_target_value)
+            .writable(false)
+            .enumerable(false)
+            .configurable(false)
+            .build()
+    );
+
+    // Create wrapper functions that retrieve the hidden event target and delegate to it
+    let add_listener_fn = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            let global = context.global_object();
+            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            events::event_target::EventTarget::add_event_listener(&event_target, args, context)
+        }
+    )
+    .name(boa_engine::js_string!("addEventListener"))
+    .length(2)
+    .build();
+    global_object.set(boa_engine::js_string!("addEventListener"), add_listener_fn, false, context)
+        .expect("failed to set global addEventListener");
+
+    let remove_listener_fn = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            let global = context.global_object();
+            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            events::event_target::EventTarget::remove_event_listener(&event_target, args, context)
+        }
+    )
+    .name(boa_engine::js_string!("removeEventListener"))
+    .length(2)
+    .build();
+    global_object.set(boa_engine::js_string!("removeEventListener"), remove_listener_fn, false, context)
+        .expect("failed to set global removeEventListener");
+
+    let dispatch_fn = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            let global = context.global_object();
+            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            events::event_target::EventTarget::dispatch_event(&event_target, args, context)
+        }
+    )
+    .name(boa_engine::js_string!("dispatchEvent"))
+    .length(1)
+    .build();
+    global_object.set(boa_engine::js_string!("dispatchEvent"), dispatch_fn, false, context)
+        .expect("failed to set global dispatchEvent");
 
     // Create localStorage and sessionStorage instances
     // Storage constructor cannot be called directly, so we create instances manually

@@ -242,7 +242,7 @@ impl BuiltInConstructor for Performance {
 }
 
 /// Create a performance object instance for global scope
-pub(crate) fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
+pub fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
     let performance_obj = JsObject::with_object_proto(context.intrinsics());
 
     // Add methods as function objects

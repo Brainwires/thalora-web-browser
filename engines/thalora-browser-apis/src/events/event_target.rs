@@ -190,7 +190,7 @@ impl EventTarget {
     }
 
     /// Static method implementations for BuiltInBuilder
-    fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    pub fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("EventTarget.addEventListener called on non-object")
         })?;
@@ -235,7 +235,7 @@ impl EventTarget {
         Ok(JsValue::undefined())
     }
 
-    fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    pub fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("EventTarget.removeEventListener called on non-object")
         })?;
@@ -266,7 +266,7 @@ impl EventTarget {
         Ok(JsValue::undefined())
     }
 
-    fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    pub fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("EventTarget.dispatchEvent called on non-object")
         })?;

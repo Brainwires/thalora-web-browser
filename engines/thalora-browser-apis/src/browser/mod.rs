@@ -1,7 +1,8 @@
-//! Browser objects - Window, Navigator, History, Performance
+//! Browser objects - Window, Navigator, History, Performance, Location
 
 pub mod frame_selection;
 pub mod history;
+pub mod location;
 pub mod navigator;
 pub mod performance;
 pub mod selection;
