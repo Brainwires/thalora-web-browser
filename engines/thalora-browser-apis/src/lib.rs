@@ -66,6 +66,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // Initialize Timer APIs (foundational for async operations)
     timers::timers::Timers::init(context);
 
+    // Initialize Event APIs (foundational for DOM)
+    events::event::Event::init(&realm);
+    events::event_target::EventTarget::init(&realm);
+
     // Initialize DOM APIs
     dom::node::Node::init(&realm);
     dom::attr::Attr::init(&realm);
@@ -100,6 +104,27 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         browser::navigator::Navigator::NAME,
         PropertyDescriptor::builder()
             .value(browser::navigator::Navigator::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Event APIs
+    global_object.define_property_or_throw(
+        events::event::Event::NAME,
+        PropertyDescriptor::builder()
+            .value(events::event::Event::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::event_target::EventTarget::NAME,
+        PropertyDescriptor::builder()
+            .value(events::event_target::EventTarget::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),

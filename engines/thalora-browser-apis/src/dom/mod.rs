@@ -12,3 +12,9 @@ pub mod nodelist;
 pub mod range;
 pub mod shadow;
 pub mod text;
+
+#[cfg(test)]
+mod document_tests;
+
+#[cfg(test)]
+mod element_tests;
