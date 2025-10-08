@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, js_string, JsValue, JsObject, Source};
+use thalora_browser_apis::boa_engine::{Context, js_string, JsValue, JsObject, Source};
 
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
@@ -48,7 +48,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
             eprintln!("🔍 DEBUG: Property '{}' doesn't exist, defining...", name);
             global.define_property_or_throw(
                 js_string!(name),
-                boa_engine::property::PropertyDescriptorBuilder::new()
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
                     .configurable(true)
                     .enumerable(true)
                     .writable(true)
@@ -104,7 +104,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         // Set document on window
         window_obj.define_property_or_throw(
             js_string!("document"),
-            boa_engine::property::PropertyDescriptorBuilder::new()
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
@@ -116,7 +116,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         // Set history on window
         window_obj.define_property_or_throw(
             js_string!("history"),
-            boa_engine::property::PropertyDescriptorBuilder::new()
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
@@ -128,7 +128,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         // Set window as self-reference
         window_obj.define_property_or_throw(
             js_string!("window"),
-            boa_engine::property::PropertyDescriptorBuilder::new()
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)
@@ -140,7 +140,7 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         // Set self as self-reference
         window_obj.define_property_or_throw(
             js_string!("self"),
-            boa_engine::property::PropertyDescriptorBuilder::new()
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
                 .configurable(true)
                 .enumerable(true)
                 .writable(true)

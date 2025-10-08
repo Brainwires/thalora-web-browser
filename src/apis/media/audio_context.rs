@@ -1,9 +1,9 @@
 // Minimal stub for audio_context API to unblock compilation.
-use boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
+use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
 use super::types::*;
 
 impl MediaManager {
-    pub fn setup_audio_context_api(&self, context: &mut Context) -> std::result::Result<(), boa_engine::JsError> {
+    pub fn setup_audio_context_api(&self, context: &mut Context) -> std::result::Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Minimal AudioContext constructor to satisfy feature-detection checks.
         let audio_context_constructor = unsafe {
             NativeFunction::from_closure(|_, _args, context| {

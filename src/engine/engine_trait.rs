@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde_json::Value;
-use boa_engine::js_string;
+use thalora_browser_apis::boa_engine::js_string;
 
 /// Global engine configuration
 #[derive(Debug, Clone)]
@@ -195,7 +195,7 @@ impl ThaloraBrowserEngine for BoaEngineWrapper {
 impl BoaEngineWrapper {
     // Remove the helper methods since we're using a simpler approach
 
-    fn boa_to_json_value(&self, js_value: boa_engine::JsValue) -> Result<Value> {
+    fn boa_to_json_value(&self, js_value: thalora_browser_apis::boa_engine::JsValue) -> Result<Value> {
         if js_value.is_undefined() || js_value.is_null() {
             Ok(Value::Null)
         } else if js_value.is_boolean() {
@@ -222,8 +222,8 @@ impl BoaEngineWrapper {
         }
     }
 
-    fn json_to_boa_value(&self, value: Value) -> Result<boa_engine::JsValue> {
-        use boa_engine::JsValue;
+    fn json_to_boa_value(&self, value: Value) -> Result<thalora_browser_apis::boa_engine::JsValue> {
+        use thalora_browser_apis::boa_engine::JsValue;
         
         match value {
             Value::Null => Ok(JsValue::null()),

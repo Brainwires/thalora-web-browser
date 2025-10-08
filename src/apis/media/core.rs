@@ -1,11 +1,11 @@
 use anyhow::Result;
-use boa_engine::Context;
+use thalora_browser_apis::boa_engine::Context;
 use super::types::*;
 use rodio::DeviceTrait;
 
 impl MediaManager {
     /// Setup real Media APIs in global scope
-    pub fn setup_media_apis(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    pub fn setup_media_apis(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         self.setup_audio_context_api(context)?;
         self.setup_audio_element_api(context)?;
         self.setup_media_recorder_api(context)?;

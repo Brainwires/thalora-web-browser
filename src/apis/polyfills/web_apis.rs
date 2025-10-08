@@ -1,4 +1,4 @@
-use boa_engine::{Context, JsResult, Source};
+use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 // Import the modular polyfill components
 use super::{

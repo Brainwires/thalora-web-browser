@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
+use thalora_browser_apis::boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -35,7 +35,7 @@ impl GeolocationManager {
     }
 
     /// Setup real Geolocation API in navigator object
-    pub fn setup_geolocation_api(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    pub fn setup_geolocation_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Create navigator object if it doesn't exist
         let navigator = if let Ok(nav) = context.global_object().get(js_string!("navigator"), context) {
             nav.as_object().map(|obj| obj.clone()).unwrap_or_else(|| JsObject::default())
@@ -50,14 +50,14 @@ impl GeolocationManager {
         // Real getCurrentPosition with actual location detection
         let get_current_position_fn = unsafe { NativeFunction::from_closure(|_, args, context| {
             if args.is_empty() {
-                return Err(boa_engine::JsNativeError::typ()
+                return Err(thalora_browser_apis::boa_engine::JsNativeError::typ()
                     .with_message("getCurrentPosition requires a success callback")
                     .into());
             }
 
             let success_callback = &args[0];
             if !success_callback.is_callable() {
-                return Err(boa_engine::JsNativeError::typ()
+                return Err(thalora_browser_apis::boa_engine::JsNativeError::typ()
                     .with_message("First argument must be a function")
                     .into());
             }
@@ -99,14 +99,14 @@ impl GeolocationManager {
         let next_watch_id = Arc::clone(&self.next_watch_id);
         let watch_position_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
             if args.is_empty() {
-                return Err(boa_engine::JsNativeError::typ()
+                return Err(thalora_browser_apis::boa_engine::JsNativeError::typ()
                     .with_message("watchPosition requires a success callback")
                     .into());
             }
 
             let success_callback = &args[0];
             if !success_callback.is_callable() {
-                return Err(boa_engine::JsNativeError::typ()
+                return Err(thalora_browser_apis::boa_engine::JsNativeError::typ()
                     .with_message("First argument must be a function")
                     .into());
             }

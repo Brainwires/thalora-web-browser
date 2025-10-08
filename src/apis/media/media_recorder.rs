@@ -1,10 +1,10 @@
 use anyhow::Result;
-use boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
+use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
 use std::sync::{Arc, Mutex};
 use super::types::*;
 
 impl MediaManager {
-    pub fn setup_media_recorder_api(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    pub fn setup_media_recorder_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let media_recorders = Arc::clone(&self.media_recorders);
 
         // Real MediaRecorder constructor with actual recording
@@ -66,7 +66,7 @@ impl MediaManager {
         media_recorders: &Arc<Mutex<std::collections::HashMap<String, MediaRecorderReal>>>,
         recorder_id: &str,
         context: &mut Context,
-    ) -> Result<(), boa_engine::JsError> {
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real start method - actually begins recording
             let media_recorders_start = Arc::clone(media_recorders);
             let recorder_id_start = recorder_id.to_string();
@@ -123,7 +123,7 @@ impl MediaManager {
         Ok(())
     }
 
-    fn setup_media_recorder_static_methods(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    fn setup_media_recorder_static_methods(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real MediaRecorder.isTypeSupported static method
         let is_type_supported_fn = unsafe {
             NativeFunction::from_closure(|_, args, _context| {

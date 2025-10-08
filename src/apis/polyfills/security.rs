@@ -1,4 +1,4 @@
-use boa_engine::{Context, JsResult, Source};
+use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 /// Setup security-related polyfills and protections
 pub fn setup_security_apis(context: &mut Context) -> JsResult<()> {

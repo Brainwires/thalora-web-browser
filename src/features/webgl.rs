@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string};
+use thalora_browser_apis::boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string};
 use std::collections::HashMap;
 use std::hash::Hasher;
 
@@ -26,7 +26,7 @@ impl WebGLManager {
     }
 
     /// Setup WebGL context with realistic browser fingerprints
-    pub fn setup_webgl_context(&self, context: &mut Context, canvas_element: &JsObject) -> Result<(), boa_engine::JsError> {
+    pub fn setup_webgl_context(&self, context: &mut Context, canvas_element: &JsObject) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Enhanced getContext method that supports WebGL
     let get_context_fn = unsafe { NativeFunction::from_closure(|_, args, ctx| {
             if args.is_empty() {
@@ -47,7 +47,7 @@ impl WebGLManager {
         Ok(())
     }
 
-    fn create_2d_context(context: &mut Context) -> Result<JsValue, boa_engine::JsError> {
+    fn create_2d_context(context: &mut Context) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
         let ctx_2d = JsObject::default();
 
         // Basic 2D context methods
@@ -66,7 +66,7 @@ impl WebGLManager {
         Ok(JsValue::from(ctx_2d))
     }
 
-    fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> Result<JsValue, boa_engine::JsError> {
+    fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
         let gl_context = JsObject::default();
 
         // WebGL constants (subset of most commonly used)

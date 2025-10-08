@@ -1,10 +1,10 @@
 use anyhow::Result;
-use boa_engine::{js_string, Context, JsObject, JsValue, NativeFunction};
+use thalora_browser_apis::boa_engine::{js_string, Context, JsObject, JsValue, NativeFunction};
 use std::sync::{Arc, Mutex};
 use super::types::*;
 
 impl MediaManager {
-    pub fn setup_audio_element_api(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    pub fn setup_audio_element_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let audio_elements = Arc::clone(&self.audio_elements);
 
         // Real Audio constructor with actual file loading
@@ -62,7 +62,7 @@ impl MediaManager {
         context.register_global_property(
             js_string!("Audio"),
             JsValue::from(audio_constructor.to_js_function(context.realm())),
-            boa_engine::property::Attribute::all(),
+            thalora_browser_apis::boa_engine::property::Attribute::all(),
         )?;
 
         Ok(())
@@ -73,7 +73,7 @@ impl MediaManager {
         audio_elements: &Arc<Mutex<std::collections::HashMap<String, AudioElementReal>>>,
         audio_id: &str,
         context: &mut Context,
-    ) -> Result<(), boa_engine::JsError> {
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real play method - actually plays audio
         let audio_elements_play = Arc::clone(audio_elements);
         let audio_id_play = audio_id.to_string();

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
+use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -202,7 +202,7 @@ impl ServiceWorkerManager {
     pub fn setup_service_worker_api(
         &self,
         context: &mut Context,
-    ) -> Result<(), boa_engine::JsError> {
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Get navigator object
         let navigator_obj = context
             .global_object()
@@ -218,7 +218,7 @@ impl ServiceWorkerManager {
                     let workers_clone = Arc::clone(&self.active_workers);
                     move |_, args, context| {
                         if args.is_empty() {
-                            return Err(boa_engine::JsNativeError::typ()
+                            return Err(thalora_browser_apis::boa_engine::JsNativeError::typ()
                                 .with_message("register() requires a script URL")
                                 .into());
                         }
@@ -369,7 +369,7 @@ impl ServiceWorkerManager {
     }
 
     /// Setup Cache API for Service Workers
-    fn setup_cache_api(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    fn setup_cache_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let caches_obj = JsObject::default();
 
         // caches.open(cacheName)
@@ -377,7 +377,7 @@ impl ServiceWorkerManager {
         let open_fn = unsafe {
             NativeFunction::from_closure(move |_, args, context| {
                 if args.is_empty() {
-                    return Err(boa_engine::JsNativeError::typ()
+                    return Err(thalora_browser_apis::boa_engine::JsNativeError::typ()
                         .with_message("caches.open() requires a cache name")
                         .into());
                 }
@@ -555,7 +555,7 @@ impl ServiceWorkerManager {
     }
 
     /// Setup Push API for notifications
-    fn setup_push_api(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    fn setup_push_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Setup PushManager
         let push_manager_obj = JsObject::default();
 

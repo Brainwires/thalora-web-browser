@@ -31,6 +31,9 @@ taffy = "0.5"
 # Browser APIs - extracted from Boa engine for modular architecture
 thalora-browser-apis = { path = "engines/thalora-browser-apis" }
 
+# Boa engine - required for macros like js_string!
+boa_engine = { path = "engines/boa/core/engine" }
+
 # Async trait support for engine abstraction
 async-trait = "0.1"
 

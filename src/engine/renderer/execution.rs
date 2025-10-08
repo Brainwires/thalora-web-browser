@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use boa_engine::Source;
+use thalora_browser_apis::boa_engine::Source;
 use std::time::Duration;
 use crate::engine::renderer::core::RustRenderer;
 
@@ -53,8 +53,8 @@ impl RustRenderer {
     }
 
     /// Execute JavaScript safely for tests and polyfill environments
-    pub async fn execute_javascript_safely(&mut self, js_code: &str) -> Result<boa_engine::JsValue> {
-        use boa_engine::Source;
+    pub async fn execute_javascript_safely(&mut self, js_code: &str) -> Result<thalora_browser_apis::boa_engine::JsValue> {
+        use thalora_browser_apis::boa_engine::Source;
 
         // Security check
         if !self.is_safe_javascript(js_code) {

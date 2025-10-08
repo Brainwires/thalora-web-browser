@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use boa_engine::{Context, JsValue, Source, js_string, module::IdleModuleLoader};
+use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string, module::IdleModuleLoader};
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ pub struct JavaScriptEngine {
     context: Context,
     timers: Arc<Mutex<HashMap<u32, TimerHandle>>>,
     next_timer_id: Arc<Mutex<u32>>,
-    promises: Vec<boa_engine::JsObject>,
+    promises: Vec<thalora_browser_apis::boa_engine::JsObject>,
     start_time: Instant,
     syntax_transformer: SyntaxTransformer,
 }
