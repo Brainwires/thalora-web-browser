@@ -62,7 +62,7 @@ impl LockManagerSnapshot {
     /// Convert to JavaScript object
     pub fn to_js_object(&self, context: &mut Context) -> JsResult<JsValue> {
         // Convert held locks to JS array
-        let held_array = boa_engine::builtins::Array::array_create(
+        let held_array = boa_engine::builtins::array::Array::array_create(
             self.held.len() as u64,
             None,
             context,
@@ -73,7 +73,7 @@ impl LockManagerSnapshot {
         }
 
         // Convert pending locks to JS array
-        let pending_array = boa_engine::builtins::Array::array_create(
+        let pending_array = boa_engine::builtins::array::Array::array_create(
             self.pending.len() as u64,
             None,
             context,

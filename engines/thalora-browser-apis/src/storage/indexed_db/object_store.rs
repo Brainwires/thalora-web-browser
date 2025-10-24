@@ -517,7 +517,7 @@ impl IDBObjectStore {
         };
 
         // Parse values to JS array
-        use boa_engine::builtins::Array;
+        use boa_engine::builtins::array::Array;
         let array = Array::array_create(values.len() as u64, None, context)?;
 
         for (i, bytes) in values.iter().enumerate() {
@@ -672,7 +672,10 @@ impl BuiltInObject for IDBObjectStore {
 }
 
 impl BuiltInConstructor for IDBObjectStore {
-    const LENGTH: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 20;  // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 2;  // Constructor properties
+
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |intrinsics| intrinsics.object();

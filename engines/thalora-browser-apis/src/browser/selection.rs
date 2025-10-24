@@ -256,9 +256,9 @@ impl BuiltInObject for Selection {
 }
 
 impl BuiltInConstructor for Selection {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::selection;
@@ -556,7 +556,7 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
         }
 
         // Create array of composed ranges
-        let array = boa_engine::builtins::Array::array_create(composed_ranges.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(composed_ranges.len() as u64, None, context)?;
         for (i, range) in composed_ranges.into_iter().enumerate() {
             array.set(i, range, true, context)?;
         }

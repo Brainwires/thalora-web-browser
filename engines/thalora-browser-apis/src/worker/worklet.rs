@@ -77,9 +77,9 @@ impl BuiltInObject for Worklet {
 }
 
 impl BuiltInConstructor for Worklet {
-    const P: usize = 1; // prototype property capacity
-    const SP: usize = 0; // static property capacity
-    const LENGTH: usize = 0; // no required parameters
+    const PROTOTYPE_STORAGE_SLOTS: usize = 1; // prototype property capacity
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0; // static property capacity
+    const CONSTRUCTOR_ARGUMENTS: usize = 0; // no required parameters
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::worklet;

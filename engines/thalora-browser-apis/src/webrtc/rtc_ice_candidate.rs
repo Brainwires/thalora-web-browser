@@ -256,9 +256,9 @@ impl BuiltInObject for RTCIceCandidateBuiltin {
 }
 
 impl BuiltInConstructor for RTCIceCandidateBuiltin {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::rtc_ice_candidate;

@@ -61,9 +61,9 @@ impl BuiltInObject for MessageEvent {
 }
 
 impl BuiltInConstructor for MessageEvent {
-    const LENGTH: usize = 1;
-    const P: usize = 1;
-    const SP: usize = 1;
+    const CONSTRUCTOR_ARGUMENTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 1;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 1;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::message_event;

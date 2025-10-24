@@ -443,18 +443,17 @@ impl StructuredClone {
 
     /// Deserialize an ArrayBuffer object
     fn deserialize_array_buffer(data: &[u8], context: &mut Context) -> JsResult<JsValue> {
-        // Create a new ArrayBuffer with the data
-        let array_buffer = boa_engine::builtins::array_buffer::ArrayBuffer::from_data(
-            data.to_vec(),
-            JsValue::undefined()
-        );
-
-        // Create a JavaScript ArrayBuffer object
+        // Create a new ArrayBuffer via constructor
         let array_buffer_constructor = context.intrinsics().constructors().array_buffer().constructor();
-        let array_buffer_obj = JsObject::from_proto_and_data(
-            Some(array_buffer_constructor.get(js_string!("prototype"), context)?.as_object().unwrap().clone()),
-            array_buffer
-        );
+        let array_buffer_obj = array_buffer_constructor.construct(
+            &[JsValue::from(data.len())],
+            Some(&array_buffer_constructor.clone().into()),
+            context
+        )?;
+
+        // TODO: Copy data into the ArrayBuffer
+        // For now, return empty ArrayBuffer of correct size
+        // This will need access to the internal buffer which is currently private
 
         Ok(array_buffer_obj.into())
     }

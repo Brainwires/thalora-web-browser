@@ -7,7 +7,7 @@
 
 
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, Json},
+    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, json::Json},
     object::{JsObject, builtins::JsPromise, PROTOTYPE, internal_methods::get_prototype_from_constructor},
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string,
@@ -252,9 +252,9 @@ impl BuiltInObject for Request {
 }
 
 impl BuiltInConstructor for Request {
-    const LENGTH: usize = 1;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::request;
@@ -366,9 +366,9 @@ impl BuiltInObject for Response {
 }
 
 impl BuiltInConstructor for Response {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::response;
@@ -565,9 +565,9 @@ impl BuiltInObject for Headers {
 }
 
 impl BuiltInConstructor for Headers {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::headers;

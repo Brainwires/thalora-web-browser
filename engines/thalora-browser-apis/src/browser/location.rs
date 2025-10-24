@@ -183,9 +183,9 @@ impl BuiltInObject for Location {
 }
 
 impl BuiltInConstructor for Location {
-    const LENGTH: usize = 0;
-    const P: usize = 9; // 9 accessors
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 9; // 9 accessors
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::location;

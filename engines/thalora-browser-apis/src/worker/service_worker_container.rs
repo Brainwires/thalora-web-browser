@@ -183,7 +183,7 @@ impl ServiceWorkerContainer {
 
         // Return a Promise that resolves to the registration
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        let promise = boa_engine::builtins::Promise::promise_resolve(
+        let promise = boa_engine::builtins::promise::Promise::promise_resolve(
             &promise_constructor,
             registration_obj.into(),
             context,
@@ -221,7 +221,7 @@ impl ServiceWorkerContainer {
 
                         // Return a Promise that resolves to the registration
                         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                        let promise = boa_engine::builtins::Promise::promise_resolve(
+                        let promise = boa_engine::builtins::promise::Promise::promise_resolve(
                             &promise_constructor,
                             registration_obj.into(),
                             context,
@@ -234,7 +234,7 @@ impl ServiceWorkerContainer {
 
         // No registration found - return promise resolving to undefined
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        let promise = boa_engine::builtins::Promise::promise_resolve(
+        let promise = boa_engine::builtins::promise::Promise::promise_resolve(
             &promise_constructor,
             JsValue::undefined(),
             context,
@@ -264,14 +264,14 @@ impl ServiceWorkerContainer {
         }
 
         // Create array of registrations
-        let array = boa_engine::builtins::Array::array_create(registration_objects.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(registration_objects.len() as u64, None, context)?;
         for (i, reg_obj) in registration_objects.into_iter().enumerate() {
             array.set(i, reg_obj, true, context)?;
         }
 
         // Return promise resolving to array
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        let promise = boa_engine::builtins::Promise::promise_resolve(
+        let promise = boa_engine::builtins::promise::Promise::promise_resolve(
             &promise_constructor,
             array.into(),
             context,
@@ -300,7 +300,7 @@ impl ServiceWorkerContainer {
 
         // Create ready promise if it doesn't exist - this should resolve when a service worker becomes active
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        let promise = boa_engine::builtins::Promise::promise_resolve(
+        let promise = boa_engine::builtins::promise::Promise::promise_resolve(
             &promise_constructor,
             JsValue::undefined(), // For now, resolve with undefined since no service worker is active
             context,

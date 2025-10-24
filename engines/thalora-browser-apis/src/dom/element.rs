@@ -186,9 +186,9 @@ impl BuiltInObject for Element {
 }
 
 impl BuiltInConstructor for Element {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::element;
@@ -1100,7 +1100,7 @@ fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
 
     };
 
-    use boa_engine::builtins::Array;
+    use boa_engine::builtins::array::Array;
     let children_values: Vec<JsValue> = children.into_iter().map(|child| child.into()).collect();
     let array = Array::create_array_from_list(children_values, context);
     Ok(array.into())
@@ -1152,7 +1152,7 @@ fn get_style(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     }
 
     // Create a style object with getters/setters for CSS properties
-    let style_obj = JsObject::default();
+    let style_obj = JsObject::default(context.intrinsics());
 
     // Add common CSS properties as dynamic getters/setters
     let css_properties = ["width", "height", "color", "background-color", "display",

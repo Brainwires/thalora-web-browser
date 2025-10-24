@@ -55,9 +55,9 @@ impl BuiltInObject for PageSwapEvent {
 }
 
 impl BuiltInConstructor for PageSwapEvent {
-    const LENGTH: usize = 1;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::pageswap_event;
@@ -226,7 +226,7 @@ pub fn create_pageswap_event(
     view_transition: Option<JsValue>,
 ) -> JsResult<JsValue> {
     // Create event init dictionary
-    let event_init = JsObject::default();
+    let event_init = JsObject::default(context.intrinsics());
 
     if let Some(activation_val) = activation {
         event_init.define_property_or_throw(

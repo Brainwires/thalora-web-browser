@@ -271,11 +271,11 @@ impl BuiltInObject for FileReader {
 }
 
 impl BuiltInConstructor for FileReader {
-    const LENGTH: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::file_reader;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     /// `new FileReader()`
     fn constructor(

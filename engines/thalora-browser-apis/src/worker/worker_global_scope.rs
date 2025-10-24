@@ -69,15 +69,15 @@ pub enum WorkerGlobalScopeType {
 /// Worker location information
 #[derive(Debug, Clone, Trace, Finalize)]
 pub struct WorkerLocation {
-    href: String,
-    origin: String,
-    protocol: String,
-    host: String,
-    hostname: String,
-    port: String,
-    pathname: String,
-    search: String,
-    hash: String,
+    pub href: String,
+    pub origin: String,
+    pub protocol: String,
+    pub host: String,
+    pub hostname: String,
+    pub port: String,
+    pub pathname: String,
+    pub search: String,
+    pub hash: String,
 }
 
 /// Message between worker and main thread
@@ -130,6 +130,11 @@ impl WorkerGlobalScope {
     /// Get the scope ID
     pub fn get_scope_id(&self) -> usize {
         self.scope_id
+    }
+
+    /// Get the worker location (for script URL resolution)
+    pub fn get_location(&self) -> &WorkerLocation {
+        &self.location
     }
 
     /// Initialize the global scope in a JavaScript context
@@ -252,7 +257,7 @@ impl WorkerGlobalScope {
                 event_obj.set(js_string!("cancelable"), false, false, context)?;
 
                 // Add ports array with the connecting port
-                let ports_array = boa_engine::builtins::Array::array_create(1, None, context)?;
+                let ports_array = boa_engine::builtins::array::Array::array_create(1, None, context)?;
                 ports_array.set(0, port_arg.clone(), true, context)?;
                 event_obj.set(js_string!("ports"), ports_array, false, context)?;
 
@@ -638,11 +643,32 @@ impl WorkerGlobalScope {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        for arg in args {
-            let url = arg.to_string(context)?;
-            eprintln!("importScripts called with: {}", url.to_std_string_escaped());
-            // TODO: Actually fetch and execute the imported script
-        }
+        // Get the base URL from the worker global scope
+        let global = context.global_object();
+        let base_url = if let Ok(location) = global.get(js_string!("location"), context) {
+            if let Some(loc_obj) = location.as_object() {
+                if let Ok(href) = loc_obj.get(js_string!("href"), context) {
+                    Some(href.to_string(context)?.to_std_string_escaped())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Convert all arguments to URLs
+        let urls: Vec<String> = args.iter()
+            .map(|arg| arg.to_string(context).map(|s| s.to_std_string_escaped()))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        eprintln!("importScripts called with {} URL(s)", urls.len());
+
+        // Use the real import_scripts implementation
+        crate::worker::import_scripts::import_scripts_impl(urls, base_url, context)?;
+
         Ok(JsValue::undefined())
     }
 }

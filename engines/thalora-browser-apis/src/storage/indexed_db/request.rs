@@ -413,7 +413,10 @@ impl BuiltInObject for IDBRequest {
 }
 
 impl BuiltInConstructor for IDBRequest {
-    const LENGTH: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 8;  // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 2;  // Constructor properties
+
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| {

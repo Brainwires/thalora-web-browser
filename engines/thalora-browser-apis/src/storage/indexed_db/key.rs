@@ -13,7 +13,7 @@
 
 use boa_engine::{
     Context, JsNativeError, JsResult, JsString, JsValue,
-    builtins::Array,
+    builtins::array::Array,
     js_string,
     object::JsObject,
 };

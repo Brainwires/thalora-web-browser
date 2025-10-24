@@ -163,7 +163,7 @@ impl NodeListData {
         // Create an array iterator over the indices
         let length = nodelist_data.length();
         let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
-        let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(length as u64, None, context)?;
 
         for (i, index) in indices.iter().enumerate() {
             array.create_data_property_or_throw(i, index.clone(), context)?;
@@ -187,7 +187,7 @@ impl NodeListData {
 
         // Create an array with the node values
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
             array.create_data_property_or_throw(i, node.clone(), context)?;
@@ -211,10 +211,10 @@ impl NodeListData {
 
         // Create an array of [index, node] pairs
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
-            let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
+            let entry = boa_engine::builtins::array::Array::array_create(2, None, context)?;
             entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
             entry.create_data_property_or_throw(1, node.clone(), context)?;
             array.create_data_property_or_throw(i, entry, context)?;
@@ -309,7 +309,7 @@ impl NodeList {
 
         let length = nodelist_data.length();
         let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
-        let array = boa_engine::builtins::Array::array_create(length as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(length as u64, None, context)?;
 
         for (i, index) in indices.iter().enumerate() {
             array.create_data_property_or_throw(i, index.clone(), context)?;
@@ -329,7 +329,7 @@ impl NodeList {
         })?;
 
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
             array.create_data_property_or_throw(i, node.clone(), context)?;
@@ -349,10 +349,10 @@ impl NodeList {
         })?;
 
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
-            let entry = boa_engine::builtins::Array::array_create(2, None, context)?;
+            let entry = boa_engine::builtins::array::Array::array_create(2, None, context)?;
             entry.create_data_property_or_throw(0, JsValue::new(i), context)?;
             entry.create_data_property_or_throw(1, node.clone(), context)?;
             array.create_data_property_or_throw(i, entry, context)?;
@@ -395,9 +395,9 @@ impl BuiltInObject for NodeList {
 }
 
 impl BuiltInConstructor for NodeList {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::nodelist;

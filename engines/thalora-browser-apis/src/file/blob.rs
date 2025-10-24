@@ -34,7 +34,7 @@ fn pull_stream(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 /// Simple cancel function for blob streams
 fn cancel_stream(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
 }
 
 /// JavaScript `Blob` constructor implementation.
@@ -198,11 +198,11 @@ impl BuiltInObject for Blob {
 }
 
 impl BuiltInConstructor for Blob {
-    const LENGTH: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::blob;
-    const P: usize = 2;
-    const SP: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 2;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     /// `new Blob(array, options)`
     fn constructor(
@@ -465,7 +465,7 @@ impl Blob {
 
         // Return a resolved Promise with the text
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[text_value], context)
+        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[text_value], context)
     }
 
     /// `Blob.prototype.arrayBuffer()`
@@ -489,7 +489,7 @@ impl Blob {
 
         // Return resolved promise with ArrayBuffer
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[buffer_obj.into()], context)
+        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[buffer_obj.into()], context)
     }
 
 }

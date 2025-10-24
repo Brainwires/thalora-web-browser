@@ -193,7 +193,7 @@ impl IDBTransaction {
                 .with_message("'this' is not an IDBTransaction object"))?;
 
         // Create array of store names
-        use boa_engine::builtins::Array;
+        use boa_engine::builtins::array::Array;
         let array = Array::array_create(txn.object_store_names.len() as u64, None, context)?;
 
         for (i, name) in txn.object_store_names.iter().enumerate() {
@@ -518,7 +518,10 @@ impl BuiltInObject for IDBTransaction {
 }
 
 impl BuiltInConstructor for IDBTransaction {
-    const LENGTH: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 10;  // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 2;  // Constructor properties
+
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |intrinsics| intrinsics.object();

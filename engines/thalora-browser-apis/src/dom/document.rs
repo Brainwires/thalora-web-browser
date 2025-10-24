@@ -104,9 +104,9 @@ impl BuiltInObject for Document {
 }
 
 impl BuiltInConstructor for Document {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::document;
@@ -406,7 +406,7 @@ fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
         Ok(head.into())
     } else {
         // Create a new head element
-        let head_element = JsObject::default();
+        let head_element = JsObject::default(context.intrinsics());
 
         // Add tagName property
         head_element.define_property_or_throw(
@@ -468,7 +468,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     }
 
     // Add style property as empty object
-    let style_obj = JsObject::default();
+    let style_obj = JsObject::default(context.intrinsics());
     element_obj.define_property_or_throw(
         js_string!("style"),
         PropertyDescriptorBuilder::new()
@@ -483,11 +483,11 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     // Add Form-specific functionality for <form> elements
     if tag_name_upper == "FORM" {
         // Create elements collection that Google's code expects
-        let elements_collection = JsObject::default();
+        let elements_collection = JsObject::default(context.intrinsics());
 
         // Add common form controls as properties of elements collection
         // Google often checks for elements like 'q' (search query)
-        let q_element = JsObject::default();
+        let q_element = JsObject::default(context.intrinsics());
         q_element.define_property_or_throw(
             js_string!("value"),
             PropertyDescriptorBuilder::new()
@@ -923,7 +923,7 @@ fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -
     // Use real DOM implementation with scraper library to find all matching elements
     let elements = create_all_real_elements_from_html(context, &selector_str, &html_content)?;
 
-    use boa_engine::builtins::Array;
+    use boa_engine::builtins::array::Array;
     let array = Array::create_array_from_list(elements, context);
     Ok(array.into())
 }
@@ -1015,7 +1015,7 @@ fn start_view_transition(this: &JsValue, args: &[JsValue], context: &mut Context
     let callback = args.get_or_undefined(0);
 
     // Create transition object
-    let transition = JsObject::default();
+    let transition = JsObject::default(context.intrinsics());
 
     // Add finished property as resolved Promise
     let finished_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
@@ -1103,7 +1103,7 @@ fn canvas_get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -
     match context_type_str.as_str() {
         "2d" => {
             // Create a Canvas 2D rendering context object
-            let context_2d = JsObject::default();
+            let context_2d = JsObject::default(context.intrinsics());
 
             // Add Canvas 2D methods
             // Drawing rectangles
@@ -1395,7 +1395,7 @@ fn canvas_2d_measure_text(_this: &JsValue, args: &[JsValue], context: &mut Conte
     let text = args.get_or_undefined(0).to_string(context)?;
 
     // Create TextMetrics object
-    let metrics = JsObject::default();
+    let metrics = JsObject::default(context.intrinsics());
 
     // Calculate approximate width (very basic implementation)
     let text_width = text.to_std_string_escaped().len() as f64 * 6.0; // Rough estimate
@@ -1456,7 +1456,7 @@ fn canvas_2d_fill(_this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
 
 /// Create WebGL context with comprehensive method support
 fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsValue> {
-    let gl_context = JsObject::default();
+    let gl_context = JsObject::default(context.intrinsics());
 
     // WebGL constants (subset of most commonly used)
     gl_context.set(js_string!("VERTEX_SHADER"), JsValue::from(35633), false, context)?;
@@ -1469,19 +1469,19 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
 
     // Core WebGL methods
     let create_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-        let shader_obj = JsObject::default();
+        let shader_obj = JsObject::default(_context.intrinsics());
         Ok(JsValue::from(shader_obj))
     }) };
     gl_context.set(js_string!("createShader"), JsValue::from(create_shader_fn.to_js_function(context.realm())), false, context)?;
 
     let create_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-        let program_obj = JsObject::default();
+        let program_obj = JsObject::default(_context.intrinsics());
         Ok(JsValue::from(program_obj))
     }) };
     gl_context.set(js_string!("createProgram"), JsValue::from(create_program_fn.to_js_function(context.realm())), false, context)?;
 
     let create_buffer_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-        let buffer_obj = JsObject::default();
+        let buffer_obj = JsObject::default(_context.intrinsics());
         Ok(JsValue::from(buffer_obj))
     }) };
     gl_context.set(js_string!("createBuffer"), JsValue::from(create_buffer_fn.to_js_function(context.realm())), false, context)?;
@@ -1554,7 +1554,7 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
             "EXT_texture_filter_anisotropic" |
             "OES_element_index_uint" |
             "OES_standard_derivatives" => {
-                let ext_obj = JsObject::default();
+                let ext_obj = JsObject::default(context.intrinsics());
                 Ok(JsValue::from(ext_obj))
             },
             _ => Ok(JsValue::null())
@@ -1582,7 +1582,7 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
     // WebGL2 specific methods
     if is_webgl2 {
         let create_vertex_array_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-            let vao_obj = JsObject::default();
+            let vao_obj = JsObject::default(_context.intrinsics());
             Ok(JsValue::from(vao_obj))
         }) };
         gl_context.set(js_string!("createVertexArray"), JsValue::from(create_vertex_array_fn.to_js_function(context.realm())), false, context)?;

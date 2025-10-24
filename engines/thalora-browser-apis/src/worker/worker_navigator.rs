@@ -216,7 +216,7 @@ fn get_languages(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResu
     };
 
     // Create JavaScript array from languages
-    let js_array = boa_engine::builtins::Array::array_create(languages.len() as u64, None, context)?;
+    let js_array = boa_engine::builtins::array::Array::array_create(languages.len() as u64, None, context)?;
     for (i, lang) in languages.iter().enumerate() {
         js_array.set(i, js_string!(lang.clone()), true, context)?;
     }

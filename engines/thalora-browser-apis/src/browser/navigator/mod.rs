@@ -225,9 +225,9 @@ impl BuiltInObject for Navigator {
 }
 
 impl BuiltInConstructor for Navigator {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| constructors.navigator();
@@ -277,7 +277,7 @@ impl Navigator {
             JsValue::from(js_string!("en")),
         ];
 
-        let array = boa_engine::builtins::Array::array_create(languages.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(languages.len() as u64, None, context)?;
 
         for (i, lang) in languages.into_iter().enumerate() {
             array.create_data_property_or_throw(i, lang, context)?;
@@ -290,7 +290,7 @@ impl Navigator {
     fn plugins_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Return empty plugin array for security/privacy
         // Arrays already have a length property set to 0
-        let plugin_array = boa_engine::builtins::Array::array_create(0, None, context)?;
+        let plugin_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
         Ok(JsValue::from(plugin_array))
     }
 
@@ -298,7 +298,7 @@ impl Navigator {
     fn mime_types_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Return empty mime types array for security/privacy
         // Arrays already have a length property set to 0
-        let mime_array = boa_engine::builtins::Array::array_create(0, None, context)?;
+        let mime_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
         Ok(JsValue::from(mime_array))
     }
 

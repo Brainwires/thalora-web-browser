@@ -175,9 +175,9 @@ impl BuiltInObject for Window {
 }
 
 impl BuiltInConstructor for Window {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::window;
@@ -193,7 +193,7 @@ impl BuiltInConstructor for Window {
             context,
         )?;
 
-        let window_data = WindowData::new();
+        let window_data = WindowData::new(context);
 
         let window = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -223,12 +223,12 @@ pub struct WindowData {
 }
 
 impl WindowData {
-    fn new() -> Self {
+    fn new(context: &mut Context) -> Self {
         Self {
-            location: Arc::new(Mutex::new(JsObject::default())),
-            history: Arc::new(Mutex::new(JsObject::default())),
-            document: Arc::new(Mutex::new(JsObject::default())),
-            navigator: Arc::new(Mutex::new(JsObject::default())),
+            location: Arc::new(Mutex::new(JsObject::default(context.intrinsics()))),
+            history: Arc::new(Mutex::new(JsObject::default(context.intrinsics()))),
+            document: Arc::new(Mutex::new(JsObject::default(context.intrinsics()))),
+            navigator: Arc::new(Mutex::new(JsObject::default(context.intrinsics()))),
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             current_url: Arc::new(Mutex::new("about:blank".to_string())),
         }
@@ -888,7 +888,7 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
         let query_str = media_query.to_std_string_escaped();
 
         // Create MediaQueryList object
-        let media_query_list = JsObject::default();
+        let media_query_list = JsObject::default(context.intrinsics());
 
         // Parse and evaluate the media query
         let matches = evaluate_media_query(&query_str);
@@ -1209,7 +1209,7 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     }
 
     // Create Screen object
-    let screen = JsObject::default();
+    let screen = JsObject::default(context.intrinsics());
 
     // Default desktop screen dimensions (1920x1080)
     let width = 1920;
@@ -1292,7 +1292,7 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     )?;
 
     // Create orientation object
-    let orientation = JsObject::default();
+    let orientation = JsObject::default(context.intrinsics());
 
     // Add orientation properties
     orientation.define_property_or_throw(
@@ -1396,7 +1396,7 @@ fn screen_orientation_unlock(_this: &JsValue, _args: &[JsValue], context: &mut C
 
 /// Helper function to create fake plugin objects
 fn create_fake_plugin(context: &mut Context, name: &str, description: &str, suffix: &str) -> JsResult<JsValue> {
-    let plugin = JsObject::default();
+    let plugin = JsObject::default(context.intrinsics());
 
     // Add name property
     plugin.define_property_or_throw(
@@ -1451,7 +1451,7 @@ fn create_fake_plugin(context: &mut Context, name: &str, description: &str, suff
 
 /// Helper function to create fake MIME type objects
 fn create_fake_mime_type(context: &mut Context, type_name: &str, suffix: &str) -> JsResult<JsValue> {
-    let mime_type = JsObject::default();
+    let mime_type = JsObject::default(context.intrinsics());
 
     // Add type property
     mime_type.define_property_or_throw(
@@ -1508,10 +1508,10 @@ fn create_fake_mime_type(context: &mut Context, type_name: &str, suffix: &str) -
 /// `Window.prototype.chrome` getter - Chrome-specific APIs
 fn get_chrome(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Create Chrome object with common Chrome-specific APIs
-    let chrome = JsObject::default();
+    let chrome = JsObject::default(context.intrinsics());
 
     // Add runtime object (Chrome extension API)
-    let runtime = JsObject::default();
+    let runtime = JsObject::default(context.intrinsics());
 
     // Add onConnect property to runtime (for Chrome extensions)
     runtime.define_property_or_throw(
@@ -1556,7 +1556,7 @@ fn get_chrome(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     )?;
 
     // Add app object (Chrome Apps API)
-    let app = JsObject::default();
+    let app = JsObject::default(context.intrinsics());
 
     // Add isInstalled property
     app.define_property_or_throw(
@@ -1603,7 +1603,7 @@ fn get_chrome(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     // Add loadTimes method (deprecated but still checked)
     let load_times_func = BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
         // Return realistic Chrome loadTimes object
-        let load_times = JsObject::default();
+        let load_times = JsObject::default(context.intrinsics());
 
         load_times.define_property_or_throw(
             js_string!("requestTime"),

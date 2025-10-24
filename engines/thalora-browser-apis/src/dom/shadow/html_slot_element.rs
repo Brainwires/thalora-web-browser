@@ -237,7 +237,7 @@ impl HTMLSlotElementData {
         };
 
         // Convert to array
-        let array = boa_engine::builtins::Array::array_create(nodes.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
         for (i, node) in nodes.iter().enumerate() {
             array.create_data_property_or_throw(i, node.clone(), context)?;
         }
@@ -276,7 +276,7 @@ impl HTMLSlotElementData {
         };
 
         // Convert to array
-        let array = boa_engine::builtins::Array::array_create(elements.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(elements.len() as u64, None, context)?;
         for (i, element) in elements.iter().enumerate() {
             array.create_data_property_or_throw(i, element.clone(), context)?;
         }
@@ -383,9 +383,9 @@ impl BuiltInObject for HTMLSlotElement {
 }
 
 impl BuiltInConstructor for HTMLSlotElement {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::html_slot_element;

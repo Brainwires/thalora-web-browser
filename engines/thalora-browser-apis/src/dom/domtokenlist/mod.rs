@@ -243,9 +243,9 @@ impl BuiltInObject for DOMTokenList {
 }
 
 impl BuiltInConstructor for DOMTokenList {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::domtokenlist;
@@ -256,7 +256,7 @@ impl BuiltInConstructor for DOMTokenList {
         _context: &mut Context,
     ) -> JsResult<JsValue> {
         // DOMTokenList is not intended to be directly constructed in most engines; return an empty object
-        let obj = JsObject::default();
+        let obj = JsObject::default(_context.intrinsics());
         Ok(obj.into())
     }
 }

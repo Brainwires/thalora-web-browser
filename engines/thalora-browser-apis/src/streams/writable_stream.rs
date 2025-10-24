@@ -7,7 +7,7 @@
 //! WHATWG Streams Living Standard
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, Promise},
+    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, promise::Promise},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
     string::StaticJsStrings,
@@ -51,9 +51,9 @@ impl BuiltInObject for WritableStream {
 }
 
 impl BuiltInConstructor for WritableStream {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::writable_stream;

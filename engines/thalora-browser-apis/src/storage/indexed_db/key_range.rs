@@ -396,9 +396,9 @@ impl BuiltInObject for IDBKeyRange {
 }
 
 impl BuiltInConstructor for IDBKeyRange {
-    const LENGTH: usize = 0;
-    const SP: usize = 4; // 4 static methods: only, lowerBound, upperBound, bound
-    const P: usize = 5; // 4 accessors + 1 method (lower, upper, lowerOpen, upperOpen, includes)
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 4; // 4 static methods: only, lowerBound, upperBound, bound
+    const PROTOTYPE_STORAGE_SLOTS: usize = 5; // 4 accessors + 1 method (lower, upper, lowerOpen, upperOpen, includes)
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| {

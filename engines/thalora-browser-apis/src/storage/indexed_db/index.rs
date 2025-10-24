@@ -324,7 +324,7 @@ impl IDBIndex {
         };
 
         // Parse values to JS array
-        use boa_engine::builtins::Array;
+        use boa_engine::builtins::array::Array;
         let array = Array::array_create(values.len() as u64, None, context)?;
 
         for (i, bytes) in values.iter().enumerate() {
@@ -394,7 +394,7 @@ impl IDBIndex {
         };
 
         // Convert keys to JS array
-        use boa_engine::builtins::Array;
+        use boa_engine::builtins::array::Array;
         let array = Array::array_create(keys.len() as u64, None, context)?;
 
         for (i, key) in keys.iter().enumerate() {
@@ -613,7 +613,10 @@ impl BuiltInObject for IDBIndex {
 }
 
 impl BuiltInConstructor for IDBIndex {
-    const LENGTH: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 12;  // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 2;  // Constructor properties
+
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| {

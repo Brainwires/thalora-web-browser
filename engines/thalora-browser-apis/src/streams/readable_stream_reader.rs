@@ -5,7 +5,7 @@
 //! https://streams.spec.whatwg.org/
 
 use boa_engine::{
-    builtins::{BuiltInBuilder, Promise},
+    builtins::{BuiltInBuilder, promise::Promise},
     object::JsObject,
     value::JsValue,
     Context, JsData, JsNativeError, JsResult, js_string, JsArgs,
@@ -87,7 +87,7 @@ impl ReadableStreamDefaultReader {
                     result_obj.set(js_string!("done"), JsValue::from(false), true, context)?;
 
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
                 } else if stream_data.state == super::readable_stream::StreamState::Closed {
                     // Create result object { value: undefined, done: true }
                     let result_obj = JsObject::with_object_proto(context.intrinsics());
@@ -95,7 +95,7 @@ impl ReadableStreamDefaultReader {
                     result_obj.set(js_string!("done"), JsValue::from(true), true, context)?;
 
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
                 }
             }
         }
@@ -124,7 +124,7 @@ impl ReadableStreamDefaultReader {
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
     }
 
     /// `ReadableStreamDefaultReader.prototype.releaseLock()`
@@ -174,15 +174,15 @@ impl ReadableStreamDefaultReader {
             match stream_state {
                 super::readable_stream::StreamState::Closed => {
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
                 },
                 super::readable_stream::StreamState::Errored => {
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
                 },
                 _ => {
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
                 }
             }
         } else {
@@ -266,7 +266,7 @@ impl ReadableStreamBYOBReader {
                         result_obj.set(js_string!("value"), JsValue::undefined(), true, context)?;
                         result_obj.set(js_string!("done"), JsValue::from(true), true, context)?;
                         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
                     },
                     _ => {
                         // For BYOB reader, we'd need to handle the view parameter properly
@@ -275,7 +275,7 @@ impl ReadableStreamBYOBReader {
                         result_obj.set(js_string!("value"), _view.clone(), true, context)?;
                         result_obj.set(js_string!("done"), JsValue::from(false), true, context)?;
                         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
                     }
                 }
             }
@@ -304,7 +304,7 @@ impl ReadableStreamBYOBReader {
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
     }
 
     /// `ReadableStreamBYOBReader.prototype.releaseLock()`
@@ -354,15 +354,15 @@ impl ReadableStreamBYOBReader {
             match stream_state {
                 super::readable_stream::StreamState::Closed => {
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
                 },
                 super::readable_stream::StreamState::Errored => {
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
                 },
                 _ => {
                     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
                 }
             }
         } else {

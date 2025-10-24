@@ -11,7 +11,7 @@
 mod tests;
 
 use crate::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, Array},
+    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, array::Array},
     object::JsObject,
     value::JsValue,
     Context, JsArgs, JsResult, js_string,
@@ -326,9 +326,9 @@ impl BuiltInObject for Performance {
 }
 
 impl BuiltInConstructor for Performance {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&crate::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| constructors.performance();

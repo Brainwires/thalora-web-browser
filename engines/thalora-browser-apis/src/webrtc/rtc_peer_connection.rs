@@ -443,9 +443,9 @@ impl BuiltInObject for RTCPeerConnectionBuiltin {
 }
 
 impl BuiltInConstructor for RTCPeerConnectionBuiltin {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::rtc_peer_connection;
@@ -501,7 +501,7 @@ impl RTCPeerConnectionBuiltin {
             if let Some(_rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real offer creation
                 // For now, return a promise that resolves to a mock SDP offer
-                let offer_obj = JsObject::default();
+                let offer_obj = JsObject::default(_context.intrinsics());
                 offer_obj.set(
                     js_string!("type"),
                     JsValue::from(js_string!("offer")),
@@ -526,7 +526,7 @@ impl RTCPeerConnectionBuiltin {
         if let Some(object) = this.as_object() {
             if let Some(_rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real answer creation
-                let answer_obj = JsObject::default();
+                let answer_obj = JsObject::default(_context.intrinsics());
                 answer_obj.set(
                     js_string!("type"),
                     JsValue::from(js_string!("answer")),
@@ -588,7 +588,7 @@ impl RTCPeerConnectionBuiltin {
                 let label = args.get_or_undefined(0).to_string(_context)?;
 
                 // TODO: Implement real data channel creation
-                let data_channel_obj = JsObject::default();
+                let data_channel_obj = JsObject::default(_context.intrinsics());
                 data_channel_obj.set(
                     js_string!("label"),
                     JsValue::from(label),

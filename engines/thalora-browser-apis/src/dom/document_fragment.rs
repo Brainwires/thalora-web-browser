@@ -217,7 +217,7 @@ impl DocumentFragmentData {
         let children = fragment_data.get_children();
         // In a full implementation, this would return an HTMLCollection
         // For now, return an array-like object
-        let array = boa_engine::builtins::Array::array_create(children.len() as u64, None, _context)?;
+        let array = boa_engine::builtins::array::Array::array_create(children.len() as u64, None, _context)?;
         for (i, child) in children.iter().enumerate() {
             array.create_data_property_or_throw(i, child.clone(), _context)?;
         }
@@ -339,7 +339,7 @@ impl DocumentFragmentData {
         match fragment_data.query_selector_all_impl(selectors.to_std_string_escaped()) {
                 Ok(elements) => {
                     // Return as NodeList-like array
-                    let array = boa_engine::builtins::Array::array_create(elements.len() as u64, None, context)?;
+                    let array = boa_engine::builtins::array::Array::array_create(elements.len() as u64, None, context)?;
                     for (i, element) in elements.iter().enumerate() {
                         array.create_data_property_or_throw(i, element.clone(), context)?;
                     }
@@ -487,9 +487,9 @@ impl BuiltInObject for DocumentFragment {
 }
 
 impl BuiltInConstructor for DocumentFragment {
-    const LENGTH: usize = 0;
-    const P: usize = 0;
-    const SP: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::document_fragment;

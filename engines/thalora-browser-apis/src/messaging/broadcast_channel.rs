@@ -72,9 +72,9 @@ impl BuiltInObject for BroadcastChannel {
 }
 
 impl BuiltInConstructor for BroadcastChannel {
-    const LENGTH: usize = 1;
-    const P: usize = 2;
-    const SP: usize = 1;
+    const CONSTRUCTOR_ARGUMENTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 2;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 1;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::broadcast_channel;

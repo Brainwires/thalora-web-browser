@@ -125,9 +125,9 @@ impl BuiltInObject for ServiceWorker {
 }
 
 impl BuiltInConstructor for ServiceWorker {
-    const P: usize = 2; // prototype property capacity
-    const SP: usize = 0; // static property capacity
-    const LENGTH: usize = 1; // script URL required
+    const PROTOTYPE_STORAGE_SLOTS: usize = 2; // prototype property capacity
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0; // static property capacity
+    const CONSTRUCTOR_ARGUMENTS: usize = 1; // script URL required
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::service_worker;
