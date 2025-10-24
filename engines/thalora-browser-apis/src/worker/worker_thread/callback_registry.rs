@@ -73,10 +73,11 @@ mod tests {
         let mut context = Context::default();
 
         // Create a simple callback
-        let callback = FunctionObjectBuilder::new(
+        let callback_fn = FunctionObjectBuilder::new(
             context.realm(),
             boa_engine::NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::from(42)))
         ).build();
+        let callback = callback_fn.into();  // Convert JsFunction to JsObject
 
         // Store it
         let id = store_callback(callback, vec![]);

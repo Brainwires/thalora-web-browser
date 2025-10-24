@@ -114,7 +114,7 @@ impl WorkerThread {
 
         // Initialize the worker global scope
         let scope_type = WorkerGlobalScopeType::Dedicated;
-        let worker_scope = WorkerGlobalScope::new(scope_type, &config.script_url)?;
+        let worker_scope = WorkerGlobalScope::new(scope_type, &config.script_url, Some(event_tx.clone()))?;
         let worker_scope_arc = Arc::new(worker_scope);
 
         // Register the scope in the global registry

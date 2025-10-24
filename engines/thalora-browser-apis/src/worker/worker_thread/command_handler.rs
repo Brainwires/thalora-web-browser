@@ -1,6 +1,6 @@
 //! Command handling for worker threads
 
-use boa_engine::{Context, JsResult, JsValue};
+use boa_engine::{Context, JsResult, JsValue, JsNativeError};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crossbeam_channel::Sender;
@@ -39,12 +39,23 @@ pub fn handle_command(
         }
 
         WorkerCommand::PostMessage { message } => {
-            // Message is already structured-cloned, deserialize it
-            let _deserialized = structured_deserialize(&message, context)?;
+            // Forward the message to the WorkerGlobalScope's message channel
+            if let Some(sender) = worker_scope.get_main_thread_sender() {
+                use crate::worker::worker_global_scope::{WorkerMessage, MessageSource};
 
-            // Create a WorkerMessage and send to the worker scope
-            // The worker scope will dispatch the message event
-            // (This is handled by process_message_from_main in the event loop)
+                let worker_msg = WorkerMessage {
+                    data: message,
+                    ports: vec![],
+                    source: MessageSource::MainThread,
+                };
+
+                if let Err(e) = sender.send(worker_msg) {
+                    eprintln!("[Worker] Failed to send message to worker scope: {:?}", e);
+                    return Err(JsNativeError::error()
+                        .with_message("Failed to send message to worker")
+                        .into());
+                }
+            }
 
             Ok(true)
         }

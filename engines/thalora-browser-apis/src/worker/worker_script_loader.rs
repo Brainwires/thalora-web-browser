@@ -96,6 +96,7 @@ impl WorkerExecutionContext {
         let worker_global_scope = WorkerGlobalScope::new(
             WorkerGlobalScopeType::Dedicated,
             &self.script_url,
+            None,
         )?;
 
         // Initialize the worker global scope in the context
@@ -128,6 +129,7 @@ impl WorkerExecutionContext {
         let worker_global_scope = WorkerGlobalScope::new(
             WorkerGlobalScopeType::Dedicated,
             &self.script_url,
+            None,
         )?;
 
         // Initialize the worker global scope in the context
@@ -262,7 +264,7 @@ impl WorkerExecutionContext {
         };
 
         // Create WorkerGlobalScope
-        let global_scope = WorkerGlobalScope::new(scope_type, &self.script_url)?;
+        let global_scope = WorkerGlobalScope::new(scope_type, &self.script_url, None)?;
         let global_scope_arc = Arc::new(global_scope);
 
         // Register the global scope in the global registry for postMessage access
@@ -294,7 +296,7 @@ impl WorkerExecutionContext {
             _ => WorkerGlobalScopeType::Dedicated,
         };
 
-        let execution_scope = WorkerGlobalScope::new(scope_type, &self.script_url)?;
+        let execution_scope = WorkerGlobalScope::new(scope_type, &self.script_url, None)?;
 
         // Initialize the WorkerGlobalScope APIs in the context
         execution_scope.initialize_in_context(&mut worker_context)?;

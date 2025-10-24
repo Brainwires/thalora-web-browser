@@ -51,6 +51,9 @@ pub struct WorkerGlobalScope {
     /// Receive messages from main thread
     #[unsafe_ignore_trace]
     main_thread_receiver: Option<Receiver<WorkerMessage>>,
+    /// Event channel to send events to main thread (for worker_thread integration)
+    #[unsafe_ignore_trace]
+    event_sender: Option<Sender<crate::worker::worker_thread::WorkerEvent>>,
     /// Whether the worker is closing
     #[unsafe_ignore_trace]
     closing: Arc<Mutex<bool>>,
@@ -98,7 +101,11 @@ pub enum MessageSource {
 
 impl WorkerGlobalScope {
     /// Create a new WorkerGlobalScope
-    pub fn new(scope_type: WorkerGlobalScopeType, script_url: &str) -> JsResult<Self> {
+    pub fn new(
+        scope_type: WorkerGlobalScopeType,
+        script_url: &str,
+        event_sender: Option<Sender<crate::worker::worker_thread::WorkerEvent>>,
+    ) -> JsResult<Self> {
         let (main_sender, main_receiver) = unbounded();
         let scope_id = generate_scope_id();
         let location = WorkerLocation::from_url(script_url)?;
@@ -108,6 +115,7 @@ impl WorkerGlobalScope {
             scope_type,
             main_thread_sender: Some(main_sender),
             main_thread_receiver: Some(main_receiver),
+            event_sender,
             closing: Arc::new(Mutex::new(false)),
             location,
         })
@@ -596,16 +604,14 @@ impl WorkerGlobalScope {
 
         eprintln!("Worker postMessage called with structured cloned data");
 
-        // Send message to main thread through proper channel
+        // Send message to main thread through the event channel
         if let Some(global_scope) = Self::get_current_scope_from_context(context) {
-            if let Some(ref sender) = global_scope.main_thread_sender {
-                let worker_msg = WorkerMessage {
-                    data: cloned_message,
-                    ports: Vec::new(), // TODO: Handle transferable objects
-                    source: MessageSource::Worker,
-                };
+            if let Some(ref event_sender) = global_scope.event_sender {
+                use crate::worker::worker_thread::WorkerEvent;
 
-                if let Err(_) = sender.send(worker_msg) {
+                if let Err(_) = event_sender.send(WorkerEvent::Message {
+                    data: cloned_message,
+                }) {
                     return Err(JsNativeError::error()
                         .with_message("Failed to send message to main thread")
                         .into());
@@ -614,7 +620,7 @@ impl WorkerGlobalScope {
                 }
             } else {
                 return Err(JsNativeError::error()
-                    .with_message("Worker message channel not available")
+                    .with_message("Worker event channel not available")
                     .into());
             }
         } else {
@@ -677,6 +683,21 @@ impl WorkerLocation {
     /// Create WorkerLocation from URL string
     fn from_url(url_str: &str) -> JsResult<Self> {
         use url::Url;
+
+        // Handle empty strings or inline scripts - use default location
+        if url_str.is_empty() || (!url_str.starts_with("http://") && !url_str.starts_with("https://") && !url_str.starts_with("data:") && !url_str.starts_with("blob:")) {
+            return Ok(Self {
+                href: "about:blank".to_string(),
+                origin: "null".to_string(),
+                protocol: "about:".to_string(),
+                host: "".to_string(),
+                hostname: "".to_string(),
+                port: "".to_string(),
+                pathname: "blank".to_string(),
+                search: "".to_string(),
+                hash: "".to_string(),
+            });
+        }
 
         let url = Url::parse(url_str).map_err(|_| {
             JsNativeError::typ().with_message(format!("Invalid URL: {}", url_str))

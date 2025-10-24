@@ -13,3 +13,9 @@ pub mod worker_thread;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod worker_thread_tests;
+
+#[cfg(test)]
+mod worker_message_tests;
