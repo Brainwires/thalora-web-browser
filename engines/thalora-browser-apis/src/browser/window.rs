@@ -60,9 +60,10 @@ impl IntrinsicObject for Window {
             .name(js_string!("get sessionStorage"))
             .build();
 
-        let indexed_db_func = BuiltInBuilder::callable(realm, get_indexed_db)
-            .name(js_string!("get indexedDB"))
-            .build();
+        // indexedDB is now set directly in initialize_browser_apis() rather than as a getter
+        // let indexed_db_func = BuiltInBuilder::callable(realm, get_indexed_db)
+        //     .name(js_string!("get indexedDB"))
+        //     .build();
 
         let get_selection_func = BuiltInBuilder::callable(realm, get_selection)
             .name(js_string!("getSelection"))
@@ -136,12 +137,13 @@ impl IntrinsicObject for Window {
                 None,
                 Attribute::CONFIGURABLE,
             )
-            .accessor(
-                js_string!("indexedDB"),
-                Some(indexed_db_func),
-                None,
-                Attribute::CONFIGURABLE,
-            )
+            // indexedDB is now set directly in initialize_browser_apis()
+            // .accessor(
+            //     js_string!("indexedDB"),
+            //     Some(indexed_db_func),
+            //     None,
+            //     Attribute::CONFIGURABLE,
+            // )
             .property(
                 js_string!("innerWidth"),
                 1366, // Standard desktop width

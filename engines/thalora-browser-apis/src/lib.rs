@@ -94,6 +94,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     storage::storage_event::StorageEvent::init(&realm);
     storage::storage_manager::StorageManager::init(&realm);
 
+    // Initialize IndexedDB APIs
+    storage::indexed_db::key_range::IDBKeyRange::init(&realm);
+    storage::indexed_db::request::IDBRequest::init(&realm);
+    storage::indexed_db::factory::IDBFactory::init(&realm);
+    storage::indexed_db::database::IDBDatabase::init(&realm);
+    storage::indexed_db::transaction::IDBTransaction::init(&realm);
+    storage::indexed_db::object_store::IDBObjectStore::init(&realm);
+    storage::indexed_db::cursor::IDBCursor::init(&realm);
+    storage::indexed_db::index::IDBIndex::init(&realm);
+
     // Initialize Web Locks API
     locks::lock_manager::LockManager::init(&realm);
 
@@ -540,6 +550,28 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // Register IDBFactory constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::factory::IDBFactory::NAME,
+        PropertyDescriptor::builder()
+            .value(storage::indexed_db::factory::IDBFactory::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBKeyRange constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::key_range::IDBKeyRange::NAME,
+        PropertyDescriptor::builder()
+            .value(storage::indexed_db::key_range::IDBKeyRange::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // Register LockManager constructor
     global_object.define_property_or_throw(
         locks::lock_manager::LockManager::NAME,
@@ -762,12 +794,31 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
     let session_storage: boa_engine::JsValue = session_storage_obj.into();
 
-    // Set on window object
+    // Create indexedDB instance (same pattern as Storage)
+    let idb_factory_proto = global_object.get(storage::indexed_db::factory::IDBFactory::NAME, context)?
+        .as_object()
+        .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
+        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("IDBFactory prototype not found"))?;
+
+    let indexed_db_factory_data = storage::indexed_db::factory::IDBFactory::new()
+        .map_err(|e| boa_engine::JsNativeError::error().with_message(format!("Failed to create IndexedDB factory: {}", e)))?;
+
+    let indexed_db_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        idb_factory_proto,
+        indexed_db_factory_data,
+    );
+    let indexed_db: boa_engine::JsValue = indexed_db_obj.into();
+
+    // Set on window object (must be done BEFORE window is finalized)
     if let Some(window_obj) = window_instance.as_object() {
         window_obj.set(boa_engine::js_string!("localStorage"), local_storage.clone(), false, context)
             .expect("failed to set window.localStorage");
         window_obj.set(boa_engine::js_string!("sessionStorage"), session_storage.clone(), false, context)
             .expect("failed to set window.sessionStorage");
+        window_obj.set(boa_engine::js_string!("indexedDB"), indexed_db.clone(), false, context)
+            .expect("failed to set window.indexedDB");
     }
 
     // Set as globals
@@ -775,6 +826,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .expect("failed to set global localStorage");
     global_object.set(boa_engine::js_string!("sessionStorage"), session_storage, false, context)
         .expect("failed to set global sessionStorage");
+    global_object.set(boa_engine::js_string!("indexedDB"), indexed_db, false, context)
+        .expect("failed to set global indexedDB");
 
     // Register file picker global functions
     use boa_engine::object::FunctionObjectBuilder;

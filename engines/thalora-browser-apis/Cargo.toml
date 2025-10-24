@@ -36,6 +36,10 @@ kuchikiki = "0.8"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 
+# IndexedDB persistent storage
+sled = "0.34"
+dirs = "5.0"
+
 # Base64 encoding (matching Boa)
 base64 = "0.22"
 
