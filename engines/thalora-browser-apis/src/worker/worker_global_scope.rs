@@ -312,130 +312,214 @@ impl WorkerGlobalScope {
 
     /// Add console API for workers
     fn add_console_api(&self, context: &mut Context) -> JsResult<()> {
-        let console_obj = JsObject::with_object_proto(context.intrinsics());
-
-        // Add console.log
-        let log_func = BuiltInBuilder::callable(
-            context.realm(),
-            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
-                let messages: Vec<String> = args.iter()
-                    .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
-                    .collect();
-                eprintln!("[Worker Console] {}", messages.join(" "));
-                Ok(JsValue::undefined())
-            }
-        )
-        .name(js_string!("log"))
-        .build();
-
-        console_obj.set(js_string!("log"), log_func, false, context)?;
-
-        // Add console.error
-        let error_func = BuiltInBuilder::callable(
-            context.realm(),
-            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
-                let messages: Vec<String> = args.iter()
-                    .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
-                    .collect();
-                eprintln!("[Worker Console Error] {}", messages.join(" "));
-                Ok(JsValue::undefined())
-            }
-        )
-        .name(js_string!("error"))
-        .build();
-
-        console_obj.set(js_string!("error"), error_func, false, context)?;
-
-        // Add console.warn
-        let warn_func = BuiltInBuilder::callable(
-            context.realm(),
-            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
-                let messages: Vec<String> = args.iter()
-                    .map(|arg| arg.to_string(context).unwrap_or_default().to_std_string_escaped())
-                    .collect();
-                eprintln!("[Worker Console Warn] {}", messages.join(" "));
-                Ok(JsValue::undefined())
-            }
-        )
-        .name(js_string!("warn"))
-        .build();
-
-        console_obj.set(js_string!("warn"), warn_func, false, context)?;
-
-        // Add console object to global
-        context.global_object().set(js_string!("console"), console_obj, false, context)?;
-
+        // Use the full Console API implementation
+        crate::console::console::Console::init(context);
         Ok(())
     }
 
     /// Add basic Web APIs available in workers
     fn add_worker_web_apis(&self, context: &mut Context) -> JsResult<()> {
+        // Add timers (setTimeout, setInterval, clearTimeout, clearInterval)
+        crate::timers::timers::Timers::init(context);
+
+        // Add crypto API (crypto.getRandomValues, crypto.randomUUID, etc.)
+        crate::crypto::crypto::Crypto::init(context);
+
+        // Add TextEncoder and TextDecoder
+        self.add_text_encoding_apis(context)?;
+
+        // Add atob/btoa for base64 encoding
+        self.add_base64_apis(context)?;
+
+        // Add structured clone function
+        self.add_structured_clone_api(context)?;
+
+        // Add queueMicrotask
+        self.add_microtask_api(context)?;
+
+        Ok(())
+    }
+
+    /// Add TextEncoder and TextDecoder APIs
+    fn add_text_encoding_apis(&self, context: &mut Context) -> JsResult<()> {
         let global = context.global_object();
 
-        // Add setTimeout/setInterval (simplified versions)
-        let set_timeout_func = BuiltInBuilder::callable(
+        // Add TextEncoder constructor
+        let text_encoder_func = BuiltInBuilder::callable(
             context.realm(),
-            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
-                let callback = args.get_or_undefined(0);
-                let delay = args.get_or_undefined(1).to_number(context)?;
+            |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
+                let encoder_obj = JsObject::with_object_proto(context.intrinsics());
 
-                eprintln!("setTimeout called with delay: {}", delay);
-                // TODO: Implement actual timer functionality
-                // For now, return a dummy timer ID
-                Ok(JsValue::from(1))
+                // Add encode method
+                let encode_func = BuiltInBuilder::callable(
+                    context.realm(),
+                    |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                        let input = args.get_or_undefined(0).to_string(context)?;
+                        let bytes = input.to_std_string_escaped().into_bytes();
+
+                        // Create Uint8Array - simplified implementation
+                        let array = boa_engine::builtins::array::Array::array_create(bytes.len() as u64, None, context)?;
+                        for (i, byte) in bytes.iter().enumerate() {
+                            array.set(i, JsValue::from(*byte), true, context)?;
+                        }
+                        Ok(array.into())
+                    }
+                )
+                .name(js_string!("encode"))
+                .length(1)
+                .build();
+
+                encoder_obj.set(js_string!("encode"), encode_func, false, context)?;
+                Ok(encoder_obj.into())
             }
         )
-        .name(js_string!("setTimeout"))
-        .length(2)
+        .name(js_string!("TextEncoder"))
+        .length(0)
         .build();
 
-        global.set(js_string!("setTimeout"), set_timeout_func, false, context)?;
+        global.set(js_string!("TextEncoder"), text_encoder_func, false, context)?;
 
-        let set_interval_func = BuiltInBuilder::callable(
+        // Add TextDecoder constructor
+        let text_decoder_func = BuiltInBuilder::callable(
             context.realm(),
-            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
-                let callback = args.get_or_undefined(0);
-                let delay = args.get_or_undefined(1).to_number(context)?;
+            |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
+                let decoder_obj = JsObject::with_object_proto(context.intrinsics());
 
-                eprintln!("setInterval called with delay: {}", delay);
-                // TODO: Implement actual timer functionality
-                Ok(JsValue::from(1))
+                // Add decode method
+                let decode_func = BuiltInBuilder::callable(
+                    context.realm(),
+                    |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                        let input = args.get_or_undefined(0);
+
+                        // Try to get bytes from TypedArray
+                        if let Some(obj) = input.as_object() {
+                            // For now, simplified - would need proper TypedArray handling
+                            Ok(js_string!("").into())
+                        } else {
+                            Ok(js_string!("").into())
+                        }
+                    }
+                )
+                .name(js_string!("decode"))
+                .length(1)
+                .build();
+
+                decoder_obj.set(js_string!("decode"), decode_func, false, context)?;
+                Ok(decoder_obj.into())
             }
         )
-        .name(js_string!("setInterval"))
-        .length(2)
+        .name(js_string!("TextDecoder"))
+        .length(0)
         .build();
 
-        global.set(js_string!("setInterval"), set_interval_func, false, context)?;
+        global.set(js_string!("TextDecoder"), text_decoder_func, false, context)?;
 
-        // Add clearTimeout/clearInterval
-        let clear_timeout_func = BuiltInBuilder::callable(
+        Ok(())
+    }
+
+    /// Add atob/btoa for base64 encoding
+    fn add_base64_apis(&self, context: &mut Context) -> JsResult<()> {
+        let global = context.global_object();
+
+        // Add btoa (binary to ASCII/base64)
+        let btoa_func = BuiltInBuilder::callable(
             context.realm(),
-            |_this: &JsValue, args: &[JsValue], _context: &mut Context| {
-                let timer_id = args.get_or_undefined(0);
-                eprintln!("clearTimeout called with id: {:?}", timer_id);
-                Ok(JsValue::undefined())
+            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                let input = args.get_or_undefined(0).to_string(context)?;
+                let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD,
+                    input.to_std_string_escaped().as_bytes());
+                Ok(js_string!(encoded).into())
             }
         )
-        .name(js_string!("clearTimeout"))
+        .name(js_string!("btoa"))
         .length(1)
         .build();
 
-        global.set(js_string!("clearTimeout"), clear_timeout_func, false, context)?;
+        global.set(js_string!("btoa"), btoa_func, false, context)?;
 
-        let clear_interval_func = BuiltInBuilder::callable(
+        // Add atob (ASCII/base64 to binary)
+        let atob_func = BuiltInBuilder::callable(
             context.realm(),
-            |_this: &JsValue, args: &[JsValue], _context: &mut Context| {
-                let timer_id = args.get_or_undefined(0);
-                eprintln!("clearInterval called with id: {:?}", timer_id);
-                Ok(JsValue::undefined())
+            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                let input = args.get_or_undefined(0).to_string(context)?;
+                match base64::Engine::decode(&base64::engine::general_purpose::STANDARD,
+                    input.to_std_string_escaped().as_bytes()) {
+                    Ok(decoded) => {
+                        let s = String::from_utf8_lossy(&decoded);
+                        Ok(js_string!(s.to_string()).into())
+                    }
+                    Err(_) => Err(JsNativeError::typ()
+                        .with_message("Invalid base64 string")
+                        .into())
+                }
             }
         )
-        .name(js_string!("clearInterval"))
+        .name(js_string!("atob"))
         .length(1)
         .build();
 
-        global.set(js_string!("clearInterval"), clear_interval_func, false, context)?;
+        global.set(js_string!("atob"), atob_func, false, context)?;
+
+        Ok(())
+    }
+
+    /// Add structuredClone API
+    fn add_structured_clone_api(&self, context: &mut Context) -> JsResult<()> {
+        let global = context.global_object();
+
+        let structured_clone_func = BuiltInBuilder::callable(
+            context.realm(),
+            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                let value = args.get_or_undefined(0);
+
+                // Use our structured clone implementation
+                let cloned = crate::misc::structured_clone::structured_clone(value, context, None)?;
+                let deserialized = crate::misc::structured_clone::structured_deserialize(&cloned, context)?;
+
+                Ok(deserialized)
+            }
+        )
+        .name(js_string!("structuredClone"))
+        .length(1)
+        .build();
+
+        global.set(js_string!("structuredClone"), structured_clone_func, false, context)?;
+
+        Ok(())
+    }
+
+    /// Add queueMicrotask API
+    fn add_microtask_api(&self, context: &mut Context) -> JsResult<()> {
+        let global = context.global_object();
+
+        let queue_microtask_func = BuiltInBuilder::callable(
+            context.realm(),
+            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                let callback = args.get_or_undefined(0);
+
+                if !callback.is_callable() {
+                    return Err(JsNativeError::typ()
+                        .with_message("queueMicrotask requires a callable function")
+                        .into());
+                }
+
+                // Queue the microtask via Boa's job queue
+                context.run_jobs();
+
+                // For now, execute immediately as a simplified implementation
+                // Real implementation would queue to event loop
+                if let Some(func) = callback.as_callable() {
+                    let _ = func.call(&JsValue::undefined(), &[], context);
+                }
+
+                Ok(JsValue::undefined())
+            }
+        )
+        .name(js_string!("queueMicrotask"))
+        .length(1)
+        .build();
+
+        global.set(js_string!("queueMicrotask"), queue_microtask_func, false, context)?;
 
         Ok(())
     }
