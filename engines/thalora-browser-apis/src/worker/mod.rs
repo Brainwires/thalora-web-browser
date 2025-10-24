@@ -19,3 +19,6 @@ mod worker_thread_tests;
 
 #[cfg(test)]
 mod worker_message_tests;
+
+#[cfg(test)]
+mod worker_api_tests;
