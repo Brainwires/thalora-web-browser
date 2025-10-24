@@ -38,14 +38,14 @@ impl GeolocationManager {
     pub fn setup_geolocation_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Create navigator object if it doesn't exist
         let navigator = if let Ok(nav) = context.global_object().get(js_string!("navigator"), context) {
-            nav.as_object().map(|obj| obj.clone()).unwrap_or_else(|| JsObject::default())
+            nav.as_object().map(|obj| obj.clone()).unwrap_or_else(|| JsObject::default(&context.intrinsics()))
         } else {
-            let nav = JsObject::default();
+            let nav = JsObject::default(&context.intrinsics());
             context.register_global_property(js_string!("navigator"), JsValue::from(nav.clone()), Attribute::all())?;
             nav
         };
 
-        let geolocation_obj = JsObject::default();
+        let geolocation_obj = JsObject::default(&context.intrinsics());
 
         // Real getCurrentPosition with actual location detection
         let get_current_position_fn = unsafe { NativeFunction::from_closure(|_, args, context| {
@@ -66,8 +66,8 @@ impl GeolocationManager {
             let (latitude, longitude, accuracy) = Self::get_real_location();
 
             // Create position object with real coordinates
-            let position_obj = JsObject::default();
-            let coords_obj = JsObject::default();
+            let position_obj = JsObject::default(&context.intrinsics());
+            let coords_obj = JsObject::default(&context.intrinsics());
 
             coords_obj.set(js_string!("latitude"), JsValue::from(latitude), false, context)?;
             coords_obj.set(js_string!("longitude"), JsValue::from(longitude), false, context)?;
@@ -145,8 +145,8 @@ impl GeolocationManager {
             // For now, immediately call with current location
             let (latitude, longitude, accuracy) = Self::get_real_location();
 
-            let position_obj = JsObject::default();
-            let coords_obj = JsObject::default();
+            let position_obj = JsObject::default(&context.intrinsics());
+            let coords_obj = JsObject::default(&context.intrinsics());
 
             coords_obj.set(js_string!("latitude"), JsValue::from(latitude), false, context)?;
             coords_obj.set(js_string!("longitude"), JsValue::from(longitude), false, context)?;

@@ -8,7 +8,7 @@ impl MediaManager {
         let speech_synthesis = Arc::clone(&self.speech_synthesis);
 
         // Real speechSynthesis global object
-        let speech_synthesis_obj = JsObject::default();
+        let speech_synthesis_obj = JsObject::default(&context.intrinsics());
         speech_synthesis_obj.set(js_string!("speaking"), JsValue::from(false), false, context)?;
         speech_synthesis_obj.set(js_string!("pending"), JsValue::from(false), false, context)?;
         speech_synthesis_obj.set(js_string!("paused"), JsValue::from(false), false, context)?;
@@ -27,7 +27,7 @@ impl MediaManager {
         let speech_recognition_constructor = unsafe {
             NativeFunction::from_closure(|_, _args, context| {
                 // Return a simple object with start/stop placeholders
-                let obj = JsObject::default();
+                let obj = JsObject::default(&context.intrinsics());
                 obj.set(js_string!("start"), JsValue::from(native_fn_stub(context)?), true, context)?;
                 obj.set(js_string!("stop"), JsValue::from(native_fn_stub(context)?), true, context)?;
                 Ok(JsValue::from(obj))
@@ -103,7 +103,7 @@ impl MediaManager {
 
         let get_voices_fn = unsafe {
             NativeFunction::from_closure(|_, _, _ctx| {
-                let voices_array = JsObject::default();
+                let voices_array = JsObject::default(&_ctx.intrinsics());
                 // Real voice enumeration would happen here
                 Ok(JsValue::from(voices_array))
             })
@@ -122,7 +122,7 @@ impl MediaManager {
         // Real SpeechSynthesisUtterance constructor
         let speech_utterance_constructor = unsafe {
             NativeFunction::from_closure(|_, args, context| {
-                let utterance = JsObject::default();
+                let utterance = JsObject::default(&context.intrinsics());
 
                 let text = if !args.is_empty() {
                     args[0].to_string(context)?.to_std_string_escaped()

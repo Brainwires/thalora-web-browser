@@ -48,7 +48,7 @@ impl WebGLManager {
     }
 
     fn create_2d_context(context: &mut Context) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
-        let ctx_2d = JsObject::default();
+        let ctx_2d = JsObject::default(&context.intrinsics());
 
         // Basic 2D context methods
         ctx_2d.set(js_string!("fillStyle"), JsValue::from(js_string!("#000000")), true, context)?;
@@ -67,7 +67,7 @@ impl WebGLManager {
     }
 
     fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
-        let gl_context = JsObject::default();
+        let gl_context = JsObject::default(&context.intrinsics());
 
         // WebGL constants (subset of most commonly used)
         gl_context.set(js_string!("VERTEX_SHADER"), JsValue::from(35633), false, context)?;
@@ -80,19 +80,19 @@ impl WebGLManager {
 
         // Core WebGL methods
     let create_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-            let shader_obj = JsObject::default();
+            let shader_obj = JsObject::default(&_context.intrinsics());
             Ok(JsValue::from(shader_obj))
         }) };
         gl_context.set(js_string!("createShader"), JsValue::from(create_shader_fn.to_js_function(context.realm())), false, context)?;
 
     let create_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-            let program_obj = JsObject::default();
+            let program_obj = JsObject::default(&_context.intrinsics());
             Ok(JsValue::from(program_obj))
         }) };
         gl_context.set(js_string!("createProgram"), JsValue::from(create_program_fn.to_js_function(context.realm())), false, context)?;
 
     let create_buffer_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-            let buffer_obj = JsObject::default();
+            let buffer_obj = JsObject::default(&_context.intrinsics());
             Ok(JsValue::from(buffer_obj))
         }) };
         gl_context.set(js_string!("createBuffer"), JsValue::from(create_buffer_fn.to_js_function(context.realm())), false, context)?;
@@ -164,7 +164,7 @@ impl WebGLManager {
                 "WEBGL_lose_context"
             ];
 
-            let array = JsObject::default();
+            let array = JsObject::default(&ctx.intrinsics());
             array.set(js_string!("length"), JsValue::from(extensions.len()), false, ctx)?;
             for (i, ext) in extensions.iter().enumerate() {
                 array.set(i, JsValue::from(js_string!(*ext)), false, ctx)?;
@@ -185,14 +185,14 @@ impl WebGLManager {
             match ext_name.as_str() {
                 "WEBGL_debug_renderer_info" => {
                     // MOCK: Hardcoded GL constants for debugging extension
-                    let ext_obj = JsObject::default();
+                    let ext_obj = JsObject::default(&ctx.intrinsics());
                     ext_obj.set(js_string!("UNMASKED_VENDOR_WEBGL"), JsValue::from(37445), false, ctx)?; // MOCK GL constant
                     ext_obj.set(js_string!("UNMASKED_RENDERER_WEBGL"), JsValue::from(37446), false, ctx)?; // MOCK GL constant
                     Ok(JsValue::from(ext_obj))
                 },
                 "WEBGL_lose_context" => {
                     // MOCK: Fake context loss extension - no real GPU interaction
-                    let ext_obj = JsObject::default();
+                    let ext_obj = JsObject::default(&ctx.intrinsics());
                     let lose_context_fn = NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())); // MOCK: No-op function
                     ext_obj.set(js_string!("loseContext"), JsValue::from(lose_context_fn.to_js_function(ctx.realm())), false, ctx)?;
                     Ok(JsValue::from(ext_obj))
@@ -204,7 +204,7 @@ impl WebGLManager {
 
         // Texture methods
         let create_texture_fn = unsafe { NativeFunction::from_closure(|_, _args, _ctx| {
-            let texture_obj = JsObject::default();
+            let texture_obj = JsObject::default(&_ctx.intrinsics());
             Ok(JsValue::from(texture_obj))
         }) };
         gl_context.set(js_string!("createTexture"), JsValue::from(create_texture_fn.to_js_function(context.realm())), false, context)?;
@@ -212,7 +212,7 @@ impl WebGLManager {
         // Additional WebGL2 methods if requested
         if is_webgl2 {
             let create_vertex_array_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-                let vao_obj = JsObject::default();
+                let vao_obj = JsObject::default(&_context.intrinsics());
                 Ok(JsValue::from(vao_obj))
             }) };
             gl_context.set(js_string!("createVertexArray"), JsValue::from(create_vertex_array_fn.to_js_function(context.realm())), false, context)?;

@@ -8,7 +8,7 @@ impl MediaManager {
         let audio_context_constructor = unsafe {
             NativeFunction::from_closure(|_, _args, context| {
                 // Create a basic object representing an AudioContext instance
-                let obj = JsObject::default();
+                let obj = JsObject::default(&context.intrinsics());
                 obj.set(js_string!("currentTime"), JsValue::from(0.0), true, context)?;
                 obj.set(js_string!("sampleRate"), JsValue::from(44100.0), true, context)?;
                 obj.set(js_string!("state"), JsValue::from(js_string!("running")), true, context)?;

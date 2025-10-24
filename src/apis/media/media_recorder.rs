@@ -24,7 +24,7 @@ impl MediaManager {
                     .unwrap()
                     .insert(recorder_id.clone(), real_recorder);
 
-                let recorder = JsObject::default();
+                let recorder = JsObject::default(&context.intrinsics());
                 recorder.set(
                     js_string!("_id"),
                     JsValue::from(js_string!(recorder_id_clone)),

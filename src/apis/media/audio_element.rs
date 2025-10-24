@@ -34,7 +34,7 @@ impl MediaManager {
                     .unwrap()
                     .insert(audio_id.clone(), real_audio);
 
-                let audio = JsObject::default();
+                let audio = JsObject::default(&context.intrinsics());
                 audio.set(
                     js_string!("_id"),
                     JsValue::from(js_string!(audio_id_clone)),
@@ -78,7 +78,7 @@ impl MediaManager {
         let audio_elements_play = Arc::clone(audio_elements);
         let audio_id_play = audio_id.to_string();
         let play_fn = unsafe { NativeFunction::from_closure(move |_, _args, ctx| {
-            let promise_obj = JsObject::default();
+            let promise_obj = JsObject::default(&ctx.intrinsics());
 
             // In real implementation, would load and play audio file
             if let Ok(mut elements) = audio_elements_play.lock() {
