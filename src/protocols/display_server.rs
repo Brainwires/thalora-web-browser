@@ -626,47 +626,65 @@ fn inject_proxy_script(html: &str, base_url: &str) -> String {
         return xhr;
     }};
 
-    // Suppress History API SecurityErrors at prototype level
-    // This intercepts BEFORE any site-specific wrappers
-    const HistoryProto = Object.getPrototypeOf(window.history);
-    const originalPushState = HistoryProto.pushState;
-    const originalReplaceState = HistoryProto.replaceState;
+    // Suppress History API SecurityErrors by wrapping at the deepest level
+    // Save original native methods BEFORE any page scripts load
+    const HistoryProto = History.prototype;
+    const nativePushState = HistoryProto.pushState;
+    const nativeReplaceState = HistoryProto.replaceState;
 
-    HistoryProto.pushState = function(...args) {{
-        try {{
-            return originalPushState.apply(this, args);
-        }} catch (e) {{
-            // Silently ignore SecurityError in sandboxed iframe
-            if (e.name !== 'SecurityError') {{
-                throw e;
+    // Create error-suppressing wrapper
+    const createSafeWrapper = (nativeMethod) => {{
+        return function(...args) {{
+            try {{
+                return nativeMethod.apply(this, args);
+            }} catch (e) {{
+                // Silently ignore SecurityError in sandboxed iframe
+                if (e.name !== 'SecurityError') {{
+                    throw e;
+                }}
+                // Log suppressed error for debugging
+                console.debug('🔇 Suppressed History API SecurityError:', e.message);
+                return undefined;
             }}
-            // Return undefined for SecurityError (same as successful call)
-            return undefined;
-        }}
+        }};
     }};
 
-    HistoryProto.replaceState = function(...args) {{
-        try {{
-            return originalReplaceState.apply(this, args);
-        }} catch (e) {{
-            // Silently ignore SecurityError in sandboxed iframe
-            if (e.name !== 'SecurityError') {{
-                throw e;
-            }}
-            // Return undefined for SecurityError (same as successful call)
-            return undefined;
-        }}
-    }};
+    // Replace with safe wrappers using Object.defineProperty to lock them
+    Object.defineProperty(HistoryProto, 'pushState', {{
+        value: createSafeWrapper(nativePushState),
+        writable: true,
+        enumerable: true,
+        configurable: true
+    }});
+
+    Object.defineProperty(HistoryProto, 'replaceState', {{
+        value: createSafeWrapper(nativeReplaceState),
+        writable: true,
+        enumerable: true,
+        configurable: true
+    }});
 }})();
 </script>
 "#, base_url);
 
-    // Inject script after <head> tag (or at beginning if no head)
-    if html.contains("<head>") {
-        html.replace("<head>", &format!("<head>{}", proxy_script))
-    } else if html.contains("<html>") {
+    // Inject script IMMEDIATELY after <html> tag (before <head>)
+    // This ensures our script runs BEFORE any other scripts load
+    if html.contains("<html>") {
+        // Find the position right after <html> tag
+        if let Some(pos) = html.find(">") {
+            if html[..pos+1].to_lowercase().contains("<html") {
+                // Insert right after the <html> opening tag
+                let (before, after) = html.split_at(pos + 1);
+                return format!("{}{}{}", before, proxy_script, after);
+            }
+        }
+        // Fallback: replace <html> tag
         html.replace("<html>", &format!("<html>{}", proxy_script))
+    } else if html.contains("<head>") {
+        // No <html> tag, inject after <head>
+        html.replace("<head>", &format!("<head>{}", proxy_script))
     } else {
+        // No structure, prepend
         format!("{}{}", proxy_script, html)
     }
 }
