@@ -625,6 +625,38 @@ fn inject_proxy_script(html: &str, base_url: &str) -> String {
 
         return xhr;
     }};
+
+    // Suppress History API SecurityErrors at prototype level
+    // This intercepts BEFORE any site-specific wrappers
+    const HistoryProto = Object.getPrototypeOf(window.history);
+    const originalPushState = HistoryProto.pushState;
+    const originalReplaceState = HistoryProto.replaceState;
+
+    HistoryProto.pushState = function(...args) {{
+        try {{
+            return originalPushState.apply(this, args);
+        }} catch (e) {{
+            // Silently ignore SecurityError in sandboxed iframe
+            if (e.name !== 'SecurityError') {{
+                throw e;
+            }}
+            // Return undefined for SecurityError (same as successful call)
+            return undefined;
+        }}
+    }};
+
+    HistoryProto.replaceState = function(...args) {{
+        try {{
+            return originalReplaceState.apply(this, args);
+        }} catch (e) {{
+            // Silently ignore SecurityError in sandboxed iframe
+            if (e.name !== 'SecurityError') {{
+                throw e;
+            }}
+            // Return undefined for SecurityError (same as successful call)
+            return undefined;
+        }}
+    }};
 }})();
 </script>
 "#, base_url);
