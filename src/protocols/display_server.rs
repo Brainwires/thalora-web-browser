@@ -223,8 +223,9 @@ impl DisplayServer {
                         // Send initial HTML
                         if let BrowserResponse::Success { data } = content_response {
                             if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                                // Rewrite image URLs to use proxy
-                                let processed_html = rewrite_image_urls(html, &url);
+                                // Inject proxy script and rewrite image URLs
+                                let with_proxy = inject_proxy_script(html, &url);
+                                let processed_html = rewrite_image_urls(&with_proxy, &url);
 
                                 let msg = DisplayMessage::HtmlUpdate {
                                     html: processed_html,
@@ -370,8 +371,9 @@ impl DisplayServer {
                 // Send HTML update (which will set loading=false on client)
                 if let BrowserResponse::Success { data } = content_response {
                     if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                        // Rewrite image URLs to use proxy
-                        let processed_html = rewrite_image_urls(html, &url);
+                        // Inject proxy script and rewrite image URLs
+                        let with_proxy = inject_proxy_script(html, &url);
+                        let processed_html = rewrite_image_urls(&with_proxy, &url);
 
                         self.send_to_client(client_id, DisplayMessage::HtmlUpdate {
                             html: processed_html,
@@ -458,8 +460,9 @@ impl DisplayServer {
                     .unwrap_or("")
                     .to_string();
 
-                // Rewrite image URLs to use proxy
-                let processed_html = rewrite_image_urls(html, &url);
+                // Inject proxy script and rewrite image URLs
+                let with_proxy = inject_proxy_script(html, &url);
+                let processed_html = rewrite_image_urls(&with_proxy, &url);
 
                 self.send_to_client(client_id, DisplayMessage::HtmlUpdate {
                     html: processed_html,
@@ -544,6 +547,96 @@ fn rewrite_image_urls(html: &str, base_url: &str) -> String {
 
         format!(r#"<img{} src="{}"{}>"#, before_src, proxy_url, after_src)
     }).to_string()
+}
+
+/// Inject proxy script to intercept fetch/XHR requests
+fn inject_proxy_script(html: &str, base_url: &str) -> String {
+    // Script to intercept fetch and XMLHttpRequest
+    let proxy_script = format!(r#"
+<script>
+(function() {{
+    const PROXY_URL = 'https://local.brainwires.net/api/thalora-display/proxy-fetch';
+    const BASE_URL = '{}';
+
+    // Helper to make absolute URLs
+    function makeAbsolute(url) {{
+        try {{
+            // Already absolute
+            if (url.startsWith('http://') || url.startsWith('https://')) {{
+                return url;
+            }}
+            // Protocol-relative
+            if (url.startsWith('//')) {{
+                return 'https:' + url;
+            }}
+            // Create absolute URL using base
+            const base = new URL(BASE_URL);
+            return new URL(url, base).href;
+        }} catch (e) {{
+            console.error('Failed to make absolute URL:', url, e);
+            return url;
+        }}
+    }}
+
+    // Intercept fetch
+    const originalFetch = window.fetch;
+    window.fetch = function(resource, options) {{
+        let url;
+        if (typeof resource === 'string') {{
+            url = resource;
+        }} else if (resource instanceof Request) {{
+            url = resource.url;
+        }} else {{
+            url = resource;
+        }}
+
+        // Make URL absolute
+        const absoluteUrl = makeAbsolute(url);
+
+        // Only proxy external requests (not blob: or data:)
+        if (absoluteUrl.startsWith('http://') || absoluteUrl.startsWith('https://')) {{
+            const proxyUrl = PROXY_URL + '?url=' + encodeURIComponent(absoluteUrl);
+            console.log('🔄 Proxying fetch:', absoluteUrl);
+            return originalFetch(proxyUrl, options);
+        }}
+
+        return originalFetch(resource, options);
+    }};
+
+    // Intercept XMLHttpRequest
+    const OriginalXHR = window.XMLHttpRequest;
+    window.XMLHttpRequest = function() {{
+        const xhr = new OriginalXHR();
+        const originalOpen = xhr.open;
+
+        xhr.open = function(method, url, ...args) {{
+            // Make URL absolute
+            const absoluteUrl = makeAbsolute(url);
+
+            // Only proxy external requests
+            if (absoluteUrl.startsWith('http://') || absoluteUrl.startsWith('https://')) {{
+                const proxyUrl = PROXY_URL + '?url=' + encodeURIComponent(absoluteUrl);
+                console.log('🔄 Proxying XHR:', absoluteUrl);
+                return originalOpen.call(this, method, proxyUrl, ...args);
+            }}
+
+            return originalOpen.call(this, method, url, ...args);
+        }};
+
+        return xhr;
+    }};
+}})();
+</script>
+"#, base_url);
+
+    // Inject script after <head> tag (or at beginning if no head)
+    if html.contains("<head>") {
+        html.replace("<head>", &format!("<head>{}", proxy_script))
+    } else if html.contains("<html>") {
+        html.replace("<html>", &format!("<html>{}", proxy_script))
+    } else {
+        format!("{}{}", proxy_script, html)
+    }
 }
 
 /// Get current timestamp in milliseconds
