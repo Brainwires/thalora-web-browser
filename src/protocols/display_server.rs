@@ -223,8 +223,11 @@ impl DisplayServer {
                         // Send initial HTML
                         if let BrowserResponse::Success { data } = content_response {
                             if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
+                                // Rewrite image URLs to use proxy
+                                let processed_html = rewrite_image_urls(html, &url);
+
                                 let msg = DisplayMessage::HtmlUpdate {
-                                    html: html.to_string(),
+                                    html: processed_html,
                                     url: url.clone(),
                                     title: None,
                                     timestamp: current_timestamp(),
@@ -345,6 +348,12 @@ impl DisplayServer {
 
         match command {
             DisplayCommand::Navigate { url } => {
+                // Send navigation event BEFORE starting navigation to indicate loading
+                self.send_to_client(client_id, DisplayMessage::Navigation {
+                    url: url.clone(),
+                    timestamp: current_timestamp(),
+                }).await?;
+
                 let _response = self.session_manager.send_command(
                     session_id,
                     BrowserCommand::Navigate {
@@ -358,18 +367,16 @@ impl DisplayServer {
                     BrowserCommand::GetContent,
                 ).await?;
 
-                // Send HTML update
+                // Send HTML update (which will set loading=false on client)
                 if let BrowserResponse::Success { data } = content_response {
                     if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
+                        // Rewrite image URLs to use proxy
+                        let processed_html = rewrite_image_urls(html, &url);
+
                         self.send_to_client(client_id, DisplayMessage::HtmlUpdate {
-                            html: html.to_string(),
+                            html: processed_html,
                             url: url.clone(),
                             title: None,
-                            timestamp: current_timestamp(),
-                        }).await?;
-
-                        self.send_to_client(client_id, DisplayMessage::Navigation {
-                            url,
                             timestamp: current_timestamp(),
                         }).await?;
                     }
@@ -451,8 +458,11 @@ impl DisplayServer {
                     .unwrap_or("")
                     .to_string();
 
+                // Rewrite image URLs to use proxy
+                let processed_html = rewrite_image_urls(html, &url);
+
                 self.send_to_client(client_id, DisplayMessage::HtmlUpdate {
-                    html: html.to_string(),
+                    html: processed_html,
                     url,
                     title: None,
                     timestamp: current_timestamp(),
@@ -492,6 +502,48 @@ impl Clone for DisplayServer {
             broadcast_tx: self.broadcast_tx.clone(),
         }
     }
+}
+
+/// Rewrite image URLs to use proxy
+fn rewrite_image_urls(html: &str, base_url: &str) -> String {
+    use regex::Regex;
+
+    // Regex to match src attributes in img tags
+    let img_regex = Regex::new(r#"<img([^>]*)\s+src=["']([^"']+)["']([^>]*)>"#).unwrap();
+
+    img_regex.replace_all(html, |caps: &regex::Captures| {
+        let before_src = &caps[1];
+        let src = &caps[2];
+        let after_src = &caps[3];
+
+        // Convert relative URLs to absolute
+        let absolute_url = if src.starts_with("http://") || src.starts_with("https://") {
+            src.to_string()
+        } else if src.starts_with("//") {
+            format!("https:{}", src)
+        } else if src.starts_with('/') {
+            // Get base origin
+            if let Ok(base) = url::Url::parse(base_url) {
+                format!("{}://{}{}", base.scheme(), base.host_str().unwrap_or(""), src)
+            } else {
+                src.to_string()
+            }
+        } else {
+            // Relative path
+            if let Ok(base) = url::Url::parse(base_url) {
+                base.join(src).map(|u| u.to_string()).unwrap_or_else(|_| src.to_string())
+            } else {
+                src.to_string()
+            }
+        };
+
+        // URL encode the absolute URL for the proxy
+        // Use absolute URL for proxy to work in sandboxed iframe
+        let encoded_url = urlencoding::encode(&absolute_url);
+        let proxy_url = format!("https://local.brainwires.net/api/thalora-display/proxy-image?url={}", encoded_url);
+
+        format!(r#"<img{} src="{}"{}>"#, before_src, proxy_url, after_src)
+    }).to_string()
 }
 
 /// Get current timestamp in milliseconds
