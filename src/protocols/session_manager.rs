@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::Mutex;
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -77,7 +78,7 @@ impl SessionManager {
 
     /// Get or create a browser session
     pub async fn get_or_create_session(&self, session_id: &str, persistent: bool) -> Result<SessionInfo> {
-        let mut sessions = self.sessions.lock().unwrap();
+        let mut sessions = self.sessions.lock().await;
 
         // Check if session already exists
         if let Some((session_info, _process)) = sessions.get_mut(session_id) {
@@ -95,17 +96,22 @@ impl SessionManager {
         info!("Spawning new browser process for session: {}", session_id);
 
         // Spawn background browser process using session subcommand
-        let mut child = Command::new(&self.browser_executable)
-            .arg("session")
+        let mut cmd = Command::new(&self.browser_executable);
+        cmd.arg("session")
             .arg("--session-id")
             .arg(session_id)
             .arg("--socket-path")
-            .arg(&socket_path_str)
-            .arg("--persistent")
-            .arg(persistent.to_string())
+            .arg(&socket_path_str);
+
+        // Add --persistent flag only if true (it's a boolean flag, not a value)
+        if persistent {
+            cmd.arg("--persistent");
+        }
+
+        let mut child = cmd
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stdout(Stdio::piped()) // Capture output for debugging
+            .stderr(Stdio::piped()) // Capture errors for debugging
             .spawn()
             .with_context(|| format!("Failed to spawn browser process: {:?}", self.browser_executable))?;
 
@@ -134,7 +140,7 @@ impl SessionManager {
     /// Send a command to a browser session
     pub async fn send_command(&self, session_id: &str, command: BrowserCommand) -> Result<BrowserResponse> {
         let session_info = {
-            let sessions = self.sessions.lock().unwrap();
+            let sessions = self.sessions.lock().await;
             sessions.get(session_id)
                 .map(|(info, _)| info.clone())
                 .context("Session not found")?
@@ -170,14 +176,14 @@ impl SessionManager {
     }
 
     /// List all active sessions
-    pub fn list_sessions(&self) -> Vec<SessionInfo> {
-        let sessions = self.sessions.lock().unwrap();
+    pub async fn list_sessions(&self) -> Vec<SessionInfo> {
+        let sessions = self.sessions.lock().await;
         sessions.values().map(|(info, _)| info.clone()).collect()
     }
 
     /// Close a specific session
     pub async fn close_session(&self, session_id: &str) -> Result<bool> {
-        let mut sessions = self.sessions.lock().unwrap();
+        let mut sessions = self.sessions.lock().await;
 
         if let Some((session_info, mut process)) = sessions.remove(session_id) {
             info!("Closing browser session: {}", session_id);
@@ -206,7 +212,7 @@ impl SessionManager {
             .as_secs();
 
         let expired_sessions: Vec<String> = {
-            let sessions = self.sessions.lock().unwrap();
+            let sessions = self.sessions.lock().await;
             sessions
                 .iter()
                 .filter(|(_, (info, _))| {
@@ -227,7 +233,7 @@ impl SessionManager {
     /// Shutdown all sessions
     pub async fn shutdown(&self) {
         let session_ids: Vec<String> = {
-            let sessions = self.sessions.lock().unwrap();
+            let sessions = self.sessions.lock().await;
             sessions.keys().cloned().collect()
         };
 
@@ -245,12 +251,13 @@ impl SessionManager {
 
 impl Drop for SessionManager {
     fn drop(&mut self) {
-        // Best effort cleanup - spawn a blocking task
+        // Best effort cleanup - try to lock synchronously
         let sessions = self.sessions.clone();
         let socket_dir = self.socket_dir.clone();
 
         std::thread::spawn(move || {
-            let mut sessions = sessions.lock().unwrap();
+            // Try to get lock with blocking
+            let mut sessions = sessions.blocking_lock();
             for (session_id, (session_info, mut process)) in sessions.drain() {
                 if let Err(e) = process.kill() {
                     eprintln!("Failed to kill browser process for session {}: {}", session_id, e);

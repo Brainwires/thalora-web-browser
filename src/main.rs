@@ -60,6 +60,15 @@ enum Commands {
         #[arg(long)]
         debug: bool,
     },
+    /// Run as display server for remote browser UI
+    DisplayServer {
+        /// Port to listen on
+        #[arg(long, default_value = "9090")]
+        port: u16,
+        /// Host to bind to
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+    },
 }
 
 #[tokio::main]
@@ -104,6 +113,10 @@ async fn main() -> Result<()> {
         Some(Commands::Browser { url, width, height, fullscreen, debug }) => {
             // Run as graphical web browser
             run_graphical_browser(url, width, height, fullscreen, debug, engine_config).await
+        }
+        Some(Commands::DisplayServer { port, host }) => {
+            // Run as display server
+            run_display_server(host, port).await
         }
         Some(Commands::Server) | None => {
             // Run as MCP server (default)
@@ -487,5 +500,34 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
     }
 
     info!("Browser session {} shutting down", session_id);
+    Ok(())
+}
+
+/// Run as display server for remote browser UI
+async fn run_display_server(host: String, port: u16) -> Result<()> {
+    use protocols::{DisplayServer, SessionManager};
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use tracing::info;
+    use anyhow::Context;
+
+    info!("Starting Thalora Display Server");
+    info!("Listening on {}:{}", host, port);
+
+    // Parse socket address
+    let addr: SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .context("Failed to parse socket address")?;
+
+    // Create session manager
+    let session_manager = Arc::new(SessionManager::new()?);
+
+    // Create display server
+    let display_server = DisplayServer::new(session_manager);
+
+    // Start server (this runs indefinitely)
+    info!("Display server ready to accept connections");
+    display_server.start(addr).await?;
+
     Ok(())
 }
