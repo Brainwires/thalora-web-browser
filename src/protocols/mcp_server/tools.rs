@@ -471,18 +471,22 @@ impl McpServer {
             ]);
         }
 
-        // Web Scraping Tools - Scrape web pages and extract content (enabled by default)
+        // Web Scraping Tools - Unified scraping tool that combines all capabilities (enabled by default)
         if env::var("THALORA_ENABLE_SCRAPING").unwrap_or_else(|_| "true".to_string()) == "true" {
             tools.extend_from_slice(&[
                 serde_json::json!({
                     "name": "scrape",
-                    "description": "Scrape a web page and extract content, links, images, and metadata",
+                    "description": "Unified scraping tool that combines all scraping capabilities: basic content extraction (links, images, metadata), CSS selectors, readability algorithms, and structured content (tables, lists, code blocks). Enable specific extraction types as needed with extract_* parameters.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
                             "url": {
                                 "type": "string",
-                                "description": "URL to scrape"
+                                "description": "URL to scrape (optional if session_id provided)"
+                            },
+                            "session_id": {
+                                "type": "string",
+                                "description": "Browser session ID (optional)"
                             },
                             "wait_for_js": {
                                 "type": "boolean",
@@ -492,67 +496,31 @@ impl McpServer {
                                 "type": "number",
                                 "description": "Timeout for JavaScript execution in milliseconds (default: 5000)"
                             },
-                            "extract_links": {
+                            "extract_basic": {
                                 "type": "boolean",
-                                "description": "Whether to extract all links (default: true)"
+                                "description": "Extract basic content: links, images, and metadata (default: true)"
                             },
-                            "extract_images": {
+                            "extract_readable": {
                                 "type": "boolean",
-                                "description": "Whether to extract image URLs (default: true)"
+                                "description": "Extract clean, readable content using readability algorithms (default: false)"
                             },
-                            "extract_metadata": {
+                            "extract_structured": {
                                 "type": "boolean",
-                                "description": "Whether to extract page metadata (default: true)"
-                            },
-                            "session_id": {
-                                "type": "string",
-                                "description": "Browser session ID (optional)"
-                            }
-                        },
-                        "required": ["url"]
-                    }
-                }),
-                serde_json::json!({
-                    "name": "scrape_content_by_selector",
-                    "description": "Extract specific content from a page using CSS selectors",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "url": {
-                                "type": "string",
-                                "description": "URL to scrape (optional if session_id provided)"
+                                "description": "Extract structured content: tables, lists, code blocks (default: false)"
                             },
                             "selectors": {
                                 "type": "object",
-                                "description": "CSS selectors mapped to content names",
+                                "description": "Custom CSS selectors mapped to content names (e.g., {\"title\": \"h1\", \"price\": \".price\"})",
                                 "additionalProperties": {"type": "string"}
-                            },
-                            "session_id": {
-                                "type": "string",
-                                "description": "Browser session ID (optional)"
-                            }
-                        },
-                        "required": ["selectors"]
-                    }
-                }),
-                serde_json::json!({
-                    "name": "scrape_readable_content",
-                    "description": "Extract clean, readable content from a webpage using advanced readability algorithms",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "url": {
-                                "type": "string",
-                                "description": "URL to extract readable content from"
                             },
                             "format": {
                                 "type": "string",
                                 "enum": ["markdown", "text", "structured"],
-                                "description": "Output format for the content (default: markdown)"
+                                "description": "Output format for readable content (default: markdown, only used if extract_readable=true)"
                             },
                             "include_images": {
                                 "type": "boolean",
-                                "description": "Whether to include images in the output (default: true)"
+                                "description": "Whether to include images in readable content (default: true)"
                             },
                             "include_metadata": {
                                 "type": "boolean",
@@ -560,60 +528,7 @@ impl McpServer {
                             },
                             "min_content_score": {
                                 "type": "number",
-                                "description": "Minimum content quality score threshold (0.0-1.0, default: 0.3)"
-                            }
-                        },
-                        "required": ["url"]
-                    }
-                }),
-                serde_json::json!({
-                    "name": "browse_readable_content",
-                    "description": "Extract content from multi-page articles with session support and automatic pagination handling",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "url": {
-                                "type": "string",
-                                "description": "Starting URL for content extraction"
-                            },
-                            "format": {
-                                "type": "string",
-                                "enum": ["markdown", "text", "structured"],
-                                "description": "Output format for the content (default: markdown)"
-                            },
-                            "follow_pagination": {
-                                "type": "boolean",
-                                "description": "Whether to automatically follow pagination links (default: true)"
-                            },
-                            "max_pages": {
-                                "type": "number",
-                                "description": "Maximum number of pages to process (default: 10)"
-                            },
-                            "wait_for_js": {
-                                "type": "boolean",
-                                "description": "Whether to wait for JavaScript execution (default: false)"
-                            },
-                            "include_images": {
-                                "type": "boolean",
-                                "description": "Whether to include images in the output (default: true)"
-                            },
-                            "session_id": {
-                                "type": "string",
-                                "description": "Browser session ID to maintain state across pages (optional)"
-                            }
-                        },
-                        "required": ["url"]
-                    }
-                }),
-                serde_json::json!({
-                    "name": "scrape_structured_content",
-                    "description": "Extract structured content (tables, lists, code blocks, metadata) from a webpage",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "url": {
-                                "type": "string",
-                                "description": "URL to extract structured content from"
+                                "description": "Minimum content quality score threshold for readability (0.0-1.0, default: 0.3)"
                             },
                             "content_types": {
                                 "type": "array",
@@ -621,11 +536,9 @@ impl McpServer {
                                     "type": "string",
                                     "enum": ["tables", "lists", "code_blocks", "metadata"]
                                 },
-                                "description": "Types of content to extract (default: all types)",
-                                "default": ["tables", "lists", "code_blocks", "metadata"]
+                                "description": "Types of structured content to extract (default: all types, only used if extract_structured=true)"
                             }
-                        },
-                        "required": ["url"]
+                        }
                     }
                 }),
             ]);
@@ -904,7 +817,7 @@ impl McpServer {
                 }),
                 serde_json::json!({
                     "name": "browser_navigate_to",
-                    "description": "Navigate to a specific URL in a browser session",
+                    "description": "Navigate to a specific URL in a browser session with optional JavaScript execution",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -915,6 +828,10 @@ impl McpServer {
                             "wait_for_load": {
                                 "type": "boolean",
                                 "description": "Whether to wait for page to fully load (default: true)"
+                            },
+                            "wait_for_js": {
+                                "type": "boolean",
+                                "description": "Whether to execute page JavaScript and wait for DOM to stabilize (default: false). Enable for SPAs and dynamic sites."
                             },
                             "session_id": {
                                 "type": "string",
@@ -1052,10 +969,8 @@ impl McpServer {
             "cdp_page_screenshot" => self.cdp_tools.take_screenshot(args_for_call.clone(), &mut self.cdp_server).await,
             "cdp_page_reload" => self.cdp_tools.reload_page(args_for_call.clone(), &mut self.cdp_server).await,
 
-            // Scraping and Search tools (stateless)
-            "scrape" => self.scrape_url(args_for_call.clone()).await,
-            "scrape_readable_content" => self.scrape_readable_content(args_for_call.clone()).await,
-            "scrape_structured_content" => self.extract_structured_content(args_for_call.clone()).await,
+            // Unified scraping tool
+            "scrape" => self.scrape_unified(args_for_call.clone()).await,
 
             // Maybe make the searches stateful in the future with session_id
             "web_search" => self.web_search(args_for_call.clone()).await,
@@ -1073,7 +988,7 @@ impl McpServer {
             // User Events Simulation
             "browser_click_element" => self.browser_tools.handle_click_element(args_for_call.clone()).await,
             "browser_type_text" => self.browser_tools.handle_type_text(args_for_call.clone()).await,
-            "browser_wait_for_element" => McpResponse::error(-32601, "Tool not implemented yet: browser_wait_for_element".to_string()),
+            "browser_wait_for_element" => self.browser_tools.handle_wait_for_element(args_for_call.clone()).await,
             "browser_prepare_form_submission" => self.browser_tools.handle_prepare_form_submission(args_for_call.clone()).await,
             "browser_validate_session" => self.browser_tools.handle_validate_session(args_for_call.clone()).await,
 

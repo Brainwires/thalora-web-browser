@@ -25,8 +25,258 @@ pub struct SearchResult {
 }
 
 impl McpServer {
-    pub(super) async fn scrape_url(&mut self, arguments: Value) -> McpResponse {
-        self.browser_tools.handle_scrape_url(arguments).await
+    /// Unified scraping function that combines all scraping capabilities
+    pub(super) async fn scrape_unified(&mut self, arguments: Value) -> McpResponse {
+        let url = arguments["url"].as_str();
+        let session_id = arguments.get("session_id").and_then(|v| v.as_str());
+
+        // Validate that we have either URL or session_id
+        if url.is_none() && session_id.is_none() {
+            return McpResponse::error(-1, "Either 'url' or 'session_id' parameter is required".to_string());
+        }
+
+        // Session & Navigation options
+        let wait_for_js = arguments.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
+        let wait_timeout = arguments.get("wait_timeout").and_then(|v| v.as_u64()).unwrap_or(5000);
+
+        // What to extract (all default to true for comprehensive extraction)
+        let extract_basic = arguments.get("extract_basic").and_then(|v| v.as_bool()).unwrap_or(true);
+        let extract_readable = arguments.get("extract_readable").and_then(|v| v.as_bool()).unwrap_or(false);
+        let extract_structured = arguments.get("extract_structured").and_then(|v| v.as_bool()).unwrap_or(false);
+        let extract_by_selectors = arguments.get("selectors").and_then(|v| v.as_object()).cloned();
+
+        // Readability options
+        let readability_format = arguments.get("format").and_then(|v| v.as_str()).unwrap_or("markdown");
+        let include_images = arguments.get("include_images").and_then(|v| v.as_bool()).unwrap_or(true);
+        let include_metadata = arguments.get("include_metadata").and_then(|v| v.as_bool()).unwrap_or(true);
+        let min_content_score = arguments.get("min_content_score").and_then(|v| v.as_f64()).unwrap_or(0.3) as f32;
+
+        // Structured content options
+        let content_types = arguments.get("content_types")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+            .unwrap_or_else(|| vec!["tables", "lists", "code_blocks", "metadata"]);
+
+        // Pagination options
+        let follow_pagination = arguments.get("follow_pagination").and_then(|v| v.as_bool()).unwrap_or(false);
+        let max_pages = arguments.get("max_pages").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+
+        // Navigate to URL if provided (or use existing session)
+        let html_content = if let Some(url_str) = url {
+            // Create temporary browser or use session
+            let temp_browser = if session_id.is_some() {
+                // TODO: Get session browser
+                crate::engine::browser::HeadlessWebBrowser::new()
+            } else {
+                crate::engine::browser::HeadlessWebBrowser::new()
+            };
+
+            // Navigate to URL
+            {
+                let mut browser = match temp_browser.lock() {
+                    Ok(b) => b,
+                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                };
+
+                match browser.navigate_to_with_options(url_str, wait_for_js).await {
+                    Ok(_) => {},
+                    Err(e) => return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+                }
+            }
+
+            // Get HTML content
+            let html = {
+                let browser = match temp_browser.lock() {
+                    Ok(b) => b,
+                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                };
+                browser.get_current_content()
+            };
+
+            html
+        } else {
+            // Get content from session
+            // TODO: Implement session-based content retrieval
+            return McpResponse::error(-1, "Session-based scraping not yet implemented in unified scrape".to_string());
+        };
+
+        // Build unified response
+        let mut result = serde_json::json!({
+            "url": url.unwrap_or(""),
+            "scraping_options": {
+                "extract_basic": extract_basic,
+                "extract_readable": extract_readable,
+                "extract_structured": extract_structured,
+                "has_custom_selectors": extract_by_selectors.is_some()
+            }
+        });
+
+        // 1. Extract basic content (links, images, metadata)
+        if extract_basic {
+            let document = Html::parse_document(&html_content);
+
+            // Extract links
+            let mut links = Vec::new();
+            if let Ok(link_selector) = Selector::parse("a[href]") {
+                for element in document.select(&link_selector) {
+                    if let Some(href) = element.value().attr("href") {
+                        let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                        links.push(serde_json::json!({
+                            "href": href,
+                            "text": text
+                        }));
+                    }
+                }
+            }
+
+            // Extract images
+            let mut images = Vec::new();
+            if let Ok(img_selector) = Selector::parse("img[src]") {
+                for element in document.select(&img_selector) {
+                    if let Some(src) = element.value().attr("src") {
+                        let alt = element.value().attr("alt").unwrap_or("");
+                        images.push(serde_json::json!({
+                            "src": src,
+                            "alt": alt
+                        }));
+                    }
+                }
+            }
+
+            // Extract basic metadata
+            let metadata = self.extract_article_metadata(&html_content);
+
+            result["basic"] = serde_json::json!({
+                "links": links,
+                "images": images,
+                "metadata": metadata
+            });
+        }
+
+        // 2. Extract content by custom selectors
+        if let Some(selectors) = extract_by_selectors {
+            let document = Html::parse_document(&html_content);
+            let mut selector_results = serde_json::Map::new();
+
+            for (name, selector_str) in selectors {
+                if let Some(selector_str) = selector_str.as_str() {
+                    if let Ok(selector) = Selector::parse(selector_str) {
+                        let mut matches = Vec::new();
+                        for element in document.select(&selector) {
+                            let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                            matches.push(serde_json::Value::String(text));
+                        }
+                        selector_results.insert(name, serde_json::Value::Array(matches));
+                    } else {
+                        selector_results.insert(
+                            name,
+                            serde_json::Value::String(format!("Invalid selector: {}", selector_str))
+                        );
+                    }
+                }
+            }
+
+            result["by_selector"] = serde_json::Value::Object(selector_results);
+        }
+
+        // 3. Extract readable content using readability algorithms
+        if extract_readable {
+            let output_format = match readability_format {
+                "markdown" => crate::features::readability::OutputFormat::Markdown,
+                "text" => crate::features::readability::OutputFormat::Text,
+                "structured" => crate::features::readability::OutputFormat::Structured,
+                _ => crate::features::readability::OutputFormat::Markdown,
+            };
+
+            let mut extractor = crate::features::readability::ReadabilityExtractor::new();
+            let document = scraper::Html::parse_document(&html_content);
+
+            let options = crate::features::readability::ExtractionOptions {
+                base_url: url.unwrap_or("").to_string(),
+                include_images,
+                include_metadata,
+                output_format,
+                min_content_score,
+                max_link_density: 0.25,
+                min_paragraph_count: 2,
+            };
+
+            match extractor.extract(&document, &options) {
+                Ok(extraction_result) => {
+                    if extraction_result.success {
+                        result["readable"] = serde_json::json!({
+                            "content": extraction_result.content.content,
+                            "format": readability_format,
+                            "metadata": extraction_result.content.metadata,
+                            "quality": extraction_result.quality,
+                            "processing_time_ms": extraction_result.processing_time_ms
+                        });
+                    } else {
+                        result["readable"] = serde_json::json!({
+                            "error": extraction_result.error.unwrap_or("Extraction failed".to_string())
+                        });
+                    }
+                },
+                Err(e) => {
+                    result["readable"] = serde_json::json!({
+                        "error": format!("Readability extraction failed: {}", e)
+                    });
+                }
+            }
+        }
+
+        // 4. Extract structured content (tables, lists, code blocks)
+        if extract_structured {
+            let mut structured = serde_json::json!({});
+
+            for content_type in &content_types {
+                match content_type.as_ref() {
+                    "tables" => {
+                        let tables = self.extract_tables(&html_content);
+                        structured["tables"] = serde_json::Value::Array(tables);
+                    },
+                    "lists" => {
+                        let lists = self.extract_lists(&html_content);
+                        structured["lists"] = serde_json::Value::Array(lists);
+                    },
+                    "code_blocks" => {
+                        let code_blocks = self.extract_code_blocks(&html_content);
+                        structured["code_blocks"] = serde_json::Value::Array(code_blocks);
+                    },
+                    "metadata" => {
+                        let metadata = self.extract_article_metadata(&html_content);
+                        structured["metadata"] = metadata;
+                    },
+                    _ => {}
+                }
+            }
+
+            // Add summary
+            let mut summary = serde_json::json!({
+                "total_tables": 0,
+                "total_lists": 0,
+                "total_code_blocks": 0,
+                "has_metadata": false
+            });
+
+            if let Some(tables) = structured["tables"].as_array() {
+                summary["total_tables"] = serde_json::Value::Number(serde_json::Number::from(tables.len()));
+            }
+            if let Some(lists) = structured["lists"].as_array() {
+                summary["total_lists"] = serde_json::Value::Number(serde_json::Number::from(lists.len()));
+            }
+            if let Some(code_blocks) = structured["code_blocks"].as_array() {
+                summary["total_code_blocks"] = serde_json::Value::Number(serde_json::Number::from(code_blocks.len()));
+            }
+            if let Some(metadata) = structured["metadata"].as_object() {
+                summary["has_metadata"] = serde_json::Value::Bool(!metadata.is_empty());
+            }
+
+            structured["summary"] = summary;
+            result["structured"] = structured;
+        }
+
+        McpResponse::success(result)
     }
 
     pub(super) async fn web_search(&mut self, arguments: Value) -> McpResponse {
@@ -874,169 +1124,6 @@ impl McpServer {
         url.to_string()
     }
 
-    /// Extract clean, readable content from a webpage using advanced readability algorithms
-    pub(super) async fn scrape_readable_content(&mut self, arguments: Value) -> McpResponse {
-        let url = match arguments["url"].as_str() {
-            Some(url) => url,
-            None => return McpResponse::error(-1, "URL parameter is required".to_string()),
-        };
-
-        // Parse optional parameters
-        let format = arguments["format"].as_str().unwrap_or("markdown");
-        let include_images = arguments["include_images"].as_bool().unwrap_or(true);
-        let include_metadata = arguments["include_metadata"].as_bool().unwrap_or(true);
-        let min_content_score = arguments["min_content_score"].as_f64().unwrap_or(0.3) as f32;
-
-        // Validate format parameter
-        let output_format = match format {
-            "markdown" => crate::features::readability::OutputFormat::Markdown,
-            "text" => crate::features::readability::OutputFormat::Text,
-            "structured" => crate::features::readability::OutputFormat::Structured,
-            _ => return McpResponse::error(-1, "Invalid format. Must be 'markdown', 'text', or 'structured'".to_string()),
-        };
-
-        // Fetch the webpage
-        let client = reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap();
-
-        let html_content = match client.get(url).send().await {
-            Ok(response) => {
-                match response.text().await {
-                    Ok(text) => text,
-                    Err(e) => return McpResponse::error(-1, format!("Failed to read response body: {}", e)),
-                }
-            },
-            Err(e) => return McpResponse::error(-1, format!("Failed to fetch URL: {}", e)),
-        };
-
-        // Use the readability engine to extract content
-        let mut extractor = crate::features::readability::ReadabilityExtractor::new();
-        let document = scraper::Html::parse_document(&html_content);
-
-        let options = crate::features::readability::ExtractionOptions {
-            base_url: url.to_string(),
-            include_images,
-            include_metadata,
-            output_format,
-            min_content_score,
-            max_link_density: 0.25,
-            min_paragraph_count: 2,
-        };
-
-        match extractor.extract(&document, &options) {
-            Ok(result) => {
-                if result.success {
-                    let response_data = serde_json::json!({
-                        "content": result.content.content,
-                        "format": format,
-                        "metadata": result.content.metadata,
-                        "quality": result.quality,
-                        "processing_time_ms": result.processing_time_ms
-                    });
-                    McpResponse::success(response_data)
-                } else {
-                    McpResponse::error(-1, result.error.unwrap_or("Extraction failed".to_string()))
-                }
-            },
-            Err(e) => McpResponse::error(-1, format!("Content extraction failed: {}", e)),
-        }
-    }
-
-    /// Extract content from multi-page articles with session support and automatic pagination handling
-    pub(super) async fn browse_readable_content(&mut self, arguments: Value) -> McpResponse {
-        let url = match arguments["url"].as_str() {
-            Some(url) => url,
-            None => return McpResponse::error(-1, "URL parameter is required".to_string()),
-        };
-
-        // Parse optional parameters
-        let format = arguments["format"].as_str().unwrap_or("markdown");
-        let follow_pagination = arguments["follow_pagination"].as_bool().unwrap_or(true);
-        let max_pages = arguments["max_pages"].as_u64().unwrap_or(10) as usize;
-        let wait_for_js = arguments["wait_for_js"].as_bool().unwrap_or(false);
-        let include_images = arguments["include_images"].as_bool().unwrap_or(true);
-        let session_id = arguments["session_id"].as_str();
-
-        // Validate format parameter
-        let output_format = match format {
-            "markdown" => crate::features::readability::OutputFormat::Markdown,
-            "text" => crate::features::readability::OutputFormat::Text,
-            "structured" => crate::features::readability::OutputFormat::Structured,
-            _ => return McpResponse::error(-1, "Invalid format. Must be 'markdown', 'text', or 'structured'".to_string()),
-        };
-
-        // For now, implement as single-page extraction
-        // TODO: Add actual multi-page session support and pagination detection
-        if session_id.is_some() {
-            eprintln!("Warning: Session-based browsing not yet implemented, falling back to single-page extraction");
-        }
-
-        if follow_pagination && max_pages > 1 {
-            eprintln!("Warning: Pagination following not yet implemented, extracting single page only");
-        }
-
-        if wait_for_js {
-            eprintln!("Warning: JavaScript execution not yet implemented for readability extraction");
-        }
-
-        // For now, use the same logic as scrape_readable_content
-        // but with a slightly lower quality threshold for multi-page content
-        let client = reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-            .timeout(std::time::Duration::from_secs(30))
-            .cookie_store(true)  // Enable cookies for session-like behavior
-            .build()
-            .unwrap();
-
-        let html_content = match client.get(url).send().await {
-            Ok(response) => {
-                match response.text().await {
-                    Ok(text) => text,
-                    Err(e) => return McpResponse::error(-1, format!("Failed to read response body: {}", e)),
-                }
-            },
-            Err(e) => return McpResponse::error(-1, format!("Failed to fetch URL: {}", e)),
-        };
-
-        // Use the readability engine with slightly more permissive settings for multi-page content
-        let mut extractor = crate::features::readability::ReadabilityExtractor::new();
-        let document = scraper::Html::parse_document(&html_content);
-
-        let options = crate::features::readability::ExtractionOptions {
-            base_url: url.to_string(),
-            include_images,
-            include_metadata: true,
-            output_format,
-            min_content_score: 0.25,  // Slightly lower threshold for multi-page content
-            max_link_density: 0.30,  // Allow slightly more links for multi-page articles
-            min_paragraph_count: 1,  // Lower minimum for partial content
-        };
-
-        match extractor.extract(&document, &options) {
-            Ok(result) => {
-                if result.success {
-                    let response_data = serde_json::json!({
-                        "content": result.content.content,
-                        "format": format,
-                        "metadata": result.content.metadata,
-                        "quality": result.quality,
-                        "processing_time_ms": result.processing_time_ms,
-                        "pages_processed": 1,
-                        "session_used": session_id.is_some(),
-                        "pagination_followed": false  // Not yet implemented
-                    });
-                    McpResponse::success(response_data)
-                } else {
-                    McpResponse::error(-1, result.error.unwrap_or("Content extraction failed".to_string()))
-                }
-            },
-            Err(e) => McpResponse::error(-1, format!("Content extraction failed: {}", e)),
-        }
-    }
-
     /// Extract tables from HTML content
     pub(super) fn extract_tables(&self, html: &str) -> Vec<serde_json::Value> {
         let document = Html::parse_document(html);
@@ -1378,100 +1465,100 @@ impl McpServer {
         metadata
     }
 
-    /// Extract structured content from a webpage (stateless operation)
-    pub(super) async fn extract_structured_content(&mut self, arguments: Value) -> McpResponse {
-        let url = match arguments["url"].as_str() {
-            Some(url) => url,
-            None => return McpResponse::error(-1, "URL parameter is required".to_string()),
-        };
+    /// Extract readable content using readability algorithm
+    /// This is a dedicated method for the browse_readable_content MCP tool
+    pub(super) async fn browse_readable_content(&mut self, arguments: Value) -> McpResponse {
+        let url = arguments["url"].as_str();
+        let session_id = arguments.get("session_id").and_then(|v| v.as_str());
 
-        // Parse optional parameters
-        let content_types = arguments["content_types"].as_array()
-            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
-            .unwrap_or_else(|| vec!["tables", "lists", "code_blocks", "metadata"]);
-
-        // Create temporary browser for stateless operation
-        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-
-        // Navigate and get content
-        {
-            let mut browser = match temp_browser.lock() {
-                Ok(b) => b,
-                Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
-            };
-            match browser.navigate_to_with_options(url, true).await {
-                Ok(_) => {},
-                Err(e) => return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
-            }
+        // Validate that we have either URL or session_id
+        if url.is_none() && session_id.is_none() {
+            return McpResponse::error(-1, "Either 'url' or 'session_id' parameter is required".to_string());
         }
 
-        let html = {
-            let browser = match temp_browser.lock() {
-                Ok(b) => b,
-                Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
-            };
-            browser.get_current_content()
-        };
-        // Browser dropped here automatically for stateless operation
+        // Navigation options
+        let wait_for_js = arguments.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        // Extract requested content types
-        let mut result = serde_json::json!({
-            "url": url,
-            "content_types_requested": content_types,
-            "extracted_content": {}
-        });
+        // Readability options
+        let format = arguments.get("format").and_then(|v| v.as_str()).unwrap_or("markdown");
+        let include_images = arguments.get("include_images").and_then(|v| v.as_bool()).unwrap_or(true);
+        let include_metadata = arguments.get("include_metadata").and_then(|v| v.as_bool()).unwrap_or(true);
+        let min_content_score = arguments.get("min_content_score").and_then(|v| v.as_f64()).unwrap_or(0.3) as f32;
 
-        for content_type in &content_types {
-            match content_type.as_ref() {
-                "tables" => {
-                    let tables = self.extract_tables(&html);
-                    result["extracted_content"]["tables"] = serde_json::Value::Array(tables);
-                },
-                "lists" => {
-                    let lists = self.extract_lists(&html);
-                    result["extracted_content"]["lists"] = serde_json::Value::Array(lists);
-                },
-                "code_blocks" => {
-                    let code_blocks = self.extract_code_blocks(&html);
-                    result["extracted_content"]["code_blocks"] = serde_json::Value::Array(code_blocks);
-                },
-                "metadata" => {
-                    let metadata = self.extract_article_metadata(&html);
-                    result["extracted_content"]["metadata"] = metadata;
-                },
-                _ => {
-                    // Unknown content type - skip it
-                    continue;
+        // Navigate to URL if provided (or use existing session)
+        let html_content = if let Some(url_str) = url {
+            // Create temporary browser
+            let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
+
+            // Navigate to URL
+            {
+                let mut browser = match temp_browser.lock() {
+                    Ok(b) => b,
+                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                };
+
+                match browser.navigate_to_with_options(url_str, wait_for_js).await {
+                    Ok(_) => {},
+                    Err(e) => return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
                 }
             }
+
+            // Get HTML content
+            let html = {
+                let browser = match temp_browser.lock() {
+                    Ok(b) => b,
+                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                };
+                browser.get_current_content()
+            };
+
+            html
+        } else {
+            // Get content from session
+            return McpResponse::error(-1, "Session-based readable content extraction not yet implemented".to_string());
+        };
+
+        // Extract readable content using readability algorithm
+        let output_format = match format {
+            "markdown" => crate::features::readability::OutputFormat::Markdown,
+            "text" => crate::features::readability::OutputFormat::Text,
+            "structured" => crate::features::readability::OutputFormat::Structured,
+            _ => crate::features::readability::OutputFormat::Markdown,
+        };
+
+        let mut extractor = crate::features::readability::ReadabilityExtractor::new();
+        let document = scraper::Html::parse_document(&html_content);
+
+        let options = crate::features::readability::ExtractionOptions {
+            base_url: url.unwrap_or("").to_string(),
+            include_images,
+            include_metadata,
+            output_format,
+            min_content_score,
+            max_link_density: 0.25,
+            min_paragraph_count: 2,
+        };
+
+        match extractor.extract(&document, &options) {
+            Ok(extraction_result) => {
+                if extraction_result.success {
+                    let result = serde_json::json!({
+                        "url": url.unwrap_or(""),
+                        "content": extraction_result.content.content,
+                        "format": format,
+                        "metadata": extraction_result.content.metadata,
+                        "quality": extraction_result.quality,
+                        "processing_time_ms": extraction_result.processing_time_ms,
+                        "success": true
+                    });
+                    McpResponse::success(result)
+                } else {
+                    McpResponse::error(-1, extraction_result.error.unwrap_or("Extraction failed".to_string()))
+                }
+            },
+            Err(e) => {
+                McpResponse::error(-1, format!("Readability extraction failed: {}", e))
+            }
         }
-
-        // Add summary information
-        let mut summary = serde_json::json!({
-            "total_tables": 0,
-            "total_lists": 0,
-            "total_code_blocks": 0,
-            "has_metadata": false
-        });
-
-        if let Some(tables) = result["extracted_content"]["tables"].as_array() {
-            summary["total_tables"] = serde_json::Value::Number(serde_json::Number::from(tables.len()));
-        }
-
-        if let Some(lists) = result["extracted_content"]["lists"].as_array() {
-            summary["total_lists"] = serde_json::Value::Number(serde_json::Number::from(lists.len()));
-        }
-
-        if let Some(code_blocks) = result["extracted_content"]["code_blocks"].as_array() {
-            summary["total_code_blocks"] = serde_json::Value::Number(serde_json::Number::from(code_blocks.len()));
-        }
-
-        if let Some(metadata) = result["extracted_content"]["metadata"].as_object() {
-            summary["has_metadata"] = serde_json::Value::Bool(!metadata.is_empty());
-        }
-
-        result["summary"] = summary;
-
-        McpResponse::success(result)
     }
 }

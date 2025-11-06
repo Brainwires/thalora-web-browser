@@ -1,0 +1,84 @@
+[package]
+name = "thalora-browser-apis"
+version = "0.1.0"
+edition = "2021"
+description = "Browser Web APIs for Thalora - extracted from Boa engine fork"
+authors = ["Brainwires Team"]
+license = "MIT"
+
+[dependencies]
+# Boa engine - required for JavaScript integration
+boa_engine = { path = "../boa/core/engine" }
+boa_gc = { path = "../boa/core/gc" }
+
+# Async runtime and utilities (matching Boa exact versions from Cargo.lock)
+tokio = { version = "1.0", features = ["full"] }
+futures-util = "0.3"
+futures-channel = "0.3"
+crossbeam-channel = "0.5"
+
+# HTTP client for Fetch API (matching Boa)
+reqwest = { version = "0.11", features = ["json", "stream", "blocking"] }
+bytes = "1.5"
+
+# WebSocket support (matching Boa)
+tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
+
+# URL handling (matching Boa)
+url = "2.4"
+urlencoding = "2.1"
+
+# HTML/DOM parsing (matching Boa exact versions)
+scraper = "0.20"
+html5ever = "0.27"
+kuchikiki = "0.8"
+
+# Serialization (matching Boa)
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+
+# IndexedDB persistent storage
+sled = "0.34"
+dirs = "5.0"
+
+# Base64 encoding (matching Boa)
+base64 = "0.22"
+
+# Collections (matching Boa)
+indexmap = { version = "2.0", features = ["std"] }
+
+# Error handling (matching Boa)
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Time handling
+time = "0.3"
+
+# Random number generation
+rand = "0.8"
+
+# WebRTC (matching Boa)
+webrtc = "0.10"
+
+# WebAssembly runtime (matching Boa)
+wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"] }
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+
+# VFS for File System API (matching Boa path)
+vfs = { path = "../../vfs", default-features = false }
+
+# Other utilities
+cfg-if = "1.0"
+parking_lot = "0.12"
+once_cell = "1.19"
+
+[dev-dependencies]
+# For testing - Boa parser and macros to evaluate JavaScript in tests
+boa_parser = { path = "../boa/core/parser" }
+boa_macros = { path = "../boa/core/macros" }
+
+[lib]
+name = "thalora_browser_apis"
+path = "src/lib.rs"

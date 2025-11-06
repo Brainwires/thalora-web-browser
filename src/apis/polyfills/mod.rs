@@ -18,7 +18,7 @@ pub mod es2025_experimental;
 
 
 use anyhow::Result;
-use boa_engine::Context;
+use thalora_browser_apis::boa_engine::Context;
 // timers API is now natively implemented in Boa engine
 
 /// Setup JavaScript polyfills for browser APIs

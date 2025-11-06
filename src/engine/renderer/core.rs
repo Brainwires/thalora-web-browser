@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, module::IdleModuleLoader};
+use thalora_browser_apis::boa_engine::{Context, module::IdleModuleLoader};
 use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use crate::apis::WebApis;
@@ -89,7 +89,7 @@ impl RustRenderer {
         Ok(())
     }
 
-    pub fn js_value_to_string(&mut self, value: boa_engine::JsValue) -> String {
+    pub fn js_value_to_string(&mut self, value: thalora_browser_apis::boa_engine::JsValue) -> String {
         if let Some(ctx) = &mut self.js_context {
             value.to_string(ctx)
                 .map(|s| s.to_std_string_escaped())
@@ -104,7 +104,7 @@ impl RustRenderer {
         match self.engine_type {
             EngineType::Boa => {
                 if let Some(ctx) = &mut self.js_context {
-                    let result = ctx.eval(boa_engine::Source::from_bytes(source))
+                    let result = ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(source))
                         .map_err(|e| anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e)))?;
 
                     // Convert Boa JsValue to JSON
@@ -124,9 +124,9 @@ impl RustRenderer {
     }
 
     /// Evaluate JavaScript code and return the result (Boa-specific)
-    pub fn eval_js(&mut self, source: &str) -> Result<boa_engine::JsValue> {
+    pub fn eval_js(&mut self, source: &str) -> Result<thalora_browser_apis::boa_engine::JsValue> {
         if let Some(ctx) = &mut self.js_context {
-            ctx.eval(boa_engine::Source::from_bytes(source))
+            ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(source))
                 .map_err(|e| anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e)))
         } else {
             Err(anyhow::Error::msg("Boa context not available"))
@@ -134,7 +134,7 @@ impl RustRenderer {
     }
 
     /// Helper to convert Boa JsValue to serde_json::Value
-    fn boa_value_to_json(&self, value: boa_engine::JsValue) -> Result<serde_json::Value> {
+    fn boa_value_to_json(&self, value: thalora_browser_apis::boa_engine::JsValue) -> Result<serde_json::Value> {
         if value.is_undefined() || value.is_null() {
             Ok(serde_json::Value::Null)
         } else if value.is_boolean() {
@@ -156,7 +156,7 @@ impl RustRenderer {
 
     /// Update the document's HTML content to enable real DOM querying
     pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
-        use boa_engine::js_string;
+        use thalora_browser_apis::boa_engine::js_string;
         // Prevent re-entrant updates which could cause infinite recursion by
         // a JS getter calling back into document update.
         if self.in_update {
@@ -174,7 +174,7 @@ impl RustRenderer {
                     if let Ok(document_value) = global.get(js_string!("document"), ctx) {
                         if let Some(document_obj) = document_value.as_object() {
                             // Check if this is a Document object with our DocumentData
-                            if let Some(document_data) = document_obj.downcast_ref::<boa_engine::builtins::document::DocumentData>() {
+                            if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
                                 document_data.set_html_content(html_content);
                                 document_data.set_ready_state("complete");
                             }
@@ -210,7 +210,7 @@ impl RustRenderer {
         "#;
 
         if let Some(ctx) = &mut self.js_context {
-            match ctx.eval(boa_engine::Source::from_bytes(debug_script)) {
+            match ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(debug_script)) {
                 Ok(value) => Ok(self.js_value_to_string(value)),
                 Err(_) => Ok("Failed to get debug info".to_string())
             }

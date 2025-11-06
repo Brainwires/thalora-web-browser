@@ -1,4 +1,4 @@
-use boa_engine::{Context, JsResult, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
+use thalora_browser_apis::boa_engine::{Context, JsResult, JsObject, JsValue, NativeFunction, js_string, property::Attribute};
 
 /// Setup enhanced console implementation with native functions
 pub fn setup_console(context: &mut Context) -> JsResult<()> {

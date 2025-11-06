@@ -33,8 +33,11 @@ cargo run
 
 ### Testing
 ```bash
-# Run all tests
+# Run all tests (default: Boa engine)
 cargo test
+
+# Run all tests with V8 engine
+THALORA_TEST_ENGINE=v8 cargo test
 
 # Run tests with output
 cargo test -- --nocapture
@@ -52,6 +55,30 @@ RUST_BACKTRACE=1 cargo test
 
 # Run tests quietly (less output)
 cargo test --quiet
+
+# Engine-specific testing
+THALORA_TEST_ENGINE=boa cargo test   # Force Boa engine
+THALORA_TEST_ENGINE=v8 cargo test    # Force V8 engine
+```
+
+### Test Engine Selection
+
+Tests can be run with different JavaScript engines using the `THALORA_TEST_ENGINE` environment variable:
+
+- **Boa** (default): Pure Rust engine, good for development
+- **V8**: Google's V8 engine via rusty_v8, for production parity
+
+The test helper functions in `src/engine/test_helpers.rs` provide a unified way to create engines in tests:
+
+```rust
+use thalora::engine::create_test_engine;
+
+#[test]
+fn my_test() {
+    // Automatically uses the engine specified by THALORA_TEST_ENGINE
+    let mut engine = create_test_engine().unwrap();
+    // ... test code
+}
 ```
 
 ### Debugging and Analysis

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde_json::Value;
-use boa_engine::js_string;
+use thalora_browser_apis::boa_engine::js_string;
 
 /// Global engine configuration
 #[derive(Debug, Clone)]
@@ -104,21 +104,33 @@ impl EngineFactory {
                 Ok(Box::new(BoaEngineWrapper::new(boa_engine)))
             }
             EngineType::V8 => {
-                use thalora_v8_engine::V8JavaScriptEngine;
-                let v8_engine = V8JavaScriptEngine::new()?;
-                Ok(Box::new(V8EngineWrapper::new(v8_engine)))
+                // V8 engine removed - use Boa instead
+                Err(anyhow::anyhow!("V8 engine is not currently available. V8 subproject was removed. Use Boa engine instead."))
             }
         }
     }
 
-    /// Get the default engine type
+    /// Get the default engine type (can be overridden by THALORA_TEST_ENGINE env var)
     pub fn default_engine() -> EngineType {
+        // Check for test engine override via environment variable
+        if let Ok(engine_str) = std::env::var("THALORA_TEST_ENGINE") {
+            if let Ok(engine_type) = engine_str.parse::<EngineType>() {
+                return engine_type;
+            }
+        }
         EngineType::Boa
+    }
+
+    /// Create an engine using the default/configured engine type
+    /// This respects the THALORA_TEST_ENGINE environment variable
+    pub fn create_default_engine() -> Result<Box<dyn ThaloraBrowserEngine>> {
+        Self::create_engine(Self::default_engine())
     }
 
     /// List available engines
     pub fn available_engines() -> Vec<EngineType> {
-        vec![EngineType::Boa, EngineType::V8]
+        vec![EngineType::Boa]
+        // V8 was removed - only Boa is available now
     }
 }
 
@@ -183,7 +195,7 @@ impl ThaloraBrowserEngine for BoaEngineWrapper {
 impl BoaEngineWrapper {
     // Remove the helper methods since we're using a simpler approach
 
-    fn boa_to_json_value(&self, js_value: boa_engine::JsValue) -> Result<Value> {
+    fn boa_to_json_value(&self, js_value: thalora_browser_apis::boa_engine::JsValue) -> Result<Value> {
         if js_value.is_undefined() || js_value.is_null() {
             Ok(Value::Null)
         } else if js_value.is_boolean() {
@@ -210,8 +222,8 @@ impl BoaEngineWrapper {
         }
     }
 
-    fn json_to_boa_value(&self, value: Value) -> Result<boa_engine::JsValue> {
-        use boa_engine::JsValue;
+    fn json_to_boa_value(&self, value: Value) -> Result<thalora_browser_apis::boa_engine::JsValue> {
+        use thalora_browser_apis::boa_engine::JsValue;
         
         match value {
             Value::Null => Ok(JsValue::null()),
@@ -239,6 +251,9 @@ impl BoaEngineWrapper {
     }
 }
 
+// V8 engine wrapper removed - V8 subproject was removed
+// Use Boa engine instead or re-add V8 engine integration if needed
+/*
 /// Wrapper for V8 engine to implement the common trait
 pub struct V8EngineWrapper {
     engine: thalora_v8_engine::V8JavaScriptEngine,
@@ -288,3 +303,4 @@ impl ThaloraBrowserEngine for V8EngineWrapper {
         "v8"
     }
 }
+*/

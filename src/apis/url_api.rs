@@ -1,5 +1,5 @@
 use anyhow::Result;
-use boa_engine::{Context, Source};
+use thalora_browser_apis::boa_engine::{Context, Source};
 
 /// Setup URL and URLSearchParams API
 pub fn setup_url_api(context: &mut Context) -> Result<()> {

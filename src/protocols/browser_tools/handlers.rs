@@ -332,6 +332,7 @@ impl BrowserTools {
     pub async fn handle_navigate_to(&self, params: Value) -> McpResponse {
         let url = params["url"].as_str().unwrap_or("");
         let wait_for_load = params.get("wait_for_load").and_then(|v| v.as_bool()).unwrap_or(true);
+        let wait_for_js = params.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
         let session_id = params.get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
@@ -351,7 +352,7 @@ impl BrowserTools {
             let lock_res = browser.lock();
             match lock_res {
                 Ok(mut browser_guard) => {
-                    match browser_guard.navigate_to_with_options(url, wait_for_load).await {
+                    match browser_guard.navigate_to_with_js_option(url, wait_for_load, wait_for_js).await {
                         Ok(content) => response = McpResponse::success(json!({
                             "success": true,
                             "content": content,
@@ -590,5 +591,43 @@ impl BrowserTools {
                 "message": format!("Session '{}' not found", session_id)
             }))
         }
+    }
+
+    pub async fn handle_wait_for_element(&self, params: Value) -> McpResponse {
+        let selector = params["selector"].as_str().unwrap_or("");
+        let timeout = params.get("timeout").and_then(|v| v.as_u64()).unwrap_or(10000);
+        let session_id = params.get("session_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("default");
+
+        if selector.is_empty() {
+            return McpResponse::error(-1, "Selector is required".to_string());
+        }
+
+        let browser = self.get_or_create_session(session_id, false);
+        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+
+        {
+            let lock_res = browser.lock();
+            match lock_res {
+                Ok(mut browser_guard) => {
+                    match browser_guard.wait_for_element(selector, timeout).await {
+                        Ok(found) => response = McpResponse::success(json!({
+                            "found": found,
+                            "selector": selector,
+                            "timeout_ms": timeout,
+                            "message": if found {
+                                format!("Element found: {}", selector)
+                            } else {
+                                format!("Element not found after {}ms: {}", timeout, selector)
+                            }
+                        })),
+                        Err(e) => response = McpResponse::error(-1, format!("Failed to wait for element: {}", e)),
+                    }
+                }
+                Err(_) => { }
+            }
+        }
+        response
     }
 }

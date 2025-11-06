@@ -21,7 +21,7 @@ pub mod media;
 pub mod polyfills;
 
 use anyhow::Result;
-use boa_engine::Context;
+use thalora_browser_apis::boa_engine::Context;
 
 /// Modern Web APIs implementation for headless browser
 pub struct WebApis;

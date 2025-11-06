@@ -1,4 +1,4 @@
-use boa_engine::{Context, JsResult, Source};
+use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 /// Setup ES2024 polyfills (Temporal API, RegExp v flag, etc.)
 pub fn setup_es2024_polyfills(context: &mut Context) -> JsResult<()> {

@@ -1,4 +1,4 @@
-use boa_engine::{Context, JsResult, Source};
+use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 /// Setup ES2025+ experimental features and Stage 3 proposals
 pub fn setup_es2025_experimental(context: &mut Context) -> JsResult<()> {

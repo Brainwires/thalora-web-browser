@@ -109,24 +109,163 @@ impl Tab {
         Ok(browser.get_current_content())
     }
 
-    /// Get rendered DOM structure by querying document.body.innerHTML
-    pub async fn get_rendered_dom(&self) -> Result<String> {
-        let browser = self.browser.lock().unwrap();
+    /// Get rendered DOM structure by querying the live DOM
+    pub async fn get_rendered_dom_structure(&self) -> Result<String> {
+        let mut browser = self.browser.lock().unwrap();
 
-        // For V8 engine or if JavaScript execution fails, use raw HTML content
-        // TODO: Implement V8 DOM support
-        let content = browser.get_current_content();
+        // Simplified DOM query that works with basic DOM APIs
+        let dom_query_script = r#"
+(function() {
+    try {
+        function getElementData(element) {
+            if (!element || element.nodeType !== 1) return null;
 
-        // If we have content, return it; otherwise try JavaScript execution for Boa
-        if !content.is_empty() && content != "about:blank" {
-            Ok(content)
-        } else {
-            // Try JavaScript execution (will work with Boa if DOM is loaded)
-            drop(browser); // Release lock before async operation
-            let mut browser = self.browser.lock().unwrap();
-            match browser.execute_javascript("document.body ? document.body.innerHTML : document.documentElement.innerHTML").await {
-                Ok(result) if !result.is_empty() => Ok(result),
-                _ => Ok(content), // Fallback to raw HTML
+            // Get computed style if available, otherwise use defaults
+            let style = {};
+            try {
+                if (window.getComputedStyle) {
+                    const cs = window.getComputedStyle(element);
+                    style = {
+                        color: cs.color || 'rgb(0, 0, 0)',
+                        backgroundColor: cs.backgroundColor || 'rgb(255, 255, 255)',
+                        fontSize: cs.fontSize || '14px',
+                        fontWeight: cs.fontWeight || 'normal',
+                        fontFamily: cs.fontFamily || 'sans-serif',
+                        textDecoration: cs.textDecoration || 'none',
+                        display: cs.display || 'block',
+                        marginTop: cs.marginTop || '0px',
+                        marginBottom: cs.marginBottom || '0px',
+                        paddingTop: cs.paddingTop || '0px',
+                        paddingBottom: cs.paddingBottom || '0px'
+                    };
+                } else {
+                    // Fallback defaults
+                    style = {
+                        color: 'rgb(0, 0, 0)',
+                        backgroundColor: 'rgb(255, 255, 255)',
+                        fontSize: '14px',
+                        fontWeight: 'normal',
+                        fontFamily: 'sans-serif',
+                        textDecoration: 'none',
+                        display: 'block',
+                        marginTop: '0px',
+                        marginBottom: '0px',
+                        paddingTop: '0px',
+                        paddingBottom: '0px'
+                    };
+                }
+            } catch (e) {
+                // Use defaults if getComputedStyle fails
+                style = {
+                    color: 'rgb(0, 0, 0)',
+                    backgroundColor: 'rgb(255, 255, 255)',
+                    fontSize: '14px',
+                    fontWeight: 'normal',
+                    fontFamily: 'sans-serif',
+                    textDecoration: 'none',
+                    display: 'block',
+                    marginTop: '0px',
+                    marginBottom: '0px',
+                    paddingTop: '0px',
+                    paddingBottom: '0px'
+                };
+            }
+
+            const data = {
+                tag: element.tagName.toLowerCase(),
+                text: '',
+                attrs: {},
+                style: style,
+                children: []
+            };
+
+            // Get direct text content (not from children)
+            for (let i = 0; i < element.childNodes.length; i++) {
+                const node = element.childNodes[i];
+                if (node.nodeType === 3) { // Text node
+                    data.text += node.textContent;
+                }
+            }
+
+            // Get important attributes
+            if (element.href) data.attrs.href = element.href;
+            if (element.src) data.attrs.src = element.src;
+            if (element.alt) data.attrs.alt = element.alt;
+            if (element.id) data.attrs.id = element.id;
+            if (element.className) data.attrs.class = element.className;
+
+            // Recursively process children
+            for (let i = 0; i < element.children.length; i++) {
+                const child = element.children[i];
+                const childData = getElementData(child);
+                if (childData) {
+                    data.children.push(childData);
+                }
+            }
+
+            return data;
+        }
+
+        const body = document.body || document.documentElement;
+        if (!body) {
+            return JSON.stringify({
+                tag: 'html',
+                text: '',
+                attrs: {},
+                style: {
+                    color: 'rgb(0, 0, 0)',
+                    backgroundColor: 'rgb(255, 255, 255)',
+                    fontSize: '14px',
+                    fontWeight: 'normal',
+                    fontFamily: 'sans-serif',
+                    textDecoration: 'none',
+                    display: 'block',
+                    marginTop: '0px',
+                    marginBottom: '0px',
+                    paddingTop: '0px',
+                    paddingBottom: '0px'
+                },
+                children: []
+            });
+        }
+        const result = getElementData(body);
+        return JSON.stringify(result);
+    } catch (e) {
+        return JSON.stringify({
+            tag: 'div',
+            text: 'Error: ' + e.message,
+            attrs: {},
+            style: {
+                color: 'rgb(0, 0, 0)',
+                backgroundColor: 'rgb(255, 255, 255)',
+                fontSize: '14px',
+                fontWeight: 'normal',
+                fontFamily: 'sans-serif',
+                textDecoration: 'none',
+                display: 'block',
+                marginTop: '0px',
+                marginBottom: '0px',
+                paddingTop: '0px',
+                paddingBottom: '0px'
+            },
+            children: []
+        });
+    }
+})()
+        "#;
+
+        match browser.execute_javascript(dom_query_script).await {
+            Ok(json_result) => {
+                if json_result.trim().is_empty() || json_result == "undefined" {
+                    // Fallback to raw HTML
+                    Ok(browser.get_current_content())
+                } else {
+                    Ok(json_result)
+                }
+            }
+            Err(_) => {
+                // Fallback to raw HTML if JavaScript fails
+                Ok(browser.get_current_content())
             }
         }
     }

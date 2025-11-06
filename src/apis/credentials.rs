@@ -1,4 +1,4 @@
-use boa_engine::{js_string, native_function::NativeFunction, Context, JsObject, JsResult, JsValue};
+use thalora_browser_apis::boa_engine::{js_string, native_function::NativeFunction, Context, JsObject, JsResult, JsValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

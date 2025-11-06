@@ -1,14 +1,14 @@
 use anyhow::Result;
-use boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
+use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
 use std::sync::{Arc, Mutex};
 use super::types::*;
 
 impl MediaManager {
-    pub fn setup_speech_apis(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    pub fn setup_speech_apis(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let speech_synthesis = Arc::clone(&self.speech_synthesis);
 
         // Real speechSynthesis global object
-        let speech_synthesis_obj = JsObject::default();
+        let speech_synthesis_obj = JsObject::default(&context.intrinsics());
         speech_synthesis_obj.set(js_string!("speaking"), JsValue::from(false), false, context)?;
         speech_synthesis_obj.set(js_string!("pending"), JsValue::from(false), false, context)?;
         speech_synthesis_obj.set(js_string!("paused"), JsValue::from(false), false, context)?;
@@ -27,7 +27,7 @@ impl MediaManager {
         let speech_recognition_constructor = unsafe {
             NativeFunction::from_closure(|_, _args, context| {
                 // Return a simple object with start/stop placeholders
-                let obj = JsObject::default();
+                let obj = JsObject::default(&context.intrinsics());
                 obj.set(js_string!("start"), JsValue::from(native_fn_stub(context)?), true, context)?;
                 obj.set(js_string!("stop"), JsValue::from(native_fn_stub(context)?), true, context)?;
                 Ok(JsValue::from(obj))
@@ -55,7 +55,7 @@ impl MediaManager {
         speech_synthesis_obj: &JsObject,
         speech_synthesis: &Arc<Mutex<SpeechSynthesisReal>>,
         context: &mut Context,
-    ) -> Result<(), boa_engine::JsError> {
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real speak method
         let speech_synthesis_speak = Arc::clone(speech_synthesis);
         let speak_fn = unsafe {
@@ -103,7 +103,7 @@ impl MediaManager {
 
         let get_voices_fn = unsafe {
             NativeFunction::from_closure(|_, _, _ctx| {
-                let voices_array = JsObject::default();
+                let voices_array = JsObject::default(&_ctx.intrinsics());
                 // Real voice enumeration would happen here
                 Ok(JsValue::from(voices_array))
             })
@@ -118,11 +118,11 @@ impl MediaManager {
         Ok(())
     }
 
-    fn setup_speech_utterance_constructor(&self, context: &mut Context) -> Result<(), boa_engine::JsError> {
+    fn setup_speech_utterance_constructor(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real SpeechSynthesisUtterance constructor
         let speech_utterance_constructor = unsafe {
             NativeFunction::from_closure(|_, args, context| {
-                let utterance = JsObject::default();
+                let utterance = JsObject::default(&context.intrinsics());
 
                 let text = if !args.is_empty() {
                     args[0].to_string(context)?.to_std_string_escaped()
@@ -171,7 +171,7 @@ impl MediaManager {
 }
 
 // Helper to create a no-op native function wrapped as JsValue
-fn native_fn_stub(context: &mut Context) -> Result<JsValue, boa_engine::JsError> {
+fn native_fn_stub(context: &mut Context) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
     let f = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
     Ok(JsValue::from(f.to_js_function(context.realm())))
 }
