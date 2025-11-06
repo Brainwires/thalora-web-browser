@@ -80,6 +80,44 @@ pub enum DisplayMessage {
     Ping {
         timestamp: u64,
     },
+
+    /// CDP Screencast frame
+    /// This is the efficient display streaming method used by services like Browserless
+    ScreencastFrame {
+        /// Base64-encoded frame data (JPEG or PNG)
+        data: String,
+        /// Metadata about the frame
+        metadata: ScreencastFrameMetadata,
+        /// Session ID for frame acknowledgment
+        session_id: i32,
+        timestamp: u64,
+    },
+}
+
+/// Screencast frame metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScreencastFrameMetadata {
+    /// Offset from the top of the page in CSS pixels
+    #[serde(rename = "offsetTop")]
+    pub offset_top: f64,
+    /// Page scale factor
+    #[serde(rename = "pageScaleFactor")]
+    pub page_scale_factor: f64,
+    /// Width of device screen in CSS pixels
+    #[serde(rename = "deviceWidth")]
+    pub device_width: f64,
+    /// Height of device screen in CSS pixels
+    #[serde(rename = "deviceHeight")]
+    pub device_height: f64,
+    /// Width of scrollbar in CSS pixels
+    #[serde(rename = "scrollOffsetX")]
+    pub scroll_offset_x: f64,
+    /// Height of scrollbar in CSS pixels
+    #[serde(rename = "scrollOffsetY")]
+    pub scroll_offset_y: f64,
+    /// Timestamp
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<f64>,
 }
 
 /// Message types sent from display clients to Thalora
@@ -122,6 +160,26 @@ pub enum DisplayCommand {
     /// Pong response to ping
     Pong {
         timestamp: u64,
+    },
+
+    /// Start CDP screencast
+    StartScreencast {
+        /// Image format: "png" or "jpeg"
+        format: Option<String>,
+        /// Image quality (0-100) for JPEG
+        quality: Option<i32>,
+        /// Maximum width in pixels
+        max_width: Option<i32>,
+        /// Maximum height in pixels
+        max_height: Option<i32>,
+    },
+
+    /// Stop CDP screencast
+    StopScreencast,
+
+    /// Acknowledge screencast frame (required for next frame to be sent)
+    ScreencastFrameAck {
+        session_id: i32,
     },
 }
 
@@ -223,8 +281,9 @@ impl DisplayServer {
                         // Send initial HTML
                         if let BrowserResponse::Success { data } = content_response {
                             if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                                // Inject proxy script and rewrite image URLs
-                                let with_proxy = inject_proxy_script(html, &url);
+                                // Strip security meta tags, inject proxy script, and rewrite image URLs
+                                let cleaned_html = strip_security_meta_tags(html);
+                                let with_proxy = inject_proxy_script(&cleaned_html, &url);
                                 let processed_html = rewrite_image_urls(&with_proxy, &url);
 
                                 let msg = DisplayMessage::HtmlUpdate {
@@ -371,8 +430,9 @@ impl DisplayServer {
                 // Send HTML update (which will set loading=false on client)
                 if let BrowserResponse::Success { data } = content_response {
                     if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                        // Inject proxy script and rewrite image URLs
-                        let with_proxy = inject_proxy_script(html, &url);
+                        // Strip security meta tags, inject proxy script, and rewrite image URLs
+                        let cleaned_html = strip_security_meta_tags(html);
+                        let with_proxy = inject_proxy_script(&cleaned_html, &url);
                         let processed_html = rewrite_image_urls(&with_proxy, &url);
 
                         self.send_to_client(client_id, DisplayMessage::HtmlUpdate {
@@ -441,6 +501,39 @@ impl DisplayServer {
             DisplayCommand::Pong { .. } => {
                 // Keepalive response, no action needed
             }
+
+            DisplayCommand::StartScreencast { format, quality, max_width, max_height } => {
+                // TODO: Integrate with CDP Page.startScreencast
+                info!("Starting screencast: format={:?}, quality={:?}, max_width={:?}, max_height={:?}",
+                    format, quality, max_width, max_height);
+
+                // For now, send an acknowledgment
+                self.send_to_client(client_id, DisplayMessage::ConsoleLog {
+                    level: "info".to_string(),
+                    message: format!(
+                        "Screencast started with format={:?}, quality={:?}",
+                        format.as_deref().unwrap_or("png"),
+                        quality.unwrap_or(80)
+                    ),
+                    timestamp: current_timestamp(),
+                }).await?;
+            }
+
+            DisplayCommand::StopScreencast => {
+                // TODO: Integrate with CDP Page.stopScreencast
+                info!("Stopping screencast");
+
+                self.send_to_client(client_id, DisplayMessage::ConsoleLog {
+                    level: "info".to_string(),
+                    message: "Screencast stopped".to_string(),
+                    timestamp: current_timestamp(),
+                }).await?;
+            }
+
+            DisplayCommand::ScreencastFrameAck { session_id } => {
+                // TODO: Acknowledge frame receipt and allow next frame to be sent
+                debug!("Screencast frame {} acknowledged", session_id);
+            }
         }
 
         Ok(())
@@ -460,8 +553,9 @@ impl DisplayServer {
                     .unwrap_or("")
                     .to_string();
 
-                // Inject proxy script and rewrite image URLs
-                let with_proxy = inject_proxy_script(html, &url);
+                // Strip security meta tags, inject proxy script, and rewrite image URLs
+                let cleaned_html = strip_security_meta_tags(html);
+                let with_proxy = inject_proxy_script(&cleaned_html, &url);
                 let processed_html = rewrite_image_urls(&with_proxy, &url);
 
                 self.send_to_client(client_id, DisplayMessage::HtmlUpdate {
@@ -505,6 +599,27 @@ impl Clone for DisplayServer {
             broadcast_tx: self.broadcast_tx.clone(),
         }
     }
+}
+
+/// Strip security meta tags that prevent iframe embedding
+fn strip_security_meta_tags(html: &str) -> String {
+    use regex::Regex;
+
+    let mut cleaned = html.to_string();
+
+    // Remove X-Frame-Options meta tags
+    let xframe_regex = Regex::new(r#"(?i)<meta[^>]*http-equiv=["']?x-frame-options["']?[^>]*>"#).unwrap();
+    cleaned = xframe_regex.replace_all(&cleaned, "").to_string();
+
+    // Remove CSP meta tags
+    let csp_regex = Regex::new(r#"(?i)<meta[^>]*http-equiv=["']?content-security-policy["']?[^>]*>"#).unwrap();
+    cleaned = csp_regex.replace_all(&cleaned, "").to_string();
+
+    // Remove frame-ancestors directives from inline CSP
+    let frame_ancestors_regex = Regex::new(r#"(?i)frame-ancestors\s+[^;]+;?"#).unwrap();
+    cleaned = frame_ancestors_regex.replace_all(&cleaned, "").to_string();
+
+    cleaned
 }
 
 /// Rewrite image URLs to use proxy
