@@ -1,0 +1,133 @@
+use anyhow::Result;
+use base64::{engine::general_purpose, Engine as _};
+use scraper::{Html, Selector};
+
+use crate::protocols::mcp_server::scraping::types::{SearchResult, SearchResults};
+use crate::protocols::mcp_server::scraping::utils::{extract_generic_snippet, extract_generic_title, extract_generic_url};
+
+pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
+    let search_url = format!("https://www.bing.com/search?q={}&count={}&FORM=QBLH",
+                            urlencoding::encode(query), num_results);
+
+    // Create temporary browser for stateless search
+    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
+
+    // Navigate using the browser's full navigation system which includes stealth features
+    {
+        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        browser.navigate_to_with_options(&search_url, true).await?;
+    }
+
+    let html = {
+        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        browser.get_current_content()
+    };
+
+    // Explicitly drop browser to ensure cleanup
+    drop(temp_browser);
+
+    // Check for actual Cloudflare challenge (not just JS that mentions cloudflare)
+    if html.contains("challenges.cloudflare.com") && html.contains("cf-browser-verification") {
+        return Err(anyhow::anyhow!("Bing returned Cloudflare challenge - need enhanced stealth"));
+    }
+
+    parse_results(&html, query, num_results)
+}
+
+fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+    eprintln!("🔍 DEBUG: Bing HTML length: {}", html.len());
+    eprintln!("🔍 DEBUG: Bing HTML contains .b_algo: {}", html.contains(".b_algo"));
+    eprintln!("🔍 DEBUG: Bing HTML contains cloudflare: {}", html.contains("cloudflare"));
+    eprintln!("🔍 DEBUG: First 500 chars: {}", &html[..html.len().min(500)]);
+
+    let document = Html::parse_document(html);
+    let mut results = Vec::new();
+
+    // Modern Bing result selectors - updated for current Bing structure
+    let main_selectors = [
+        ".b_algo",           // Main result container
+        ".b_algoSlug",       // Alternative result container
+        "li.b_algo",         // List item with class
+        "[data-feedback]",   // Modern Bing feedback-enabled results
+    ];
+
+    for selector_str in &main_selectors {
+        if let Ok(selector) = Selector::parse(selector_str) {
+            for element in document.select(&selector) {
+                if results.len() >= num_results {
+                    break;
+                }
+
+                // Try multiple title selectors for Bing
+                let title_selectors = [
+                    "h2 a",
+                    ".b_title a",
+                    ".b_algoheader a",
+                    ".b_topTitle a",
+                    "a[href] h2",
+                    "a[href] h3"
+                ];
+
+                let url_selectors = [
+                    "h2 a",
+                    ".b_title a",
+                    ".b_algoheader a",
+                    ".b_topTitle a",
+                    "a[href]:first-of-type"
+                ];
+
+                let snippet_selectors = [
+                    ".b_caption p",
+                    ".b_snippet",
+                    ".b_paractl",
+                    ".b_descript",
+                    ".b_lineclamp2",
+                    ".b_lineclamp3",
+                    ".b_lineclamp4",
+                    "p"
+                ];
+
+                let title = extract_generic_title(&element, &title_selectors);
+                let mut url = extract_generic_url(&element, &url_selectors);
+                let snippet = extract_generic_snippet(&element, &snippet_selectors);
+
+                // Clean up Bing redirect URLs
+                if url.starts_with("https://www.bing.com/ck/a?") || url.contains("&u=a1aHR0") {
+                    // Extract actual URL from Bing redirect
+                        if let Some(u_param) = url.split("&u=a1").nth(1) {
+                        let param_value = u_param.chars().take_while(|&c| c != '&').collect::<String>();
+                        if let Ok(decoded) = general_purpose::STANDARD.decode(&param_value) {
+                            if let Ok(decoded_url) = String::from_utf8(decoded) {
+                                url = decoded_url;
+                            }
+                        }
+                    }
+                }
+
+                // Only add if we have valid title and URL, and it's not a duplicate
+                if !title.is_empty() && !url.is_empty() && url.starts_with("http")
+                    && !url.contains("bing.com") && !url.contains("microsoft.com")
+                    && !results.iter().any(|r: &SearchResult| r.url == url) {
+                    results.push(SearchResult {
+                        title,
+                        url,
+                        snippet,
+                        position: results.len() + 1,
+                    });
+                }
+            }
+        }
+
+        if results.len() >= num_results {
+            break;
+        }
+    }
+
+    let result_count = results.len();
+    Ok(SearchResults {
+        query: query.to_string(),
+        results,
+        total_results: Some(format!("{} results", result_count)),
+        search_time: None,
+    })
+}

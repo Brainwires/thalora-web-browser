@@ -1,0 +1,40 @@
+use serde_json::Value;
+
+use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp_server::core::McpServer;
+
+use super::search;
+
+impl McpServer {
+    pub(in crate::protocols::mcp_server) async fn web_search(&mut self, arguments: Value) -> McpResponse {
+        eprintln!("🔍 DEBUG: Starting web_search function");
+        let query = arguments["query"].as_str().unwrap_or("");
+        let num_results = arguments["num_results"].as_u64().unwrap_or(10) as usize;
+        let search_engine = arguments["search_engine"].as_str().unwrap_or("duckduckgo");
+        eprintln!("🔍 DEBUG: Parameters - query: {}, num_results: {}, engine: {}", query, num_results, search_engine);
+
+        if query.is_empty() {
+            return McpResponse::error(-1, "Query parameter is required".to_string());
+        }
+
+        let num_results = num_results.min(20); // Cap at 20 results
+        eprintln!("🔍 DEBUG: About to call perform_web_search");
+
+        match search::perform_search(query, num_results, search_engine).await {
+            Ok(results) => {
+                eprintln!("🔍 DEBUG: perform_web_search succeeded");
+                // Wrap result in MCP text content format
+                let results_json = serde_json::to_value(results).unwrap_or_default();
+                let mcp_content = serde_json::json!({
+                    "type": "text",
+                    "text": serde_json::to_string_pretty(&results_json).unwrap_or_else(|_| "[]".to_string())
+                });
+                McpResponse::success(mcp_content)
+            },
+            Err(e) => {
+                eprintln!("🔍 DEBUG: perform_web_search failed: {}", e);
+                McpResponse::error(-1, format!("Web search failed: {}", e))
+            }
+        }
+    }
+}
