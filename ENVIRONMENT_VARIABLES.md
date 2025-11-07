@@ -32,19 +32,37 @@ export THALORA_MASTER_PASSWORD="your-secure-password-at-least-32-chars"
 ### `THALORA_ENABLE_AI_MEMORY`
 
 **Required for**: Persistent AI memory storage
-**Type**: Boolean (any value = enabled)
+**Type**: Boolean (truthy values only)
 **Default**: Disabled (not set)
 
 Controls whether the AI Memory Heap persists data to disk. When disabled, Thalora uses in-memory storage only.
 
+**Truthy Values** (enables AI memory):
+- `1`
+- `true`
+- `yes`
+- `on`
+- Any other non-empty string except the falsy values below
+
+**Falsy Values** (disables AI memory):
+- `0`
+- `false`
+- `no`
+- `off`
+- Empty string `""`
+- Unset (default)
+
 **Example**:
 ```bash
-# Enable AI memory persistence
+# Enable AI memory persistence (any of these work)
 export THALORA_ENABLE_AI_MEMORY=1
-
-# Or any non-empty value
 export THALORA_ENABLE_AI_MEMORY=true
 export THALORA_ENABLE_AI_MEMORY=yes
+
+# Explicitly disable (same as not setting it)
+export THALORA_ENABLE_AI_MEMORY=false
+export THALORA_ENABLE_AI_MEMORY=0
+unset THALORA_ENABLE_AI_MEMORY
 ```
 
 **Behavior**:

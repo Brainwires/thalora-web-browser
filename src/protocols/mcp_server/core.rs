@@ -39,8 +39,17 @@ impl McpServer {
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {
-        // Only enable AI memory if THALORA_ENABLE_AI_MEMORY is set
-        let ai_memory = if std::env::var("THALORA_ENABLE_AI_MEMORY").is_ok() {
+        // Only enable AI memory if THALORA_ENABLE_AI_MEMORY is set to a truthy value
+        // Accepts: "1", "true", "yes", "on" (case-insensitive)
+        // Rejects: "0", "false", "no", "off", "" (empty), or unset
+        let ai_memory_enabled = std::env::var("THALORA_ENABLE_AI_MEMORY")
+            .map(|v| {
+                let val = v.trim().to_lowercase();
+                !val.is_empty() && val != "0" && val != "false" && val != "no" && val != "off"
+            })
+            .unwrap_or(false);
+
+        let ai_memory = if ai_memory_enabled {
             tracing::info!("AI memory enabled via THALORA_ENABLE_AI_MEMORY");
             AiMemoryHeap::new_default().unwrap_or_else(|e| {
                 tracing::warn!("Failed to load AI memory heap: {}, creating new one", e);
