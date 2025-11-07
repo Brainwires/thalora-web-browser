@@ -149,8 +149,10 @@ impl RustRenderer {
             if let Some(ctx) = &mut self.js_context {
                 let test_script = r#"
                 console.log("=== BOT DETECTION ===");
+                console.log("navigator:", typeof navigator);
                 console.log("navigator.webdriver:", typeof navigator.webdriver, navigator.webdriver);
-                console.log("navigator.plugins.length:", navigator.plugins ? navigator.plugins.length : "undefined");
+                console.log("navigator.plugins:", typeof navigator.plugins, navigator.plugins);
+                console.log("navigator.plugins.length:", navigator.plugins ? navigator.plugins.length : "plugins is undefined/null");
                 console.log("window.chrome:", typeof window.chrome);
                 console.log("window.outerWidth:", typeof window.outerWidth, window.outerWidth);
                 console.log("Image constructor:", typeof Image);

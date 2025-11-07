@@ -266,8 +266,8 @@ impl BuiltInObject for Event {
 
 impl BuiltInConstructor for Event {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 24;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 4;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::event;

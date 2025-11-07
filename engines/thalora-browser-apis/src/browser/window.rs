@@ -561,20 +561,35 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
 
         // Initialize navigator object - check if we have a Navigator constructor registered externally
         if !navigator.has_property(js_string!("userAgent"), context)? {
+            eprintln!("🔍 DEBUG: navigator doesn't have userAgent, trying to create proper Navigator instance");
             // Try to create a proper Navigator instance from external constructor
             if let Some(nav_constructor) = context.realm().get_external_constructor("Navigator") {
+                eprintln!("🔍 DEBUG: Found Navigator constructor");
                 use boa_engine::builtins::BuiltInConstructor;
                 use crate::browser::navigator::Navigator;
 
                 let nav_args: &[JsValue] = &[];
                 let nav_fn_value: JsValue = nav_constructor.constructor().clone().into();
-                if let Ok(nav_instance) = Navigator::constructor(&nav_fn_value, nav_args, context) {
-                    if let Some(nav_obj) = nav_instance.as_object() {
-                        window.set_navigator(nav_obj.clone());
-                        return Ok(nav_instance);
+                eprintln!("🔍 DEBUG: About to call Navigator::constructor");
+                match Navigator::constructor(&nav_fn_value, nav_args, context) {
+                    Ok(nav_instance) => {
+                        eprintln!("🔍 DEBUG: Navigator::constructor succeeded: {:?}", nav_instance);
+                        if let Some(nav_obj) = nav_instance.as_object() {
+                            eprintln!("🔍 DEBUG: Got navigator object, setting it on window");
+                            window.set_navigator(nav_obj.clone());
+                            return Ok(nav_instance);
+                        } else {
+                            eprintln!("❌ DEBUG: nav_instance is not an object!");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("❌ DEBUG: Navigator::constructor failed: {:?}", e);
                     }
                 }
+            } else {
+                eprintln!("❌ DEBUG: No Navigator constructor found in context.realm()");
             }
+            eprintln!("🔍 DEBUG: Falling back to manual navigator property creation");
 
             // Fallback: manually add properties if Navigator constructor not available
             // Add userAgent property - use shared USER_AGENT constant
@@ -795,6 +810,8 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
                     .build(),
                 context,
             )?;
+        } else {
+            eprintln!("🔍 DEBUG: navigator already has userAgent, using existing object");
         }
 
     Ok(navigator.into())
