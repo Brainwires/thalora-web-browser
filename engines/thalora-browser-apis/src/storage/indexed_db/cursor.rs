@@ -627,7 +627,7 @@ impl BuiltInConstructor for IDBCursor {
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| {
-            constructors.object()  // Use Object constructor as placeholder
+            constructors.idb_cursor()
         };
 
     fn constructor(

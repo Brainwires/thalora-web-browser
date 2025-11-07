@@ -875,6 +875,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // Register XMLHttpRequest as global
+    global_object.define_property_or_throw(
+        fetch::xmlhttprequest::XmlHttpRequest::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // Add 'self' reference to global scope (Worker/browser compatibility)
     global_object.set(js_string!("self"), global_object.clone(), false, context)?;
 

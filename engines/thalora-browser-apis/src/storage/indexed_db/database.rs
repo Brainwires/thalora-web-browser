@@ -556,7 +556,7 @@ impl BuiltInConstructor for IDBDatabase {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |intrinsics| intrinsics.object();
+        |intrinsics| intrinsics.idb_database();
 
     fn constructor(
         _new_target: &JsValue,

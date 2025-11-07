@@ -620,7 +620,7 @@ impl BuiltInConstructor for IDBIndex {
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| {
-            constructors.object()  // Use Object constructor as placeholder
+            constructors.idb_index()  // Use Object constructor as placeholder
         };
 
     fn constructor(

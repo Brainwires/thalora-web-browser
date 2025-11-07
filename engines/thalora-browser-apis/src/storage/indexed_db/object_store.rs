@@ -678,7 +678,7 @@ impl BuiltInConstructor for IDBObjectStore {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |intrinsics| intrinsics.object();
+        |intrinsics| intrinsics.idb_object_store();
 
     fn constructor(
         _new_target: &JsValue,
