@@ -120,11 +120,6 @@ aes-gcm = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
 sha2 = "0.10"
 
-# JavaScript AST parsing for security validation
-swc_ecma_parser = "18"
-swc_ecma_ast = "18"
-swc_common = "18"
-
 # IP address parsing and validation for SSRF prevention
 ipnetwork = "0.20"
 

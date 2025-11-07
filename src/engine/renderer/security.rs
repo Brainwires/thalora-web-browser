@@ -46,7 +46,7 @@ mod tests {
     use super::*;
 
     fn create_test_renderer() -> RustRenderer {
-        RustRenderer::new("https://example.com".to_string())
+        RustRenderer::new()
     }
 
     #[test]

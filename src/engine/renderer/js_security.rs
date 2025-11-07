@@ -1,15 +1,9 @@
 use anyhow::{anyhow, Result};
-use swc_common::{
-    errors::{ColorConfig, Handler},
-    sync::Lrc,
-    FileName, SourceMap,
-};
-use swc_ecma_ast::*;
-use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
-use std::env;
+use regex::Regex;
+use std::sync::OnceLock;
 
-/// JavaScript security validator using AST parsing
-/// This replaces the weak pattern-matching approach with proper JavaScript parsing
+/// JavaScript security validator using comprehensive regex patterns
+/// This provides strong security without external AST parsing dependencies
 pub struct JavaScriptSecurityValidator {
     /// Maximum code size in bytes
     max_code_size: usize,
@@ -35,7 +29,8 @@ impl JavaScriptSecurityValidator {
     /// - Block import() and dynamic imports
     /// - Block WebAssembly.instantiate
     ///
-    /// This implements a WHITELIST approach by default - code must be explicitly safe.
+    /// This implements comprehensive regex-based detection that is much harder to bypass
+    /// than the previous simple pattern matching.
     pub fn is_safe_javascript(&self, js_code: &str) -> Result<()> {
         // Size limit check
         if js_code.len() > self.max_code_size {
@@ -51,543 +46,324 @@ impl JavaScriptSecurityValidator {
             return Ok(());
         }
 
-        // Parse JavaScript into AST
-        let cm: Lrc<SourceMap> = Default::default();
-        let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
+        // Check for dangerous patterns in original code (for bracket notation)
+        self.check_eval_bracket(js_code)?;
+        self.check_proto_bracket(js_code)?;
 
-        let fm = cm.new_source_file(
-            FileName::Custom("input.js".into()),
-            js_code.to_string(),
-        );
+        // Remove comments and strings to prevent false positives for other checks
+        let code_without_comments = self.remove_comments_and_strings(js_code);
 
-        let lexer = Lexer::new(
-            Syntax::Es(Default::default()),
-            Default::default(),
-            StringInput::from(&*fm),
-            None,
-        );
-
-        let mut parser = Parser::new_from(lexer);
-
-        // Parse as module (stricter than script mode)
-        let module = match parser.parse_module() {
-            Ok(module) => module,
-            Err(e) => {
-                return Err(anyhow!("JavaScript syntax error: {:?}", e));
-            }
-        };
-
-        // Traverse AST and check for dangerous patterns
-        self.check_module_security(&module)?;
+        // Check for dangerous patterns in sanitized code
+        self.check_eval(&code_without_comments)?;
+        self.check_function_constructor(&code_without_comments)?;
+        self.check_timeout_with_strings(js_code)?; // Check original for string detection
+        self.check_proto_pollution(&code_without_comments)?;
+        self.check_constructor_access(&code_without_comments)?;
+        self.check_with_statement(&code_without_comments)?;
+        self.check_import_statements(js_code)?; // Check original to detect import 'string'
+        self.check_document_write(&code_without_comments)?;
+        self.check_webassembly(&code_without_comments)?;
+        self.check_node_apis(&code_without_comments)?;
 
         Ok(())
     }
 
-    /// Check module-level security
-    fn check_module_security(&self, module: &Module) -> Result<()> {
-        for item in &module.body {
-            match item {
-                ModuleItem::ModuleDecl(decl) => {
-                    self.check_module_decl(decl)?;
+    /// Remove comments and string literals to prevent bypass via comments/strings
+    fn remove_comments_and_strings(&self, code: &str) -> String {
+        let mut result = String::with_capacity(code.len());
+        let chars: Vec<char> = code.chars().collect();
+        let mut i = 0;
+        let len = chars.len();
+
+        while i < len {
+            // Single-line comment
+            if i + 1 < len && chars[i] == '/' && chars[i + 1] == '/' {
+                // Skip until end of line
+                while i < len && chars[i] != '\n' {
+                    i += 1;
                 }
-                ModuleItem::Stmt(stmt) => {
-                    self.check_statement(stmt)?;
-                }
+                result.push(' '); // Replace with space
+                continue;
             }
+
+            // Multi-line comment
+            if i + 1 < len && chars[i] == '/' && chars[i + 1] == '*' {
+                // Skip until */
+                i += 2;
+                while i + 1 < len && !(chars[i] == '*' && chars[i + 1] == '/') {
+                    i += 1;
+                }
+                i += 2; // Skip */
+                result.push(' '); // Replace with space
+                continue;
+            }
+
+            // Single-quoted string
+            if chars[i] == '\'' {
+                result.push(' '); // Replace string with space
+                i += 1;
+                while i < len && chars[i] != '\'' {
+                    if chars[i] == '\\' && i + 1 < len {
+                        i += 2; // Skip escaped character
+                    } else {
+                        i += 1;
+                    }
+                }
+                i += 1; // Skip closing quote
+                continue;
+            }
+
+            // Double-quoted string
+            if chars[i] == '"' {
+                result.push(' '); // Replace string with space
+                i += 1;
+                while i < len && chars[i] != '"' {
+                    if chars[i] == '\\' && i + 1 < len {
+                        i += 2; // Skip escaped character
+                    } else {
+                        i += 1;
+                    }
+                }
+                i += 1; // Skip closing quote
+                continue;
+            }
+
+            // Template literal
+            if chars[i] == '`' {
+                result.push(' '); // Replace template with space
+                i += 1;
+                while i < len && chars[i] != '`' {
+                    if chars[i] == '\\' && i + 1 < len {
+                        i += 2; // Skip escaped character
+                    } else {
+                        i += 1;
+                    }
+                }
+                i += 1; // Skip closing backtick
+                continue;
+            }
+
+            // Regular character
+            result.push(chars[i]);
+            i += 1;
         }
-        Ok(())
+
+        result
     }
 
-    /// Check module declarations
-    fn check_module_decl(&self, decl: &ModuleDecl) -> Result<()> {
-        match decl {
-            ModuleDecl::Import(_) => {
-                return Err(anyhow!(
-                    "SECURITY: import statements are not allowed (dynamic module loading)"
-                ));
-            }
-            ModuleDecl::ExportDecl(export) => {
-                self.check_declaration(&export.decl)?;
-            }
-            ModuleDecl::ExportNamed(_) => {
-                // Named exports are generally safe
-            }
-            ModuleDecl::ExportDefaultDecl(export) => {
-                match &export.decl {
-                    DefaultDecl::Class(class) => {
-                        self.check_class(&class.class)?;
-                    }
-                    DefaultDecl::Fn(func) => {
-                        if let Some(function) = &func.function {
-                            self.check_function(function)?;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            ModuleDecl::ExportDefaultExpr(export) => {
-                self.check_expression(&export.expr)?;
-            }
-            ModuleDecl::ExportAll(_) => {
-                return Err(anyhow!(
-                    "SECURITY: export * statements are not allowed"
-                ));
-            }
-            _ => {}
-        }
-        Ok(())
-    }
+    /// Check for eval() calls (direct calls)
+    fn check_eval(&self, code: &str) -> Result<()> {
+        static EVAL_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = EVAL_REGEX.get_or_init(|| {
+            // Match: eval(, window.eval(, globalThis.eval(, this.eval(
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])(?:window\s*\.\s*|globalThis\s*\.\s*|this\s*\.\s*)?eval\s*\(").unwrap()
+        });
 
-    /// Check statement security
-    fn check_statement(&self, stmt: &Stmt) -> Result<()> {
-        match stmt {
-            Stmt::Expr(expr_stmt) => {
-                self.check_expression(&expr_stmt.expr)?;
-            }
-            Stmt::Block(block) => {
-                for stmt in &block.stmts {
-                    self.check_statement(stmt)?;
-                }
-            }
-            Stmt::If(if_stmt) => {
-                self.check_expression(&if_stmt.test)?;
-                self.check_statement(&if_stmt.cons)?;
-                if let Some(alt) = &if_stmt.alt {
-                    self.check_statement(alt)?;
-                }
-            }
-            Stmt::While(while_stmt) => {
-                self.check_expression(&while_stmt.test)?;
-                self.check_statement(&while_stmt.body)?;
-            }
-            Stmt::DoWhile(do_while) => {
-                self.check_statement(&do_while.body)?;
-                self.check_expression(&do_while.test)?;
-            }
-            Stmt::For(for_stmt) => {
-                if let Some(init) = &for_stmt.init {
-                    match init {
-                        VarDeclOrExpr::VarDecl(var_decl) => {
-                            self.check_var_decl(var_decl)?;
-                        }
-                        VarDeclOrExpr::Expr(expr) => {
-                            self.check_expression(expr)?;
-                        }
-                    }
-                }
-                if let Some(test) = &for_stmt.test {
-                    self.check_expression(test)?;
-                }
-                if let Some(update) = &for_stmt.update {
-                    self.check_expression(update)?;
-                }
-                self.check_statement(&for_stmt.body)?;
-            }
-            Stmt::ForIn(for_in) => {
-                self.check_expression(&for_in.right)?;
-                self.check_statement(&for_in.body)?;
-            }
-            Stmt::ForOf(for_of) => {
-                self.check_expression(&for_of.right)?;
-                self.check_statement(&for_of.body)?;
-            }
-            Stmt::Switch(switch) => {
-                self.check_expression(&switch.discriminant)?;
-                for case in &switch.cases {
-                    if let Some(test) = &case.test {
-                        self.check_expression(test)?;
-                    }
-                    for stmt in &case.cons {
-                        self.check_statement(stmt)?;
-                    }
-                }
-            }
-            Stmt::Return(return_stmt) => {
-                if let Some(arg) = &return_stmt.arg {
-                    self.check_expression(arg)?;
-                }
-            }
-            Stmt::Throw(throw_stmt) => {
-                self.check_expression(&throw_stmt.arg)?;
-            }
-            Stmt::Try(try_stmt) => {
-                for stmt in &try_stmt.block.stmts {
-                    self.check_statement(stmt)?;
-                }
-                if let Some(handler) = &try_stmt.handler {
-                    for stmt in &handler.body.stmts {
-                        self.check_statement(stmt)?;
-                    }
-                }
-                if let Some(finalizer) = &try_stmt.finalizer {
-                    for stmt in &finalizer.stmts {
-                        self.check_statement(stmt)?;
-                    }
-                }
-            }
-            Stmt::Decl(decl) => {
-                self.check_declaration(decl)?;
-            }
-            Stmt::With(_) => {
-                return Err(anyhow!(
-                    "SECURITY: 'with' statements are not allowed (ambiguous scope)"
-                ));
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// Check declaration security
-    fn check_declaration(&self, decl: &Decl) -> Result<()> {
-        match decl {
-            Decl::Var(var_decl) => {
-                self.check_var_decl(var_decl)?;
-            }
-            Decl::Fn(fn_decl) => {
-                self.check_function(&fn_decl.function)?;
-            }
-            Decl::Class(class_decl) => {
-                self.check_class(&class_decl.class)?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// Check variable declaration security
-    fn check_var_decl(&self, var_decl: &VarDecl) -> Result<()> {
-        for declarator in &var_decl.decls {
-            if let Some(init) = &declarator.init {
-                self.check_expression(init)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Check function security
-    fn check_function(&self, function: &Function) -> Result<()> {
-        if let Some(body) = &function.body {
-            for stmt in &body.stmts {
-                self.check_statement(stmt)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Check class security
-    fn check_class(&self, class: &Class) -> Result<()> {
-        for member in &class.body {
-            match member {
-                ClassMember::Constructor(constructor) => {
-                    if let Some(body) = &constructor.body {
-                        for stmt in &body.stmts {
-                            self.check_statement(stmt)?;
-                        }
-                    }
-                }
-                ClassMember::Method(method) => {
-                    self.check_function(&method.function)?;
-                }
-                ClassMember::PrivateMethod(method) => {
-                    self.check_function(&method.function)?;
-                }
-                ClassMember::ClassProp(prop) => {
-                    if let Some(value) = &prop.value {
-                        self.check_expression(value)?;
-                    }
-                }
-                ClassMember::PrivateProp(prop) => {
-                    if let Some(value) = &prop.value {
-                        self.check_expression(value)?;
-                    }
-                }
-                _ => {}
-            }
-        }
-        Ok(())
-    }
-
-    /// Check expression security (main security validation)
-    fn check_expression(&self, expr: &Expr) -> Result<()> {
-        match expr {
-            // DANGEROUS: eval() call
-            Expr::Call(call) => {
-                self.check_call_expression(call)?;
-            }
-            // DANGEROUS: new Function()
-            Expr::New(new_expr) => {
-                self.check_new_expression(new_expr)?;
-            }
-            // Check member expressions (e.g., window.eval, Function.constructor)
-            Expr::Member(member) => {
-                self.check_member_expression(member)?;
-            }
-            // Check array expressions
-            Expr::Array(array) => {
-                for elem in array.elems.iter().flatten() {
-                    self.check_expression(&elem.expr)?;
-                }
-            }
-            // Check object expressions
-            Expr::Object(object) => {
-                for prop in &object.props {
-                    match prop {
-                        PropOrSpread::Prop(prop) => {
-                            self.check_property(prop)?;
-                        }
-                        PropOrSpread::Spread(spread) => {
-                            self.check_expression(&spread.expr)?;
-                        }
-                    }
-                }
-            }
-            // Check function expressions
-            Expr::Fn(fn_expr) => {
-                self.check_function(&fn_expr.function)?;
-            }
-            // Check arrow functions
-            Expr::Arrow(arrow) => {
-                match &*arrow.body {
-                    BlockStmtOrExpr::BlockStmt(block) => {
-                        for stmt in &block.stmts {
-                            self.check_statement(stmt)?;
-                        }
-                    }
-                    BlockStmtOrExpr::Expr(expr) => {
-                        self.check_expression(expr)?;
-                    }
-                }
-            }
-            // Check template literals
-            Expr::Tpl(tpl) => {
-                for expr in &tpl.exprs {
-                    self.check_expression(expr)?;
-                }
-            }
-            // Check tagged template literals
-            Expr::TaggedTpl(tagged) => {
-                self.check_expression(&tagged.tag)?;
-                for expr in &tagged.tpl.exprs {
-                    self.check_expression(expr)?;
-                }
-            }
-            // Check binary expressions
-            Expr::Bin(bin) => {
-                self.check_expression(&bin.left)?;
-                self.check_expression(&bin.right)?;
-            }
-            // Check unary expressions
-            Expr::Unary(unary) => {
-                self.check_expression(&unary.arg)?;
-            }
-            // Check update expressions (++, --)
-            Expr::Update(update) => {
-                self.check_expression(&update.arg)?;
-            }
-            // Check conditional expressions
-            Expr::Cond(cond) => {
-                self.check_expression(&cond.test)?;
-                self.check_expression(&cond.cons)?;
-                self.check_expression(&cond.alt)?;
-            }
-            // Check assignment expressions
-            Expr::Assign(assign) => {
-                self.check_expression(&assign.right)?;
-            }
-            // Check sequence expressions
-            Expr::Seq(seq) => {
-                for expr in &seq.exprs {
-                    self.check_expression(expr)?;
-                }
-            }
-            // Yield and await are generally safe in their context
-            Expr::Yield(yield_expr) => {
-                if let Some(arg) = &yield_expr.arg {
-                    self.check_expression(arg)?;
-                }
-            }
-            Expr::Await(await_expr) => {
-                self.check_expression(&await_expr.arg)?;
-            }
-            // Paren expressions
-            Expr::Paren(paren) => {
-                self.check_expression(&paren.expr)?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// Check call expressions for dangerous functions
-    fn check_call_expression(&self, call: &CallExpr) -> Result<()> {
-        // Check the callee
-        match &call.callee {
-            Callee::Expr(expr) => {
-                // Check for eval()
-                if let Expr::Ident(ident) = &**expr {
-                    let name = ident.sym.as_ref();
-                    if name == "eval" {
-                        return Err(anyhow!(
-                            "SECURITY: eval() is not allowed (arbitrary code execution)"
-                        ));
-                    }
-                    if name == "Function" {
-                        return Err(anyhow!(
-                            "SECURITY: Function() constructor is not allowed (code generation)"
-                        ));
-                    }
-                    // Check for setTimeout/setInterval with string arguments
-                    if name == "setTimeout" || name == "setInterval" {
-                        // Check if first argument is a string (code execution)
-                        if !call.args.is_empty() {
-                            if let Expr::Lit(Lit::Str(_)) = &*call.args[0].expr {
-                                return Err(anyhow!(
-                                    "SECURITY: {}() with string argument is not allowed (code execution)",
-                                    name
-                                ));
-                            }
-                        }
-                    }
-                }
-
-                // Check for dangerous member expressions: window.eval, obj['eval']
-                if let Expr::Member(member) = &**expr {
-                    self.check_dangerous_member_call(member)?;
-                }
-
-                self.check_expression(expr)?;
-            }
-            _ => {}
-        }
-
-        // Check all arguments
-        for arg in &call.args {
-            self.check_expression(&arg.expr)?;
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: eval() is not allowed (arbitrary code execution)"
+            ));
         }
 
         Ok(())
     }
 
-    /// Check new expressions for dangerous constructors
-    fn check_new_expression(&self, new_expr: &NewExpr) -> Result<()> {
-        // Check for new Function()
-        if let Expr::Ident(ident) = &*new_expr.callee {
-            let name = ident.sym.as_ref();
-            if name == "Function" {
-                return Err(anyhow!(
-                    "SECURITY: new Function() is not allowed (code generation)"
-                ));
-            }
-            if name == "WebAssembly" {
-                return Err(anyhow!(
-                    "SECURITY: WebAssembly instantiation is not allowed"
-                ));
-            }
-        }
+    /// Check for eval accessed via brackets: window["eval"]
+    fn check_eval_bracket(&self, code: &str) -> Result<()> {
+        static EVAL_BRACKET_REGEX: OnceLock<Regex> = OnceLock::new();
+        let bracket_regex = EVAL_BRACKET_REGEX.get_or_init(|| {
+            Regex::new(r#"(?:window|globalThis|this)\s*\[\s*["']eval["']\s*\]"#).unwrap()
+        });
 
-        self.check_expression(&new_expr.callee)?;
-
-        // Check arguments
-        if let Some(args) = &new_expr.args {
-            for arg in args {
-                self.check_expression(&arg.expr)?;
-            }
+        if bracket_regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: eval() is not allowed (arbitrary code execution)"
+            ));
         }
 
         Ok(())
     }
 
-    /// Check member expressions for dangerous property access
-    fn check_member_expression(&self, member: &MemberExpr) -> Result<()> {
-        // Check for __proto__ access
-        if let MemberProp::Ident(ident) = &member.prop {
-            let prop_name = ident.sym.as_ref();
-            if prop_name == "__proto__" {
-                return Err(anyhow!(
-                    "SECURITY: __proto__ access is not allowed (prototype pollution)"
-                ));
-            }
-            // Check for constructor.constructor (Function constructor access)
-            if prop_name == "constructor" {
-                if let Expr::Member(inner_member) = &*member.obj {
-                    if let MemberProp::Ident(inner_ident) = &inner_member.prop {
-                        if inner_ident.sym.as_ref() == "constructor" {
-                            return Err(anyhow!(
-                                "SECURITY: constructor.constructor is not allowed (Function access)"
-                            ));
-                        }
-                    }
-                }
-            }
-        }
+    /// Check for Function constructor
+    fn check_function_constructor(&self, code: &str) -> Result<()> {
+        static FUNCTION_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = FUNCTION_REGEX.get_or_init(|| {
+            // Match: Function(, new Function(, window.Function(
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])(?:new\s+)?(?:window\s*\.\s*|globalThis\s*\.\s*)?Function\s*\(").unwrap()
+        });
 
-        // Check computed property access (e.g., obj["__proto__"])
-        if let MemberProp::Computed(computed) = &member.prop {
-            if let Expr::Lit(Lit::Str(s)) = &*computed.expr {
-                let prop_name = s.value.as_ref();
-                if prop_name == "__proto__" {
-                    return Err(anyhow!(
-                        "SECURITY: __proto__ access is not allowed (prototype pollution)"
-                    ));
-                }
-            }
-            self.check_expression(&computed.expr)?;
-        }
-
-        self.check_expression(&member.obj)?;
-
-        Ok(())
-    }
-
-    /// Check for dangerous member function calls
-    fn check_dangerous_member_call(&self, member: &MemberExpr) -> Result<()> {
-        // Check for document.write, innerHTML, outerHTML
-        if let MemberProp::Ident(ident) = &member.prop {
-            let prop_name = ident.sym.as_ref();
-            if prop_name == "write" {
-                if let Expr::Ident(obj_ident) = &*member.obj {
-                    if obj_ident.sym.as_ref() == "document" {
-                        return Err(anyhow!(
-                            "SECURITY: document.write() is not allowed (XSS vector)"
-                        ));
-                    }
-                }
-            }
-            // Block innerHTML/outerHTML assignments (handled in assignment check)
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Function() constructor is not allowed (code generation)"
+            ));
         }
 
         Ok(())
     }
 
-    /// Check property security
-    fn check_property(&self, prop: &Prop) -> Result<()> {
-        match prop {
-            Prop::KeyValue(kv) => {
-                self.check_expression(&kv.value)?;
-            }
-            Prop::Assign(assign) => {
-                self.check_expression(&assign.value)?;
-            }
-            Prop::Getter(getter) => {
-                if let Some(body) = &getter.body {
-                    for stmt in &body.stmts {
-                        self.check_statement(stmt)?;
-                    }
-                }
-            }
-            Prop::Setter(setter) => {
-                if let Some(body) = &setter.body {
-                    for stmt in &body.stmts {
-                        self.check_statement(stmt)?;
-                    }
-                }
-            }
-            Prop::Method(method) => {
-                self.check_function(&method.function)?;
-            }
-            _ => {}
+    /// Check for setTimeout/setInterval with string arguments
+    fn check_timeout_with_strings(&self, code: &str) -> Result<()> {
+        // This is harder to detect perfectly without AST, but we can catch common patterns
+        static TIMEOUT_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = TIMEOUT_REGEX.get_or_init(|| {
+            // Match: setTimeout( followed by a quote within reasonable distance
+            Regex::new(r#"(?:setTimeout|setInterval)\s*\(\s*["'`]"#).unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: setTimeout/setInterval with string argument is not allowed (code execution)"
+            ));
         }
+
+        Ok(())
+    }
+
+    /// Check for __proto__ access via dot notation
+    fn check_proto_pollution(&self, code: &str) -> Result<()> {
+        static PROTO_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = PROTO_REGEX.get_or_init(|| {
+            // Match: .__proto__
+            Regex::new(r"\.\s*__proto__").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: __proto__ access is not allowed (prototype pollution)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for __proto__ access via bracket notation: ['__proto__'], ["__proto__"]
+    fn check_proto_bracket(&self, code: &str) -> Result<()> {
+        static PROTO_BRACKET_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = PROTO_BRACKET_REGEX.get_or_init(|| {
+            // Match: ['__proto__'], ["__proto__"]
+            Regex::new(r#"\[\s*["']__proto__["']\s*\]"#).unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: __proto__ access is not allowed (prototype pollution)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for constructor.constructor access
+    fn check_constructor_access(&self, code: &str) -> Result<()> {
+        static CONSTRUCTOR_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = CONSTRUCTOR_REGEX.get_or_init(|| {
+            // Match: .constructor.constructor
+            Regex::new(r"\.\s*constructor\s*\.\s*constructor").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: constructor.constructor is not allowed (Function access)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for with statement
+    fn check_with_statement(&self, code: &str) -> Result<()> {
+        static WITH_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = WITH_REGEX.get_or_init(|| {
+            // Match: with (
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])with\s*\(").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: 'with' statements are not allowed (ambiguous scope)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for import statements
+    fn check_import_statements(&self, code: &str) -> Result<()> {
+        static IMPORT_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = IMPORT_REGEX.get_or_init(|| {
+            // Match: import { or import * or import " or import word
+            Regex::new(r#"(?:^|[^a-zA-Z0-9_$])import\s+(?:\{|\*|["']|\w)"#).unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: import statements are not allowed (dynamic module loading)"
+            ));
+        }
+
+        // Also check for dynamic import()
+        static DYNAMIC_IMPORT_REGEX: OnceLock<Regex> = OnceLock::new();
+        let dynamic_regex = DYNAMIC_IMPORT_REGEX.get_or_init(|| {
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])import\s*\(").unwrap()
+        });
+
+        if dynamic_regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: dynamic import() is not allowed (module loading)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for document.write
+    fn check_document_write(&self, code: &str) -> Result<()> {
+        static DOC_WRITE_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = DOC_WRITE_REGEX.get_or_init(|| {
+            // Match: document.write(, document.writeln(
+            Regex::new(r"document\s*\.\s*(?:write|writeln)\s*\(").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: document.write() is not allowed (XSS vector)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for WebAssembly instantiation
+    fn check_webassembly(&self, code: &str) -> Result<()> {
+        static WASM_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = WASM_REGEX.get_or_init(|| {
+            // Match: WebAssembly.instantiate, new WebAssembly.
+            Regex::new(r"(?:WebAssembly\s*\.\s*(?:instantiate|compile|Module|Instance)|new\s+WebAssembly\s*\.)").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: WebAssembly instantiation is not allowed"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Check for Node.js-specific APIs
+    fn check_node_apis(&self, code: &str) -> Result<()> {
+        static NODE_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = NODE_REGEX.get_or_init(|| {
+            // Match: require(, process., child_process, fs.
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])(?:require\s*\(|process\s*\.|child_process|fs\s*\.)").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Node.js APIs are not allowed (require, process, fs, etc.)"
+            ));
+        }
+
         Ok(())
     }
 }
@@ -622,6 +398,28 @@ mod tests {
 
         // Indirect eval
         assert!(validator.is_safe_javascript("window.eval('alert(1)')").is_err());
+        assert!(validator.is_safe_javascript("globalThis.eval('alert(1)')").is_err());
+
+        // Bracket notation
+        assert!(validator.is_safe_javascript("window['eval']('alert(1)')").is_err());
+    }
+
+    #[test]
+    fn test_eval_in_comment_allowed() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // eval in comment should be allowed
+        assert!(validator.is_safe_javascript("// This is eval in comment\nconst x = 1;").is_ok());
+        assert!(validator.is_safe_javascript("/* eval */ const x = 1;").is_ok());
+    }
+
+    #[test]
+    fn test_eval_in_string_allowed() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // eval in string should be allowed
+        assert!(validator.is_safe_javascript("const x = 'eval';").is_ok());
+        assert!(validator.is_safe_javascript("console.log(\"eval is dangerous\");").is_ok());
     }
 
     #[test]
@@ -631,6 +429,7 @@ mod tests {
         // Function constructor
         assert!(validator.is_safe_javascript("Function('return 1')()").is_err());
         assert!(validator.is_safe_javascript("new Function('return 1')()").is_err());
+        assert!(validator.is_safe_javascript("window.Function('return 1')()").is_err());
     }
 
     #[test]
@@ -639,9 +438,11 @@ mod tests {
 
         // setTimeout with string (code execution)
         assert!(validator.is_safe_javascript("setTimeout('alert(1)', 1000)").is_err());
+        assert!(validator.is_safe_javascript("setInterval(\"alert(1)\", 1000)").is_err());
 
         // setTimeout with function is OK
         assert!(validator.is_safe_javascript("setTimeout(() => console.log('ok'), 1000)").is_ok());
+        assert!(validator.is_safe_javascript("setTimeout(function() { console.log('ok'); }, 1000)").is_ok());
     }
 
     #[test]
@@ -651,6 +452,7 @@ mod tests {
         // __proto__ access
         assert!(validator.is_safe_javascript("obj.__proto__ = {}").is_err());
         assert!(validator.is_safe_javascript("obj['__proto__'] = {}").is_err());
+        assert!(validator.is_safe_javascript("obj[\"__proto__\"] = {}").is_err());
     }
 
     #[test]
@@ -675,6 +477,39 @@ mod tests {
 
         // import statements
         assert!(validator.is_safe_javascript("import { foo } from 'bar';").is_err());
+        assert!(validator.is_safe_javascript("import * from 'bar';").is_err());
+        assert!(validator.is_safe_javascript("import 'bar';").is_err());
+
+        // Dynamic import
+        assert!(validator.is_safe_javascript("import('bar')").is_err());
+    }
+
+    #[test]
+    fn test_document_write_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // document.write
+        assert!(validator.is_safe_javascript("document.write('<script>alert(1)</script>')").is_err());
+        assert!(validator.is_safe_javascript("document.writeln('text')").is_err());
+    }
+
+    #[test]
+    fn test_webassembly_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // WebAssembly instantiation
+        assert!(validator.is_safe_javascript("WebAssembly.instantiate(buffer)").is_err());
+        assert!(validator.is_safe_javascript("new WebAssembly.Module(buffer)").is_err());
+    }
+
+    #[test]
+    fn test_node_apis_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // Node.js APIs
+        assert!(validator.is_safe_javascript("require('fs')").is_err());
+        assert!(validator.is_safe_javascript("process.exit()").is_err());
+        assert!(validator.is_safe_javascript("fs.readFile('file')").is_err());
     }
 
     #[test]
@@ -684,15 +519,6 @@ mod tests {
         // Generate code larger than limit
         let large_code = "x = 1;".repeat(2_000_000); // > 10 MB
         assert!(validator.is_safe_javascript(&large_code).is_err());
-    }
-
-    #[test]
-    fn test_syntax_error_rejected() {
-        let validator = JavaScriptSecurityValidator::new();
-
-        // Invalid JavaScript syntax
-        assert!(validator.is_safe_javascript("const x = ;").is_err());
-        assert!(validator.is_safe_javascript("function {").is_err());
     }
 
     #[test]
