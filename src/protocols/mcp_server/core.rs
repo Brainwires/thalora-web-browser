@@ -39,10 +39,24 @@ impl McpServer {
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {
-        let ai_memory = AiMemoryHeap::new_default().unwrap_or_else(|_| {
-            tracing::warn!("Failed to load AI memory heap, creating new one");
-            AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
-        });
+        // Only enable AI memory if THALORA_ENABLE_AI_MEMORY is set
+        let ai_memory = if std::env::var("THALORA_ENABLE_AI_MEMORY").is_ok() {
+            tracing::info!("AI memory enabled via THALORA_ENABLE_AI_MEMORY");
+            AiMemoryHeap::new_default().unwrap_or_else(|e| {
+                tracing::warn!("Failed to load AI memory heap: {}, creating new one", e);
+                AiMemoryHeap::new("/tmp/thalora_ai_memory.json")
+                    .expect("Failed to create AI memory heap")
+            })
+        } else {
+            // Create disabled AI memory (in-memory only, no persistence)
+            tracing::info!("AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage");
+            AiMemoryHeap::new("/dev/null")
+                .unwrap_or_else(|_| {
+                    // Fallback to temp file if /dev/null fails (Windows)
+                    AiMemoryHeap::new(std::env::temp_dir().join("thalora_disabled.json"))
+                        .expect("Failed to create disabled AI memory")
+                })
+        };
 
         let session_manager = SessionManager::new().unwrap_or_else(|e| {
             tracing::warn!("Failed to create session manager: {}", e);
