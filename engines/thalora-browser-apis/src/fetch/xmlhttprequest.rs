@@ -5,7 +5,7 @@
 //!
 //! This implements the complete XMLHttpRequest interface with real HTTP networking
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
@@ -53,8 +53,8 @@ impl BuiltInObject for XmlHttpRequest {
 
 impl BuiltInConstructor for XmlHttpRequest {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::xmlhttprequest;

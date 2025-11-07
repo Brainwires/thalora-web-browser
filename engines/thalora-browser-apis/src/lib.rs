@@ -145,6 +145,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     fetch::fetch::Request::init(&realm);
     fetch::fetch::Response::init(&realm);
     fetch::fetch::Headers::init(&realm);
+    fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
 
     // Register browser APIs as global properties
     let global_object = context.global_object();

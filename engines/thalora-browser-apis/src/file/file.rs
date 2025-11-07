@@ -154,8 +154,8 @@ impl BuiltInConstructor for File {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::file;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 2;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     /// `new File(fileBits, fileName, options)`
     fn constructor(

@@ -225,8 +225,8 @@ impl BuiltInObject for Performance {
 
 impl BuiltInConstructor for Performance {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 10;  // Number of prototype properties
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;  // Number of static properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Number of prototype properties
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Number of static properties
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::performance;

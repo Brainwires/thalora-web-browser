@@ -67,8 +67,8 @@ impl BuiltInObject for MessageChannel {
 }
 
 impl BuiltInConstructor for MessageChannel {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 2; // prototype property capacity
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0; // static property capacity
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // prototype property capacity
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // static property capacity
     const CONSTRUCTOR_ARGUMENTS: usize = 0; // no required parameters
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =

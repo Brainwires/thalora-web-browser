@@ -59,8 +59,8 @@ impl BuiltInObject for TransformStream {
 
 impl BuiltInConstructor for TransformStream {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::transform_stream;

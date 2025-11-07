@@ -41,8 +41,8 @@ impl BuiltInObject for IntersectionObserver {
 
 impl BuiltInConstructor for IntersectionObserver {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 1;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::intersection_observer;

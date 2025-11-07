@@ -378,8 +378,8 @@ impl BuiltInObject for NodeData {
 
 impl BuiltInConstructor for NodeData {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 25;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 12;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::node;
@@ -1398,8 +1398,8 @@ impl BuiltInObject for Node {
 
 impl BuiltInConstructor for Node {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 25;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 12;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::node;

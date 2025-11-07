@@ -87,8 +87,8 @@ impl BuiltInObject for HTMLFormElement {
 
 impl BuiltInConstructor for HTMLFormElement {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::html_form_element;
@@ -226,8 +226,8 @@ impl BuiltInObject for HTMLFormControlsCollection {
 
 impl BuiltInConstructor for HTMLFormControlsCollection {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::html_form_controls_collection;
@@ -330,8 +330,8 @@ impl BuiltInObject for HTMLInputElement {
 
 impl BuiltInConstructor for HTMLInputElement {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::html_input_element;

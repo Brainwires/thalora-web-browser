@@ -41,8 +41,8 @@ impl BuiltInObject for MutationObserver {
 
 impl BuiltInConstructor for MutationObserver {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 1;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::mutation_observer;
