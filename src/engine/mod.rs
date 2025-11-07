@@ -4,6 +4,7 @@ pub mod renderer;
 pub mod engine;
 pub mod engine_trait;
 pub mod test_helpers;
+pub mod security;
 // DOM module removed - now natively implemented in Boa engine
 
 // Re-exports for clean API
