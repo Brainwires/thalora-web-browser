@@ -1,11 +1,22 @@
 use anyhow::Result;
-use thalora_browser_apis::boa_engine::{Context, js_string, JsValue, JsObject, Source};
+use thalora_browser_apis::boa_engine::{Context, js_string, JsValue, JsObject, Source, JsResult, JsArgs};
+use thalora_browser_apis::boa_engine::builtins::BuiltInBuilder;
 
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
 pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     eprintln!("🔍 DEBUG: setup_native_dom_globals called!");
     eprintln!("🔍 DEBUG: Context has intrinsics available");
+
+    // Initialize Console API first (needed for Google's JavaScript)
+    eprintln!("🔍 DEBUG: Initializing Console API");
+    thalora_browser_apis::console::console::Console::init(context);
+    eprintln!("🔍 DEBUG: Console API initialized successfully");
+
+    // Initialize Timers API (setTimeout, setInterval - needed for Google's JavaScript)
+    eprintln!("🔍 DEBUG: Initializing Timers API");
+    thalora_browser_apis::timers::timers::Timers::init(context);
+    eprintln!("🔍 DEBUG: Timers API initialized successfully");
 
     // Create instances using constructor functions directly instead of evaluating JavaScript
 
@@ -148,6 +159,140 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
                 .build(),
             context,
         ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.self: {}", e)))?;
+
+        // Add window.chrome object for Google detection bypass
+        // Chrome/Chromium browsers have this object, headless browsers often don't
+        let chrome_obj = thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
+            .property(js_string!("runtime"), JsValue::undefined(), thalora_browser_apis::boa_engine::property::Attribute::all())
+            .build();
+
+        window_obj.define_property_or_throw(
+            js_string!("chrome"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(chrome_obj)
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.chrome: {}", e)))?;
+
+        // Add window.outerWidth and outerHeight - viewport dimensions for legitimate browser
+        window_obj.define_property_or_throw(
+            js_string!("outerWidth"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(1920) // Standard desktop width
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.outerWidth: {}", e)))?;
+
+        window_obj.define_property_or_throw(
+            js_string!("outerHeight"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(1080) // Standard desktop height
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.outerHeight: {}", e)))?;
+
+        // Add window.innerWidth and innerHeight - content area dimensions
+        window_obj.define_property_or_throw(
+            js_string!("innerWidth"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(1920)
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.innerWidth: {}", e)))?;
+
+        window_obj.define_property_or_throw(
+            js_string!("innerHeight"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(1080)
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.innerHeight: {}", e)))?;
+
+        // Add screen object - display information for legitimate browser
+        let screen_obj = thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
+            .property(js_string!("width"), 1920, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .property(js_string!("height"), 1080, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .property(js_string!("availWidth"), 1920, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .property(js_string!("availHeight"), 1040, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .property(js_string!("colorDepth"), 24, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .property(js_string!("pixelDepth"), 24, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .build();
+
+        window_obj.define_property_or_throw(
+            js_string!("screen"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(screen_obj.clone())
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.screen: {}", e)))?;
+
+        // Also expose screen globally
+        set_global_property_helper(&global, "screen", JsValue::from(screen_obj), context)?;
+
+        // Add Image constructor - HTMLImageElement constructor for legitimate browser
+        let image_constructor = BuiltInBuilder::callable(context.realm(), |_this: &JsValue, args: &[JsValue], context: &mut Context| -> JsResult<JsValue> {
+            eprintln!("🖼️ Image constructor called with {} args", args.len());
+
+            // Create a basic object that represents an image
+            let img_obj = thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
+                .property(js_string!("tagName"), js_string!("IMG"), thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+                .property(js_string!("src"), js_string!(""), thalora_browser_apis::boa_engine::property::Attribute::all())
+                .property(js_string!("alt"), js_string!(""), thalora_browser_apis::boa_engine::property::Attribute::all())
+                .property(js_string!("width"), 0, thalora_browser_apis::boa_engine::property::Attribute::all())
+                .property(js_string!("height"), 0, thalora_browser_apis::boa_engine::property::Attribute::all())
+                .property(js_string!("complete"), false, thalora_browser_apis::boa_engine::property::Attribute::all())
+                .property(js_string!("naturalWidth"), 0, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+                .property(js_string!("naturalHeight"), 0, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+                .build();
+
+            // If width/height arguments provided, set them
+            if let Some(width_arg) = args.get(0) {
+                if let Some(width) = width_arg.as_number() {
+                    img_obj.set(js_string!("width"), width as i32, false, context)?;
+                }
+            }
+            if let Some(height_arg) = args.get(1) {
+                if let Some(height) = height_arg.as_number() {
+                    img_obj.set(js_string!("height"), height as i32, false, context)?;
+                }
+            }
+
+            Ok(JsValue::from(img_obj))
+        })
+        .name(js_string!("Image"))
+        .build();
+
+        window_obj.define_property_or_throw(
+            js_string!("Image"),
+            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(false)
+                .writable(true)
+                .value(image_constructor.clone())
+                .build(),
+            context,
+        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.Image: {}", e)))?;
+
+        // Also expose Image globally
+        set_global_property_helper(&global, "Image", JsValue::from(image_constructor), context)?;
 
         // Expose window's EventTarget methods globally (ensuring same function references)
         // This ensures that global addEventListener === window.addEventListener

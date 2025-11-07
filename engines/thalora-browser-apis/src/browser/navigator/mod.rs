@@ -83,16 +83,19 @@ impl JsData for Navigator {}
 
 impl Navigator {
     pub(crate) fn new() -> Self {
+        // Use shared USER_AGENT constant - single source of truth!
+        use thalora_constants::USER_AGENT;
+
         Self {
-            // NavigatorID - WHATWG compliant values
-            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
+            // NavigatorID - Chrome 120.0 on Windows 10 (WHATWG compliant)
+            user_agent: USER_AGENT.to_string(),
             app_code_name: "Mozilla".to_string(),
             app_name: "Netscape".to_string(),
-            app_version: "5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
-            platform: "MacIntel".to_string(),
+            app_version: "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
+            platform: "Win32".to_string(),
             product: "Gecko".to_string(),
             product_sub: "20030107".to_string(),
-            vendor: "Google Inc.".to_string(),
+            vendor: "Google Inc.".to_string(),  // Chrome has Google Inc. as vendor
             vendor_sub: "".to_string(),
 
             // NavigatorLanguage

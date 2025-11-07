@@ -63,35 +63,62 @@ impl McpServer {
 
         // Navigate to URL if provided (or use existing session)
         let html_content = if let Some(url_str) = url {
+            eprintln!("🔍 SCRAPE: Starting navigation to URL: {}", url_str);
             // Create temporary browser or use session
             let temp_browser = if session_id.is_some() {
                 // TODO: Get session browser
+                eprintln!("🔍 SCRAPE: Creating browser for session");
                 crate::engine::browser::HeadlessWebBrowser::new()
             } else {
+                eprintln!("🔍 SCRAPE: Creating temporary browser");
                 crate::engine::browser::HeadlessWebBrowser::new()
             };
 
+            eprintln!("🔍 SCRAPE: Browser created");
+
             // Navigate to URL
             {
+                eprintln!("🔍 SCRAPE: Acquiring browser lock for navigation");
                 let mut browser = match temp_browser.lock() {
-                    Ok(b) => b,
-                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                    Ok(b) => {
+                        eprintln!("🔍 SCRAPE: Browser lock acquired");
+                        b
+                    }
+                    Err(_) => {
+                        eprintln!("🔍 SCRAPE: Failed to acquire browser lock");
+                        return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                    }
                 };
 
+                eprintln!("🔍 SCRAPE: Calling navigate_to_with_options");
                 match browser.navigate_to_with_options(url_str, wait_for_js).await {
-                    Ok(_) => {},
-                    Err(e) => return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+                    Ok(_) => {
+                        eprintln!("🔍 SCRAPE: Navigation successful");
+                    },
+                    Err(e) => {
+                        eprintln!("🔍 SCRAPE: Navigation failed: {}", e);
+                        return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e));
+                    }
                 }
             }
 
+            eprintln!("🔍 SCRAPE: Getting HTML content");
             // Get HTML content
             let html = {
                 let browser = match temp_browser.lock() {
                     Ok(b) => b,
-                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                    Err(_) => {
+                        eprintln!("🔍 SCRAPE: Failed to acquire browser lock for content");
+                        return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                    }
                 };
                 browser.get_current_content()
             };
+
+            eprintln!("🔍 SCRAPE: HTML content retrieved, dropping browser");
+            // Explicitly drop browser after getting content (Drop impl will handle cleanup)
+            drop(temp_browser);
+            eprintln!("🔍 SCRAPE: Browser dropped");
 
             html
         } else {
@@ -276,14 +303,19 @@ impl McpServer {
             result["structured"] = structured;
         }
 
-        McpResponse::success(result)
+        // Wrap result in MCP text content format
+        let mcp_content = serde_json::json!({
+            "type": "text",
+            "text": serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
+        });
+        McpResponse::success(mcp_content)
     }
 
     pub(super) async fn web_search(&mut self, arguments: Value) -> McpResponse {
         eprintln!("🔍 DEBUG: Starting web_search function");
         let query = arguments["query"].as_str().unwrap_or("");
         let num_results = arguments["num_results"].as_u64().unwrap_or(10) as usize;
-        let search_engine = arguments["search_engine"].as_str().unwrap_or("google");
+        let search_engine = arguments["search_engine"].as_str().unwrap_or("duckduckgo");
         eprintln!("🔍 DEBUG: Parameters - query: {}, num_results: {}, engine: {}", query, num_results, search_engine);
 
         if query.is_empty() {
@@ -296,7 +328,13 @@ impl McpServer {
         match self.perform_web_search(query, num_results, search_engine).await {
             Ok(results) => {
                 eprintln!("🔍 DEBUG: perform_web_search succeeded");
-                McpResponse::success(serde_json::to_value(results).unwrap_or_default())
+                // Wrap result in MCP text content format
+                let results_json = serde_json::to_value(results).unwrap_or_default();
+                let mcp_content = serde_json::json!({
+                    "type": "text",
+                    "text": serde_json::to_string_pretty(&results_json).unwrap_or_else(|_| "[]".to_string())
+                });
+                McpResponse::success(mcp_content)
             },
             Err(e) => {
                 eprintln!("🔍 DEBUG: perform_web_search failed: {}", e);
@@ -324,11 +362,7 @@ impl McpServer {
                 eprintln!("🔍 DEBUG: Calling search_startpage");
                 self.search_startpage(query, num_results).await
             },
-            "searx" => {
-                eprintln!("🔍 DEBUG: Calling search_searx");
-                self.search_searx(query, num_results).await
-            },
-            _ => Err(anyhow::anyhow!("Unsupported search engine: {}. Supported engines: google, bing, duckduckgo, startpage, searx", search_engine)),
+            _ => Err(anyhow::anyhow!("Unsupported search engine: {}. Supported engines: google, bing, duckduckgo, startpage", search_engine)),
         }
     }
 
@@ -349,7 +383,9 @@ impl McpServer {
             let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
             browser.get_current_content()
         };
-        // Browser dropped here automatically
+
+        // Explicitly drop browser to ensure cleanup
+        drop(temp_browser);
 
         self.parse_duckduckgo_results(&html, query, num_results).await
     }
@@ -371,7 +407,9 @@ impl McpServer {
             let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
             browser.get_current_content()
         };
-        // Browser dropped here automatically
+
+        // Explicitly drop browser to ensure cleanup
+        drop(temp_browser);
 
         // Check for actual Cloudflare challenge (not just JS that mentions cloudflare)
         if html.contains("challenges.cloudflare.com") && html.contains("cf-browser-verification") {
@@ -393,9 +431,10 @@ impl McpServer {
         eprintln!("🔍 DEBUG: Temporary browser created, about to navigate");
 
         // Navigate using the browser's full navigation system which includes stealth features
+        // Google requires JavaScript execution to display search results
         {
             let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-            browser.navigate_to_with_options(&search_url, true).await?;
+            browser.navigate_to_with_js_option(&search_url, true, true).await?;
         }
         eprintln!("🔍 DEBUG: Navigation completed, getting content");
 
@@ -404,7 +443,6 @@ impl McpServer {
             browser.get_current_content()
         };
         eprintln!("🔍 DEBUG: Content retrieved");
-        // Browser dropped here automatically
 
         // Check for Google's bot detection challenges
         if html.contains("Our systems have detected unusual traffic") || html.contains("why did this happen") {
@@ -445,7 +483,7 @@ impl McpServer {
                             let redirect_browser = crate::engine::browser::HeadlessWebBrowser::new();
                             {
                                 let mut browser = redirect_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
-                                browser.navigate_to_with_options(&full_redirect_url, true).await?;
+                                browser.navigate_to_with_js_option(&full_redirect_url, true, true).await?;
                             }
 
                             let redirect_html = {
@@ -456,6 +494,10 @@ impl McpServer {
                             eprintln!("🔍 DEBUG: Redirect response length: {} chars", redirect_html.len());
                             eprintln!("🔍 DEBUG: Redirect response preview: {}",
                                 if redirect_html.len() > 500 { &redirect_html[..500] } else { &redirect_html });
+
+                            // Explicitly drop browsers to ensure cleanup
+                            drop(redirect_browser);
+                            drop(temp_browser);
 
                             // Parse the redirect response instead
                             return self.parse_google_results(&redirect_html, query, num_results).await;
@@ -473,6 +515,9 @@ impl McpServer {
             eprintln!("🔍 DEBUG: Got incomplete HTML response: {} chars", html.len());
             eprintln!("🔍 DEBUG: HTML content: {}", if html.len() > 500 { &html[..500] } else { &html });
         }
+
+        // Explicitly drop browser to ensure cleanup
+        drop(temp_browser);
 
         self.parse_google_results(&html, query, num_results).await
     }
@@ -492,31 +537,14 @@ impl McpServer {
             let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
             browser.get_current_content()
         };
-        // Browser dropped here automatically
+
+        // Explicitly drop browser to ensure cleanup
+        drop(temp_browser);
 
         self.parse_startpage_results(&html, query, num_results).await
     }
 
-    async fn search_searx(&mut self, query: &str, num_results: usize) -> Result<SearchResults> {
-        // Use public SearX instance
-        let search_url = format!("https://searx.be/search?q={}&format=html", urlencoding::encode(query));
-
-        // Create temporary browser for stateless search
-        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
-
-        {
-            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-            browser.navigate_to_with_options(&search_url, true).await?;
-        }
-
-        let html = {
-            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-            browser.get_current_content()
-        };
-        // Browser dropped here automatically
-
-        self.parse_searx_results(&html, query, num_results).await
-    }
+    // Searx search removed - project discontinued and all public instances rate-limited
 
     async fn parse_duckduckgo_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
         let document = Html::parse_document(html);
@@ -554,6 +582,11 @@ impl McpServer {
     }
 
     async fn parse_bing_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+        eprintln!("🔍 DEBUG: Bing HTML length: {}", html.len());
+        eprintln!("🔍 DEBUG: Bing HTML contains .b_algo: {}", html.contains(".b_algo"));
+        eprintln!("🔍 DEBUG: Bing HTML contains cloudflare: {}", html.contains("cloudflare"));
+        eprintln!("🔍 DEBUG: First 500 chars: {}", &html[..html.len().min(500)]);
+
         let document = Html::parse_document(html);
         let mut results = Vec::new();
 
@@ -647,6 +680,11 @@ impl McpServer {
     }
 
     async fn parse_google_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+        eprintln!("🔍 DEBUG: Google HTML length: {}", html.len());
+        eprintln!("🔍 DEBUG: Google HTML contains .g class: {}", html.contains("class=\"g\""));
+        eprintln!("🔍 DEBUG: Google HTML contains .tF2Cxc: {}", html.contains("tF2Cxc"));
+        eprintln!("🔍 DEBUG: First 500 chars: {}", &html[..html.len().min(500)]);
+
         let document = Html::parse_document(html);
         let mut results = Vec::new();
 
@@ -773,40 +811,7 @@ impl McpServer {
         })
     }
 
-    async fn parse_searx_results(&self, html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
-        let document = Html::parse_document(html);
-        let mut results = Vec::new();
-
-        // SearX result selectors
-        if let Ok(selector) = Selector::parse(".result") {
-            for element in document.select(&selector) {
-                if results.len() >= num_results {
-                    break;
-                }
-
-                let title = self.extract_generic_title(&element, &[".result_title a", "h3 a", "h2 a"]);
-                let url = self.extract_generic_url(&element, &[".result_title a", "h3 a", "h2 a"]);
-                let snippet = self.extract_generic_snippet(&element, &[".result_content", ".content"]);
-
-                if !title.is_empty() && !url.is_empty() {
-                    results.push(SearchResult {
-                        title,
-                        url,
-                        snippet,
-                        position: results.len() + 1,
-                    });
-                }
-            }
-        }
-
-        let result_count = results.len();
-        Ok(SearchResults {
-            query: query.to_string(),
-            results,
-            total_results: Some(format!("{} results", result_count)),
-            search_time: None,
-        })
-    }
+    // parse_searx_results removed - Searx discontinued
 
     #[allow(dead_code)]
     fn extract_search_result_title(&self, element: &scraper::ElementRef) -> String {
@@ -1511,6 +1516,9 @@ impl McpServer {
                 };
                 browser.get_current_content()
             };
+
+            // Explicitly drop browser after getting content (Drop impl will handle cleanup)
+            drop(temp_browser);
 
             html
         } else {

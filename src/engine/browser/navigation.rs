@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
+use std::error::Error;
 use tokio::time::{sleep, Duration};
 use rand;
 
@@ -18,8 +19,17 @@ impl super::HeadlessWebBrowser {
         // Dispatch pageswap event before navigation
         self.dispatch_pageswap_event(url).await?;
 
-        // Fetch the page content
-        let response = self.client.get(url).send().await?;
+        // Get browser-specific headers for stealth
+        let headers = self.create_standard_browser_headers(url);
+
+        // Fetch the page content with proper browser headers
+        let response = self.client.get(url).headers(headers).send().await.map_err(|e| {
+            eprintln!("🔍 DEBUG: HTTP request error details: {}", e);
+            if let Some(source) = e.source() {
+                eprintln!("🔍 DEBUG: Error source: {}", source);
+            }
+            e
+        })?;
         let content = response.text().await?;
 
         // Store the current content and URL

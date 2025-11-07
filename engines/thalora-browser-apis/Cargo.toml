@@ -7,6 +7,9 @@ authors = ["Brainwires Team"]
 license = "MIT"
 
 [dependencies]
+# Shared constants
+thalora-constants = { path = "../../shared/thalora-constants" }
+
 # Boa engine - required for JavaScript integration
 boa_engine = { path = "../boa/core/engine" }
 boa_gc = { path = "../boa/core/gc" }

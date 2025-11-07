@@ -213,9 +213,9 @@ fn parse_fetch_init(
         }
     }
 
-    // Add default User-Agent if not present
+    // Add default User-Agent if not present - use shared constant!
     if !headers.contains_key("User-Agent") {
-        headers.insert("User-Agent".to_string(), "Thalora/1.0".to_string());
+        headers.insert("User-Agent".to_string(), thalora_constants::USER_AGENT.to_string());
     }
 
     // Body

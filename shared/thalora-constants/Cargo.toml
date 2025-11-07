@@ -1,0 +1,7 @@
+[package]
+name = "thalora-constants"
+version = "0.1.0"
+edition = "2021"
+description = "Shared constants for Thalora browser"
+
+[dependencies]

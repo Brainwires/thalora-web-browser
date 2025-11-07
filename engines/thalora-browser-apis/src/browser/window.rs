@@ -577,14 +577,14 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             }
 
             // Fallback: manually add properties if Navigator constructor not available
-            // Add userAgent property - use Windows Chrome to avoid Linux bot detection
+            // Add userAgent property - use shared USER_AGENT constant
             navigator.define_property_or_throw(
                 js_string!("userAgent"),
                 PropertyDescriptorBuilder::new()
                     .configurable(false)
                     .enumerable(true)
                     .writable(false)
-                    .value(JsString::from("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"))
+                    .value(JsString::from(thalora_constants::USER_AGENT))
                     .build(),
                 context,
             )?;

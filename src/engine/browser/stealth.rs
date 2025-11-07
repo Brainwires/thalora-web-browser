@@ -1,6 +1,6 @@
-use rand::{thread_rng, Rng};
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::types::StealthConfig;
+use thalora_constants::USER_AGENT as SHARED_USER_AGENT;
 
 pub struct StealthManager {
     config: StealthConfig,
@@ -11,31 +11,18 @@ impl StealthManager {
         Self { config }
     }
 
-    pub fn get_random_user_agent(&self) -> String {
-        if !self.config.random_user_agents {
-            return "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36".to_string();
-        }
-
-        let user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-        ];
-
-        let mut rng = thread_rng();
-        user_agents[rng.gen_range(0..user_agents.len())].to_string()
+    pub fn get_user_agent(&self) -> &'static str {
+        // Always use shared USER_AGENT constant - single source of truth!
+        // Random user agents cause fingerprint inconsistency and make us look like a bot
+        SHARED_USER_AGENT
     }
 
     pub fn create_stealth_headers(&self, url: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
 
         if self.config.stealth_headers {
-            // User-Agent
-            headers.insert(USER_AGENT, HeaderValue::from_str(&self.get_random_user_agent()).unwrap_or_else(|_| HeaderValue::from_static("Mozilla/5.0")));
+            // User-Agent - use shared constant
+            headers.insert(USER_AGENT, HeaderValue::from_static(self.get_user_agent()));
 
             // Standard browser headers
             headers.insert(ACCEPT, HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"));

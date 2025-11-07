@@ -47,6 +47,10 @@ impl IntrinsicObject for Document {
             .name(js_string!("get head"))
             .build();
 
+        let document_element_func = BuiltInBuilder::callable(realm, get_document_element)
+            .name(js_string!("get documentElement"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Document -> Node -> EventTarget
             .inherits(Some(realm.intrinsics().constructors().node().prototype()))
@@ -77,6 +81,12 @@ impl IntrinsicObject for Document {
             .accessor(
                 js_string!("head"),
                 Some(head_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("documentElement"),
+                Some(document_element_func),
                 None,
                 Attribute::CONFIGURABLE,
             )
@@ -423,6 +433,93 @@ fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
         document.add_element("head".to_string(), head_element.clone());
         Ok(head_element.into())
     }
+}
+
+/// `Document.prototype.documentElement` getter
+/// Returns the root element (<html>) of the document
+fn get_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.documentElement called on non-Document object")
+    })?;
+
+    // Create html (documentElement) if it doesn't exist
+    if let Some(html) = document.get_element("html") {
+        Ok(html.into())
+    } else {
+        // Create a new html element using the Element constructor
+        let element_constructor = context.intrinsics().constructors().element().constructor();
+        let html_element = element_constructor.construct(&[], None, context)?;
+
+        // Set tagName property
+        html_element.define_property_or_throw(
+            js_string!("tagName"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsString::from("HTML"))
+                .build(),
+            context,
+        )?;
+
+        // Add clientHeight and clientWidth properties for Google's JavaScript
+        html_element.define_property_or_throw(
+            js_string!("clientHeight"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(768) // Default viewport height
+                .build(),
+            context,
+        )?;
+
+        html_element.define_property_or_throw(
+            js_string!("clientWidth"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(1024) // Default viewport width
+                .build(),
+            context,
+        )?;
+
+        // Add addEventListener method (Google's JavaScript needs this)
+        let add_event_listener_func = BuiltInBuilder::callable(context.realm(), document_element_add_event_listener)
+            .name(js_string!("addEventListener"))
+            .build();
+
+        html_element.define_property_or_throw(
+            js_string!("addEventListener"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(add_event_listener_func)
+                .build(),
+            context,
+        )?;
+
+        document.add_element("html".to_string(), html_element.clone());
+        Ok(html_element.into())
+    }
+}
+
+/// addEventListener for documentElement
+fn document_element_add_event_listener(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context
+) -> JsResult<JsValue> {
+    // Stub implementation - just return undefined for now
+    // Google's JavaScript checks if addEventListener exists, but may not actually use it
+    Ok(JsValue::undefined())
 }
 
 /// `Document.prototype.createElement(tagName)`

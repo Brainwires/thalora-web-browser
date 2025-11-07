@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use thalora_browser_apis::boa_engine::Source;
 use std::time::Duration;
+use std::error::Error;
 use crate::engine::renderer::core::RustRenderer;
 
 impl RustRenderer {
@@ -142,6 +143,24 @@ impl RustRenderer {
         let source = Source::from_bytes(&safe_wrapper);
         eprintln!("🔍 DEBUG: About to eval JavaScript: {}", if safe_wrapper.len() > 200 { &safe_wrapper[..200] } else { &safe_wrapper });
 
+        // Run bot detection test BEFORE executing page scripts
+        if safe_wrapper.contains("window.google") {
+            eprintln!("🤖 RUNNING BOT DETECTION TEST ON GOOGLE PAGE");
+            if let Some(ctx) = &mut self.js_context {
+                let test_script = r#"
+                console.log("=== BOT DETECTION ===");
+                console.log("navigator.webdriver:", typeof navigator.webdriver, navigator.webdriver);
+                console.log("navigator.plugins.length:", navigator.plugins ? navigator.plugins.length : "undefined");
+                console.log("window.chrome:", typeof window.chrome);
+                console.log("window.outerWidth:", typeof window.outerWidth, window.outerWidth);
+                console.log("Image constructor:", typeof Image);
+                console.log("screen:", typeof screen);
+                console.log("=== END TEST ===");
+                "#;
+                let _ = ctx.eval(Source::from_bytes(test_script));
+            }
+        }
+
         if let Some(ctx) = &mut self.js_context {
             match ctx.eval(source) {
                 Ok(value) => {
@@ -154,6 +173,13 @@ impl RustRenderer {
                 Err(e) => {
                     // For Google's JavaScript, we'll be more forgiving of errors
                     eprintln!("🔍 DEBUG: JavaScript execution had recoverable error: {:?}", e);
+                    eprintln!("🔴 JS ERROR DETAILS:");
+                    eprintln!("   Error type: {}", e);
+                    if let Some(cause) = e.cause() {
+                        eprintln!("   Caused by: {:?}", cause);
+                    }
+                    // Try to get more info from the JsError
+                    eprintln!("   Full error: {:#?}", e);
                     Ok("undefined".to_string()) // Return success with undefined result
                 }
             }
