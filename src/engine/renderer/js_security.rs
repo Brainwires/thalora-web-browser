@@ -46,9 +46,13 @@ impl JavaScriptSecurityValidator {
             return Ok(());
         }
 
-        // Check for dangerous patterns in original code (for bracket notation)
+        // CRITICAL: Check for bypass vectors in original code
         self.check_eval_bracket(js_code)?;
         self.check_proto_bracket(js_code)?;
+        self.check_global_bracket_access(js_code)?; // CRITICAL FIX #1
+        self.check_escape_sequences(js_code)?; // CRITICAL FIX #2
+        self.check_reflect_api(js_code)?; // HIGH PRIORITY FIX
+        self.check_symbol_api(js_code)?; // MEDIUM PRIORITY FIX
 
         // Remove comments and strings to prevent false positives for other checks
         let code_without_comments = self.remove_comments_and_strings(js_code);
@@ -59,11 +63,14 @@ impl JavaScriptSecurityValidator {
         self.check_timeout_with_strings(js_code)?; // Check original for string detection
         self.check_proto_pollution(&code_without_comments)?;
         self.check_constructor_access(&code_without_comments)?;
+        self.check_constructor_after_literal(&code_without_comments)?; // CRITICAL FIX #3
+        self.check_async_generator_constructor(&code_without_comments)?; // HIGH PRIORITY FIX
         self.check_with_statement(&code_without_comments)?;
         self.check_import_statements(js_code)?; // Check original to detect import 'string'
         self.check_document_write(&code_without_comments)?;
         self.check_webassembly(&code_without_comments)?;
         self.check_node_apis(&code_without_comments)?;
+        self.check_proxy_usage(&code_without_comments)?; // MEDIUM PRIORITY FIX
 
         Ok(())
     }
@@ -366,6 +373,146 @@ impl JavaScriptSecurityValidator {
 
         Ok(())
     }
+
+    /// CRITICAL FIX #1: Block ALL bracket notation access to global objects
+    /// Prevents: window['e'+'val'], window[variable], globalThis[anything]
+    fn check_global_bracket_access(&self, code: &str) -> Result<()> {
+        static GLOBAL_BRACKET_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = GLOBAL_BRACKET_REGEX.get_or_init(|| {
+            // Match: window[, globalThis[, self[
+            Regex::new(r"(?:window|globalThis|self)\s*\[").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Bracket notation access to global objects is not allowed (prevents computed property bypass)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// CRITICAL FIX #2: Block Unicode and hex escape sequences in strings
+    /// Prevents: window['\x65\x76\x61\x6c'], obj['\u005f\u005fproto\u005f\u005f']
+    fn check_escape_sequences(&self, code: &str) -> Result<()> {
+        // Check for hex escapes (\x) in bracket notation
+        static HEX_ESCAPE_REGEX: OnceLock<Regex> = OnceLock::new();
+        let hex_regex = HEX_ESCAPE_REGEX.get_or_init(|| {
+            // Match: strings with \x or \u escape sequences in bracket notation
+            Regex::new(r#"\[['"](?:[^'"]*\\[xu][0-9a-fA-F]+[^'"]*)+['"]\]"#).unwrap()
+        });
+
+        if hex_regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Escape sequences (\\x, \\u) in bracket notation are not allowed (prevents encoding bypass)"
+            ));
+        }
+
+        // Also block standalone hex/unicode escapes near dangerous keywords
+        static ESCAPE_NEAR_DANGEROUS_REGEX: OnceLock<Regex> = OnceLock::new();
+        let dangerous_regex = ESCAPE_NEAR_DANGEROUS_REGEX.get_or_init(|| {
+            // Match: \x or \u near eval, proto, etc.
+            Regex::new(r#"\\[xu][0-9a-fA-F]+.*(?:eval|proto|constructor|Function)"#).unwrap()
+        });
+
+        if dangerous_regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Escape sequences near dangerous keywords are not allowed"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// CRITICAL FIX #3: Block .constructor access after literals (primitives)
+    /// Prevents: (0).constructor.constructor, [].constructor.constructor, ({}).constructor.constructor
+    fn check_constructor_after_literal(&self, code: &str) -> Result<()> {
+        static CONSTRUCTOR_LITERAL_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = CONSTRUCTOR_LITERAL_REGEX.get_or_init(|| {
+            // Match: ).constructor or ].constructor or }.constructor
+            Regex::new(r#"[\)\]\}]\s*\.\s*constructor"#).unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Accessing .constructor on literals is not allowed (prevents Function constructor access)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// HIGH PRIORITY FIX: Block async and generator function constructor access
+    /// Prevents: (async function(){}).constructor, (function*(){}).constructor
+    fn check_async_generator_constructor(&self, code: &str) -> Result<()> {
+        static ASYNC_GENERATOR_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = ASYNC_GENERATOR_REGEX.get_or_init(|| {
+            // Match: async function patterns or generator patterns followed by .constructor
+            Regex::new(r"(?:async\s+function|function\s*\*)[^}]*\}\s*\)\s*\.\s*constructor").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Async/Generator function constructor access is not allowed"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// HIGH PRIORITY FIX: Block Reflect API that can bypass security checks
+    /// Prevents: Reflect.get(window, 'eval'), Reflect.apply(eval, ...), Reflect.construct(Function, ...)
+    fn check_reflect_api(&self, code: &str) -> Result<()> {
+        static REFLECT_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = REFLECT_REGEX.get_or_init(|| {
+            // Match: Reflect.get, Reflect.apply, Reflect.construct, Reflect.defineProperty, Reflect.setPrototypeOf
+            Regex::new(r"Reflect\s*\.\s*(?:get|apply|construct|defineProperty|setPrototypeOf|getOwnPropertyDescriptor)\s*\(").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Reflect API methods are not allowed (prevents indirect access bypass)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// MEDIUM PRIORITY FIX: Block Symbol API that can create dynamic property keys
+    /// Prevents: Symbol.for('eval'), Symbol() for dynamic keys
+    fn check_symbol_api(&self, code: &str) -> Result<()> {
+        static SYMBOL_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = SYMBOL_REGEX.get_or_init(|| {
+            // Match: Symbol.for(, Symbol(
+            Regex::new(r"Symbol\s*(?:\.\s*for\s*)?\(").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Symbol API is not allowed (prevents dynamic property key bypass)"
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// MEDIUM PRIORITY FIX: Block Proxy usage that can intercept property access
+    /// Prevents: new Proxy({}, handler) where handler returns eval
+    fn check_proxy_usage(&self, code: &str) -> Result<()> {
+        static PROXY_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = PROXY_REGEX.get_or_init(|| {
+            // Match: new Proxy(
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])new\s+Proxy\s*\(").unwrap()
+        });
+
+        if regex.is_match(code) {
+            return Err(anyhow!(
+                "SECURITY: Proxy objects are not allowed (prevents property access interception)"
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for JavaScriptSecurityValidator {
@@ -519,6 +666,107 @@ mod tests {
         // Generate code larger than limit
         let large_code = "x = 1;".repeat(2_000_000); // > 10 MB
         assert!(validator.is_safe_javascript(&large_code).is_err());
+    }
+
+    // === NEW SECURITY FIXES TESTS ===
+
+    #[test]
+    fn test_global_bracket_access_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // CRITICAL FIX #1: Block ANY bracket access to globals
+        assert!(validator.is_safe_javascript("window[x]").is_err());
+        assert!(validator.is_safe_javascript("globalThis[key]").is_err());
+        assert!(validator.is_safe_javascript("self['property']").is_err());
+
+        // Should block even with computed properties
+        let computed = r#"
+            const key = 'e' + 'val';
+            window[key]('alert(1)');
+        "#;
+        assert!(validator.is_safe_javascript(computed).is_err());
+    }
+
+    #[test]
+    fn test_escape_sequences_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // CRITICAL FIX #2: Block hex and unicode escapes in bracket notation
+        assert!(validator.is_safe_javascript(r#"window['\x65\x76\x61\x6c']"#).is_err());
+        assert!(validator.is_safe_javascript(r#"obj['\u005f\u005fproto\u005f\u005f']"#).is_err());
+
+        // Block escapes near dangerous keywords (within strings or code)
+        assert!(validator.is_safe_javascript(r#"const x = '\x65\x76\x61\x6c'; window[x]('code')"#).is_err());
+    }
+
+    #[test]
+    fn test_constructor_after_literal_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // CRITICAL FIX #3: Block constructor chain via literals
+        assert!(validator.is_safe_javascript("(0).constructor.constructor").is_err());
+        assert!(validator.is_safe_javascript("[].constructor.constructor").is_err());
+        assert!(validator.is_safe_javascript("({}).constructor.constructor").is_err());
+        assert!(validator.is_safe_javascript("(function(){}).constructor").is_err());
+    }
+
+    #[test]
+    fn test_async_generator_constructor_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // HIGH PRIORITY: Block async/generator constructor access
+        let async_attack = r#"
+            AsyncFunction = (async function(){}).constructor;
+            AsyncFunction('return alert(1)')();
+        "#;
+        assert!(validator.is_safe_javascript(async_attack).is_err());
+
+        let generator_attack = r#"
+            GeneratorFunction = (function*(){}).constructor;
+            GeneratorFunction('yield alert(1)')();
+        "#;
+        assert!(validator.is_safe_javascript(generator_attack).is_err());
+    }
+
+    #[test]
+    fn test_reflect_api_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // HIGH PRIORITY: Block Reflect API
+        assert!(validator.is_safe_javascript("Reflect.get(window, 'eval')").is_err());
+        assert!(validator.is_safe_javascript("Reflect.apply(eval, null, ['code'])").is_err());
+        assert!(validator.is_safe_javascript("Reflect.construct(Function, ['return 1'])").is_err());
+        assert!(validator.is_safe_javascript("Reflect.defineProperty(obj, 'x', {})").is_err());
+        assert!(validator.is_safe_javascript("Reflect.setPrototypeOf(obj, {})").is_err());
+    }
+
+    #[test]
+    fn test_symbol_api_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // MEDIUM PRIORITY: Block Symbol API
+        assert!(validator.is_safe_javascript("Symbol.for('eval')").is_err());
+        assert!(validator.is_safe_javascript("Symbol('key')").is_err());
+
+        let symbol_attack = r#"
+            const sym = Symbol.for('eval');
+            window[sym] = eval;
+        "#;
+        assert!(validator.is_safe_javascript(symbol_attack).is_err());
+    }
+
+    #[test]
+    fn test_proxy_usage_blocked() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // MEDIUM PRIORITY: Block Proxy objects
+        assert!(validator.is_safe_javascript("new Proxy({}, handler)").is_err());
+
+        let proxy_attack = r#"
+            const handler = { get: () => eval };
+            const proxy = new Proxy({}, handler);
+        "#;
+        assert!(validator.is_safe_javascript(proxy_attack).is_err());
     }
 
     #[test]
