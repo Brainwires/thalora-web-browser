@@ -5,11 +5,10 @@
 //!
 //! This implements the complete XMLHttpRequest interface with real HTTP networking
 
-use crate::{
+use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
-    string::StaticJsStrings,
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string,
     realm::Realm, JsData, JsString,
@@ -23,7 +22,7 @@ use url::Url;
 
 /// JavaScript `XMLHttpRequest` constructor implementation.
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct XmlHttpRequest;
+pub struct XmlHttpRequest;
 
 impl IntrinsicObject for XmlHttpRequest {
     fn init(realm: &Realm) {

@@ -412,6 +412,14 @@ impl CSSStyleDeclaration {
         self.computed.get(property).or_else(|| self.properties.get(property))
     }
 
+    /// Iterate over all computed properties
+    pub fn iter_properties(&self) -> impl Iterator<Item = (&String, &String)> {
+        // Combine properties and computed, with computed taking precedence
+        self.properties.iter().chain(
+            self.computed.iter().filter(|(k, _)| !self.properties.contains_key(*k))
+        )
+    }
+
     fn compute_property(&mut self, property: &str, value: &str) {
         // Real CSS property computation with inheritance and cascading
         match property {

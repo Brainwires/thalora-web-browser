@@ -145,6 +145,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     fetch::fetch::Request::init(&realm);
     fetch::fetch::Response::init(&realm);
     fetch::fetch::Headers::init(&realm);
+    fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
 
     // Register browser APIs as global properties
     let global_object = context.global_object();
@@ -216,6 +217,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         fetch::fetch::Headers::NAME,
         PropertyDescriptor::builder()
             .value(fetch::fetch::Headers::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        fetch::xmlhttprequest::XmlHttpRequest::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
