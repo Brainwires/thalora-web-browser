@@ -69,6 +69,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // Initialize Event APIs (foundational for DOM)
     events::event::Event::init(&realm);
     events::event_target::EventTarget::init(&realm);
+    events::ui_events::UIEvent::init(&realm);
+    events::ui_events::KeyboardEvent::init(&realm);
+    events::ui_events::MouseEvent::init(&realm);
+    events::ui_events::FocusEvent::init(&realm);
+    events::ui_events::InputEvent::init(&realm);
 
     // Initialize DOM APIs
     dom::node::Node::init(&realm);
