@@ -132,6 +132,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     misc::css::Css::init(&realm);
     misc::form::HTMLFormElement::init(&realm);
     misc::form::HTMLInputElement::init(&realm);
+    misc::form::HTMLSelectElement::init(&realm);
+    misc::form::HTMLTextAreaElement::init(&realm);
+    misc::form::HTMLOptionElement::init(&realm);
+    misc::form::ValidityState::init(&realm);
 
     // Initialize Streams APIs
     streams::readable_stream::ReadableStream::init(&realm);

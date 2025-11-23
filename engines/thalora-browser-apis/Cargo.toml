@@ -28,6 +28,9 @@ tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
 url = "2.4"
 urlencoding = "2.1"
 
+# Regex for form validation
+regex = "1.10"
+
 # HTML/DOM parsing (matching Boa exact versions)
 scraper = "0.20"
 html5ever = "0.27"
