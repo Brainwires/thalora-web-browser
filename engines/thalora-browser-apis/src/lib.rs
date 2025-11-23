@@ -86,6 +86,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::text::Text::init(&realm);
     dom::document_fragment::DocumentFragment::init(&realm);
     dom::range::Range::init(&realm);
+    dom::selection::Selection::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -124,7 +125,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Observer APIs
     observers::intersection_observer::IntersectionObserver::init(&realm);
+    observers::intersection_observer::IntersectionObserverEntry::init(&realm);
     observers::mutation_observer::MutationObserver::init(&realm);
+    observers::mutation_observer::MutationRecord::init(&realm);
     observers::resize_observer::ResizeObserver::init(&realm);
 
     // Initialize Messaging APIs
