@@ -7466,6 +7466,7 @@ dependencies = [
  "once_cell",
  "parking_lot 0.12.4",
  "rand 0.8.5",
+ "regex",
  "reqwest 0.11.27",
  "scraper 0.20.0",
  "serde",

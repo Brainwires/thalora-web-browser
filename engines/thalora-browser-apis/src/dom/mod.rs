@@ -10,6 +10,7 @@ pub mod element;
 pub mod node;
 pub mod nodelist;
 pub mod range;
+pub mod selection;
 pub mod shadow;
 pub mod text;
 

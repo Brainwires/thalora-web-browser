@@ -159,6 +159,7 @@ impl IntrinsicObject for Window {
             .method(dispatch_event, js_string!("dispatchEvent"), 1)
             .method(match_media, js_string!("matchMedia"), 1)
             .method(get_selection, js_string!("getSelection"), 0)
+            .method(get_computed_style, js_string!("getComputedStyle"), 1)
             .method(show_open_file_picker, js_string!("showOpenFilePicker"), 0)
             .method(show_save_file_picker, js_string!("showSaveFilePicker"), 0)
             .method(show_directory_picker, js_string!("showDirectoryPicker"), 0)
@@ -1791,4 +1792,187 @@ fn get_performance(_this: &JsValue, _args: &[JsValue], context: &mut Context) ->
     )?;
 
     Ok(performance_instance)
+}
+
+/// `window.getComputedStyle(element, pseudoElement)` implementation
+/// Returns a CSSStyleDeclaration object containing the computed styles for an element
+/// https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle
+fn get_computed_style(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use crate::dom::element::ElementData;
+
+    let element = args.get_or_undefined(0);
+    let _pseudo_element = args.get_or_undefined(1); // Optional pseudo-element selector (::before, ::after)
+
+    // Get the element object
+    let element_obj = element.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("getComputedStyle: argument is not an element")
+    })?;
+
+    // Try to get ElementData from the object
+    let element_data = element_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("getComputedStyle: argument is not an element")
+    })?;
+
+    // Get the element's computed style
+    let css_style = element_data.get_style();
+
+    // Create a CSSStyleDeclaration-like object with the computed styles
+    let style_obj = JsObject::default(context.intrinsics());
+
+    // Define default computed styles (browser defaults)
+    let defaults = [
+        ("display", "block"),
+        ("position", "static"),
+        ("visibility", "visible"),
+        ("opacity", "1"),
+        ("overflow", "visible"),
+        ("boxSizing", "content-box"),
+        ("margin", "0px"),
+        ("marginTop", "0px"),
+        ("marginRight", "0px"),
+        ("marginBottom", "0px"),
+        ("marginLeft", "0px"),
+        ("padding", "0px"),
+        ("paddingTop", "0px"),
+        ("paddingRight", "0px"),
+        ("paddingBottom", "0px"),
+        ("paddingLeft", "0px"),
+        ("border", "0px none rgb(0, 0, 0)"),
+        ("borderWidth", "0px"),
+        ("borderStyle", "none"),
+        ("borderColor", "rgb(0, 0, 0)"),
+        ("width", "auto"),
+        ("height", "auto"),
+        ("minWidth", "0px"),
+        ("minHeight", "0px"),
+        ("maxWidth", "none"),
+        ("maxHeight", "none"),
+        ("color", "rgb(0, 0, 0)"),
+        ("backgroundColor", "rgba(0, 0, 0, 0)"),
+        ("fontFamily", "serif"),
+        ("fontSize", "16px"),
+        ("fontWeight", "400"),
+        ("fontStyle", "normal"),
+        ("lineHeight", "normal"),
+        ("textAlign", "start"),
+        ("textDecoration", "none"),
+        ("textTransform", "none"),
+        ("whiteSpace", "normal"),
+        ("wordSpacing", "0px"),
+        ("letterSpacing", "normal"),
+        ("cursor", "auto"),
+        ("zIndex", "auto"),
+        ("float", "none"),
+        ("clear", "none"),
+        ("transform", "none"),
+        ("transition", "all 0s ease 0s"),
+        ("animation", "none 0s ease 0s 1 normal none running"),
+        ("flexDirection", "row"),
+        ("flexWrap", "nowrap"),
+        ("justifyContent", "normal"),
+        ("alignItems", "normal"),
+        ("alignContent", "normal"),
+        ("order", "0"),
+        ("flexGrow", "0"),
+        ("flexShrink", "1"),
+        ("flexBasis", "auto"),
+        ("gridTemplateColumns", "none"),
+        ("gridTemplateRows", "none"),
+        ("gap", "normal"),
+    ];
+
+    // Set default values
+    for (property, default_value) in defaults {
+        style_obj.set(
+            js_string!(property),
+            JsValue::from(js_string!(default_value)),
+            false,
+            context,
+        )?;
+    }
+
+    // Override with actual computed values from the element's style
+    for (property, value) in css_style.iter_properties() {
+        // Convert kebab-case to camelCase for JavaScript
+        let camel_property = property
+            .split('-')
+            .enumerate()
+            .map(|(i, part)| {
+                if i == 0 {
+                    part.to_string()
+                } else {
+                    let mut chars = part.chars();
+                    match chars.next() {
+                        None => String::new(),
+                        Some(first) => first.to_uppercase().chain(chars).collect(),
+                    }
+                }
+            })
+            .collect::<String>();
+
+        style_obj.set(
+            JsString::from(camel_property.as_str()),
+            JsValue::from(JsString::from(value.as_str())),
+            false,
+            context,
+        )?;
+    }
+
+    // Add getPropertyValue method
+    let get_property_value_fn = BuiltInBuilder::callable(context.realm(), computed_style_get_property_value)
+        .name(js_string!("getPropertyValue"))
+        .length(1)
+        .build();
+
+    style_obj.set(
+        js_string!("getPropertyValue"),
+        get_property_value_fn,
+        false,
+        context,
+    )?;
+
+    // Add length property (number of properties)
+    style_obj.set(
+        js_string!("length"),
+        JsValue::from(defaults.len() as i32),
+        false,
+        context,
+    )?;
+
+    Ok(style_obj.into())
+}
+
+/// `CSSStyleDeclaration.getPropertyValue(property)` for computed styles
+fn computed_style_get_property_value(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("getPropertyValue called on non-object")
+    })?;
+
+    let property = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+
+    // Convert kebab-case to camelCase for lookup
+    let camel_property = property
+        .split('-')
+        .enumerate()
+        .map(|(i, part)| {
+            if i == 0 {
+                part.to_string()
+            } else {
+                let mut chars = part.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().chain(chars).collect(),
+                }
+            }
+        })
+        .collect::<String>();
+
+    // Try to get the property value
+    let value = this_obj.get(JsString::from(camel_property.as_str()), context)?;
+
+    if value.is_undefined() {
+        Ok(JsValue::from(js_string!("")))
+    } else {
+        Ok(value)
+    }
 }

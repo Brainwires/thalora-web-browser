@@ -59,6 +59,26 @@ impl RangeData {
         }
     }
 
+    /// Get the start container
+    pub fn start_container(&self) -> Option<&JsValue> {
+        self.start_container.as_ref()
+    }
+
+    /// Get the start offset
+    pub fn start_offset(&self) -> u32 {
+        self.start_offset
+    }
+
+    /// Get the end container
+    pub fn end_container(&self) -> Option<&JsValue> {
+        self.end_container.as_ref()
+    }
+
+    /// Get the end offset
+    pub fn end_offset(&self) -> u32 {
+        self.end_offset
+    }
+
     /// Set the start of the range
     pub fn set_start(&mut self, node: JsValue, offset: u32) -> JsResult<()> {
         self.start_container = Some(node.clone());
@@ -346,6 +366,12 @@ impl IntrinsicObject for Range {
             .method(clone_range, js_string!("cloneRange"), 0)
             .method(to_string, js_string!("toString"), 0)
             .method(detach, js_string!("detach"), 0)
+            .method(create_contextual_fragment, js_string!("createContextualFragment"), 1)
+            .method(get_bounding_client_rect, js_string!("getBoundingClientRect"), 0)
+            .method(get_client_rects, js_string!("getClientRects"), 0)
+            .method(is_point_in_range, js_string!("isPointInRange"), 2)
+            .method(compare_point, js_string!("comparePoint"), 2)
+            .method(intersects_node, js_string!("intersectsNode"), 1)
             .static_property(
                 js_string!("START_TO_START"),
                 0,
@@ -779,4 +805,200 @@ fn detach(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     }
 
     Ok(JsValue::undefined())
+}
+
+/// Create a DocumentFragment from an HTML string, parsed in the context of the range.
+///
+/// This method parses the provided HTML string and returns a DocumentFragment
+/// containing the resulting nodes. The parsing context is determined by the
+/// range's start container.
+fn create_contextual_fragment(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let _this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-object")
+    })?;
+
+    let fragment_string = args.get_or_undefined(0).to_string(context)?;
+
+    // In a full implementation, this would:
+    // 1. Determine the parsing context from the start container
+    // 2. Parse the HTML string according to HTML fragment parsing algorithm
+    // 3. Return a DocumentFragment with the parsed nodes
+
+    eprintln!("Range: createContextualFragment called with: {}", fragment_string.to_std_string_escaped());
+
+    // Return a placeholder DocumentFragment
+    // TODO: Implement proper HTML fragment parsing
+    Ok(JsValue::null())
+}
+
+/// Get a DOMRect object representing the bounding rectangle of the range's contents.
+///
+/// Returns a DOMRect with x, y, width, height, top, right, bottom, left properties.
+fn get_bounding_client_rect(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let _this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-object")
+    })?;
+
+    // Create a DOMRect-like object
+    // In a real implementation, this would calculate the actual bounding box
+    // based on the rendered positions of the range's contents
+    let rect = boa_engine::object::ObjectInitializer::new(context)
+        .property(js_string!("x"), 0.0, Attribute::all())
+        .property(js_string!("y"), 0.0, Attribute::all())
+        .property(js_string!("width"), 0.0, Attribute::all())
+        .property(js_string!("height"), 0.0, Attribute::all())
+        .property(js_string!("top"), 0.0, Attribute::all())
+        .property(js_string!("right"), 0.0, Attribute::all())
+        .property(js_string!("bottom"), 0.0, Attribute::all())
+        .property(js_string!("left"), 0.0, Attribute::all())
+        .build();
+
+    eprintln!("Range: getBoundingClientRect called (returning zero-rect for headless browser)");
+    Ok(rect.into())
+}
+
+/// Get a list of DOMRect objects representing the client rectangles of the range.
+///
+/// For inline elements that span multiple lines, this returns multiple rectangles.
+fn get_client_rects(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let _this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-object")
+    })?;
+
+    // Create a DOMRectList-like object with array-like properties
+    // In a real implementation, this would return an array of DOMRects
+    // representing each line/box of the range's contents
+    let rect_list = boa_engine::object::ObjectInitializer::new(context)
+        .property(js_string!("length"), 0, Attribute::READONLY)
+        .build();
+
+    eprintln!("Range: getClientRects called (returning empty list for headless browser)");
+    Ok(rect_list.into())
+}
+
+/// Check if a point (node + offset) is within the range.
+///
+/// Returns true if the point is between the range's start and end boundaries.
+fn is_point_in_range(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-object")
+    })?;
+
+    let node = args.get_or_undefined(0);
+    let offset = match args.get_or_undefined(1).to_integer_or_infinity(context)? {
+        boa_engine::value::IntegerOrInfinity::Integer(i) => i.max(0) as u32,
+        _ => 0,
+    };
+
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    // Simplified implementation: check if the node matches and offset is within range
+    // A full implementation would need proper DOM tree position comparison
+    let in_range = if let (Some(start), Some(end)) = (&range_data.start_container, &range_data.end_container) {
+        if start == node && end == node {
+            // Same node - check offset bounds
+            offset >= range_data.start_offset && offset <= range_data.end_offset
+        } else if start == node {
+            // Point is at start node - check if offset is >= start_offset
+            offset >= range_data.start_offset
+        } else if end == node {
+            // Point is at end node - check if offset is <= end_offset
+            offset <= range_data.end_offset
+        } else {
+            // Different nodes - would need tree position comparison
+            // For now, return false
+            false
+        }
+    } else {
+        false
+    };
+
+    eprintln!("Range: isPointInRange called with offset {} -> {}", offset, in_range);
+    Ok(JsValue::from(in_range))
+}
+
+/// Compare a point (node + offset) to the range.
+///
+/// Returns:
+/// - -1 if the point is before the range
+/// - 0 if the point is within the range
+/// - 1 if the point is after the range
+fn compare_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-object")
+    })?;
+
+    let node = args.get_or_undefined(0);
+    let offset = match args.get_or_undefined(1).to_integer_or_infinity(context)? {
+        boa_engine::value::IntegerOrInfinity::Integer(i) => i.max(0) as u32,
+        _ => 0,
+    };
+
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    // Simplified implementation
+    // A full implementation would need proper DOM tree position comparison
+    let result = if let (Some(start), Some(end)) = (&range_data.start_container, &range_data.end_container) {
+        if start == node && end == node {
+            // Same node
+            if offset < range_data.start_offset {
+                -1i16
+            } else if offset > range_data.end_offset {
+                1i16
+            } else {
+                0i16
+            }
+        } else if start == node {
+            if offset < range_data.start_offset {
+                -1i16
+            } else {
+                0i16 // Within range
+            }
+        } else if end == node {
+            if offset > range_data.end_offset {
+                1i16
+            } else {
+                0i16 // Within range
+            }
+        } else {
+            // Different nodes - would need tree position comparison
+            0i16
+        }
+    } else {
+        0i16
+    };
+
+    eprintln!("Range: comparePoint called with offset {} -> {}", offset, result);
+    Ok(JsValue::from(result))
+}
+
+/// Check if the range intersects a given node.
+///
+/// Returns true if any part of the node is within the range.
+fn intersects_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-object")
+    })?;
+
+    let node = args.get_or_undefined(0);
+
+    let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Range method called on non-Range object")
+    })?;
+
+    // Simplified implementation: check if node is one of the boundary containers
+    // or the common ancestor. A full implementation would need DOM tree traversal.
+    let intersects = if let (Some(start), Some(end)) = (&range_data.start_container, &range_data.end_container) {
+        start == node || end == node ||
+        range_data.common_ancestor_container.as_ref().map_or(false, |ca| ca == node)
+    } else {
+        false
+    };
+
+    eprintln!("Range: intersectsNode called -> {}", intersects);
+    Ok(JsValue::from(intersects))
 }

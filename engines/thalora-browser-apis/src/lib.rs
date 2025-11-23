@@ -69,6 +69,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // Initialize Event APIs (foundational for DOM)
     events::event::Event::init(&realm);
     events::event_target::EventTarget::init(&realm);
+    events::ui_events::UIEvent::init(&realm);
+    events::ui_events::KeyboardEvent::init(&realm);
+    events::ui_events::MouseEvent::init(&realm);
+    events::ui_events::FocusEvent::init(&realm);
+    events::ui_events::InputEvent::init(&realm);
 
     // Initialize DOM APIs
     dom::node::Node::init(&realm);
@@ -81,6 +86,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::text::Text::init(&realm);
     dom::document_fragment::DocumentFragment::init(&realm);
     dom::range::Range::init(&realm);
+    dom::selection::Selection::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -119,7 +125,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Observer APIs
     observers::intersection_observer::IntersectionObserver::init(&realm);
+    observers::intersection_observer::IntersectionObserverEntry::init(&realm);
     observers::mutation_observer::MutationObserver::init(&realm);
+    observers::mutation_observer::MutationRecord::init(&realm);
     observers::resize_observer::ResizeObserver::init(&realm);
 
     // Initialize Messaging APIs
@@ -132,6 +140,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     misc::css::Css::init(&realm);
     misc::form::HTMLFormElement::init(&realm);
     misc::form::HTMLInputElement::init(&realm);
+    misc::form::HTMLSelectElement::init(&realm);
+    misc::form::HTMLTextAreaElement::init(&realm);
+    misc::form::HTMLOptionElement::init(&realm);
+    misc::form::ValidityState::init(&realm);
 
     // Initialize Streams APIs
     streams::readable_stream::ReadableStream::init(&realm);
@@ -217,6 +229,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         fetch::fetch::Headers::NAME,
         PropertyDescriptor::builder()
             .value(fetch::fetch::Headers::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        fetch::xmlhttprequest::XmlHttpRequest::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),

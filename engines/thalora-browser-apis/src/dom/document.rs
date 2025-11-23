@@ -51,6 +51,58 @@ impl IntrinsicObject for Document {
             .name(js_string!("get documentElement"))
             .build();
 
+        let forms_func = BuiltInBuilder::callable(realm, get_forms)
+            .name(js_string!("get forms"))
+            .build();
+
+        let images_func = BuiltInBuilder::callable(realm, get_images)
+            .name(js_string!("get images"))
+            .build();
+
+        let links_func = BuiltInBuilder::callable(realm, get_links)
+            .name(js_string!("get links"))
+            .build();
+
+        let scripts_func = BuiltInBuilder::callable(realm, get_scripts)
+            .name(js_string!("get scripts"))
+            .build();
+
+        let cookie_func = BuiltInBuilder::callable(realm, get_cookie)
+            .name(js_string!("get cookie"))
+            .build();
+
+        let cookie_setter_func = BuiltInBuilder::callable(realm, set_cookie)
+            .name(js_string!("set cookie"))
+            .build();
+
+        let referrer_func = BuiltInBuilder::callable(realm, get_referrer)
+            .name(js_string!("get referrer"))
+            .build();
+
+        let domain_func = BuiltInBuilder::callable(realm, get_domain)
+            .name(js_string!("get domain"))
+            .build();
+
+        let character_set_func = BuiltInBuilder::callable(realm, get_character_set)
+            .name(js_string!("get characterSet"))
+            .build();
+
+        let content_type_func = BuiltInBuilder::callable(realm, get_content_type)
+            .name(js_string!("get contentType"))
+            .build();
+
+        let visibility_state_func = BuiltInBuilder::callable(realm, get_visibility_state)
+            .name(js_string!("get visibilityState"))
+            .build();
+
+        let hidden_func = BuiltInBuilder::callable(realm, get_hidden)
+            .name(js_string!("get hidden"))
+            .build();
+
+        let active_element_func = BuiltInBuilder::callable(realm, get_active_element)
+            .name(js_string!("get activeElement"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Document -> Node -> EventTarget
             .inherits(Some(realm.intrinsics().constructors().node().prototype()))
@@ -90,6 +142,78 @@ impl IntrinsicObject for Document {
                 None,
                 Attribute::CONFIGURABLE,
             )
+            .accessor(
+                js_string!("forms"),
+                Some(forms_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("images"),
+                Some(images_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("links"),
+                Some(links_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scripts"),
+                Some(scripts_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("cookie"),
+                Some(cookie_func),
+                Some(cookie_setter_func),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("referrer"),
+                Some(referrer_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("domain"),
+                Some(domain_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("characterSet"),
+                Some(character_set_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("contentType"),
+                Some(content_type_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("visibilityState"),
+                Some(visibility_state_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("hidden"),
+                Some(hidden_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("activeElement"),
+                Some(active_element_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(create_element, js_string!("createElement"), 1)
             .method(create_text_node, js_string!("createTextNode"), 1)
             .method(create_document_fragment, js_string!("createDocumentFragment"), 0)
@@ -115,8 +239,8 @@ impl BuiltInObject for Document {
 
 impl BuiltInConstructor for Document {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::document;
@@ -154,6 +278,16 @@ pub struct DocumentData {
     #[unsafe_ignore_trace]
     title: Arc<Mutex<String>>,
     #[unsafe_ignore_trace]
+    cookie: Arc<Mutex<String>>,
+    #[unsafe_ignore_trace]
+    referrer: Arc<Mutex<String>>,
+    #[unsafe_ignore_trace]
+    domain: Arc<Mutex<String>>,
+    #[unsafe_ignore_trace]
+    character_set: Arc<Mutex<String>>,
+    #[unsafe_ignore_trace]
+    content_type: Arc<Mutex<String>>,
+    #[unsafe_ignore_trace]
     elements: Arc<Mutex<HashMap<String, JsObject>>>,
     #[unsafe_ignore_trace]
     event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
@@ -167,6 +301,11 @@ impl DocumentData {
             ready_state: Arc::new(Mutex::new("loading".to_string())),
             url: Arc::new(Mutex::new("about:blank".to_string())),
             title: Arc::new(Mutex::new("".to_string())),
+            cookie: Arc::new(Mutex::new("".to_string())),
+            referrer: Arc::new(Mutex::new("".to_string())),
+            domain: Arc::new(Mutex::new("".to_string())),
+            character_set: Arc::new(Mutex::new("UTF-8".to_string())),
+            content_type: Arc::new(Mutex::new("text/html".to_string())),
             elements: Arc::new(Mutex::new(HashMap::new())),
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             html_content: Arc::new(Mutex::new("".to_string())),
@@ -433,93 +572,6 @@ fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
         document.add_element("head".to_string(), head_element.clone());
         Ok(head_element.into())
     }
-}
-
-/// `Document.prototype.documentElement` getter
-/// Returns the root element (<html>) of the document
-fn get_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
-    })?;
-
-    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.documentElement called on non-Document object")
-    })?;
-
-    // Create html (documentElement) if it doesn't exist
-    if let Some(html) = document.get_element("html") {
-        Ok(html.into())
-    } else {
-        // Create a new html element using the Element constructor
-        let element_constructor = context.intrinsics().constructors().element().constructor();
-        let html_element = element_constructor.construct(&[], None, context)?;
-
-        // Set tagName property
-        html_element.define_property_or_throw(
-            js_string!("tagName"),
-            PropertyDescriptorBuilder::new()
-                .configurable(false)
-                .enumerable(true)
-                .writable(false)
-                .value(JsString::from("HTML"))
-                .build(),
-            context,
-        )?;
-
-        // Add clientHeight and clientWidth properties for Google's JavaScript
-        html_element.define_property_or_throw(
-            js_string!("clientHeight"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(768) // Default viewport height
-                .build(),
-            context,
-        )?;
-
-        html_element.define_property_or_throw(
-            js_string!("clientWidth"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(1024) // Default viewport width
-                .build(),
-            context,
-        )?;
-
-        // Add addEventListener method (Google's JavaScript needs this)
-        let add_event_listener_func = BuiltInBuilder::callable(context.realm(), document_element_add_event_listener)
-            .name(js_string!("addEventListener"))
-            .build();
-
-        html_element.define_property_or_throw(
-            js_string!("addEventListener"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(add_event_listener_func)
-                .build(),
-            context,
-        )?;
-
-        document.add_element("html".to_string(), html_element.clone());
-        Ok(html_element.into())
-    }
-}
-
-/// addEventListener for documentElement
-fn document_element_add_event_listener(
-    _this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context
-) -> JsResult<JsValue> {
-    // Stub implementation - just return undefined for now
-    // Google's JavaScript checks if addEventListener exists, but may not actually use it
-    Ok(JsValue::undefined())
 }
 
 /// `Document.prototype.createElement(tagName)`
@@ -1686,5 +1738,419 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
     }
 
     Ok(JsValue::from(gl_context))
+}
+
+// ============================================================================
+// Document collection and property getters
+// ============================================================================
+
+/// `Document.prototype.documentElement` getter
+fn get_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.documentElement called on non-Document object")
+    })?;
+
+    // Return existing html element or create one
+    if let Some(html) = document.get_element("html") {
+        Ok(html.into())
+    } else {
+        // Create a new html element
+        let element_constructor = context.intrinsics().constructors().element().constructor();
+        let html_element = element_constructor.construct(&[], None, context)?;
+        if let Some(elem_data) = html_element.downcast_ref::<crate::dom::element::ElementData>() {
+            elem_data.set_tag_name("HTML".to_string());
+        }
+        document.add_element("html".to_string(), html_element.clone());
+        Ok(html_element.into())
+    }
+}
+
+/// `Document.prototype.forms` getter - returns HTMLCollection of all form elements
+fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.forms called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.forms called on non-Document object")
+    })?;
+
+    // Parse HTML content to find all form elements
+    let html_content = document.get_html_content();
+    let doc = scraper::Html::parse_document(&html_content);
+
+    let mut forms = Vec::new();
+    if let Ok(selector) = scraper::Selector::parse("form") {
+        for form_element in doc.select(&selector) {
+            // Create a form element object
+            let element_constructor = context.intrinsics().constructors().element().constructor();
+            if let Ok(form_obj) = element_constructor.construct(&[], None, context) {
+                if let Some(elem_data) = form_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                    elem_data.set_tag_name("FORM".to_string());
+                    // Set form attributes
+                    if let Some(id) = form_element.value().attr("id") {
+                        elem_data.set_id(id.to_string());
+                    }
+                    if let Some(name) = form_element.value().attr("name") {
+                        elem_data.set_attribute("name".to_string(), name.to_string());
+                    }
+                    if let Some(action) = form_element.value().attr("action") {
+                        elem_data.set_attribute("action".to_string(), action.to_string());
+                    }
+                    if let Some(method) = form_element.value().attr("method") {
+                        elem_data.set_attribute("method".to_string(), method.to_string());
+                    }
+                }
+                forms.push(JsValue::from(form_obj));
+            }
+        }
+    }
+
+    // Create HTMLCollection-like array
+    let array = boa_engine::builtins::array::Array::create_array_from_list(forms, context);
+    add_html_collection_methods(&array, context)?;
+    Ok(array.into())
+}
+
+/// `Document.prototype.images` getter - returns HTMLCollection of all img elements
+fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.images called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.images called on non-Document object")
+    })?;
+
+    let html_content = document.get_html_content();
+    let doc = scraper::Html::parse_document(&html_content);
+
+    let mut images = Vec::new();
+    if let Ok(selector) = scraper::Selector::parse("img") {
+        for img_element in doc.select(&selector) {
+            let element_constructor = context.intrinsics().constructors().element().constructor();
+            if let Ok(img_obj) = element_constructor.construct(&[], None, context) {
+                if let Some(elem_data) = img_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                    elem_data.set_tag_name("IMG".to_string());
+                    if let Some(src) = img_element.value().attr("src") {
+                        elem_data.set_attribute("src".to_string(), src.to_string());
+                    }
+                    if let Some(alt) = img_element.value().attr("alt") {
+                        elem_data.set_attribute("alt".to_string(), alt.to_string());
+                    }
+                    if let Some(id) = img_element.value().attr("id") {
+                        elem_data.set_id(id.to_string());
+                    }
+                }
+                images.push(JsValue::from(img_obj));
+            }
+        }
+    }
+
+    let array = boa_engine::builtins::array::Array::create_array_from_list(images, context);
+    add_html_collection_methods(&array, context)?;
+    Ok(array.into())
+}
+
+/// `Document.prototype.links` getter - returns HTMLCollection of all a and area elements with href
+fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.links called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.links called on non-Document object")
+    })?;
+
+    let html_content = document.get_html_content();
+    let doc = scraper::Html::parse_document(&html_content);
+
+    let mut links = Vec::new();
+    if let Ok(selector) = scraper::Selector::parse("a[href], area[href]") {
+        for link_element in doc.select(&selector) {
+            let element_constructor = context.intrinsics().constructors().element().constructor();
+            if let Ok(link_obj) = element_constructor.construct(&[], None, context) {
+                if let Some(elem_data) = link_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                    elem_data.set_tag_name(link_element.value().name().to_uppercase());
+                    if let Some(href) = link_element.value().attr("href") {
+                        elem_data.set_attribute("href".to_string(), href.to_string());
+                    }
+                    if let Some(id) = link_element.value().attr("id") {
+                        elem_data.set_id(id.to_string());
+                    }
+                }
+                links.push(JsValue::from(link_obj));
+            }
+        }
+    }
+
+    let array = boa_engine::builtins::array::Array::create_array_from_list(links, context);
+    add_html_collection_methods(&array, context)?;
+    Ok(array.into())
+}
+
+/// `Document.prototype.scripts` getter - returns HTMLCollection of all script elements
+fn get_scripts(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.scripts called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.scripts called on non-Document object")
+    })?;
+
+    let html_content = document.get_html_content();
+    let doc = scraper::Html::parse_document(&html_content);
+
+    let mut scripts = Vec::new();
+    if let Ok(selector) = scraper::Selector::parse("script") {
+        for script_element in doc.select(&selector) {
+            let element_constructor = context.intrinsics().constructors().element().constructor();
+            if let Ok(script_obj) = element_constructor.construct(&[], None, context) {
+                if let Some(elem_data) = script_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                    elem_data.set_tag_name("SCRIPT".to_string());
+                    if let Some(src) = script_element.value().attr("src") {
+                        elem_data.set_attribute("src".to_string(), src.to_string());
+                    }
+                    if let Some(script_type) = script_element.value().attr("type") {
+                        elem_data.set_attribute("type".to_string(), script_type.to_string());
+                    }
+                    if let Some(id) = script_element.value().attr("id") {
+                        elem_data.set_id(id.to_string());
+                    }
+                }
+                scripts.push(JsValue::from(script_obj));
+            }
+        }
+    }
+
+    let array = boa_engine::builtins::array::Array::create_array_from_list(scripts, context);
+    add_html_collection_methods(&array, context)?;
+    Ok(array.into())
+}
+
+/// Helper function to add HTMLCollection methods to an array
+fn add_html_collection_methods(array: &JsObject, context: &mut Context) -> JsResult<()> {
+    // Add item() method
+    let item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+        let index = args.get_or_undefined(0).to_u32(ctx)?;
+        if let Some(arr) = this.as_object() {
+            if let Ok(val) = arr.get(index, ctx) {
+                if !val.is_undefined() {
+                    return Ok(val);
+                }
+            }
+        }
+        Ok(JsValue::null())
+    })
+    .name(js_string!("item"))
+    .build();
+    array.set(js_string!("item"), item_fn, false, context)?;
+
+    // Add namedItem() method
+    let named_item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+        let name = args.get_or_undefined(0).to_string(ctx)?.to_std_string_escaped();
+        if let Some(arr) = this.as_object() {
+            if let Ok(length) = arr.get(js_string!("length"), ctx) {
+                let len = length.to_u32(ctx)?;
+                for i in 0..len {
+                    if let Ok(item) = arr.get(i, ctx) {
+                        if let Some(item_obj) = item.as_object() {
+                            // Check id attribute
+                            if let Ok(id) = item_obj.get(js_string!("id"), ctx) {
+                                if id.to_string(ctx)?.to_std_string_escaped() == name {
+                                    return Ok(item);
+                                }
+                            }
+                            // Check name attribute
+                            if let Ok(elem_name) = item_obj.get(js_string!("name"), ctx) {
+                                if elem_name.to_string(ctx)?.to_std_string_escaped() == name {
+                                    return Ok(item);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(JsValue::null())
+    })
+    .name(js_string!("namedItem"))
+    .build();
+    array.set(js_string!("namedItem"), named_item_fn, false, context)?;
+
+    Ok(())
+}
+
+/// `Document.prototype.cookie` getter
+fn get_cookie(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.cookie called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.cookie called on non-Document object")
+    })?;
+
+    let cookie = document.cookie.lock().unwrap().clone();
+    Ok(JsString::from(cookie).into())
+}
+
+/// `Document.prototype.cookie` setter
+fn set_cookie(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.cookie setter called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.cookie setter called on non-Document object")
+    })?;
+
+    let new_cookie = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+
+    // Cookie setting appends to existing cookies (doesn't replace)
+    // Parse the new cookie and add/update it
+    let mut cookies = document.cookie.lock().unwrap();
+    if cookies.is_empty() {
+        *cookies = new_cookie;
+    } else {
+        // Parse the cookie name from the new cookie
+        if let Some(eq_pos) = new_cookie.find('=') {
+            let new_name = &new_cookie[..eq_pos];
+            // Check if this cookie already exists
+            let mut found = false;
+            let existing: Vec<&str> = cookies.split("; ").collect();
+            let mut updated = Vec::new();
+            for cookie in existing {
+                if cookie.starts_with(&format!("{}=", new_name)) {
+                    updated.push(new_cookie.as_str());
+                    found = true;
+                } else {
+                    updated.push(cookie);
+                }
+            }
+            if !found {
+                updated.push(&new_cookie);
+            }
+            *cookies = updated.join("; ");
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Document.prototype.referrer` getter
+fn get_referrer(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.referrer called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.referrer called on non-Document object")
+    })?;
+
+    let referrer = document.referrer.lock().unwrap().clone();
+    Ok(JsString::from(referrer).into())
+}
+
+/// `Document.prototype.domain` getter
+fn get_domain(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.domain called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.domain called on non-Document object")
+    })?;
+
+    // Extract domain from URL
+    let url = document.get_url();
+    let domain = if let Ok(parsed) = url::Url::parse(&url) {
+        parsed.host_str().unwrap_or("").to_string()
+    } else {
+        document.domain.lock().unwrap().clone()
+    };
+    Ok(JsString::from(domain).into())
+}
+
+/// `Document.prototype.characterSet` getter
+fn get_character_set(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.characterSet called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.characterSet called on non-Document object")
+    })?;
+
+    let charset = document.character_set.lock().unwrap().clone();
+    Ok(JsString::from(charset).into())
+}
+
+/// `Document.prototype.contentType` getter
+fn get_content_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.contentType called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.contentType called on non-Document object")
+    })?;
+
+    let content_type = document.content_type.lock().unwrap().clone();
+    Ok(JsString::from(content_type).into())
+}
+
+/// `Document.prototype.visibilityState` getter
+fn get_visibility_state(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // In a headless browser, document is always "visible"
+    Ok(JsString::from("visible").into())
+}
+
+/// `Document.prototype.hidden` getter
+fn get_hidden(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // In a headless browser, document is never hidden
+    Ok(false.into())
+}
+
+/// `Document.prototype.activeElement` getter
+fn get_active_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.activeElement called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.activeElement called on non-Document object")
+    })?;
+
+    // Return body as default active element (per spec, when no element has focus)
+    if let Some(body) = document.get_element("body") {
+        Ok(body.into())
+    } else {
+        // Create body if it doesn't exist
+        let element_constructor = context.intrinsics().constructors().element().constructor();
+        let body_element = element_constructor.construct(&[], None, context)?;
+        if let Some(elem_data) = body_element.downcast_ref::<crate::dom::element::ElementData>() {
+            elem_data.set_tag_name("BODY".to_string());
+        }
+        document.add_element("body".to_string(), body_element.clone());
+        Ok(body_element.into())
+    }
 }
 

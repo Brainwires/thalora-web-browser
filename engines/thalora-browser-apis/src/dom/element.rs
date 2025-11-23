@@ -105,6 +105,42 @@ impl IntrinsicObject for Element {
             .name(js_string!("get classList"))
             .build();
 
+        let first_child_func = BuiltInBuilder::callable(realm, get_first_child)
+            .name(js_string!("get firstChild"))
+            .build();
+
+        let last_child_func = BuiltInBuilder::callable(realm, get_last_child)
+            .name(js_string!("get lastChild"))
+            .build();
+
+        let next_sibling_func = BuiltInBuilder::callable(realm, get_next_sibling)
+            .name(js_string!("get nextSibling"))
+            .build();
+
+        let previous_sibling_func = BuiltInBuilder::callable(realm, get_previous_sibling)
+            .name(js_string!("get previousSibling"))
+            .build();
+
+        let node_type_func = BuiltInBuilder::callable(realm, get_node_type)
+            .name(js_string!("get nodeType"))
+            .build();
+
+        let node_name_func = BuiltInBuilder::callable(realm, get_node_name)
+            .name(js_string!("get nodeName"))
+            .build();
+
+        let outer_html_func = BuiltInBuilder::callable(realm, get_outer_html)
+            .name(js_string!("get outerHTML"))
+            .build();
+
+        let outer_html_setter_func = BuiltInBuilder::callable(realm, set_outer_html)
+            .name(js_string!("set outerHTML"))
+            .build();
+
+        let child_nodes_func = BuiltInBuilder::callable(realm, get_child_nodes)
+            .name(js_string!("get childNodes"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("tagName"),
@@ -160,12 +196,71 @@ impl IntrinsicObject for Element {
                 None,
                 Attribute::CONFIGURABLE,
             )
+            .accessor(
+                js_string!("firstChild"),
+                Some(first_child_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("lastChild"),
+                Some(last_child_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nextSibling"),
+                Some(next_sibling_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("previousSibling"),
+                Some(previous_sibling_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nodeType"),
+                Some(node_type_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nodeName"),
+                Some(node_name_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("outerHTML"),
+                Some(outer_html_func),
+                Some(outer_html_setter_func),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("childNodes"),
+                Some(child_nodes_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(set_attribute, js_string!("setAttribute"), 2)
             .method(get_attribute, js_string!("getAttribute"), 1)
             .method(has_attribute, js_string!("hasAttribute"), 1)
             .method(remove_attribute, js_string!("removeAttribute"), 1)
             .method(append_child, js_string!("appendChild"), 1)
             .method(remove_child, js_string!("removeChild"), 1)
+            .method(insert_before, js_string!("insertBefore"), 2)
+            .method(replace_child, js_string!("replaceChild"), 2)
+            .method(clone_node, js_string!("cloneNode"), 1)
+            .method(contains, js_string!("contains"), 1)
+            .method(closest, js_string!("closest"), 1)
+            .method(matches, js_string!("matches"), 1)
+            .method(get_bounding_client_rect, js_string!("getBoundingClientRect"), 0)
+            .method(scroll_into_view, js_string!("scrollIntoView"), 1)
+            .method(focus, js_string!("focus"), 0)
+            .method(blur, js_string!("blur"), 0)
+            .method(click, js_string!("click"), 0)
             .method(set_html, js_string!("setHTML"), 1)
             .method(set_html_unsafe, js_string!("setHTMLUnsafe"), 1)
             // EventTarget methods - CRITICAL for form automation
@@ -270,6 +365,12 @@ pub struct ElementData {
     /// Shadow root for Shadow DOM API
     #[unsafe_ignore_trace]
     shadow_root: Arc<Mutex<Option<JsObject>>>,
+    /// Next sibling in DOM tree
+    #[unsafe_ignore_trace]
+    next_sibling: Arc<Mutex<Option<JsObject>>>,
+    /// Previous sibling in DOM tree
+    #[unsafe_ignore_trace]
+    previous_sibling: Arc<Mutex<Option<JsObject>>>,
 }
 
 /// CSS Style Declaration for real style computation
@@ -309,6 +410,14 @@ impl CSSStyleDeclaration {
 
     pub fn get_property(&self, property: &str) -> Option<&String> {
         self.computed.get(property).or_else(|| self.properties.get(property))
+    }
+
+    /// Iterate over all computed properties
+    pub fn iter_properties(&self) -> impl Iterator<Item = (&String, &String)> {
+        // Combine properties and computed, with computed taking precedence
+        self.properties.iter().chain(
+            self.computed.iter().filter(|(k, _)| !self.properties.contains_key(*k))
+        )
     }
 
     fn compute_property(&mut self, property: &str, value: &str) {
@@ -420,6 +529,8 @@ impl ElementData {
             bounding_rect: Arc::new(Mutex::new(DOMRect::new())),
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             shadow_root: Arc::new(Mutex::new(None)),
+            next_sibling: Arc::new(Mutex::new(None)),
+            previous_sibling: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -653,6 +764,181 @@ impl ElementData {
 
     pub fn set_parent_node(&self, parent: Option<JsObject>) {
         *self.parent_node.lock().unwrap() = parent;
+    }
+
+    pub fn get_next_sibling(&self) -> Option<JsObject> {
+        self.next_sibling.lock().unwrap().clone()
+    }
+
+    pub fn set_next_sibling(&self, sibling: Option<JsObject>) {
+        *self.next_sibling.lock().unwrap() = sibling;
+    }
+
+    pub fn get_previous_sibling(&self) -> Option<JsObject> {
+        self.previous_sibling.lock().unwrap().clone()
+    }
+
+    pub fn set_previous_sibling(&self, sibling: Option<JsObject>) {
+        *self.previous_sibling.lock().unwrap() = sibling;
+    }
+
+    pub fn get_first_child(&self) -> Option<JsObject> {
+        self.children.lock().unwrap().first().cloned()
+    }
+
+    pub fn get_last_child(&self) -> Option<JsObject> {
+        self.children.lock().unwrap().last().cloned()
+    }
+
+    /// Insert a child before a reference node
+    pub fn insert_before(&self, new_child: JsObject, reference_child: Option<&JsObject>) -> Option<JsObject> {
+        let mut children = self.children.lock().unwrap();
+
+        if let Some(ref_child) = reference_child {
+            // Find the reference child index
+            if let Some(index) = children.iter().position(|c| JsObject::equals(c, ref_child)) {
+                // Set up sibling relationships
+                if let Some(new_child_data) = new_child.downcast_ref::<ElementData>() {
+                    // Set previous sibling
+                    if index > 0 {
+                        new_child_data.set_previous_sibling(Some(children[index - 1].clone()));
+                        if let Some(prev_data) = children[index - 1].downcast_ref::<ElementData>() {
+                            prev_data.set_next_sibling(Some(new_child.clone()));
+                        }
+                    }
+                    // Set next sibling (the reference child)
+                    new_child_data.set_next_sibling(Some(ref_child.clone()));
+                }
+                if let Some(ref_data) = ref_child.downcast_ref::<ElementData>() {
+                    ref_data.set_previous_sibling(Some(new_child.clone()));
+                }
+
+                children.insert(index, new_child.clone());
+                return Some(new_child);
+            }
+        }
+
+        // If no reference child or not found, append to end
+        children.push(new_child.clone());
+        Some(new_child)
+    }
+
+    /// Replace an old child with a new child
+    pub fn replace_child(&self, new_child: JsObject, old_child: &JsObject) -> Option<JsObject> {
+        let mut children = self.children.lock().unwrap();
+
+        if let Some(index) = children.iter().position(|c| JsObject::equals(c, old_child)) {
+            // Copy sibling relationships from old to new
+            if let Some(old_data) = old_child.downcast_ref::<ElementData>() {
+                if let Some(new_data) = new_child.downcast_ref::<ElementData>() {
+                    new_data.set_previous_sibling(old_data.get_previous_sibling());
+                    new_data.set_next_sibling(old_data.get_next_sibling());
+                }
+                // Clear old child's relationships
+                old_data.set_parent_node(None);
+                old_data.set_previous_sibling(None);
+                old_data.set_next_sibling(None);
+            }
+
+            // Update siblings to point to new child
+            if index > 0 {
+                if let Some(prev_data) = children[index - 1].downcast_ref::<ElementData>() {
+                    prev_data.set_next_sibling(Some(new_child.clone()));
+                }
+            }
+            if index < children.len() - 1 {
+                if let Some(next_data) = children[index + 1].downcast_ref::<ElementData>() {
+                    next_data.set_previous_sibling(Some(new_child.clone()));
+                }
+            }
+
+            children[index] = new_child;
+            return Some(old_child.clone());
+        }
+
+        None
+    }
+
+    /// Check if this element contains another node
+    pub fn contains_node(&self, other: &JsObject) -> bool {
+        // Check if it's the same node
+        // Check children recursively
+        let children = self.children.lock().unwrap();
+        for child in children.iter() {
+            if JsObject::equals(child, other) {
+                return true;
+            }
+            if let Some(child_data) = child.downcast_ref::<ElementData>() {
+                if child_data.contains_node(other) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Find closest ancestor matching selector (including self)
+    pub fn find_closest(&self, selector: &str, self_obj: &JsObject) -> Option<JsObject> {
+        // Check if this element matches
+        if self.matches_selector(selector) {
+            return Some(self_obj.clone());
+        }
+
+        // Check parent
+        if let Some(parent) = self.get_parent_node() {
+            if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
+                return parent_data.find_closest(selector, &parent);
+            }
+        }
+
+        None
+    }
+
+    /// Clone this element (optionally deep)
+    pub fn clone_element(&self, deep: bool, context: &mut Context) -> JsResult<JsObject> {
+        let new_data = ElementData::new();
+
+        // Copy basic properties
+        new_data.set_tag_name(self.get_tag_name());
+        new_data.set_id(self.get_id());
+        new_data.set_class_name(self.get_class_name());
+
+        // Copy attributes
+        {
+            let src_attrs = self.attributes.lock().unwrap();
+            let mut dst_attrs = new_data.attributes.lock().unwrap();
+            for (k, v) in src_attrs.iter() {
+                dst_attrs.insert(k.clone(), v.clone());
+            }
+        }
+
+        // Copy innerHTML only for shallow clone
+        if !deep {
+            new_data.set_inner_html(self.get_inner_html());
+        }
+
+        // Create JsObject
+        let prototype = context.intrinsics().constructors().element().prototype();
+        let cloned = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            prototype,
+            new_data,
+        );
+
+        // Deep clone: recursively clone children
+        if deep {
+            let children = self.children.lock().unwrap();
+            for child in children.iter() {
+                if let Some(child_data) = child.downcast_ref::<ElementData>() {
+                    let cloned_child = child_data.clone_element(true, context)?;
+                    if let Some(cloned_data) = cloned.downcast_ref::<ElementData>() {
+                        cloned_data.append_child(cloned_child);
+                    }
+                }
+            }
+        }
+
+        Ok(cloned)
     }
 
     pub fn get_style(&self) -> CSSStyleDeclaration {
@@ -1673,5 +1959,462 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
             .with_message("dispatchEvent requires an Event object")
             .into())
     }
+}
+
+// ============================================================================
+// New Element methods for DOM compliance
+// ============================================================================
+
+/// `Element.prototype.insertBefore(newNode, referenceNode)`
+fn insert_before(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.insertBefore called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.insertBefore called on non-Element object")
+    })?;
+
+    let new_node = args.get_or_undefined(0);
+    let reference_node = args.get_or_undefined(1);
+
+    let new_obj = new_node.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("insertBefore: newNode must be a Node")
+    })?;
+
+    // Set parent on new node
+    if let Some(new_data) = new_obj.downcast_ref::<ElementData>() {
+        new_data.set_parent_node(Some(this_obj.clone()));
+    }
+
+    let ref_obj = if reference_node.is_null() || reference_node.is_undefined() {
+        None
+    } else {
+        Some(reference_node.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("insertBefore: referenceNode must be a Node or null")
+        })?)
+    };
+
+    element.insert_before(new_obj.clone(), ref_obj.as_ref());
+    Ok(new_node.clone())
+}
+
+/// `Element.prototype.replaceChild(newChild, oldChild)`
+fn replace_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.replaceChild called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.replaceChild called on non-Element object")
+    })?;
+
+    let new_child = args.get_or_undefined(0);
+    let old_child = args.get_or_undefined(1);
+
+    let new_obj = new_child.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("replaceChild: newChild must be a Node")
+    })?;
+
+    let old_obj = old_child.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("replaceChild: oldChild must be a Node")
+    })?;
+
+    // Set parent on new node
+    if let Some(new_data) = new_obj.downcast_ref::<ElementData>() {
+        new_data.set_parent_node(Some(this_obj.clone()));
+    }
+
+    if let Some(replaced) = element.replace_child(new_obj.clone(), &old_obj) {
+        Ok(replaced.into())
+    } else {
+        Err(JsNativeError::error()
+            .with_message("replaceChild: oldChild is not a child of this node")
+            .into())
+    }
+}
+
+/// `Element.prototype.cloneNode(deep)`
+fn clone_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.cloneNode called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.cloneNode called on non-Element object")
+    })?;
+
+    let deep = args.get_or_undefined(0).to_boolean();
+    let cloned = element.clone_element(deep, context)?;
+    Ok(cloned.into())
+}
+
+/// `Element.prototype.contains(node)`
+fn contains(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.contains called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.contains called on non-Element object")
+    })?;
+
+    let other = args.get_or_undefined(0);
+
+    if other.is_null() || other.is_undefined() {
+        return Ok(false.into());
+    }
+
+    if let Some(other_obj) = other.as_object() {
+        // Check if it's the same node (compare by reference)
+        if std::ptr::eq(this_obj.as_ref(), other_obj.as_ref()) {
+            return Ok(true.into());
+        }
+        Ok(element.contains_node(&other_obj).into())
+    } else {
+        Ok(false.into())
+    }
+}
+
+/// `Element.prototype.closest(selector)`
+fn closest(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.closest called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.closest called on non-Element object")
+    })?;
+
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+
+    if let Some(found) = element.find_closest(&selector_str, &this_obj) {
+        Ok(found.into())
+    } else {
+        Ok(JsValue::null())
+    }
+}
+
+/// `Element.prototype.matches(selector)`
+fn matches(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.matches called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.matches called on non-Element object")
+    })?;
+
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+
+    Ok(element.matches_selector(&selector_str).into())
+}
+
+/// `Element.prototype.getBoundingClientRect()`
+fn get_bounding_client_rect(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.getBoundingClientRect called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.getBoundingClientRect called on non-Element object")
+    })?;
+
+    let rect = element.get_bounding_client_rect();
+
+    // Create DOMRect object
+    let rect_obj = JsObject::default(context.intrinsics());
+    rect_obj.set(js_string!("x"), rect.x, false, context)?;
+    rect_obj.set(js_string!("y"), rect.y, false, context)?;
+    rect_obj.set(js_string!("width"), rect.width, false, context)?;
+    rect_obj.set(js_string!("height"), rect.height, false, context)?;
+    rect_obj.set(js_string!("top"), rect.top, false, context)?;
+    rect_obj.set(js_string!("right"), rect.right, false, context)?;
+    rect_obj.set(js_string!("bottom"), rect.bottom, false, context)?;
+    rect_obj.set(js_string!("left"), rect.left, false, context)?;
+
+    // Add toJSON method
+    let to_json = BuiltInBuilder::callable(context.realm(), |this, _args, ctx| {
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("toJSON called on non-object")
+        })?;
+        let result = JsObject::default(ctx.intrinsics());
+        for prop in ["x", "y", "width", "height", "top", "right", "bottom", "left"] {
+            if let Ok(val) = obj.get(js_string!(prop), ctx) {
+                result.set(js_string!(prop), val, false, ctx)?;
+            }
+        }
+        Ok(result.into())
+    })
+    .name(js_string!("toJSON"))
+    .build();
+    rect_obj.set(js_string!("toJSON"), to_json, false, context)?;
+
+    Ok(rect_obj.into())
+}
+
+/// `Element.prototype.scrollIntoView(options)`
+fn scroll_into_view(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.scrollIntoView called on non-object")
+    })?;
+
+    // Verify it's an element
+    this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.scrollIntoView called on non-Element object")
+    })?;
+
+    // In a headless browser, scrollIntoView is effectively a no-op
+    // but we should still accept the call without error
+    let _options = args.get_or_undefined(0);
+
+    // Log for debugging purposes
+    eprintln!("scrollIntoView called (no-op in headless mode)");
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.focus()`
+fn focus(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.focus called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.focus called on non-Element object")
+    })?;
+
+    // Dispatch focus event
+    let focus_event = JsObject::default(context.intrinsics());
+    focus_event.set(js_string!("type"), js_string!("focus"), false, context)?;
+    focus_event.set(js_string!("bubbles"), false, false, context)?;
+    focus_event.set(js_string!("cancelable"), false, false, context)?;
+    focus_event.set(js_string!("target"), this_obj.clone(), false, context)?;
+
+    element.dispatch_event("focus", &focus_event.into(), context)?;
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.blur()`
+fn blur(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.blur called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.blur called on non-Element object")
+    })?;
+
+    // Dispatch blur event
+    let blur_event = JsObject::default(context.intrinsics());
+    blur_event.set(js_string!("type"), js_string!("blur"), false, context)?;
+    blur_event.set(js_string!("bubbles"), false, false, context)?;
+    blur_event.set(js_string!("cancelable"), false, false, context)?;
+    blur_event.set(js_string!("target"), this_obj.clone(), false, context)?;
+
+    element.dispatch_event("blur", &blur_event.into(), context)?;
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.click()`
+fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.click called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.click called on non-Element object")
+    })?;
+
+    // Dispatch click event
+    let click_event = JsObject::default(context.intrinsics());
+    click_event.set(js_string!("type"), js_string!("click"), false, context)?;
+    click_event.set(js_string!("bubbles"), true, false, context)?;
+    click_event.set(js_string!("cancelable"), true, false, context)?;
+    click_event.set(js_string!("target"), this_obj.clone(), false, context)?;
+    click_event.set(js_string!("clientX"), 0, false, context)?;
+    click_event.set(js_string!("clientY"), 0, false, context)?;
+    click_event.set(js_string!("button"), 0, false, context)?;
+
+    element.dispatch_event("click", &click_event.into(), context)?;
+
+    Ok(JsValue::undefined())
+}
+
+// ============================================================================
+// New accessor getter functions
+// ============================================================================
+
+/// `Element.prototype.firstChild` getter
+fn get_first_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.firstChild called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.firstChild called on non-Element object")
+    })?;
+
+    Ok(element.get_first_child().map(|c| c.into()).unwrap_or(JsValue::null()))
+}
+
+/// `Element.prototype.lastChild` getter
+fn get_last_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.lastChild called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.lastChild called on non-Element object")
+    })?;
+
+    Ok(element.get_last_child().map(|c| c.into()).unwrap_or(JsValue::null()))
+}
+
+/// `Element.prototype.nextSibling` getter
+fn get_next_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.nextSibling called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.nextSibling called on non-Element object")
+    })?;
+
+    Ok(element.get_next_sibling().map(|c| c.into()).unwrap_or(JsValue::null()))
+}
+
+/// `Element.prototype.previousSibling` getter
+fn get_previous_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.previousSibling called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.previousSibling called on non-Element object")
+    })?;
+
+    Ok(element.get_previous_sibling().map(|c| c.into()).unwrap_or(JsValue::null()))
+}
+
+/// `Element.prototype.nodeType` getter (returns ELEMENT_NODE = 1)
+fn get_node_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.nodeType called on non-object")
+    })?;
+
+    // Verify it's an element
+    this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.nodeType called on non-Element object")
+    })?;
+
+    // ELEMENT_NODE = 1
+    Ok(1.into())
+}
+
+/// `Element.prototype.nodeName` getter (returns tagName)
+fn get_node_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.nodeName called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.nodeName called on non-Element object")
+    })?;
+
+    Ok(JsString::from(element.get_tag_name()).into())
+}
+
+/// `Element.prototype.outerHTML` getter
+fn get_outer_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.outerHTML called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.outerHTML called on non-Element object")
+    })?;
+
+    Ok(JsString::from(element.serialize_to_html()).into())
+}
+
+/// `Element.prototype.outerHTML` setter
+fn set_outer_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.outerHTML setter called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.outerHTML setter called on non-Element object")
+    })?;
+
+    let html = args.get_or_undefined(0).to_string(context)?;
+
+    // Setting outerHTML replaces this element in its parent
+    // For now, we'll just update the innerHTML and attributes
+    // Full implementation would require parent manipulation
+    element.set_inner_html(html.to_std_string_escaped());
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.childNodes` getter
+fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.childNodes called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.childNodes called on non-Element object")
+    })?;
+
+    let children = element.get_children();
+
+    // Create a NodeList-like array
+    use boa_engine::builtins::array::Array;
+    let children_values: Vec<JsValue> = children.into_iter().map(|child| child.into()).collect();
+    let array = Array::create_array_from_list(children_values, context);
+
+    // Add item() method for NodeList compatibility
+    let item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+        let index = args.get_or_undefined(0).to_u32(ctx)?;
+        if let Some(arr) = this.as_object() {
+            if let Ok(val) = arr.get(index, ctx) {
+                if !val.is_undefined() {
+                    return Ok(val);
+                }
+            }
+        }
+        Ok(JsValue::null())
+    })
+    .name(js_string!("item"))
+    .build();
+    array.set(js_string!("item"), item_fn, false, context)?;
+
+    Ok(array.into())
 }
 
