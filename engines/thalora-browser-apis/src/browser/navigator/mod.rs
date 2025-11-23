@@ -21,6 +21,9 @@ use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
 // TODO: Implement web_locks module
 // use crate::browser::web_locks::LockManagerObject;
+use crate::browser::clipboard;
+use crate::browser::permissions;
+use crate::browser::vibration;
 use crate::worker::service_worker_container::ServiceWorkerContainer;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -151,6 +154,14 @@ impl IntrinsicObject for Navigator {
             .name(js_string!("get mimeTypes"))
             .build();
 
+        let clipboard_getter_func = BuiltInBuilder::callable(realm, Self::clipboard_getter)
+            .name(js_string!("get clipboard"))
+            .build();
+
+        let permissions_getter_func = BuiltInBuilder::callable(realm, Self::permissions_getter)
+            .name(js_string!("get permissions"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // NavigatorID properties
             .property(js_string!("userAgent"), js_string!("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
@@ -207,11 +218,28 @@ impl IntrinsicObject for Navigator {
             .method(Self::unregister_protocol_handler, js_string!("unregisterProtocolHandler"), 2)
             .method(Self::java_enabled, js_string!("javaEnabled"), 0)
 
+            // Vibration API
+            .method(Self::vibrate, js_string!("vibrate"), 1)
+
             // Web Locks and Service Workers
             // Note: locks is set as an instance property, not a prototype accessor
             .accessor(
                 js_string!("serviceWorker"),
                 Some(service_worker_getter_func),
+                None,
+                Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
+            )
+            // Clipboard API
+            .accessor(
+                js_string!("clipboard"),
+                Some(clipboard_getter_func),
+                None,
+                Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
+            )
+            // Permissions API
+            .accessor(
+                js_string!("permissions"),
+                Some(permissions_getter_func),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
@@ -273,6 +301,20 @@ impl Navigator {
         Ok(JsValue::from(service_worker_container))
     }
 
+    /// `navigator.clipboard` getter
+    fn clipboard_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        // Create and return a Clipboard instance
+        let clipboard_obj = clipboard::create_clipboard(context)?;
+        Ok(JsValue::from(clipboard_obj))
+    }
+
+    /// `navigator.permissions` getter
+    fn permissions_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        // Create and return a Permissions instance
+        let permissions_obj = permissions::create_permissions(context)?;
+        Ok(JsValue::from(permissions_obj))
+    }
+
     /// `navigator.languages` getter - returns array of language preferences
     fn languages_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let languages = vec![
@@ -309,6 +351,11 @@ impl Navigator {
     fn java_enabled(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         // Always return false for security/privacy
         Ok(JsValue::from(false))
+    }
+
+    /// `navigator.vibrate(pattern)` method - vibrates the device
+    fn vibrate(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        vibration::navigator_vibrate(_this, args, context)
     }
 
     /// `navigator.registerProtocolHandler(scheme, url)` method
