@@ -90,6 +90,9 @@ impl BuiltInConstructor for WritableStream {
 
 impl WritableStream {
     /// `WritableStream.prototype.abort(reason)`
+    ///
+    /// Aborts the stream, signaling that the producer can no longer successfully write.
+    /// Calls the underlying sink's abort method.
     fn abort(
         this: &JsValue,
         args: &[JsValue],
@@ -99,21 +102,31 @@ impl WritableStream {
             JsNativeError::typ().with_message("WritableStream.prototype.abort called on non-object")
         })?;
 
-        let _reason = args.get_or_undefined(0);
+        let reason = args.get_or_undefined(0);
 
-        // Update stream state to errored
+        // Call the underlying sink's abort method and update state
         if let Some(mut data) = this_obj.downcast_mut::<WritableStreamData>() {
+            // Clear any pending writes
+            data.write_queue.clear();
+
+            // Call abort callback on underlying sink
+            let _ = data.call_abort(&reason, context);
+
+            // Update stream state to errored
             data.state = StreamState::Errored;
+
+            eprintln!("WritableStream: abort called with reason");
         }
 
         // Return a resolved Promise with undefined
-        {
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-        }
+        let promise_constructor = context.intrinsics().constructors().promise().constructor();
+        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
     }
 
     /// `WritableStream.prototype.close()`
+    ///
+    /// Closes the stream when all queued chunks have been written.
+    /// Calls the underlying sink's close method.
     fn close(
         this: &JsValue,
         _args: &[JsValue],
@@ -123,6 +136,7 @@ impl WritableStream {
             JsNativeError::typ().with_message("WritableStream.prototype.close called on non-object")
         })?;
 
+        // Validate stream state
         if let Some(data) = this_obj.downcast_ref::<WritableStreamData>() {
             if data.locked {
                 return Err(JsNativeError::typ()
@@ -137,16 +151,25 @@ impl WritableStream {
             }
         }
 
-        // Update stream state to closing
+        // Process remaining queue and close
         if let Some(mut data) = this_obj.downcast_mut::<WritableStreamData>() {
             data.state = StreamState::Closing;
+
+            // Process any remaining queued writes
+            data.process_queue(context)?;
+
+            // Call close callback on underlying sink
+            let _ = data.call_close(context);
+
+            // Mark as fully closed
+            data.state = StreamState::Closed;
+
+            eprintln!("WritableStream: close called - stream closed");
         }
 
         // Return a resolved Promise with undefined
-        {
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-        }
+        let promise_constructor = context.intrinsics().constructors().promise().constructor();
+        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
     }
 
     /// `WritableStream.prototype.getWriter()`
@@ -502,14 +525,87 @@ impl WritableStreamData {
         }
     }
 
-    /// Process the write queue
+    /// Process the write queue by calling the underlying sink's write method
     fn process_queue(&mut self, context: &mut Context) -> JsResult<()> {
-        // Simulate writing chunks
-        while let Some(_chunk) = self.write_queue.pop_front() {
-            // In a real implementation, this would call the underlying sink's write method
-            // For now, just process the queue
+        // Get the underlying sink's write method if it exists
+        let write_fn = if let Some(sink_obj) = self.underlying_sink.as_object() {
+            sink_obj.get(js_string!("write"), context).ok()
+        } else {
+            None
+        };
+
+        while let Some(chunk) = self.write_queue.pop_front() {
+            // Call the underlying sink's write method if available
+            if let Some(ref write_val) = write_fn {
+                if let Some(write_callable) = write_val.as_callable() {
+                    // Create a controller-like object for the write callback
+                    let controller = boa_engine::object::ObjectInitializer::new(context)
+                        .build();
+
+                    // Call write(chunk, controller)
+                    let result = write_callable.call(
+                        &self.underlying_sink,
+                        &[chunk, controller.into()],
+                        context
+                    );
+
+                    if let Err(e) = result {
+                        eprintln!("WritableStream: write callback error: {:?}", e);
+                        self.state = StreamState::Errored;
+                        return Err(e);
+                    }
+                }
+            }
+            // If no write method, chunks are just consumed (discarded)
         }
         Ok(())
+    }
+
+    /// Call the underlying sink's start method
+    pub fn call_start(&self, context: &mut Context) -> JsResult<()> {
+        if let Some(sink_obj) = self.underlying_sink.as_object() {
+            if let Ok(start_val) = sink_obj.get(js_string!("start"), context) {
+                if let Some(start_callable) = start_val.as_callable() {
+                    let controller = boa_engine::object::ObjectInitializer::new(context)
+                        .build();
+                    start_callable.call(&self.underlying_sink, &[controller.into()], context)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Call the underlying sink's close method
+    pub fn call_close(&self, context: &mut Context) -> JsResult<()> {
+        if let Some(sink_obj) = self.underlying_sink.as_object() {
+            if let Ok(close_val) = sink_obj.get(js_string!("close"), context) {
+                if let Some(close_callable) = close_val.as_callable() {
+                    close_callable.call(&self.underlying_sink, &[], context)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Call the underlying sink's abort method
+    pub fn call_abort(&self, reason: &JsValue, context: &mut Context) -> JsResult<()> {
+        if let Some(sink_obj) = self.underlying_sink.as_object() {
+            if let Ok(abort_val) = sink_obj.get(js_string!("abort"), context) {
+                if let Some(abort_callable) = abort_val.as_callable() {
+                    abort_callable.call(&self.underlying_sink, &[reason.clone()], context)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Get the current desired size (for backpressure)
+    pub fn get_desired_size(&self) -> f64 {
+        match self.state {
+            StreamState::Writable => self.high_water_mark - self.write_queue.len() as f64,
+            StreamState::Closing | StreamState::Closed => 0.0,
+            StreamState::Errored => 0.0,
+        }
     }
 }
 
