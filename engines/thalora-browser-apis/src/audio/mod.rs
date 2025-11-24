@@ -7,6 +7,9 @@
 pub mod html_audio_element;
 pub mod audio_context;
 
+#[cfg(test)]
+mod tests;
+
 // Re-exports
 pub use html_audio_element::HTMLAudioElement;
 pub use audio_context::AudioContext;

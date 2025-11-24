@@ -327,6 +327,9 @@ fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
                 ctx_data,
             );
 
+            // Set the canvas back-reference on the context
+            ctx_obj.set(js_string!("canvas"), this.clone(), false, context)?;
+
             // Cache the context
             canvas_data.set_context_2d(ctx_obj.clone());
 

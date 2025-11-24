@@ -5,5 +5,8 @@
 
 pub mod html_video_element;
 
+#[cfg(test)]
+mod tests;
+
 // Re-exports
 pub use html_video_element::HTMLVideoElement;

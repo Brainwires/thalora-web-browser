@@ -7,7 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use boa_engine::{
     js_string,
-    object::Object,
+    object::{Object, FunctionObjectBuilder, ObjectInitializer},
+    NativeFunction,
     realm::Realm,
     Context, JsData, JsNativeError, JsObject, JsResult, JsValue,
 };
@@ -136,6 +137,49 @@ impl WebGLRenderingContext {
     pub fn init(_realm: &Realm) {
         // WebGL contexts are created on-demand, not as global constructors
         // The actual context creation happens in create_context()
+    }
+
+    /// Create the global WebGLRenderingContext constructor for global registration
+    /// Per Web spec, WebGLRenderingContext IS a global constructor with static constants
+    pub fn create_global_constructor(context: &mut Context) -> JsResult<JsObject> {
+        // The constructor itself throws when called - contexts are created via getContext()
+        fn webgl_constructor(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+            Err(JsNativeError::typ()
+                .with_message("WebGLRenderingContext cannot be directly constructed; use canvas.getContext('webgl')")
+                .into())
+        }
+
+        // Create the prototype object with all methods
+        let prototype = ObjectInitializer::new(context).build();
+
+        // Add all methods to prototype
+        super::methods_shader::add_context_methods(&prototype, context);
+        super::methods_shader::add_shader_methods(&prototype, context);
+        super::methods_buffer::add_buffer_methods(&prototype, context);
+        super::methods_texture::add_texture_methods(&prototype, context);
+        super::methods_texture::add_framebuffer_methods(&prototype, context);
+        super::methods_uniform::add_uniform_methods(&prototype, context);
+        super::methods_uniform::add_vertex_attrib_methods(&prototype, context);
+        super::methods_draw::add_draw_methods(&prototype, context);
+        super::methods_draw::add_state_methods(&prototype, context);
+
+        // Create constructor function
+        let constructor = FunctionObjectBuilder::new(
+            context.realm(),
+            NativeFunction::from_fn_ptr(webgl_constructor),
+        )
+        .name(js_string!("WebGLRenderingContext"))
+        .length(0)
+        .constructor(true)
+        .build();
+
+        // Add all WebGL constants to the constructor (static properties)
+        super::constants::add_webgl_constants(&constructor.clone().into(), context);
+
+        // Set prototype
+        constructor.set(js_string!("prototype"), prototype, false, context)?;
+
+        Ok(constructor.into())
     }
 
     /// Create a new WebGL context for a canvas

@@ -230,7 +230,7 @@ impl BuiltInObject for AudioContext {
 
 impl BuiltInConstructor for AudioContext {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 20;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 22; // Accessors and methods on prototype
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 20;
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::audio_context;

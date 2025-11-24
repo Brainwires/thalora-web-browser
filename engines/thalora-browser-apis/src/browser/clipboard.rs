@@ -7,7 +7,7 @@
 
 use boa_engine::{
     builtins::promise::Promise,
-    object::{JsObject, ObjectInitializer},
+    object::{JsObject, ObjectInitializer, FunctionObjectBuilder},
     property::Attribute,
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string, NativeFunction,
@@ -268,29 +268,40 @@ fn blob_text(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     )
 }
 
-/// Create a ClipboardItem constructor function
-pub fn create_clipboard_item_constructor(context: &mut Context) -> JsResult<JsObject> {
-    let constructor = NativeFunction::from_copy_closure(move |_this, args, context| {
-        let data_arg = args.get_or_undefined(0);
+/// ClipboardItem constructor implementation
+fn clipboard_item_constructor(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let data_arg = args.get_or_undefined(0);
 
-        // data should be an object with MIME types as keys
-        let mut items: HashMap<String, Vec<u8>> = HashMap::new();
+    // data should be an object with MIME types as keys
+    let mut items: HashMap<String, Vec<u8>> = HashMap::new();
 
-        if let Some(data_obj) = data_arg.as_object() {
-            if let Ok(keys) = data_obj.own_property_keys(context) {
-                for key in keys {
-                    let key_str = key.to_string();
-                    if let Ok(value) = data_obj.get(key.clone(), context) {
-                        // Convert value to string for storage
-                        let value_str = value.to_string(context)?.to_std_string_escaped();
-                        items.insert(key_str, value_str.into_bytes());
-                    }
+    if let Some(data_obj) = data_arg.as_object() {
+        if let Ok(keys) = data_obj.own_property_keys(context) {
+            for key in keys {
+                let key_str = key.to_string();
+                if let Ok(value) = data_obj.get(key.clone(), context) {
+                    // Convert value to string for storage
+                    let value_str = value.to_string(context)?.to_std_string_escaped();
+                    items.insert(key_str, value_str.into_bytes());
                 }
             }
         }
+    }
 
-        create_clipboard_item(&items, context).map(|obj| JsValue::from(obj))
-    });
+    create_clipboard_item(&items, context).map(|obj| JsValue::from(obj))
+}
 
-    Ok(constructor.to_js_function(context.realm()).into())
+/// Create a ClipboardItem constructor function
+pub fn create_clipboard_item_constructor(context: &mut Context) -> JsResult<JsObject> {
+    // Create constructor function using FunctionObjectBuilder with constructor capability
+    let constructor_obj = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(clipboard_item_constructor),
+    )
+    .name(js_string!("ClipboardItem"))
+    .length(1)
+    .constructor(true)
+    .build();
+
+    Ok(constructor_obj.into())
 }

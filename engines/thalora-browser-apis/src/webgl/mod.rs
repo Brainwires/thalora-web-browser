@@ -25,6 +25,9 @@ pub mod methods2_vao;
 pub mod methods2_query;
 pub mod methods2_transform;
 
+#[cfg(test)]
+mod tests;
+
 // Re-exports
 pub use context::WebGLRenderingContext;
 pub use context2::WebGL2RenderingContext;

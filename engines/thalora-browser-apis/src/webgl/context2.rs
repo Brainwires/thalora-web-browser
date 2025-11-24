@@ -7,6 +7,8 @@ use std::sync::{Arc, Mutex};
 
 use boa_engine::{
     js_string,
+    object::{FunctionObjectBuilder, ObjectInitializer},
+    NativeFunction,
     realm::Realm,
     Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsValue,
 };
@@ -152,6 +154,48 @@ impl WebGL2RenderingContext {
     pub fn init(_realm: &Realm) {
         // WebGL2 contexts are created on-demand, not as global constructors
         // The actual context creation happens in create_context()
+    }
+
+    /// Create the global WebGL2RenderingContext constructor for global registration
+    /// Per Web spec, WebGL2RenderingContext IS a global constructor with static constants
+    pub fn create_global_constructor(context: &mut Context) -> JsResult<JsObject> {
+        // The constructor itself throws when called - contexts are created via getContext()
+        fn webgl2_constructor(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+            Err(JsNativeError::typ()
+                .with_message("WebGL2RenderingContext cannot be directly constructed; use canvas.getContext('webgl2')")
+                .into())
+        }
+
+        // Create the prototype object with all methods
+        let prototype = ObjectInitializer::new(context).build();
+
+        // Add WebGL2 methods to prototype
+        super::methods2_vao::add_vao_methods(&prototype, context);
+        super::methods2_vao::add_buffer2_methods(&prototype, context);
+        super::methods2_vao::add_texture2_methods(&prototype, context);
+        super::methods2_query::add_query_methods(&prototype, context);
+        super::methods2_query::add_sampler_methods(&prototype, context);
+        super::methods2_query::add_sync_methods(&prototype, context);
+        super::methods2_transform::add_transform_feedback_methods(&prototype, context);
+        super::methods2_transform::add_uniform_buffer_methods(&prototype, context);
+
+        // Create constructor function
+        let constructor = FunctionObjectBuilder::new(
+            context.realm(),
+            NativeFunction::from_fn_ptr(webgl2_constructor),
+        )
+        .name(js_string!("WebGL2RenderingContext"))
+        .length(0)
+        .constructor(true)
+        .build();
+
+        // Add all WebGL2 constants to the constructor (static properties)
+        super::constants2::add_webgl2_constants(&constructor.clone().into(), context);
+
+        // Set prototype
+        constructor.set(js_string!("prototype"), prototype, false, context)?;
+
+        Ok(constructor.into())
     }
 
     /// Create a new WebGL2 context for a canvas

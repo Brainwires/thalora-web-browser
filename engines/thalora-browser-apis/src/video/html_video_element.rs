@@ -60,7 +60,7 @@ pub struct VideoPlayerState {
     /// Current state
     state: VideoState,
     /// Volume (0.0 to 1.0)
-    volume: f32,
+    volume: f64,
     /// Muted flag
     muted: bool,
     /// Loop flag
@@ -316,8 +316,8 @@ impl HTMLVideoElementData {
     }
 
     // Getters and setters for all properties
-    pub fn get_volume(&self) -> f32 { self.state.lock().unwrap().volume }
-    pub fn set_volume(&self, v: f32) { self.state.lock().unwrap().volume = v.clamp(0.0, 1.0); }
+    pub fn get_volume(&self) -> f64 { self.state.lock().unwrap().volume }
+    pub fn set_volume(&self, v: f64) { self.state.lock().unwrap().volume = v.clamp(0.0, 1.0); }
 
     pub fn get_muted(&self) -> bool { self.state.lock().unwrap().muted }
     pub fn set_muted(&self, v: bool) { self.state.lock().unwrap().muted = v; }
@@ -429,16 +429,16 @@ impl IntrinsicObject for HTMLVideoElement {
         let seeking_getter = BuiltInBuilder::callable(realm, get_seeking).name(js_string!("get seeking")).build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            // Constants
-            .property(js_string!("HAVE_NOTHING"), ready_state::HAVE_NOTHING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("HAVE_METADATA"), ready_state::HAVE_METADATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("HAVE_CURRENT_DATA"), ready_state::HAVE_CURRENT_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("HAVE_FUTURE_DATA"), ready_state::HAVE_FUTURE_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("HAVE_ENOUGH_DATA"), ready_state::HAVE_ENOUGH_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("NETWORK_EMPTY"), network_state::NETWORK_EMPTY, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("NETWORK_IDLE"), network_state::NETWORK_IDLE, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("NETWORK_LOADING"), network_state::NETWORK_LOADING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .property(js_string!("NETWORK_NO_SOURCE"), network_state::NETWORK_NO_SOURCE, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            // Static constants on constructor (HTMLVideoElement.HAVE_NOTHING, etc.)
+            .static_property(js_string!("HAVE_NOTHING"), ready_state::HAVE_NOTHING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("HAVE_METADATA"), ready_state::HAVE_METADATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("HAVE_CURRENT_DATA"), ready_state::HAVE_CURRENT_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("HAVE_FUTURE_DATA"), ready_state::HAVE_FUTURE_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("HAVE_ENOUGH_DATA"), ready_state::HAVE_ENOUGH_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("NETWORK_EMPTY"), network_state::NETWORK_EMPTY, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("NETWORK_IDLE"), network_state::NETWORK_IDLE, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("NETWORK_LOADING"), network_state::NETWORK_LOADING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(js_string!("NETWORK_NO_SOURCE"), network_state::NETWORK_NO_SOURCE, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
             // Accessors
             .accessor(js_string!("src"), Some(src_getter), Some(src_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
             .accessor(js_string!("volume"), Some(volume_getter), Some(volume_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
@@ -478,7 +478,7 @@ impl BuiltInObject for HTMLVideoElement {
 
 impl BuiltInConstructor for HTMLVideoElement {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 30;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 50; // Accessors and methods on prototype
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 30;
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::html_video_element;
@@ -525,13 +525,13 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 fn get_volume(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    Ok(JsValue::from(data.get_volume() as f64))
+    Ok(JsValue::from(data.get_volume()))
 }
 
 fn set_volume(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let volume = args.get_or_undefined(0).to_number(context)? as f32;
+    let volume = args.get_or_undefined(0).to_number(context)?;
     data.set_volume(volume);
     Ok(JsValue::undefined())
 }

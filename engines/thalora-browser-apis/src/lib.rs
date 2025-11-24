@@ -706,6 +706,53 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // Notification constructor (Web Notifications API)
+    let notification_constructor = browser::notification::create_notification_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("Notification"),
+        PropertyDescriptor::builder()
+            .value(notification_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // ClipboardItem constructor (Async Clipboard API)
+    let clipboard_item_constructor = browser::clipboard::create_clipboard_item_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("ClipboardItem"),
+        PropertyDescriptor::builder()
+            .value(clipboard_item_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // WebGL constructors (with static constants per Web spec)
+    let webgl_constructor = webgl::WebGLRenderingContext::create_global_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("WebGLRenderingContext"),
+        PropertyDescriptor::builder()
+            .value(webgl_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    let webgl2_constructor = webgl::WebGL2RenderingContext::create_global_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("WebGL2RenderingContext"),
+        PropertyDescriptor::builder()
+            .value(webgl2_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     global_object.define_property_or_throw(
         storage::storage::Storage::NAME,
         PropertyDescriptor::builder()

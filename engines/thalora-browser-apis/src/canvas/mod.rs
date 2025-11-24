@@ -9,6 +9,9 @@ pub mod path;
 pub mod html_canvas_element;
 pub mod offscreen_canvas;
 
+#[cfg(test)]
+mod tests;
+
 // Re-exports
 pub use rendering_context_2d::CanvasRenderingContext2D;
 pub use canvas_state::CanvasState;

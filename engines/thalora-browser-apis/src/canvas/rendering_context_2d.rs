@@ -308,7 +308,7 @@ impl BuiltInObject for CanvasRenderingContext2D {
 
 impl BuiltInConstructor for CanvasRenderingContext2D {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 50;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 67; // Accessors and methods on prototype
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 50;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -340,12 +340,16 @@ fn get_fill_style(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
     let color_str = ctx_data.with_state(|state| {
         match &state.current.fill_style {
             CanvasStyle::Color(c) => {
-                format!("rgba({},{},{},{})",
-                    (c.red() * 255.0) as u8,
-                    (c.green() * 255.0) as u8,
-                    (c.blue() * 255.0) as u8,
-                    c.alpha()
-                )
+                let r = (c.red() * 255.0) as u8;
+                let g = (c.green() * 255.0) as u8;
+                let b = (c.blue() * 255.0) as u8;
+                let a = c.alpha();
+                // Return hex format for opaque colors, rgba for transparent
+                if (a - 1.0).abs() < f32::EPSILON {
+                    format!("#{:02x}{:02x}{:02x}", r, g, b)
+                } else {
+                    format!("rgba({},{},{},{})", r, g, b, a)
+                }
             }
             _ => "#000000".to_string(),
         }
@@ -1585,10 +1589,22 @@ fn measure_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     // Very rough approximation - proper implementation needs font metrics
     let width = text.len() as f64 * 8.0; // ~8px per character
 
-    context.eval(Source::from_bytes(&format!(
-        "{{ width: {}, actualBoundingBoxLeft: 0, actualBoundingBoxRight: {}, fontBoundingBoxAscent: 10, fontBoundingBoxDescent: 2 }}",
-        width, width
-    )))
+    // Create TextMetrics object using Boa APIs instead of eval
+    let metrics = JsObject::with_null_proto();
+    metrics.set(js_string!("width"), JsValue::from(width), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxLeft"), JsValue::from(0.0), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxRight"), JsValue::from(width), false, context)?;
+    metrics.set(js_string!("fontBoundingBoxAscent"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("fontBoundingBoxDescent"), JsValue::from(2.0), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxAscent"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxDescent"), JsValue::from(2.0), false, context)?;
+    metrics.set(js_string!("emHeightAscent"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("emHeightDescent"), JsValue::from(2.0), false, context)?;
+    metrics.set(js_string!("hangingBaseline"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("alphabeticBaseline"), JsValue::from(0.0), false, context)?;
+    metrics.set(js_string!("ideographicBaseline"), JsValue::from(-2.0), false, context)?;
+
+    Ok(JsValue::from(metrics))
 }
 
 // ============== Clipping ==============

@@ -7,12 +7,11 @@
 
 use boa_engine::{
     builtins::promise::Promise,
-    object::{JsObject, ObjectInitializer},
+    object::{JsObject, ObjectInitializer, FunctionObjectBuilder},
     property::Attribute,
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string, NativeFunction,
 };
-use boa_gc::{Finalize, Trace, GcRefMut};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
@@ -59,6 +58,106 @@ struct NotificationData {
     timestamp: u64,
 }
 
+/// Notification constructor implementation
+fn notification_constructor(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Get title (required)
+    let title = args.get_or_undefined(0);
+    if title.is_undefined() {
+        return Err(JsNativeError::typ()
+            .with_message("Notification constructor: At least 1 argument required")
+            .into());
+    }
+    let title_str = title.to_string(context)?.to_std_string_escaped();
+
+    // Get options (optional)
+    let options = args.get_or_undefined(1);
+
+    // Parse options
+    let mut body = String::new();
+    let mut icon = String::new();
+    let mut tag = String::new();
+    let mut require_interaction = false;
+    let mut silent = false;
+
+    if let Some(opts_obj) = options.as_object() {
+        if let Ok(body_val) = opts_obj.get(js_string!("body"), context) {
+            if !body_val.is_undefined() {
+                body = body_val.to_string(context)?.to_std_string_escaped();
+            }
+        }
+        if let Ok(icon_val) = opts_obj.get(js_string!("icon"), context) {
+            if !icon_val.is_undefined() {
+                icon = icon_val.to_string(context)?.to_std_string_escaped();
+            }
+        }
+        if let Ok(tag_val) = opts_obj.get(js_string!("tag"), context) {
+            if !tag_val.is_undefined() {
+                tag = tag_val.to_string(context)?.to_std_string_escaped();
+            }
+        }
+        if let Ok(ri_val) = opts_obj.get(js_string!("requireInteraction"), context) {
+            require_interaction = ri_val.to_boolean();
+        }
+        if let Ok(silent_val) = opts_obj.get(js_string!("silent"), context) {
+            silent = silent_val.to_boolean();
+        }
+    }
+
+    // Generate notification ID
+    let id = {
+        let mut counter = NOTIFICATION_ID_COUNTER.lock().unwrap();
+        *counter += 1;
+        *counter
+    };
+
+    // Get current timestamp
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    // Store notification data
+    let notification_data = NotificationData {
+        id,
+        title: title_str.clone(),
+        body: body.clone(),
+        icon: icon.clone(),
+        tag: tag.clone(),
+        require_interaction,
+        silent,
+        timestamp,
+    };
+
+    {
+        let mut notifications = ACTIVE_NOTIFICATIONS.lock().unwrap();
+        notifications.insert(id, notification_data);
+    }
+
+    // Create notification object
+    let notification = ObjectInitializer::new(context)
+        .property(js_string!("title"), js_string!(title_str), Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("body"), js_string!(body), Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("icon"), js_string!(icon), Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("tag"), js_string!(tag), Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("requireInteraction"), require_interaction, Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("silent"), silent, Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("timestamp"), timestamp as f64, Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(js_string!("_id"), id as f64, Attribute::all())
+        // Event handlers (initially null)
+        .property(js_string!("onclick"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
+        .property(js_string!("onclose"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
+        .property(js_string!("onerror"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
+        .property(js_string!("onshow"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
+        .function(
+            NativeFunction::from_fn_ptr(notification_close),
+            js_string!("close"),
+            0,
+        )
+        .build();
+
+    Ok(JsValue::from(notification))
+}
+
 /// Create the Notification constructor
 pub fn create_notification_constructor(context: &mut Context) -> JsResult<JsObject> {
     // Create prototype with methods
@@ -70,107 +169,15 @@ pub fn create_notification_constructor(context: &mut Context) -> JsResult<JsObje
         )
         .build();
 
-    // Create constructor function
-    let constructor = NativeFunction::from_copy_closure(move |_this, args, context| {
-        // Get title (required)
-        let title = args.get_or_undefined(0);
-        if title.is_undefined() {
-            return Err(JsNativeError::typ()
-                .with_message("Notification constructor: At least 1 argument required")
-                .into());
-        }
-        let title_str = title.to_string(context)?.to_std_string_escaped();
-
-        // Get options (optional)
-        let options = args.get_or_undefined(1);
-
-        // Parse options
-        let mut body = String::new();
-        let mut icon = String::new();
-        let mut tag = String::new();
-        let mut require_interaction = false;
-        let mut silent = false;
-
-        if let Some(opts_obj) = options.as_object() {
-            if let Ok(body_val) = opts_obj.get(js_string!("body"), context) {
-                if !body_val.is_undefined() {
-                    body = body_val.to_string(context)?.to_std_string_escaped();
-                }
-            }
-            if let Ok(icon_val) = opts_obj.get(js_string!("icon"), context) {
-                if !icon_val.is_undefined() {
-                    icon = icon_val.to_string(context)?.to_std_string_escaped();
-                }
-            }
-            if let Ok(tag_val) = opts_obj.get(js_string!("tag"), context) {
-                if !tag_val.is_undefined() {
-                    tag = tag_val.to_string(context)?.to_std_string_escaped();
-                }
-            }
-            if let Ok(ri_val) = opts_obj.get(js_string!("requireInteraction"), context) {
-                require_interaction = ri_val.to_boolean();
-            }
-            if let Ok(silent_val) = opts_obj.get(js_string!("silent"), context) {
-                silent = silent_val.to_boolean();
-            }
-        }
-
-        // Generate notification ID
-        let id = {
-            let mut counter = NOTIFICATION_ID_COUNTER.lock().unwrap();
-            *counter += 1;
-            *counter
-        };
-
-        // Get current timestamp
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
-
-        // Store notification data
-        let notification_data = NotificationData {
-            id,
-            title: title_str.clone(),
-            body: body.clone(),
-            icon: icon.clone(),
-            tag: tag.clone(),
-            require_interaction,
-            silent,
-            timestamp,
-        };
-
-        {
-            let mut notifications = ACTIVE_NOTIFICATIONS.lock().unwrap();
-            notifications.insert(id, notification_data);
-        }
-
-        // Create notification object
-        let notification = ObjectInitializer::new(context)
-            .property(js_string!("title"), js_string!(title_str), Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("body"), js_string!(body), Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("icon"), js_string!(icon), Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("tag"), js_string!(tag), Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("requireInteraction"), require_interaction, Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("silent"), silent, Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("timestamp"), timestamp as f64, Attribute::READONLY | Attribute::ENUMERABLE)
-            .property(js_string!("_id"), id as f64, Attribute::all())
-            // Event handlers (initially null)
-            .property(js_string!("onclick"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-            .property(js_string!("onclose"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-            .property(js_string!("onerror"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-            .property(js_string!("onshow"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-            .function(
-                NativeFunction::from_fn_ptr(notification_close),
-                js_string!("close"),
-                0,
-            )
-            .build();
-
-        Ok(JsValue::from(notification))
-    });
-
-    let constructor_obj: JsObject = constructor.to_js_function(context.realm()).into();
+    // Create constructor function using FunctionObjectBuilder with constructor capability
+    let constructor_obj = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(notification_constructor),
+    )
+    .name(js_string!("Notification"))
+    .length(1)
+    .constructor(true)
+    .build();
 
     // Add static properties
     constructor_obj.set(js_string!("permission"), js_string!("granted"), false, context)?;
@@ -187,7 +194,7 @@ pub fn create_notification_constructor(context: &mut Context) -> JsResult<JsObje
     // Add prototype
     constructor_obj.set(js_string!("prototype"), prototype, false, context)?;
 
-    Ok(constructor_obj)
+    Ok(constructor_obj.into())
 }
 
 /// Notification.requestPermission() - Returns a Promise that resolves with the permission

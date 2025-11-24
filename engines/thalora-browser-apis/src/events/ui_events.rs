@@ -84,7 +84,7 @@ impl BuiltInObject for UIEvent {
 
 impl BuiltInConstructor for UIEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 4; // 2 accessors x 2 slots each
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -362,8 +362,8 @@ impl BuiltInObject for KeyboardEvent {
 
 impl BuiltInConstructor for KeyboardEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 29; // 14 accessors * 2 + 1 method
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 4; // 4 static properties
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::keyboard_event;
@@ -787,7 +787,7 @@ impl BuiltInObject for MouseEvent {
 
 impl BuiltInConstructor for MouseEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 43; // 21 accessors * 2 + 1 method
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1120,7 +1120,7 @@ impl BuiltInObject for FocusEvent {
 
 impl BuiltInConstructor for FocusEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 6; // 3 accessors * 2
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1264,7 +1264,7 @@ impl BuiltInObject for InputEvent {
 
 impl BuiltInConstructor for InputEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 13; // 6 accessors * 2 + 1 method
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
