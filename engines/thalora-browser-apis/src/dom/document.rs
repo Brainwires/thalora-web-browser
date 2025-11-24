@@ -225,6 +225,17 @@ impl IntrinsicObject for Document {
             .method(remove_event_listener, js_string!("removeEventListener"), 2)
             .method(dispatch_event, js_string!("dispatchEvent"), 1)
             .method(start_view_transition, js_string!("startViewTransition"), 0)
+            // New DOM query methods
+            .method(get_elements_by_class_name, js_string!("getElementsByClassName"), 1)
+            .method(get_elements_by_tag_name, js_string!("getElementsByTagName"), 1)
+            .method(get_elements_by_name, js_string!("getElementsByName"), 1)
+            .method(create_comment, js_string!("createComment"), 1)
+            .method(create_attribute, js_string!("createAttribute"), 1)
+            .method(has_focus, js_string!("hasFocus"), 0)
+            .method(exec_command, js_string!("execCommand"), 3)
+            // DOM Traversal methods
+            .method(create_tree_walker, js_string!("createTreeWalker"), 1)
+            .method(create_node_iterator, js_string!("createNodeIterator"), 1)
             .build();
     }
 
@@ -1242,6 +1253,504 @@ fn start_view_transition(this: &JsValue, args: &[JsValue], context: &mut Context
     )?;
 
     Ok(transition.into())
+}
+
+// ============================================================================
+// New DOM Query Methods (Phase 6.1)
+// ============================================================================
+
+/// `Document.prototype.getElementsByClassName(classNames)`
+fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.getElementsByClassName called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.getElementsByClassName called on non-Document object")
+    })?;
+
+    let class_names = args.get_or_undefined(0).to_string(context)?;
+    let class_names_str = class_names.to_std_string_escaped();
+
+    // Parse class names (space-separated)
+    let classes: Vec<&str> = class_names_str.split_whitespace().collect();
+
+    // Get HTML content and parse
+    let html_content = document.html_content.lock().unwrap().clone();
+    let fragment = scraper::Html::parse_fragment(&html_content);
+
+    // Build CSS selector for matching all classes
+    let selector_str = classes.iter()
+        .map(|c| format!(".{}", c))
+        .collect::<Vec<_>>()
+        .join("");
+
+    let result = JsObject::default(context.intrinsics());
+    let mut index = 0u32;
+
+    if let Ok(selector) = scraper::Selector::parse(&selector_str) {
+        for element in fragment.select(&selector) {
+            // Create element object for each match
+            let element_obj = JsObject::default(context.intrinsics());
+
+            // Set tag name
+            element_obj.define_property_or_throw(
+                js_string!("tagName"),
+                PropertyDescriptorBuilder::new()
+                    .value(js_string!(element.value().name().to_uppercase()))
+                    .writable(false)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+
+            // Set class name
+            if let Some(class) = element.value().attr("class") {
+                element_obj.define_property_or_throw(
+                    js_string!("className"),
+                    PropertyDescriptorBuilder::new()
+                        .value(js_string!(class))
+                        .writable(true)
+                        .enumerable(true)
+                        .configurable(true)
+                        .build(),
+                    context,
+                )?;
+            }
+
+            // Set innerHTML
+            element_obj.define_property_or_throw(
+                js_string!("innerHTML"),
+                PropertyDescriptorBuilder::new()
+                    .value(js_string!(element.inner_html()))
+                    .writable(true)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+
+            result.define_property_or_throw(
+                index,
+                PropertyDescriptorBuilder::new()
+                    .value(element_obj)
+                    .writable(false)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+            index += 1;
+        }
+    }
+
+    // Set length property
+    result.define_property_or_throw(
+        js_string!("length"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::from(index))
+            .writable(false)
+            .enumerable(false)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    Ok(result.into())
+}
+
+/// `Document.prototype.getElementsByTagName(tagName)`
+fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.getElementsByTagName called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.getElementsByTagName called on non-Document object")
+    })?;
+
+    let tag_name = args.get_or_undefined(0).to_string(context)?;
+    let tag_name_str = tag_name.to_std_string_escaped().to_lowercase();
+
+    // Get HTML content and parse
+    let html_content = document.html_content.lock().unwrap().clone();
+    let fragment = scraper::Html::parse_fragment(&html_content);
+
+    let result = JsObject::default(context.intrinsics());
+    let mut index = 0u32;
+
+    // Handle "*" to get all elements
+    let selector_str = if tag_name_str == "*" {
+        "*".to_string()
+    } else {
+        tag_name_str.clone()
+    };
+
+    if let Ok(selector) = scraper::Selector::parse(&selector_str) {
+        for element in fragment.select(&selector) {
+            let element_obj = JsObject::default(context.intrinsics());
+
+            element_obj.define_property_or_throw(
+                js_string!("tagName"),
+                PropertyDescriptorBuilder::new()
+                    .value(js_string!(element.value().name().to_uppercase()))
+                    .writable(false)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+
+            if let Some(id) = element.value().attr("id") {
+                element_obj.define_property_or_throw(
+                    js_string!("id"),
+                    PropertyDescriptorBuilder::new()
+                        .value(js_string!(id))
+                        .writable(true)
+                        .enumerable(true)
+                        .configurable(true)
+                        .build(),
+                    context,
+                )?;
+            }
+
+            element_obj.define_property_or_throw(
+                js_string!("innerHTML"),
+                PropertyDescriptorBuilder::new()
+                    .value(js_string!(element.inner_html()))
+                    .writable(true)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+
+            result.define_property_or_throw(
+                index,
+                PropertyDescriptorBuilder::new()
+                    .value(element_obj)
+                    .writable(false)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+            index += 1;
+        }
+    }
+
+    result.define_property_or_throw(
+        js_string!("length"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::from(index))
+            .writable(false)
+            .enumerable(false)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    Ok(result.into())
+}
+
+/// `Document.prototype.getElementsByName(name)`
+fn get_elements_by_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.getElementsByName called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.getElementsByName called on non-Document object")
+    })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+
+    let html_content = document.html_content.lock().unwrap().clone();
+    let fragment = scraper::Html::parse_fragment(&html_content);
+
+    let result = JsObject::default(context.intrinsics());
+    let mut index = 0u32;
+
+    let selector_str = format!("[name=\"{}\"]", name_str);
+
+    if let Ok(selector) = scraper::Selector::parse(&selector_str) {
+        for element in fragment.select(&selector) {
+            let element_obj = JsObject::default(context.intrinsics());
+
+            element_obj.define_property_or_throw(
+                js_string!("tagName"),
+                PropertyDescriptorBuilder::new()
+                    .value(js_string!(element.value().name().to_uppercase()))
+                    .writable(false)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+
+            if let Some(name_attr) = element.value().attr("name") {
+                element_obj.define_property_or_throw(
+                    js_string!("name"),
+                    PropertyDescriptorBuilder::new()
+                        .value(js_string!(name_attr))
+                        .writable(true)
+                        .enumerable(true)
+                        .configurable(true)
+                        .build(),
+                    context,
+                )?;
+            }
+
+            result.define_property_or_throw(
+                index,
+                PropertyDescriptorBuilder::new()
+                    .value(element_obj)
+                    .writable(false)
+                    .enumerable(true)
+                    .configurable(true)
+                    .build(),
+                context,
+            )?;
+            index += 1;
+        }
+    }
+
+    result.define_property_or_throw(
+        js_string!("length"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::from(index))
+            .writable(false)
+            .enumerable(false)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    Ok(result.into())
+}
+
+/// `Document.prototype.createComment(data)`
+fn create_comment(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let data = args.get_or_undefined(0).to_string(context)?;
+    let data_str = data.to_std_string_escaped();
+
+    // Create a Comment node object
+    let comment = JsObject::default(context.intrinsics());
+
+    // nodeType = 8 for Comment
+    comment.define_property_or_throw(
+        js_string!("nodeType"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::from(8))
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    comment.define_property_or_throw(
+        js_string!("nodeName"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!("#comment"))
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    comment.define_property_or_throw(
+        js_string!("data"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!(data_str.clone()))
+            .writable(true)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    comment.define_property_or_throw(
+        js_string!("textContent"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!(data_str.clone()))
+            .writable(true)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    comment.define_property_or_throw(
+        js_string!("nodeValue"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!(data_str))
+            .writable(true)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    Ok(comment.into())
+}
+
+/// `Document.prototype.createAttribute(name)`
+fn create_attribute(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+
+    // Create an Attr node object
+    let attr = JsObject::default(context.intrinsics());
+
+    // nodeType = 2 for Attr
+    attr.define_property_or_throw(
+        js_string!("nodeType"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::from(2))
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    attr.define_property_or_throw(
+        js_string!("nodeName"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!(name_str.clone()))
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    attr.define_property_or_throw(
+        js_string!("name"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!(name_str))
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    attr.define_property_or_throw(
+        js_string!("value"),
+        PropertyDescriptorBuilder::new()
+            .value(js_string!(""))
+            .writable(true)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    attr.define_property_or_throw(
+        js_string!("specified"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::from(true))
+            .writable(false)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    attr.define_property_or_throw(
+        js_string!("ownerElement"),
+        PropertyDescriptorBuilder::new()
+            .value(JsValue::null())
+            .writable(true)
+            .enumerable(true)
+            .configurable(true)
+            .build(),
+        context,
+    )?;
+
+    Ok(attr.into())
+}
+
+/// `Document.prototype.hasFocus()`
+fn has_focus(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // In a headless browser context, the document always has focus
+    Ok(JsValue::from(true))
+}
+
+/// `Document.prototype.execCommand(commandId, showUI, value)`
+fn exec_command(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let command_id = args.get_or_undefined(0).to_string(context)?;
+    let _command_str = command_id.to_std_string_escaped();
+
+    // execCommand is deprecated but still used by some sites
+    // Return false to indicate the command was not executed
+    // In a headless browser, we don't have editing capabilities
+    Ok(JsValue::from(false))
+}
+
+/// `Document.prototype.createTreeWalker(root, whatToShow, filter)`
+fn create_tree_walker(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use super::treewalker::{TreeWalker, node_filter};
+
+    // Get the root node (required)
+    let root = args.get_or_undefined(0);
+    let root_obj = root.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("createTreeWalker: root must be a Node")
+    })?.clone();
+
+    // Get whatToShow (optional, defaults to SHOW_ALL)
+    let what_to_show = if args.len() > 1 && !args.get_or_undefined(1).is_undefined() {
+        args.get_or_undefined(1).to_u32(context)?
+    } else {
+        node_filter::SHOW_ALL
+    };
+
+    // Get filter (optional)
+    let filter = if args.len() > 2 && !args.get_or_undefined(2).is_null_or_undefined() {
+        args.get_or_undefined(2).as_object().map(|o| o.clone())
+    } else {
+        None
+    };
+
+    let tree_walker = TreeWalker::create(root_obj, what_to_show, filter, context)?;
+    Ok(tree_walker.into())
+}
+
+/// `Document.prototype.createNodeIterator(root, whatToShow, filter)`
+fn create_node_iterator(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use super::nodeiterator::NodeIterator;
+    use super::treewalker::node_filter;
+
+    // Get the root node (required)
+    let root = args.get_or_undefined(0);
+    let root_obj = root.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("createNodeIterator: root must be a Node")
+    })?.clone();
+
+    // Get whatToShow (optional, defaults to SHOW_ALL)
+    let what_to_show = if args.len() > 1 && !args.get_or_undefined(1).is_undefined() {
+        args.get_or_undefined(1).to_u32(context)?
+    } else {
+        node_filter::SHOW_ALL
+    };
+
+    // Get filter (optional)
+    let filter = if args.len() > 2 && !args.get_or_undefined(2).is_null_or_undefined() {
+        args.get_or_undefined(2).as_object().map(|o| o.clone())
+    } else {
+        None
+    };
+
+    let node_iterator = NodeIterator::create(root_obj, what_to_show, filter, context)?;
+    Ok(node_iterator.into())
 }
 
 /// Canvas `getContext(contextType)` method implementation

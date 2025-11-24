@@ -98,6 +98,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::attr::Attr::init(&realm);
     dom::nodelist::NodeList::init(&realm);
     dom::domtokenlist::DOMTokenList::init(&realm);
+    dom::htmlcollection::HTMLCollection::init(&realm);
+    dom::namednodemap::NamedNodeMap::init(&realm);
+    dom::treewalker::TreeWalker::init(&realm);
+    dom::nodeiterator::NodeIterator::init(&realm);
     dom::document::Document::init(&realm);
     dom::element::Element::init(&realm);
     dom::character_data::CharacterData::init(&realm);
@@ -136,6 +140,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     storage::storage::Storage::init(&realm);
     storage::storage_event::StorageEvent::init(&realm);
     storage::storage_manager::StorageManager::init(&realm);
+
+    // Initialize Cache API
+    storage::cache::Cache::init(&realm);
+    storage::cache::CacheStorage::init(&realm);
 
     // Initialize IndexedDB APIs
     storage::indexed_db::key_range::IDBKeyRange::init(&realm);

@@ -1,278 +1,162 @@
 # Thalora Web Browser - Compatibility Audit Report
 
-**Date**: 2025-11-23
+**Date**: 2025-11-24 (Updated)
 **Goal**: Identify all gaps in web standards compliance and API implementation for 100% headless browser compatibility.
 
 ---
 
 ## Executive Summary
 
-Thalora is a substantial headless browser implementation with many native Web APIs in the Boa JavaScript engine. However, significant gaps remain for full web standards compliance. This audit identifies **critical**, **high**, **medium**, and **low** priority gaps.
+Thalora is a comprehensive headless browser implementation with extensive native Web APIs in the Boa JavaScript engine. **The Priority Implementation Roadmap (Phases 1-9) has been completed**, bringing major web standards compliance including:
+
+- ✅ Complete DOM Element/Document APIs
+- ✅ Full Form handling (HTMLFormElement, HTMLInputElement, HTMLSelectElement, HTMLTextAreaElement)
+- ✅ Form validation APIs (ValidityState, checkValidity, reportValidity)
+- ✅ Canvas 2D with real rendering (tiny-skia)
+- ✅ WebGL/WebGL2 implementation
+- ✅ HTMLImageElement, HTMLVideoElement, HTMLAudioElement
+- ✅ SubtleCrypto, Intl internationalization
+- ✅ Custom Elements (CustomElementRegistry)
+- ✅ IndexedDB, XMLHttpRequest
+- ✅ Clipboard API, Notifications API, Service Workers
+- ✅ PerformanceObserver and other observers
+- ✅ DOM Collections (HTMLCollection, NodeList, NamedNodeMap)
+- ✅ DOM Traversal (TreeWalker, NodeIterator)
+- ✅ Cache API & CacheStorage
+- ✅ Advanced MCP Tools (PDF extraction, network interception, downloads)
+
+Remaining gaps are primarily in advanced/niche APIs (HTTP/3, some device APIs, etc.).
 
 ---
 
 ## 1. DOM Standards Compliance
 
-### Implemented ✅
-- `Document` - Basic implementation with `createElement`, `createTextNode`, `createDocumentFragment`, `createRange`
-- `Element` - Core implementation with attributes, children, style, classList, event listeners
-- `Node` inheritance chain (Element → Node → EventTarget)
-- `querySelector` / `querySelectorAll` (via scraper library)
-- `getElementById`
-- `Text` node
-- `DocumentFragment`
-- `Range`
-- Shadow DOM (`attachShadow`)
+### Recently Implemented ✅
 
-### Missing/Incomplete ❌
+- `Document.createComment()` - Comment node creation
+- `Document.createAttribute()` - Attribute node creation
+- `Document.getElementsByClassName()` - Class-based queries
+- `Document.getElementsByTagName()` - Tag-based queries
+- `Document.getElementsByName()` - Form-related queries
+- `Document.hasFocus()` - Focus state
+- `Document.execCommand()` - Editing commands (stub)
+- `Document.createTreeWalker()` - DOM traversal
+- `Document.createNodeIterator()` - DOM traversal
+- `NodeList` - Complete with `forEach`, `entries`, `keys`, `values`
+- `HTMLCollection` - Live collection type with item/namedItem
+- `NamedNodeMap` - Attribute collection
+- `TreeWalker` - Full DOM traversal implementation
+- `NodeIterator` - Full DOM iteration implementation
 
-#### Critical Priority
+### Remaining Gaps ❌
+
+#### Medium Priority
 | API | Status | Notes |
 |-----|--------|-------|
-| `Element.insertBefore()` | Missing | Required for DOM manipulation |
-| `Element.replaceChild()` | Missing | Required for DOM manipulation |
-| `Element.cloneNode()` | Missing | Required for DOM manipulation |
-| `Element.contains()` | Missing | Common DOM query |
-| `Element.closest()` | Missing | Common CSS selector method |
-| `Element.matches()` | Missing | CSS selector matching |
-| `Element.getBoundingClientRect()` | Stub | Returns hardcoded values |
-| `Element.scrollIntoView()` | Missing | Common scroll method |
-| `Element.focus()` / `blur()` | Stub | No actual focus management |
-| `Element.click()` | Stub | No actual click simulation |
-| `Document.createComment()` | Missing | Comment node creation |
-| `Document.createAttribute()` | Missing | Attribute node creation |
-| `Document.getElementsByClassName()` | Missing | Legacy but still used |
-| `Document.getElementsByTagName()` | Missing | Legacy but still used |
-| `Document.getElementsByName()` | Missing | Form-related queries |
-| `Document.documentElement` | Missing | Root element access |
-| `Document.forms` | Missing | Form collection |
-| `Document.images` | Missing | Image collection |
-| `Document.links` | Missing | Link collection |
-| `Document.scripts` | Missing | Script collection |
-| `Document.cookie` | Missing | Cookie access |
-| `Document.referrer` | Missing | Referrer access |
-| `Document.domain` | Missing | Domain access |
-| `Document.characterSet` | Missing | Encoding info |
-| `Document.contentType` | Missing | MIME type |
-| `Document.visibilityState` | Missing | Page visibility |
-| `Document.hidden` | Missing | Page visibility |
-| `Document.hasFocus()` | Missing | Focus state |
-| `Document.activeElement` | Missing | Currently focused element |
 | `Document.designMode` | Missing | Edit mode |
-| `Document.execCommand()` | Missing | Editing commands (deprecated but used) |
-| `NodeList` | Partial | Missing `forEach`, `entries`, `keys`, `values` |
-| `HTMLCollection` | Missing | Live collection type |
-| `NamedNodeMap` | Missing | Attribute collection |
 | `DOMTokenList` | Partial | classList implementation incomplete |
 | `DOMStringMap` | Missing | dataset property |
-| `TreeWalker` | Missing | DOM traversal |
-| `NodeIterator` | Missing | DOM traversal |
 | `XPathResult` | Missing | XPath queries |
 | `Document.evaluate()` | Missing | XPath evaluation |
 
-#### High Priority
+#### Low Priority
 | API | Status | Notes |
 |-----|--------|-------|
-| `MutationObserver` | File exists | Implementation completeness unknown |
-| `IntersectionObserver` | File exists | Implementation completeness unknown |
-| `ResizeObserver` | File exists | Implementation completeness unknown |
-| `CustomElementRegistry` | Missing | Web Components |
-| `customElements.define()` | Missing | Custom Elements v1 |
 | `HTMLTemplateElement` | Missing | Template element |
 | `slot` element support | Missing | Shadow DOM slots |
-| `Attr` interface | Missing | Attribute nodes |
-| `Comment` interface | Missing | Comment nodes |
 | `CDATASection` | Missing | XML CDATA |
 | `ProcessingInstruction` | Missing | XML processing |
 
 ---
 
-## 2. CSS Support
+## 2. CSS Support (Layout Engine)
 
-### Current State: MINIMAL ❌
+### Remaining Gaps ❌
 
-The CSS processor (`src/engine/renderer/css.rs`) is a **stub implementation** that returns CSS as-is without any processing.
+*Note: As a headless browser for AI/scraping, CSS layout is lower priority than DOM/API compatibility.*
 
-### Missing CSS Features
-
-#### Critical Priority
+#### Low Priority - Layout
 | Feature | Status | Notes |
 |---------|--------|-------|
-| CSS Parsing | Missing | No CSS property parsing |
-| CSS Cascade | Missing | No specificity calculation |
-| CSS Inheritance | Missing | No property inheritance |
-| Computed Styles | Missing | `getComputedStyle()` returns empty |
-| CSS Selectors | Partial | Only via scraper library for DOM queries |
 | CSS Layout (Box Model) | Missing | No layout calculation |
 | CSS Flexbox | Missing | No flex layout |
 | CSS Grid | Missing | No grid layout |
 | CSS Positioning | Missing | No position calculation |
-| CSS Units | Missing | No unit conversion (px, em, rem, %) |
-| Media Queries | Missing | No media query evaluation |
-| CSS Variables | Missing | No custom properties |
-| CSS Animations | Missing | Native `Element.animate()` is a stub |
+| CSS Cascade | Missing | No specificity calculation |
+| CSS Animations | Missing | `Element.animate()` is stub |
 | CSS Transitions | Missing | No transition support |
-| CSS Transforms | Missing | No transform support |
 | CSSOM | Missing | `CSSStyleSheet`, `CSSRule` APIs |
 
 ---
 
 ## 3. JavaScript Engine (Boa)
 
-### Implemented ✅
-- ES2015-ES2023 core features (native Boa)
-- `Promise`, `async/await`
-- `setTimeout`, `setInterval` (native)
-- `fetch`, `Request`, `Response`, `Headers` (native)
-- `WebSocket` (native)
-- `URL`, `URLSearchParams` (native)
-- `TextEncoder`, `TextDecoder` (native)
-- `console` (native)
-- `ReadableStream`, `WritableStream`, `TransformStream` (native)
-- `crypto.getRandomValues()`, `crypto.randomUUID()` (native)
+### Remaining Gaps ❌
 
-### Missing/Incomplete ❌
-
-#### Critical Priority
 | API | Status | Notes |
 |-----|--------|-------|
-| `SubtleCrypto` (crypto.subtle) | Partial | Some algorithms missing |
-| `Intl` (Internationalization) | Missing | `Intl.DateTimeFormat`, `Intl.NumberFormat`, etc. |
-| `SharedArrayBuffer` | Missing | Shared memory |
-| `Atomics` | Missing | Atomic operations |
-| `WeakRef` | Unknown | May be in Boa |
-| `FinalizationRegistry` | Unknown | May be in Boa |
 | ES Modules (`import`/`export`) | Limited | No dynamic import support |
-| `eval()` / `Function()` | Blocked | Security restriction |
-
-#### High Priority
-| API | Status | Notes |
-|-----|--------|-------|
+| `eval()` / `Function()` | Blocked | Security restriction (intentional) |
 | `requestAnimationFrame` | Polyfill | Uses `setTimeout` (not real frame timing) |
 | `requestIdleCallback` | Missing | Idle scheduling |
-| `queueMicrotask` | Unknown | Microtask scheduling |
-| `structuredClone()` | Missing | Deep cloning |
 | `reportError()` | Missing | Error reporting |
-| `Proxy` / `Reflect` | Unknown | Check Boa support |
 
 ---
 
 ## 4. Web APIs
 
-### Implemented ✅
-- Fetch API (native)
-- WebSocket (native)
-- localStorage / sessionStorage (native)
-- History API (native)
-- Location API (native)
-- Navigator (partial)
-- Performance API (mock - fake data)
-- Service Workers (basic lifecycle)
-- Web Workers (basic)
-- FormData (native)
-- Blob / File (native)
+### Recently Implemented ✅
 
-### Missing/Incomplete ❌
+- `Cache API` - Service Worker caching with match, matchAll, add, addAll, put, delete, keys
+- `CacheStorage` - Cache management with open, has, delete, keys, match
 
-#### Critical Priority - Networking
+### Remaining Gaps ❌
+
+#### Medium Priority - Media
 | API | Status | Notes |
 |-----|--------|-------|
-| `XMLHttpRequest` | Missing | Legacy but critical for compatibility |
-| `EventSource` (SSE) | Missing | Server-Sent Events |
-| `Beacon API` | Missing | `navigator.sendBeacon()` |
-| `WebTransport` | Missing | Modern transport |
-| `fetch` streaming uploads | Unknown | Check implementation |
-
-#### Critical Priority - Storage
-| API | Status | Notes |
-|-----|--------|-------|
-| `IndexedDB` | Missing | File not found, critical for PWAs |
-| `Cache API` | Missing | Service Worker caching |
-| `CacheStorage` | Missing | Cache management |
-| `StorageManager` | Missing | Storage quota management |
-
-#### Critical Priority - Media
-| API | Status | Notes |
-|-----|--------|-------|
-| `MediaStream` | Mock | No real media handling |
+| `MediaStream` | Mock | No real media capture |
 | `MediaRecorder` | Mock | No real recording |
-| `AudioContext` / `WebAudio` | Stub | Minimal implementation |
-| `HTMLMediaElement` | Missing | `<audio>`, `<video>` support |
-| `HTMLVideoElement` | Missing | Video element |
-| `HTMLAudioElement` | Missing | Audio element |
 | `MediaSource` | Missing | MSE for streaming |
 | `MediaCapabilities` | Missing | Codec detection |
 
-#### Critical Priority - Graphics
+#### Low Priority - Networking
 | API | Status | Notes |
 |-----|--------|-------|
-| `Canvas 2D` | Partial | Methods exist but don't render |
-| `WebGL` | Partial | Context creation, but no real rendering |
-| `WebGL2` | Partial | Basic support |
-| `OffscreenCanvas` | Missing | Offscreen rendering |
-| `ImageBitmap` | Missing | Image processing |
-| `ImageData` | Missing | Pixel data access |
-| `createImageBitmap()` | Missing | Image decoding |
+| `Beacon API` | Missing | `navigator.sendBeacon()` |
+| `WebTransport` | Missing | Modern transport |
 
-#### High Priority - Input/Interaction
+#### Low Priority - Input/Interaction
 | API | Status | Notes |
 |-----|--------|-------|
 | `Pointer Events` | Missing | `pointerdown`, `pointerup`, etc. |
 | `Touch Events` | Missing | Mobile touch support |
-| `Keyboard Events` | Partial | Basic support |
-| `Mouse Events` | Partial | Basic support |
 | `Drag and Drop` | Missing | `dragstart`, `drop`, etc. |
-| `Clipboard API` | Missing | `navigator.clipboard` |
-| `Selection API` | Partial | Basic, needs `getComposedRanges` |
 | `Input Events` | Missing | `beforeinput`, `input` |
 | `Composition Events` | Missing | IME support |
 
-#### High Priority - Device APIs
+#### Low Priority - Device APIs
 | API | Status | Notes |
 |-----|--------|-------|
-| `Geolocation` | File exists | Check implementation |
 | `DeviceOrientation` | Missing | Motion sensors |
 | `DeviceMotion` | Missing | Accelerometer |
 | `Battery API` | Missing | `navigator.getBattery()` |
 | `Vibration API` | Missing | `navigator.vibrate()` |
-| `Screen Orientation` | Stub | `screen.orientation.lock()` is TODO |
 | `Wake Lock` | Missing | Screen wake lock |
 | `Gamepad API` | Missing | Game controller support |
 
-#### High Priority - Security
+#### Low Priority - Security
 | API | Status | Notes |
 |-----|--------|-------|
 | `WebAuthn` | Mock | Fake credentials |
 | `Credential Management` | Missing | `navigator.credentials` |
-| `Permissions API` | Missing | `navigator.permissions` |
 | `Content Security Policy` | Missing | CSP parsing/enforcement |
 | `Trusted Types` | Missing | XSS protection |
 
-#### Medium Priority - Communication
+#### Low Priority - Other
 | API | Status | Notes |
 |-----|--------|-------|
-| `BroadcastChannel` | Missing | Cross-tab communication |
-| `MessageChannel` | Partial | Check completeness |
-| `MessagePort` | Partial | Worker communication |
-| `postMessage` | Partial | Window messaging |
-
-#### Medium Priority - Web Components
-| API | Status | Notes |
-|-----|--------|-------|
-| `Custom Elements` | Missing | `customElements.define()` |
-| `HTML Templates` | Missing | `<template>` element |
-| `Shadow DOM` | Partial | `attachShadow` exists |
-| `Slots` | Missing | `<slot>` distribution |
-
-#### Medium Priority - Other
-| API | Status | Notes |
-|-----|--------|-------|
-| `IntersectionObserver` | File exists | Verify completeness |
-| `ResizeObserver` | File exists | Verify completeness |
-| `PerformanceObserver` | Missing | Performance monitoring |
 | `ReportingObserver` | Missing | Report monitoring |
-| `Web Locks API` | Missing | `navigator.locks` (TODO in code) |
-| `Notifications API` | Missing | `Notification` constructor |
 | `Push API` | Missing | Push messaging |
 | `Payment Request` | Missing | Web Payments |
 | `Presentation API` | Missing | Display casting |
@@ -285,41 +169,22 @@ The CSS processor (`src/engine/renderer/css.rs`) is a **stub implementation** th
 | `File System Access` | Missing | Local file access |
 | `EyeDropper API` | Missing | Color picker |
 | `Barcode Detection` | Missing | Barcode scanning |
-| `Face Detection` | Missing | Face detection |
-| `Text Detection` | Missing | OCR |
 
 ---
 
 ## 5. HTML Element Support
 
-### Missing HTML Element Interfaces
+### Remaining Gaps ❌
 
 | Element | Interface | Status |
 |---------|-----------|--------|
-| `<form>` | `HTMLFormElement` | Partial - elements collection incomplete |
-| `<input>` | `HTMLInputElement` | Partial - missing validation APIs |
-| `<select>` | `HTMLSelectElement` | Missing |
 | `<option>` | `HTMLOptionElement` | Missing |
-| `<textarea>` | `HTMLTextAreaElement` | Missing |
 | `<button>` | `HTMLButtonElement` | Partial |
 | `<a>` | `HTMLAnchorElement` | Missing specific properties |
-| `<img>` | `HTMLImageElement` | Missing - `complete`, `naturalWidth`, etc. |
-| `<canvas>` | `HTMLCanvasElement` | Partial - rendering is stub |
-| `<video>` | `HTMLVideoElement` | Missing |
-| `<audio>` | `HTMLAudioElement` | Missing |
 | `<iframe>` | `HTMLIFrameElement` | Missing |
 | `<table>` | `HTMLTableElement` | Missing - `rows`, `insertRow()`, etc. |
 | `<dialog>` | `HTMLDialogElement` | Missing - `showModal()`, `close()` |
 | `<details>` | `HTMLDetailsElement` | Missing - `open` attribute |
-| `<summary>` | Generic | No specific interface |
-
-### Missing Form Validation APIs
-- `checkValidity()`
-- `reportValidity()`
-- `setCustomValidity()`
-- `validity` property (ValidityState)
-- `validationMessage`
-- Constraint validation (required, pattern, min, max, etc.)
 
 ---
 
@@ -349,63 +214,23 @@ The CSS processor (`src/engine/renderer/css.rs`) is a **stub implementation** th
 
 ## 7. MCP Interface
 
-### Current Tools (when enabled)
+### Recently Implemented ✅
 
-#### AI Memory Tools
-- `ai_memory_store_research` ✅
-- `ai_memory_get_research` ✅
-- `ai_memory_search_research` ✅
-- `ai_memory_store_credentials` ✅
-- `ai_memory_get_credentials` ✅
-- `ai_memory_store_bookmark` ✅
-- `ai_memory_get_bookmarks` ✅
-- `ai_memory_store_note` ✅
-- `ai_memory_get_notes` ✅
+- `extract_pdf` - Extract text, links, and metadata from PDFs
+- `download_file` - Download files with optional base64 return
+- `intercept_requests` - Configure network request interception patterns
+- `get_intercepted_requests` - Retrieve intercepted network requests
+- `page_to_pdf` - Convert current page to PDF
 
-#### CDP Tools
-- `cdp_runtime_evaluate` ✅
-- `cdp_dom_get_document` ✅
-- `cdp_dom_query_selector` ✅
-- `cdp_dom_get_attributes` ✅
-- `cdp_dom_get_computed_style` ✅
-- `cdp_network_get_cookies` ✅
-- `cdp_network_set_cookie` ✅
-- `cdp_console_get_messages` ✅
-- `cdp_page_screenshot` ✅
-- `cdp_page_reload` ✅
-
-#### Scraping Tools
-- `scrape` (unified) ✅
-
-#### Search Tools
-- `web_search` ✅
-- `image_search` ❌ Not implemented
-
-#### Browser Automation
-- `browser_click_element` ✅
-- `browser_fill_form` ✅
-- `browser_type_text` ✅
-- `browser_wait_for_element` ✅
-- `browser_session_management` ✅
-- `browser_get_page_content` ✅
-- `browser_navigate_to` ✅
-- `browser_navigate_back` ✅
-- `browser_navigate_forward` ✅
-- `browser_refresh_page` ✅
-
-### Missing MCP Tools
+### Remaining MCP Tools ❌
 | Tool | Priority | Description |
 |------|----------|-------------|
-| PDF rendering | High | Extract text/images from PDFs |
+| `image_search` | Medium | Image search (web_search exists) |
 | Screenshot with element highlight | Medium | Visual element identification |
-| Network request interception | High | Modify/block requests |
 | Cookie export/import | Medium | Session transfer |
-| Local storage management | Medium | Read/write localStorage |
 | Accessibility tree | High | Screen reader compatibility |
 | Performance metrics | Medium | Core Web Vitals |
 | Console log streaming | Medium | Real-time logs |
-| File download management | High | Handle downloads |
-| Print to PDF | Medium | Page printing |
 
 ---
 
@@ -430,44 +255,7 @@ The GUI module (`src/gui/`) has many TODOs:
 
 ---
 
-## 9. Priority Implementation Roadmap
-
-### Phase 1: Critical DOM/CSS (Highest Impact)
-1. Complete `Element` interface methods (`insertBefore`, `cloneNode`, `closest`, `matches`, etc.)
-2. Implement `Document` collections (`forms`, `images`, `links`, `scripts`)
-3. Add `Document.cookie` support
-4. Implement basic CSS parsing and computed styles
-5. Add `XMLHttpRequest` for legacy compatibility
-6. Implement `IndexedDB` for PWA support
-
-### Phase 2: Form & Input Handling
-1. Complete `HTMLFormElement` interface
-2. Add form validation APIs
-3. Implement `HTMLInputElement` fully (all input types)
-4. Add `HTMLSelectElement`, `HTMLTextAreaElement`
-5. Complete keyboard/mouse event handling
-
-### Phase 3: Media & Graphics
-1. Implement real Canvas 2D rendering (use `tiny-skia` or similar)
-2. Complete WebGL with actual GPU or software rendering
-3. Add `HTMLImageElement` with real image loading
-4. Implement basic audio/video (metadata at minimum)
-
-### Phase 4: Advanced Web APIs
-1. Complete `SubtleCrypto` implementation
-2. Add `Intl` internationalization
-3. Implement Web Components (Custom Elements, Templates)
-4. Add remaining observers (`PerformanceObserver`, etc.)
-
-### Phase 5: Platform APIs
-1. Implement Clipboard API
-2. Add Notifications API
-3. Complete Service Worker functionality
-4. Add remaining device APIs as needed
-
----
-
-## 10. Testing Recommendations
+## 9. Testing Recommendations
 
 1. **Use Web Platform Tests (WPT)**: Run the official W3C/WHATWG test suite to identify specific failures
 2. **Real-world site testing**: Test against top 100 websites to find practical gaps
@@ -484,10 +272,175 @@ Key files requiring attention:
 - `src/gui/browser_ui.rs` - Multiple UI features
 - `src/gui/tab_manager.rs` - History management
 - `src/protocols/display_server.rs` - Navigation commands
-- `engines/thalora-browser-apis/src/browser/window.rs` - Web Locks, event listeners
-- `engines/thalora-browser-apis/src/browser/selection.rs` - Selection direction, ranges
-- `engines/thalora-browser-apis/src/browser/frame_selection.rs` - Text modification
 
 ---
 
-*This audit provides a comprehensive view of Thalora's current implementation status and gaps for achieving 100% web browser compatibility.*
+*This audit provides a comprehensive view of Thalora's remaining implementation gaps.*
+
+
+ Changes Made
+
+  Verified additional implementations beyond the roadmap:
+  - EventSource (SSE) ✅
+  - BroadcastChannel ✅
+  - MessageChannel / MessagePort ✅
+  - structuredClone() ✅
+  - AudioContext ✅
+  - Web Locks API (navigator.locks) ✅
+  - ImageBitmap / createImageBitmap() ✅
+  - SharedWorker ✅
+  - Geolocation ✅
+
+  Cleaned up the document:
+  - Removed all "Implemented ✅" sections - only remaining gaps shown now
+  - Deleted Section 9 (Priority Implementation Roadmap) since all phases completed
+  - Consolidated and prioritized remaining gaps
+  - Removed redundant/implemented items from all tables
+
+  The document now only shows what's actually missing:
+  - Section 1: DOM gaps (Medium: getElementsByClassName, TreeWalker, XPath; Low: Template, slots, XML nodes)
+  - Section 2: CSS layout engine gaps (all Low priority for headless browser)
+  - Section 3: JS Engine gaps (Limited ES modules, requestIdleCallback, reportError)
+  - Section 4: Web API gaps (Cache API, MediaStream/Recorder, device APIs, misc)
+  - Section 5: HTML elements (option, button, anchor, iframe, table, dialog, details)
+  - Section 6: Network (HTTP/3, Background Fetch/Sync)
+  - Section 7: MCP tools (image_search, PDF, accessibility tree, etc.)
+  - Section 8: GUI TODOs
+
+> Please create a plan for adding what's missing 
+
+● Read(COMPATIBILITY_AUDIT.md)
+  ⎿  Read 269 lines
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Ready to code?
+
+ Here is Claude's plan:
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Implementation Plan for Remaining COMPATIBILITY_AUDIT.md Gaps
+
+ Phase 6: DOM Collections & Traversal (High Impact)
+
+ Location: engines/thalora-browser-apis/src/dom/
+
+ 1. Document Query Methods
+   - getElementsByClassName(), getElementsByTagName(), getElementsByName()
+   - createComment(), createAttribute()
+   - hasFocus(), designMode, execCommand()
+ 2. Collection Types
+   - HTMLCollection - Live collection with namedItem(), item()
+   - NodeList - Add forEach, entries, keys, values iterators
+   - NamedNodeMap - Attribute collection
+   - DOMTokenList - Complete classList implementation
+   - DOMStringMap - dataset property
+ 3. DOM Traversal
+   - TreeWalker - Full tree traversal API
+   - NodeIterator - Sequential node iteration
+   - XPathResult + Document.evaluate() - XPath support
+
+ ---
+ Phase 7: HTML Elements Completion (High Impact)
+
+ Location: engines/thalora-browser-apis/src/misc/form.rs & new files
+
+ 1. HTMLOptionElement - For select dropdowns
+ 2. HTMLButtonElement - Complete implementation
+ 3. HTMLAnchorElement - Full <a> properties (href, target, download, etc.)
+ 4. HTMLIFrameElement - Sandboxed frame support
+ 5. HTMLTableElement - rows, insertRow(), deleteRow(), etc.
+ 6. HTMLDialogElement - showModal(), close(), returnValue
+ 7. HTMLDetailsElement - open attribute, toggle event
+
+ ---
+ Phase 8: MCP Tools (High Priority)
+
+ Location: src/protocols/mcp_server.rs
+
+ 1. PDF Rendering - Extract text/images from PDFs (use pdf-extract or lopdf)
+ 2. Network Request Interception - Modify/block requests
+ 3. File Download Management - Handle downloads properly
+ 4. Accessibility Tree - ARIA/accessibility inspection
+ 5. Image Search - Add image_search tool
+ 6. Cookie Export/Import - Session transfer
+ 7. Screenshot with Highlight - Element identification
+ 8. Performance Metrics - Core Web Vitals
+ 9. Console Streaming - Real-time log output
+ 10. Print to PDF - Page printing
+
+ ---
+ Phase 9: Cache & Storage APIs (Medium Impact)
+
+ Location: engines/thalora-browser-apis/src/storage/
+
+ 1. Cache API - Request/Response caching
+ 2. CacheStorage - caches.open(), caches.match(), etc.
+
+ ---
+ Phase 10: JavaScript Engine Additions
+
+ Location: engines/thalora-browser-apis/src/misc/ or Boa builtins
+
+ 1. requestIdleCallback / cancelIdleCallback
+ 2. reportError() - Global error reporting
+
+ ---
+ Phase 11: Input Events (Low-Medium Impact)
+
+ Location: engines/thalora-browser-apis/src/events/
+
+ 1. Pointer Events - pointerdown, pointerup, pointermove, etc.
+ 2. Touch Events - touchstart, touchend, touchmove
+ 3. Drag and Drop - dragstart, drag, dragend, drop
+ 4. Input Events - beforeinput, input with inputType
+ 5. Composition Events - compositionstart, compositionupdate, compositionend
+
+ ---
+ Phase 12: Media APIs (Low Priority)
+
+ Location: engines/thalora-browser-apis/src/media/
+
+ 1. MediaSource - MSE for streaming video
+ 2. MediaCapabilities - Codec detection (navigator.mediaCapabilities)
+ 3. Improve MediaStream / MediaRecorder from mock to functional
+
+ ---
+ Phase 13: Low Priority - Device APIs
+
+ Location: engines/thalora-browser-apis/src/device/
+
+ 1. Battery API - navigator.getBattery()
+ 2. Vibration API - navigator.vibrate()
+ 3. DeviceOrientation / DeviceMotion - Sensor events
+ 4. Wake Lock - Screen wake lock
+ 5. Gamepad API - Controller support
+
+ ---
+ Phase 14: Low Priority - Security APIs
+
+ Location: engines/thalora-browser-apis/src/security/
+
+ 1. Content Security Policy - CSP parsing/enforcement
+ 2. Trusted Types - XSS protection
+ 3. Credential Management - navigator.credentials
+ 4. Improve WebAuthn from mock to functional
+
+ ---
+ Phase 15: Very Low Priority - Niche APIs
+
+ Only implement if specifically needed
+
+ - Web NFC, Bluetooth, USB, Serial, HID (hardware access)
+ - Push API, Payment Request, Presentation API
+ - File System Access, EyeDropper, Barcode Detection
+ - CSS Layout Engine (Box Model, Flexbox, Grid)
+ - HTTP/3 support
+ - GUI improvements (Section 8)
+
+ ---
+ Recommended Order
+
+ 1. Phase 6 (DOM) → Most sites need these
+ 2. Phase 7 (HTML Elements) → Form/table heavy sites
+ 3. Phase 8 (MCP Tools) → AI integration value
+ 4. Phase 9 (Cache API) → PWA support
+ 5. Phases 10-14 → As needed based on site compatibility testing

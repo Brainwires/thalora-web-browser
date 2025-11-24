@@ -83,6 +83,12 @@ impl McpServer {
             tools.extend(get_session_tool_definitions());
         }
 
+        // Advanced Tools - PDF extraction, downloads, network interception
+        // Available when scraping or sessions are enabled
+        if is_scraping_enabled() || is_sessions_enabled() {
+            tools.extend(get_advanced_tool_definitions());
+        }
+
         tools
     }
 
