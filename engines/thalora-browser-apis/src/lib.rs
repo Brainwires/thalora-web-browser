@@ -53,6 +53,15 @@ pub mod misc;
 // Web Locks API
 pub mod locks;
 
+// Canvas API
+pub mod canvas;
+
+// Audio API
+pub mod audio;
+
+// Video API
+pub mod video;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
@@ -87,6 +96,21 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::document_fragment::DocumentFragment::init(&realm);
     dom::range::Range::init(&realm);
     dom::selection::Selection::init(&realm);
+    dom::html_image_element::HTMLImageElement::init(&realm);
+    dom::image_bitmap::ImageBitmap::init(&realm);
+
+    // Initialize Canvas APIs
+    canvas::path::Path2D::init(&realm);
+    canvas::html_canvas_element::HTMLCanvasElement::init(&realm);
+    canvas::rendering_context_2d::CanvasRenderingContext2D::init(&realm);
+    canvas::offscreen_canvas::OffscreenCanvas::init(&realm);
+
+    // Initialize Audio APIs
+    audio::html_audio_element::HTMLAudioElement::init(&realm);
+    audio::audio_context::AudioContext::init(&realm);
+
+    // Initialize Video APIs
+    video::html_video_element::HTMLVideoElement::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -525,6 +549,139 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         dom::range::Range::NAME,
         PropertyDescriptor::builder()
             .value(dom::range::Range::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // HTMLImageElement - real image element with image loading and decoding
+    global_object.define_property_or_throw(
+        dom::html_image_element::HTMLImageElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_image_element::HTMLImageElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Also expose as "Image" constructor for compatibility with `new Image()`
+    global_object.define_property_or_throw(
+        js_string!("Image"),
+        PropertyDescriptor::builder()
+            .value(dom::html_image_element::HTMLImageElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // ImageBitmap constructor
+    global_object.define_property_or_throw(
+        dom::image_bitmap::ImageBitmap::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::image_bitmap::ImageBitmap::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // createImageBitmap global function
+    let create_image_bitmap_fn = boa_engine::object::FunctionObjectBuilder::new(
+        context.realm(),
+        boa_engine::NativeFunction::from_fn_ptr(dom::image_bitmap::create_image_bitmap),
+    )
+    .name("createImageBitmap")
+    .length(1)
+    .build();
+    global_object.set(
+        js_string!("createImageBitmap"),
+        create_image_bitmap_fn,
+        false,
+        context,
+    )?;
+
+    // Canvas APIs
+    global_object.define_property_or_throw(
+        canvas::path::Path2D::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::path::Path2D::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        canvas::html_canvas_element::HTMLCanvasElement::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::html_canvas_element::HTMLCanvasElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        canvas::rendering_context_2d::CanvasRenderingContext2D::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::rendering_context_2d::CanvasRenderingContext2D::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        canvas::offscreen_canvas::OffscreenCanvas::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::offscreen_canvas::OffscreenCanvas::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Audio APIs
+    global_object.define_property_or_throw(
+        audio::html_audio_element::HTMLAudioElement::NAME,
+        PropertyDescriptor::builder()
+            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Also expose as "Audio" constructor for compatibility with `new Audio()`
+    global_object.define_property_or_throw(
+        js_string!("Audio"),
+        PropertyDescriptor::builder()
+            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // AudioContext - Web Audio API
+    global_object.define_property_or_throw(
+        audio::audio_context::AudioContext::NAME,
+        PropertyDescriptor::builder()
+            .value(audio::audio_context::AudioContext::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Video APIs
+    global_object.define_property_or_throw(
+        video::html_video_element::HTMLVideoElement::NAME,
+        PropertyDescriptor::builder()
+            .value(video::html_video_element::HTMLVideoElement::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),

@@ -7,6 +7,8 @@ pub mod document_fragment;
 pub mod document_parse;
 pub mod domtokenlist;
 pub mod element;
+pub mod html_image_element;
+pub mod image_bitmap;
 pub mod node;
 pub mod nodelist;
 pub mod range;

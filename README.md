@@ -80,6 +80,32 @@ cdp_get_response_body(requestId)
 
 ## 🛠 **Installation & Quick Start**
 
+### System Requirements
+
+**Required for all builds:**
+- Rust 1.75+ (with cargo)
+- pkg-config
+
+**Required for Media & Graphics features (Phase 3):**
+
+Ubuntu/Debian:
+```bash
+sudo apt-get update && sudo apt-get install -y \
+    libavutil-dev libavformat-dev libavcodec-dev \
+    libavdevice-dev libavfilter-dev libswscale-dev \
+    libswresample-dev pkg-config clang
+```
+
+Fedora/RHEL:
+```bash
+sudo dnf install ffmpeg-devel clang pkg-config
+```
+
+macOS:
+```bash
+brew install ffmpeg pkg-config
+```
+
 ### Installation
 ```bash
 git clone https://github.com/brainwires/thalora.git

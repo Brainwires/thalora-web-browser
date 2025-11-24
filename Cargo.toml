@@ -64,8 +64,19 @@ webrtc-dtls = "0.7"
 # Audio/Media processing
 cpal = "0.15"
 hound = "3.5"
-symphonia = "0.5"
+symphonia = { version = "0.5", features = ["all"] }
 rodio = "0.19"
+
+# Image processing (Phase 3: Media & Graphics)
+image = { version = "0.25", features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff"] }
+
+# 2D Graphics rendering (Phase 3: Canvas)
+tiny-skia = "0.11"
+fontdb = "0.16"
+rustybuzz = "0.12"
+
+# Video processing (Phase 3: Video)
+ffmpeg-next = "7.0"
 
 # Error handling
 anyhow = "1.0"

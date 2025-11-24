@@ -80,6 +80,18 @@ cfg-if = "1.0"
 parking_lot = "0.12"
 once_cell = "1.19"
 
+# Image processing (Phase 3: Media & Graphics)
+image = { version = "0.25", features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff"] }
+
+# 2D Graphics rendering (Phase 3: Canvas)
+tiny-skia = "0.11"
+fontdb = "0.16"
+rustybuzz = "0.12"
+
+# Audio playback (Phase 3: Audio)
+rodio = { version = "0.19", default-features = false, features = ["symphonia-all"] }
+symphonia = { version = "0.5", features = ["mp3", "aac", "ogg", "wav", "flac"] }
+
 [dev-dependencies]
 # For testing - Boa parser and macros to evaluate JavaScript in tests
 boa_parser = { path = "../boa/core/parser" }
