@@ -14,15 +14,21 @@ use boa_engine::{
     object::ObjectInitializer, js_string,
 };
 
+use super::subtle_crypto::SubtleCrypto;
+
 /// Crypto implementation
 pub struct Crypto;
 
 impl Crypto {
     /// Initialize the crypto object in the global scope
     pub fn init(context: &mut Context) {
+        // Create the SubtleCrypto object
+        let subtle_obj = SubtleCrypto::create(context);
+
         let crypto_obj = ObjectInitializer::new(context)
             .function(NativeFunction::from_fn_ptr(Self::get_random_values), js_string!("getRandomValues"), 1)
             .function(NativeFunction::from_fn_ptr(Self::random_uuid), js_string!("randomUUID"), 0)
+            .property(js_string!("subtle"), subtle_obj, boa_engine::property::Attribute::READONLY | boa_engine::property::Attribute::NON_ENUMERABLE)
             .build();
 
         context

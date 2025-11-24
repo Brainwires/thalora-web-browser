@@ -65,6 +65,12 @@ pub mod video;
 // WebGL API
 pub mod webgl;
 
+// Web Components API
+pub mod web_components;
+
+// Intl API (provided by Boa engine, tests only)
+pub mod intl;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
@@ -160,6 +166,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     observers::mutation_observer::MutationObserver::init(&realm);
     observers::mutation_observer::MutationRecord::init(&realm);
     observers::resize_observer::ResizeObserver::init(&realm);
+    observers::performance_observer::PerformanceObserver::init(context);
 
     // Initialize Messaging APIs
     messaging::broadcast_channel::BroadcastChannel::init(&realm);
@@ -182,6 +189,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     streams::transform_stream::TransformStream::init(&realm);
     streams::queuing_strategy::CountQueuingStrategy::init(&realm);
     streams::queuing_strategy::ByteLengthQueuingStrategy::init(&realm);
+
+    // Initialize Web Components APIs
+    web_components::custom_element_registry::CustomElementRegistry::init(context);
+    web_components::html_template_element::HTMLTemplateElement::init(context);
 
     // Initialize Fetch APIs
     fetch::fetch::Fetch::init(&realm);
