@@ -62,6 +62,9 @@ pub mod audio;
 // Video API
 pub mod video;
 
+// WebGL API
+pub mod webgl;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
@@ -111,6 +114,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Video APIs
     video::html_video_element::HTMLVideoElement::init(&realm);
+
+    // Initialize WebGL APIs
+    webgl::webgl_rendering_context::WebGLRenderingContext::init(&realm);
+    webgl::webgl2_rendering_context::WebGL2RenderingContext::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);

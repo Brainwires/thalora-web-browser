@@ -92,6 +92,10 @@ rustybuzz = "0.12"
 rodio = { version = "0.19", default-features = false, features = ["symphonia-all"] }
 symphonia = { version = "0.5", features = ["mp3", "aac", "ogg", "wav", "flac"] }
 
+# WebGL rendering (Phase 3: WebGL)
+wgpu = "23.0"
+naga = { version = "23.0", features = ["wgsl-in", "glsl-in", "spv-out"] }
+
 [dev-dependencies]
 # For testing - Boa parser and macros to evaluate JavaScript in tests
 boa_parser = { path = "../boa/core/parser" }
