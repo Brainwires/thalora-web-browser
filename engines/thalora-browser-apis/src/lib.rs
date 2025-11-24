@@ -116,8 +116,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     video::html_video_element::HTMLVideoElement::init(&realm);
 
     // Initialize WebGL APIs
-    webgl::webgl_rendering_context::WebGLRenderingContext::init(&realm);
-    webgl::webgl2_rendering_context::WebGL2RenderingContext::init(&realm);
+    webgl::context::WebGLRenderingContext::init(&realm);
+    webgl::context2::WebGL2RenderingContext::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);

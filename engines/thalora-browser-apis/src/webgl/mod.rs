@@ -3,13 +3,28 @@
 //! This module provides WebGL rendering context implementation using wgpu.
 //! https://www.khronos.org/webgl/
 
-pub mod webgl_rendering_context;
-pub mod webgl2_rendering_context;
-pub mod shader;
+// Core types
 pub mod buffer;
-pub mod texture;
+pub mod shader;
 pub mod state;
+pub mod texture;
+
+// WebGL1 context (refactored into smaller files)
+pub mod context;
+pub mod constants;
+pub mod methods_shader;
+pub mod methods_buffer;
+pub mod methods_texture;
+pub mod methods_uniform;
+pub mod methods_draw;
+
+// WebGL2 context (refactored into smaller files)
+pub mod context2;
+pub mod constants2;
+pub mod methods2_vao;
+pub mod methods2_query;
+pub mod methods2_transform;
 
 // Re-exports
-pub use webgl_rendering_context::WebGLRenderingContext;
-pub use webgl2_rendering_context::WebGL2RenderingContext;
+pub use context::WebGLRenderingContext;
+pub use context2::WebGL2RenderingContext;
