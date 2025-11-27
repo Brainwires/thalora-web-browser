@@ -1,7 +1,27 @@
 // Core browser engine components
+
+// Browser module - native only (uses reqwest HTTP client)
+#[cfg(feature = "native")]
 pub mod browser;
+
+// WASM browser stub - placeholder types for API compatibility
+#[cfg(feature = "wasm")]
+pub mod browser_wasm;
+#[cfg(feature = "wasm")]
+pub use browser_wasm as browser;
+
 pub mod renderer;
+
+// Engine module - native only (uses tokio::sync::Mutex)
+#[cfg(feature = "native")]
 pub mod engine;
+
+// WASM engine stub
+#[cfg(feature = "wasm")]
+pub mod engine_wasm;
+#[cfg(feature = "wasm")]
+pub use engine_wasm as engine;
+
 pub mod engine_trait;
 pub mod test_helpers;
 pub mod security;

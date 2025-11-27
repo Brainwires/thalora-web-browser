@@ -154,8 +154,17 @@ impl std::fmt::Display for HttpError {
 impl std::error::Error for HttpError {}
 
 /// Platform HTTP client trait
+///
+/// On native platforms, this requires Send + Sync for thread safety.
+/// On WASM, these bounds are relaxed since WASM is single-threaded.
+#[cfg(feature = "native")]
 pub trait HttpClient: Send + Sync {
     fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>>;
+}
+
+#[cfg(feature = "wasm")]
+pub trait HttpClient {
+    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + '_>>;
 }
 
 /// WebSocket message types
@@ -169,9 +178,13 @@ pub enum WsMessage {
 }
 
 /// WebSocket event callback type
+#[cfg(feature = "native")]
 pub type WsCallback = Box<dyn Fn(WsMessage) + Send + Sync>;
+#[cfg(feature = "wasm")]
+pub type WsCallback = Box<dyn Fn(WsMessage)>;
 
 /// Platform WebSocket trait
+#[cfg(feature = "native")]
 pub trait WebSocketClient: Send + Sync {
     fn connect(&mut self, url: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
     fn send(&mut self, message: WsMessage) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
@@ -179,7 +192,16 @@ pub trait WebSocketClient: Send + Sync {
     fn on_message(&mut self, callback: WsCallback);
 }
 
+#[cfg(feature = "wasm")]
+pub trait WebSocketClient {
+    fn connect(&mut self, url: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+    fn send(&mut self, message: WsMessage) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+    fn close(&mut self) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+    fn on_message(&mut self, callback: WsCallback);
+}
+
 /// Storage key-value operations
+#[cfg(feature = "native")]
 pub trait Storage: Send + Sync {
     fn get(&self, key: &str) -> Option<Vec<u8>>;
     fn set(&mut self, key: &str, value: &[u8]) -> Result<(), String>;
@@ -188,7 +210,17 @@ pub trait Storage: Send + Sync {
     fn keys(&self) -> Vec<String>;
 }
 
+#[cfg(feature = "wasm")]
+pub trait Storage {
+    fn get(&self, key: &str) -> Option<Vec<u8>>;
+    fn set(&mut self, key: &str, value: &[u8]) -> Result<(), String>;
+    fn delete(&mut self, key: &str) -> Result<(), String>;
+    fn clear(&mut self) -> Result<(), String>;
+    fn keys(&self) -> Vec<String>;
+}
+
 /// Timer operations
+#[cfg(feature = "native")]
 pub trait Timer {
     fn set_timeout<F>(callback: F, delay_ms: u32) -> u32
     where
@@ -199,6 +231,21 @@ pub trait Timer {
     fn set_interval<F>(callback: F, interval_ms: u32) -> u32
     where
         F: Fn() + Send + Sync + 'static;
+
+    fn clear_interval(id: u32);
+}
+
+#[cfg(feature = "wasm")]
+pub trait Timer {
+    fn set_timeout<F>(callback: F, delay_ms: u32) -> u32
+    where
+        F: FnOnce() + 'static;
+
+    fn clear_timeout(id: u32);
+
+    fn set_interval<F>(callback: F, interval_ms: u32) -> u32
+    where
+        F: Fn() + 'static;
 
     fn clear_interval(id: u32);
 }

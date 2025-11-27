@@ -13,6 +13,10 @@ categories = ["web-programming", "parsing"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# Configure getrandom for WASM builds
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 [dependencies]
 # Shared constants
 thalora-constants = { path = "shared/thalora-constants" }
@@ -118,7 +122,7 @@ regex = "1.10"
 html-escape = "0.2"
 
 # UUID generation for WebSocket connections
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "js"] }
 
 # WebSocket implementation (native only)
 tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
@@ -180,6 +184,7 @@ web-sys = { version = "0.3", features = [
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
+required-features = ["native"]
 
 [features]
 default = ["native"]

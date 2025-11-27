@@ -27,7 +27,7 @@ impl Default for WasmHttpClient {
 }
 
 impl HttpClient for WasmHttpClient {
-    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>> {
+    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + '_>> {
         Box::pin(async move {
             let window = web_sys::window().ok_or_else(|| HttpError {
                 message: "No window object available".to_string(),
@@ -192,7 +192,7 @@ pub struct WasmTimer;
 impl super::Timer for WasmTimer {
     fn set_timeout<F>(callback: F, delay_ms: u32) -> u32
     where
-        F: FnOnce() + Send + 'static,
+        F: FnOnce() + 'static,
     {
         let window = match web_sys::window() {
             Some(w) => w,
@@ -219,7 +219,7 @@ impl super::Timer for WasmTimer {
 
     fn set_interval<F>(callback: F, interval_ms: u32) -> u32
     where
-        F: Fn() + Send + Sync + 'static,
+        F: Fn() + 'static,
     {
         let window = match web_sys::window() {
             Some(w) => w,

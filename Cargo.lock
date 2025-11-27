@@ -8511,6 +8511,7 @@ dependencies = [
  "fontdb",
  "futures",
  "futures-util",
+ "getrandom 0.3.3",
  "hound",
  "html-escape",
  "html5ever 0.27.0",
