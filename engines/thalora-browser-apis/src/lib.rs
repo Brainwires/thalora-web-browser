@@ -2,6 +2,11 @@
 //!
 //! Web standard APIs extracted from Boa engine fork for use in Thalora browser.
 
+// Many functions in this crate are used as callbacks for Boa engine's builtin system
+// (passed to BuiltInBuilder::callable()) but the compiler doesn't detect them as "used".
+// Additionally, some stub implementations for WASM exist for API compatibility.
+#![allow(dead_code)]
+
 // Re-export Boa engine types needed for API bindings
 pub use boa_engine;
 
