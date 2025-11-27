@@ -116,6 +116,52 @@ cargo build --release
 ./target/release/thalora
 ```
 
+### Build Options
+
+Thalora supports two build targets via Cargo features:
+
+#### Native Build (Default)
+Full-featured build for desktop/server environments with all capabilities:
+```bash
+# Default build (native features enabled)
+cargo build --release
+
+# Explicit native build
+cargo build --release --features native --no-default-features
+
+# Run the MCP server
+./target/release/thalora
+```
+
+#### WebAssembly (WASM) Build
+Build for browser environments using wasm-pack:
+```bash
+# Install wasm-pack if not already installed
+cargo install wasm-pack
+
+# Build WASM package for web
+wasm-pack build --target web --features wasm --no-default-features
+
+# Output is in pkg/ directory:
+# - pkg/thalora.js       # JavaScript bindings
+# - pkg/thalora.d.ts     # TypeScript definitions
+# - pkg/thalora_bg.wasm  # WebAssembly binary
+# - pkg/package.json     # NPM package config
+```
+
+The WASM build provides browser API compatibility using web-sys for:
+- HTTP requests via browser's fetch API
+- Storage via localStorage/IndexedDB
+- Timers via browser's setTimeout/setInterval
+- Cryptography via Web Crypto API
+
+#### Feature Flags
+| Feature | Description |
+|---------|-------------|
+| `native` (default) | Full native build with tokio, reqwest, WebRTC, media APIs |
+| `wasm` | WebAssembly build using web-sys for browser API delegation |
+| `gui` | Native GUI mode with winit/wgpu (includes `native`) |
+
 ### Test All Features
 ```bash
 # Test core functionality
@@ -126,6 +172,9 @@ cargo test google_search_test -- --nocapture
 
 # Test MCP tools
 echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/thalora
+
+# Check WASM library compiles
+cargo check --lib --features wasm --no-default-features
 ```
 
 ## 🚀 **MCP Tools - 17+ Comprehensive Tools**
@@ -348,6 +397,65 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 COPY --from=builder /app/target/release/thalora /usr/local/bin/
 EXPOSE 3000
 CMD ["thalora"]
+```
+
+### WASM Package Usage
+After building with `wasm-pack`, use the package in your web application:
+
+```javascript
+// Import the WASM module
+import init, { ThaloraBrowser, WasmAIMemory, WasmFingerprint } from './pkg/thalora.js';
+
+async function main() {
+  // Initialize the WASM module
+  await init();
+
+  // Create a browser instance
+  const browser = new ThaloraBrowser();
+
+  // Configure the browser
+  browser.set_user_agent('Mozilla/5.0 (Custom Agent)');
+  browser.set_viewport(1920, 1080);
+  browser.set_stealth_mode(true);
+
+  // Get the AI memory manager
+  const memory = browser.ai_memory();
+
+  // Store research data
+  const id = memory.add_research(
+    'Web Scraping Techniques',
+    'Modern approaches to data extraction...',
+    ['scraping', 'automation', 'web']
+  );
+
+  // Search stored memories
+  const results = memory.search('scraping');
+  console.log('Search results:', results);
+
+  // Get fingerprint manager for stealth browsing
+  const fingerprint = browser.fingerprint();
+  fingerprint.randomize();
+  const config = fingerprint.get_config();
+  console.log('Browser fingerprint:', config);
+
+  // Export/import memory for persistence
+  const exportedData = memory.export_json();
+  localStorage.setItem('thalora_memory', exportedData);
+}
+
+main();
+```
+
+```html
+<!-- Include in HTML -->
+<script type="module">
+  import init, { ThaloraBrowser, get_version, is_wasm } from './pkg/thalora.js';
+
+  init().then(() => {
+    console.log('Thalora version:', get_version());
+    console.log('Running in WASM:', is_wasm());
+  });
+</script>
 ```
 
 ### Claude Desktop Integration
