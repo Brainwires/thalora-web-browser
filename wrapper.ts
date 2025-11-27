@@ -12,11 +12,21 @@ import type {
   WasmAIMemory as WasmAIMemoryType,
   WasmFingerprint as WasmFingerprintType,
   WasmDOM as WasmDOMType,
+  WasmReadability as WasmReadabilityType,
+  WasmCssProcessor as WasmCssProcessorType,
+  WasmLayoutEngine as WasmLayoutEngineType,
+  WasmJsEngine as WasmJsEngineType,
+  WasmPageProcessor as WasmPageProcessorType,
   WasmScrapedData,
   WasmLink,
   WasmImage,
   WasmMemoryEntry,
   WasmFingerprintConfig,
+  WasmReadabilityResult as WasmReadabilityResultType,
+  WasmReadabilityConfig as WasmReadabilityConfigType,
+  WasmPageResult as WasmPageResultType,
+  WasmLayoutElement as WasmLayoutElementType,
+  WasmElement as WasmElementType,
 } from './pkg/bundler/thalora'
 
 // ============================================================================
@@ -78,6 +88,160 @@ export interface FingerprintConfig {
 }
 
 // ============================================================================
+// Readability Types
+// ============================================================================
+
+export interface ReadabilityResult {
+  content: string
+  format: string
+  title: string
+  author?: string
+  publishedDate?: string
+  mainImage?: string
+  wordCount: number
+  readingTimeMinutes: number
+  readabilityScore: number
+  success: boolean
+  error?: string
+}
+
+export interface ReadabilityConfig {
+  minContentScore: number
+  maxLinkDensity: number
+  minParagraphCount: number
+  includeImages: boolean
+  includeMetadata: boolean
+  outputFormat: 'markdown' | 'text' | 'structured'
+}
+
+// ============================================================================
+// CSS Processor Types
+// ============================================================================
+
+export interface ComputedStyles {
+  display?: string
+  position?: string
+  width?: string
+  height?: string
+  flexDirection?: string
+  justifyContent?: string
+  alignItems?: string
+  gap?: string
+  margin?: BoxModel
+  padding?: BoxModel
+  color?: string
+  backgroundColor?: string
+  fontSize?: string
+  fontWeight?: string
+  fontFamily?: string
+  lineHeight?: string
+  textAlign?: string
+  border?: string
+  borderRadius?: string
+  overflow?: string
+  zIndex?: number
+  opacity?: number
+}
+
+export interface BoxModel {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+export interface ParsedRule {
+  selector: string
+  properties: Record<string, string>
+  specificity: number
+}
+
+// ============================================================================
+// Layout Engine Types
+// ============================================================================
+
+export interface LayoutElement {
+  id: string
+  tag: string
+  styles: Record<string, string | undefined>
+  children: LayoutElement[]
+}
+
+export interface ElementLayout {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  contentBox: ContentBox
+  children: ElementLayout[]
+}
+
+export interface ContentBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface LayoutResult {
+  root: ElementLayout
+  viewportWidth: number
+  viewportHeight: number
+}
+
+// ============================================================================
+// Page Processor Types
+// ============================================================================
+
+export interface PageResult {
+  url: string
+  title?: string
+  readableContent: string
+  textContent: string
+  links: Link[]
+  images: Image[]
+  metadata: Record<string, string>
+  isReadable: boolean
+  readabilityScore: number
+  wordCount: number
+  processingTimeMs: number
+}
+
+// ============================================================================
+// DOM Types
+// ============================================================================
+
+export interface DOMElement {
+  tag: string
+  id?: string
+  classes: string[]
+  attributes: Record<string, string>
+  textContent: string
+  innerHTML: string
+}
+
+export interface FormField {
+  type: string
+  name: string
+  id: string
+  value: string
+}
+
+export interface FormData {
+  action: string
+  method: string
+  id: string
+  fields: FormField[]
+}
+
+export interface Heading {
+  level: string
+  text: string
+  id?: string
+}
+
+// ============================================================================
 // Thalora Browser Class
 // ============================================================================
 
@@ -92,6 +256,10 @@ export class ThaloraBrowser {
   private _storage: ThaloraStorage | null = null
   private _aiMemory: ThaloraAIMemory | null = null
   private _fingerprint: ThaloraFingerprint | null = null
+  private _cssProcessor: ThaloraCssProcessor | null = null
+  private _layoutEngine: ThaloraLayoutEngine | null = null
+  private _jsEngine: ThaloraJsEngine | null = null
+  private _pageProcessor: ThaloraPageProcessor | null = null
 
   /**
    * Initialize the browser
@@ -259,6 +427,78 @@ export class ThaloraBrowser {
       this._fingerprint = new ThaloraFingerprint(this.wasmModule)
     }
     return this._fingerprint
+  }
+
+  /**
+   * Get CSS processor (lightningcss)
+   */
+  get cssProcessor(): ThaloraCssProcessor {
+    if (!this._cssProcessor) {
+      if (!this.wasmModule) {
+        throw new Error('Browser not initialized. Call initialize() first.')
+      }
+      this._cssProcessor = new ThaloraCssProcessor(this.wasmModule)
+    }
+    return this._cssProcessor
+  }
+
+  /**
+   * Get layout engine (taffy)
+   */
+  get layoutEngine(): ThaloraLayoutEngine {
+    if (!this._layoutEngine) {
+      if (!this.wasmModule) {
+        throw new Error('Browser not initialized. Call initialize() first.')
+      }
+      this._layoutEngine = new ThaloraLayoutEngine(this.wasmModule)
+    }
+    return this._layoutEngine
+  }
+
+  /**
+   * Get JavaScript engine (Boa)
+   */
+  get jsEngine(): ThaloraJsEngine {
+    if (!this._jsEngine) {
+      if (!this.wasmModule) {
+        throw new Error('Browser not initialized. Call initialize() first.')
+      }
+      this._jsEngine = new ThaloraJsEngine(this.wasmModule)
+    }
+    return this._jsEngine
+  }
+
+  /**
+   * Get page processor (unified pipeline)
+   */
+  get pageProcessor(): ThaloraPageProcessor {
+    if (!this._pageProcessor) {
+      if (!this.wasmModule) {
+        throw new Error('Browser not initialized. Call initialize() first.')
+      }
+      this._pageProcessor = new ThaloraPageProcessor(this.wasmModule)
+    }
+    return this._pageProcessor
+  }
+
+  /**
+   * Create a new DOM parser for HTML content
+   */
+  createDOM(html: string): ThaloraDOM {
+    if (!this.wasmModule) {
+      throw new Error('Browser not initialized. Call initialize() first.')
+    }
+    return new ThaloraDOM(this.wasmModule, html)
+  }
+
+  /**
+   * Create a new readability extractor
+   */
+  createReadability(config?: ReadabilityConfig): ThaloraReadability {
+    if (!this.wasmModule) {
+      throw new Error('Browser not initialized. Call initialize() first.')
+    }
+    return new ThaloraReadability(this.wasmModule, config)
   }
 
   /**
@@ -509,7 +749,7 @@ export class ThaloraFingerprint {
 // ============================================================================
 
 /**
- * DOM parser for extracting content from HTML
+ * DOM parser for extracting content from HTML using html5ever
  */
 export class ThaloraDOM {
   private wasmDOM: WasmDOMType
@@ -523,6 +763,13 @@ export class ThaloraDOM {
    */
   getHTML(): string {
     return this.wasmDOM.get_html()
+  }
+
+  /**
+   * Get serialized HTML from the parsed document
+   */
+  getSerializedHTML(): string {
+    return this.wasmDOM.get_serialized_html()
   }
 
   /**
@@ -540,6 +787,41 @@ export class ThaloraDOM {
   }
 
   /**
+   * Get meta description
+   */
+  getMetaDescription(): string | null {
+    return this.wasmDOM.get_meta_description() ?? null
+  }
+
+  /**
+   * Get meta keywords
+   */
+  getMetaKeywords(): string[] {
+    return this.wasmDOM.get_meta_keywords()
+  }
+
+  /**
+   * Get Open Graph metadata
+   */
+  getOgMetadata(): Record<string, string> {
+    return this.wasmDOM.get_og_metadata()
+  }
+
+  /**
+   * Query a single element by CSS selector
+   */
+  querySelector(selector: string): DOMElement | null {
+    return this.wasmDOM.query_selector(selector)
+  }
+
+  /**
+   * Query all elements matching a CSS selector
+   */
+  querySelectorAll(selector: string): DOMElement[] {
+    return this.wasmDOM.query_selector_all(selector)
+  }
+
+  /**
    * Extract all links
    */
   getLinks(): Link[] {
@@ -548,6 +830,439 @@ export class ThaloraDOM {
       url: l.url,
       text: l.text,
     }))
+  }
+
+  /**
+   * Extract all images
+   */
+  getImages(): Image[] {
+    const images = this.wasmDOM.get_images()
+    return images.map((i: WasmImage) => ({
+      url: i.url,
+      alt: i.alt,
+    }))
+  }
+
+  /**
+   * Extract all forms
+   */
+  getForms(): FormData[] {
+    return this.wasmDOM.get_forms()
+  }
+
+  /**
+   * Extract all headings (h1-h6)
+   */
+  getHeadings(): Heading[] {
+    return this.wasmDOM.get_headings()
+  }
+
+  /**
+   * Count elements matching a tag name
+   */
+  countElements(tag: string): number {
+    return this.wasmDOM.count_elements(tag)
+  }
+
+  /**
+   * Check if an element exists matching the selector
+   */
+  hasElement(selector: string): boolean {
+    return this.wasmDOM.has_element(selector)
+  }
+
+  /**
+   * Get attribute value for first matching element
+   */
+  getAttribute(selector: string, attribute: string): string | null {
+    return this.wasmDOM.get_attribute(selector, attribute) ?? null
+  }
+
+  /**
+   * Get all script sources
+   */
+  getScriptSources(): string[] {
+    return this.wasmDOM.get_script_sources()
+  }
+
+  /**
+   * Get all stylesheet links
+   */
+  getStylesheetLinks(): string[] {
+    return this.wasmDOM.get_stylesheet_links()
+  }
+
+  /**
+   * Get inline styles
+   */
+  getInlineStyles(): string[] {
+    return this.wasmDOM.get_inline_styles()
+  }
+}
+
+// ============================================================================
+// Readability Class
+// ============================================================================
+
+/**
+ * Content extractor for readable articles (similar to Chrome's reading mode)
+ */
+export class ThaloraReadability {
+  private wasmReadability: WasmReadabilityType
+
+  constructor(wasmModule: any, config?: ReadabilityConfig) {
+    if (config) {
+      const wasmConfig = {
+        min_content_score: config.minContentScore,
+        max_link_density: config.maxLinkDensity,
+        min_paragraph_count: config.minParagraphCount,
+        include_images: config.includeImages,
+        include_metadata: config.includeMetadata,
+        output_format: config.outputFormat,
+      }
+      this.wasmReadability = wasmModule.WasmReadability.with_config(wasmConfig)
+    } else {
+      this.wasmReadability = new wasmModule.WasmReadability()
+    }
+  }
+
+  /**
+   * Extract readable content from HTML
+   */
+  extract(html: string, url: string): ReadabilityResult {
+    const result = this.wasmReadability.extract(html, url)
+    return {
+      content: result.content,
+      format: result.format,
+      title: result.title,
+      author: result.author ?? undefined,
+      publishedDate: result.published_date ?? undefined,
+      mainImage: result.main_image ?? undefined,
+      wordCount: result.word_count,
+      readingTimeMinutes: result.reading_time_minutes,
+      readabilityScore: result.readability_score,
+      success: result.success,
+      error: result.error ?? undefined,
+    }
+  }
+
+  /**
+   * Quick extraction with default settings
+   */
+  extractQuick(html: string, url: string): ReadabilityResult {
+    return this.extract(html, url)
+  }
+
+  /**
+   * Extract only text content without formatting
+   */
+  extractTextOnly(html: string, url: string): string {
+    return this.wasmReadability.extract_text_only(html, url)
+  }
+
+  /**
+   * Check if a page is likely to have readable content
+   */
+  isReadable(html: string, url: string): boolean {
+    return this.wasmReadability.is_readable(html, url)
+  }
+
+  /**
+   * Get current configuration
+   */
+  getConfig(): ReadabilityConfig {
+    const config = this.wasmReadability.get_config()
+    return {
+      minContentScore: config.min_content_score,
+      maxLinkDensity: config.max_link_density,
+      minParagraphCount: config.min_paragraph_count,
+      includeImages: config.include_images,
+      includeMetadata: config.include_metadata,
+      outputFormat: config.output_format,
+    }
+  }
+
+  /**
+   * Update configuration
+   */
+  setConfig(config: ReadabilityConfig): void {
+    const wasmConfig = {
+      min_content_score: config.minContentScore,
+      max_link_density: config.maxLinkDensity,
+      min_paragraph_count: config.minParagraphCount,
+      include_images: config.includeImages,
+      include_metadata: config.includeMetadata,
+      output_format: config.outputFormat,
+    }
+    this.wasmReadability.set_config(wasmConfig)
+  }
+
+  /**
+   * Set output format
+   */
+  setOutputFormat(format: 'markdown' | 'text' | 'structured'): void {
+    this.wasmReadability.set_output_format(format)
+  }
+}
+
+// ============================================================================
+// CSS Processor Class
+// ============================================================================
+
+/**
+ * CSS parser and style computation using lightningcss
+ */
+export class ThaloraCssProcessor {
+  private wasmProcessor: WasmCssProcessorType
+
+  constructor(wasmModule: any) {
+    this.wasmProcessor = new wasmModule.WasmCssProcessor()
+  }
+
+  /**
+   * Parse CSS and add its rules to the processor
+   */
+  parse(css: string): void {
+    this.wasmProcessor.parse(css)
+  }
+
+  /**
+   * Compute styles for a given selector
+   */
+  computeStyle(selector: string): ComputedStyles {
+    return this.wasmProcessor.compute_style(selector)
+  }
+
+  /**
+   * Get a specific CSS property value
+   */
+  getProperty(selector: string, property: string): string | null {
+    return this.wasmProcessor.get_property(selector, property) ?? null
+  }
+
+  /**
+   * Minify CSS
+   */
+  minify(css: string): string {
+    return this.wasmProcessor.minify(css)
+  }
+
+  /**
+   * Process CSS (returns processed CSS)
+   */
+  process(css: string): string {
+    return this.wasmProcessor.process(css)
+  }
+
+  /**
+   * Get all parsed rules
+   */
+  getRules(): ParsedRule[] {
+    return this.wasmProcessor.get_rules()
+  }
+
+  /**
+   * Clear all parsed rules
+   */
+  clear(): void {
+    this.wasmProcessor.clear()
+  }
+}
+
+// ============================================================================
+// Layout Engine Class
+// ============================================================================
+
+/**
+ * CSS-compliant layout engine using taffy
+ */
+export class ThaloraLayoutEngine {
+  private wasmEngine: WasmLayoutEngineType
+
+  constructor(wasmModule: any, viewportWidth?: number, viewportHeight?: number) {
+    if (viewportWidth !== undefined && viewportHeight !== undefined) {
+      this.wasmEngine = wasmModule.WasmLayoutEngine.with_viewport(
+        viewportWidth,
+        viewportHeight
+      )
+    } else {
+      this.wasmEngine = new wasmModule.WasmLayoutEngine()
+    }
+  }
+
+  /**
+   * Set viewport dimensions
+   */
+  setViewport(width: number, height: number): void {
+    this.wasmEngine.set_viewport(width, height)
+  }
+
+  /**
+   * Calculate layout for an element tree
+   */
+  calculateLayout(root: LayoutElement): LayoutResult {
+    const wasmRoot = this.convertToWasmElement(root)
+    return this.wasmEngine.calculate_layout(wasmRoot)
+  }
+
+  private convertToWasmElement(element: LayoutElement): any {
+    return {
+      id: element.id,
+      tag: element.tag,
+      styles: element.styles,
+      children: element.children.map((c) => this.convertToWasmElement(c)),
+    }
+  }
+}
+
+// ============================================================================
+// JavaScript Engine Class
+// ============================================================================
+
+/**
+ * Sandboxed JavaScript execution engine using Boa
+ */
+export class ThaloraJsEngine {
+  private wasmEngine: WasmJsEngineType
+
+  constructor(wasmModule: any) {
+    this.wasmEngine = new wasmModule.WasmJsEngine()
+  }
+
+  /**
+   * Execute JavaScript code and return the result
+   */
+  async execute(code: string): Promise<any> {
+    return await this.wasmEngine.execute(code)
+  }
+
+  /**
+   * Execute JavaScript code synchronously
+   */
+  executeSync(code: string): any {
+    return this.wasmEngine.execute_sync(code)
+  }
+
+  /**
+   * Set a global variable in the JavaScript context
+   */
+  setGlobal(name: string, value: any): void {
+    this.wasmEngine.set_global(name, value)
+  }
+
+  /**
+   * Get a global variable from the JavaScript context
+   */
+  getGlobal(name: string): any {
+    return this.wasmEngine.get_global(name)
+  }
+
+  /**
+   * Run pending microtasks (promises, etc.)
+   */
+  runJobs(): void {
+    this.wasmEngine.run_jobs()
+  }
+
+  /**
+   * Get engine version information
+   */
+  version(): string {
+    return this.wasmEngine.version()
+  }
+}
+
+// ============================================================================
+// Page Processor Class
+// ============================================================================
+
+/**
+ * Unified page processing pipeline combining DOM, CSS, and readability
+ */
+export class ThaloraPageProcessor {
+  private wasmProcessor: WasmPageProcessorType
+
+  constructor(wasmModule: any) {
+    this.wasmProcessor = new wasmModule.WasmPageProcessor()
+  }
+
+  /**
+   * Process a page and extract all relevant data
+   */
+  process(html: string, url: string): PageResult {
+    const result = this.wasmProcessor.process(html, url)
+    return {
+      url: result.url,
+      title: result.title ?? undefined,
+      readableContent: result.readable_content,
+      textContent: result.text_content,
+      links: result.links.map((l: WasmLink) => ({
+        url: l.url,
+        text: l.text,
+      })),
+      images: result.images.map((i: WasmImage) => ({
+        url: i.url,
+        alt: i.alt,
+      })),
+      metadata: result.metadata,
+      isReadable: result.is_readable,
+      readabilityScore: result.readability_score,
+      wordCount: result.word_count,
+      processingTimeMs: result.processing_time_ms,
+    }
+  }
+
+  /**
+   * Quick process - just extract text and links
+   */
+  processQuick(html: string, url: string): PageResult {
+    const result = this.wasmProcessor.process_quick(html, url)
+    return {
+      url: result.url,
+      title: result.title ?? undefined,
+      readableContent: result.readable_content,
+      textContent: result.text_content,
+      links: result.links.map((l: WasmLink) => ({
+        url: l.url,
+        text: l.text,
+      })),
+      images: result.images.map((i: WasmImage) => ({
+        url: i.url,
+        alt: i.alt,
+      })),
+      metadata: result.metadata,
+      isReadable: result.is_readable,
+      readabilityScore: result.readability_score,
+      wordCount: result.word_count,
+      processingTimeMs: result.processing_time_ms,
+    }
+  }
+
+  /**
+   * Extract only readable content
+   */
+  extractReadable(html: string, url: string): ReadabilityResult {
+    const result = this.wasmProcessor.extract_readable(html, url)
+    return {
+      content: result.content,
+      format: result.format,
+      title: result.title,
+      author: result.author ?? undefined,
+      publishedDate: result.published_date ?? undefined,
+      mainImage: result.main_image ?? undefined,
+      wordCount: result.word_count,
+      readingTimeMinutes: result.reading_time_minutes,
+      readabilityScore: result.readability_score,
+      success: result.success,
+      error: result.error ?? undefined,
+    }
+  }
+
+  /**
+   * Check if a page is likely readable
+   */
+  isReadable(html: string, url: string): boolean {
+    return this.wasmProcessor.is_readable(html, url)
   }
 }
 
