@@ -95,7 +95,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
                     buffer.allocate(size, usage);
                 }
             } else if let Some(array_buffer) = buf_data_arg.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
-                let buf = array_buffer.data().expect("ArrayBuffer has no data").as_ref().to_vec();
+                let data_ref = array_buffer.data().expect("ArrayBuffer has no data");
+                let buf: Vec<u8> = (*data_ref).to_vec();
                 if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
                     buffer.set_data(&buf, usage);
                 }
@@ -112,7 +113,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
 
-                        let full_buf = ab.data().expect("ArrayBuffer has no data").as_ref().to_vec();
+                        let data_ref = ab.data().expect("ArrayBuffer has no data");
+                        let full_buf: Vec<u8> = (*data_ref).to_vec();
                         let slice = &full_buf[byte_offset..byte_offset + byte_length];
                         if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
                             buffer.set_data(slice, usage);
@@ -152,7 +154,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
             let buf_data_arg = args.get_or_undefined(2);
 
             if let Some(array_buffer) = buf_data_arg.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
-                let buf = array_buffer.data().expect("ArrayBuffer has no data").as_ref().to_vec();
+                let data_ref = array_buffer.data().expect("ArrayBuffer has no data");
+                let buf: Vec<u8> = (*data_ref).to_vec();
                 if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
                     buffer.set_sub_data(offset, &buf);
                 }

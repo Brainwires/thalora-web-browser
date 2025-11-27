@@ -1,33 +1,58 @@
 //! WebGL APIs
 //!
-//! This module provides WebGL rendering context implementation using wgpu.
+//! This module provides WebGL rendering context implementation.
+//! - Native builds use wgpu for GPU access
+//! - WASM builds delegate to the browser's native WebGL
 //! https://www.khronos.org/webgl/
 
-// Core types
-pub mod buffer;
-pub mod shader;
-pub mod state;
-pub mod texture;
-
-// WebGL1 context (refactored into smaller files)
-pub mod context;
+// Shared constants (no native deps)
 pub mod constants;
-pub mod methods_shader;
-pub mod methods_buffer;
-pub mod methods_texture;
-pub mod methods_uniform;
-pub mod methods_draw;
-
-// WebGL2 context (refactored into smaller files)
-pub mod context2;
 pub mod constants2;
+pub mod state;
+
+// Native implementation using wgpu
+#[cfg(feature = "native")]
+pub mod buffer;
+#[cfg(feature = "native")]
+pub mod shader;
+#[cfg(feature = "native")]
+pub mod texture;
+#[cfg(feature = "native")]
+pub mod context;
+#[cfg(feature = "native")]
+pub mod methods_shader;
+#[cfg(feature = "native")]
+pub mod methods_buffer;
+#[cfg(feature = "native")]
+pub mod methods_texture;
+#[cfg(feature = "native")]
+pub mod methods_uniform;
+#[cfg(feature = "native")]
+pub mod methods_draw;
+#[cfg(feature = "native")]
+pub mod context2;
+#[cfg(feature = "native")]
 pub mod methods2_vao;
+#[cfg(feature = "native")]
 pub mod methods2_query;
+#[cfg(feature = "native")]
 pub mod methods2_transform;
+
+// WASM stubs - actual WebGL is used through web-sys in JavaScript
+#[cfg(feature = "wasm")]
+pub mod context_wasm;
+#[cfg(feature = "wasm")]
+pub mod context2_wasm;
+
+// Re-export WASM stubs with native module names for uniform API
+#[cfg(feature = "wasm")]
+pub use context_wasm as context;
+#[cfg(feature = "wasm")]
+pub use context2_wasm as context2;
 
 #[cfg(test)]
 mod tests;
 
-// Re-exports
+// Re-exports at module level
 pub use context::WebGLRenderingContext;
 pub use context2::WebGL2RenderingContext;

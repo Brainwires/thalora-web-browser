@@ -108,7 +108,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
             let pixel_data: Option<Vec<u8>> = if pixels.is_null() || pixels.is_undefined() {
                 None
             } else if let Some(array_buffer) = pixels.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
-                Some(array_buffer.data().expect("ArrayBuffer has no data").as_ref().to_vec())
+                let data_ref = array_buffer.data().expect("ArrayBuffer has no data");
+                Some((*data_ref).to_vec())
             } else if let Some(obj) = pixels.as_object() {
                 // Try typed array
                 if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx) {
@@ -122,7 +123,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
 
-                        let full_buf = ab.data().expect("ArrayBuffer has no data").as_ref().to_vec();
+                        let data_ref = ab.data().expect("ArrayBuffer has no data");
+                        let full_buf: Vec<u8> = (*data_ref).to_vec();
                         Some(full_buf[byte_offset..byte_offset + byte_length].to_vec())
                     } else {
                         None

@@ -154,7 +154,7 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
                         // Copy pixel data
                         let data_slice = ab.data();
                         if let Some(data_guard) = data_slice {
-                            let mut dst = data_guard.as_ref().to_vec();
+                            let mut dst: Vec<u8> = (*data_guard).to_vec();
                             for row in 0..height {
                                 let src_y = target_height - 1 - (y + row); // Flip Y
                                 if src_y < 0 || src_y >= target_height {

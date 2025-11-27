@@ -1,7 +1,8 @@
 //! Storage Backend Trait and Implementations
 //!
 //! Provides an abstraction layer for IndexedDB storage backends.
-//! Supports in-memory (testing) and persistent (Sled) backends.
+//! - Native: Supports in-memory (testing) and persistent (Sled) backends.
+//! - WASM: In-memory only (browser's native IndexedDB is used via JavaScript)
 
 use super::key::IDBKey;
 use super::key_range::IDBKeyRange;
@@ -9,10 +10,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod memory;
+
+// Sled backend only for native builds
+#[cfg(feature = "native")]
 pub mod sled_backend;
 
 // Re-export backend implementations
 pub use memory::MemoryBackend;
+
+#[cfg(feature = "native")]
 pub use sled_backend::SledBackend;
 
 /// Transaction mode
