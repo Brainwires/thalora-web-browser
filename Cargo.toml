@@ -238,6 +238,17 @@ wasm = [
 # GUI mode with winit and wgpu for graphical browser interface (native only)
 gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
 
+# Minimal build for web search/scraping only (no audio, video, WebRTC, wasmtime)
+web-search = [
+    "dep:tokio",
+    "dep:reqwest",
+    "dep:tokio-util",
+    "dep:dirs",
+    # Enable native features in sub-crates
+    "thalora-browser-apis/native",
+    "boa_engine/native",
+]
+
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
