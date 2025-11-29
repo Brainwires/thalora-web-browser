@@ -9,7 +9,7 @@
 //! The abstraction allows the same high-level code to work on both platforms.
 
 // Native platform implementation
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub mod native;
 
 // WASM platform implementation
@@ -17,7 +17,7 @@ pub mod native;
 pub mod wasm;
 
 // Re-export the appropriate platform module
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub use native as platform;
 
 #[cfg(feature = "wasm")]
@@ -157,7 +157,7 @@ impl std::error::Error for HttpError {}
 ///
 /// On native platforms, this requires Send + Sync for thread safety.
 /// On WASM, these bounds are relaxed since WASM is single-threaded.
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub trait HttpClient: Send + Sync {
     fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>>;
 }
@@ -178,7 +178,7 @@ pub enum WsMessage {
 }
 
 /// WebSocket event callback type
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub type WsCallback = Box<dyn Fn(WsMessage) + Send + Sync>;
 #[cfg(feature = "wasm")]
 pub type WsCallback = Box<dyn Fn(WsMessage)>;
@@ -297,8 +297,9 @@ pub fn get_platform_info() -> PlatformInfo {
 }
 
 /// Create the default HTTP client for the current platform
+#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
 pub fn create_http_client() -> Box<dyn HttpClient> {
-    #[cfg(feature = "native")]
+    #[cfg(any(feature = "native", feature = "web-search"))]
     {
         Box::new(native::NativeHttpClient::new())
     }
@@ -306,10 +307,5 @@ pub fn create_http_client() -> Box<dyn HttpClient> {
     #[cfg(feature = "wasm")]
     {
         Box::new(wasm::WasmHttpClient::new())
-    }
-
-    #[cfg(not(any(feature = "native", feature = "wasm")))]
-    {
-        compile_error!("Either 'native' or 'wasm' feature must be enabled")
     }
 }

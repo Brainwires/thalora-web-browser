@@ -31,8 +31,11 @@ pub mod protocols;
 pub mod debug_utils;
 
 // Re-export main components for clean public API
+#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
-pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult, JavaScriptEngine};
+pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
+#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
+pub use engine::JavaScriptEngine;
 pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 // EventListener is now natively implemented in Boa engine
 
@@ -40,7 +43,9 @@ pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 // WebStorage is now natively implemented in Boa engine
 // events API is now natively implemented in Boa engine
 
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 
 // Protocol exports (only for native builds)
