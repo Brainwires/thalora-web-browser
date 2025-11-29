@@ -184,7 +184,7 @@ pub type WsCallback = Box<dyn Fn(WsMessage) + Send + Sync>;
 pub type WsCallback = Box<dyn Fn(WsMessage)>;
 
 /// Platform WebSocket trait
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub trait WebSocketClient: Send + Sync {
     fn connect(&mut self, url: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
     fn send(&mut self, message: WsMessage) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
@@ -201,7 +201,7 @@ pub trait WebSocketClient {
 }
 
 /// Storage key-value operations
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub trait Storage: Send + Sync {
     fn get(&self, key: &str) -> Option<Vec<u8>>;
     fn set(&mut self, key: &str, value: &[u8]) -> Result<(), String>;
@@ -220,7 +220,7 @@ pub trait Storage {
 }
 
 /// Timer operations
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub trait Timer {
     fn set_timeout<F>(callback: F, delay_ms: u32) -> u32
     where
