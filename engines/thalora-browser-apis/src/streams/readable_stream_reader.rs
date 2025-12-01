@@ -33,29 +33,31 @@ impl ReadableStreamDefaultReader {
         );
 
         // Add methods to the reader
+        let reader_generic = reader.upcast();
+
         let read_fn = BuiltInBuilder::callable(context.realm(), Self::read)
             .name(js_string!("read"))
             .length(0)
             .build();
-        reader.set(js_string!("read"), read_fn, true, context)?;
+        reader_generic.set(js_string!("read"), read_fn, true, context)?;
 
         let cancel_fn = BuiltInBuilder::callable(context.realm(), Self::cancel)
             .name(js_string!("cancel"))
             .length(1)
             .build();
-        reader.set(js_string!("cancel"), cancel_fn, true, context)?;
+        reader_generic.set(js_string!("cancel"), cancel_fn, true, context)?;
 
         let release_lock_fn = BuiltInBuilder::callable(context.realm(), Self::release_lock)
             .name(js_string!("releaseLock"))
             .length(0)
             .build();
-        reader.set(js_string!("releaseLock"), release_lock_fn, true, context)?;
+        reader_generic.set(js_string!("releaseLock"), release_lock_fn, true, context)?;
 
         // Add properties
         let closed_getter = BuiltInBuilder::callable(context.realm(), Self::get_closed)
             .name(js_string!("get closed"))
             .build();
-        reader.define_property_or_throw(
+        reader_generic.define_property_or_throw(
             js_string!("closed"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(closed_getter)
@@ -64,7 +66,7 @@ impl ReadableStreamDefaultReader {
             context,
         )?;
 
-        Ok(reader.into())
+        Ok(reader_generic.into())
     }
 
     /// `ReadableStreamDefaultReader.prototype.read()`
@@ -212,29 +214,31 @@ impl ReadableStreamBYOBReader {
         );
 
         // Add methods to the reader
+        let reader_generic = reader.upcast();
+
         let read_fn = BuiltInBuilder::callable(context.realm(), Self::read)
             .name(js_string!("read"))
             .length(1)
             .build();
-        reader.set(js_string!("read"), read_fn, true, context)?;
+        reader_generic.set(js_string!("read"), read_fn, true, context)?;
 
         let cancel_fn = BuiltInBuilder::callable(context.realm(), Self::cancel)
             .name(js_string!("cancel"))
             .length(1)
             .build();
-        reader.set(js_string!("cancel"), cancel_fn, true, context)?;
+        reader_generic.set(js_string!("cancel"), cancel_fn, true, context)?;
 
         let release_lock_fn = BuiltInBuilder::callable(context.realm(), Self::release_lock)
             .name(js_string!("releaseLock"))
             .length(0)
             .build();
-        reader.set(js_string!("releaseLock"), release_lock_fn, true, context)?;
+        reader_generic.set(js_string!("releaseLock"), release_lock_fn, true, context)?;
 
         // Add properties
         let closed_getter = BuiltInBuilder::callable(context.realm(), Self::get_closed)
             .name(js_string!("get closed"))
             .build();
-        reader.define_property_or_throw(
+        reader_generic.define_property_or_throw(
             js_string!("closed"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(closed_getter)
@@ -243,7 +247,7 @@ impl ReadableStreamBYOBReader {
             context,
         )?;
 
-        Ok(reader.into())
+        Ok(reader_generic.into())
     }
 
     /// `ReadableStreamBYOBReader.prototype.read(view)`

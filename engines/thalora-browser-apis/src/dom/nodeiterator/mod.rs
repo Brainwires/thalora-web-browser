@@ -85,7 +85,7 @@ impl NodeIteratorData {
     /// Check if a node should be accepted based on whatToShow
     fn node_matches_what_to_show(&self, node: &JsObject, context: &mut Context) -> bool {
         // Get the nodeType
-        let node_type = match node.get(js_string!("nodeType"), context) {
+        let node_type = match node.upcast().get(js_string!("nodeType"), context) {
             Ok(val) => match val.to_u32(context) {
                 Ok(n) => n,
                 Err(_) => return false,
@@ -144,7 +144,7 @@ impl NodeIteratorData {
         };
 
         // Try first child
-        let first_child = node.get(js_string!("firstChild"), context)?;
+        let first_child = node.upcast().get(js_string!("firstChild"), context)?;
         if !first_child.is_null() && !first_child.is_undefined() {
             if let Some(child) = first_child.as_object() {
                 return Ok(Some(child.clone()));
@@ -158,7 +158,7 @@ impl NodeIteratorData {
                 return Ok(None);
             }
 
-            let sibling = current.get(js_string!("nextSibling"), context)?;
+            let sibling = current.upcast().get(js_string!("nextSibling"), context)?;
             if !sibling.is_null() && !sibling.is_undefined() {
                 if let Some(sib) = sibling.as_object() {
                     return Ok(Some(sib.clone()));
@@ -166,7 +166,7 @@ impl NodeIteratorData {
             }
 
             // Go to parent
-            let parent = current.get(js_string!("parentNode"), context)?;
+            let parent = current.upcast().get(js_string!("parentNode"), context)?;
             if parent.is_null() || parent.is_undefined() {
                 return Ok(None);
             }
@@ -186,12 +186,12 @@ impl NodeIteratorData {
         };
 
         // Try previous sibling's last descendant
-        let sibling = node.get(js_string!("previousSibling"), context)?;
+        let sibling = node.upcast().get(js_string!("previousSibling"), context)?;
         if !sibling.is_null() && !sibling.is_undefined() {
             if let Some(mut sib) = sibling.as_object().map(|o| o.clone()) {
                 // Go to last descendant
                 loop {
-                    let last_child = sib.get(js_string!("lastChild"), context)?;
+                    let last_child = sib.upcast().get(js_string!("lastChild"), context)?;
                     if last_child.is_null() || last_child.is_undefined() {
                         return Ok(Some(sib));
                     }
@@ -208,7 +208,7 @@ impl NodeIteratorData {
             return Ok(None);
         }
 
-        let parent = node.get(js_string!("parentNode"), context)?;
+        let parent = node.upcast().get(js_string!("parentNode"), context)?;
         if parent.is_null() || parent.is_undefined() {
             return Ok(None);
         }
@@ -399,7 +399,7 @@ impl NodeIterator {
             context.intrinsics().constructors().nodeiterator().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 }
 

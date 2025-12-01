@@ -81,7 +81,7 @@ impl Cache {
             context.intrinsics().constructors().cache().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 
     fn match_request(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -394,7 +394,7 @@ impl CacheStorage {
             context.intrinsics().constructors().cache_storage().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 
     fn open(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {

@@ -77,6 +77,9 @@ impl WorkerNavigator {
             navigator_data,
         );
 
+        // Upcast to generic JsObject for property operations
+        let navigator_obj_upcast = navigator_obj.upcast();
+
         // Add WorkerNavigator properties manually
         let user_agent_getter = BuiltInBuilder::callable(context.realm(), get_user_agent)
             .name(js_string!("get userAgent"))
@@ -103,7 +106,7 @@ impl WorkerNavigator {
             .build();
 
         // Add all getters as accessor properties
-        navigator_obj.define_property_or_throw(
+        navigator_obj_upcast.define_property_or_throw(
             js_string!("userAgent"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(user_agent_getter)
@@ -112,7 +115,7 @@ impl WorkerNavigator {
             context,
         )?;
 
-        navigator_obj.define_property_or_throw(
+        navigator_obj_upcast.define_property_or_throw(
             js_string!("platform"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(platform_getter)
@@ -121,7 +124,7 @@ impl WorkerNavigator {
             context,
         )?;
 
-        navigator_obj.define_property_or_throw(
+        navigator_obj_upcast.define_property_or_throw(
             js_string!("language"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(language_getter)
@@ -130,7 +133,7 @@ impl WorkerNavigator {
             context,
         )?;
 
-        navigator_obj.define_property_or_throw(
+        navigator_obj_upcast.define_property_or_throw(
             js_string!("languages"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(languages_getter)
@@ -139,7 +142,7 @@ impl WorkerNavigator {
             context,
         )?;
 
-        navigator_obj.define_property_or_throw(
+        navigator_obj_upcast.define_property_or_throw(
             js_string!("onLine"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(online_getter)
@@ -148,7 +151,7 @@ impl WorkerNavigator {
             context,
         )?;
 
-        navigator_obj.define_property_or_throw(
+        navigator_obj_upcast.define_property_or_throw(
             js_string!("hardwareConcurrency"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(hardware_concurrency_getter)
@@ -157,7 +160,7 @@ impl WorkerNavigator {
             context,
         )?;
 
-        Ok(navigator_obj)
+        Ok(navigator_obj_upcast)
     }
 }
 

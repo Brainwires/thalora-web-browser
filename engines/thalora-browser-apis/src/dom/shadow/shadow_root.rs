@@ -497,8 +497,11 @@ impl ShadowRoot {
             .name(js_string!("getHTML"))
             .build();
 
+        // Convert to generic JsObject once so we can use it multiple times
+        let shadow_obj_generic = shadow_obj.upcast();
+
         // Install accessors directly on the instance
-        shadow_obj.define_property_or_throw(
+        shadow_obj_generic.define_property_or_throw(
             js_string!("mode"),
             PropertyDescriptorBuilder::new()
                 .get(mode_get_func)
@@ -508,7 +511,7 @@ impl ShadowRoot {
             context,
         )?;
 
-        shadow_obj.define_property_or_throw(
+        shadow_obj_generic.define_property_or_throw(
             js_string!("clonable"),
             PropertyDescriptorBuilder::new()
                 .get(clonable_get_func)
@@ -518,7 +521,7 @@ impl ShadowRoot {
             context,
         )?;
 
-        shadow_obj.define_property_or_throw(
+        shadow_obj_generic.define_property_or_throw(
             js_string!("serializable"),
             PropertyDescriptorBuilder::new()
                 .get(serializable_get_func)
@@ -528,7 +531,7 @@ impl ShadowRoot {
             context,
         )?;
 
-        shadow_obj.define_property_or_throw(
+        shadow_obj_generic.define_property_or_throw(
             js_string!("delegatesFocus"),
             PropertyDescriptorBuilder::new()
                 .get(delegates_focus_get_func)
@@ -538,7 +541,7 @@ impl ShadowRoot {
             context,
         )?;
 
-        shadow_obj.define_property_or_throw(
+        shadow_obj_generic.define_property_or_throw(
             js_string!("host"),
             PropertyDescriptorBuilder::new()
                 .get(host_get_func)
@@ -548,7 +551,7 @@ impl ShadowRoot {
             context,
         )?;
 
-        shadow_obj.define_property_or_throw(
+        shadow_obj_generic.define_property_or_throw(
             js_string!("getHTML"),
             PropertyDescriptorBuilder::new()
                 .value(get_html_func)
@@ -559,7 +562,7 @@ impl ShadowRoot {
             context,
         )?;
 
-        Ok(shadow_obj)
+        Ok(shadow_obj_generic)
     }
 }
 

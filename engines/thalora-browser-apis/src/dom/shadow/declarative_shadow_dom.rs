@@ -263,7 +263,7 @@ impl DeclarativeShadowDOMParser {
             element_data,
         );
 
-        Ok(element)
+        Ok(element.upcast())
     }
 
     /// Create shadow root from template attributes
@@ -285,7 +285,7 @@ impl DeclarativeShadowDOMParser {
             shadow_data,
         );
 
-        Ok(shadow_root)
+        Ok(shadow_root.upcast())
     }
 
     /// Populate shadow tree with parsed content from template
@@ -445,7 +445,7 @@ impl DeclarativeShadowDOMParser {
             slot_data,
         );
 
-        Ok(slot_element)
+        Ok(slot_element.upcast())
     }
 
     /// Create a regular element
@@ -469,7 +469,7 @@ impl DeclarativeShadowDOMParser {
             element_data,
         );
 
-        Ok(element)
+        Ok(element.upcast())
     }
 
     /// Process nested declarative shadow roots within content

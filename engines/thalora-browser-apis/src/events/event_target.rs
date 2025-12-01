@@ -186,7 +186,7 @@ impl EventTarget {
             target_data,
         );
 
-        Ok(target_obj)
+        Ok(target_obj.upcast())
     }
 
     /// Static method implementations for BuiltInBuilder
@@ -337,7 +337,7 @@ impl BuiltInConstructor for EventTarget {
             target_data,
         );
 
-        Ok(target_obj.into())
+        Ok(target_obj.upcast().into())
     }
 }
 

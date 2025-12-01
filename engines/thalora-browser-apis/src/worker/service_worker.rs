@@ -187,7 +187,7 @@ impl BuiltInConstructor for ServiceWorker {
         // Start service worker registration process
         Self::start_registration(&service_worker_obj, context)?;
 
-        Ok(service_worker_obj.into())
+        Ok(service_worker_obj.upcast().into())
     }
 }
 

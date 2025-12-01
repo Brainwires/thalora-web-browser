@@ -220,35 +220,37 @@ impl WritableStreamDefaultWriter {
         );
 
         // Add methods to the writer
+        let writer_generic = writer.upcast();
+
         let abort_fn = BuiltInBuilder::callable(context.realm(), Self::abort)
             .name(js_string!("abort"))
             .length(1)
             .build();
-        writer.set(js_string!("abort"), abort_fn, true, context)?;
+        writer_generic.set(js_string!("abort"), abort_fn, true, context)?;
 
         let close_fn = BuiltInBuilder::callable(context.realm(), Self::close)
             .name(js_string!("close"))
             .length(0)
             .build();
-        writer.set(js_string!("close"), close_fn, true, context)?;
+        writer_generic.set(js_string!("close"), close_fn, true, context)?;
 
         let write_fn = BuiltInBuilder::callable(context.realm(), Self::write)
             .name(js_string!("write"))
             .length(1)
             .build();
-        writer.set(js_string!("write"), write_fn, true, context)?;
+        writer_generic.set(js_string!("write"), write_fn, true, context)?;
 
         let release_lock_fn = BuiltInBuilder::callable(context.realm(), Self::release_lock)
             .name(js_string!("releaseLock"))
             .length(0)
             .build();
-        writer.set(js_string!("releaseLock"), release_lock_fn, true, context)?;
+        writer_generic.set(js_string!("releaseLock"), release_lock_fn, true, context)?;
 
         // Add properties
         let closed_getter = BuiltInBuilder::callable(context.realm(), Self::get_closed)
             .name(js_string!("get closed"))
             .build();
-        writer.define_property_or_throw(
+        writer_generic.define_property_or_throw(
             js_string!("closed"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(closed_getter)
@@ -260,7 +262,7 @@ impl WritableStreamDefaultWriter {
         let ready_getter = BuiltInBuilder::callable(context.realm(), Self::get_ready)
             .name(js_string!("get ready"))
             .build();
-        writer.define_property_or_throw(
+        writer_generic.define_property_or_throw(
             js_string!("ready"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(ready_getter)
@@ -272,7 +274,7 @@ impl WritableStreamDefaultWriter {
         let desired_size_getter = BuiltInBuilder::callable(context.realm(), Self::get_desired_size)
             .name(js_string!("get desiredSize"))
             .build();
-        writer.define_property_or_throw(
+        writer_generic.define_property_or_throw(
             js_string!("desiredSize"),
             boa_engine::property::PropertyDescriptorBuilder::new()
                 .get(desired_size_getter)
@@ -281,7 +283,7 @@ impl WritableStreamDefaultWriter {
             context,
         )?;
 
-        Ok(writer.into())
+        Ok(writer_generic.into())
     }
 
     /// `WritableStreamDefaultWriter.prototype.abort(reason)`

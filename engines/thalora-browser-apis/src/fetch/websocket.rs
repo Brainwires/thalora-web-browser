@@ -220,7 +220,7 @@ impl BuiltInConstructor for WebSocket {
         // Start connection asynchronously
         Self::initiate_connection(&websocket_obj, context)?;
 
-        Ok(websocket_obj.into())
+        Ok(websocket_obj.upcast().into())
     }
 }
 

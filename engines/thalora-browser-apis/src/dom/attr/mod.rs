@@ -122,7 +122,7 @@ impl Attr {
             attr_data,
         );
 
-        Ok(attr_obj)
+        Ok(attr_obj.upcast())
     }
 
 

@@ -91,30 +91,33 @@ impl BuiltInConstructor for XmlHttpRequest {
             xhr_data
         );
 
+        // Upcast to generic JsObject for property operations
+        let xhr_obj_upcast = xhr_obj.upcast();
+
         // Initialize properties
-        xhr_obj.set(js_string!("readyState"), JsValue::from(0), false, context)?;
-        xhr_obj.set(js_string!("status"), JsValue::from(0), false, context)?;
-        xhr_obj.set(js_string!("statusText"), JsValue::from(js_string!("")), false, context)?;
-        xhr_obj.set(js_string!("responseText"), JsValue::from(js_string!("")), false, context)?;
-        xhr_obj.set(js_string!("responseXML"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("timeout"), JsValue::from(0), false, context)?;
-        xhr_obj.set(js_string!("withCredentials"), JsValue::from(false), false, context)?;
+        xhr_obj_upcast.set(js_string!("readyState"), JsValue::from(0), false, context)?;
+        xhr_obj_upcast.set(js_string!("status"), JsValue::from(0), false, context)?;
+        xhr_obj_upcast.set(js_string!("statusText"), JsValue::from(js_string!("")), false, context)?;
+        xhr_obj_upcast.set(js_string!("responseText"), JsValue::from(js_string!("")), false, context)?;
+        xhr_obj_upcast.set(js_string!("responseXML"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("timeout"), JsValue::from(0), false, context)?;
+        xhr_obj_upcast.set(js_string!("withCredentials"), JsValue::from(false), false, context)?;
 
         // Create empty upload object
         let upload_obj = JsObject::with_object_proto(context.intrinsics());
-        xhr_obj.set(js_string!("upload"), JsValue::from(upload_obj), false, context)?;
+        xhr_obj_upcast.set(js_string!("upload"), JsValue::from(upload_obj), false, context)?;
 
         // Event handlers
-        xhr_obj.set(js_string!("onreadystatechange"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("onload"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("onerror"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("onabort"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("ontimeout"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("onloadstart"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("onloadend"), JsValue::null(), false, context)?;
-        xhr_obj.set(js_string!("onprogress"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onreadystatechange"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onload"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onerror"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onabort"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("ontimeout"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onloadstart"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onloadend"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(js_string!("onprogress"), JsValue::null(), false, context)?;
 
-        Ok(xhr_obj.into())
+        Ok(xhr_obj_upcast.into())
     }
 }
 

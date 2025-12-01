@@ -241,7 +241,7 @@ impl NodeList {
             nodelist_data,
         );
 
-        Ok(nodelist_obj)
+        Ok(nodelist_obj.upcast())
     }
 
     /// Static method implementations for BuiltInBuilder
@@ -423,7 +423,7 @@ impl BuiltInConstructor for NodeList {
             nodelist_data,
         );
 
-        Ok(nodelist_obj.into())
+        Ok(nodelist_obj.upcast().into())
     }
 }
 

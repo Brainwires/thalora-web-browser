@@ -88,7 +88,7 @@ impl Worker {
             proto,
             self,
         );
-        Ok(object)
+        Ok(object.upcast())
     }
 
     /// Parse worker options from JavaScript object
@@ -188,7 +188,7 @@ impl Worker {
         // Create error object using JsNativeError
         let error_obj = JsNativeError::error()
             .with_message(message)
-            .to_opaque(context);
+            .into_opaque(context);
 
         // Call onerror handler if set
         if let Some(handler) = self.onerror.borrow().as_ref() {
