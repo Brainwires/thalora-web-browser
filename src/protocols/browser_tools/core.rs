@@ -69,7 +69,11 @@ impl BrowserTools {
 
     pub fn close_session(&self, session_id: &str) -> bool {
         let mut sessions = self.sessions.lock().unwrap();
-        if let Some((_, session)) = sessions.remove(session_id) {
+        if let Some((browser, session)) = sessions.remove(session_id) {
+            eprintln!("🧹 Closing session: {}", session_id);
+            // Explicitly drop browser to trigger cleanup
+            drop(browser);
+
             if session.persistent {
                 drop(self.remove_persistent_session(session_id));
             }
@@ -115,5 +119,22 @@ impl BrowserTools {
 impl Default for BrowserTools {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for BrowserTools {
+    fn drop(&mut self) {
+        eprintln!("🧹 BrowserTools shutting down, closing all sessions");
+        if let Ok(mut sessions) = self.sessions.lock() {
+            let session_ids: Vec<String> = sessions.keys().cloned().collect();
+            eprintln!("🧹 Closing {} active session(s)", session_ids.len());
+
+            for session_id in session_ids {
+                if let Some((browser, _)) = sessions.remove(&session_id) {
+                    drop(browser);
+                }
+            }
+            sessions.clear();
+        }
     }
 }

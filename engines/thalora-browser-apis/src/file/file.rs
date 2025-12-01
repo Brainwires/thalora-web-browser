@@ -104,6 +104,7 @@ impl IntrinsicObject for File {
             .method(Self::stream, js_string!("stream"), 0)
             .method(Self::text, js_string!("text"), 0)
             .method(Self::array_buffer, js_string!("arrayBuffer"), 0)
+            .method(Self::bytes, js_string!("bytes"), 0)
 
             // File-specific properties
             .accessor(
@@ -154,8 +155,8 @@ impl BuiltInConstructor for File {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::file;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 2;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     /// `new File(fileBits, fileName, options)`
     fn constructor(
@@ -357,15 +358,45 @@ impl File {
     }
 
     /// `File.prototype.stream()` - inherits from Blob
-    fn stream(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        // TODO: Return a ReadableStream
-        // For now, return undefined
-        Ok(JsValue::undefined())
+    ///
+    /// Returns a ReadableStream that can be used to read the file's contents.
+    fn stream(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let file_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("stream called on non-object")
+        })?;
+
+        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("stream called on non-File object")
+        })?;
+
+        // Create a ReadableStream from the file data
+        use crate::streams::readable_stream::ReadableStreamData;
+
+        let bytes = file_data.blob_data.data().to_vec();
+        let mut stream_data = ReadableStreamData::new(JsValue::undefined(), JsValue::undefined());
+
+        // Convert bytes to a Uint8Array-like chunk
+        // For simplicity, we'll enqueue the entire file as a single chunk
+        // In a more complete implementation, we'd chunk large files
+        let chunk = create_uint8array_from_bytes(&bytes, context)?;
+        stream_data.enqueue_chunk(chunk);
+        stream_data.close();
+
+        let stream = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context.intrinsics().constructors().readable_stream().prototype(),
+            stream_data,
+        );
+
+        eprintln!("File.stream(): Created ReadableStream with {} bytes", bytes.len());
+        Ok(stream.into())
     }
 
     /// `File.prototype.text()` - inherits from Blob
-    fn text(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let file_obj = _this.as_object().ok_or_else(|| {
+    ///
+    /// Returns a Promise that resolves to the file's contents as a UTF-8 string.
+    fn text(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let file_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("text called on non-object")
         })?;
 
@@ -375,26 +406,116 @@ impl File {
 
         // Convert bytes to UTF-8 string
         let text = String::from_utf8_lossy(file_data.blob_data.data());
+        let text_value = JsValue::from(js_string!(text.as_ref()));
 
-        // TODO: Return a Promise that resolves to the text
-        // For now, return the text directly
-        Ok(JsValue::from(js_string!(text.as_ref())))
+        // Return a Promise that resolves to the text
+        let promise_constructor = context.intrinsics().constructors().promise().constructor();
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[text_value],
+            context
+        )
     }
 
     /// `File.prototype.arrayBuffer()` - inherits from Blob
-    fn array_buffer(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let _file_obj = _this.as_object().ok_or_else(|| {
+    ///
+    /// Returns a Promise that resolves to the file's contents as an ArrayBuffer.
+    fn array_buffer(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let file_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("arrayBuffer called on non-object")
         })?;
 
-        let _file_data = _file_obj.downcast_ref::<FileData>().ok_or_else(|| {
+        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
             JsNativeError::typ().with_message("arrayBuffer called on non-File object")
         })?;
 
-        // TODO: Return a Promise that resolves to an ArrayBuffer
-        // For now, return undefined
-        Ok(JsValue::undefined())
+        // Create an ArrayBuffer from the file data
+        let bytes = file_data.blob_data.data();
+        let array_buffer = create_array_buffer_from_bytes(bytes, context)?;
+
+        // Return a Promise that resolves to the ArrayBuffer
+        let promise_constructor = context.intrinsics().constructors().promise().constructor();
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[array_buffer],
+            context
+        )
     }
+
+    /// `File.prototype.bytes()` - returns contents as a Uint8Array
+    ///
+    /// Returns a Promise that resolves to the file's contents as a Uint8Array.
+    fn bytes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let file_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("bytes called on non-object")
+        })?;
+
+        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("bytes called on non-File object")
+        })?;
+
+        // Create a Uint8Array from the file data
+        let bytes = file_data.blob_data.data();
+        let uint8array = create_uint8array_from_bytes(bytes, context)?;
+
+        // Return a Promise that resolves to the Uint8Array
+        let promise_constructor = context.intrinsics().constructors().promise().constructor();
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[uint8array],
+            context
+        )
+    }
+}
+
+/// Helper function to create a Uint8Array from bytes
+fn create_uint8array_from_bytes(bytes: &[u8], context: &mut Context) -> JsResult<JsValue> {
+    // Create an array of byte values
+    let byte_values: Vec<JsValue> = bytes.iter().map(|&b| JsValue::from(b)).collect();
+
+    // Create a Uint8Array using its constructor with array of values
+    let uint8array_constructor = context.intrinsics().constructors().typed_uint8_array().constructor();
+
+    // Create a JS array with the byte values
+    let js_array = boa_engine::object::JsArray::new(context);
+    for (i, val) in byte_values.into_iter().enumerate() {
+        js_array.set(i as u32, val, false, context)?;
+    }
+
+    // Construct Uint8Array from the array
+    let uint8array = uint8array_constructor.construct(
+        &[js_array.into()],
+        Some(&uint8array_constructor),
+        context
+    )?;
+
+    Ok(uint8array.into())
+}
+
+/// Helper function to create an ArrayBuffer from bytes
+fn create_array_buffer_from_bytes(bytes: &[u8], context: &mut Context) -> JsResult<JsValue> {
+    // For ArrayBuffer, we create it via Uint8Array's buffer property
+    // This is a workaround since direct ArrayBuffer manipulation is complex
+
+    // Create Uint8Array first
+    let uint8array = create_uint8array_from_bytes(bytes, context)?;
+
+    // Get the buffer property from the Uint8Array
+    if let Some(uint8array_obj) = uint8array.as_object() {
+        let buffer = uint8array_obj.get(js_string!("buffer"), context)?;
+        return Ok(buffer);
+    }
+
+    // Fallback: create empty ArrayBuffer
+    let array_buffer_constructor = context.intrinsics().constructors().array_buffer().constructor();
+    let length = JsValue::from(bytes.len());
+    let array_buffer = array_buffer_constructor.construct(
+        &[length],
+        Some(&array_buffer_constructor),
+        context
+    )?;
+
+    Ok(array_buffer.into())
 }
 
 /// `get File.prototype.name`

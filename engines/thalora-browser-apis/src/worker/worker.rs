@@ -122,7 +122,7 @@ impl Worker {
     /// Poll for events from the worker and dispatch them
     pub fn poll_events(&self, worker_obj: &JsObject, context: &mut Context) -> JsResult<()> {
         if let Ok(worker_thread_lock) = self.worker_thread.lock() {
-            if let Some(ref mut worker_thread) = &mut worker_thread_lock.as_ref() {
+            if let Some(worker_thread) = worker_thread_lock.as_ref() {
                 // Process all pending events
                 while let Some(event) = worker_thread.try_recv_event() {
                     match event {
@@ -328,8 +328,8 @@ impl IntrinsicObject for WorkerConstructor {
 
 impl BuiltInConstructor for WorkerConstructor {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 6;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::worker;

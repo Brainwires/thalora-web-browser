@@ -91,6 +91,12 @@ mod geolocation_coordinates_accuracy {
     include!("apis/geolocation/coordinates_accuracy.rs");
 }
 
+// Navigator API tests
+mod navigator_plugins_property {
+    use super::*;
+    include!("apis/navigator/plugins_property.rs");
+}
+
 // Worker API tests
 mod worker_basic {
     use super::*;

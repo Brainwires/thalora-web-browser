@@ -7,9 +7,26 @@ pub mod document_fragment;
 pub mod document_parse;
 pub mod domtokenlist;
 pub mod element;
+
+// Native-only implementations using reqwest
+#[cfg(feature = "native")]
+pub mod html_image_element;
+
+// WASM stubs - browser's native APIs are used directly
+#[cfg(feature = "wasm")]
+pub mod html_image_element_wasm;
+#[cfg(feature = "wasm")]
+pub use html_image_element_wasm as html_image_element;
+
+pub mod htmlcollection;
+pub mod image_bitmap;
+pub mod namednodemap;
 pub mod node;
+pub mod nodeiterator;
+pub mod treewalker;
 pub mod nodelist;
 pub mod range;
+pub mod selection;
 pub mod shadow;
 pub mod text;
 

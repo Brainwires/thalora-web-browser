@@ -1,8 +1,14 @@
 use anyhow::Result;
 use thalora_browser_apis::boa_engine::{Context, Source};
+use thalora_constants::USER_AGENT;
 
 /// Setup URL and URLSearchParams API
 pub fn setup_url_api(context: &mut Context) -> Result<()> {
+    // First inject the USER_AGENT as a global constant
+    context.eval(Source::from_bytes(&format!("const THALORA_USER_AGENT = '{}';", USER_AGENT)))
+        .map_err(|e| anyhow::anyhow!("Failed to set USER_AGENT constant: {}", e))?;
+
+    // Then run the polyfill which uses that constant
     context.eval(Source::from_bytes(r#"
         // Create window object if it doesn't exist
         if (typeof window === 'undefined') {
@@ -32,8 +38,8 @@ pub fn setup_url_api(context: &mut Context) -> Result<()> {
 
         if (!window.navigator) {
             window.navigator = {
-                userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                platform: 'MacIntel',
+                userAgent: THALORA_USER_AGENT,
+                platform: 'Win32',
                 language: 'en-US',
                 languages: ['en-US', 'en'],
                 cookieEnabled: true,

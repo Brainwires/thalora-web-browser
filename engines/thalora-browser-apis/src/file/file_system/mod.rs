@@ -69,8 +69,8 @@ impl IntrinsicObject for FileSystemHandle {
 
 impl BuiltInConstructor for FileSystemHandle {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
         boa_engine::context::intrinsics::StandardConstructors::file_system_handle;
 
@@ -173,8 +173,8 @@ impl IntrinsicObject for FileSystemFileHandle {
 
 impl BuiltInConstructor for FileSystemFileHandle {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
         boa_engine::context::intrinsics::StandardConstructors::file_system_file_handle;
 
@@ -462,8 +462,8 @@ impl IntrinsicObject for FileSystemDirectoryHandle {
 
 impl BuiltInConstructor for FileSystemDirectoryHandle {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
         boa_engine::context::intrinsics::StandardConstructors::file_system_directory_handle;
 

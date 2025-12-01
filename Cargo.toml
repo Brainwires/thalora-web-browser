@@ -1,8 +1,7 @@
 [package]
 name = "thalora"
 version = "0.1.0"
-edition = "2021"
-resolver = "2"
+edition = "2024"
 description = "Pure Rust headless browser for AI models - fast, secure web content extraction with MCP integration"
 authors = ["Brainwires Team"]
 license = "MIT"
@@ -10,14 +9,32 @@ repository = "https://github.com/brainwires/thalora"
 keywords = ["headless-browser", "ai", "mcp", "web-scraping", "rust"]
 categories = ["web-programming", "parsing"]
 
+# Define thalora as its own workspace root (prevents cargo from trying to merge with parent workspace)
+[workspace]
+resolver = "2"
+# Exclude boa submodule - it has its own workspace
+exclude = ["engines/boa"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Configure getrandom for WASM builds
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 [dependencies]
+# Shared constants
+thalora-constants = { path = "shared/thalora-constants" }
+
 # MCP protocol
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1", features = ["full"] }
 
-# HTTP client
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart"], default-features = false }
+# Async runtime (native only)
+tokio = { version = "1", features = ["full"], optional = true }
+
+# HTTP client (native only)
+reqwest = { version = "0.12", features = ["json", "native-tls", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart"], default-features = false, optional = true }
 
 # HTML parsing
 scraper = "0.24"
@@ -29,40 +46,50 @@ lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
 
 # Browser APIs - extracted from Boa engine for modular architecture
-thalora-browser-apis = { path = "engines/thalora-browser-apis" }
+thalora-browser-apis = { path = "engines/thalora-browser-apis", default-features = false }
 
 # Boa engine - required for macros like js_string!
-boa_engine = { path = "engines/boa/core/engine" }
+boa_engine = { path = "engines/boa/core/engine", default-features = false }
 
 # Async trait support for engine abstraction
 async-trait = "0.1"
 
-# WebAssembly runtime - Full V8-compatible stack
-wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"] }
-wasmtime-wasi = "21.0"
-wasmtime-wast = "21.0"
-wasm-bindgen = "0.2"
-wat = "1.0"
-wasmparser = "0.121"
-wasm-encoder = "0.38"
+# WebAssembly runtime - Full V8-compatible stack (native only - can't run wasmtime inside WASM)
+wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"], optional = true }
+wasmtime-wasi = { version = "21.0", optional = true }
+wasmtime-wast = { version = "21.0", optional = true }
+wat = { version = "1.0", optional = true }
+wasmparser = { version = "0.121", optional = true }
+wasm-encoder = { version = "0.38", optional = true }
 
-# Geolocation services
-sysinfo = "0.31"
-ipgeolocate = "0.3"
+# Geolocation services (native only)
+sysinfo = { version = "0.31", optional = true }
+ipgeolocate = { version = "0.3", optional = true }
 
-# WebRTC implementation
-webrtc = "0.11"
-webrtc-util = "0.8"
-webrtc-data = "0.7"
-webrtc-media = "0.6"
-webrtc-ice = "0.10"
-webrtc-dtls = "0.7"
+# WebRTC implementation (native only)
+webrtc = { version = "0.11", optional = true }
+webrtc-util = { version = "0.8", optional = true }
+webrtc-data = { version = "0.7", optional = true }
+webrtc-media = { version = "0.6", optional = true }
+webrtc-ice = { version = "0.10", optional = true }
+webrtc-dtls = { version = "0.7", optional = true }
 
-# Audio/Media processing
-cpal = "0.15"
-hound = "3.5"
-symphonia = "0.5"
-rodio = "0.19"
+# Audio/Media processing (native only)
+cpal = { version = "0.15", optional = true }
+hound = { version = "3.5", optional = true }
+symphonia = { version = "0.5", features = ["all"], optional = true }
+rodio = { version = "0.19", optional = true }
+
+# Image processing (Phase 3: Media & Graphics)
+image = { version = "0.25", features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff"] }
+
+# 2D Graphics rendering (Phase 3: Canvas)
+tiny-skia = "0.11"
+fontdb = "0.16"
+rustybuzz = "0.12"
+
+# Video processing (Phase 3: Video) - native only
+ffmpeg-next = { version = "7.0", optional = true }
 
 # Error handling
 anyhow = "1.0"
@@ -87,11 +114,11 @@ urlencoding = "2.1"
 # Async utilities
 futures = "0.3"
 
-# STDIO handling
-tokio-util = { version = "0.7", features = ["codec"] }
+# STDIO handling (native only)
+tokio-util = { version = "0.7", features = ["codec"], optional = true }
 
-# Command line argument parsing
-clap = { version = "4.0", features = ["derive"] }
+# Command line argument parsing (native only)
+clap = { version = "4.0", features = ["derive"], optional = true }
 
 # Regex for JavaScript processing
 regex = "1.10"
@@ -100,17 +127,25 @@ regex = "1.10"
 html-escape = "0.2"
 
 # UUID generation for WebSocket connections
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "js"] }
 
-# WebSocket implementation
-tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
-tungstenite = "0.20"
+# WebSocket implementation (native only)
+tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
+tungstenite = { version = "0.20", optional = true }
 futures-util = "0.3"
 
 # Service Worker implementation (extends existing tokio features)
 
 # Challenge solving dependencies
 base64 = "0.22"
+
+# Cryptography - AES-256-GCM encryption for credentials
+aes-gcm = "0.10"
+argon2 = { version = "0.5", features = ["std"] }
+sha2 = "0.10"
+
+# IP address parsing and validation for SSRF prevention
+ipnetwork = "0.20"
 
 # CDP (Chrome DevTools Protocol) support
 chrono = { version = "0.4", features = ["serde"] }
@@ -126,22 +161,110 @@ env_logger = { version = "0.11", optional = true }
 log = { version = "0.4", optional = true }
 
 # AI Memory Heap for persistent storage
-dirs = "5.0"
+dirs = { version = "5.0", optional = true }
 vfs = { path = "vfs", default-features = false }
+
+# ============ WASM-only dependencies ============
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"], optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window", "Document", "Element", "Event", "EventTarget",
+    "Request", "RequestInit", "RequestMode", "Response", "Headers", "Blob",
+    "WebSocket", "MessageEvent", "CloseEvent",
+    "Storage",
+    "IdbFactory", "IdbDatabase", "IdbTransaction", "IdbObjectStore", "IdbRequest",
+    "AudioContext", "GainNode", "AudioBufferSourceNode",
+    "HtmlVideoElement", "HtmlAudioElement", "MediaStream",
+    "RtcPeerConnection", "RtcDataChannel", "RtcSessionDescription",
+    "Navigator", "Geolocation", "Clipboard",
+    "HtmlCanvasElement", "CanvasRenderingContext2d",
+    "Performance", "Crypto", "SubtleCrypto",
+], optional = true }
 
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
+required-features = ["native"]
 
 [features]
-default = []
-# GUI mode with winit and wgpu for graphical browser interface
-gui = ["winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
+default = ["native"]
+
+# Native build - includes all platform-specific dependencies
+native = [
+    "dep:tokio",
+    "dep:reqwest",
+    "dep:tokio-tungstenite",
+    "dep:tungstenite",
+    "dep:tokio-util",
+    "dep:clap",
+    "dep:cpal",
+    "dep:hound",
+    "dep:symphonia",
+    "dep:rodio",
+    "dep:ffmpeg-next",
+    "dep:webrtc",
+    "dep:webrtc-util",
+    "dep:webrtc-data",
+    "dep:webrtc-media",
+    "dep:webrtc-ice",
+    "dep:webrtc-dtls",
+    "dep:sysinfo",
+    "dep:ipgeolocate",
+    "dep:dirs",
+    "dep:wasmtime",
+    "dep:wasmtime-wasi",
+    "dep:wasmtime-wast",
+    "dep:wat",
+    "dep:wasmparser",
+    "dep:wasm-encoder",
+    # Enable native features in sub-crates
+    "thalora-browser-apis/native",
+    "boa_engine/native",
+]
+
+# WASM build - uses web-sys for browser API delegation
+wasm = [
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:js-sys",
+    "dep:web-sys",
+    "dep:serde-wasm-bindgen",
+    "dep:console_error_panic_hook",
+    # Enable wasm features in sub-crates
+    "thalora-browser-apis/wasm",
+    "boa_engine/wasm",
+]
+
+# GUI mode with winit and wgpu for graphical browser interface (native only)
+gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
+
+# Minimal build for web search/scraping only (no audio, video, WebRTC, wasmtime)
+web-search = [
+    "dep:tokio",
+    "dep:reqwest",
+    "dep:tokio-util",
+    "dep:dirs",
+    # Enable native features in sub-crates
+    "thalora-browser-apis/native",
+    "boa_engine/native",
+]
 
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
 
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-bulk-memory"]
 
 # Resolver to handle dependency conflicts
 [package.metadata.docs.rs]

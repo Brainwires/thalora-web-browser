@@ -2,6 +2,11 @@
 //!
 //! Web standard APIs extracted from Boa engine fork for use in Thalora browser.
 
+// Many functions in this crate are used as callbacks for Boa engine's builtin system
+// (passed to BuiltInBuilder::callable()) but the compiler doesn't detect them as "used".
+// Additionally, some stub implementations for WASM exist for API compatibility.
+#![allow(dead_code)]
+
 // Re-export Boa engine types needed for API bindings
 pub use boa_engine;
 
@@ -53,6 +58,24 @@ pub mod misc;
 // Web Locks API
 pub mod locks;
 
+// Canvas API
+pub mod canvas;
+
+// Audio API
+pub mod audio;
+
+// Video API
+pub mod video;
+
+// WebGL API
+pub mod webgl;
+
+// Web Components API
+pub mod web_components;
+
+// Intl API (provided by Boa engine, tests only)
+pub mod intl;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
@@ -69,18 +92,47 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // Initialize Event APIs (foundational for DOM)
     events::event::Event::init(&realm);
     events::event_target::EventTarget::init(&realm);
+    events::ui_events::UIEvent::init(&realm);
+    events::ui_events::KeyboardEvent::init(&realm);
+    events::ui_events::MouseEvent::init(&realm);
+    events::ui_events::FocusEvent::init(&realm);
+    events::ui_events::InputEvent::init(&realm);
 
     // Initialize DOM APIs
     dom::node::Node::init(&realm);
     dom::attr::Attr::init(&realm);
     dom::nodelist::NodeList::init(&realm);
     dom::domtokenlist::DOMTokenList::init(&realm);
+    dom::htmlcollection::HTMLCollection::init(&realm);
+    dom::namednodemap::NamedNodeMap::init(&realm);
+    dom::treewalker::TreeWalker::init(&realm);
+    dom::nodeiterator::NodeIterator::init(&realm);
     dom::document::Document::init(&realm);
     dom::element::Element::init(&realm);
     dom::character_data::CharacterData::init(&realm);
     dom::text::Text::init(&realm);
     dom::document_fragment::DocumentFragment::init(&realm);
     dom::range::Range::init(&realm);
+    dom::selection::Selection::init(&realm);
+    dom::html_image_element::HTMLImageElement::init(&realm);
+    dom::image_bitmap::ImageBitmap::init(&realm);
+
+    // Initialize Canvas APIs
+    canvas::path::Path2D::init(&realm);
+    canvas::html_canvas_element::HTMLCanvasElement::init(&realm);
+    canvas::rendering_context_2d::CanvasRenderingContext2D::init(&realm);
+    canvas::offscreen_canvas::OffscreenCanvas::init(&realm);
+
+    // Initialize Audio APIs
+    audio::html_audio_element::HTMLAudioElement::init(&realm);
+    audio::audio_context::AudioContext::init(&realm);
+
+    // Initialize Video APIs
+    video::html_video_element::HTMLVideoElement::init(&realm);
+
+    // Initialize WebGL APIs
+    webgl::context::WebGLRenderingContext::init(&realm);
+    webgl::context2::WebGL2RenderingContext::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -93,6 +145,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     storage::storage::Storage::init(&realm);
     storage::storage_event::StorageEvent::init(&realm);
     storage::storage_manager::StorageManager::init(&realm);
+
+    // Initialize Cache API
+    storage::cache::Cache::init(&realm);
+    storage::cache::CacheStorage::init(&realm);
 
     // Initialize IndexedDB APIs
     storage::indexed_db::key_range::IDBKeyRange::init(&realm);
@@ -119,8 +175,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Observer APIs
     observers::intersection_observer::IntersectionObserver::init(&realm);
+    observers::intersection_observer::IntersectionObserverEntry::init(&realm);
     observers::mutation_observer::MutationObserver::init(&realm);
+    observers::mutation_observer::MutationRecord::init(&realm);
     observers::resize_observer::ResizeObserver::init(&realm);
+    observers::performance_observer::PerformanceObserver::init(context);
 
     // Initialize Messaging APIs
     messaging::broadcast_channel::BroadcastChannel::init(&realm);
@@ -132,6 +191,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     misc::css::Css::init(&realm);
     misc::form::HTMLFormElement::init(&realm);
     misc::form::HTMLInputElement::init(&realm);
+    misc::form::HTMLSelectElement::init(&realm);
+    misc::form::HTMLTextAreaElement::init(&realm);
+    misc::form::HTMLOptionElement::init(&realm);
+    misc::form::ValidityState::init(&realm);
 
     // Initialize Streams APIs
     streams::readable_stream::ReadableStream::init(&realm);
@@ -140,11 +203,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     streams::queuing_strategy::CountQueuingStrategy::init(&realm);
     streams::queuing_strategy::ByteLengthQueuingStrategy::init(&realm);
 
+    // Initialize Web Components APIs
+    web_components::custom_element_registry::CustomElementRegistry::init(context);
+    web_components::html_template_element::HTMLTemplateElement::init(context);
+
     // Initialize Fetch APIs
     fetch::fetch::Fetch::init(&realm);
     fetch::fetch::Request::init(&realm);
     fetch::fetch::Response::init(&realm);
     fetch::fetch::Headers::init(&realm);
+    fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
 
     // Register browser APIs as global properties
     let global_object = context.global_object();
@@ -216,6 +284,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         fetch::fetch::Headers::NAME,
         PropertyDescriptor::builder()
             .value(fetch::fetch::Headers::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        fetch::xmlhttprequest::XmlHttpRequest::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -508,11 +586,191 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // HTMLImageElement - real image element with image loading and decoding
+    global_object.define_property_or_throw(
+        dom::html_image_element::HTMLImageElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_image_element::HTMLImageElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Also expose as "Image" constructor for compatibility with `new Image()`
+    global_object.define_property_or_throw(
+        js_string!("Image"),
+        PropertyDescriptor::builder()
+            .value(dom::html_image_element::HTMLImageElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // ImageBitmap constructor
+    global_object.define_property_or_throw(
+        dom::image_bitmap::ImageBitmap::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::image_bitmap::ImageBitmap::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // createImageBitmap global function
+    let create_image_bitmap_fn = boa_engine::object::FunctionObjectBuilder::new(
+        context.realm(),
+        boa_engine::NativeFunction::from_fn_ptr(dom::image_bitmap::create_image_bitmap),
+    )
+    .name("createImageBitmap")
+    .length(1)
+    .build();
+    global_object.set(
+        js_string!("createImageBitmap"),
+        create_image_bitmap_fn,
+        false,
+        context,
+    )?;
+
+    // Canvas APIs
+    global_object.define_property_or_throw(
+        canvas::path::Path2D::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::path::Path2D::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        canvas::html_canvas_element::HTMLCanvasElement::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::html_canvas_element::HTMLCanvasElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        canvas::rendering_context_2d::CanvasRenderingContext2D::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::rendering_context_2d::CanvasRenderingContext2D::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        canvas::offscreen_canvas::OffscreenCanvas::NAME,
+        PropertyDescriptor::builder()
+            .value(canvas::offscreen_canvas::OffscreenCanvas::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Audio APIs
+    global_object.define_property_or_throw(
+        audio::html_audio_element::HTMLAudioElement::NAME,
+        PropertyDescriptor::builder()
+            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Also expose as "Audio" constructor for compatibility with `new Audio()`
+    global_object.define_property_or_throw(
+        js_string!("Audio"),
+        PropertyDescriptor::builder()
+            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // AudioContext - Web Audio API
+    global_object.define_property_or_throw(
+        audio::audio_context::AudioContext::NAME,
+        PropertyDescriptor::builder()
+            .value(audio::audio_context::AudioContext::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Video APIs
+    global_object.define_property_or_throw(
+        video::html_video_element::HTMLVideoElement::NAME,
+        PropertyDescriptor::builder()
+            .value(video::html_video_element::HTMLVideoElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // Browser APIs
     global_object.define_property_or_throw(
         browser::navigator::Navigator::NAME,
         PropertyDescriptor::builder()
             .value(browser::navigator::Navigator::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Notification constructor (Web Notifications API)
+    let notification_constructor = browser::notification::create_notification_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("Notification"),
+        PropertyDescriptor::builder()
+            .value(notification_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // ClipboardItem constructor (Async Clipboard API)
+    let clipboard_item_constructor = browser::clipboard::create_clipboard_item_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("ClipboardItem"),
+        PropertyDescriptor::builder()
+            .value(clipboard_item_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // WebGL constructors (with static constants per Web spec)
+    let webgl_constructor = webgl::WebGLRenderingContext::create_global_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("WebGLRenderingContext"),
+        PropertyDescriptor::builder()
+            .value(webgl_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    let webgl2_constructor = webgl::WebGL2RenderingContext::create_global_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("WebGL2RenderingContext"),
+        PropertyDescriptor::builder()
+            .value(webgl2_constructor)
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -871,6 +1129,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         boa_engine::js_string!("showDirectoryPicker"),
         show_directory_picker_fn,
         false,
+        context,
+    )?;
+
+    // Register XMLHttpRequest as global
+    global_object.define_property_or_throw(
+        fetch::xmlhttprequest::XmlHttpRequest::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
         context,
     )?;
 

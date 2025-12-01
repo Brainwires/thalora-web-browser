@@ -1,5 +1,5 @@
 //! Comprehensive test suite for Observer APIs
-//! Tests IntersectionObserver, MutationObserver, and ResizeObserver
+//! Tests IntersectionObserver, MutationObserver, ResizeObserver, and PerformanceObserver
 
 use crate::boa_engine::{Context, Source, JsValue};
 use crate::boa_engine::string::JsString;
@@ -272,6 +272,201 @@ fn test_observer_callback_signature() {
         let mo = new MutationObserver((mutations, observer) => {});
         let ro = new ResizeObserver((entries, observer) => {});
         io !== null && mo !== null && ro !== null;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// PerformanceObserver Tests
+// ============================================================================
+
+#[test]
+fn test_performance_observer_constructor_exists() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof PerformanceObserver")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_performance_observer_constructor_basic() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        observer !== null && observer !== undefined;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_requires_callback() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            new PerformanceObserver();
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_observe_method() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        typeof observer.observe === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_disconnect_method() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        typeof observer.disconnect === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_takerecords_method() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        typeof observer.takeRecords === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_supported_entry_types() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        Array.isArray(PerformanceObserver.supportedEntryTypes);
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_supported_entry_types_contains_mark() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        PerformanceObserver.supportedEntryTypes.includes('mark');
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_supported_entry_types_contains_measure() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        PerformanceObserver.supportedEntryTypes.includes('measure');
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_observe_with_entry_types() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        observer.observe({ entryTypes: ['mark', 'measure'] });
+        true;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_observe_with_type() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        observer.observe({ type: 'mark' });
+        true;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_observe_requires_options() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            let observer = new PerformanceObserver(() => {});
+            observer.observe();
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_observe_requires_entry_types_or_type() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            let observer = new PerformanceObserver(() => {});
+            observer.observe({});
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_observe_cannot_use_both() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            let observer = new PerformanceObserver(() => {});
+            observer.observe({ entryTypes: ['mark'], type: 'measure' });
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_disconnect() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        observer.observe({ entryTypes: ['mark'] });
+        observer.disconnect();
+        true;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_performance_observer_take_records_returns_array() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let observer = new PerformanceObserver(() => {});
+        observer.observe({ entryTypes: ['mark'] });
+        let records = observer.takeRecords();
+        Array.isArray(records);
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_all_observers_including_performance() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        typeof IntersectionObserver === 'function' &&
+        typeof MutationObserver === 'function' &&
+        typeof ResizeObserver === 'function' &&
+        typeof PerformanceObserver === 'function';
     "#)).unwrap();
     assert_eq!(result.to_boolean(), true);
 }

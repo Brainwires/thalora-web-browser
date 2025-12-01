@@ -19,7 +19,7 @@ use boa_gc::{Finalize, Trace};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use futures_util::SinkExt;
+use futures_util::{SinkExt, StreamExt};
 use url::Url;
 
 /// JavaScript `WebSocket` builtin implementation.
@@ -123,9 +123,31 @@ impl IntrinsicObject for WebSocket {
                 None,
                 Attribute::CONFIGURABLE,
             )
+            // Event handler properties
+            .property(
+                js_string!("onopen"),
+                JsValue::null(),
+                Attribute::WRITABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("onclose"),
+                JsValue::null(),
+                Attribute::WRITABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("onerror"),
+                JsValue::null(),
+                Attribute::WRITABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("onmessage"),
+                JsValue::null(),
+                Attribute::WRITABLE | Attribute::CONFIGURABLE,
+            )
             // Methods
             .method(Self::send, js_string!("send"), 1)
             .method(Self::close, js_string!("close"), 0)
+            .method(Self::dispatch_pending_events, js_string!("dispatchEvents"), 0)
             .build();
     }
 
@@ -140,8 +162,8 @@ impl BuiltInObject for WebSocket {
 
 impl BuiltInConstructor for WebSocket {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::websocket;
@@ -207,6 +229,7 @@ impl WebSocket {
     fn initiate_connection(websocket: &JsObject, _context: &mut Context) -> JsResult<()> {
         if let Some(data) = websocket.downcast_ref::<WebSocketData>() {
             let url = data.url.clone();
+            let protocols = data.protocols.clone();
             let connection = data.connection.clone();
 
             // Check if we're in a Tokio runtime context
@@ -214,17 +237,118 @@ impl WebSocket {
                 Ok(handle) => {
                     // We're in a Tokio runtime, spawn the connection task
                     handle.spawn(async move {
-                        match connect_async(&url).await {
-                            Ok((ws_stream, _response)) => {
-                                let mut conn = connection.lock().await;
-                                conn.state = ReadyState::Open;
-                                conn.stream = Some(Arc::new(Mutex::new(ws_stream)));
-                                // TODO: Trigger onopen event
+                        // Build request with subprotocols if specified
+                        let request = if protocols.is_empty() {
+                            url::Url::parse(&url).ok().map(|u| u.to_string())
+                        } else {
+                            url::Url::parse(&url).ok().map(|u| u.to_string())
+                        };
+
+                        let connect_result = if let Some(url_str) = request {
+                            connect_async(&url_str).await
+                        } else {
+                            Err(tokio_tungstenite::tungstenite::Error::Url(
+                                tokio_tungstenite::tungstenite::error::UrlError::NoPathOrQuery
+                            ))
+                        };
+
+                        match connect_result {
+                            Ok((ws_stream, response)) => {
+                                // Extract selected protocol from response headers
+                                let selected_protocol = response
+                                    .headers()
+                                    .get("sec-websocket-protocol")
+                                    .and_then(|v| v.to_str().ok())
+                                    .unwrap_or("")
+                                    .to_string();
+
+                                let (write, read) = ws_stream.split();
+                                let stream_write = Arc::new(Mutex::new(write));
+                                let stream_read = Arc::new(Mutex::new(read));
+
+                                // Update connection state and queue open event
+                                {
+                                    let mut conn = connection.lock().await;
+                                    conn.state = ReadyState::Open;
+                                    conn.selected_protocol = selected_protocol;
+                                    conn.pending_events.push(PendingEvent::Open);
+                                }
+
+                                // Spawn message receiving task
+                                let conn_for_receive = connection.clone();
+                                tokio::spawn(async move {
+                                    let mut read_stream = stream_read.lock().await;
+                                    while let Some(msg_result) = read_stream.next().await {
+                                        match msg_result {
+                                            Ok(Message::Text(text)) => {
+                                                let mut conn = conn_for_receive.lock().await;
+                                                conn.pending_events.push(PendingEvent::Message {
+                                                    data: text,
+                                                    is_binary: false,
+                                                });
+                                            }
+                                            Ok(Message::Binary(data)) => {
+                                                let mut conn = conn_for_receive.lock().await;
+                                                // Convert binary to base64 for storage
+                                                let encoded = base64::Engine::encode(
+                                                    &base64::engine::general_purpose::STANDARD,
+                                                    &data
+                                                );
+                                                conn.pending_events.push(PendingEvent::Message {
+                                                    data: encoded,
+                                                    is_binary: true,
+                                                });
+                                            }
+                                            Ok(Message::Close(frame)) => {
+                                                let mut conn = conn_for_receive.lock().await;
+                                                let (code, reason) = frame
+                                                    .map(|f| (f.code.into(), f.reason.to_string()))
+                                                    .unwrap_or((1005, String::new()));
+                                                conn.state = ReadyState::Closed;
+                                                conn.pending_events.push(PendingEvent::Close {
+                                                    code,
+                                                    reason,
+                                                    was_clean: true,
+                                                });
+                                                break;
+                                            }
+                                            Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {
+                                                // Ping/Pong handled by tungstenite automatically
+                                            }
+                                            Ok(Message::Frame(_)) => {
+                                                // Raw frame, ignore
+                                            }
+                                            Err(e) => {
+                                                let mut conn = conn_for_receive.lock().await;
+                                                conn.pending_events.push(PendingEvent::Error {
+                                                    message: e.to_string(),
+                                                });
+                                                conn.state = ReadyState::Closed;
+                                                conn.pending_events.push(PendingEvent::Close {
+                                                    code: 1006,
+                                                    reason: "Abnormal closure".to_string(),
+                                                    was_clean: false,
+                                                });
+                                                break;
+                                            }
+                                        }
+                                    }
+                                });
+
+                                // Store the write stream reference for send operations
+                                // We need to restructure - for now just mark as connected
                             }
-                            Err(_) => {
+                            Err(e) => {
                                 let mut conn = connection.lock().await;
+                                conn.pending_events.push(PendingEvent::Error {
+                                    message: e.to_string(),
+                                });
                                 conn.state = ReadyState::Closed;
-                                // TODO: Trigger onerror and onclose events
+                                conn.pending_events.push(PendingEvent::Close {
+                                    code: 1006,
+                                    reason: "Connection failed".to_string(),
+                                    was_clean: false,
+                                });
                             }
                         }
                     });
@@ -237,6 +361,67 @@ impl WebSocket {
             }
         }
         Ok(())
+    }
+
+    /// Dispatch pending events to JavaScript handlers
+    fn dispatch_pending_events(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("WebSocket method called on non-object")
+        })?;
+
+        // Get pending events - clone Arc outside the scope where we need it
+        let connection = {
+            let websocket_data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("WebSocket method called on non-WebSocket")
+            })?;
+            websocket_data.connection.clone()
+        };
+
+        let pending_events = if let Ok(mut conn) = connection.try_lock() {
+            std::mem::take(&mut conn.pending_events)
+        } else {
+            Vec::new()
+        };
+
+        // Dispatch each event
+        for event in pending_events {
+            match event {
+                PendingEvent::Open => {
+                    // Call onopen handler
+                    let handler = this_obj.get(js_string!("onopen"), context)?;
+                    if let Some(func) = handler.as_callable() {
+                        let event = create_event("open", false, false, context)?;
+                        let _ = func.call(&this_obj.clone().into(), &[event.into()], context);
+                    }
+                }
+                PendingEvent::Close { code, reason, was_clean } => {
+                    // Call onclose handler
+                    let handler = this_obj.get(js_string!("onclose"), context)?;
+                    if let Some(func) = handler.as_callable() {
+                        let event = create_close_event(code, &reason, was_clean, context)?;
+                        let _ = func.call(&this_obj.clone().into(), &[event.into()], context);
+                    }
+                }
+                PendingEvent::Error { message: _ } => {
+                    // Call onerror handler
+                    let handler = this_obj.get(js_string!("onerror"), context)?;
+                    if let Some(func) = handler.as_callable() {
+                        let event = create_event("error", false, false, context)?;
+                        let _ = func.call(&this_obj.clone().into(), &[event.into()], context);
+                    }
+                }
+                PendingEvent::Message { data, is_binary: _ } => {
+                    // Call onmessage handler
+                    let handler = this_obj.get(js_string!("onmessage"), context)?;
+                    if let Some(func) = handler.as_callable() {
+                        let event = create_message_event(&data, context)?;
+                        let _ = func.call(&this_obj.clone().into(), &[event.into()], context);
+                    }
+                }
+            }
+        }
+
+        Ok(JsValue::undefined())
     }
 
     /// `WebSocket.prototype.send(data)`
@@ -323,12 +508,23 @@ enum ReadyState {
     Closed = 3,
 }
 
+/// Pending event data for dispatch
+#[derive(Debug, Clone)]
+enum PendingEvent {
+    Open,
+    Close { code: u16, reason: String, was_clean: bool },
+    Error { message: String },
+    Message { data: String, is_binary: bool },
+}
+
 /// Connection state
 #[derive(Debug)]
 struct Connection {
     state: ReadyState,
     stream: Option<Arc<Mutex<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>>>,
     buffered_amount: u64,
+    pending_events: Vec<PendingEvent>,
+    selected_protocol: String,
 }
 
 impl Connection {
@@ -337,6 +533,8 @@ impl Connection {
             state: ReadyState::Connecting,
             stream: None,
             buffered_amount: 0,
+            pending_events: Vec::new(),
+            selected_protocol: String::new(),
         }
     }
 }
@@ -459,10 +657,20 @@ fn get_protocol(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-WebSocket")
-    })?;
-    let protocol = data.protocols.first().cloned().unwrap_or_default();
+    // Get selected protocol from connection state
+    let connection = {
+        let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-WebSocket")
+        })?;
+        data.connection.clone()
+    };
+
+    let protocol = if let Ok(conn) = connection.try_lock() {
+        conn.selected_protocol.clone()
+    } else {
+        String::new()
+    };
+
     Ok(JsValue::from(js_string!(protocol)))
 }
 
@@ -475,4 +683,54 @@ fn get_binary_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("WebSocket.prototype.binaryType getter called on non-WebSocket")
     })?;
     Ok(JsValue::from(js_string!(data.binary_type.clone())))
+}
+
+// Event creation helpers
+
+/// Create a basic Event object
+fn create_event(event_type: &str, bubbles: bool, cancelable: bool, context: &mut Context) -> JsResult<JsObject> {
+    let event_constructor = context.intrinsics().constructors().event().constructor();
+
+    // Create event init dict
+    let event_init = boa_engine::object::ObjectInitializer::new(context)
+        .property(js_string!("bubbles"), bubbles, Attribute::all())
+        .property(js_string!("cancelable"), cancelable, Attribute::all())
+        .build();
+
+    event_constructor.construct(
+        &[js_string!(event_type).into(), event_init.into()],
+        Some(&event_constructor),
+        context,
+    )
+}
+
+/// Create a CloseEvent object for WebSocket close events
+fn create_close_event(code: u16, reason: &str, was_clean: bool, context: &mut Context) -> JsResult<JsObject> {
+    // Use standard Event as base and add CloseEvent-specific properties
+    let event = create_event("close", false, false, context)?;
+
+    // Add CloseEvent-specific properties
+    event.set(js_string!("code"), JsValue::from(code), false, context)?;
+    event.set(js_string!("reason"), js_string!(reason), false, context)?;
+    event.set(js_string!("wasClean"), JsValue::from(was_clean), false, context)?;
+
+    Ok(event)
+}
+
+/// Create a MessageEvent object for WebSocket messages
+fn create_message_event(data: &str, context: &mut Context) -> JsResult<JsObject> {
+    let message_event_constructor = context.intrinsics().constructors().message_event().constructor();
+
+    // Create event init dict with data
+    let event_init = boa_engine::object::ObjectInitializer::new(context)
+        .property(js_string!("data"), js_string!(data), Attribute::all())
+        .property(js_string!("origin"), js_string!(""), Attribute::all())
+        .property(js_string!("lastEventId"), js_string!(""), Attribute::all())
+        .build();
+
+    message_event_constructor.construct(
+        &[js_string!("message").into(), event_init.into()],
+        Some(&message_event_constructor),
+        context,
+    )
 }

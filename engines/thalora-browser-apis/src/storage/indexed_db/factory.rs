@@ -319,8 +319,8 @@ impl BuiltInObject for IDBFactory {
 }
 
 impl BuiltInConstructor for IDBFactory {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 5;  // Estimated prototype property count
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 2;  // Constructor properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Constructor properties
 
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 

@@ -2,10 +2,12 @@
 //! Tests XMLHttpRequest, MutationObserver, IntersectionObserver, and ResizeObserver
 
 use boa_engine::{Context, Source};
+use thalora_browser_apis::initialize_browser_apis;
 
 #[test]
 fn test_all_apis_available() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test all APIs are available as functions
     let script = r#"
@@ -26,6 +28,7 @@ fn test_all_apis_available() {
 #[test]
 fn test_xmlhttprequest_basic() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test XMLHttpRequest constructor and basic functionality
     let script = r#"
@@ -47,6 +50,7 @@ fn test_xmlhttprequest_basic() {
 #[test]
 fn test_mutation_observer_basic() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test MutationObserver constructor and methods
     let script = r#"
@@ -70,6 +74,7 @@ fn test_mutation_observer_basic() {
 #[test]
 fn test_intersection_observer_basic() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test IntersectionObserver constructor and methods
     let script = r#"
@@ -94,6 +99,7 @@ fn test_intersection_observer_basic() {
 #[test]
 fn test_resize_observer_basic() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test ResizeObserver constructor and methods
     let script = r#"
@@ -118,6 +124,7 @@ fn test_resize_observer_basic() {
 #[test]
 fn test_xmlhttprequest_methods() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test XMLHttpRequest has all required methods
     let script = r#"
@@ -141,6 +148,7 @@ fn test_xmlhttprequest_methods() {
 #[test]
 fn test_observer_apis_methods() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test all observer APIs have required methods
     let script = r#"
@@ -171,6 +179,7 @@ fn test_observer_apis_methods() {
 #[test]
 fn test_xmlhttprequest_error_handling() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test XMLHttpRequest error handling
     let script = r#"
@@ -191,6 +200,7 @@ fn test_xmlhttprequest_error_handling() {
 #[test]
 fn test_observer_error_handling() {
     let mut context = Context::default();
+    initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test observer error handling for missing callbacks
     let script = r#"

@@ -29,14 +29,15 @@ impl HeadlessWebBrowser {
 
     pub fn new_with_engine(engine_type: crate::engine::engine_trait::EngineType) -> Arc<Mutex<Self>> {
         // Configure client with enhanced stealth capabilities
+        // Use centralized USER_AGENT constant for consistency
         let client = reqwest::Client::builder()
             .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .user_agent(super::USER_AGENT)
             .gzip(true)
             .brotli(true)
             .deflate(true)
-            .http2_prior_knowledge()
+            // Let reqwest negotiate HTTP/2 via ALPN naturally - http2_prior_knowledge() can cause connection failures
             .http2_adaptive_window(true)
             .tcp_keepalive(std::time::Duration::from_secs(60))
             .tcp_nodelay(true)
@@ -165,26 +166,26 @@ impl HeadlessWebBrowser {
     pub fn create_standard_browser_headers(&self, url: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
 
-        // Use Firefox User-Agent - Firefox is less likely to be blocked by Google
-        headers.insert(USER_AGENT, HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:129.0) Gecko/20100101 Firefox/129.0"
-        ));
+        // Use shared Chrome USER_AGENT constant - single source of truth!
+        headers.insert(USER_AGENT, HeaderValue::from_static(super::USER_AGENT));
 
-        // Firefox-style Accept header
+        // Chrome-style Accept header
         headers.insert(ACCEPT, HeaderValue::from_static(
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
         ));
 
-        // More realistic language preferences with Firefox ordering
-        headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
+        // Chrome language preferences
+        headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
 
-        // Firefox compression support (no zstd)
+        // Chrome compression support
         headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
 
-        // Firefox doesn't send Chrome's client hints - this is important!
-        // Google detects mismatched User-Agent vs client hints
+        // Chrome sends client hints - add them for Chrome fingerprint consistency
+        headers.insert("sec-ch-ua", HeaderValue::from_static("\"Chromium\";v=\"120\", \"Not A(Brand\";v=\"99\""));
+        headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
+        headers.insert("sec-ch-ua-platform", HeaderValue::from_static("\"Windows\""));
 
-        // Proper fetch metadata for Firefox
+        // Proper fetch metadata for Chrome
         if url.starts_with("https://www.google.com") {
             headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
             headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
@@ -204,17 +205,11 @@ impl HeadlessWebBrowser {
 
         headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
 
-        // Firefox doesn't send cache-control on initial requests
-        // headers.insert("cache-control", HeaderValue::from_static("max-age=0"));
-
         // Add DNT header that Firefox sends
         headers.insert("dnt", HeaderValue::from_static("1"));
 
-        // Firefox doesn't send priority header
-        // headers.insert("priority", HeaderValue::from_static("u=0, i"));
-
-        // Add some realistic Firefox headers
-        headers.insert("connection", HeaderValue::from_static("keep-alive"));
+        // Add TE header for Firefox (important fingerprint!)
+        headers.insert("te", HeaderValue::from_static("trailers"));
 
         headers
     }
@@ -306,5 +301,40 @@ impl HeadlessWebBrowser {
             }
         }
         Ok(())
+    }
+}
+
+impl Drop for HeadlessWebBrowser {
+    fn drop(&mut self) {
+        // Log cleanup for debugging
+        if let Some(url) = &self.current_url {
+            eprintln!("🧹 Cleaning up browser for URL: {}", url);
+        } else {
+            eprintln!("🧹 Cleaning up unused browser instance");
+        }
+
+        // Shutdown JavaScript renderer explicitly
+        if let Some(renderer) = self.renderer.take() {
+            drop(renderer);
+        }
+
+        // Clear storage
+        self.storage.local_storage.clear();
+        self.storage.session_storage.clear();
+
+        // Clear history
+        self.history.entries.clear();
+
+        // Clear auth context
+        self.auth_context.cookies.clear();
+        self.auth_context.auth_headers.clear();
+        self.auth_context.csrf_tokens.clear();
+
+        // Clear content
+        self.current_content.clear();
+        self.current_url = None;
+
+        // Note: reqwest::Client will be dropped automatically
+        // It will close connection pools when the last reference is dropped
     }
 }

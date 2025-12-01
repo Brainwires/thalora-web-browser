@@ -39,10 +39,33 @@ impl McpServer {
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {
-        let ai_memory = AiMemoryHeap::new_default().unwrap_or_else(|_| {
-            tracing::warn!("Failed to load AI memory heap, creating new one");
-            AiMemoryHeap::new("/tmp/thalora_ai_memory.json").expect("Failed to create AI memory heap")
-        });
+        // Only enable AI memory if THALORA_ENABLE_AI_MEMORY is set to a truthy value
+        // Accepts: "1", "true", "yes", "on" (case-insensitive)
+        // Rejects: "0", "false", "no", "off", "" (empty), or unset
+        let ai_memory_enabled = std::env::var("THALORA_ENABLE_AI_MEMORY")
+            .map(|v| {
+                let val = v.trim().to_lowercase();
+                !val.is_empty() && val != "0" && val != "false" && val != "no" && val != "off"
+            })
+            .unwrap_or(false);
+
+        let ai_memory = if ai_memory_enabled {
+            tracing::info!("AI memory enabled via THALORA_ENABLE_AI_MEMORY");
+            AiMemoryHeap::new_default().unwrap_or_else(|e| {
+                tracing::warn!("Failed to load AI memory heap: {}, creating new one", e);
+                AiMemoryHeap::new("/tmp/thalora_ai_memory.json")
+                    .expect("Failed to create AI memory heap")
+            })
+        } else {
+            // Create disabled AI memory (in-memory only, no persistence)
+            tracing::info!("AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage");
+            AiMemoryHeap::new("/dev/null")
+                .unwrap_or_else(|_| {
+                    // Fallback to temp file if /dev/null fails (Windows)
+                    AiMemoryHeap::new(std::env::temp_dir().join("thalora_disabled.json"))
+                        .expect("Failed to create disabled AI memory")
+                })
+        };
 
         let session_manager = SessionManager::new().unwrap_or_else(|e| {
             tracing::warn!("Failed to create session manager: {}", e);
@@ -106,30 +129,47 @@ impl McpServer {
         let mut reader = AsyncBufReader::new(stdin);
         let mut stdout = tokio::io::stdout();
 
+        eprintln!("🔍 MCP Server starting stdio loop");
+
         loop {
+            eprintln!("🔍 Waiting for input...");
             let mut line = String::new();
             match reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
-                Ok(_) => {
+                Ok(0) => {
+                    eprintln!("🔍 EOF received, shutting down");
+                    break;
+                }
+                Ok(n) => {
+                    eprintln!("🔍 Read {} bytes from stdin", n);
                     let line = line.trim();
                     if line.is_empty() {
+                        eprintln!("🔍 Empty line, continuing");
                         continue;
                     }
 
+                    eprintln!("🔍 Parsing JSON: {}", line);
+
                     // First, check if this is a notification (no 'id' field) or a request (has 'id' field)
                     let parsed: serde_json::Value = match serde_json::from_str(line) {
-                        Ok(v) => v,
+                        Ok(v) => {
+                            eprintln!("🔍 JSON parsed successfully");
+                            v
+                        }
                         Err(e) => {
                             error!("Failed to parse JSON: {}", e);
+                            eprintln!("🔍 JSON parse error: {}", e);
                             continue;
                         }
                     };
 
                     if let Some(request_id) = parsed.get("id") {
+                        eprintln!("🔍 Handling request with id: {}", request_id);
                         // This is a request - parse as McpRequest and send response
                         match serde_json::from_value::<McpRequest>(parsed.clone()) {
                             Ok(request) => {
+                                eprintln!("🔍 Request parsed, calling handler");
                                 let response = self.handle_request(request).await;
+                                eprintln!("🔍 Handler returned, preparing response");
 
                                 // Wrap response in proper JSON-RPC 2.0 format
                                 let message = McpMessage {
@@ -138,10 +178,14 @@ impl McpServer {
                                     content: McpMessageContent::Response(response),
                                 };
 
+                                eprintln!("🔍 Serializing response");
                                 let response_json = serde_json::to_string(&message)?;
+                                eprintln!("🔍 Writing response to stdout: {} bytes", response_json.len());
                                 stdout.write_all(response_json.as_bytes()).await?;
                                 stdout.write_all(b"\n").await?;
+                                eprintln!("🔍 Flushing stdout");
                                 stdout.flush().await?;
+                                eprintln!("🔍 Response sent successfully");
                             }
                             Err(e) => {
                                 error!("Failed to parse request: {}", e);

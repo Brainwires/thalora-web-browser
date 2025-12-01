@@ -1,5 +1,6 @@
 pub mod core;
 pub mod security;
+pub mod js_security;
 pub mod execution;
 pub mod css;
 pub mod layout;

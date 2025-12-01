@@ -213,9 +213,9 @@ fn parse_fetch_init(
         }
     }
 
-    // Add default User-Agent if not present
+    // Add default User-Agent if not present - use shared constant!
     if !headers.contains_key("User-Agent") {
-        headers.insert("User-Agent".to_string(), "Thalora/1.0".to_string());
+        headers.insert("User-Agent".to_string(), thalora_constants::USER_AGENT.to_string());
     }
 
     // Body
@@ -253,8 +253,8 @@ impl BuiltInObject for Request {
 
 impl BuiltInConstructor for Request {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::request;
@@ -367,8 +367,8 @@ impl BuiltInObject for Response {
 
 impl BuiltInConstructor for Response {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::response;
@@ -566,8 +566,8 @@ impl BuiltInObject for Headers {
 
 impl BuiltInConstructor for Headers {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::headers;

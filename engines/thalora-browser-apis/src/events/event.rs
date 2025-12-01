@@ -117,6 +117,11 @@ impl EventData {
     pub fn set_target(&mut self, target: Option<JsObject>) { self.target = target; }
     pub fn set_is_trusted(&mut self, trusted: bool) { self.is_trusted = trusted; }
 
+    // Setters for subclass event construction
+    pub fn set_bubbles(&mut self, bubbles: bool) { self.bubbles = bubbles; }
+    pub fn set_cancelable(&mut self, cancelable: bool) { self.cancelable = cancelable; }
+    pub fn set_composed(&mut self, composed: bool) { self.composed = composed; }
+
     pub fn should_stop_propagation(&self) -> bool { self.stop_propagation }
     pub fn should_stop_immediate_propagation(&self) -> bool { self.stop_immediate_propagation }
 }
@@ -266,8 +271,8 @@ impl BuiltInObject for Event {
 
 impl BuiltInConstructor for Event {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::event;

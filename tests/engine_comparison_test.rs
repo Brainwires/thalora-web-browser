@@ -88,7 +88,7 @@ async fn compare_global_properties(
     
     let boa_globals = boa.execute(global_inspection_code)?;
     let v8_globals = v8.execute(global_inspection_code)?;
-    
+
     let boa_map = extract_global_map(&boa_globals)?;
     let v8_map = extract_global_map(&v8_globals)?;
     
@@ -346,15 +346,11 @@ async fn compare_language_features(
 
 async fn test_feature_support(engine: &mut Box<dyn ThaloraBrowserEngine>, test_code: &str) -> bool {
     let wrapped_code = format!("try {{ {} }} catch (e) {{ false }}", test_code);
-    
+
     match engine.execute(&wrapped_code) {
         Ok(result) => {
-            // Try to parse as boolean
-            if let Ok(value) = serde_json::from_str::<Value>(&result) {
-                value.as_bool().unwrap_or(false)
-            } else {
-                false
-            }
+            // Result is already a Value
+            result.as_bool().unwrap_or(false)
         }
         Err(_) => false,
     }
@@ -477,33 +473,33 @@ async fn measure_execution_time(engine: &mut Box<dyn ThaloraBrowserEngine>, code
 
 async fn execute_and_stringify(engine: &mut Box<dyn ThaloraBrowserEngine>, code: &str) -> String {
     match engine.execute(code) {
-        Ok(result) => result,
+        Ok(result) => result.to_string(),
         Err(e) => format!("Error: {}", e),
     }
 }
 
 // Helper functions to extract data from JSON responses
 
-fn extract_global_map(json_str: &str) -> Result<HashMap<String, Map<String, Value>>> {
-    let globals: Vec<Map<String, Value>> = serde_json::from_str(json_str)?;
+fn extract_global_map(value: &Value) -> Result<HashMap<String, Map<String, Value>>> {
+    let globals: Vec<Map<String, Value>> = serde_json::from_value(value.clone())?;
     let mut map = HashMap::new();
-    
+
     for global in globals {
         if let Some(name) = global.get("name").and_then(|v| v.as_str()) {
             map.insert(name.to_string(), global);
         }
     }
-    
+
     Ok(map)
 }
 
-fn extract_constructor_list(json_str: &str) -> Result<Vec<Map<String, Value>>> {
-    let constructors: Vec<Map<String, Value>> = serde_json::from_str(json_str)?;
+fn extract_constructor_list(value: &Value) -> Result<Vec<Map<String, Value>>> {
+    let constructors: Vec<Map<String, Value>> = serde_json::from_value(value.clone())?;
     Ok(constructors)
 }
 
-fn extract_web_api_list(json_str: &str) -> Result<Vec<Map<String, Value>>> {
-    let apis: Vec<Map<String, Value>> = serde_json::from_str(json_str)?;
+fn extract_web_api_list(value: &Value) -> Result<Vec<Map<String, Value>>> {
+    let apis: Vec<Map<String, Value>> = serde_json::from_value(value.clone())?;
     Ok(apis)
 }
 

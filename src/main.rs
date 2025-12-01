@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
@@ -29,7 +33,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Run as MCP server (default mode)
-    Server,
+    Server {
+        /// MCP mode: 'minimal' for basic scraping (default), 'full' for all features
+        #[arg(long, default_value = "minimal")]
+        mcp_mode: String,
+    },
     /// Run as browser session process
     Session {
         /// Session identifier
@@ -118,8 +126,21 @@ async fn main() -> Result<()> {
             // Run as display server
             run_display_server(host, port).await
         }
-        Some(Commands::Server) | None => {
-            // Run as MCP server (default)
+        Some(Commands::Server { mcp_mode }) => {
+            // Run as MCP server with specified mode
+            // SAFETY: This is called at program startup before any threads are spawned
+            unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
+            eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
+
+            let mut server = McpServer::new_with_engine(engine_config);
+            server.run().await
+        }
+        None => {
+            // Run as MCP server (default mode)
+            // SAFETY: This is called at program startup before any threads are spawned
+            unsafe { std::env::set_var("THALORA_MCP_MODE", "minimal") };
+            eprintln!("🚀 Starting Thalora MCP Server in 'minimal' mode");
+
             let mut server = McpServer::new_with_engine(engine_config);
             server.run().await
         }

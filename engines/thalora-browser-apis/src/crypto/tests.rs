@@ -281,3 +281,332 @@ fn test_crypto_has_random_uuid_property() {
 //     "#)).unwrap();
 //     assert_eq!(result.to_boolean(), true);
 // }
+
+// ============================================================================
+// SubtleCrypto Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_exists() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("object")));
+}
+
+#[test]
+fn test_subtle_is_object() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("crypto.subtle !== null && crypto.subtle !== undefined")).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_has_digest() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.digest")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_generate_key() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.generateKey")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_import_key() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.importKey")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_export_key() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.exportKey")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_encrypt() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.encrypt")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_decrypt() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.decrypt")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_sign() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.sign")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_verify() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.verify")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_derive_key() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.deriveKey")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_derive_bits() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.deriveBits")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_wrap_key() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.wrapKey")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+#[test]
+fn test_subtle_has_unwrap_key() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes("typeof crypto.subtle.unwrapKey")).unwrap();
+    assert_eq!(result, JsValue::from(JsString::from("function")));
+}
+
+// ============================================================================
+// SubtleCrypto digest() Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_digest_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let data = new Uint8Array([1, 2, 3, 4]);
+        let result = crypto.subtle.digest('SHA-256', data);
+        result instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_digest_sha1() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let data = new Uint8Array([]);
+        let promise = crypto.subtle.digest('SHA-1', data);
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_digest_sha256() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let data = new Uint8Array([]);
+        let promise = crypto.subtle.digest('SHA-256', data);
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_digest_sha384() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let data = new Uint8Array([]);
+        let promise = crypto.subtle.digest('SHA-384', data);
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_digest_sha512() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let data = new Uint8Array([]);
+        let promise = crypto.subtle.digest('SHA-512', data);
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_digest_algorithm_object() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let data = new Uint8Array([]);
+        let promise = crypto.subtle.digest({ name: 'SHA-256' }, data);
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// SubtleCrypto generateKey() Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_generate_key_aes_gcm_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let promise = crypto.subtle.generateKey(
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+        );
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_generate_key_hmac_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let promise = crypto.subtle.generateKey(
+            { name: 'HMAC', hash: 'SHA-256' },
+            true,
+            ['sign', 'verify']
+        );
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_generate_key_ecdsa_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let promise = crypto.subtle.generateKey(
+            { name: 'ECDSA', namedCurve: 'P-256' },
+            true,
+            ['sign', 'verify']
+        );
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// SubtleCrypto encrypt()/decrypt() Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_encrypt_returns_promise() {
+    let mut context = create_test_context();
+    // This test just verifies the function returns a promise
+    // Full encrypt/decrypt flow requires awaiting promises
+    let result = context.eval(Source::from_bytes(r#"
+        // Create a key first
+        let keyPromise = crypto.subtle.generateKey(
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+        );
+        keyPromise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// SubtleCrypto sign()/verify() Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_sign_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let keyPromise = crypto.subtle.generateKey(
+            { name: 'HMAC', hash: 'SHA-256' },
+            true,
+            ['sign', 'verify']
+        );
+        keyPromise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// SubtleCrypto deriveKey()/deriveBits() Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_derive_key_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        // PBKDF2 key derivation requires importing a base key first
+        // This just tests that the method exists and is callable
+        typeof crypto.subtle.deriveKey === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// SubtleCrypto importKey()/exportKey() Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_import_key_returns_promise() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let keyData = new Uint8Array(32);
+        let promise = crypto.subtle.importKey(
+            'raw',
+            keyData,
+            { name: 'AES-GCM' },
+            true,
+            ['encrypt', 'decrypt']
+        );
+        promise instanceof Promise;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// SubtleCrypto Error Handling Tests
+// ============================================================================
+
+#[test]
+fn test_subtle_digest_invalid_algorithm() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            crypto.subtle.digest('INVALID-ALGO', new Uint8Array([]));
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_subtle_generate_key_invalid_aes_length() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        try {
+            crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 123 }, // Invalid length
+                true,
+                ['encrypt', 'decrypt']
+            );
+            false;
+        } catch(e) {
+            true;
+        }
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}

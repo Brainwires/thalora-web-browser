@@ -34,8 +34,24 @@ impl McpServer {
         env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "false".to_string()) == "true"
     }
 
+    /// Get MCP mode - minimal (default for MCP) or full (all features)
+    fn get_mcp_mode() -> String {
+        env::var("THALORA_MCP_MODE").unwrap_or_else(|_| "minimal".to_string())
+    }
+
     pub(super) fn get_tool_definitions(&self) -> Vec<Value> {
         let mut tools = Vec::new();
+
+        // Check MCP mode
+        let mcp_mode = Self::get_mcp_mode();
+        eprintln!("🔧 Thalora MCP Mode: {}", mcp_mode);
+
+        // In minimal mode, only expose basic scraping tools
+        if mcp_mode == "minimal" {
+            return self.get_minimal_tool_definitions();
+        }
+
+        // Full mode continues below with all tools...
 
         // AI Memory Tools - Store and retrieve research data, credentials, bookmarks, and notes
         if env::var("THALORA_ENABLE_AI_MEMORY").unwrap_or_else(|_| "false".to_string()) == "true" {
@@ -563,8 +579,8 @@ impl McpServer {
                             },
                             "search_engine": {
                                 "type": "string",
-                                "description": "Search engine to use: 'duckduckgo', 'bing', 'startpage', 'searx' (default: 'duckduckgo')",
-                                "enum": ["duckduckgo", "bing", "startpage", "searx"]
+                                "description": "Search engine to use: 'duckduckgo', 'bing', 'google', 'startpage' (default: 'duckduckgo')",
+                                "enum": ["duckduckgo", "bing", "google", "startpage"]
                             },
                             "region": {
                                 "type": "string",
@@ -1031,5 +1047,71 @@ impl McpServer {
     drop(set_current_vfs(prev_vfs));
 
         resp
+    }
+
+    /// Get minimal tool definitions for basic web scraping only
+    /// This is the default MCP mode - stateless, simple, and reliable
+    fn get_minimal_tool_definitions(&self) -> Vec<Value> {
+        vec![
+            // Unified web scraping tool
+            serde_json::json!({
+                "name": "scrape",
+                "description": "Unified web scraping tool with multiple extraction methods (basic content, custom selectors, readable content, structured data). Stateless - browser closes after each use.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "description": "URL to scrape"
+                        },
+                        "wait_for_js": {
+                            "type": "boolean",
+                            "description": "Wait for JavaScript to execute before scraping (default: false)"
+                        },
+                        "extract_basic": {
+                            "type": "boolean",
+                            "description": "Extract links, images, and metadata (default: true)"
+                        },
+                        "extract_readable": {
+                            "type": "boolean",
+                            "description": "Extract clean readable content using readability algorithms (default: false)"
+                        },
+                        "extract_structured": {
+                            "type": "boolean",
+                            "description": "Extract structured content like tables, lists, code blocks (default: false)"
+                        },
+                        "selectors": {
+                            "type": "object",
+                            "description": "Custom CSS selectors mapped to names (e.g., {\"title\": \"h1\", \"price\": \".price\"})"
+                        }
+                    },
+                    "required": ["url"]
+                }
+            }),
+            // Web search tool
+            serde_json::json!({
+                "name": "web_search",
+                "description": "Search the web using various search engines. Returns organic search results. Stateless - browser closes after each use.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Search query"
+                        },
+                        "num_results": {
+                            "type": "number",
+                            "description": "Number of results to return (default: 10, max: 20)"
+                        },
+                        "search_engine": {
+                            "type": "string",
+                            "enum": ["duckduckgo", "bing", "google", "startpage"],
+                            "description": "Search engine to use (default: duckduckgo)"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            })
+        ]
     }
 }

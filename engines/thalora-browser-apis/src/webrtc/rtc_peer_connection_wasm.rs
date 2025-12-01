@@ -1,0 +1,55 @@
+//! RTCPeerConnection stub for WASM builds
+//!
+//! In WASM builds, WebRTC is handled by the browser's native RTCPeerConnection.
+
+use boa_engine::{
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::JsObject,
+    realm::Realm,
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
+    string::StaticJsStrings,
+};
+use boa_gc::{Finalize, Trace};
+
+/// RTCPeerConnection data stub for WASM builds
+#[derive(Debug, Trace, Finalize, JsData)]
+pub struct RTCPeerConnectionData;
+
+/// RTCPeerConnection stub for WASM builds
+#[derive(Debug, Copy, Clone)]
+pub struct RTCPeerConnection;
+
+impl IntrinsicObject for RTCPeerConnection {
+    fn init(realm: &Realm) {
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .build();
+    }
+
+    fn get(intrinsics: &Intrinsics) -> JsObject {
+        Self::STANDARD_CONSTRUCTOR(intrinsics.constructors()).constructor()
+    }
+}
+
+impl BuiltInObject for RTCPeerConnection {
+    const NAME: JsString = StaticJsStrings::RTC_PEER_CONNECTION;
+}
+
+impl BuiltInConstructor for RTCPeerConnection {
+    const PROTOTYPE_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_ARGUMENTS: usize = 1;
+    const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
+        StandardConstructors::rtc_peer_connection;
+
+    fn constructor(
+        _new_target: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
+        Err(JsNativeError::error()
+            .with_message("RTCPeerConnection is not available in WASM. Use the browser's native WebRTC API.")
+            .into())
+    }
+}

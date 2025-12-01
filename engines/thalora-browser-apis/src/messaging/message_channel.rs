@@ -15,6 +15,7 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
     JsString, realm::Realm, property::Attribute
 };
+#[cfg(feature = "native")]
 use crate::worker::worker_events;
 use boa_gc::{Finalize, Trace};
 use super::message_port::MessagePortData;
@@ -67,8 +68,8 @@ impl BuiltInObject for MessageChannel {
 }
 
 impl BuiltInConstructor for MessageChannel {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 2; // prototype property capacity
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0; // static property capacity
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // prototype property capacity
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // static property capacity
     const CONSTRUCTOR_ARGUMENTS: usize = 0; // no required parameters
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -193,7 +194,8 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
         context,
     )?;
 
-    // Add event handler properties to MessagePort
+    // Add event handler properties to MessagePort (native only)
+    #[cfg(feature = "native")]
     worker_events::add_worker_event_handlers(&port_obj, context)?;
 
     Ok(port_obj)

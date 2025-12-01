@@ -8,10 +8,10 @@
 use boa_engine::{
     builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{internal_methods::get_prototype_from_constructor, JsObject, ObjectInitializer},
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string,
-    realm::Realm, JsData, JsString
+    realm::Realm, JsData, JsString, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -26,6 +26,8 @@ impl IntrinsicObject for ResizeObserver {
             .method(Self::observe, js_string!("observe"), 1)
             .method(Self::unobserve, js_string!("unobserve"), 1)
             .method(Self::disconnect, js_string!("disconnect"), 0)
+            .method(Self::trigger_resize, js_string!("triggerResize"), 2)
+            .method(Self::deliver_entries, js_string!("deliverEntries"), 0)
             .build();
     }
 
@@ -40,8 +42,8 @@ impl BuiltInObject for ResizeObserver {
 
 impl BuiltInConstructor for ResizeObserver {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 1;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 1;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::resize_observer;
@@ -171,6 +173,133 @@ impl ResizeObserver {
 
         Ok(JsValue::undefined())
     }
+
+    /// `ResizeObserver.prototype.triggerResize()` method
+    ///
+    /// This is a Thalora-specific extension that allows programmatic triggering of resize events
+    /// in a headless browser context where there's no real DOM layout.
+    ///
+    /// Usage: observer.triggerResize(target, { width: 100, height: 200 })
+    fn trigger_resize(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let observer_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("ResizeObserver.triggerResize called on non-object")
+        })?;
+
+        let target = args.get_or_undefined(0);
+        let dimensions = args.get_or_undefined(1);
+
+        if !target.is_object() {
+            return Err(JsNativeError::typ()
+                .with_message("ResizeObserver.triggerResize: target must be an Element")
+                .into());
+        }
+
+        // Extract dimensions from the options object
+        let (width, height, x, y) = if let Some(dim_obj) = dimensions.as_object() {
+            let width = dim_obj.get(js_string!("width"), context)
+                .ok()
+                .and_then(|v| v.as_number())
+                .unwrap_or(0.0);
+            let height = dim_obj.get(js_string!("height"), context)
+                .ok()
+                .and_then(|v| v.as_number())
+                .unwrap_or(0.0);
+            let x = dim_obj.get(js_string!("x"), context)
+                .ok()
+                .and_then(|v| v.as_number())
+                .unwrap_or(0.0);
+            let y = dim_obj.get(js_string!("y"), context)
+                .ok()
+                .and_then(|v| v.as_number())
+                .unwrap_or(0.0);
+            (width, height, x, y)
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        };
+
+        // Check if this target is being observed
+        let target_id = format!("{:p}", target.as_object().unwrap().as_ref());
+
+        if let Some(mut observer_data) = observer_obj.downcast_mut::<ResizeObserverData>() {
+            if !observer_data.observed_targets.contains_key(&target_id) {
+                // Target is not being observed, do nothing
+                return Ok(JsValue::undefined());
+            }
+
+            // Create a resize entry
+            let entry = ResizeObserverEntry {
+                target: target_id.clone(),
+                target_value: target.clone(),
+                content_rect: DOMRectReadOnly {
+                    x,
+                    y,
+                    width,
+                    height,
+                    top: y,
+                    right: x + width,
+                    bottom: y + height,
+                    left: x,
+                },
+                border_box_size: vec![ResizeObserverSize {
+                    inline_size: width,
+                    block_size: height,
+                }],
+                content_box_size: vec![ResizeObserverSize {
+                    inline_size: width,
+                    block_size: height,
+                }],
+                device_pixel_content_box_size: vec![ResizeObserverSize {
+                    inline_size: width,
+                    block_size: height,
+                }],
+            };
+
+            observer_data.entries.push(entry);
+        }
+
+        Ok(JsValue::undefined())
+    }
+
+    /// `ResizeObserver.prototype.deliverEntries()` method
+    ///
+    /// Delivers any pending resize entries to the callback.
+    /// This is typically called by the event loop but can be triggered manually.
+    fn deliver_entries(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let observer_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("ResizeObserver.deliverEntries called on non-object")
+        })?;
+
+        // Extract entries and callback
+        let (entries, callback) = {
+            if let Some(mut observer_data) = observer_obj.downcast_mut::<ResizeObserverData>() {
+                let entries = std::mem::take(&mut observer_data.entries);
+                let callback = observer_data.callback.clone();
+                (entries, callback)
+            } else {
+                return Err(JsNativeError::typ()
+                    .with_message("ResizeObserver.deliverEntries called on non-ResizeObserver")
+                    .into());
+            }
+        };
+
+        if entries.is_empty() {
+            return Ok(JsValue::undefined());
+        }
+
+        // Convert entries to JavaScript objects
+        let js_entries = boa_engine::object::JsArray::new(context);
+        for (i, entry) in entries.iter().enumerate() {
+            let entry_obj = create_resize_observer_entry(entry, context)?;
+            js_entries.set(i as u32, JsValue::from(entry_obj), false, context)?;
+        }
+
+        // Call the callback with (entries, observer)
+        if let Some(func) = callback.as_callable() {
+            func.call(&JsValue::undefined(), &[js_entries.into(), this.clone()], context)?;
+        }
+
+        Ok(JsValue::undefined())
+    }
 }
 
 /// Internal data for ResizeObserver instances
@@ -201,10 +330,12 @@ pub enum ResizeObserverBoxOptions {
 }
 
 /// Represents a single resize observer entry
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ResizeObserverEntry {
-    /// The target element being observed
-    pub target: String, // Element ID for now
+    /// The target element being observed (ID for internal tracking)
+    pub target: String,
+    /// The actual JsValue target
+    pub target_value: JsValue,
     /// The new content rect
     pub content_rect: DOMRectReadOnly,
     /// The new border box size
@@ -235,4 +366,54 @@ pub struct DOMRectReadOnly {
     pub right: f64,
     pub bottom: f64,
     pub left: f64,
+}
+
+/// Create a JavaScript ResizeObserverEntry object from a Rust entry
+fn create_resize_observer_entry(entry: &ResizeObserverEntry, context: &mut Context) -> JsResult<JsObject> {
+    // Create contentRect object
+    let content_rect = ObjectInitializer::new(context)
+        .property(js_string!("x"), entry.content_rect.x, Attribute::all())
+        .property(js_string!("y"), entry.content_rect.y, Attribute::all())
+        .property(js_string!("width"), entry.content_rect.width, Attribute::all())
+        .property(js_string!("height"), entry.content_rect.height, Attribute::all())
+        .property(js_string!("top"), entry.content_rect.top, Attribute::all())
+        .property(js_string!("right"), entry.content_rect.right, Attribute::all())
+        .property(js_string!("bottom"), entry.content_rect.bottom, Attribute::all())
+        .property(js_string!("left"), entry.content_rect.left, Attribute::all())
+        .build();
+
+    // Create borderBoxSize array
+    let border_box_size = create_size_array(&entry.border_box_size, context)?;
+
+    // Create contentBoxSize array
+    let content_box_size = create_size_array(&entry.content_box_size, context)?;
+
+    // Create devicePixelContentBoxSize array
+    let device_pixel_content_box_size = create_size_array(&entry.device_pixel_content_box_size, context)?;
+
+    // Create the ResizeObserverEntry object
+    let entry_obj = ObjectInitializer::new(context)
+        .property(js_string!("target"), entry.target_value.clone(), Attribute::all())
+        .property(js_string!("contentRect"), content_rect, Attribute::all())
+        .property(js_string!("borderBoxSize"), border_box_size, Attribute::all())
+        .property(js_string!("contentBoxSize"), content_box_size, Attribute::all())
+        .property(js_string!("devicePixelContentBoxSize"), device_pixel_content_box_size, Attribute::all())
+        .build();
+
+    Ok(entry_obj)
+}
+
+/// Create an array of ResizeObserverSize objects
+fn create_size_array(sizes: &[ResizeObserverSize], context: &mut Context) -> JsResult<JsObject> {
+    let array = boa_engine::object::JsArray::new(context);
+
+    for (i, size) in sizes.iter().enumerate() {
+        let size_obj = ObjectInitializer::new(context)
+            .property(js_string!("inlineSize"), size.inline_size, Attribute::all())
+            .property(js_string!("blockSize"), size.block_size, Attribute::all())
+            .build();
+        array.set(i as u32, JsValue::from(size_obj), false, context)?;
+    }
+
+    Ok(array.into())
 }

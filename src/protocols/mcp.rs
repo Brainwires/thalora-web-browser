@@ -95,12 +95,64 @@ impl McpResponse {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct McpMessage {
     pub jsonrpc: String,
     pub id: Option<Value>,
     #[serde(flatten)]
     pub content: McpMessageContent,
+}
+
+// Custom serializer to properly wrap ToolResult and Error in "result" field
+impl Serialize for McpMessage {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(None)?;
+
+        map.serialize_entry("jsonrpc", &self.jsonrpc)?;
+        if let Some(ref id) = self.id {
+            map.serialize_entry("id", id)?;
+        }
+
+        // Handle response wrapping
+        match &self.content {
+            McpMessageContent::Response(response) => {
+                match response {
+                    McpResponse::Initialize { result } => {
+                        map.serialize_entry("result", result)?;
+                    }
+                    McpResponse::ListTools { result } => {
+                        map.serialize_entry("result", result)?;
+                    }
+                    McpResponse::ToolResult { content, is_error } => {
+                        // Wrap ToolResult fields in a "result" object
+                        let result_obj = serde_json::json!({
+                            "content": content,
+                            "isError": is_error
+                        });
+                        map.serialize_entry("result", &result_obj)?;
+                    }
+                    McpResponse::Error { error } => {
+                        // Wrap error string in proper error object
+                        let error_obj = serde_json::json!({
+                            "code": -1,
+                            "message": error
+                        });
+                        map.serialize_entry("error", &error_obj)?;
+                    }
+                }
+            }
+            McpMessageContent::Request(_) => {
+                // Requests use flatten normally
+                return Err(serde::ser::Error::custom("Cannot serialize requests in McpMessage"));
+            }
+        }
+
+        map.end()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

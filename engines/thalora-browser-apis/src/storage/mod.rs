@@ -1,5 +1,6 @@
-//! Storage APIs - localStorage, sessionStorage, cookies, IndexedDB
+//! Storage APIs - localStorage, sessionStorage, cookies, IndexedDB, Cache API
 
+pub mod cache;
 pub mod cookie_store;
 pub mod indexed_db;
 pub mod storage;
