@@ -222,7 +222,8 @@ mod tests {
 
     fn setup_test_password() {
         // Set a test master password (minimum 32 characters)
-        env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure") };
     }
 
     #[test]
@@ -292,7 +293,8 @@ mod tests {
         let encrypted = encrypt_password(password).unwrap();
 
         // Change master password
-        env::set_var("THALORA_MASTER_PASSWORD", "wrong_password_min_32chars_wrong!");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "wrong_password_min_32chars_wrong!") };
 
         // Should fail to decrypt
         let result = decrypt_password(&encrypted);
@@ -301,7 +303,8 @@ mod tests {
 
     #[test]
     fn test_weak_master_password_rejected() {
-        env::set_var("THALORA_MASTER_PASSWORD", "weak"); // Less than 32 chars
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "weak") }; // Less than 32 chars
 
         let password = "test";
         let result = encrypt_password(password);
@@ -324,7 +327,8 @@ mod tests {
 
     #[test]
     fn test_master_password_required() {
-        env::remove_var("THALORA_MASTER_PASSWORD");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
 
         let password = "test";
         let result = encrypt_password(password);

@@ -15,7 +15,8 @@ mod crypto_security {
         // by checking that the new crypto module requires a master password
 
         // Remove any existing master password
-        env::remove_var("THALORA_MASTER_PASSWORD");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
 
         // Try to encrypt without master password - should fail
         // This would have succeeded with XOR encryption
@@ -30,26 +31,30 @@ mod crypto_security {
     #[test]
     fn test_master_password_required() {
         // Set a weak password (less than 32 chars)
-        env::set_var("THALORA_MASTER_PASSWORD", "weak");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "weak") };
 
         // Encryption should fail with weak password
         // (This is verified in crypto.rs unit tests)
 
         // Clean up
-        env::remove_var("THALORA_MASTER_PASSWORD");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
     }
 
     /// Test 3: Verify AES-256-GCM is used (format check)
     #[test]
     fn test_aes_gcm_format() {
         // Set strong master password
-        env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure!");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure!") };
 
         // Encrypted data should have v2 format: v2:salt:nonce:ciphertext
         // This is verified in crypto.rs unit tests
 
         // Clean up
-        env::remove_var("THALORA_MASTER_PASSWORD");
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+        unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
     }
 }
 
@@ -397,9 +402,11 @@ fn test_security_remediation_complete() {
     // This test verifies that all critical security fixes are implemented
 
     // Priority 1: Encryption
-    env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure!");
+    // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+    unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure!") };
     assert!(env::var("THALORA_MASTER_PASSWORD").is_ok());
-    env::remove_var("THALORA_MASTER_PASSWORD");
+    // SAFETY: Tests run sequentially with --test-threads=1 or isolated
+    unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
 
     // Priority 2: JavaScript security
     // Verified by js_security.rs tests
