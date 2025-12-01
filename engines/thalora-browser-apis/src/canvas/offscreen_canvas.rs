@@ -273,9 +273,9 @@ fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
             );
 
             // Cache the context
-            canvas_data.set_context_2d(ctx_obj.clone());
+            canvas_data.set_context_2d(ctx_obj.clone().upcast());
 
-            Ok(ctx_obj.into())
+            Ok(ctx_obj.upcast().into())
         }
         "webgl" | "experimental-webgl" | "webgl2" | "experimental-webgl2" => {
             // WebGL context - return null for now

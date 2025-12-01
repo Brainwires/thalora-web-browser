@@ -328,12 +328,13 @@ fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
             );
 
             // Set the canvas back-reference on the context
-            ctx_obj.set(js_string!("canvas"), this.clone(), false, context)?;
+            let ctx_generic = ctx_obj.upcast();
+            ctx_generic.set(js_string!("canvas"), this.clone(), false, context)?;
 
             // Cache the context
-            canvas_data.set_context_2d(ctx_obj.clone());
+            canvas_data.set_context_2d(ctx_generic.clone());
 
-            Ok(ctx_obj.into())
+            Ok(ctx_generic.into())
         }
         "webgl" | "experimental-webgl" => {
             // WebGL context - return null for now (will be implemented in Phase 3.7)
@@ -452,5 +453,5 @@ pub fn create_canvas_element(
         canvas_data,
     );
 
-    Ok(obj)
+    Ok(obj.upcast())
 }

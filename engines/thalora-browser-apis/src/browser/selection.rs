@@ -470,15 +470,17 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
                 range_data
             );
 
-            // Set range boundaries from selection
-            if let Some(mut range_data_mut) = range_obj.downcast_mut::<crate::dom::range::RangeData>() {
-                if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
-                    let _ = range_data_mut.set_start(anchor, selection_data.get_anchor_offset());
-                    let _ = range_data_mut.set_end(focus, selection_data.get_focus_offset());
+            // Set range boundaries from selection - note: range_obj is already JsObject<RangeData>
+            // So we access the data directly without needing upcast/downcast
+            let range_generic = range_obj.upcast();
+            if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
+                if let Some(mut range_data_ref) = range_generic.downcast_mut::<crate::dom::range::RangeData>() {
+                    let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
+                    let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
                 }
             }
 
-            Ok(range_obj.into())
+            Ok(range_generic.into())
         }
 }
 
@@ -512,15 +514,17 @@ fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) 
                 range_data
             );
 
-            // Set range boundaries from selection
-            if let Some(mut range_data_mut) = range_obj.downcast_mut::<crate::dom::range::RangeData>() {
-                if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
-                    let _ = range_data_mut.set_start(anchor, selection_data.get_anchor_offset());
-                    let _ = range_data_mut.set_end(focus, selection_data.get_focus_offset());
+            // Set range boundaries from selection - note: range_obj is already JsObject<RangeData>
+            // So we access the data directly without needing upcast/downcast
+            let range_generic = range_obj.upcast();
+            if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
+                if let Some(mut range_data_ref) = range_generic.downcast_mut::<crate::dom::range::RangeData>() {
+                    let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
+                    let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
                 }
             }
 
-            composed_ranges.push(range_obj.into());
+            composed_ranges.push(range_generic.into());
 
             // Enhanced Shadow DOM support
             if !shadow_roots.is_null() && !shadow_roots.is_undefined() {

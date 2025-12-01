@@ -217,10 +217,13 @@ impl BuiltInConstructor for WebSocket {
             websocket_data,
         );
 
-        // Start connection asynchronously
-        Self::initiate_connection(&websocket_obj, context)?;
+        // Upcast for method calls
+        let websocket_obj_upcast = websocket_obj.upcast();
 
-        Ok(websocket_obj.upcast().into())
+        // Start connection asynchronously
+        Self::initiate_connection(&websocket_obj_upcast, context)?;
+
+        Ok(websocket_obj_upcast.into())
     }
 }
 

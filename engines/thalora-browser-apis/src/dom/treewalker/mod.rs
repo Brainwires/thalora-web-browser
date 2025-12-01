@@ -105,8 +105,8 @@ impl TreeWalkerData {
 
     /// Check if a node should be accepted based on whatToShow
     fn node_matches_what_to_show(&self, node: &JsObject, context: &mut Context) -> bool {
-        // Get the nodeType
-        let node_type = match node.upcast().get(js_string!("nodeType"), context) {
+        // Get the nodeType - node is already a generic JsObject reference
+        let node_type = match node.get(js_string!("nodeType"), context) {
             Ok(val) => match val.to_u32(context) {
                 Ok(n) => n,
                 Err(_) => return false,
@@ -268,7 +268,7 @@ impl TreeWalker {
 
         // Walk up to find an accepted parent
         while !std::ptr::eq(node.as_ref(), root.as_ref()) {
-            let parent = node.upcast().get(js_string!("parentNode"), context)?;
+            let parent = node.get(js_string!("parentNode"), context)?;
             if parent.is_null() || parent.is_undefined() {
                 return Ok(JsValue::null());
             }
@@ -319,7 +319,7 @@ impl TreeWalker {
         let child_prop = if first { "firstChild" } else { "lastChild" };
         let sibling_prop = if first { "nextSibling" } else { "previousSibling" };
 
-        let mut child = node.upcast().get(js_string!(child_prop), context)?;
+        let mut child = node.get(js_string!(child_prop), context)?;
 
         while !child.is_null() && !child.is_undefined() {
             let child_obj = match child.as_object() {
@@ -336,7 +336,7 @@ impl TreeWalker {
 
             if filter_result == node_filter::FILTER_SKIP {
                 // Try to descend into this node's children
-                let grandchild = child_obj.upcast().get(js_string!(child_prop), context)?;
+                let grandchild = child_obj.get(js_string!(child_prop), context)?;
                 if !grandchild.is_null() && !grandchild.is_undefined() {
                     child = grandchild;
                     continue;
@@ -345,14 +345,14 @@ impl TreeWalker {
 
             // Try sibling
             loop {
-                let sibling = child_obj.upcast().get(js_string!(sibling_prop), context)?;
+                let sibling = child_obj.get(js_string!(sibling_prop), context)?;
                 if !sibling.is_null() && !sibling.is_undefined() {
                     child = sibling;
                     break;
                 }
 
                 // Go up to parent
-                let parent = child_obj.upcast().get(js_string!("parentNode"), context)?;
+                let parent = child_obj.get(js_string!("parentNode"), context)?;
                 if parent.is_null() || parent.is_undefined() {
                     return Ok(JsValue::null());
                 }
@@ -412,7 +412,7 @@ impl TreeWalker {
         let child_prop = if next { "firstChild" } else { "lastChild" };
 
         loop {
-            let sibling = node.upcast().get(js_string!(sibling_prop), context)?;
+            let sibling = node.get(js_string!(sibling_prop), context)?;
 
             while !sibling.is_null() && !sibling.is_undefined() {
                 let sibling_obj = match sibling.as_object() {
@@ -429,7 +429,7 @@ impl TreeWalker {
 
                 // If SKIP, try children
                 if filter_result == node_filter::FILTER_SKIP {
-                    let child = sibling_obj.upcast().get(js_string!(child_prop), context)?;
+                    let child = sibling_obj.get(js_string!(child_prop), context)?;
                     if !child.is_null() && !child.is_undefined() {
                         node = sibling_obj;
                         continue;
@@ -440,7 +440,7 @@ impl TreeWalker {
             }
 
             // Go up to parent
-            let parent = node.upcast().get(js_string!("parentNode"), context)?;
+            let parent = node.get(js_string!("parentNode"), context)?;
             if parent.is_null() || parent.is_undefined() {
                 return Ok(JsValue::null());
             }
@@ -479,7 +479,7 @@ impl TreeWalker {
 
         while !std::ptr::eq(node.as_ref(), root.as_ref()) {
             // Try previous sibling and its last descendants
-            let sibling = node.upcast().get(js_string!("previousSibling"), context)?;
+            let sibling = node.get(js_string!("previousSibling"), context)?;
 
             if !sibling.is_null() && !sibling.is_undefined() {
                 let mut sibling_obj = sibling.as_object().ok_or_else(|| {
@@ -495,7 +495,7 @@ impl TreeWalker {
                         break;
                     }
 
-                    let last_child = sibling_obj.upcast().get(js_string!("lastChild"), context)?;
+                    let last_child = sibling_obj.get(js_string!("lastChild"), context)?;
                     if last_child.is_null() || last_child.is_undefined() {
                         if filter_result == node_filter::FILTER_ACCEPT {
                             data.set_current_node(sibling_obj.clone());
@@ -514,7 +514,7 @@ impl TreeWalker {
             }
 
             // Go to parent
-            let parent = node.upcast().get(js_string!("parentNode"), context)?;
+            let parent = node.get(js_string!("parentNode"), context)?;
             if parent.is_null() || parent.is_undefined() {
                 return Ok(JsValue::null());
             }
@@ -564,7 +564,7 @@ impl TreeWalker {
             let filter_result = data.filter_node(&node, context)?;
 
             if filter_result != node_filter::FILTER_REJECT {
-                let first_child = node.upcast().get(js_string!("firstChild"), context)?;
+                let first_child = node.get(js_string!("firstChild"), context)?;
                 if !first_child.is_null() && !first_child.is_undefined() {
                     let child_obj = first_child.as_object().ok_or_else(|| {
                         JsNativeError::typ().with_message("firstChild is not an object")
@@ -587,7 +587,7 @@ impl TreeWalker {
                     return Ok(JsValue::null());
                 }
 
-                let sibling = node.upcast().get(js_string!("nextSibling"), context)?;
+                let sibling = node.get(js_string!("nextSibling"), context)?;
                 if !sibling.is_null() && !sibling.is_undefined() {
                     let sibling_obj = sibling.as_object().ok_or_else(|| {
                         JsNativeError::typ().with_message("sibling is not an object")
@@ -604,7 +604,7 @@ impl TreeWalker {
                 }
 
                 // Go to parent
-                let parent = node.upcast().get(js_string!("parentNode"), context)?;
+                let parent = node.get(js_string!("parentNode"), context)?;
                 if parent.is_null() || parent.is_undefined() {
                     return Ok(JsValue::null());
                 }

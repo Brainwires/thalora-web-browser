@@ -181,13 +181,16 @@ impl BuiltInConstructor for ServiceWorker {
             service_worker_data,
         );
 
+        // Upcast for method calls
+        let service_worker_obj_upcast = service_worker_obj.upcast();
+
         // Add event handler properties
-        worker_events::add_worker_event_handlers(&service_worker_obj, context)?;
+        worker_events::add_worker_event_handlers(&service_worker_obj_upcast, context)?;
 
         // Start service worker registration process
-        Self::start_registration(&service_worker_obj, context)?;
+        Self::start_registration(&service_worker_obj_upcast, context)?;
 
-        Ok(service_worker_obj.upcast().into())
+        Ok(service_worker_obj_upcast.into())
     }
 }
 
