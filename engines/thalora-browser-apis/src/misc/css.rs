@@ -311,7 +311,8 @@ fn create_worklet_object(context: &mut Context, name: &str) -> JsResult<JsValue>
         .length(1)
         .build();
 
-    worklet_obj.define_property_or_throw(
+    let worklet_generic = worklet_obj.upcast();
+    worklet_generic.define_property_or_throw(
         js_string!("addModule"),
         PropertyDescriptorBuilder::new()
             .value(add_module_func)
@@ -322,7 +323,7 @@ fn create_worklet_object(context: &mut Context, name: &str) -> JsResult<JsValue>
         context,
     )?;
 
-    Ok(worklet_obj.into())
+    Ok(worklet_generic.into())
 }
 
 /// `CSS.supports(property, value)` implementation

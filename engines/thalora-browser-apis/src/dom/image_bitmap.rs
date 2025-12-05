@@ -175,7 +175,7 @@ pub fn create_image_bitmap_from_data(
         bitmap_data,
     );
 
-    Ok(obj)
+    Ok(obj.upcast())
 }
 
 // ============== Property Accessors ==============

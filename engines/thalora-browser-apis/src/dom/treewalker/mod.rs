@@ -105,7 +105,7 @@ impl TreeWalkerData {
 
     /// Check if a node should be accepted based on whatToShow
     fn node_matches_what_to_show(&self, node: &JsObject, context: &mut Context) -> bool {
-        // Get the nodeType
+        // Get the nodeType - node is already a generic JsObject reference
         let node_type = match node.get(js_string!("nodeType"), context) {
             Ok(val) => match val.to_u32(context) {
                 Ok(n) => n,
@@ -629,7 +629,7 @@ impl TreeWalker {
             context.intrinsics().constructors().treewalker().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 }
 

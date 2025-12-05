@@ -113,10 +113,11 @@ impl BuiltInConstructor for BroadcastChannel {
         // For now, each channel operates independently
 
         // Add event handler properties (onmessage, onmessageerror)
-        channel_obj.set(js_string!("onmessage"), JsValue::null(), false, context)?;
-        channel_obj.set(js_string!("onmessageerror"), JsValue::null(), false, context)?;
+        let channel_obj_generic = channel_obj.upcast();
+        channel_obj_generic.set(js_string!("onmessage"), JsValue::null(), false, context)?;
+        channel_obj_generic.set(js_string!("onmessageerror"), JsValue::null(), false, context)?;
 
-        Ok(channel_obj.into())
+        Ok(channel_obj_generic.into())
     }
 }
 

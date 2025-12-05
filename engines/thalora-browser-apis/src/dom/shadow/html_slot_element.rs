@@ -345,7 +345,7 @@ impl HTMLSlotElement {
             slot_data,
         );
 
-        Ok(slot_obj)
+        Ok(slot_obj.upcast())
     }
 }
 

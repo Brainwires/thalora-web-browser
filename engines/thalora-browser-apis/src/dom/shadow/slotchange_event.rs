@@ -108,7 +108,7 @@ impl SlotChangeEventSystem {
             event_data,
         );
 
-        Ok(event)
+        Ok(event.upcast())
     }
 
     /// Signal slot change for multiple slots (batch processing)

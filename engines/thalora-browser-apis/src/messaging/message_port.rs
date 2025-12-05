@@ -99,7 +99,7 @@ impl MessagePortData {
             self.clone(),
         );
 
-        Ok(object)
+        Ok(object.upcast())
     }
 }
 

@@ -96,65 +96,67 @@ impl BuiltInConstructor for MessageEvent {
             message_event_data,
         );
 
+        let message_event_generic = message_event_obj.upcast();
+
         // Parse eventInitDict if provided
         if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
                 // Set data property
                 if let Ok(data_val) = init_obj.get(js_string!("data"), context) {
-                    message_event_obj.set(js_string!("data"), data_val, false, context)?;
+                    message_event_generic.set(js_string!("data"), data_val, false, context)?;
                 }
 
                 // Set origin property
                 if let Ok(origin_val) = init_obj.get(js_string!("origin"), context) {
                     let origin_str = origin_val.to_string(context)?;
-                    message_event_obj.set(js_string!("origin"), origin_str, false, context)?;
+                    message_event_generic.set(js_string!("origin"), origin_str, false, context)?;
                 }
 
                 // Set lastEventId property
                 if let Ok(last_event_id_val) = init_obj.get(js_string!("lastEventId"), context) {
                     let last_event_id_str = last_event_id_val.to_string(context)?;
-                    message_event_obj.set(js_string!("lastEventId"), last_event_id_str, false, context)?;
+                    message_event_generic.set(js_string!("lastEventId"), last_event_id_str, false, context)?;
                 }
 
                 // Set source property
                 if let Ok(source_val) = init_obj.get(js_string!("source"), context) {
-                    message_event_obj.set(js_string!("source"), source_val, false, context)?;
+                    message_event_generic.set(js_string!("source"), source_val, false, context)?;
                 }
 
                 // Set ports property
                 if let Ok(ports_val) = init_obj.get(js_string!("ports"), context) {
-                    message_event_obj.set(js_string!("ports"), ports_val, false, context)?;
+                    message_event_generic.set(js_string!("ports"), ports_val, false, context)?;
                 }
 
                 // Set bubbles property (inherited from Event)
                 if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
                     let bubbles = bubbles_val.to_boolean();
-                    message_event_obj.set(js_string!("bubbles"), bubbles, false, context)?;
+                    message_event_generic.set(js_string!("bubbles"), bubbles, false, context)?;
                 }
 
                 // Set cancelable property (inherited from Event)
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
                     let cancelable = cancelable_val.to_boolean();
-                    message_event_obj.set(js_string!("cancelable"), cancelable, false, context)?;
+                    message_event_generic.set(js_string!("cancelable"), cancelable, false, context)?;
                 }
             }
         }
 
         // Set the type property
-        message_event_obj.set(js_string!("type"), event_type, false, context)?;
+        message_event_generic.set(js_string!("type"), event_type, false, context)?;
 
         // Set default values for Event interface properties
-        message_event_obj.set(js_string!("bubbles"), false, false, context)?;
-        message_event_obj.set(js_string!("cancelable"), false, false, context)?;
-        message_event_obj.set(js_string!("composed"), false, false, context)?;
-        message_event_obj.set(js_string!("defaultPrevented"), false, false, context)?;
-        message_event_obj.set(js_string!("eventPhase"), 0, false, context)?;
-        message_event_obj.set(js_string!("isTrusted"), false, false, context)?;
-        message_event_obj.set(js_string!("target"), JsValue::null(), false, context)?;
-        message_event_obj.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        message_event_obj.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        message_event_generic.set(js_string!("bubbles"), false, false, context)?;
+        message_event_generic.set(js_string!("cancelable"), false, false, context)?;
+        message_event_generic.set(js_string!("composed"), false, false, context)?;
+        message_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
+        message_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
+        message_event_generic.set(js_string!("isTrusted"), false, false, context)?;
+        message_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
+        message_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
+        message_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
 
-        Ok(message_event_obj.into())
+        Ok(message_event_generic.into())
     }
 }
 

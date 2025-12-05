@@ -421,14 +421,15 @@ impl BuiltInConstructor for HTMLFormElement {
         );
 
         // Add elements collection property
-        let elements_collection = HTMLFormControlsCollection::new(form_obj.clone());
+        let form_generic = form_obj.upcast();
+        let elements_collection = HTMLFormControlsCollection::new(form_generic.clone());
         let elements_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             context.intrinsics().constructors().object().prototype(),
             elements_collection,
         );
 
-        form_obj.define_property_or_throw(
+        form_generic.define_property_or_throw(
             js_string!("elements"),
             PropertyDescriptorBuilder::new()
                 .value(elements_obj)
@@ -439,7 +440,7 @@ impl BuiltInConstructor for HTMLFormElement {
             context,
         )?;
 
-        Ok(form_obj.into())
+        Ok(form_generic.into())
     }
 }
 
@@ -1025,7 +1026,8 @@ impl BuiltInConstructor for HTMLInputElement {
             validity_data,
         );
 
-        input_obj.define_property_or_throw(
+        let input_generic = input_obj.upcast();
+        input_generic.define_property_or_throw(
             js_string!("validity"),
             PropertyDescriptorBuilder::new()
                 .value(validity_obj)
@@ -1036,7 +1038,7 @@ impl BuiltInConstructor for HTMLInputElement {
             context,
         )?;
 
-        Ok(input_obj.into())
+        Ok(input_generic.into())
     }
 }
 

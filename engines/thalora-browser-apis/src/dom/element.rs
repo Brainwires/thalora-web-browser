@@ -309,6 +309,9 @@ impl BuiltInConstructor for Element {
             element_data,
         );
 
+        // Upcast to generic JsObject for method access
+        let element = element.upcast();
+
         // Check if dispatchEvent method exists on the created element
         if let Ok(dispatch_event) = element.get(js_string!("dispatchEvent"), context) {
             eprintln!("DEBUG: dispatchEvent found on element: {:?}", dispatch_event.type_of());
@@ -931,14 +934,15 @@ impl ElementData {
             for child in children.iter() {
                 if let Some(child_data) = child.downcast_ref::<ElementData>() {
                     let cloned_child = child_data.clone_element(true, context)?;
-                    if let Some(cloned_data) = cloned.downcast_ref::<ElementData>() {
-                        cloned_data.append_child(cloned_child);
+                    // cloned is JsObject<ElementData>, so we can borrow its data directly
+                    if let Ok(cloned_data) = cloned.try_borrow() {
+                        cloned_data.data().append_child(cloned_child);
                     }
                 }
             }
         }
 
-        Ok(cloned)
+        Ok(cloned.upcast())
     }
 
     pub fn get_style(&self) -> CSSStyleDeclaration {

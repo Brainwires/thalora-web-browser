@@ -18,8 +18,9 @@ exclude = ["engines/boa"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# Configure getrandom for WASM builds
+# Configure getrandom for WASM builds - need both 0.2.x and 0.3.x versions
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 [dependencies]

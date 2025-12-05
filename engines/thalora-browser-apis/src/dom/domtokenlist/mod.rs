@@ -72,7 +72,7 @@ impl DOMTokenList {
             context.intrinsics().constructors().domtokenlist().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 
     /* Prototype methods */

@@ -907,7 +907,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Set lock_manager on navigator_data BEFORE creating the object
     eprintln!("DEBUG: Setting lock_manager on Navigator data structure");
-    navigator_data.set_lock_manager(lock_manager_obj.clone());
+    let lock_manager_generic = lock_manager_obj.upcast();
+    navigator_data.set_lock_manager(lock_manager_generic.clone());
 
     // Now create the navigator object with the data that includes lock_manager
     let navigator_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
@@ -917,21 +918,22 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
 
     // Set navigator.storage (this works with .set() because storage doesn't have a special getter)
-    navigator_obj.set(
+    let navigator_generic = navigator_obj.upcast();
+    navigator_generic.set(
         boa_engine::js_string!("storage"),
         storage_manager_obj,
         false,
         context
     ).expect("failed to set navigator.storage");
 
-    let check_storage = navigator_obj.get(boa_engine::js_string!("storage"), context).unwrap();
+    let check_storage = navigator_generic.get(boa_engine::js_string!("storage"), context).unwrap();
     eprintln!("DEBUG: After setting navigator.storage, get('storage') = {:?}", check_storage);
 
     // Set navigator.locks as a value property (not accessor) for proper descriptor
-    navigator_obj.define_property_or_throw(
+    navigator_generic.define_property_or_throw(
         boa_engine::js_string!("locks"),
         boa_engine::property::PropertyDescriptor::builder()
-            .value(lock_manager_obj)
+            .value(lock_manager_generic)
             .writable(false)
             .enumerable(true)
             .configurable(true)
@@ -939,7 +941,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     ).expect("failed to set navigator.locks");
 
-    let navigator_instance: boa_engine::JsValue = navigator_obj.into();
+    let navigator_instance: boa_engine::JsValue = navigator_generic.into();
 
     // Now set navigator on the window object (after setting storage and locks)
     if let Some(window_obj) = window_instance.as_object() {

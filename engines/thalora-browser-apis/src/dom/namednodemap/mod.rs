@@ -44,7 +44,8 @@ impl NamedNodeMapData {
         for (name, value) in attrs {
             // Create Attr object
             let attr = JsObject::default(context.intrinsics());
-            attr.define_property_or_throw(
+            let attr_generic = attr.upcast();
+            attr_generic.define_property_or_throw(
                 js_string!("nodeType"),
                 PropertyDescriptorBuilder::new()
                     .value(JsValue::from(2))
@@ -54,7 +55,7 @@ impl NamedNodeMapData {
                     .build(),
                 context,
             )?;
-            attr.define_property_or_throw(
+            attr_generic.define_property_or_throw(
                 js_string!("nodeName"),
                 PropertyDescriptorBuilder::new()
                     .value(js_string!(name.clone()))
@@ -64,7 +65,7 @@ impl NamedNodeMapData {
                     .build(),
                 context,
             )?;
-            attr.define_property_or_throw(
+            attr_generic.define_property_or_throw(
                 js_string!("name"),
                 PropertyDescriptorBuilder::new()
                     .value(js_string!(name.clone()))
@@ -74,7 +75,7 @@ impl NamedNodeMapData {
                     .build(),
                 context,
             )?;
-            attr.define_property_or_throw(
+            attr_generic.define_property_or_throw(
                 js_string!("value"),
                 PropertyDescriptorBuilder::new()
                     .value(js_string!(value))
@@ -84,7 +85,7 @@ impl NamedNodeMapData {
                     .build(),
                 context,
             )?;
-            attr.define_property_or_throw(
+            attr_generic.define_property_or_throw(
                 js_string!("specified"),
                 PropertyDescriptorBuilder::new()
                     .value(JsValue::from(true))
@@ -95,7 +96,7 @@ impl NamedNodeMapData {
                 context,
             )?;
 
-            data.attributes.lock().unwrap().insert(name.clone(), attr);
+            data.attributes.lock().unwrap().insert(name.clone(), attr_generic.clone());
             data.order.lock().unwrap().push(name);
         }
         Ok(data)
@@ -152,7 +153,7 @@ impl NamedNodeMap {
             context.intrinsics().constructors().namednodemap().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 
     /// `NamedNodeMap.prototype.length` getter
@@ -312,7 +313,7 @@ impl BuiltInConstructor for NamedNodeMap {
             data,
         );
 
-        Ok(obj.into())
+        Ok(obj.upcast().into())
     }
 }
 

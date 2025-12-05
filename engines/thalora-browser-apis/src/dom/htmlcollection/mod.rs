@@ -86,7 +86,7 @@ impl HTMLCollection {
             collection_data,
         );
 
-        Ok(collection_obj)
+        Ok(collection_obj.upcast())
     }
 
     /// `HTMLCollection.prototype.length` getter
@@ -223,7 +223,7 @@ impl BuiltInConstructor for HTMLCollection {
             collection_data,
         );
 
-        Ok(collection_obj.into())
+        Ok(collection_obj.upcast().into())
     }
 }
 

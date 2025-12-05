@@ -84,7 +84,7 @@ impl NodeIteratorData {
 
     /// Check if a node should be accepted based on whatToShow
     fn node_matches_what_to_show(&self, node: &JsObject, context: &mut Context) -> bool {
-        // Get the nodeType
+        // Get the nodeType - node is already a generic JsObject reference
         let node_type = match node.get(js_string!("nodeType"), context) {
             Ok(val) => match val.to_u32(context) {
                 Ok(n) => n,
@@ -143,7 +143,7 @@ impl NodeIteratorData {
             None => return Ok(None),
         };
 
-        // Try first child
+        // Try first child - node is already a generic JsObject reference
         let first_child = node.get(js_string!("firstChild"), context)?;
         if !first_child.is_null() && !first_child.is_undefined() {
             if let Some(child) = first_child.as_object() {
@@ -185,7 +185,7 @@ impl NodeIteratorData {
             None => return Ok(None),
         };
 
-        // Try previous sibling's last descendant
+        // Try previous sibling's last descendant - node is already a generic JsObject reference
         let sibling = node.get(js_string!("previousSibling"), context)?;
         if !sibling.is_null() && !sibling.is_undefined() {
             if let Some(mut sib) = sibling.as_object().map(|o| o.clone()) {
@@ -399,7 +399,7 @@ impl NodeIterator {
             context.intrinsics().constructors().nodeiterator().prototype(),
             data,
         );
-        Ok(obj)
+        Ok(obj.upcast())
     }
 }
 

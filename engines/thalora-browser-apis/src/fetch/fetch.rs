@@ -146,7 +146,7 @@ fn fetch(
                             // Reject promise with body read error
                             let error = JsNativeError::typ()
                                 .with_message(format!("Failed to read response body: {}", e))
-                                .to_opaque(context);
+                                .into_opaque(context);
                             resolvers.reject.call(&JsValue::undefined(), &[error.into()], context)
                         }
                     }
@@ -155,7 +155,7 @@ fn fetch(
                     // Reject promise with network error
                     let error = JsNativeError::typ()
                         .with_message(format!("Fetch request failed: {}", e))
-                        .to_opaque(context);
+                        .into_opaque(context);
                     resolvers.reject.call(&JsValue::undefined(), &[error.into()], context)
                 }
             }

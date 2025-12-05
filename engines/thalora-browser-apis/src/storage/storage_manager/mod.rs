@@ -241,7 +241,7 @@ impl StorageManager {
         let (promise, resolvers) = JsPromise::new_pending(context);
         let error_value = JsNativeError::error()
             .with_message("File System API not yet implemented")
-            .to_opaque(context);
+            .into_opaque(context);
         resolvers.reject.call(&JsValue::undefined(), &[error_value.into()], context)?;
 
         Ok(JsValue::from(promise))

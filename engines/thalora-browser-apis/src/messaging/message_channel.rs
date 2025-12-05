@@ -164,7 +164,9 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
     // Define methods on the port object using PropertyDescriptorBuilder
     use boa_engine::property::PropertyDescriptorBuilder;
 
-    port_obj.define_property_or_throw(
+    let port_obj_generic = port_obj.upcast();
+
+    port_obj_generic.define_property_or_throw(
         js_string!("postMessage"),
         PropertyDescriptorBuilder::new()
             .value(post_message_func)
@@ -174,7 +176,7 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
         context,
     )?;
 
-    port_obj.define_property_or_throw(
+    port_obj_generic.define_property_or_throw(
         js_string!("start"),
         PropertyDescriptorBuilder::new()
             .value(start_func)
@@ -184,7 +186,7 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
         context,
     )?;
 
-    port_obj.define_property_or_throw(
+    port_obj_generic.define_property_or_throw(
         js_string!("close"),
         PropertyDescriptorBuilder::new()
             .value(close_func)
@@ -196,9 +198,9 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
 
     // Add event handler properties to MessagePort (native only)
     #[cfg(feature = "native")]
-    worker_events::add_worker_event_handlers(&port_obj, context)?;
+    worker_events::add_worker_event_handlers(&port_obj_generic, context)?;
 
-    Ok(port_obj)
+    Ok(port_obj_generic)
 }
 
 /// MessagePort postMessage implementation
