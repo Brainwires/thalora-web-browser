@@ -1,12 +1,11 @@
 //! Web search module - provides search functionality without requiring full MCP server
 //!
-//! This module exposes the headless browser search capabilities for use by external crates
-//! without pulling in the full MCP server infrastructure.
+//! This module exposes search capabilities for use by external crates
+//! without pulling in the full browser infrastructure.
+//! Uses simple HTTP requests which are Send + Sync friendly.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-
-use crate::engine::HeadlessWebBrowser;
 
 /// Search result item
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,12 +17,25 @@ pub struct SearchResult {
 }
 
 /// Collection of search results
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResults {
     pub query: String,
     pub results: Vec<SearchResult>,
     pub total_results: Option<String>,
     pub search_time: Option<String>,
+}
+
+/// Default user agent for web requests - using a common browser UA to avoid bot detection
+const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+/// Create a configured HTTP client
+fn create_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))
 }
 
 /// Perform a web search using the specified search engine
@@ -36,95 +48,57 @@ pub struct SearchResults {
 /// # Returns
 /// SearchResults containing the search results
 pub async fn perform_search(query: &str, num_results: usize, search_engine: &str) -> Result<SearchResults> {
+    let client = create_client()?;
+
     match search_engine {
-        "duckduckgo" => search_duckduckgo(query, num_results).await,
-        "bing" => search_bing(query, num_results).await,
-        "google" => search_google(query, num_results).await,
-        "startpage" => search_startpage(query, num_results).await,
+        "duckduckgo" => search_duckduckgo(&client, query, num_results).await,
+        "bing" => search_bing(&client, query, num_results).await,
+        "google" => search_google(&client, query, num_results).await,
+        "startpage" => search_startpage(&client, query, num_results).await,
         _ => Err(anyhow::anyhow!("Unsupported search engine: {}. Use: duckduckgo, bing, google, or startpage", search_engine)),
     }
 }
 
-async fn search_duckduckgo(query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_duckduckgo(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
 
-    // Create temporary browser (returns Arc<Mutex<HeadlessWebBrowser>>)
-    let temp_browser = HeadlessWebBrowser::new();
-
-    // Navigate with stealth options
-    {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_options(&search_url, true).await?;
-    }
-
-    // Get the rendered content
-    let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    let response = client.get(&search_url).send().await?;
+    let html = response.text().await?;
 
     parse_duckduckgo_results(&html, query, num_results)
 }
 
-async fn search_bing(query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_bing(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!(
         "https://www.bing.com/search?q={}&count={}&FORM=QBLH",
         urlencoding::encode(query),
         num_results
     );
 
-    let temp_browser = HeadlessWebBrowser::new();
-
-    {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_options(&search_url, true).await?;
-    }
-
-    let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    let response = client.get(&search_url).send().await?;
+    let html = response.text().await?;
 
     parse_bing_results(&html, query, num_results)
 }
 
-async fn search_google(query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_google(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!(
         "https://www.google.com/search?q={}&num={}&hl=en&gl=us",
         urlencoding::encode(query),
         num_results
     );
 
-    let temp_browser = HeadlessWebBrowser::new();
-
-    // Google requires JavaScript execution
-    {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_js_option(&search_url, true, true).await?;
-    }
-
-    let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    let response = client.get(&search_url).send().await?;
+    let html = response.text().await?;
 
     parse_google_results(&html, query, num_results)
 }
 
-async fn search_startpage(query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_startpage(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!("https://www.startpage.com/do/search?query={}", urlencoding::encode(query));
 
-    let temp_browser = HeadlessWebBrowser::new();
-
-    {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_options(&search_url, true).await?;
-    }
-
-    let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+    let response = client.get(&search_url).send().await?;
+    let html = response.text().await?;
 
     parse_startpage_results(&html, query, num_results)
 }

@@ -9,12 +9,6 @@ repository = "https://github.com/brainwires/thalora"
 keywords = ["headless-browser", "ai", "mcp", "web-scraping", "rust"]
 categories = ["web-programming", "parsing"]
 
-# Define thalora as its own workspace root (prevents cargo from trying to merge with parent workspace)
-[workspace]
-resolver = "2"
-# Exclude boa submodule - it has its own workspace
-exclude = ["engines/boa"]
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
