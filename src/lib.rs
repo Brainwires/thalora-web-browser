@@ -23,6 +23,10 @@ pub mod apis;
 // Advanced browser features
 pub mod features;
 
+// Standalone web search module (available for web-search feature without full MCP)
+#[cfg(any(feature = "native", feature = "web-search"))]
+pub mod web_search;
+
 // Communication protocols (only for native builds - requires tokio/networking)
 #[cfg(feature = "native")]
 pub mod protocols;
@@ -47,6 +51,10 @@ pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
 #[cfg(any(feature = "native", feature = "web-search"))]
 pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
+
+// Web search re-exports for convenient access
+#[cfg(any(feature = "native", feature = "web-search"))]
+pub use web_search::{perform_search, SearchResult, SearchResults};
 
 // Protocol exports (only for native builds)
 #[cfg(feature = "native")]
