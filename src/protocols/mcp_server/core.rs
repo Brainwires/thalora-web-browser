@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
-use tracing::{error, info};
+use tracing::{error, info, trace};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use vfs::VfsInstance;
@@ -129,47 +129,46 @@ impl McpServer {
         let mut reader = AsyncBufReader::new(stdin);
         let mut stdout = tokio::io::stdout();
 
-        eprintln!("🔍 MCP Server starting stdio loop");
+        trace!("MCP Server starting stdio loop");
 
         loop {
-            eprintln!("🔍 Waiting for input...");
+            trace!("Waiting for input...");
             let mut line = String::new();
             match reader.read_line(&mut line).await {
                 Ok(0) => {
-                    eprintln!("🔍 EOF received, shutting down");
+                    trace!("EOF received, shutting down");
                     break;
                 }
                 Ok(n) => {
-                    eprintln!("🔍 Read {} bytes from stdin", n);
+                    trace!("Read {} bytes from stdin", n);
                     let line = line.trim();
                     if line.is_empty() {
-                        eprintln!("🔍 Empty line, continuing");
+                        trace!("Empty line, continuing");
                         continue;
                     }
 
-                    eprintln!("🔍 Parsing JSON: {}", line);
+                    trace!("Parsing JSON: {}", line);
 
                     // First, check if this is a notification (no 'id' field) or a request (has 'id' field)
                     let parsed: serde_json::Value = match serde_json::from_str(line) {
                         Ok(v) => {
-                            eprintln!("🔍 JSON parsed successfully");
+                            trace!("JSON parsed successfully");
                             v
                         }
                         Err(e) => {
                             error!("Failed to parse JSON: {}", e);
-                            eprintln!("🔍 JSON parse error: {}", e);
                             continue;
                         }
                     };
 
                     if let Some(request_id) = parsed.get("id") {
-                        eprintln!("🔍 Handling request with id: {}", request_id);
+                        trace!("Handling request with id: {}", request_id);
                         // This is a request - parse as McpRequest and send response
                         match serde_json::from_value::<McpRequest>(parsed.clone()) {
                             Ok(request) => {
-                                eprintln!("🔍 Request parsed, calling handler");
+                                trace!("Request parsed, calling handler");
                                 let response = self.handle_request(request).await;
-                                eprintln!("🔍 Handler returned, preparing response");
+                                trace!("Handler returned, preparing response");
 
                                 // Wrap response in proper JSON-RPC 2.0 format
                                 let message = McpMessage {
@@ -178,14 +177,14 @@ impl McpServer {
                                     content: McpMessageContent::Response(response),
                                 };
 
-                                eprintln!("🔍 Serializing response");
+                                trace!("Serializing response");
                                 let response_json = serde_json::to_string(&message)?;
-                                eprintln!("🔍 Writing response to stdout: {} bytes", response_json.len());
+                                trace!("Writing response to stdout: {} bytes", response_json.len());
                                 stdout.write_all(response_json.as_bytes()).await?;
                                 stdout.write_all(b"\n").await?;
-                                eprintln!("🔍 Flushing stdout");
+                                trace!("Flushing stdout");
                                 stdout.flush().await?;
-                                eprintln!("🔍 Response sent successfully");
+                                trace!("Response sent successfully");
                             }
                             Err(e) => {
                                 error!("Failed to parse request: {}", e);
