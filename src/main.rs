@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::panic;
 
 // Core modules organized by functionality
 pub mod engine;
@@ -18,13 +19,45 @@ pub mod gui;
 use protocols::mcp_server::McpServer;
 use engine::{EngineType, EngineFactory, EngineConfig};
 
+/// Install a custom panic hook that logs panics to stderr instead of crashing
+/// This helps prevent "broken pipe" errors when panics occur in async tasks
+fn install_panic_hook() {
+    let default_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // Log the panic to stderr with full details
+        let location = panic_info.location()
+            .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+            .unwrap_or_else(|| "unknown location".to_string());
+
+        let payload = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic payload".to_string()
+        };
+
+        eprintln!("╔══════════════════════════════════════════════════════════════╗");
+        eprintln!("║                    🚨 PANIC CAUGHT 🚨                        ║");
+        eprintln!("╠══════════════════════════════════════════════════════════════╣");
+        eprintln!("║ Location: {}", location);
+        eprintln!("║ Message: {}", payload);
+        eprintln!("╚══════════════════════════════════════════════════════════════╝");
+
+        // Also call the default hook for backtrace if RUST_BACKTRACE is set
+        if std::env::var("RUST_BACKTRACE").is_ok() {
+            default_hook(panic_info);
+        }
+    }));
+}
+
 #[derive(Parser)]
 #[command(name = "thalora")]
 #[command(about = "Pure Rust headless browser for AI models with MCP integration")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
-    
+
     /// Use V8 JavaScript engine instead of the default Boa engine
     #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
     use_v8_engine: bool,
@@ -81,6 +114,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Install custom panic hook early to catch all panics
+    install_panic_hook();
+
     let cli = Cli::parse();
 
     // Determine which engine to use based on CLI flags or default

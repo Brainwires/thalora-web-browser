@@ -118,7 +118,20 @@ impl McpServer {
         // Run the tool while VFS is installed
         // Clone `arguments` for the call so we can still inspect the original after the call (lifecycle checks).
         let args_for_call = arguments.clone();
+
+        // Execute the tool with proper error handling and logging
+        let start_time = std::time::Instant::now();
+        eprintln!("🔧 Starting tool execution: {}", name);
+
         let resp = self.route_tool_call(&name, args_for_call).await;
+
+        let elapsed = start_time.elapsed();
+        eprintln!("🔧 Tool execution completed: {} (took {:?})", name, elapsed);
+
+        // Log if the response indicates an error
+        if let McpResponse::ToolResult { is_error: true, content, .. } = &resp {
+            eprintln!("⚠️ Tool {} returned error: {:?}", name, content);
+        }
 
         // Lifecycle:
         // - If ephemeral (no session_id): persist if `persistent=true`, otherwise delete backing file.
