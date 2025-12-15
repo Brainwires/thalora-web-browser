@@ -161,7 +161,10 @@ impl McpServer {
                         }
                     };
 
-                    if let Some(request_id) = parsed.get("id") {
+                    // Check if this is a request (has non-null id) or notification (no id or null id)
+                    let request_id = parsed.get("id").filter(|id| !id.is_null());
+
+                    if let Some(request_id) = request_id {
                         trace!("Handling request with id: {}", request_id);
                         // This is a request - parse as McpRequest and send response
                         match serde_json::from_value::<McpRequest>(parsed.clone()) {
@@ -205,12 +208,6 @@ impl McpServer {
                                 stdout.write_all(response_json.as_bytes()).await?;
                                 stdout.write_all(b"\n").await?;
                                 stdout.flush().await?;
-
-                                // Also log to stderr for debugging
-                                let mut stderr = tokio::io::stderr();
-                                let error_msg = format!("Parse error: {}\n", e);
-                                stderr.write_all(error_msg.as_bytes()).await?;
-                                stderr.flush().await?;
                             }
                         }
                     } else {
