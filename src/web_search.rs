@@ -2,9 +2,10 @@
 //!
 //! This module exposes search capabilities for use by external crates
 //! without pulling in the full browser infrastructure.
-//! Uses simple HTTP requests which are Send + Sync friendly.
+//! Uses reqwest with proper browser headers to avoid bot detection.
 
 use anyhow::Result;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
 use serde::{Deserialize, Serialize};
 
 /// Search result item
@@ -25,17 +26,58 @@ pub struct SearchResults {
     pub search_time: Option<String>,
 }
 
-/// Default user agent for web requests - using a common browser UA to avoid bot detection
-const USER_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-/// Create a configured HTTP client
+/// Create a configured HTTP client with proper browser-like settings
+/// This matches what a real Chrome browser sends to avoid TLS/HTTP fingerprinting
 fn create_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
-        .user_agent(USER_AGENT)
+        .cookie_store(true)  // Important for session tracking
         .timeout(std::time::Duration::from_secs(30))
-        .redirect(reqwest::redirect::Policy::limited(5))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .gzip(true)
+        .brotli(true)
+        .deflate(true)
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))
+}
+
+/// Create standard browser headers that match a real Chrome browser
+fn create_browser_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+
+    // Use Chrome 120 on Windows - this must match sec-ch-ua headers
+    headers.insert(USER_AGENT, HeaderValue::from_static(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ));
+
+    // Chrome-style Accept header
+    headers.insert(ACCEPT, HeaderValue::from_static(
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+    ));
+
+    // Chrome language preferences
+    headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
+
+    // Chrome compression support
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
+
+    // Chrome client hints - CRITICAL for passing bot detection
+    headers.insert("sec-ch-ua", HeaderValue::from_static("\"Chromium\";v=\"120\", \"Not A(Brand\";v=\"99\""));
+    headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
+    headers.insert("sec-ch-ua-platform", HeaderValue::from_static("\"Windows\""));
+
+    // Fetch metadata
+    headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+    headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+    headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
+    headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
+
+    // Upgrade insecure requests
+    headers.insert(UPGRADE_INSECURE_REQUESTS, HeaderValue::from_static("1"));
+
+    // DNT header
+    headers.insert("dnt", HeaderValue::from_static("1"));
+
+    headers
 }
 
 /// Perform a web search using the specified search engine
@@ -49,55 +91,61 @@ fn create_client() -> Result<reqwest::Client> {
 /// SearchResults containing the search results
 pub async fn perform_search(query: &str, num_results: usize, search_engine: &str) -> Result<SearchResults> {
     let client = create_client()?;
+    let headers = create_browser_headers();
 
     match search_engine {
-        "duckduckgo" => search_duckduckgo(&client, query, num_results).await,
-        "bing" => search_bing(&client, query, num_results).await,
-        "google" => search_google(&client, query, num_results).await,
-        "startpage" => search_startpage(&client, query, num_results).await,
+        "duckduckgo" => search_duckduckgo(&client, &headers, query, num_results).await,
+        "bing" => search_bing(&client, &headers, query, num_results).await,
+        "google" => search_google(&client, &headers, query, num_results).await,
+        "startpage" => search_startpage(&client, &headers, query, num_results).await,
         _ => Err(anyhow::anyhow!("Unsupported search engine: {}. Use: duckduckgo, bing, google, or startpage", search_engine)),
     }
 }
 
-async fn search_duckduckgo(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_duckduckgo(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
 
-    let response = client.get(&search_url).send().await?;
+    let response = client.get(&search_url).headers(headers.clone()).send().await?;
     let html = response.text().await?;
+
+    // Check for CAPTCHA - only warn if detected
+    if html.contains("anomaly-modal") {
+        eprintln!("[thalora::web_search] WARNING: DuckDuckGo CAPTCHA detected, results may be limited");
+    }
 
     parse_duckduckgo_results(&html, query, num_results)
 }
 
-async fn search_bing(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_bing(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!(
         "https://www.bing.com/search?q={}&count={}&FORM=QBLH",
         urlencoding::encode(query),
         num_results
     );
 
-    let response = client.get(&search_url).send().await?;
+    let response = client.get(&search_url).headers(headers.clone()).send().await?;
     let html = response.text().await?;
 
     parse_bing_results(&html, query, num_results)
 }
 
-async fn search_google(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_google(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!(
         "https://www.google.com/search?q={}&num={}&hl=en&gl=us",
         urlencoding::encode(query),
         num_results
     );
 
-    let response = client.get(&search_url).send().await?;
+    let response = client.get(&search_url).headers(headers.clone()).send().await?;
     let html = response.text().await?;
 
     parse_google_results(&html, query, num_results)
 }
 
-async fn search_startpage(client: &reqwest::Client, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_startpage(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!("https://www.startpage.com/do/search?query={}", urlencoding::encode(query));
 
-    let response = client.get(&search_url).send().await?;
+    let response = client.get(&search_url).headers(headers.clone()).send().await?;
     let html = response.text().await?;
 
     parse_startpage_results(&html, query, num_results)
