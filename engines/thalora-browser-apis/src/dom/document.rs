@@ -250,7 +250,7 @@ impl BuiltInObject for Document {
 
 impl BuiltInConstructor for Document {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 47; // Accessors and methods on prototype
+    const PROTOTYPE_STORAGE_SLOTS: usize = 56; // Accessors and methods on prototype (adjusted from 47)
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =

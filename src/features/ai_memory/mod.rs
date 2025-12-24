@@ -36,7 +36,7 @@ impl AiMemoryHeap {
             fs::create_dir_all(parent)?;
         }
 
-        let memory_data = if cache_file.exists() {
+        let memory_data = if fs::exists(&cache_file) {
             Self::load_from_file(&cache_file)?
         } else {
             MemoryData {

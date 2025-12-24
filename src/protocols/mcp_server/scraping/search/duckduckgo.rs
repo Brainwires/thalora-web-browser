@@ -61,7 +61,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     Ok(results)
 }
 
-fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 
@@ -145,7 +145,7 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
     Ok(results)
 }
 
-fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
+pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 

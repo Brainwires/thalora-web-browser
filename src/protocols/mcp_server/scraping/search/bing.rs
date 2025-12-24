@@ -34,7 +34,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     parse_results(&html, query, num_results)
 }
 
-fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
     eprintln!("🔍 DEBUG: Bing HTML length: {}", html.len());
     eprintln!("🔍 DEBUG: Bing HTML contains .b_algo: {}", html.contains(".b_algo"));
     eprintln!("🔍 DEBUG: Bing HTML contains cloudflare: {}", html.contains("cloudflare"));
@@ -157,7 +157,7 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
     parse_image_results(&html, query, num_results)
 }
 
-fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
+pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 

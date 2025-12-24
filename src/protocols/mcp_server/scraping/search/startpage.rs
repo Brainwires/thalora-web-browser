@@ -26,7 +26,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     parse_results(&html, query, num_results)
 }
 
-fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 

@@ -719,16 +719,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // Browser APIs
-    global_object.define_property_or_throw(
-        browser::navigator::Navigator::NAME,
-        PropertyDescriptor::builder()
-            .value(browser::navigator::Navigator::get(context.intrinsics()))
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
+    // Browser APIs - Navigator is already registered above at lines 220-229
+    // Removed duplicate Navigator registration to fix assertion error
 
     // Notification constructor (Web Notifications API)
     let notification_constructor = browser::notification::create_notification_constructor(context)?;

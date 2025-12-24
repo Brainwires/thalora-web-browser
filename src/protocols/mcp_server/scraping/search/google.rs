@@ -64,15 +64,14 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
                         eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
 
-                        // Create a new temporary browser for the redirect
-                        let redirect_browser = crate::engine::browser::HeadlessWebBrowser::new();
+                        // Reuse the existing browser to follow the redirect (avoid IndexedDB lock conflict)
                         {
-                            let mut browser = redirect_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
+                            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
                             browser.navigate_to_with_js_option(&full_redirect_url, true, true).await?;
                         }
 
                         let redirect_html = {
-                            let browser = redirect_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
+                            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
                             browser.get_current_content()
                         };
 
@@ -80,8 +79,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
                         eprintln!("🔍 DEBUG: Redirect response preview: {}",
                             if redirect_html.len() > 500 { &redirect_html[..500] } else { &redirect_html });
 
-                        // Explicitly drop browsers to ensure cleanup
-                        drop(redirect_browser);
+                        // Explicitly drop browser to ensure cleanup
                         drop(temp_browser);
 
                         // Parse the redirect response instead
@@ -107,7 +105,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     parse_results(&html, query, num_results)
 }
 
-fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
+pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
     eprintln!("🔍 DEBUG: Google HTML length: {}", html.len());
     eprintln!("🔍 DEBUG: Google HTML contains .g class: {}", html.contains("class=\"g\""));
     eprintln!("🔍 DEBUG: Google HTML contains .tF2Cxc: {}", html.contains("tF2Cxc"));
@@ -229,7 +227,7 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
     parse_image_results(&html, query, num_results)
 }
 
-fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
+pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 

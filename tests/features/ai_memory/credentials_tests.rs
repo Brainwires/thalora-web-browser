@@ -11,8 +11,16 @@ fn create_test_memory() -> (AiMemoryHeap, TempDir) {
     (memory, temp_dir)
 }
 
+/// Set up test master password for credential encryption
+/// SAFETY: Tests should run with --test-threads=1 to avoid env var conflicts
+fn setup_test_password() {
+    // Set a test master password (minimum 32 characters required by crypto module)
+    unsafe { std::env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure") };
+}
+
 #[test]
 fn test_store_and_get_credentials() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     let mut additional = HashMap::new();
@@ -38,6 +46,7 @@ fn test_store_and_get_credentials() {
 
 #[test]
 fn test_get_nonexistent_credentials() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     let result = memory.get_credentials("nonexistent").expect("Should not error");
@@ -46,6 +55,7 @@ fn test_get_nonexistent_credentials() {
 
 #[test]
 fn test_credentials_encryption() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     // Store sensitive password
@@ -67,6 +77,7 @@ fn test_credentials_encryption() {
 
 #[test]
 fn test_list_credential_keys() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     // Store multiple credentials
@@ -83,6 +94,7 @@ fn test_list_credential_keys() {
 
 #[test]
 fn test_credentials_with_special_characters() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     let special_password = r#"p@$$w0rd!@#$%^&*()_+-=[]{}|;':",.<>?/`~"#;
@@ -104,6 +116,7 @@ fn test_credentials_with_special_characters() {
 
 #[test]
 fn test_credentials_with_unicode() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     let unicode_password = "密码🔐пароль";
@@ -127,6 +140,7 @@ fn test_credentials_with_unicode() {
 
 #[test]
 fn test_credentials_additional_data() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     let mut additional = HashMap::new();
@@ -155,6 +169,7 @@ fn test_credentials_additional_data() {
 
 #[test]
 fn test_credentials_overwrite() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     // Store initial credentials
@@ -175,6 +190,7 @@ fn test_credentials_overwrite() {
 
 #[test]
 fn test_credentials_persistence() {
+    setup_test_password();
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let cache_file = temp_dir.path().join("cred_persist.json");
 
@@ -205,6 +221,7 @@ fn test_credentials_persistence() {
 
 #[test]
 fn test_empty_password() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     // Some services might have empty passwords (token-based auth)
@@ -220,6 +237,7 @@ fn test_empty_password() {
 
 #[test]
 fn test_credentials_statistics() {
+    setup_test_password();
     let (mut memory, _temp) = create_test_memory();
 
     memory.store_credentials("cred1", "s1.com", "u1", "p1", HashMap::new()).unwrap();
@@ -228,4 +246,45 @@ fn test_credentials_statistics() {
 
     let stats = memory.get_statistics();
     assert_eq!(stats.credential_count, 3);
+}
+
+#[test]
+fn test_long_password() {
+    setup_test_password();
+    let (mut memory, _temp) = create_test_memory();
+
+    // Test with a very long password
+    let long_password = "a".repeat(10000);
+
+    memory.store_credentials(
+        "long_pass",
+        "service.com",
+        "user",
+        &long_password,
+        HashMap::new(),
+    ).expect("Failed to store long password");
+
+    let result = memory.get_credentials("long_pass")
+        .expect("Failed to get")
+        .expect("Should exist");
+
+    assert_eq!(result.2.len(), 10000);
+    assert_eq!(result.2, long_password);
+}
+
+#[test]
+fn test_multiple_credential_access() {
+    setup_test_password();
+    let (mut memory, _temp) = create_test_memory();
+
+    memory.store_credentials("multi_access", "service.com", "user", "pass", HashMap::new())
+        .expect("Failed to store");
+
+    // Access multiple times - should work consistently
+    for i in 0..5 {
+        let result = memory.get_credentials("multi_access")
+            .expect(&format!("Failed to get on access {}", i))
+            .expect("Should exist");
+        assert_eq!(result.2, "pass");
+    }
 }

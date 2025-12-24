@@ -37,14 +37,21 @@ impl RustRenderer {
 
                 let web_apis = WebApis::new();
 
+                // CRITICAL: Initialize browser APIs from Boa engine FIRST
+                // This registers all the intrinsics (Document, Window, Navigator, etc.)
+                // and creates global instances. This replaces setup_native_dom_globals()
+                // which was causing duplicate registrations.
+                thalora_browser_apis::initialize_browser_apis(&mut context).unwrap();
+
                 // Setup polyfills (now excludes DOM globals which are native)
                 crate::apis::polyfills::setup_all_polyfills(&mut context).unwrap();
 
                 // Setup Web APIs polyfills (requires window and console to be defined)
                 web_apis.setup_all_apis(&mut context).unwrap();
 
-                // Setup native DOM globals (Document, Window, History, PageSwapEvent) - after builtins are initialized
-                crate::apis::dom_native::setup_native_dom_globals(&mut context).unwrap();
+                // NOTE: setup_native_dom_globals() is NOT called here anymore because
+                // initialize_browser_apis() already creates all the global instances.
+                // Calling both would cause duplicate property registrations and assertion failures.
 
                 Self {
                     js_context: Some(context),

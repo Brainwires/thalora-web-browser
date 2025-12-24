@@ -100,6 +100,12 @@ pub fn get_current_vfs() -> Option<Arc<VfsInstance>> {
 #[cfg(feature = "real_fs")]
 pub mod fs {
     pub use std::fs::*;
+    use std::path::Path;
+
+    /// Check if a path exists (wrapper for Path::exists for API compatibility)
+    pub fn exists<P: AsRef<Path>>(path: P) -> bool {
+        path.as_ref().exists()
+    }
 }
 
 #[cfg(not(feature = "real_fs"))]
