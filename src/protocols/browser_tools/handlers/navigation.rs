@@ -3,6 +3,7 @@ use url::Url;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::security::validate_url_for_navigation;
 
 impl BrowserTools {
     pub async fn handle_scrape_url(&self, params: Value) -> McpResponse {
@@ -16,9 +17,14 @@ impl BrowserTools {
             return McpResponse::error(-1, "URL is required".to_string());
         }
 
-        // Validate URL
+        // Validate URL format
         if let Err(_) = Url::parse(url) {
             return McpResponse::error(-1, "Invalid URL format".to_string());
+        }
+
+        // SECURITY: Validate URL to prevent SSRF attacks (CWE-918)
+        if let Err(e) = validate_url_for_navigation(url) {
+            return McpResponse::error(-32602, format!("URL blocked for security: {}", e));
         }
 
         let browser = self.get_or_create_session(session_id, false);
@@ -57,9 +63,14 @@ impl BrowserTools {
             return McpResponse::error(-1, "URL is required".to_string());
         }
 
-        // Validate URL
+        // Validate URL format
         if let Err(_) = Url::parse(url) {
             return McpResponse::error(-1, "Invalid URL format".to_string());
+        }
+
+        // SECURITY: Validate URL to prevent SSRF attacks (CWE-918)
+        if let Err(e) = validate_url_for_navigation(url) {
+            return McpResponse::error(-32602, format!("URL blocked for security: {}", e));
         }
 
         let browser = self.get_or_create_session(session_id, false);

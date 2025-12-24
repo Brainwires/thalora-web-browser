@@ -14,7 +14,8 @@ async fn session_vfs_persistence_and_ephemeral_cleanup() {
     if backing_path.exists() { let _ = std::fs::remove_file(&backing_path); }
 
     // Create or get a session VFS
-    let v1 = server.get_or_create_session_vfs(session_id, None);
+    let v1 = server.get_or_create_session_vfs(session_id, None)
+        .expect("Failed to create session VFS");
     // Write via the VFS instance
     let p = PathBuf::from("/session/key.txt");
     {
@@ -30,7 +31,8 @@ async fn session_vfs_persistence_and_ephemeral_cleanup() {
     assert!(backing_path.exists());
 
     // Simulate retrieving the same session vfs (should reuse same backing)
-    let v2 = server.get_or_create_session_vfs(session_id, None);
+    let v2 = server.get_or_create_session_vfs(session_id, None)
+        .expect("Failed to get existing session VFS");
     assert_eq!(v1.backing_path(), v2.backing_path());
 
     // Create an ephemeral per-call VFS and ensure backing deletion semantics
@@ -49,6 +51,7 @@ async fn session_vfs_persistence_and_ephemeral_cleanup() {
     assert!(!ephemeral_path.exists());
 
     // Cleanup session
-    server.remove_session_vfs(session_id, true);
+    server.remove_session_vfs(session_id, true)
+        .expect("Failed to remove session VFS");
     assert!(!backing_path.exists());
 }

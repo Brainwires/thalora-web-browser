@@ -100,8 +100,11 @@ impl McpServer {
         let prev_vfs: Option<Arc<VfsInstance>>;
         if let Some(session_id) = arguments.get("session_id").and_then(|v| v.as_str()) {
             eprintln!("🔍 DEBUG: call_tool - Using session_id: {}", session_id);
-            // Reuse or create a session VFS. Backing path is in temp dir by default.
-            let v = self.get_or_create_session_vfs(session_id, None);
+            // SECURITY: Reuse or create a session VFS with validated session_id
+            let v = match self.get_or_create_session_vfs(session_id, None) {
+                Ok(vfs) => vfs,
+                Err(e) => return McpResponse::error(-32602, format!("Invalid session_id: {}", e)),
+            };
             vfs_instance = v.clone();
             prev_vfs = set_current_vfs(Some(vfs_instance.clone()));
         } else {

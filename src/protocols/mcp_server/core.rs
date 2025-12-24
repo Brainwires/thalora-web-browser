@@ -15,6 +15,7 @@ use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::cdp_tools::CdpTools;
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::session_manager::SessionManager;
+use crate::protocols::security::sanitize_session_id;
 use crate::engine::EngineConfig;
 
 #[allow(dead_code)]
@@ -86,18 +87,25 @@ impl McpServer {
     }
 
     /// Get or create a session-scoped VFS. If `backing_dir` is provided, the backing file will be created there.
-    pub fn get_or_create_session_vfs(&self, session_id: &str, backing_dir: Option<&std::path::Path>) -> Arc<VfsInstance> {
+    ///
+    /// # Security
+    /// The session_id is validated to prevent path traversal attacks (CWE-22).
+    /// Only alphanumeric characters, hyphens, and underscores are allowed.
+    pub fn get_or_create_session_vfs(&self, session_id: &str, backing_dir: Option<&std::path::Path>) -> Result<Arc<VfsInstance>> {
+        // SECURITY: Validate session_id to prevent path traversal attacks
+        let safe_session_id = sanitize_session_id(session_id)?;
+
         let mut guard = self.session_vfs.lock().unwrap();
-        if let Some(v) = guard.get(session_id) {
-            return v.clone();
+        if let Some(v) = guard.get(&safe_session_id) {
+            return Ok(v.clone());
         }
 
         // Build a backing path: backing_dir/vfs-<session_id>.bin
         let file = if let Some(dir) = backing_dir {
-            dir.join(format!("vfs-session-{}.bin", session_id))
+            dir.join(format!("vfs-session-{}.bin", safe_session_id))
         } else {
             // fallback to temp dir
-            std::env::temp_dir().join(format!("vfs-session-{}.bin", session_id))
+            std::env::temp_dir().join(format!("vfs-session-{}.bin", safe_session_id))
         };
 
         // Try to open existing or create new
@@ -105,18 +113,25 @@ impl McpServer {
             Ok(inst) => Arc::new(inst),
             Err(_) => Arc::new(VfsInstance::new_temp_in_dir(std::env::temp_dir()).expect("create temp vfs")),
         };
-        guard.insert(session_id.to_string(), v.clone());
-        v
+        guard.insert(safe_session_id, v.clone());
+        Ok(v)
     }
 
     /// Remove and optionally delete the backing file for a session VFS.
-    pub fn remove_session_vfs(&self, session_id: &str, delete_backing: bool) {
+    ///
+    /// # Security
+    /// The session_id is validated to prevent path traversal attacks (CWE-22).
+    pub fn remove_session_vfs(&self, session_id: &str, delete_backing: bool) -> Result<()> {
+        // SECURITY: Validate session_id to prevent path traversal attacks
+        let safe_session_id = sanitize_session_id(session_id)?;
+
         let mut guard = self.session_vfs.lock().unwrap();
-        if let Some(v) = guard.remove(session_id) {
+        if let Some(v) = guard.remove(&safe_session_id) {
             if delete_backing {
                 drop(v.delete_backing_file());
             }
         }
+        Ok(())
     }
 
     /// Cleanup all sessions and resources

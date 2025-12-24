@@ -1,6 +1,7 @@
 use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
+use crate::protocols::security::validate_cookie;
 
 /// Network domain - Network monitoring, cookies, and request/response inspection
 pub struct NetworkTools;
@@ -218,6 +219,17 @@ impl NetworkTools {
                 };
             }
         };
+
+        // SECURITY: Validate cookie name and value to prevent injection attacks (CWE-113)
+        if let Err(e) = validate_cookie(name, value) {
+            return McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("Invalid cookie: {}", e)
+                })],
+                is_error: true,
+            };
+        }
 
         let domain = args.get("domain").and_then(|v| v.as_str());
         let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("/");

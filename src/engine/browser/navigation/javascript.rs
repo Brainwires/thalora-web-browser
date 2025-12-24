@@ -3,10 +3,20 @@ use tokio::time::{sleep, Duration};
 use std::error::Error;
 use rand;
 
+use crate::protocols::security::validate_url_for_navigation;
+
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
+    ///
+    /// # Security
+    /// This function validates URLs to prevent SSRF attacks (CWE-918).
+    /// Access to private IPs, localhost, and cloud metadata endpoints is blocked.
     pub async fn navigate_to_with_js_option(&mut self, url: &str, wait_for_load: bool, wait_for_js: bool) -> Result<String> {
         eprintln!("🔍 DEBUG: navigate_to_with_js_option - URL: {}, wait_for_load: {}, wait_for_js: {}", url, wait_for_load, wait_for_js);
+
+        // SECURITY: Validate URL to prevent SSRF attacks
+        // Block access to private IPs, localhost, and cloud metadata endpoints
+        validate_url_for_navigation(url)?;
 
         // Dispatch pageswap event before navigation
         self.dispatch_pageswap_event(url).await?;
@@ -416,8 +426,14 @@ impl super::super::HeadlessWebBrowser {
 
     /// Navigate to URL without adding to history (for back/forward navigation)
     /// This is an internal method used by go_back() and go_forward()
+    ///
+    /// # Security
+    /// This function validates URLs to prevent SSRF attacks (CWE-918).
     pub(super) async fn navigate_internal(&mut self, url: &str) -> Result<String> {
         eprintln!("🔍 DEBUG: navigate_internal - URL: {} (no history update)", url);
+
+        // SECURITY: Validate URL to prevent SSRF attacks
+        validate_url_for_navigation(url)?;
 
         // Dispatch pageswap event before navigation
         self.dispatch_pageswap_event(url).await?;
@@ -471,7 +487,13 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Fetch an external script from a URL
+    ///
+    /// # Security
+    /// This function validates URLs to prevent SSRF attacks via script loading.
     pub(super) async fn fetch_external_script(&self, url: &str) -> Result<String> {
+        // SECURITY: Validate script URL to prevent SSRF attacks
+        validate_url_for_navigation(url)?;
+
         let response = self.client.get(url).send().await
             .map_err(|e| anyhow!("Failed to fetch script: {}", e))?;
 

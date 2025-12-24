@@ -7,6 +7,7 @@ pub mod memory_tools;
 pub mod browser_tools;
 pub mod session_manager;
 pub mod display_server;
+pub mod security;
 
 // Re-exports for clean API
 pub use mcp::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};

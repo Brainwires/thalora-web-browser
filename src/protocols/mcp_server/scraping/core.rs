@@ -3,6 +3,7 @@ use serde_json::Value;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
+use crate::protocols::security::validate_url_for_navigation;
 
 use super::extraction;
 
@@ -45,6 +46,11 @@ impl McpServer {
 
         // Navigate to URL if provided (or use existing session)
         let html_content = if let Some(url_str) = url {
+            // SECURITY: Validate URL to prevent SSRF attacks (CWE-918)
+            if let Err(e) = validate_url_for_navigation(url_str) {
+                return McpResponse::error(-32602, format!("URL blocked for security: {}", e));
+            }
+
             eprintln!("🔍 SCRAPE: Starting navigation to URL: {}", url_str);
             // Create temporary browser or use session
             let temp_browser = if let Some(sid) = session_id {

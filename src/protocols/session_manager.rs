@@ -10,6 +10,8 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command as TokioCommand;
 use tracing::{info, warn, error, debug};
 
+use crate::protocols::security::sanitize_session_id;
+
 /// Session information stored by the session manager
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {
@@ -85,11 +87,19 @@ impl SessionManager {
     }
 
     /// Get or create a browser session
+    ///
+    /// # Security
+    /// The session_id is validated to prevent path traversal attacks (CWE-22).
+    /// Only alphanumeric characters, hyphens, and underscores are allowed.
     pub async fn get_or_create_session(&self, session_id: &str, persistent: bool) -> Result<SessionInfo> {
+        // SECURITY: Validate session_id to prevent path traversal attacks
+        let safe_session_id = sanitize_session_id(session_id)
+            .context("Invalid session_id format")?;
+
         let mut sessions = self.sessions.lock().await;
 
         // Check if session already exists
-        if let Some((session_info, _process)) = sessions.get_mut(session_id) {
+        if let Some((session_info, _process)) = sessions.get_mut(&safe_session_id) {
             session_info.last_accessed = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -97,17 +107,17 @@ impl SessionManager {
             return Ok(session_info.clone());
         }
 
-        // Create new session
-        let socket_path = self.socket_dir.join(format!("{}.sock", session_id));
+        // Create new session with sanitized ID
+        let socket_path = self.socket_dir.join(format!("{}.sock", safe_session_id));
         let socket_path_str = socket_path.to_string_lossy().to_string();
 
-        info!("Spawning new browser process for session: {}", session_id);
+        info!("Spawning new browser process for session: {}", safe_session_id);
 
         // Spawn background browser process using session subcommand
         let mut cmd = Command::new(&self.browser_executable);
         cmd.arg("session")
             .arg("--session-id")
-            .arg(session_id)
+            .arg(&safe_session_id)
             .arg("--socket-path")
             .arg(&socket_path_str);
 
@@ -129,32 +139,39 @@ impl SessionManager {
             .as_secs();
 
         let session_info = SessionInfo {
-            session_id: session_id.to_string(),
+            session_id: safe_session_id.clone(),
             created_at: now,
             last_accessed: now,
             persistent,
             socket_path: socket_path_str,
         };
 
-        sessions.insert(session_id.to_string(), (session_info.clone(), child));
+        sessions.insert(safe_session_id.clone(), (session_info.clone(), child));
 
         // Wait a moment for the socket to be created
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        info!("Created new browser session: {}", session_id);
+        info!("Created new browser session: {}", safe_session_id);
         Ok(session_info)
     }
 
     /// Send a command to a browser session
+    ///
+    /// # Security
+    /// The session_id is validated to prevent path traversal attacks.
     pub async fn send_command(&self, session_id: &str, command: BrowserCommand) -> Result<BrowserResponse> {
+        // SECURITY: Validate session_id
+        let safe_session_id = sanitize_session_id(session_id)
+            .context("Invalid session_id format")?;
+
         let session_info = {
             let sessions = self.sessions.lock().await;
-            sessions.get(session_id)
+            sessions.get(&safe_session_id)
                 .map(|(info, _)| info.clone())
                 .context("Session not found")?
         };
 
-        debug!("Sending command to session {}: {:?}", session_id, command);
+        debug!("Sending command to session {}: {:?}", safe_session_id, command);
 
         // Connect to the Unix socket
         let mut stream = UnixStream::connect(&session_info.socket_path)
@@ -179,7 +196,7 @@ impl SessionManager {
         let response: BrowserResponse = serde_json::from_str(&response_line.trim())
             .context("Failed to deserialize response")?;
 
-        debug!("Received response from session {}: {:?}", session_id, response);
+        debug!("Received response from session {}: {:?}", safe_session_id, response);
         Ok(response)
     }
 
@@ -190,15 +207,22 @@ impl SessionManager {
     }
 
     /// Close a specific session
+    ///
+    /// # Security
+    /// The session_id is validated to prevent path traversal attacks.
     pub async fn close_session(&self, session_id: &str) -> Result<bool> {
+        // SECURITY: Validate session_id
+        let safe_session_id = sanitize_session_id(session_id)
+            .context("Invalid session_id format")?;
+
         let mut sessions = self.sessions.lock().await;
 
-        if let Some((session_info, mut process)) = sessions.remove(session_id) {
-            info!("Closing browser session: {}", session_id);
+        if let Some((session_info, mut process)) = sessions.remove(&safe_session_id) {
+            info!("Closing browser session: {}", safe_session_id);
 
             // Try to gracefully terminate the process
             if let Err(e) = process.kill() {
-                warn!("Failed to kill browser process for session {}: {}", session_id, e);
+                warn!("Failed to kill browser process for session {}: {}", safe_session_id, e);
             }
 
             // Clean up socket file
