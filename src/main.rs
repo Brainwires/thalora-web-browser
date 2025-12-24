@@ -268,6 +268,70 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
                     }
                 },
 
+                BrowserCommand::NavigateBack => {
+                    match self.go_back().await {
+                        Ok(Some(url)) => BrowserResponse::Success {
+                            data: serde_json::json!({
+                                "navigated": true,
+                                "url": url
+                            })
+                        },
+                        Ok(None) => BrowserResponse::Success {
+                            data: serde_json::json!({
+                                "navigated": false,
+                                "reason": "At beginning of history"
+                            })
+                        },
+                        Err(e) => BrowserResponse::Error {
+                            message: format!("Failed to navigate back: {}", e)
+                        }
+                    }
+                },
+
+                BrowserCommand::NavigateForward => {
+                    match self.go_forward().await {
+                        Ok(Some(url)) => BrowserResponse::Success {
+                            data: serde_json::json!({
+                                "navigated": true,
+                                "url": url
+                            })
+                        },
+                        Ok(None) => BrowserResponse::Success {
+                            data: serde_json::json!({
+                                "navigated": false,
+                                "reason": "At end of history"
+                            })
+                        },
+                        Err(e) => BrowserResponse::Error {
+                            message: format!("Failed to navigate forward: {}", e)
+                        }
+                    }
+                },
+
+                BrowserCommand::Reload => {
+                    match self.reload().await {
+                        Ok(content) => BrowserResponse::Success {
+                            data: serde_json::json!({
+                                "reloaded": true,
+                                "content_length": content.len()
+                            })
+                        },
+                        Err(e) => BrowserResponse::Error {
+                            message: format!("Failed to reload page: {}", e)
+                        }
+                    }
+                },
+
+                BrowserCommand::Stop => {
+                    // For a headless browser, stop is largely a no-op since we don't have
+                    // persistent async loading in the same way graphical browsers do
+                    BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "stopped": true
+                        })
+                    }
+                },
+
                 BrowserCommand::ExecuteJs { code } => {
                     match self.execute_javascript(&code).await {
                         Ok(result) => BrowserResponse::Success {
@@ -375,6 +439,27 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
             let mut browser = self.browser.lock().unwrap();
             browser.navigate_to(url).await
                 .context("Failed to navigate")
+        }
+
+        /// Go back in navigation history
+        async fn go_back(&self) -> Result<Option<String>> {
+            let mut browser = self.browser.lock().unwrap();
+            browser.go_back().await
+                .context("Failed to go back")
+        }
+
+        /// Go forward in navigation history
+        async fn go_forward(&self) -> Result<Option<String>> {
+            let mut browser = self.browser.lock().unwrap();
+            browser.go_forward().await
+                .context("Failed to go forward")
+        }
+
+        /// Reload the current page
+        async fn reload(&self) -> Result<String> {
+            let mut browser = self.browser.lock().unwrap();
+            browser.reload().await
+                .context("Failed to reload")
         }
 
         /// Execute JavaScript

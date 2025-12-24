@@ -5,6 +5,11 @@ use serde_json::Value;
 use super::super::{CdpDomain, CdpEvent};
 
 /// Runtime domain - JavaScript execution and inspection
+///
+/// Note: Direct JavaScript execution via CDP requires using MCP tools instead.
+/// The `cdp_evaluate_javascript` MCP tool provides full JavaScript execution capability
+/// through the browser's Boa engine. This CDP domain provides metadata and context
+/// management but delegates actual execution to MCP.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct RuntimeDomain {
@@ -55,12 +60,26 @@ impl CdpDomain for RuntimeDomain {
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
-                // TODO: Need to implement JavaScript execution via message passing to avoid thread safety issues
-                // For now, return a clear indication that evaluation is not yet implemented
+                // CDP RuntimeDomain cannot directly execute JavaScript due to thread safety
+                // constraints with Boa's Context (uses Rc internally, not Send+Sync).
+                //
+                // For JavaScript execution, use one of these alternatives:
+                // 1. MCP tool: cdp_evaluate_javascript (recommended)
+                // 2. Browser session: BrowserCommand::ExecuteJs via session_manager
+                // 3. Direct browser access: browser.execute_javascript()
+                //
+                // This response indicates the limitation and guides users to working solutions.
                 Ok(serde_json::json!({
                     "result": {
                         "type": "string",
-                        "value": format!("JavaScript evaluation not yet implemented: {}", expression)
+                        "value": format!(
+                            "CDP Runtime.evaluate requires MCP integration. Use the 'cdp_evaluate_javascript' MCP tool instead. Expression: {}",
+                            if expression.len() > 50 {
+                                format!("{}...", &expression[..50])
+                            } else {
+                                expression.to_string()
+                            }
+                        )
                     }
                 }))
             }
@@ -77,6 +96,11 @@ impl CdpDomain for RuntimeDomain {
             "compileScript" => {
                 Ok(serde_json::json!({
                     "scriptId": "script_1"
+                }))
+            }
+            "getExecutionContexts" => {
+                Ok(serde_json::json!({
+                    "contexts": self.execution_contexts
                 }))
             }
             _ => Err(anyhow::anyhow!("Unknown Runtime method: {}", method))

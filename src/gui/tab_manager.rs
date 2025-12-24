@@ -276,21 +276,73 @@ impl Tab {
         self.navigate_to(&current_url).await
     }
 
-    /// Go back in history (simplified implementation)
+    /// Go back in history
     pub async fn go_back(&mut self) -> Result<()> {
-        if self.can_go_back {
-            // TODO: Implement proper history management
-            tracing::debug!("Tab {}: Going back (not implemented)", self.id);
+        let mut browser = self.browser.lock().unwrap();
+
+        if !browser.can_go_back() {
+            tracing::debug!("Tab {}: Cannot go back - at beginning of history", self.id);
+            return Ok(());
         }
+
+        tracing::info!("Tab {}: Going back", self.id);
+        self.is_loading = true;
+
+        match browser.go_back().await {
+            Ok(Some(url)) => {
+                self.url = url;
+                self.update_title_from_content(&browser);
+                self.can_go_back = browser.can_go_back();
+                self.can_go_forward = browser.can_go_forward();
+                self.is_loading = false;
+                tracing::debug!("Tab {}: Navigated back to {}", self.id, self.url);
+            }
+            Ok(None) => {
+                self.is_loading = false;
+                tracing::debug!("Tab {}: No history to go back to", self.id);
+            }
+            Err(e) => {
+                self.is_loading = false;
+                tracing::error!("Tab {}: Failed to go back: {}", self.id, e);
+                return Err(e);
+            }
+        }
+
         Ok(())
     }
 
-    /// Go forward in history (simplified implementation)
+    /// Go forward in history
     pub async fn go_forward(&mut self) -> Result<()> {
-        if self.can_go_forward {
-            // TODO: Implement proper history management
-            tracing::debug!("Tab {}: Going forward (not implemented)", self.id);
+        let mut browser = self.browser.lock().unwrap();
+
+        if !browser.can_go_forward() {
+            tracing::debug!("Tab {}: Cannot go forward - at end of history", self.id);
+            return Ok(());
         }
+
+        tracing::info!("Tab {}: Going forward", self.id);
+        self.is_loading = true;
+
+        match browser.go_forward().await {
+            Ok(Some(url)) => {
+                self.url = url;
+                self.update_title_from_content(&browser);
+                self.can_go_back = browser.can_go_back();
+                self.can_go_forward = browser.can_go_forward();
+                self.is_loading = false;
+                tracing::debug!("Tab {}: Navigated forward to {}", self.id, self.url);
+            }
+            Ok(None) => {
+                self.is_loading = false;
+                tracing::debug!("Tab {}: No history to go forward to", self.id);
+            }
+            Err(e) => {
+                self.is_loading = false;
+                tracing::error!("Tab {}: Failed to go forward: {}", self.id, e);
+                return Err(e);
+            }
+        }
+
         Ok(())
     }
 

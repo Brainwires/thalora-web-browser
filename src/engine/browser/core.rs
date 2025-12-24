@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
+use reqwest_cookie_store::CookieStoreMutex;
 use crate::engine::renderer::RustRenderer;
 use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry};
 use crate::engine::browser::scraper::WebScraper;
@@ -11,6 +12,7 @@ use crate::engine::browser::{FormAnalyzer, FormInfo};
 #[allow(dead_code)]
 pub struct HeadlessWebBrowser {
     pub(super) client: reqwest::Client,
+    pub(super) cookie_store: Arc<CookieStoreMutex>,
     pub(super) renderer: Option<RustRenderer>,
     pub(super) current_url: Option<String>,
     pub(super) current_content: String,
@@ -28,10 +30,15 @@ impl HeadlessWebBrowser {
     }
 
     pub fn new_with_engine(engine_type: crate::engine::engine_trait::EngineType) -> Arc<Mutex<Self>> {
+        // Create shared cookie store for cookie management
+        let cookie_store = Arc::new(CookieStoreMutex::new(
+            reqwest_cookie_store::CookieStore::default()
+        ));
+
         // Configure client with enhanced stealth capabilities
         // Use centralized USER_AGENT constant for consistency
         let client = reqwest::Client::builder()
-            .cookie_store(true)
+            .cookie_provider(Arc::clone(&cookie_store))
             .timeout(std::time::Duration::from_secs(30))
             .user_agent(super::USER_AGENT)
             .gzip(true)
@@ -64,6 +71,7 @@ impl HeadlessWebBrowser {
 
         let browser = Self {
             client,
+            cookie_store,
             renderer: Some(renderer),
             current_url: None,
             current_content: String::new(),

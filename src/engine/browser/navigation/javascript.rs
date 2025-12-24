@@ -66,6 +66,10 @@ impl super::super::HeadlessWebBrowser {
         // Headless browser behavior: load HTML and make it ready for interaction
         eprintln!("🔍 DEBUG: HTML content loaded");
 
+        // Add to navigation history
+        let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
+        self.add_to_history(url.to_string(), title);
+
         // If wait_for_js is enabled, execute page scripts and wait for completion
         if wait_for_js {
             eprintln!("🔍 DEBUG: wait_for_js enabled, executing page scripts");
@@ -408,6 +412,39 @@ impl super::super::HeadlessWebBrowser {
                 Err(e)
             }
         }
+    }
+
+    /// Navigate to URL without adding to history (for back/forward navigation)
+    /// This is an internal method used by go_back() and go_forward()
+    pub(super) async fn navigate_internal(&mut self, url: &str) -> Result<String> {
+        eprintln!("🔍 DEBUG: navigate_internal - URL: {} (no history update)", url);
+
+        // Dispatch pageswap event before navigation
+        self.dispatch_pageswap_event(url).await?;
+
+        // Get browser-specific headers for stealth
+        let headers = self.create_standard_browser_headers(url);
+
+        // Fetch the page content with proper browser headers
+        let response = self.client.get(url).headers(headers).send().await?;
+        let content = response.text().await?;
+
+        // Store the current content and URL
+        self.current_content = content.clone();
+        self.current_url = Some(url.to_string());
+
+        // Update document HTML in the renderer if available
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.update_document_html(&content)?;
+        }
+
+        // Analyze forms for target="_blank" detection
+        self.form_analyzer = self.form_analyzer.clone().with_base_url(url.to_string());
+        if let Ok(forms) = self.form_analyzer.analyze_forms(&content) {
+            self.analyzed_forms = forms;
+        }
+
+        Ok(content)
     }
 
     /// Resolve a script URL relative to the base URL

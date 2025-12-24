@@ -254,23 +254,57 @@ impl CommandHandler {
             }
 
             DisplayCommand::Back => {
-                // TODO: Implement NavigateBack command in session_manager
-                warn!("Navigate back not yet implemented in session manager");
+                let response = self.session_manager.send_command(
+                    session_id,
+                    BrowserCommand::NavigateBack,
+                ).await?;
+
+                if let BrowserResponse::Success { data } = response {
+                    if data.get("navigated").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
+                            self.refresh_client_content(client_id, session_id).await?;
+                            info!("Navigated back to: {}", url);
+                        }
+                    } else {
+                        debug!("Cannot go back - at beginning of history");
+                    }
+                }
             }
 
             DisplayCommand::Forward => {
-                // TODO: Implement NavigateForward command in session_manager
-                warn!("Navigate forward not yet implemented in session manager");
+                let response = self.session_manager.send_command(
+                    session_id,
+                    BrowserCommand::NavigateForward,
+                ).await?;
+
+                if let BrowserResponse::Success { data } = response {
+                    if data.get("navigated").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
+                            self.refresh_client_content(client_id, session_id).await?;
+                            info!("Navigated forward to: {}", url);
+                        }
+                    } else {
+                        debug!("Cannot go forward - at end of history");
+                    }
+                }
             }
 
             DisplayCommand::Reload => {
-                // TODO: Implement Refresh command in session_manager
-                warn!("Reload not yet implemented in session manager");
+                let _response = self.session_manager.send_command(
+                    session_id,
+                    BrowserCommand::Reload,
+                ).await?;
+
+                self.refresh_client_content(client_id, session_id).await?;
+                info!("Page reloaded");
             }
 
             DisplayCommand::Stop => {
-                // TODO: Implement stop loading
-                warn!("Stop loading not yet implemented");
+                let _response = self.session_manager.send_command(
+                    session_id,
+                    BrowserCommand::Stop,
+                ).await?;
+                debug!("Stop loading command sent");
             }
 
             DisplayCommand::ExecuteScript { script } => {

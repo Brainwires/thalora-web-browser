@@ -29,7 +29,7 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full"], optional = true }
 
 # HTTP client (native only)
-reqwest = { version = "0.12", features = ["json", "native-tls", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart"], default-features = false, optional = true }
+reqwest = { version = "0.12", features = ["json", "native-tls", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart", "blocking"], default-features = false, optional = true }
 
 # HTML parsing
 scraper = "0.24"
@@ -138,6 +138,9 @@ base64 = "0.22"
 aes-gcm = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
 sha2 = "0.10"
+
+# Cookie management - shared cookie store for reqwest
+reqwest_cookie_store = "0.9"
 
 # IP address parsing and validation for SSRF prevention
 ipnetwork = "0.20"

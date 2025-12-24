@@ -25,6 +25,14 @@ pub struct SessionInfo {
 pub enum BrowserCommand {
     /// Navigate to a URL
     Navigate { url: String },
+    /// Navigate back in history
+    NavigateBack,
+    /// Navigate forward in history
+    NavigateForward,
+    /// Reload the current page
+    Reload,
+    /// Stop loading
+    Stop,
     /// Execute JavaScript
     ExecuteJs { code: String },
     /// Get page content

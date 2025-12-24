@@ -56,8 +56,34 @@ impl McpServer {
 
             html
         } else {
-            // Get content from session
-            return McpResponse::error(-1, "Session-based readable content extraction not yet implemented".to_string());
+            // Get content from existing session
+            let session_id_str = session_id.unwrap(); // We know it exists from earlier check
+
+            match self.browser_tools.get_session_browser(session_id_str) {
+                Some(browser) => {
+                    match browser.lock() {
+                        Ok(browser_guard) => {
+                            let content = browser_guard.get_current_content();
+                            if content.is_empty() {
+                                return McpResponse::error(
+                                    -1,
+                                    format!("Session '{}' has no content. Navigate to a URL first.", session_id_str)
+                                );
+                            }
+                            content
+                        }
+                        Err(_) => {
+                            return McpResponse::error(-1, "Failed to acquire session browser lock".to_string());
+                        }
+                    }
+                }
+                None => {
+                    return McpResponse::error(
+                        -1,
+                        format!("Session '{}' not found. Create a session first.", session_id_str)
+                    );
+                }
+            }
         };
 
         // Extract readable content using readability algorithm

@@ -62,6 +62,18 @@ impl BrowserTools {
         sessions.get(session_id).map(|(_, session)| session.clone())
     }
 
+    /// Get browser from an existing session without creating a new one
+    /// Returns None if the session doesn't exist
+    pub fn get_session_browser(&self, session_id: &str) -> Option<Arc<Mutex<HeadlessWebBrowser>>> {
+        let mut sessions = self.sessions.lock().unwrap();
+        if let Some((browser, session)) = sessions.get_mut(session_id) {
+            session.update_last_accessed();
+            Some(browser.clone())
+        } else {
+            None
+        }
+    }
+
     pub fn list_sessions(&self) -> Vec<BrowserSession> {
         let sessions = self.sessions.lock().unwrap();
         sessions.values().map(|(_, session)| session.clone()).collect()

@@ -104,9 +104,36 @@ impl McpServer {
 
             html
         } else {
-            // Get content from session
-            // TODO: Implement session-based content retrieval
-            return McpResponse::error(-1, "Session-based scraping not yet implemented in unified scrape".to_string());
+            // Get content from existing session
+            let session_id_str = session_id.unwrap(); // We know it exists from earlier check
+            eprintln!("🔍 SCRAPE: Getting content from session: {}", session_id_str);
+
+            match self.browser_tools.get_session_browser(session_id_str) {
+                Some(browser) => {
+                    match browser.lock() {
+                        Ok(browser_guard) => {
+                            let content = browser_guard.get_current_content();
+                            if content.is_empty() {
+                                return McpResponse::error(
+                                    -1,
+                                    format!("Session '{}' has no content. Navigate to a URL first.", session_id_str)
+                                );
+                            }
+                            eprintln!("🔍 SCRAPE: Got {} chars from session", content.len());
+                            content
+                        }
+                        Err(_) => {
+                            return McpResponse::error(-1, "Failed to acquire session browser lock".to_string());
+                        }
+                    }
+                }
+                None => {
+                    return McpResponse::error(
+                        -1,
+                        format!("Session '{}' not found. Create a session first using browser_session_management.", session_id_str)
+                    );
+                }
+            }
         };
 
         // Build unified response
