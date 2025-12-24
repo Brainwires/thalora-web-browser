@@ -1,10 +1,9 @@
 //! Input handling for the graphical browser
-//! 
+//!
 //! This module handles keyboard and mouse input events, mapping them to browser actions
 //! and web page interactions.
 
-use winit::event::{WindowEvent, ElementState, MouseButton};
-use crate::gui::{BrowserUI, TabManager};
+use winit::event::{WindowEvent, ElementState, MouseButton, MouseScrollDelta};
 
 /// Browser actions that can be triggered by input events
 #[derive(Debug, Clone)]
@@ -22,6 +21,9 @@ pub enum BrowserAction {
     ToggleDevTools,
     FocusAddressBar,
     SwitchTab(u32),
+    ShowContextMenu(f32, f32),
+    OpenLinkInNewTab(String),
+    Scroll(f32, f32),
     None,
 }
 
@@ -29,9 +31,12 @@ pub enum BrowserAction {
 pub struct InputHandler {
     mouse_position: (f32, f32),
     mouse_pressed: bool,
+    right_mouse_pressed: bool,
+    middle_mouse_pressed: bool,
     ctrl_pressed: bool,
     shift_pressed: bool,
     alt_pressed: bool,
+    scroll_delta: (f32, f32),
 }
 
 impl InputHandler {
@@ -40,9 +45,12 @@ impl InputHandler {
         Self {
             mouse_position: (0.0, 0.0),
             mouse_pressed: false,
+            right_mouse_pressed: false,
+            middle_mouse_pressed: false,
             ctrl_pressed: false,
             shift_pressed: false,
             alt_pressed: false,
+            scroll_delta: (0.0, 0.0),
         }
     }
 
@@ -61,16 +69,22 @@ impl InputHandler {
                         None
                     }
                     MouseButton::Right => {
+                        self.right_mouse_pressed = *state == ElementState::Pressed;
                         if *state == ElementState::Pressed {
-                            // TODO: Show context menu
-                            None
+                            // Show context menu at current mouse position
+                            let (x, y) = self.mouse_position;
+                            tracing::debug!("Right-click at ({}, {})", x, y);
+                            Some(BrowserAction::ShowContextMenu(x, y))
                         } else {
                             None
                         }
                     }
                     MouseButton::Middle => {
+                        self.middle_mouse_pressed = *state == ElementState::Pressed;
                         if *state == ElementState::Pressed {
-                            // TODO: Handle middle click
+                            // Middle click - could be used for auto-scroll or open link in new tab
+                            tracing::debug!("Middle-click at {:?}", self.mouse_position);
+                            // For now, middle-click acts as a scroll toggle
                             None
                         } else {
                             None
@@ -80,9 +94,32 @@ impl InputHandler {
                 }
             }
 
-            WindowEvent::MouseWheel { .. } => {
-                // TODO: Handle scroll
-                None
+            WindowEvent::MouseWheel { delta, .. } => {
+                // Handle scroll events
+                let (dx, dy) = match delta {
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        // Line-based scrolling (most mice)
+                        // Multiply by a factor for smooth scrolling
+                        (*x * 40.0, *y * 40.0)
+                    }
+                    MouseScrollDelta::PixelDelta(pos) => {
+                        // Pixel-based scrolling (trackpads)
+                        (pos.x as f32, pos.y as f32)
+                    }
+                };
+                self.scroll_delta = (dx, dy);
+
+                // Handle zoom with Ctrl+scroll
+                if self.ctrl_pressed {
+                    if dy > 0.0 {
+                        return Some(BrowserAction::ZoomIn);
+                    } else if dy < 0.0 {
+                        return Some(BrowserAction::ZoomOut);
+                    }
+                }
+
+                // Regular scroll - egui handles this internally, but we track it
+                Some(BrowserAction::Scroll(dx, dy))
             }
 
             WindowEvent::KeyboardInput { event, .. } => {
@@ -167,6 +204,28 @@ impl InputHandler {
     /// Check if Alt is currently pressed
     pub fn is_alt_pressed(&self) -> bool {
         self.alt_pressed
+    }
+
+    /// Check if right mouse button is pressed
+    pub fn is_right_mouse_pressed(&self) -> bool {
+        self.right_mouse_pressed
+    }
+
+    /// Check if middle mouse button is pressed
+    pub fn is_middle_mouse_pressed(&self) -> bool {
+        self.middle_mouse_pressed
+    }
+
+    /// Get the current scroll delta and reset it
+    pub fn take_scroll_delta(&mut self) -> (f32, f32) {
+        let delta = self.scroll_delta;
+        self.scroll_delta = (0.0, 0.0);
+        delta
+    }
+
+    /// Get scroll delta without resetting
+    pub fn scroll_delta(&self) -> (f32, f32) {
+        self.scroll_delta
     }
 }
 

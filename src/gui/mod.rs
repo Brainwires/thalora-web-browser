@@ -14,7 +14,7 @@ pub mod fonts;
 // Re-export main types
 pub use window::WindowManager;
 pub use renderer::{WebRenderer, RenderState};
-pub use browser_ui::{BrowserUI, NavigationState};
+pub use browser_ui::{BrowserUI, NavigationState, BrowserAction};
 pub use tab_manager::{TabManager, Tab, TabId};
 pub use input_handler::InputHandler;
 pub use fonts::{FontManager, FontDescriptor, FontWeight, FontStyle, FontSize};
@@ -141,6 +141,80 @@ impl GraphicalBrowser {
                             tracing::info!("Processing pending navigation to: {}", url);
                             if let Err(e) = pollster::block_on(tab_manager.navigate_tab(active_id, &url)) {
                                 tracing::error!("Navigation failed: {}", e);
+                            }
+                        }
+                    }
+
+                    // Check for pending browser actions from UI
+                    if let Some(action) = browser_ui.take_pending_action() {
+                        match action {
+                            BrowserAction::GoBack => {
+                                if let Some(active_id) = tab_manager.get_active_tab_id() {
+                                    if let Some(tab) = tab_manager.get_tab_mut(active_id) {
+                                        if let Err(e) = pollster::block_on(tab.go_back()) {
+                                            tracing::error!("Go back failed: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                            BrowserAction::GoForward => {
+                                if let Some(active_id) = tab_manager.get_active_tab_id() {
+                                    if let Some(tab) = tab_manager.get_tab_mut(active_id) {
+                                        if let Err(e) = pollster::block_on(tab.go_forward()) {
+                                            tracing::error!("Go forward failed: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                            BrowserAction::Reload => {
+                                if let Some(active_id) = tab_manager.get_active_tab_id() {
+                                    if let Err(e) = pollster::block_on(tab_manager.reload_tab(active_id)) {
+                                        tracing::error!("Reload failed: {}", e);
+                                    }
+                                }
+                            }
+                            BrowserAction::StopLoading => {
+                                // For headless browser, stop is a no-op (no persistent async loading)
+                                tracing::debug!("Stop loading requested (no-op for headless)");
+                            }
+                            BrowserAction::NewTab => {
+                                if let Ok(tab_id) = pollster::block_on(tab_manager.create_tab("about:blank".to_string())) {
+                                    let _ = tab_manager.set_active_tab(tab_id);
+                                    tracing::info!("Created new tab: {}", tab_id);
+                                }
+                            }
+                            BrowserAction::CloseTab(tab_id) => {
+                                // tab_id of 0 means close current tab
+                                let id_to_close = if tab_id == 0 {
+                                    tab_manager.get_active_tab_id()
+                                } else {
+                                    Some(tab_id)
+                                };
+                                if let Some(id) = id_to_close {
+                                    let _ = tab_manager.close_tab(id);
+                                    tracing::info!("Closed tab: {}", id);
+                                }
+                            }
+                            BrowserAction::SwitchTab(tab_id) => {
+                                if let Err(e) = tab_manager.set_active_tab(tab_id) {
+                                    tracing::error!("Switch tab failed: {}", e);
+                                }
+                            }
+                            BrowserAction::ShowMenu => {
+                                // Menu display is handled by egui overlay, no action needed here
+                                tracing::debug!("Show menu requested");
+                            }
+                            BrowserAction::FocusAddressBar => {
+                                // Focus is handled by egui context, no action needed here
+                                tracing::debug!("Focus address bar requested");
+                            }
+                            BrowserAction::ExecuteJavaScript(code) => {
+                                if let Some(active_id) = tab_manager.get_active_tab_id() {
+                                    match pollster::block_on(tab_manager.execute_javascript_in_tab(active_id, &code)) {
+                                        Ok(result) => tracing::debug!("JS result: {}", result),
+                                        Err(e) => tracing::error!("JS execution failed: {}", e),
+                                    }
+                                }
                             }
                         }
                     }

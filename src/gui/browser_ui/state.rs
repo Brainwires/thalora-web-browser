@@ -43,4 +43,14 @@ impl super::BrowserUI {
     pub fn take_pending_navigation(&mut self) -> Option<String> {
         self.pending_navigation.take()
     }
+
+    /// Set a pending browser action
+    pub fn set_pending_action(&mut self, action: super::types::BrowserAction) {
+        self.pending_action = Some(action);
+    }
+
+    /// Take pending browser action if one exists
+    pub fn take_pending_action(&mut self) -> Option<super::types::BrowserAction> {
+        self.pending_action.take()
+    }
 }

@@ -11,30 +11,38 @@ impl super::BrowserUI {
             // Back button
             if ui.add_enabled(
                 self.navigation_state.can_go_back,
-                Button::new("◀")
-            ).clicked() && self.navigation_state.can_go_back {
-                // TODO: Implement back navigation
+                Button::new("◀").min_size(egui::vec2(28.0, 24.0))
+            ).on_hover_text("Go back (Alt+Left)")
+             .clicked() && self.navigation_state.can_go_back {
                 tracing::debug!("Back button clicked");
+                self.set_pending_action(BrowserAction::GoBack);
             }
 
             // Forward button
             if ui.add_enabled(
                 self.navigation_state.can_go_forward,
-                Button::new("▶")
-            ).clicked() && self.navigation_state.can_go_forward {
-                // TODO: Implement forward navigation
+                Button::new("▶").min_size(egui::vec2(28.0, 24.0))
+            ).on_hover_text("Go forward (Alt+Right)")
+             .clicked() && self.navigation_state.can_go_forward {
                 tracing::debug!("Forward button clicked");
+                self.set_pending_action(BrowserAction::GoForward);
             }
 
-            // Reload button
-            let reload_text = if self.navigation_state.is_loading { "⊗" } else { "⟲" };
-            if ui.add(Button::new(reload_text)).clicked() {
+            // Reload/Stop button
+            let (reload_text, tooltip) = if self.navigation_state.is_loading {
+                ("⊗", "Stop loading (Esc)")
+            } else {
+                ("⟲", "Reload page (Ctrl+R)")
+            };
+            if ui.add(Button::new(reload_text).min_size(egui::vec2(28.0, 24.0)))
+                .on_hover_text(tooltip)
+                .clicked() {
                 if self.navigation_state.is_loading {
-                    // TODO: Stop loading
                     tracing::debug!("Stop loading clicked");
+                    self.set_pending_action(BrowserAction::StopLoading);
                 } else {
-                    // TODO: Reload page
                     tracing::debug!("Reload clicked");
+                    self.set_pending_action(BrowserAction::Reload);
                 }
             }
 
@@ -62,9 +70,11 @@ impl super::BrowserUI {
             }
 
             // Menu button
-            if ui.add(Button::new("≡")).clicked() {
-                // TODO: Show browser menu
+            if ui.add(Button::new("≡").min_size(egui::vec2(28.0, 24.0)))
+                .on_hover_text("Menu")
+                .clicked() {
                 tracing::debug!("Menu button clicked");
+                self.set_pending_action(BrowserAction::ShowMenu);
             }
         });
 
@@ -80,34 +90,50 @@ impl super::BrowserUI {
             // Render tabs
             for tab in tab_manager.tabs() {
                 let is_active = Some(tab.id()) == tab_manager.current_tab_id();
+                let tab_id = tab.id();
 
                 let tab_title = if tab.title().is_empty() {
                     "New Tab".to_string()
                 } else {
-                    tab.title().to_string()
+                    // Truncate long titles
+                    let title = tab.title().to_string();
+                    if title.len() > 20 {
+                        format!("{}...", &title[..17])
+                    } else {
+                        title
+                    }
                 };
 
+                // Tab button with active styling
                 let mut tab_button = Button::new(&tab_title);
                 if is_active {
                     tab_button = tab_button.fill(egui::Color32::from_gray(100));
                 }
 
-                if ui.add(tab_button).clicked() {
-                    // TODO: Switch to this tab
-                    tracing::debug!("Switching to tab: {}", tab.id());
-                }
+                ui.horizontal(|ui| {
+                    if ui.add(tab_button).on_hover_text(tab.url()).clicked() {
+                        if !is_active {
+                            tracing::debug!("Switching to tab: {}", tab_id);
+                            self.set_pending_action(BrowserAction::SwitchTab(tab_id));
+                        }
+                    }
 
-                // Close button for tab
-                if ui.add(Button::new("×").small()).clicked() {
-                    // TODO: Close this tab
-                    tracing::debug!("Closing tab: {}", tab.id());
-                }
+                    // Close button for tab
+                    if ui.add(Button::new("×").small())
+                        .on_hover_text("Close tab (Ctrl+W)")
+                        .clicked() {
+                        tracing::debug!("Closing tab: {}", tab_id);
+                        self.set_pending_action(BrowserAction::CloseTab(tab_id));
+                    }
+                });
             }
 
             // New tab button
-            if ui.add(Button::new("+")).clicked() {
-                // TODO: Create new tab
+            if ui.add(Button::new("+"))
+                .on_hover_text("New tab (Ctrl+T)")
+                .clicked() {
                 tracing::debug!("Creating new tab");
+                self.set_pending_action(BrowserAction::NewTab);
             }
         });
     }

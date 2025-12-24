@@ -29,7 +29,7 @@ impl super::BrowserUI {
     }
 
     /// Render a DOM element from Boa's HTML
-    pub(super) fn render_dom_element(&self, ui: &mut Ui, element: scraper::ElementRef) {
+    pub(super) fn render_dom_element(&mut self, ui: &mut Ui, element: scraper::ElementRef) {
         let tag_name = element.value().name();
 
         match tag_name {
@@ -182,7 +182,7 @@ impl super::BrowserUI {
             }
             "a" => {
                 let text = self.collect_visible_text(element);
-                let href = element.value().attr("href").unwrap_or("#");
+                let href = element.value().attr("href").unwrap_or("#").to_string();
                 if !text.trim().is_empty() {
                     let link = egui::RichText::new(text.trim())
                         .size(14.0)
@@ -190,7 +190,10 @@ impl super::BrowserUI {
                         .underline();
                     if ui.add(egui::Label::new(link).sense(egui::Sense::click())).clicked() {
                         tracing::info!("Link clicked: {}", href);
-                        // TODO: Navigate to link
+                        // Set pending navigation to the link href
+                        if !href.is_empty() && href != "#" {
+                            self.pending_navigation = Some(href);
+                        }
                     }
                 }
             }
@@ -272,8 +275,53 @@ impl super::BrowserUI {
                 ui.add_space(8.0);
             }
             "select" => {
-                ui.label("Dropdown:");
-                // TODO: Implement proper dropdown with options
+                let name = element.value().attr("name").unwrap_or("");
+
+                // Collect options from the select element
+                let mut options: Vec<(String, String)> = Vec::new();
+                let mut selected_value = String::new();
+
+                for child in element.children() {
+                    if let Some(option_elem) = scraper::ElementRef::wrap(child) {
+                        if option_elem.value().name() == "option" {
+                            let value = option_elem.value().attr("value")
+                                .unwrap_or("")
+                                .to_string();
+                            let text = self.collect_visible_text(option_elem);
+                            let is_selected = option_elem.value().attr("selected").is_some();
+
+                            if is_selected || (selected_value.is_empty() && !value.is_empty()) {
+                                selected_value = value.clone();
+                            }
+
+                            options.push((value, text.trim().to_string()));
+                        }
+                    }
+                }
+
+                // Show dropdown using egui's ComboBox
+                if !options.is_empty() {
+                    ui.horizontal(|ui| {
+                        if !name.is_empty() {
+                            ui.label(format!("{}:", name));
+                        }
+
+                        let display_text = options.iter()
+                            .find(|(v, _)| v == &selected_value)
+                            .map(|(_, t)| t.as_str())
+                            .unwrap_or("Select...");
+
+                        egui::ComboBox::from_id_salt(format!("select_{}", name))
+                            .selected_text(display_text)
+                            .show_ui(ui, |ui| {
+                                for (value, text) in &options {
+                                    ui.selectable_value(&mut selected_value, value.clone(), text);
+                                }
+                            });
+                    });
+                } else {
+                    ui.label("Dropdown (no options)");
+                }
                 ui.add_space(4.0);
             }
             "form" => {
@@ -576,7 +624,6 @@ impl super::BrowserUI {
                     if ui.add(egui::Label::new(link_text).sense(egui::Sense::click())).clicked() {
                         if let Some(href) = element.attrs.get("href") {
                             tracing::info!("Link clicked: {}", href);
-                            // TODO: Navigate to link
                             self.pending_navigation = Some(href.clone());
                         }
                     }
@@ -733,7 +780,7 @@ impl super::BrowserUI {
     }
 
     /// Render inline elements (like <strong>, <em>, etc.)
-    pub(super) fn render_inline_element(&self, ui: &mut Ui, element: scraper::ElementRef) {
+    pub(super) fn render_inline_element(&mut self, ui: &mut Ui, element: scraper::ElementRef) {
         let tag_name = element.value().name();
         let text = self.collect_visible_text(element);
 
@@ -752,10 +799,13 @@ impl super::BrowserUI {
                 ui.code(text.trim());
             }
             "a" => {
-                let href = element.value().attr("href").unwrap_or("#");
+                let href = element.value().attr("href").unwrap_or("#").to_string();
                 if ui.link(text.trim()).clicked() {
                     tracing::info!("Link clicked: {}", href);
-                    // TODO: Navigate to link
+                    // Set pending navigation to the link href
+                    if !href.is_empty() && href != "#" {
+                        self.pending_navigation = Some(href);
+                    }
                 }
             }
             _ => {

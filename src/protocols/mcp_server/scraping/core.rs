@@ -47,10 +47,15 @@ impl McpServer {
         let html_content = if let Some(url_str) = url {
             eprintln!("🔍 SCRAPE: Starting navigation to URL: {}", url_str);
             // Create temporary browser or use session
-            let temp_browser = if session_id.is_some() {
-                // TODO: Get session browser
-                eprintln!("🔍 SCRAPE: Creating browser for session");
-                crate::engine::browser::HeadlessWebBrowser::new()
+            let temp_browser = if let Some(sid) = session_id {
+                // Try to get existing session browser
+                if let Some(session_browser) = self.browser_tools.get_session_browser(sid) {
+                    eprintln!("🔍 SCRAPE: Using existing session browser for session: {}", sid);
+                    session_browser
+                } else {
+                    eprintln!("🔍 SCRAPE: Session {} not found, creating new browser", sid);
+                    crate::engine::browser::HeadlessWebBrowser::new()
+                }
             } else {
                 eprintln!("🔍 SCRAPE: Creating temporary browser");
                 crate::engine::browser::HeadlessWebBrowser::new()

@@ -94,3 +94,28 @@ pub struct NavigationState {
     pub current_url: String,
     pub page_title: String,
 }
+
+/// Browser actions that can be triggered by UI interactions
+#[derive(Debug, Clone)]
+pub enum BrowserAction {
+    /// Navigate back in history
+    GoBack,
+    /// Navigate forward in history
+    GoForward,
+    /// Reload the current page
+    Reload,
+    /// Stop loading the current page
+    StopLoading,
+    /// Create a new tab
+    NewTab,
+    /// Close a specific tab
+    CloseTab(crate::gui::TabId),
+    /// Switch to a specific tab
+    SwitchTab(crate::gui::TabId),
+    /// Show the browser menu
+    ShowMenu,
+    /// Focus the address bar
+    FocusAddressBar,
+    /// Execute JavaScript in the current tab
+    ExecuteJavaScript(String),
+}

@@ -14,7 +14,7 @@ mod styles;
 mod state;
 
 // Re-export public types
-pub use types::NavigationState;
+pub use types::{NavigationState, BrowserAction};
 
 // Internal imports
 use types::*;
@@ -28,6 +28,7 @@ pub struct BrowserUI {
     show_dev_tools: bool,
     search_text: String,
     pending_navigation: Option<String>,
+    pending_action: Option<BrowserAction>,
     font_manager: FontManager,
     base_font_size: f32,
 }
@@ -43,6 +44,7 @@ impl BrowserUI {
             show_dev_tools: false,
             search_text: String::new(),
             pending_navigation: None,
+            pending_action: None,
             font_manager: FontManager::new(),
             base_font_size: 16.0,
         }
@@ -152,8 +154,8 @@ impl BrowserUI {
                 ui.label("Create a new tab to start browsing");
 
                 if ui.button("Create New Tab").clicked() {
-                    // TODO: Create initial tab
                     tracing::debug!("Creating initial tab");
+                    self.set_pending_action(BrowserAction::NewTab);
                 }
             });
         }
@@ -169,10 +171,15 @@ impl BrowserUI {
             ui.label("JavaScript console output will appear here");
 
             ui.horizontal(|ui| {
-                ui.text_edit_singleline(&mut self.search_text);
-                if ui.button("Execute").clicked() {
-                    // TODO: Execute JavaScript in current tab
+                let response = ui.text_edit_singleline(&mut self.search_text);
+                let execute_clicked = ui.button("Execute").clicked();
+                let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+                if (execute_clicked || enter_pressed) && !self.search_text.is_empty() {
                     tracing::debug!("Executing JS: {}", self.search_text);
+                    let code = self.search_text.clone();
+                    self.search_text.clear();
+                    self.set_pending_action(BrowserAction::ExecuteJavaScript(code));
                 }
             });
         });
@@ -199,19 +206,20 @@ impl BrowserUI {
             // Ctrl+T - New tab
             if i.modifiers.ctrl && i.key_pressed(egui::Key::T) {
                 tracing::debug!("Keyboard shortcut: New tab");
-                // TODO: Create new tab
+                self.set_pending_action(BrowserAction::NewTab);
             }
 
             // Ctrl+W - Close tab
             if i.modifiers.ctrl && i.key_pressed(egui::Key::W) {
                 tracing::debug!("Keyboard shortcut: Close tab");
-                // TODO: Close current tab
+                // CloseTab with 0 means close current tab (handled in event loop)
+                self.set_pending_action(BrowserAction::CloseTab(0));
             }
 
-            // Ctrl+R - Reload
-            if i.modifiers.ctrl && i.key_pressed(egui::Key::R) {
+            // Ctrl+R or F5 - Reload
+            if (i.modifiers.ctrl && i.key_pressed(egui::Key::R)) || i.key_pressed(egui::Key::F5) {
                 tracing::debug!("Keyboard shortcut: Reload");
-                // TODO: Reload current tab
+                self.set_pending_action(BrowserAction::Reload);
             }
 
             // F12 - Toggle dev tools
@@ -223,7 +231,25 @@ impl BrowserUI {
             // Ctrl+L - Focus address bar
             if i.modifiers.ctrl && i.key_pressed(egui::Key::L) {
                 tracing::debug!("Keyboard shortcut: Focus address bar");
-                // TODO: Focus address bar
+                self.set_pending_action(BrowserAction::FocusAddressBar);
+            }
+
+            // Alt+Left - Go back
+            if i.modifiers.alt && i.key_pressed(egui::Key::ArrowLeft) && self.navigation_state.can_go_back {
+                tracing::debug!("Keyboard shortcut: Go back");
+                self.set_pending_action(BrowserAction::GoBack);
+            }
+
+            // Alt+Right - Go forward
+            if i.modifiers.alt && i.key_pressed(egui::Key::ArrowRight) && self.navigation_state.can_go_forward {
+                tracing::debug!("Keyboard shortcut: Go forward");
+                self.set_pending_action(BrowserAction::GoForward);
+            }
+
+            // Escape - Stop loading
+            if i.key_pressed(egui::Key::Escape) && self.navigation_state.is_loading {
+                tracing::debug!("Keyboard shortcut: Stop loading");
+                self.set_pending_action(BrowserAction::StopLoading);
             }
         });
     }
