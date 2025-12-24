@@ -2,6 +2,7 @@
 pub mod core;
 pub mod readability;
 pub mod web_search;
+pub mod image_search;
 
 // Type definitions
 pub mod types;
@@ -14,4 +15,4 @@ pub mod extraction;
 pub mod search;
 
 // Re-export commonly used types
-pub use types::{SearchResult, SearchResults};
+pub use types::{SearchResult, SearchResults, ImageSearchResult, ImageSearchResults};

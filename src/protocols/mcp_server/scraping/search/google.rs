@@ -1,7 +1,7 @@
 use anyhow::Result;
 use scraper::{Html, Selector};
 
-use crate::protocols::mcp_server::scraping::types::{SearchResult, SearchResults};
+use crate::protocols::mcp_server::scraping::types::{SearchResult, SearchResults, ImageSearchResult, ImageSearchResults};
 use crate::protocols::mcp_server::scraping::utils::{extract_generic_snippet, extract_generic_title, extract_generic_url};
 
 pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
@@ -201,5 +201,90 @@ fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchRe
         results,
         total_results: Some(format!("{} results", result_count)),
         search_time: None,
+    })
+}
+
+/// Perform Google image search
+pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearchResults> {
+    let search_url = format!(
+        "https://www.google.com/search?q={}&tbm=isch&hl=en&gl=us",
+        urlencoding::encode(query)
+    );
+    eprintln!("🔍🖼️ Google Images: Searching for '{}' at URL: {}", query, search_url);
+
+    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
+
+    {
+        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        browser.navigate_to_with_js_option(&search_url, true, true).await?;
+    }
+
+    let html = {
+        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        browser.get_current_content()
+    };
+
+    drop(temp_browser);
+
+    parse_image_results(&html, query, num_results)
+}
+
+fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
+    let document = Html::parse_document(html);
+    let mut results = Vec::new();
+
+    // Google Images selectors
+    let selectors = [
+        "div.rg_bx img",
+        "img.rg_i",
+        "div.isv-r img",
+        "a[data-ved] img",
+    ];
+
+    for selector_str in &selectors {
+        if let Ok(selector) = Selector::parse(selector_str) {
+            for element in document.select(&selector) {
+                if results.len() >= num_results {
+                    break;
+                }
+
+                let image_url = element.value().attr("src")
+                    .or_else(|| element.value().attr("data-src"))
+                    .unwrap_or("");
+
+                // Skip base64 encoded thumbnails and tracking pixels
+                if image_url.is_empty()
+                    || image_url.starts_with("data:")
+                    || image_url.contains("1x1")
+                {
+                    continue;
+                }
+
+                let title = element.value().attr("alt")
+                    .or_else(|| element.value().attr("title"))
+                    .unwrap_or("")
+                    .to_string();
+
+                results.push(ImageSearchResult {
+                    title: if title.is_empty() { format!("Image {}", results.len() + 1) } else { title },
+                    image_url: image_url.to_string(),
+                    thumbnail_url: Some(image_url.to_string()),
+                    source_url: String::new(),
+                    width: None,
+                    height: None,
+                    position: results.len() + 1,
+                });
+            }
+        }
+        if results.len() >= num_results {
+            break;
+        }
+    }
+
+    let result_count = results.len();
+    Ok(ImageSearchResults {
+        query: query.to_string(),
+        results,
+        total_results: Some(format!("{} results", result_count)),
     })
 }

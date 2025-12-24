@@ -56,7 +56,7 @@ impl McpServer {
 
             // Web search tools
             "web_search" => self.web_search(arguments).await,
-            "image_search" => McpResponse::error(-32601, "Tool not implemented yet: image_search".to_string()),
+            "image_search" => self.image_search(arguments).await,
 
             // Session management tools
             "browser_session_management" => self.browser_tools.handle_session_management(arguments).await,
