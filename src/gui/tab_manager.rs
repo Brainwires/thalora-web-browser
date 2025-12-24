@@ -278,22 +278,37 @@ impl Tab {
 
     /// Go back in history
     pub async fn go_back(&mut self) -> Result<()> {
-        let mut browser = self.browser.lock().unwrap();
+        // First, check if we can go back and perform navigation while holding the lock
+        let result = {
+            let mut browser = self.browser.lock().unwrap();
 
-        if !browser.can_go_back() {
-            tracing::debug!("Tab {}: Cannot go back - at beginning of history", self.id);
-            return Ok(());
-        }
+            if !browser.can_go_back() {
+                tracing::debug!("Tab {}: Cannot go back - at beginning of history", self.id);
+                return Ok(());
+            }
 
-        tracing::info!("Tab {}: Going back", self.id);
+            tracing::info!("Tab {}: Going back", self.id);
+
+            match browser.go_back().await {
+                Ok(Some(url)) => {
+                    let content = browser.get_current_content();
+                    let can_go_back = browser.can_go_back();
+                    let can_go_forward = browser.can_go_forward();
+                    Ok(Some((url, content, can_go_back, can_go_forward)))
+                }
+                Ok(None) => Ok(None),
+                Err(e) => Err(e),
+            }
+        }; // Lock is released here
+
+        // Now update self fields without holding the lock
         self.is_loading = true;
-
-        match browser.go_back().await {
-            Ok(Some(url)) => {
+        match result {
+            Ok(Some((url, content, can_go_back, can_go_forward))) => {
                 self.url = url;
-                self.update_title_from_content(&browser);
-                self.can_go_back = browser.can_go_back();
-                self.can_go_forward = browser.can_go_forward();
+                self.update_title_from_content_string(&content);
+                self.can_go_back = can_go_back;
+                self.can_go_forward = can_go_forward;
                 self.is_loading = false;
                 tracing::debug!("Tab {}: Navigated back to {}", self.id, self.url);
             }
@@ -313,22 +328,37 @@ impl Tab {
 
     /// Go forward in history
     pub async fn go_forward(&mut self) -> Result<()> {
-        let mut browser = self.browser.lock().unwrap();
+        // First, check if we can go forward and perform navigation while holding the lock
+        let result = {
+            let mut browser = self.browser.lock().unwrap();
 
-        if !browser.can_go_forward() {
-            tracing::debug!("Tab {}: Cannot go forward - at end of history", self.id);
-            return Ok(());
-        }
+            if !browser.can_go_forward() {
+                tracing::debug!("Tab {}: Cannot go forward - at end of history", self.id);
+                return Ok(());
+            }
 
-        tracing::info!("Tab {}: Going forward", self.id);
+            tracing::info!("Tab {}: Going forward", self.id);
+
+            match browser.go_forward().await {
+                Ok(Some(url)) => {
+                    let content = browser.get_current_content();
+                    let can_go_back = browser.can_go_back();
+                    let can_go_forward = browser.can_go_forward();
+                    Ok(Some((url, content, can_go_back, can_go_forward)))
+                }
+                Ok(None) => Ok(None),
+                Err(e) => Err(e),
+            }
+        }; // Lock is released here
+
+        // Now update self fields without holding the lock
         self.is_loading = true;
-
-        match browser.go_forward().await {
-            Ok(Some(url)) => {
+        match result {
+            Ok(Some((url, content, can_go_back, can_go_forward))) => {
                 self.url = url;
-                self.update_title_from_content(&browser);
-                self.can_go_back = browser.can_go_back();
-                self.can_go_forward = browser.can_go_forward();
+                self.update_title_from_content_string(&content);
+                self.can_go_back = can_go_back;
+                self.can_go_forward = can_go_forward;
                 self.is_loading = false;
                 tracing::debug!("Tab {}: Navigated forward to {}", self.id, self.url);
             }

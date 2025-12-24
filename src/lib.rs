@@ -31,6 +31,10 @@ pub mod web_search;
 #[cfg(feature = "native")]
 pub mod protocols;
 
+// GUI module (requires gui feature - includes windowing, egui, wgpu)
+#[cfg(feature = "gui")]
+pub mod gui;
+
 // Debug utilities
 pub mod debug_utils;
 
@@ -63,3 +67,7 @@ pub use protocols::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageCon
 pub use protocols::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
 #[cfg(feature = "native")]
 pub use protocols::{McpServer, MemoryTools};
+
+// GUI exports (requires gui feature)
+#[cfg(feature = "gui")]
+pub use gui::{BrowserUI, NavigationState, BrowserAction, InputHandler, TabManager, Tab, TabId};

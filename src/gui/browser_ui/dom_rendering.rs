@@ -311,9 +311,9 @@ impl super::BrowserUI {
                             .map(|(_, t)| t.as_str())
                             .unwrap_or("Select...");
 
-                        egui::ComboBox::from_id_salt(format!("select_{}", name))
+                        egui::ComboBox::from_id_source(format!("select_{}", name))
                             .selected_text(display_text)
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui: &mut egui::Ui| {
                                 for (value, text) in &options {
                                     ui.selectable_value(&mut selected_value, value.clone(), text);
                                 }
