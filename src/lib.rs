@@ -39,7 +39,7 @@ pub mod gui;
 pub mod debug_utils;
 
 // Re-export main components for clean public API
-#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
 #[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]

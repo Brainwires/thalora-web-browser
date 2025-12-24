@@ -28,7 +28,7 @@ pub mod security;
 // DOM module removed - now natively implemented in Boa engine
 
 // Re-exports for clean API
-#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
+#[cfg(any(feature = "native", feature = "web-search"))]
 pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
 #[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
