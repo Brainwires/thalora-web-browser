@@ -16,6 +16,7 @@ use crate::protocols::cdp_tools::CdpTools;
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::session_manager::SessionManager;
 use crate::protocols::security::sanitize_session_id;
+use crate::protocols::rate_limiter::RateLimiter;
 use crate::engine::EngineConfig;
 
 #[allow(dead_code)]
@@ -31,6 +32,8 @@ pub struct McpServer {
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
     /// Engine configuration for JavaScript execution
     pub(super) engine_config: EngineConfig,
+    /// Rate limiter for DoS prevention
+    pub(super) rate_limiter: RateLimiter,
 }
 
 impl McpServer {
@@ -83,14 +86,16 @@ impl McpServer {
             session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
             engine_config,
+            rate_limiter: RateLimiter::new(),
         }
     }
 
     /// Get or create a session-scoped VFS. If `backing_dir` is provided, the backing file will be created there.
     ///
     /// # Security
-    /// The session_id is validated to prevent path traversal attacks (CWE-22).
-    /// Only alphanumeric characters, hyphens, and underscores are allowed.
+    /// - The session_id is validated to prevent path traversal attacks (CWE-22).
+    /// - Session data is encrypted at rest using ChaCha20-Poly1305.
+    /// - Only alphanumeric characters, hyphens, and underscores are allowed.
     pub fn get_or_create_session_vfs(&self, session_id: &str, backing_dir: Option<&std::path::Path>) -> Result<Arc<VfsInstance>> {
         // SECURITY: Validate session_id to prevent path traversal attacks
         let safe_session_id = sanitize_session_id(session_id)?;
@@ -100,18 +105,26 @@ impl McpServer {
             return Ok(v.clone());
         }
 
-        // Build a backing path: backing_dir/vfs-<session_id>.bin
+        // Build a backing path: backing_dir/vfs-session-<session_id>.bin.enc
+        // SECURITY: Use .bin.enc extension for encrypted session files
         let file = if let Some(dir) = backing_dir {
-            dir.join(format!("vfs-session-{}.bin", safe_session_id))
+            dir.join(format!("vfs-session-{}.bin.enc", safe_session_id))
         } else {
             // fallback to temp dir
-            std::env::temp_dir().join(format!("vfs-session-{}.bin", safe_session_id))
+            std::env::temp_dir().join(format!("vfs-session-{}.bin.enc", safe_session_id))
         };
 
-        // Try to open existing or create new
-        let v = match VfsInstance::open_file_backed(&file) {
+        // SECURITY: Derive encryption key from session_id and secret
+        let key = vfs::derive_session_key(&safe_session_id);
+
+        // Try to open existing encrypted file or create new
+        let v = match VfsInstance::open_file_backed_encrypted(&file, &*key) {
             Ok(inst) => Arc::new(inst),
-            Err(_) => Arc::new(VfsInstance::new_temp_in_dir(std::env::temp_dir()).expect("create temp vfs")),
+            Err(e) => {
+                // Log decryption failure but create fresh VFS
+                tracing::warn!("Failed to open encrypted session VFS: {}. Creating new.", e);
+                Arc::new(VfsInstance::new_temp_in_dir(std::env::temp_dir()).expect("create temp vfs"))
+            }
         };
         guard.insert(safe_session_id, v.clone());
         Ok(v)

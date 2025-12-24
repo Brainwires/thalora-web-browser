@@ -1,6 +1,7 @@
 use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
+use crate::protocols::rate_limiter::RateLimiter;
 use std::sync::Arc;
 use vfs::{VfsInstance, set_current_vfs};
 use std::env;
@@ -95,6 +96,18 @@ impl McpServer {
     pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
         eprintln!("🔍 DEBUG: call_tool - Tool: {}, Arguments: {}", name, arguments);
 
+        // SECURITY: Check rate limit before executing tool (DoS prevention)
+        let category = RateLimiter::tool_to_category(&name);
+        if let Err(wait_duration) = self.rate_limiter.check(category) {
+            eprintln!("⚠️ Rate limit exceeded for tool {} (category: {}), retry after {:.1}s",
+                     name, category, wait_duration.as_secs_f64());
+            return McpResponse::error(
+                -32029,
+                format!("Rate limit exceeded for {} operations. Retry after {:.1} seconds.",
+                       category, wait_duration.as_secs_f64())
+            );
+        }
+
         // If a `session_id` argument is present, reuse or create a session-scoped VFS that persists across calls.
         let vfs_instance: Arc<VfsInstance>;
         let prev_vfs: Option<Arc<VfsInstance>>;
@@ -138,20 +151,23 @@ impl McpServer {
 
         // Lifecycle:
         // - If ephemeral (no session_id): persist if `persistent=true`, otherwise delete backing file.
-        // - If session-scoped: if `persistent=true` persist the session backing file; otherwise keep it in-memory for the session.
-        let is_session = arguments.get("session_id").and_then(|v| v.as_str()).is_some();
+        // - If session-scoped: if `persistent=true` persist the session backing file with encryption; otherwise keep it in-memory for the session.
+        let session_id_opt = arguments.get("session_id").and_then(|v| v.as_str());
         let should_persist = arguments.get("persistent").and_then(|v| v.as_bool()).unwrap_or(false);
 
-        if is_session {
+        if let Some(session_id) = session_id_opt {
             if should_persist {
-                if let Err(e) = vfs_instance.persist() {
+                // SECURITY: Use encrypted persistence for session data at rest
+                let key = vfs::derive_session_key(session_id);
+                if let Err(e) = vfs_instance.persist_encrypted(&*key) {
                     drop(set_current_vfs(prev_vfs));
-                    return McpResponse::error(-32001, format!("Failed to persist session VFS: {}", e));
+                    return McpResponse::error(-32001, format!("Failed to persist encrypted session VFS: {}", e));
                 }
             }
             // for session VFS we keep the backing instance in `self.session_vfs` until explicit removal
         } else {
             if should_persist {
+                // Ephemeral VFS uses unencrypted persistence (no session context)
                 if let Err(e) = vfs_instance.persist() {
                     drop(set_current_vfs(prev_vfs));
                     return McpResponse::error(-32002, format!("Failed to persist ephemeral VFS: {}", e));

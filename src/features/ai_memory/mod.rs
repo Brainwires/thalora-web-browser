@@ -91,12 +91,22 @@ impl AiMemoryHeap {
     }
 
     /// Count total entries across all categories
+    /// SECURITY: Uses checked arithmetic to prevent integer overflow (CWE-190)
     fn count_total_entries(&self) -> u64 {
-        (self.memory_data.research.len()
-            + self.memory_data.credentials.len()
-            + self.memory_data.sessions.len()
-            + self.memory_data.bookmarks.len()
-            + self.memory_data.notes.len()) as u64
+        let counts: [usize; 5] = [
+            self.memory_data.research.len(),
+            self.memory_data.credentials.len(),
+            self.memory_data.sessions.len(),
+            self.memory_data.bookmarks.len(),
+            self.memory_data.notes.len(),
+        ];
+
+        // Use checked_add for safe accumulation, saturate at u64::MAX on overflow
+        counts.iter()
+            .try_fold(0u64, |acc, &count| {
+                acc.checked_add(count as u64)
+            })
+            .unwrap_or(u64::MAX)
     }
 
     // === RESEARCH MANAGEMENT ===

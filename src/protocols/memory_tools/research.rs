@@ -3,6 +3,7 @@ use chrono::Utc;
 
 use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::{AiMemoryHeap, ResearchEntry};
+use crate::protocols::security::{limit_input_length, MAX_KEY_LENGTH, MAX_CONTENT_LENGTH};
 
 /// Handle storing research data in AI memory
 pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -19,6 +20,17 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
         }
     };
 
+    // SECURITY: Validate key length to prevent DoS attacks
+    if let Err(e) = limit_input_length(key, MAX_KEY_LENGTH, "Research key") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
+
     let topic = match args.get("topic").and_then(|v| v.as_str()) {
         Some(topic) => topic,
         None => {
@@ -32,6 +44,17 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
         }
     };
 
+    // SECURITY: Validate topic length
+    if let Err(e) = limit_input_length(topic, MAX_CONTENT_LENGTH, "Topic") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
+
     let summary = match args.get("summary").and_then(|v| v.as_str()) {
         Some(summary) => summary,
         None => {
@@ -44,6 +67,17 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
             };
         }
     };
+
+    // SECURITY: Validate summary length
+    if let Err(e) = limit_input_length(summary, MAX_CONTENT_LENGTH, "Summary") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
 
     let findings = args.get("findings")
         .and_then(|v| v.as_array())

@@ -2,6 +2,7 @@ use serde_json::Value;
 
 use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::AiMemoryHeap;
+use crate::protocols::security::{limit_input_length, MAX_QUERY_LENGTH};
 
 // Submodules
 mod research;
@@ -60,6 +61,19 @@ impl MemoryTools {
             .and_then(|v| v.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect());
         let limit = args.get("limit").and_then(|v| v.as_i64()).map(|l| l as usize);
+
+        // SECURITY: Validate query length if provided
+        if let Some(q) = query {
+            if let Err(e) = limit_input_length(q, MAX_QUERY_LENGTH, "Search query") {
+                return McpResponse::ToolResult {
+                    content: vec![serde_json::json!({
+                        "type": "text",
+                        "text": format!("Input validation failed: {}", e)
+                    })],
+                    is_error: true,
+                };
+            }
+        }
 
         let criteria = MemorySearchCriteria {
             query: query.map(|s| s.to_string()),

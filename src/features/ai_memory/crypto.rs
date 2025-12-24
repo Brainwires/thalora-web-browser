@@ -9,6 +9,7 @@ use argon2::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use std::env;
+use zeroize::Zeroizing;
 
 /// Version prefix for encrypted data format
 const VERSION_V2: &str = "v2";
@@ -24,15 +25,19 @@ const KEY_SIZE: usize = 32;
 
 /// Get master password from environment variable
 /// SECURITY: Master password MUST be set via THALORA_MASTER_PASSWORD environment variable
-fn get_master_password() -> Result<String> {
-    env::var("THALORA_MASTER_PASSWORD").context(
-        "THALORA_MASTER_PASSWORD environment variable not set. \
-        Please set a strong master password (min 32 characters) to encrypt credentials."
-    )
+/// SECURITY: Returns Zeroizing<String> to ensure password is zeroed from memory when dropped
+fn get_master_password() -> Result<Zeroizing<String>> {
+    env::var("THALORA_MASTER_PASSWORD")
+        .map(Zeroizing::new)
+        .context(
+            "THALORA_MASTER_PASSWORD environment variable not set. \
+            Please set a strong master password (min 32 characters) to encrypt credentials."
+        )
 }
 
 /// Derive encryption key from master password using Argon2id
-fn derive_key(master_password: &str, salt: &[u8]) -> Result<[u8; KEY_SIZE]> {
+/// SECURITY: Returns Zeroizing<[u8; KEY_SIZE]> to ensure key is zeroed from memory when dropped
+fn derive_key(master_password: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_SIZE]>> {
     if salt.len() != SALT_SIZE {
         return Err(anyhow!("Invalid salt size: expected {}, got {}", SALT_SIZE, salt.len()));
     }
@@ -72,7 +77,8 @@ fn derive_key(master_password: &str, salt: &[u8]) -> Result<[u8; KEY_SIZE]> {
         return Err(anyhow!("Unexpected key length: {}", hash_bytes.len()));
     }
 
-    let mut key = [0u8; KEY_SIZE];
+    // SECURITY: Use Zeroizing wrapper to ensure key is zeroed from memory when dropped
+    let mut key = Zeroizing::new([0u8; KEY_SIZE]);
     key.copy_from_slice(hash_bytes);
 
     Ok(key)
@@ -89,7 +95,7 @@ fn derive_key(master_password: &str, salt: &[u8]) -> Result<[u8; KEY_SIZE]> {
 /// - Random nonce per encryption (prevents pattern analysis)
 /// - 128-bit authentication tag (prevents forgery)
 pub fn encrypt_password(password: &str) -> Result<String> {
-    // Get master password from environment
+    // Get master password from environment (Zeroizing ensures cleanup on drop)
     let master_password = get_master_password()?;
 
     // Validate master password strength (minimum 32 characters)
@@ -107,11 +113,11 @@ pub fn encrypt_password(password: &str) -> Result<String> {
     use aes_gcm::aead::rand_core::RngCore;
     OsRng.fill_bytes(&mut salt);
 
-    // Derive encryption key from master password + salt
+    // Derive encryption key from master password + salt (Zeroizing ensures cleanup on drop)
     let key = derive_key(&master_password, &salt)?;
 
-    // Create AES-256-GCM cipher
-    let cipher = Aes256Gcm::new_from_slice(&key)
+    // Create AES-256-GCM cipher (key is automatically zeroed when 'key' goes out of scope)
+    let cipher = Aes256Gcm::new_from_slice(&*key)
         .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
 
     // Generate random nonce (12 bytes)
@@ -157,7 +163,7 @@ pub fn decrypt_password(encrypted: &str) -> Result<String> {
 
 /// Decrypt v2 format: `v2:base64(salt):base64(nonce):base64(ciphertext+tag)`
 fn decrypt_password_v2(encrypted: &str) -> Result<String> {
-    // Get master password from environment
+    // Get master password from environment (Zeroizing ensures cleanup on drop)
     let master_password = get_master_password()?;
 
     // Parse format: v2:salt:nonce:ciphertext
@@ -195,11 +201,11 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
         .decode(parts[3])
         .context("Failed to decode ciphertext")?;
 
-    // Derive key from master password + salt
+    // Derive key from master password + salt (Zeroizing ensures cleanup on drop)
     let key = derive_key(&master_password, &salt)?;
 
-    // Create cipher
-    let cipher = Aes256Gcm::new_from_slice(&key)
+    // Create cipher (key is automatically zeroed when 'key' goes out of scope)
+    let cipher = Aes256Gcm::new_from_slice(&*key)
         .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
 
     // Decrypt and verify authentication tag
@@ -354,14 +360,15 @@ mod tests {
     fn test_key_derivation_with_different_salts() {
         let master_password = "test_master_password_min_32chars_secure";
 
-        let mut salt1 = [0u8; SALT_SIZE];
-        let mut salt2 = [1u8; SALT_SIZE];
+        let salt1 = [0u8; SALT_SIZE];
+        let salt2 = [1u8; SALT_SIZE];
 
         let key1 = derive_key(master_password, &salt1).unwrap();
         let key2 = derive_key(master_password, &salt2).unwrap();
 
         // Different salts should produce different keys
-        assert_ne!(key1, key2);
+        // Dereference Zeroizing wrappers for comparison
+        assert_ne!(*key1, *key2);
     }
 
     #[test]

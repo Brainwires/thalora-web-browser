@@ -2,6 +2,7 @@ use serde_json::Value;
 
 use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::{AiMemoryHeap, NotePriority};
+use crate::protocols::security::{limit_input_length, MAX_KEY_LENGTH, MAX_CONTENT_LENGTH};
 
 /// Handle storing a note in AI memory
 pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -18,6 +19,17 @@ pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> Mcp
         }
     };
 
+    // SECURITY: Validate key length
+    if let Err(e) = limit_input_length(key, MAX_KEY_LENGTH, "Note key") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
+
     let title = match args.get("title").and_then(|v| v.as_str()) {
         Some(title) => title,
         None => {
@@ -31,6 +43,17 @@ pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> Mcp
         }
     };
 
+    // SECURITY: Validate title length
+    if let Err(e) = limit_input_length(title, MAX_KEY_LENGTH, "Note title") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
+
     let content = match args.get("content").and_then(|v| v.as_str()) {
         Some(content) => content,
         None => {
@@ -43,6 +66,17 @@ pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> Mcp
             };
         }
     };
+
+    // SECURITY: Validate content length
+    if let Err(e) = limit_input_length(content, MAX_CONTENT_LENGTH, "Note content") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
 
     let category = args.get("category").and_then(|v| v.as_str()).unwrap_or("general");
 

@@ -9,6 +9,41 @@ use uuid::Uuid;
 use std::fs as stdfs;
 use bincode;
 
+// Encryption imports for session data at rest
+use chacha20poly1305::{
+    aead::{Aead, KeyInit, OsRng},
+    ChaCha20Poly1305, Nonce,
+};
+use chacha20poly1305::aead::rand_core::RngCore;
+use zeroize::Zeroizing;
+use sha2::{Sha256, Digest};
+
+/// Derive a 256-bit encryption key from a session ID and optional secret.
+///
+/// # Security
+/// Uses SHA-256 to derive a key from:
+/// - THALORA_SESSION_SECRET environment variable (if set)
+/// - A hardcoded fallback secret (for development/testing only)
+/// - The session_id
+///
+/// In production, THALORA_SESSION_SECRET should be set to a cryptographically
+/// random 32+ byte value.
+pub fn derive_session_key(session_id: &str) -> Zeroizing<[u8; 32]> {
+    // Get secret from environment or use fallback
+    let secret = std::env::var("THALORA_SESSION_SECRET")
+        .unwrap_or_else(|_| "thalora-dev-session-secret-do-not-use-in-production".to_string());
+
+    // Derive key using SHA-256(secret || session_id)
+    let mut hasher = Sha256::new();
+    hasher.update(secret.as_bytes());
+    hasher.update(session_id.as_bytes());
+    let result = hasher.finalize();
+
+    let mut key = Zeroizing::new([0u8; 32]);
+    key.copy_from_slice(&result);
+    key
+}
+
 #[cfg(not(feature = "real_fs"))]
 static IN_MEM_FILES: Lazy<Mutex<HashMap<PathBuf, Vec<u8>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -78,6 +113,93 @@ impl VfsInstance {
     /// Return the backing file path for this VFS instance.
     pub fn backing_path(&self) -> PathBuf {
         self.file_path.clone()
+    }
+
+    // === ENCRYPTED PERSISTENCE METHODS ===
+
+    /// Open an encrypted file-backed VFS. If the file exists it will be decrypted and loaded.
+    /// The key should be a 256-bit (32-byte) key derived from a session secret.
+    ///
+    /// # Security
+    /// Uses ChaCha20-Poly1305 AEAD cipher for authenticated encryption.
+    /// The nonce is stored as the first 12 bytes of the encrypted file.
+    pub fn open_file_backed_encrypted<P: AsRef<Path>>(path: P, key: &[u8; 32]) -> io::Result<Self> {
+        let p = path.as_ref().to_path_buf();
+        if p.exists() {
+            let encrypted_bytes = stdfs::read(&p)?;
+
+            // File format: [12-byte nonce][ciphertext with auth tag]
+            if encrypted_bytes.len() < 12 {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "encrypted file too short"));
+            }
+
+            let (nonce_bytes, ciphertext) = encrypted_bytes.split_at(12);
+            let nonce = Nonce::from_slice(nonce_bytes);
+
+            // Create cipher with zeroizing key wrapper
+            let key_array = Zeroizing::new(*key);
+            let cipher = ChaCha20Poly1305::new_from_slice(&*key_array)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
+            // Decrypt the data
+            let plaintext = cipher.decrypt(nonce, ciphertext)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData,
+                    "decryption failed: invalid key or corrupted data"))?;
+
+            // Deserialize the VFS data
+            let persist: VfsPersist = bincode::deserialize(&plaintext)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+            let mut map = HashMap::new();
+            for (k, v) in persist.entries.into_iter() {
+                map.insert(k, v);
+            }
+            Ok(Self { file_path: p, map: Arc::new(Mutex::new(map)) })
+        } else {
+            Ok(Self { file_path: p, map: Arc::new(Mutex::new(HashMap::new())) })
+        }
+    }
+
+    /// Persist current in-memory map to disk with encryption.
+    /// The key should be a 256-bit (32-byte) key derived from a session secret.
+    ///
+    /// # Security
+    /// Uses ChaCha20-Poly1305 AEAD cipher for authenticated encryption.
+    /// A random 96-bit nonce is generated for each persist operation.
+    pub fn persist_encrypted(&self, key: &[u8; 32]) -> io::Result<()> {
+        let map = self.map.lock().unwrap();
+        let mut entries = Vec::new();
+        for (k, v) in map.iter() {
+            entries.push((k.clone(), v.clone()));
+        }
+        let persist = VfsPersist { entries };
+        let plaintext = bincode::serialize(&persist)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+        // Generate a random 96-bit nonce
+        let mut nonce_bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        // Create cipher with zeroizing key wrapper
+        let key_array = Zeroizing::new(*key);
+        let cipher = ChaCha20Poly1305::new_from_slice(&*key_array)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
+
+        // Encrypt the data
+        let ciphertext = cipher.encrypt(nonce, plaintext.as_slice())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        // Write file format: [12-byte nonce][ciphertext with auth tag]
+        let mut encrypted_bytes = Vec::with_capacity(12 + ciphertext.len());
+        encrypted_bytes.extend_from_slice(&nonce_bytes);
+        encrypted_bytes.extend_from_slice(&ciphertext);
+
+        // Atomic write via temp file
+        let tmp = self.file_path.with_extension("tmp.enc");
+        stdfs::write(&tmp, &encrypted_bytes)?;
+        stdfs::rename(&tmp, &self.file_path)?;
+        Ok(())
     }
 }
 
@@ -423,15 +545,29 @@ impl Seek for File {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let map = IN_MEM_FILES.lock().unwrap();
         if let Some(bytes) = map.get(&self.path) {
+            // SECURITY: Use checked arithmetic to prevent integer overflow (CWE-190)
             let new = match pos {
-                SeekFrom::Start(off) => off as i64,
-                SeekFrom::End(off) => bytes.len() as i64 + off,
-                SeekFrom::Current(off) => self.pos as i64 + off,
+                SeekFrom::Start(off) => i64::try_from(off)
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "seek offset too large"))?,
+                SeekFrom::End(off) => {
+                    let len = i64::try_from(bytes.len())
+                        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "file too large"))?;
+                    len.checked_add(off)
+                        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek overflow"))?
+                },
+                SeekFrom::Current(off) => {
+                    let pos = i64::try_from(self.pos)
+                        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "position too large"))?;
+                    pos.checked_add(off)
+                        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek overflow"))?
+                },
             };
             if new < 0 {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid seek"));
             }
-            self.pos = new as usize;
+            // SECURITY: Safe conversion since we've verified new >= 0
+            self.pos = usize::try_from(new)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "seek result too large"))?;
             Ok(self.pos as u64)
         } else {
             Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))

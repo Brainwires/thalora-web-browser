@@ -2,6 +2,7 @@ use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
 use crate::protocols::browser_tools::BrowserTools;
+use crate::protocols::security::{sanitize_session_id, limit_input_length, MAX_JS_CODE_LENGTH};
 
 /// Runtime domain - Script evaluation, exceptions, and runtime events
 pub struct RuntimeTools {
@@ -81,6 +82,26 @@ impl RuntimeTools {
         let session_id = args.get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("cdp_default");
+
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(expression, MAX_JS_CODE_LENGTH, "JavaScript expression") {
+            return McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("Input validation failed: {}", e)
+                })],
+                is_error: true,
+            };
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("Session ID validation failed: {}", e)
+                })],
+                is_error: true,
+            };
+        }
 
         let browser = self.browser_tools.get_or_create_session(session_id, false);
         let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());

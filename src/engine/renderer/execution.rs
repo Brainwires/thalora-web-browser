@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use thalora_browser_apis::boa_engine::Source;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::error::Error;
 use crate::engine::renderer::core::RustRenderer;
 
@@ -115,7 +115,7 @@ impl RustRenderer {
         Ok(result.to_string())
     }
 
-    fn evaluate_javascript_with_timeout(&mut self, js_code: &str, _timeout_duration: Duration) -> Result<String> {
+    fn evaluate_javascript_with_timeout(&mut self, js_code: &str, timeout_duration: Duration) -> Result<String> {
         // Security check
         if !self.is_safe_javascript(js_code) {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));
@@ -164,7 +164,16 @@ impl RustRenderer {
         }
 
         if let Some(ctx) = &mut self.js_context {
-            match ctx.eval(source) {
+            // SECURITY: Set execution deadline to enforce timeout
+            let deadline = Instant::now() + timeout_duration;
+            ctx.runtime_limits_mut().set_execution_deadline(deadline);
+
+            let result = ctx.eval(source);
+
+            // SECURITY: Always clear the deadline after execution
+            ctx.runtime_limits_mut().clear_execution_deadline();
+
+            match result {
                 Ok(value) => {
                     eprintln!("🔍 DEBUG: JavaScript eval succeeded, value type: {:?}", value.get_type());
                     // Convert JS value to string
@@ -173,6 +182,11 @@ impl RustRenderer {
                     Ok(result)
                 },
                 Err(e) => {
+                    // Check if this was a timeout error
+                    let error_str = format!("{}", e);
+                    if error_str.contains("timeout") || error_str.contains("ExecutionTimeout") {
+                        return Err(anyhow!("JavaScript execution timeout after {:?}", timeout_duration));
+                    }
                     // For Google's JavaScript, we'll be more forgiving of errors
                     eprintln!("🔍 DEBUG: JavaScript execution had recoverable error: {:?}", e);
                     eprintln!("🔴 JS ERROR DETAILS:");

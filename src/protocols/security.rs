@@ -4,7 +4,31 @@
 use anyhow::{Result, anyhow};
 
 /// Maximum length for session IDs to prevent buffer overflow attacks
-const MAX_SESSION_ID_LENGTH: usize = 64;
+pub const MAX_SESSION_ID_LENGTH: usize = 64;
+
+/// Maximum URL length (8KB to handle complex query strings)
+pub const MAX_URL_LENGTH: usize = 8192;
+
+/// Maximum search query length (1KB)
+pub const MAX_QUERY_LENGTH: usize = 1024;
+
+/// Maximum JavaScript code length (1MB)
+pub const MAX_JS_CODE_LENGTH: usize = 1_048_576;
+
+/// Maximum CSS selector length (1KB)
+pub const MAX_SELECTOR_LENGTH: usize = 1024;
+
+/// Maximum form field value length (64KB)
+pub const MAX_FORM_VALUE_LENGTH: usize = 65536;
+
+/// Maximum text input length for typing operations (64KB)
+pub const MAX_TEXT_INPUT_LENGTH: usize = 65536;
+
+/// Maximum key length for memory storage operations (256 bytes)
+pub const MAX_KEY_LENGTH: usize = 256;
+
+/// Maximum title/note content length (1MB)
+pub const MAX_CONTENT_LENGTH: usize = 1_048_576;
 
 /// Sanitize session ID to prevent path traversal attacks (CWE-22)
 ///

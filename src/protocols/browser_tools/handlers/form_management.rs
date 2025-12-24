@@ -2,6 +2,7 @@ use serde_json::{json, Value};
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::security::{sanitize_session_id, limit_input_length, MAX_SELECTOR_LENGTH};
 
 impl BrowserTools {
     pub async fn handle_prepare_form_submission(&self, params: Value) -> McpResponse {
@@ -14,6 +15,19 @@ impl BrowserTools {
 
         if form_selector.is_empty() {
             return McpResponse::error(-1, "Form selector is required".to_string());
+        }
+
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(form_selector, MAX_SELECTOR_LENGTH, "Form selector") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Some(btn_sel) = submit_button_selector {
+            if let Err(e) = limit_input_length(btn_sel, MAX_SELECTOR_LENGTH, "Submit button selector") {
+                return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+            }
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
         let browser = self.get_or_create_session(session_id, false);

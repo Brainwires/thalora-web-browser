@@ -3,7 +3,10 @@ use serde_json::Value;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
-use crate::protocols::security::validate_url_for_navigation;
+use crate::protocols::security::{
+    validate_url_for_navigation, sanitize_session_id, limit_input_length,
+    MAX_URL_LENGTH, MAX_SELECTOR_LENGTH,
+};
 
 use super::extraction;
 
@@ -16,6 +19,18 @@ impl McpServer {
         // Validate that we have either URL or session_id
         if url.is_none() && session_id.is_none() {
             return McpResponse::error(-1, "Either 'url' or 'session_id' parameter is required".to_string());
+        }
+
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Some(url_str) = url {
+            if let Err(e) = limit_input_length(url_str, MAX_URL_LENGTH, "URL") {
+                return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+            }
+        }
+        if let Some(sid) = session_id {
+            if let Err(e) = sanitize_session_id(sid) {
+                return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+            }
         }
 
         // Session & Navigation options
@@ -207,6 +222,14 @@ impl McpServer {
 
             for (name, selector_str) in selectors {
                 if let Some(selector_str) = selector_str.as_str() {
+                    // SECURITY: Validate selector length
+                    if let Err(e) = limit_input_length(selector_str, MAX_SELECTOR_LENGTH, "CSS selector") {
+                        selector_results.insert(
+                            name,
+                            Value::String(format!("Selector rejected: {}", e))
+                        );
+                        continue;
+                    }
                     if let Ok(selector) = Selector::parse(selector_str) {
                         let mut matches = Vec::new();
                         for element in document.select(&selector) {

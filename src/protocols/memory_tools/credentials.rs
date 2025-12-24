@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::AiMemoryHeap;
+use crate::protocols::security::{limit_input_length, MAX_KEY_LENGTH, MAX_CONTENT_LENGTH};
 
 /// Handle storing credentials in AI memory
 pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -19,6 +20,17 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
         }
     };
 
+    // SECURITY: Validate key length
+    if let Err(e) = limit_input_length(key, MAX_KEY_LENGTH, "Credential key") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
+
     let service = match args.get("service").and_then(|v| v.as_str()) {
         Some(service) => service,
         None => {
@@ -31,6 +43,17 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
             };
         }
     };
+
+    // SECURITY: Validate service length
+    if let Err(e) = limit_input_length(service, MAX_KEY_LENGTH, "Service name") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
 
     let username = match args.get("username").and_then(|v| v.as_str()) {
         Some(username) => username,
@@ -45,6 +68,17 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
         }
     };
 
+    // SECURITY: Validate username length
+    if let Err(e) = limit_input_length(username, MAX_KEY_LENGTH, "Username") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
+
     let password = match args.get("password").and_then(|v| v.as_str()) {
         Some(password) => password,
         None => {
@@ -57,6 +91,17 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
             };
         }
     };
+
+    // SECURITY: Validate password length (using CONTENT_LENGTH for passwords as they can be long)
+    if let Err(e) = limit_input_length(password, MAX_CONTENT_LENGTH, "Password") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
 
     let additional_data: HashMap<String, String> = args.get("additional_data")
         .and_then(|v| v.as_object())
@@ -99,6 +144,17 @@ pub async fn handle_retrieve_credentials(args: Value, ai_memory: &mut AiMemoryHe
             };
         }
     };
+
+    // SECURITY: Validate key length
+    if let Err(e) = limit_input_length(key, MAX_KEY_LENGTH, "Credential key") {
+        return McpResponse::ToolResult {
+            content: vec![serde_json::json!({
+                "type": "text",
+                "text": format!("Input validation failed: {}", e)
+            })],
+            is_error: true,
+        };
+    }
 
     match ai_memory.get_credentials(key) {
         Ok(Some((service, username, password, additional_data))) => {

@@ -3,6 +3,10 @@ use std::collections::HashMap;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::security::{
+    sanitize_session_id, limit_input_length,
+    MAX_SELECTOR_LENGTH, MAX_TEXT_INPUT_LENGTH, MAX_FORM_VALUE_LENGTH,
+};
 
 impl BrowserTools {
     pub async fn handle_click_element(&self, params: Value) -> McpResponse {
@@ -13,6 +17,14 @@ impl BrowserTools {
 
         if selector.is_empty() {
             return McpResponse::error(-1, "Selector is required".to_string());
+        }
+
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(selector, MAX_SELECTOR_LENGTH, "CSS selector") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
         let browser = self.get_or_create_session(session_id, false);
@@ -91,6 +103,17 @@ impl BrowserTools {
             return McpResponse::error(-1, "Text is required".to_string());
         }
 
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(selector, MAX_SELECTOR_LENGTH, "CSS selector") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = limit_input_length(text, MAX_TEXT_INPUT_LENGTH, "Text input") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+
         let browser = self.get_or_create_session(session_id, false);
         let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
         {
@@ -122,11 +145,23 @@ impl BrowserTools {
             return McpResponse::error(-1, "Form data is required".to_string());
         }
 
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(form_selector, MAX_SELECTOR_LENGTH, "Form selector") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
+        }
+
         let form_data = form_data.unwrap();
         let mut form_map = HashMap::new();
 
         for (key, value) in form_data {
             if let Some(string_value) = value.as_str() {
+                // SECURITY: Validate form field values
+                if let Err(e) = limit_input_length(string_value, MAX_FORM_VALUE_LENGTH, "Form field value") {
+                    return McpResponse::error(-32602, format!("Input validation failed for field '{}': {}", key, e));
+                }
                 form_map.insert(key.clone(), string_value.to_string());
             }
         }
@@ -184,6 +219,14 @@ impl BrowserTools {
 
         if selector.is_empty() {
             return McpResponse::error(-1, "Selector is required".to_string());
+        }
+
+        // SECURITY: Validate input lengths to prevent DoS attacks
+        if let Err(e) = limit_input_length(selector, MAX_SELECTOR_LENGTH, "CSS selector") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
+        }
+        if let Err(e) = sanitize_session_id(session_id) {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
         let browser = self.get_or_create_session(session_id, false);

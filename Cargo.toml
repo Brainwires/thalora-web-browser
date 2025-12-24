@@ -138,6 +138,7 @@ base64 = "0.22"
 aes-gcm = "0.10"
 argon2 = { version = "0.5", features = ["std"] }
 sha2 = "0.10"
+zeroize = { version = "1.7", features = ["zeroize_derive"] }
 
 # Cookie management - shared cookie store for reqwest
 reqwest_cookie_store = "0.9"

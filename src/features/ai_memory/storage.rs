@@ -189,10 +189,12 @@ pub(super) fn store_bookmark(
 }
 
 /// Access bookmark (increments counter)
+/// SECURITY: Uses saturating_add to prevent integer overflow (CWE-190)
 pub(super) fn access_bookmark(memory_data: &mut MemoryData, key: &str) -> Option<BookmarkEntry> {
     if let Some(bookmark) = memory_data.bookmarks.get_mut(key) {
         bookmark.last_accessed = Some(Utc::now());
-        bookmark.access_count += 1;
+        // Use saturating_add to prevent overflow - will cap at u64::MAX
+        bookmark.access_count = bookmark.access_count.saturating_add(1);
         Some(bookmark.clone())
     } else {
         None

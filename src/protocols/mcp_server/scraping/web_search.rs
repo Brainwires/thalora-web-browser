@@ -3,6 +3,7 @@ use std::error::Error;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
+use crate::protocols::security::{limit_input_length, MAX_QUERY_LENGTH};
 
 use super::search;
 
@@ -16,6 +17,11 @@ impl McpServer {
 
         if query.is_empty() {
             return McpResponse::error(-1, "Query parameter is required".to_string());
+        }
+
+        // SECURITY: Validate query length to prevent DoS attacks
+        if let Err(e) = limit_input_length(query, MAX_QUERY_LENGTH, "Search query") {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
         }
 
         let num_results = num_results.min(20); // Cap at 20 results
