@@ -3,7 +3,7 @@ use tokio::time::{sleep, Duration};
 use std::error::Error;
 use rand;
 
-use crate::protocols::security::validate_url_for_navigation;
+use crate::engine::security::SsrfProtection;
 
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
@@ -16,7 +16,7 @@ impl super::super::HeadlessWebBrowser {
 
         // SECURITY: Validate URL to prevent SSRF attacks
         // Block access to private IPs, localhost, and cloud metadata endpoints
-        validate_url_for_navigation(url)?;
+        SsrfProtection::new().is_safe_url(url)?;
 
         // Dispatch pageswap event before navigation
         self.dispatch_pageswap_event(url).await?;
@@ -433,7 +433,7 @@ impl super::super::HeadlessWebBrowser {
         eprintln!("🔍 DEBUG: navigate_internal - URL: {} (no history update)", url);
 
         // SECURITY: Validate URL to prevent SSRF attacks
-        validate_url_for_navigation(url)?;
+        SsrfProtection::new().is_safe_url(url)?;
 
         // Dispatch pageswap event before navigation
         self.dispatch_pageswap_event(url).await?;
@@ -492,7 +492,7 @@ impl super::super::HeadlessWebBrowser {
     /// This function validates URLs to prevent SSRF attacks via script loading.
     pub(super) async fn fetch_external_script(&self, url: &str) -> Result<String> {
         // SECURITY: Validate script URL to prevent SSRF attacks
-        validate_url_for_navigation(url)?;
+        SsrfProtection::new().is_safe_url(url)?;
 
         let response = self.client.get(url).send().await
             .map_err(|e| anyhow!("Failed to fetch script: {}", e))?;
