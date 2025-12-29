@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::sync::Arc;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
 use crate::protocols::browser_tools::BrowserTools;
@@ -6,11 +7,11 @@ use crate::protocols::security::{sanitize_session_id, limit_input_length, MAX_JS
 
 /// Runtime domain - Script evaluation, exceptions, and runtime events
 pub struct RuntimeTools {
-    pub(super) browser_tools: BrowserTools,
+    pub(super) browser_tools: Arc<BrowserTools>,
 }
 
 impl RuntimeTools {
-    pub fn new(browser_tools: BrowserTools) -> Self {
+    pub fn new(browser_tools: Arc<BrowserTools>) -> Self {
         Self { browser_tools }
     }
 

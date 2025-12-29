@@ -65,27 +65,20 @@ impl IDBFactory {
     }
 
     /// Get default storage path
+    ///
+    /// Each browser instance gets a unique path to avoid Sled lock contention
+    /// when multiple browsers are created (e.g., for MCP web scraping).
     fn get_default_storage_path() -> PathBuf {
-        // In test mode, use a unique temporary directory to avoid lock conflicts
-        #[cfg(test)]
-        {
-            use std::sync::atomic::{AtomicU64, Ordering};
-            static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
-            let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
-            let mut path = std::env::temp_dir();
-            path.push(format!("thalora-test-{}-{}", std::process::id(), counter));
-            path.push("indexeddb");
-            return path;
-        }
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(0);
+        let counter = INSTANCE_COUNTER.fetch_add(1, Ordering::SeqCst);
 
-        #[cfg(not(test))]
-        {
-            let mut path = dirs::data_local_dir()
-                .unwrap_or_else(|| PathBuf::from("."));
-            path.push("thalora");
-            path.push("indexeddb");
-            path
-        }
+        // Use temp directory for ephemeral browser instances to avoid lock conflicts
+        // and to auto-cleanup on system restart
+        let mut path = std::env::temp_dir();
+        path.push(format!("thalora-idb-{}-{}", std::process::id(), counter));
+        path.push("indexeddb");
+        path
     }
 
     /// indexedDB.open(name, version?)

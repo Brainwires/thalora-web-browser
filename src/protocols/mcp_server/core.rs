@@ -26,7 +26,8 @@ pub struct McpServer {
     pub(super) cdp_server: CdpServer,
     pub(super) memory_tools: MemoryTools,
     pub(super) cdp_tools: CdpTools,
-    pub(super) browser_tools: BrowserTools,
+    /// Shared browser tools - wrapped in Arc to share with CdpTools
+    pub(super) browser_tools: Arc<BrowserTools>,
     pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
@@ -76,13 +77,17 @@ impl McpServer {
             panic!("Could not initialize session manager: {}", e);
         });
 
+        // Create shared BrowserTools instance
+        let browser_tools = Arc::new(BrowserTools::new());
+
         Self {
             // websocket API is now natively implemented in Boa engine
             ai_memory,
             cdp_server: CdpServer::new(),
             memory_tools: MemoryTools::new(),
-            cdp_tools: CdpTools::new(),
-            browser_tools: BrowserTools::new(),
+            // Share BrowserTools instance with CdpTools to avoid duplicate Drop calls
+            cdp_tools: CdpTools::with_browser_tools(browser_tools.clone()),
+            browser_tools,
             session_manager,
             session_vfs: Arc::new(Mutex::new(HashMap::new())),
             engine_config,

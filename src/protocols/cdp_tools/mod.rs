@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::sync::Arc;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::cdp::CdpServer;
 use crate::protocols::browser_tools::BrowserTools;
@@ -26,8 +27,13 @@ pub struct CdpTools {
 }
 
 impl CdpTools {
+    /// Create a new CdpTools with its own BrowserTools instance (standalone mode)
     pub fn new() -> Self {
-        let browser_tools = BrowserTools::new();
+        Self::with_browser_tools(Arc::new(BrowserTools::new()))
+    }
+
+    /// Create a new CdpTools sharing an existing BrowserTools instance
+    pub fn with_browser_tools(browser_tools: Arc<BrowserTools>) -> Self {
         Self {
             runtime: RuntimeTools::new(browser_tools),
             debugger: DebuggerTools::new(),
