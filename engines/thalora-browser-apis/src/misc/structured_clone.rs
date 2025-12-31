@@ -5,18 +5,14 @@
 
 
 use boa_engine::{
-    Context, JsResult, JsValue, JsNativeError, JsObject, JsString, js_string,
-    object::JsArray,
+    Context, JsResult, JsValue, JsNativeError, JsObject, js_string,
+    object::{JsArray, builtins::{JsArrayBuffer, JsMap, JsSet, AlignedVec}},
     builtins::{
         date::Date,
         regexp::RegExp,
-        map::Map,
-        set::Set,
-        array_buffer::ArrayBuffer,
     },
     value::Type,
 };
-use boa_gc::{Finalize, Trace};
 use std::collections::{HashMap, HashSet};
 use serde::{Serialize, Deserialize};
 
@@ -205,6 +201,10 @@ impl StructuredClone {
             Self::clone_date(&*date_data, context)
         } else if let Some(regexp_data) = obj.downcast_ref::<RegExp>() {
             Self::clone_regexp(&*regexp_data, context)
+        } else if JsMap::from_object(obj.clone()).is_ok() {
+            Self::clone_map(obj, context, memory, transfer_list)
+        } else if JsSet::from_object(obj.clone()).is_ok() {
+            Self::clone_set(obj, context, memory, transfer_list)
         } else if let Some(array_buffer) = obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>() {
             // ArrayBuffer that's not being transferred should be cloned
             Self::clone_array_buffer(&*array_buffer, context)
@@ -238,7 +238,7 @@ impl StructuredClone {
 
     /// Transfer an ArrayBuffer (detach the original)
     fn transfer_array_buffer(
-        obj: &JsObject,
+        _obj: &JsObject,
         array_buffer: &boa_engine::builtins::array_buffer::ArrayBuffer,
         _context: &mut Context,
     ) -> JsResult<StructuredCloneValue> {
@@ -308,7 +308,84 @@ impl StructuredClone {
         Ok(StructuredCloneValue::RegExp { pattern, flags })
     }
 
-    // TODO: Implement cloning for Map, Set, ArrayBuffer objects
+    /// Clone a Map object
+    fn clone_map(
+        obj: &JsObject,
+        context: &mut Context,
+        memory: &mut HashSet<*const u8>,
+        transfer_list: Option<&TransferList>,
+    ) -> JsResult<StructuredCloneValue> {
+        let mut entries = Vec::new();
+
+        // Get the Map's entries via iterator
+        // Use Map::entries to iterate
+        let entries_method = obj.get(js_string!("entries"), context)?;
+        if let Some(entries_fn) = entries_method.as_callable() {
+            let iterator = entries_fn.call(&obj.clone().into(), &[], context)?;
+            if let Some(iterator_obj) = iterator.as_object() {
+                let next_method = iterator_obj.get(js_string!("next"), context)?;
+                if let Some(next_fn) = next_method.as_callable() {
+                    loop {
+                        let result = next_fn.call(&iterator, &[], context)?;
+                        if let Some(result_obj) = result.as_object() {
+                            let done = result_obj.get(js_string!("done"), context)?;
+                            if done.as_boolean().unwrap_or(true) {
+                                break;
+                            }
+                            let value = result_obj.get(js_string!("value"), context)?;
+                            if let Some(pair_obj) = value.as_object() {
+                                if pair_obj.is_array() {
+                                    let pair = JsArray::from_object(pair_obj.clone())?;
+                                    let key = pair.get(0, context)?;
+                                    let val = pair.get(1, context)?;
+                                    let cloned_key = Self::internal_structured_clone(&key, context, memory, transfer_list)?;
+                                    let cloned_val = Self::internal_structured_clone(&val, context, memory, transfer_list)?;
+                                    entries.push((cloned_key, cloned_val));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(StructuredCloneValue::Map(entries))
+    }
+
+    /// Clone a Set object
+    fn clone_set(
+        obj: &JsObject,
+        context: &mut Context,
+        memory: &mut HashSet<*const u8>,
+        transfer_list: Option<&TransferList>,
+    ) -> JsResult<StructuredCloneValue> {
+        let mut values = Vec::new();
+
+        // Get the Set's values via iterator
+        let values_method = obj.get(js_string!("values"), context)?;
+        if let Some(values_fn) = values_method.as_callable() {
+            let iterator = values_fn.call(&obj.clone().into(), &[], context)?;
+            if let Some(iterator_obj) = iterator.as_object() {
+                let next_method = iterator_obj.get(js_string!("next"), context)?;
+                if let Some(next_fn) = next_method.as_callable() {
+                    loop {
+                        let result = next_fn.call(&iterator, &[], context)?;
+                        if let Some(result_obj) = result.as_object() {
+                            let done = result_obj.get(js_string!("done"), context)?;
+                            if done.as_boolean().unwrap_or(true) {
+                                break;
+                            }
+                            let value = result_obj.get(js_string!("value"), context)?;
+                            let cloned_value = Self::internal_structured_clone(&value, context, memory, transfer_list)?;
+                            values.push(cloned_value);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(StructuredCloneValue::Set(values))
+    }
 
     /// Clone a plain object
     fn clone_plain_object(
@@ -365,15 +442,11 @@ impl StructuredClone {
             StructuredCloneValue::RegExp { pattern, flags } => {
                 Self::deserialize_regexp(pattern, flags, context)
             }
-            StructuredCloneValue::Map(_entries) => {
-                // TODO: Deserialize Map objects
-                eprintln!("Warning: Map deserialization not implemented");
-                Ok(JsValue::undefined())
+            StructuredCloneValue::Map(entries) => {
+                Self::deserialize_map(entries, context, memory)
             }
-            StructuredCloneValue::Set(_values) => {
-                // TODO: Deserialize Set objects
-                eprintln!("Warning: Set deserialization not implemented");
-                Ok(JsValue::undefined())
+            StructuredCloneValue::Set(values) => {
+                Self::deserialize_set(values, context, memory)
             }
             StructuredCloneValue::ArrayBuffer(data) => {
                 Self::deserialize_array_buffer(data, context)
@@ -382,9 +455,15 @@ impl StructuredClone {
                 // For transferred ArrayBuffers, create a new one with the transferred data
                 Self::deserialize_array_buffer(data, context)
             }
-            StructuredCloneValue::TransferredMessagePort { port_id: _ } => {
-                // TODO: Deserialize MessagePort objects
-                eprintln!("Warning: MessagePort deserialization not implemented");
+            StructuredCloneValue::TransferredMessagePort { port_id } => {
+                // MessagePort deserialization requires a global port registry to look up
+                // the port by ID and restore its channel connections. This is a complex
+                // operation that needs coordination with the messaging system.
+                // For now, we log and return undefined. Full implementation requires:
+                // 1. Global PORT_REGISTRY singleton
+                // 2. Port ID to channel mapping
+                // 3. Re-entanglement logic for transferred ports
+                eprintln!("Warning: MessagePort deserialization not implemented (port_id: {})", port_id);
                 Ok(JsValue::undefined())
             }
         }
@@ -443,19 +522,10 @@ impl StructuredClone {
 
     /// Deserialize an ArrayBuffer object
     fn deserialize_array_buffer(data: &[u8], context: &mut Context) -> JsResult<JsValue> {
-        // Create a new ArrayBuffer via constructor
-        let array_buffer_constructor = context.intrinsics().constructors().array_buffer().constructor();
-        let array_buffer_obj = array_buffer_constructor.construct(
-            &[JsValue::from(data.len())],
-            Some(&array_buffer_constructor.clone().into()),
-            context
-        )?;
-
-        // TODO: Copy data into the ArrayBuffer
-        // For now, return empty ArrayBuffer of correct size
-        // This will need access to the internal buffer which is currently private
-
-        Ok(array_buffer_obj.into())
+        // Create an AlignedVec from the data and use JsArrayBuffer::from_byte_block
+        let aligned_data = AlignedVec::from_iter(64, data.iter().copied());
+        let array_buffer = JsArrayBuffer::from_byte_block(aligned_data, context)?;
+        Ok(array_buffer.into())
     }
 
     /// Deserialize a Map object
@@ -468,8 +538,16 @@ impl StructuredClone {
         let new_target = Some(&map_constructor);
         let map_obj = map_constructor.construct(&[], new_target, context)?;
 
-        // TODO: Set the entries in the map
-        eprintln!("Warning: Map deserialization not fully implemented");
+        // Get the 'set' method from the Map object
+        let set_method = map_obj.get(js_string!("set"), context)?;
+        if let Some(set_fn) = set_method.as_callable() {
+            let map_value: JsValue = map_obj.clone().into();
+            for (key_clone, val_clone) in entries {
+                let key = Self::internal_structured_deserialize(key_clone, context, memory)?;
+                let val = Self::internal_structured_deserialize(val_clone, context, memory)?;
+                set_fn.call(&map_value, &[key, val], context)?;
+            }
+        }
 
         Ok(map_obj.into())
     }
@@ -484,8 +562,15 @@ impl StructuredClone {
         let new_target = Some(&set_constructor);
         let set_obj = set_constructor.construct(&[], new_target, context)?;
 
-        // TODO: Add the values to the set
-        eprintln!("Warning: Set deserialization not fully implemented");
+        // Get the 'add' method from the Set object
+        let add_method = set_obj.get(js_string!("add"), context)?;
+        if let Some(add_fn) = add_method.as_callable() {
+            let set_value: JsValue = set_obj.clone().into();
+            for val_clone in values {
+                let val = Self::internal_structured_deserialize(val_clone, context, memory)?;
+                add_fn.call(&set_value, &[val], context)?;
+            }
+        }
 
         Ok(set_obj.into())
     }
@@ -519,4 +604,192 @@ pub fn structured_deserialize(
     context: &mut Context,
 ) -> JsResult<JsValue> {
     StructuredClone::deserialize(clone_value, context)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clone_primitives() {
+        let mut context = Context::default();
+
+        // Test undefined
+        let cloned = structured_clone(&JsValue::undefined(), &mut context, None).unwrap();
+        assert!(matches!(cloned, StructuredCloneValue::Undefined));
+
+        // Test null
+        let cloned = structured_clone(&JsValue::null(), &mut context, None).unwrap();
+        assert!(matches!(cloned, StructuredCloneValue::Null));
+
+        // Test boolean
+        let cloned = structured_clone(&JsValue::from(true), &mut context, None).unwrap();
+        assert!(matches!(cloned, StructuredCloneValue::Boolean(true)));
+
+        // Test number
+        let cloned = structured_clone(&JsValue::from(42.5), &mut context, None).unwrap();
+        if let StructuredCloneValue::Number(n) = cloned {
+            assert!((n - 42.5).abs() < f64::EPSILON);
+        } else {
+            panic!("Expected Number");
+        }
+
+        // Test string
+        let cloned = structured_clone(&js_string!("hello").into(), &mut context, None).unwrap();
+        if let StructuredCloneValue::String(s) = cloned {
+            assert_eq!(s, "hello");
+        } else {
+            panic!("Expected String");
+        }
+    }
+
+    #[test]
+    fn test_clone_array() {
+        let mut context = Context::default();
+
+        let array = JsArray::new(&mut context);
+        array.push(JsValue::from(1), &mut context).unwrap();
+        array.push(JsValue::from(2), &mut context).unwrap();
+        array.push(JsValue::from(3), &mut context).unwrap();
+
+        let cloned = structured_clone(&array.into(), &mut context, None).unwrap();
+
+        if let StructuredCloneValue::Array(arr) = cloned {
+            assert_eq!(arr.len(), 3);
+            assert!(matches!(arr[0], StructuredCloneValue::Number(n) if (n - 1.0).abs() < f64::EPSILON));
+            assert!(matches!(arr[1], StructuredCloneValue::Number(n) if (n - 2.0).abs() < f64::EPSILON));
+            assert!(matches!(arr[2], StructuredCloneValue::Number(n) if (n - 3.0).abs() < f64::EPSILON));
+        } else {
+            panic!("Expected Array");
+        }
+    }
+
+    #[test]
+    fn test_clone_object() {
+        let mut context = Context::default();
+
+        let obj = JsObject::with_object_proto(context.intrinsics());
+        obj.set(js_string!("name"), js_string!("test"), true, &mut context).unwrap();
+        obj.set(js_string!("value"), JsValue::from(123), true, &mut context).unwrap();
+
+        let cloned = structured_clone(&obj.into(), &mut context, None).unwrap();
+
+        if let StructuredCloneValue::Object(map) = cloned {
+            assert_eq!(map.len(), 2);
+            assert!(matches!(map.get("name"), Some(StructuredCloneValue::String(s)) if s == "test"));
+            assert!(matches!(map.get("value"), Some(StructuredCloneValue::Number(n)) if (*n - 123.0).abs() < f64::EPSILON));
+        } else {
+            panic!("Expected Object");
+        }
+    }
+
+    #[test]
+    fn test_roundtrip_primitives() {
+        let mut context = Context::default();
+
+        // Test number roundtrip
+        let original = JsValue::from(42.5);
+        let cloned = structured_clone(&original, &mut context, None).unwrap();
+        let restored = structured_deserialize(&cloned, &mut context).unwrap();
+        assert_eq!(restored.as_number().unwrap(), 42.5);
+
+        // Test string roundtrip
+        let original: JsValue = js_string!("hello world").into();
+        let cloned = structured_clone(&original, &mut context, None).unwrap();
+        let restored = structured_deserialize(&cloned, &mut context).unwrap();
+        assert_eq!(restored.as_string().unwrap().to_std_string_escaped(), "hello world");
+
+        // Test boolean roundtrip
+        let original = JsValue::from(true);
+        let cloned = structured_clone(&original, &mut context, None).unwrap();
+        let restored = structured_deserialize(&cloned, &mut context).unwrap();
+        assert_eq!(restored.as_boolean().unwrap(), true);
+    }
+
+    #[test]
+    fn test_roundtrip_array() {
+        let mut context = Context::default();
+
+        let array = JsArray::new(&mut context);
+        array.push(JsValue::from(1), &mut context).unwrap();
+        array.push(JsValue::from(2), &mut context).unwrap();
+
+        let cloned = structured_clone(&array.clone().into(), &mut context, None).unwrap();
+        let restored = structured_deserialize(&cloned, &mut context).unwrap();
+
+        let restored_obj = restored.as_object().unwrap();
+        assert!(restored_obj.is_array());
+        let restored_array = JsArray::from_object(restored_obj.clone()).unwrap();
+        assert_eq!(restored_array.length(&mut context).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_serialize_deserialize_bytes() {
+        let value = StructuredCloneValue::Object(HashMap::from([
+            ("key".to_string(), StructuredCloneValue::String("value".to_string())),
+            ("num".to_string(), StructuredCloneValue::Number(42.0)),
+        ]));
+
+        let bytes = StructuredClone::serialize_to_bytes(&value).unwrap();
+        let restored = StructuredClone::deserialize_from_bytes(&bytes).unwrap();
+
+        if let StructuredCloneValue::Object(map) = restored {
+            assert!(matches!(map.get("key"), Some(StructuredCloneValue::String(s)) if s == "value"));
+            assert!(matches!(map.get("num"), Some(StructuredCloneValue::Number(n)) if (*n - 42.0).abs() < f64::EPSILON));
+        } else {
+            panic!("Expected Object");
+        }
+    }
+
+    #[test]
+    fn test_clone_map_value() {
+        // Test that Map enum variant serializes correctly
+        let map_value = StructuredCloneValue::Map(vec![
+            (StructuredCloneValue::String("key1".to_string()), StructuredCloneValue::Number(1.0)),
+            (StructuredCloneValue::String("key2".to_string()), StructuredCloneValue::Number(2.0)),
+        ]);
+
+        let bytes = StructuredClone::serialize_to_bytes(&map_value).unwrap();
+        let restored = StructuredClone::deserialize_from_bytes(&bytes).unwrap();
+
+        if let StructuredCloneValue::Map(entries) = restored {
+            assert_eq!(entries.len(), 2);
+        } else {
+            panic!("Expected Map");
+        }
+    }
+
+    #[test]
+    fn test_clone_set_value() {
+        // Test that Set enum variant serializes correctly
+        let set_value = StructuredCloneValue::Set(vec![
+            StructuredCloneValue::Number(1.0),
+            StructuredCloneValue::Number(2.0),
+            StructuredCloneValue::Number(3.0),
+        ]);
+
+        let bytes = StructuredClone::serialize_to_bytes(&set_value).unwrap();
+        let restored = StructuredClone::deserialize_from_bytes(&bytes).unwrap();
+
+        if let StructuredCloneValue::Set(values) = restored {
+            assert_eq!(values.len(), 3);
+        } else {
+            panic!("Expected Set");
+        }
+    }
+
+    #[test]
+    fn test_clone_arraybuffer_value() {
+        // Test that ArrayBuffer enum variant serializes correctly
+        let buffer_value = StructuredCloneValue::ArrayBuffer(vec![1, 2, 3, 4, 5]);
+
+        let bytes = StructuredClone::serialize_to_bytes(&buffer_value).unwrap();
+        let restored = StructuredClone::deserialize_from_bytes(&bytes).unwrap();
+
+        if let StructuredCloneValue::ArrayBuffer(data) = restored {
+            assert_eq!(data, vec![1, 2, 3, 4, 5]);
+        } else {
+            panic!("Expected ArrayBuffer");
+        }
+    }
 }

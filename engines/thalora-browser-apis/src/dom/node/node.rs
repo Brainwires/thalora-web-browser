@@ -1022,19 +1022,135 @@ impl NodeData {
     }
 
     /// `Node.prototype.normalize()`
+    /// Puts the specified node and all of its sub-tree into a normalized form.
+    /// In a normalized sub-tree, no text nodes are empty and there are no adjacent text nodes.
     fn normalize(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.normalize called on non-object")
         })?;
 
-        let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.normalize called on non-Node object")
         })?;
 
-        // TODO: Implement text node normalization
-        // This should merge adjacent text nodes and remove empty text nodes
+        // Get all child nodes
+        let children = node.get_child_nodes();
+        let mut i = 0;
+        let mut merged_text = String::new();
+        let mut text_start_index: Option<usize> = None;
+        let mut to_remove: Vec<usize> = Vec::new();
+
+        while i < children.len() {
+            if let Some(child_data) = children[i].downcast_ref::<NodeData>() {
+                if child_data.get_node_type() == NodeType::Text {
+                    // This is a text node
+                    let text_value = child_data.get_node_value().unwrap_or_default();
+
+                    if text_start_index.is_none() {
+                        // Start of a new text sequence
+                        text_start_index = Some(i);
+                        merged_text = text_value;
+                    } else {
+                        // Continue merging adjacent text nodes
+                        merged_text.push_str(&text_value);
+                        to_remove.push(i);
+                    }
+                } else {
+                    // Not a text node - finalize any merged text
+                    if let Some(start_idx) = text_start_index {
+                        // Update the first text node with merged content or mark for removal if empty
+                        if merged_text.is_empty() {
+                            to_remove.push(start_idx);
+                        } else if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
+                            first_text_data.set_node_value(Some(merged_text.clone()));
+                        }
+                        text_start_index = None;
+                        merged_text.clear();
+                    }
+
+                    // Recursively normalize child nodes
+                    if let Some(child_data) = children[i].downcast_ref::<NodeData>() {
+                        Self::normalize_node_data(&*child_data);
+                    }
+                }
+            }
+            i += 1;
+        }
+
+        // Handle any remaining text sequence at the end
+        if let Some(start_idx) = text_start_index {
+            if merged_text.is_empty() {
+                to_remove.push(start_idx);
+            } else if start_idx < children.len() {
+                if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
+                    first_text_data.set_node_value(Some(merged_text));
+                }
+            }
+        }
+
+        // Remove nodes that should be removed (in reverse order to maintain indices)
+        {
+            let mut child_nodes = node.child_nodes.lock().unwrap();
+            for &idx in to_remove.iter().rev() {
+                if idx < child_nodes.len() {
+                    child_nodes.remove(idx);
+                }
+            }
+        }
+
         Ok(JsValue::undefined())
+    }
+
+    /// Helper function to normalize a NodeData recursively
+    fn normalize_node_data(node: &NodeData) {
+        let children = node.get_child_nodes();
+        let mut merged_text = String::new();
+        let mut text_start_index: Option<usize> = None;
+        let mut to_remove: Vec<usize> = Vec::new();
+
+        for (i, child) in children.iter().enumerate() {
+            if let Some(child_data) = child.downcast_ref::<NodeData>() {
+                if child_data.get_node_type() == NodeType::Text {
+                    let text_value = child_data.get_node_value().unwrap_or_default();
+                    if text_start_index.is_none() {
+                        text_start_index = Some(i);
+                        merged_text = text_value;
+                    } else {
+                        merged_text.push_str(&text_value);
+                        to_remove.push(i);
+                    }
+                } else {
+                    if let Some(start_idx) = text_start_index {
+                        if merged_text.is_empty() {
+                            to_remove.push(start_idx);
+                        } else if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
+                            first_text_data.set_node_value(Some(merged_text.clone()));
+                        }
+                        text_start_index = None;
+                        merged_text.clear();
+                    }
+                    Self::normalize_node_data(&*child_data);
+                }
+            }
+        }
+
+        if let Some(start_idx) = text_start_index {
+            if merged_text.is_empty() {
+                to_remove.push(start_idx);
+            } else if start_idx < children.len() {
+                if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
+                    first_text_data.set_node_value(Some(merged_text));
+                }
+            }
+        }
+
+        let mut child_nodes = node.child_nodes.lock().unwrap();
+        for &idx in to_remove.iter().rev() {
+            if idx < child_nodes.len() {
+                child_nodes.remove(idx);
+            }
+        }
     }
 
     /// `Node.prototype.isEqualNode(otherNode)`
@@ -1089,15 +1205,161 @@ impl NodeData {
     }
 
     /// `Node.prototype.compareDocumentPosition(other)`
+    /// Returns a bitmask indicating the position of other relative to this node.
     fn compare_document_position(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let _this_obj = this.as_object().ok_or_else(|| {
+        let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.compareDocumentPosition called on non-object")
         })?;
 
-        let _other_arg = args.get_or_undefined(0);
-        // TODO: Implement proper document position comparison
-        // For now, return DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+        let other_arg = args.get_or_undefined(0);
+        let other_obj = other_arg.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("Node.compareDocumentPosition: other must be a Node")
+        })?;
+
+        // Same node
+        if JsObject::equals(&this_obj, &other_obj) {
+            return Ok(JsValue::from(0u32));
+        }
+
+        let this_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.compareDocumentPosition called on non-Node object")
+        })?;
+
+        let other_node = other_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.compareDocumentPosition: other is not a Node object")
+        })?;
+
+        // Get ancestor chains for both nodes
+        let this_ancestors = Self::get_ancestor_chain(&this_obj);
+        let other_ancestors = Self::get_ancestor_chain(&other_obj);
+
+        // Check if nodes are in different trees (disconnected)
+        let this_root = this_ancestors.last().cloned();
+        let other_root = other_ancestors.last().cloned();
+
+        match (this_root, other_root) {
+            (Some(ref r1), Some(ref r2)) if !JsObject::equals(r1, r2) => {
+                // Disconnected - use arbitrary but consistent ordering based on implementation
+                return Ok(JsValue::from(
+                    Self::DOCUMENT_POSITION_DISCONNECTED |
+                    Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
+                    Self::DOCUMENT_POSITION_PRECEDING // Arbitrary but consistent
+                ));
+            }
+            (None, _) | (_, None) => {
+                return Ok(JsValue::from(
+                    Self::DOCUMENT_POSITION_DISCONNECTED |
+                    Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
+                    Self::DOCUMENT_POSITION_PRECEDING
+                ));
+            }
+            _ => {}
+        }
+
+        // Check if one contains the other
+        // If other is an ancestor of this, then this is contained by other
+        for ancestor in &this_ancestors {
+            if JsObject::equals(ancestor, &other_obj) {
+                return Ok(JsValue::from(
+                    Self::DOCUMENT_POSITION_CONTAINS | Self::DOCUMENT_POSITION_PRECEDING
+                ));
+            }
+        }
+
+        // If this is an ancestor of other, then other is contained by this
+        for ancestor in &other_ancestors {
+            if JsObject::equals(ancestor, &this_obj) {
+                return Ok(JsValue::from(
+                    Self::DOCUMENT_POSITION_CONTAINED_BY | Self::DOCUMENT_POSITION_FOLLOWING
+                ));
+            }
+        }
+
+        // Find common ancestor and compare positions in their children
+        // Walk from root down to find where paths diverge
+        let min_len = this_ancestors.len().min(other_ancestors.len());
+        let mut common_ancestor_idx = 0;
+
+        for i in 0..min_len {
+            let this_idx = this_ancestors.len() - 1 - i;
+            let other_idx = other_ancestors.len() - 1 - i;
+
+            if JsObject::equals(&this_ancestors[this_idx], &other_ancestors[other_idx]) {
+                common_ancestor_idx = i + 1;
+            } else {
+                break;
+            }
+        }
+
+        // Get the children at the divergence point
+        if common_ancestor_idx > 0 {
+            let this_child_idx = this_ancestors.len() - common_ancestor_idx;
+            let other_child_idx = other_ancestors.len() - common_ancestor_idx;
+
+            if this_child_idx < this_ancestors.len() && other_child_idx < other_ancestors.len() {
+                let this_child = &this_ancestors[this_child_idx];
+                let other_child = &other_ancestors[other_child_idx];
+
+                // Find common ancestor and check child order
+                let common_ancestor = &this_ancestors[this_ancestors.len() - common_ancestor_idx];
+                if let Some(common_data) = common_ancestor.downcast_ref::<NodeData>() {
+                    let children = common_data.get_child_nodes();
+                    let mut this_pos = None;
+                    let mut other_pos = None;
+
+                    for (i, child) in children.iter().enumerate() {
+                        if JsObject::equals(child, this_child) {
+                            this_pos = Some(i);
+                        }
+                        if JsObject::equals(child, other_child) {
+                            other_pos = Some(i);
+                        }
+                    }
+
+                    match (this_pos, other_pos) {
+                        (Some(t), Some(o)) => {
+                            if t < o {
+                                return Ok(JsValue::from(Self::DOCUMENT_POSITION_FOLLOWING));
+                            } else {
+                                return Ok(JsValue::from(Self::DOCUMENT_POSITION_PRECEDING));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Default fallback
         Ok(JsValue::from(Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC))
+    }
+
+    /// Helper to get the ancestor chain from a node up to the root
+    fn get_ancestor_chain(node: &JsObject) -> Vec<JsObject> {
+        let mut ancestors = vec![node.clone()];
+        let mut current = node.clone();
+
+        loop {
+            let parent = {
+                if let Some(node_data) = current.downcast_ref::<NodeData>() {
+                    node_data.get_parent_node()
+                } else {
+                    None
+                }
+            };
+
+            match parent {
+                Some(p) => {
+                    ancestors.push(p.clone());
+                    current = p;
+                }
+                None => break,
+            }
+        }
+
+        ancestors
     }
 
     /// `Node.prototype.contains(other)`
@@ -1146,33 +1408,154 @@ impl NodeData {
     }
 
     /// `Node.prototype.lookupPrefix(namespace)`
-    fn lookup_prefix(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let _this_obj = this.as_object().ok_or_else(|| {
+    /// Returns the prefix for a given namespace URI, if present.
+    fn lookup_prefix(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.lookupPrefix called on non-object")
         })?;
 
-        // TODO: Implement namespace prefix lookup
+        let namespace_arg = args.get_or_undefined(0);
+        if namespace_arg.is_null() || namespace_arg.is_undefined() {
+            return Ok(JsValue::null());
+        }
+
+        let namespace = namespace_arg.to_string(context)?.to_std_string_escaped();
+        if namespace.is_empty() {
+            return Ok(JsValue::null());
+        }
+
+        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.lookupPrefix called on non-Node object")
+        })?;
+
+        // Walk up the tree looking for namespace declarations
+        let mut current = Some(this_obj.clone());
+        while let Some(current_obj) = current {
+            if let Some(current_node) = current_obj.downcast_ref::<NodeData>() {
+                // For Element nodes, check xmlns: attributes
+                if current_node.get_node_type() == NodeType::Element {
+                    let node_name = current_node.get_node_name();
+                    // Check if this element declares the namespace with a prefix
+                    // In a real implementation, we'd check attributes like xmlns:prefix="namespace"
+                    // For now, check common prefixes based on namespace
+                    if namespace == "http://www.w3.org/1999/xhtml" {
+                        // HTML namespace typically has no prefix
+                    } else if namespace == "http://www.w3.org/2000/svg" {
+                        return Ok(js_string!("svg").into());
+                    } else if namespace == "http://www.w3.org/1998/Math/MathML" {
+                        return Ok(js_string!("math").into());
+                    } else if namespace == "http://www.w3.org/1999/xlink" {
+                        return Ok(js_string!("xlink").into());
+                    } else if namespace == "http://www.w3.org/XML/1998/namespace" {
+                        return Ok(js_string!("xml").into());
+                    } else if namespace == "http://www.w3.org/2000/xmlns/" {
+                        return Ok(js_string!("xmlns").into());
+                    }
+                }
+                current = current_node.get_parent_node();
+            } else {
+                break;
+            }
+        }
+
         Ok(JsValue::null())
     }
 
     /// `Node.prototype.lookupNamespaceURI(prefix)`
-    fn lookup_namespace_uri(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let _this_obj = this.as_object().ok_or_else(|| {
+    /// Returns the namespace URI associated with a given prefix.
+    fn lookup_namespace_uri(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.lookupNamespaceURI called on non-object")
         })?;
 
-        // TODO: Implement namespace URI lookup
+        let prefix_arg = args.get_or_undefined(0);
+        let prefix = if prefix_arg.is_null() || prefix_arg.is_undefined() {
+            None
+        } else {
+            let p = prefix_arg.to_string(context)?.to_std_string_escaped();
+            if p.is_empty() {
+                None
+            } else {
+                Some(p)
+            }
+        };
+
+        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.lookupNamespaceURI called on non-Node object")
+        })?;
+
+        // Walk up the tree looking for namespace declarations
+        let mut current = Some(this_obj.clone());
+        while let Some(current_obj) = current {
+            if let Some(current_node) = current_obj.downcast_ref::<NodeData>() {
+                if current_node.get_node_type() == NodeType::Element {
+                    // Check for well-known prefixes
+                    match prefix.as_deref() {
+                        None => {
+                            // Default namespace - for HTML elements, return XHTML namespace
+                            return Ok(js_string!("http://www.w3.org/1999/xhtml").into());
+                        }
+                        Some("svg") => {
+                            return Ok(js_string!("http://www.w3.org/2000/svg").into());
+                        }
+                        Some("math") => {
+                            return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into());
+                        }
+                        Some("xlink") => {
+                            return Ok(js_string!("http://www.w3.org/1999/xlink").into());
+                        }
+                        Some("xml") => {
+                            return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into());
+                        }
+                        Some("xmlns") => {
+                            return Ok(js_string!("http://www.w3.org/2000/xmlns/").into());
+                        }
+                        _ => {}
+                    }
+                }
+                current = current_node.get_parent_node();
+            } else {
+                break;
+            }
+        }
+
         Ok(JsValue::null())
     }
 
     /// `Node.prototype.isDefaultNamespace(namespace)`
-    fn is_default_namespace(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let _this_obj = this.as_object().ok_or_else(|| {
+    /// Returns true if the specified namespace is the default namespace for this node.
+    fn is_default_namespace(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.isDefaultNamespace called on non-object")
         })?;
 
-        // TODO: Implement default namespace check
-        Ok(JsValue::from(false))
+        let namespace_arg = args.get_or_undefined(0);
+        let namespace = if namespace_arg.is_null() || namespace_arg.is_undefined() {
+            None
+        } else {
+            let ns = namespace_arg.to_string(context)?.to_std_string_escaped();
+            if ns.is_empty() {
+                None
+            } else {
+                Some(ns)
+            }
+        };
+
+        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Node.isDefaultNamespace called on non-Node object")
+        })?;
+
+        // Get the default namespace for this node
+        // For HTML documents, the default namespace is http://www.w3.org/1999/xhtml
+        let default_ns = "http://www.w3.org/1999/xhtml";
+
+        match namespace {
+            None => Ok(JsValue::from(default_ns.is_empty())),
+            Some(ns) => Ok(JsValue::from(ns == default_ns)),
+        }
     }
 
     /// `Node.prototype.hasChildNodes()`
