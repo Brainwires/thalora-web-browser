@@ -85,10 +85,39 @@ pub struct FileReaderData {
     is_aborted: Arc<Mutex<bool>>,
 }
 
+/// Pending event type for FileReader
+#[derive(Debug, Clone)]
+pub enum FileReaderEvent {
+    LoadStart,
+    Progress { loaded: usize, total: usize },
+    Load,
+    LoadEnd,
+    Error,
+    Abort,
+}
+
+/// Pending result from async read operation
+#[derive(Debug, Clone)]
+pub struct PendingResult {
+    pub result: Option<FileReadResult>,
+    pub error: Option<FileReaderError>,
+    pub events: Vec<FileReaderEvent>,
+}
+
+/// Result of a file read operation
+#[derive(Debug, Clone)]
+pub enum FileReadResult {
+    Text(String),
+    BinaryString(String),
+    DataURL(String),
+    ArrayBuffer(Vec<u8>),
+}
+
 /// FileReader operation management
 #[derive(Debug)]
 struct FileReaderState {
     operations: Arc<Mutex<HashMap<u32, Arc<Mutex<bool>>>>>,
+    pending_results: Arc<Mutex<HashMap<u32, PendingResult>>>,
     next_id: Arc<Mutex<u32>>,
 }
 
@@ -97,6 +126,7 @@ static FILEREADER_STATE: OnceLock<FileReaderState> = OnceLock::new();
 fn get_filereader_state() -> &'static FileReaderState {
     FILEREADER_STATE.get_or_init(|| FileReaderState {
         operations: Arc::new(Mutex::new(HashMap::new())),
+        pending_results: Arc::new(Mutex::new(HashMap::new())),
         next_id: Arc::new(Mutex::new(1)),
     })
 }
@@ -335,130 +365,226 @@ impl FileReader {
     }
 
     /// `FileReader.prototype.abort()`
-    fn abort(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let reader_obj = _this.as_object().ok_or_else(|| {
+    fn abort(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let reader_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("abort called on non-object")
         })?;
 
-        let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("abort called on non-FileReader object")
-        })?;
+        let (on_abort, on_loadend) = {
+            let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("abort called on non-FileReader object")
+            })?;
 
-        if reader_data.ready_state == ReadyState::Loading {
-            // Mark as aborted
-            *reader_data.is_aborted.lock().unwrap() = true;
+            if reader_data.ready_state == ReadyState::Loading {
+                // Mark as aborted
+                *reader_data.is_aborted.lock().unwrap() = true;
 
-            reader_data.ready_state = ReadyState::Done;
-            reader_data.result = None;
-            reader_data.error = Some(FileReaderError::Abort);
+                reader_data.ready_state = ReadyState::Done;
+                reader_data.result = None;
+                reader_data.error = Some(FileReaderError::Abort);
 
-            // TODO: Fire abort and loadend events
-            eprintln!("🔄 FileReader operation aborted");
+                (reader_data.on_abort.clone(), reader_data.on_loadend.clone())
+            } else {
+                return Ok(JsValue::undefined());
+            }
+        };
+
+        // Fire abort event
+        if let Some(handler) = on_abort {
+            let event = Self::create_progress_event("abort", 0, 0, false, context)?;
+            let _ = handler.call(&this.clone(), &[event], context);
+        }
+
+        // Fire loadend event
+        if let Some(handler) = on_loadend {
+            let event = Self::create_progress_event("loadend", 0, 0, false, context)?;
+            let _ = handler.call(&this.clone(), &[event], context);
         }
 
         Ok(JsValue::undefined())
     }
 
+    /// Create a ProgressEvent for FileReader events
+    fn create_progress_event(
+        event_type: &str,
+        loaded: usize,
+        total: usize,
+        length_computable: bool,
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        // Create a simple object with ProgressEvent-like properties
+        let event_obj = JsObject::with_null_proto();
+        event_obj.set(js_string!("type"), js_string!(event_type), false, context)?;
+        event_obj.set(js_string!("loaded"), JsValue::from(loaded as u32), false, context)?;
+        event_obj.set(js_string!("total"), JsValue::from(total as u32), false, context)?;
+        event_obj.set(js_string!("lengthComputable"), JsValue::from(length_computable), false, context)?;
+        event_obj.set(js_string!("bubbles"), JsValue::from(false), false, context)?;
+        event_obj.set(js_string!("cancelable"), JsValue::from(false), false, context)?;
+        Ok(event_obj.into())
+    }
+
     /// Internal method to start a read operation
-    fn start_read(_this: &JsValue, args: &[JsValue], _context: &mut Context, operation: ReadOperation) -> JsResult<JsValue> {
-        let reader_obj = _this.as_object().ok_or_else(|| {
+    fn start_read(this: &JsValue, args: &[JsValue], context: &mut Context, operation: ReadOperation) -> JsResult<JsValue> {
+        let reader_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("read method called on non-object")
         })?;
 
-        let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("read method called on non-FileReader object")
-        })?;
+        let (reader_id, is_aborted, data, on_loadstart, total_size) = {
+            let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("read method called on non-FileReader object")
+            })?;
 
-        // Check if already loading
-        if reader_data.ready_state == ReadyState::Loading {
-            return Err(JsNativeError::typ()
-                .with_message("FileReader is already reading")
-                .into());
-        }
-
-        let file_arg = args.get_or_undefined(0);
-
-        // Extract file data
-        let data = if let Some(file_obj) = file_arg.as_object() {
-            if let Some(file_data) = file_obj.downcast_ref::<FileData>() {
-                file_data.blob().data().clone()
-            } else if let Some(blob_data) = file_obj.downcast_ref::<BlobData>() {
-                blob_data.data().clone()
-            } else {
+            // Check if already loading
+            if reader_data.ready_state == ReadyState::Loading {
                 return Err(JsNativeError::typ()
-                    .with_message("Argument is not a File or Blob")
+                    .with_message("FileReader is already reading")
                     .into());
             }
-        } else {
-            return Err(JsNativeError::typ()
-                .with_message("readAs* methods require a File or Blob argument")
-                .into());
-        };
 
-        // Set state to loading
-        reader_data.ready_state = ReadyState::Loading;
-        reader_data.result = None;
-        reader_data.error = None;
-        reader_data.is_aborted = Arc::new(Mutex::new(false));
+            let file_arg = args.get_or_undefined(0);
 
-        let reader_id = reader_data.reader_id;
-        let is_aborted = reader_data.is_aborted.clone();
-
-        // TODO: Fire loadstart event
-        eprintln!("🔄 FileReader operation started (ID: {})", reader_id);
-
-        // Simulate async operation with threading
-        let reader_obj_clone = reader_obj.clone();
-        thread::spawn(move || {
-            // Simulate reading delay
-            thread::sleep(Duration::from_millis(10));
-
-            // Check if aborted
-            if *is_aborted.lock().unwrap() {
-                return;
-            }
-
-            // Perform the actual read operation
-            let result = match operation {
-                ReadOperation::ArrayBuffer => {
-                    // TODO: Return actual ArrayBuffer
-                    format!("[ArrayBuffer {} bytes]", data.len())
+            // Extract file data
+            let data = if let Some(file_obj) = file_arg.as_object() {
+                if let Some(file_data) = file_obj.downcast_ref::<FileData>() {
+                    file_data.blob().data().clone()
+                } else if let Some(blob_data) = file_obj.downcast_ref::<BlobData>() {
+                    blob_data.data().clone()
+                } else {
+                    return Err(JsNativeError::typ()
+                        .with_message("Argument is not a File or Blob")
+                        .into());
                 }
-                ReadOperation::BinaryString => {
-                    // Convert bytes to binary string (latin1 encoding)
-                    data.iter().map(|&b| b as char).collect()
-                }
-                ReadOperation::DataURL => {
-                    // Create data URL with base64 encoding
-                    let base64_data = general_purpose::STANDARD.encode(&**data);
-                    format!("data:application/octet-stream;base64,{}", base64_data)
-                }
-                ReadOperation::Text(encoding) => {
-                    // Convert to text (UTF-8 by default)
-                    match encoding.as_deref() {
-                        Some("utf-8") | Some("UTF-8") | None => {
-                            String::from_utf8_lossy(&data).to_string()
-                        }
-                        Some("latin1") | Some("iso-8859-1") => {
-                            data.iter().map(|&b| b as char).collect()
-                        }
-                        _ => {
-                            // Fallback to UTF-8 for unsupported encodings
-                            String::from_utf8_lossy(&data).to_string()
-                        }
-                    }
-                }
+            } else {
+                return Err(JsNativeError::typ()
+                    .with_message("readAs* methods require a File or Blob argument")
+                    .into());
             };
 
-            // Update result (in a real implementation, this would need proper context access)
-            eprintln!("📄 FileReader operation completed (ID: {})", reader_id);
-            eprintln!("📄 Result: {} characters/bytes", result.len());
+            let total_size = data.len();
 
-            // TODO: Update the actual FileReader object state and fire events
-            // This requires proper context access for event firing
-        });
+            // Set state to loading
+            reader_data.ready_state = ReadyState::Loading;
+            reader_data.result = None;
+            reader_data.error = None;
+            reader_data.is_aborted = Arc::new(Mutex::new(false));
+
+            let reader_id = reader_data.reader_id;
+            let is_aborted = reader_data.is_aborted.clone();
+            let on_loadstart = reader_data.on_loadstart.clone();
+
+            (reader_id, is_aborted, data, on_loadstart, total_size)
+        };
+
+        // Fire loadstart event synchronously
+        if let Some(handler) = on_loadstart {
+            let event = Self::create_progress_event("loadstart", 0, total_size, true, context)?;
+            let _ = handler.call(&this.clone(), &[event], context);
+        }
+
+        // Perform the actual read operation and store result
+        let read_result = match operation {
+            ReadOperation::ArrayBuffer => {
+                // Return the raw bytes for ArrayBuffer conversion
+                FileReadResult::ArrayBuffer(data.to_vec())
+            }
+            ReadOperation::BinaryString => {
+                // Convert bytes to binary string (latin1 encoding)
+                FileReadResult::BinaryString(data.iter().map(|&b| b as char).collect())
+            }
+            ReadOperation::DataURL => {
+                // Create data URL with base64 encoding
+                let base64_data = general_purpose::STANDARD.encode(&*data);
+                FileReadResult::DataURL(format!("data:application/octet-stream;base64,{}", base64_data))
+            }
+            ReadOperation::Text(encoding) => {
+                // Convert to text (UTF-8 by default)
+                let text = match encoding.as_deref() {
+                    Some("utf-8") | Some("UTF-8") | None => {
+                        String::from_utf8_lossy(&data).to_string()
+                    }
+                    Some("latin1") | Some("iso-8859-1") => {
+                        data.iter().map(|&b| b as char).collect()
+                    }
+                    _ => {
+                        // Fallback to UTF-8 for unsupported encodings
+                        String::from_utf8_lossy(&data).to_string()
+                    }
+                };
+                FileReadResult::Text(text)
+            }
+        };
+
+        // Store pending result for async processing
+        let pending = PendingResult {
+            result: Some(read_result.clone()),
+            error: None,
+            events: vec![FileReaderEvent::Load, FileReaderEvent::LoadEnd],
+        };
+
+        {
+            let state = get_filereader_state();
+            state.pending_results.lock().unwrap().insert(reader_id, pending);
+        }
+
+        // Update the FileReader object state and fire events
+        // We do this synchronously since we've completed the read
+        {
+            let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("read method called on non-FileReader object")
+            })?;
+
+            // Check if aborted during processing
+            if *is_aborted.lock().unwrap() {
+                return Ok(JsValue::undefined());
+            }
+
+            // Update state to done
+            reader_data.ready_state = ReadyState::Done;
+
+            // Store result as string representation (for text-based results)
+            reader_data.result = match &read_result {
+                FileReadResult::Text(s) => Some(s.clone()),
+                FileReadResult::BinaryString(s) => Some(s.clone()),
+                FileReadResult::DataURL(s) => Some(s.clone()),
+                FileReadResult::ArrayBuffer(_) => None, // ArrayBuffer handled separately
+            };
+        }
+
+        // Fire load and loadend events
+        let (on_load, on_loadend) = {
+            let reader_data = reader_obj.downcast_ref::<FileReaderData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("read method called on non-FileReader object")
+            })?;
+            (reader_data.on_load.clone(), reader_data.on_loadend.clone())
+        };
+
+        if let Some(handler) = on_load {
+            let event = Self::create_progress_event("load", total_size, total_size, true, context)?;
+            let _ = handler.call(&this.clone(), &[event], context);
+        }
+
+        if let Some(handler) = on_loadend {
+            let event = Self::create_progress_event("loadend", total_size, total_size, true, context)?;
+            let _ = handler.call(&this.clone(), &[event], context);
+        }
 
         Ok(JsValue::undefined())
+    }
+
+    /// Get the pending ArrayBuffer result for this reader
+    pub fn get_array_buffer_result(reader_id: u32, context: &mut Context) -> JsResult<Option<JsValue>> {
+        let state = get_filereader_state();
+        let pending_results = state.pending_results.lock().unwrap();
+
+        if let Some(pending) = pending_results.get(&reader_id) {
+            if let Some(FileReadResult::ArrayBuffer(bytes)) = &pending.result {
+                use boa_engine::object::builtins::{JsArrayBuffer, AlignedVec};
+                let aligned_data = AlignedVec::<u8>::from_iter(0, bytes.iter().copied());
+                let array_buffer = JsArrayBuffer::from_byte_block(aligned_data, context)?;
+                return Ok(Some(array_buffer.into()));
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -487,7 +613,7 @@ pub(crate) fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut 
 }
 
 /// `get FileReader.prototype.result`
-pub(crate) fn get_result(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn get_result(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let reader_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("result getter called on non-object")
     })?;
@@ -496,14 +622,22 @@ pub(crate) fn get_result(this: &JsValue, _args: &[JsValue], _context: &mut Conte
         JsNativeError::typ().with_message("result getter called on non-FileReader object")
     })?;
 
-    match &reader_data.result {
-        Some(result) => Ok(JsValue::from(js_string!(result.clone()))),
-        None => Ok(JsValue::null()),
+    // Check for string result first
+    if let Some(result) = &reader_data.result {
+        return Ok(JsValue::from(js_string!(result.clone())));
     }
+
+    // Check for pending ArrayBuffer result
+    let reader_id = reader_data.reader_id;
+    if let Some(array_buffer) = FileReader::get_array_buffer_result(reader_id, context)? {
+        return Ok(array_buffer);
+    }
+
+    Ok(JsValue::null())
 }
 
 /// `get FileReader.prototype.error`
-pub(crate) fn get_error(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn get_error(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let reader_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("error getter called on non-object")
     })?;
@@ -513,9 +647,36 @@ pub(crate) fn get_error(this: &JsValue, _args: &[JsValue], _context: &mut Contex
     })?;
 
     match &reader_data.error {
-        Some(_error) => {
-            // TODO: Return proper DOMException
-            Ok(JsValue::from(js_string!("DOMException")))
+        Some(error) => {
+            // Create a DOMException-like object with name and message
+            let (name, message, code) = match error {
+                FileReaderError::NotReadable => (
+                    "NotReadableError",
+                    "The file could not be read.",
+                    1u16,
+                ),
+                FileReaderError::Security => (
+                    "SecurityError",
+                    "The file read was blocked by a security policy.",
+                    2,
+                ),
+                FileReaderError::Abort => (
+                    "AbortError",
+                    "The read operation was aborted.",
+                    3,
+                ),
+                FileReaderError::Encoding => (
+                    "EncodingError",
+                    "The file encoding is not valid.",
+                    4,
+                ),
+            };
+
+            let error_obj = JsObject::with_null_proto();
+            error_obj.set(js_string!("name"), js_string!(name), false, context)?;
+            error_obj.set(js_string!("message"), js_string!(message), false, context)?;
+            error_obj.set(js_string!("code"), JsValue::from(code), false, context)?;
+            Ok(error_obj.into())
         }
         None => Ok(JsValue::null()),
     }

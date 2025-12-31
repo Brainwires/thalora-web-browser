@@ -826,9 +826,22 @@ fn create_contextual_fragment(this: &JsValue, args: &[JsValue], context: &mut Co
 
     eprintln!("Range: createContextualFragment called with: {}", fragment_string.to_std_string_escaped());
 
-    // Return a placeholder DocumentFragment
-    // TODO: Implement proper HTML fragment parsing
-    Ok(JsValue::null())
+    // Return a basic DocumentFragment
+    // Note: Full HTML fragment parsing requires integrating html5ever or similar
+    // For now, we create an empty DocumentFragment as a placeholder
+    // A complete implementation would:
+    // 1. Use the HTML fragment parsing algorithm from WHATWG spec
+    // 2. Parse the fragment_string in the context of the range's start container
+    // 3. Handle script elements, template elements, and other special cases
+    use crate::dom::document_fragment::DocumentFragmentData;
+    let fragment_data = DocumentFragmentData::new();
+    let fragment_proto = context.intrinsics().constructors().document_fragment().prototype();
+    let fragment_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        fragment_proto,
+        fragment_data,
+    );
+    Ok(fragment_obj.into())
 }
 
 /// Get a DOMRect object representing the bounding rectangle of the range's contents.

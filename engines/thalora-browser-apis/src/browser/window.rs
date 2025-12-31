@@ -759,18 +759,25 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
                 context,
             )?;
 
-            // TODO: Add Web Locks API (navigator.locks) when web_locks module is implemented
-            // let lock_manager = web_locks::LockManagerObject::create_lock_manager();
-            // navigator.define_property_or_throw(
-            //     js_string!("locks"),
-            //     PropertyDescriptorBuilder::new()
-            //         .configurable(false)
-            //         .enumerable(true)
-            //         .writable(false)
-            //         .value(lock_manager)
-            //         .build(),
-            //     context,
-            // )?;
+            // Add Web Locks API (navigator.locks)
+            use crate::locks::LockManager;
+            let lock_manager = LockManager::new();
+            let lock_manager_proto = context.intrinsics().constructors().lock_manager().prototype();
+            let lock_manager_obj = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                lock_manager_proto,
+                lock_manager,
+            );
+            navigator.define_property_or_throw(
+                js_string!("locks"),
+                PropertyDescriptorBuilder::new()
+                    .configurable(false)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(lock_manager_obj)
+                    .build(),
+                context,
+            )?;
 
             // Add hardwareConcurrency property (fake CPU core count)
             navigator.define_property_or_throw(

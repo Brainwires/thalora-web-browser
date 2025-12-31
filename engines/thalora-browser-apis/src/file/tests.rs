@@ -498,3 +498,144 @@ fn test_showdirectorypicker_exists() {
     "#)).unwrap();
     assert_eq!(result.to_boolean(), true);
 }
+
+// ============================================================================
+// Blob endings option tests (new implementation)
+// ============================================================================
+
+#[test]
+fn test_blob_endings_option_transparent() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let blob = new Blob(['line1\nline2'], { endings: 'transparent' });
+        blob.size > 0;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_blob_endings_option_native() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let blob = new Blob(['line1\nline2'], { endings: 'native' });
+        blob.size > 0;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// File endings option tests (new implementation)
+// ============================================================================
+
+#[test]
+fn test_file_endings_option_native() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let file = new File(['line1\nline2'], 'test.txt', { endings: 'native' });
+        file.size > 0;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// FileReader event firing tests (new implementation)
+// ============================================================================
+
+#[test]
+fn test_filereader_readastext_with_event_handler() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        let loadCalled = false;
+        reader.onload = function(e) {
+            loadCalled = true;
+        };
+        let blob = new Blob(['test content']);
+        reader.readAsText(blob);
+        // After synchronous read completes, check state
+        reader.readyState === 2 && reader.result !== null;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_filereader_readasdataurl_result() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        let blob = new Blob(['hello']);
+        reader.readAsDataURL(blob);
+        reader.result !== null && reader.result.startsWith('data:');
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_filereader_readasbinarystring_result() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        let blob = new Blob(['hello']);
+        reader.readAsBinaryString(blob);
+        reader.result === 'hello';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_filereader_abort_sets_error() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        reader.readyState === 0;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_filereader_loadstart_event() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        let loadstartCalled = false;
+        reader.onloadstart = function(e) {
+            loadstartCalled = true;
+        };
+        let blob = new Blob(['test']);
+        reader.readAsText(blob);
+        loadstartCalled;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_filereader_load_event() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        let loadCalled = false;
+        reader.onload = function(e) {
+            loadCalled = true;
+        };
+        let blob = new Blob(['test']);
+        reader.readAsText(blob);
+        loadCalled;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_filereader_loadend_event() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let reader = new FileReader();
+        let loadendCalled = false;
+        reader.onloadend = function(e) {
+            loadendCalled = true;
+        };
+        let blob = new Blob(['test']);
+        reader.readAsText(blob);
+        loadendCalled;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}

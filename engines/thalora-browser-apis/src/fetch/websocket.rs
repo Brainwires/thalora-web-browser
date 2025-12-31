@@ -200,12 +200,43 @@ impl BuiltInConstructor for WebSocket {
                 .into());
         }
 
-        // Parse protocols
-        let protocols = if protocols_arg.is_undefined() {
+        // Parse protocols - can be a string or array of strings
+        let protocols = if protocols_arg.is_undefined() || protocols_arg.is_null() {
             Vec::new()
+        } else if let Some(protocols_str) = protocols_arg.as_string() {
+            // Single protocol as string
+            vec![protocols_str.to_std_string_escaped()]
+        } else if let Some(protocols_obj) = protocols_arg.as_object() {
+            // Array of protocols
+            let length = protocols_obj.get(js_string!("length"), context)?
+                .to_length(context)?;
+            let mut protos = Vec::with_capacity(length as usize);
+            for i in 0..length {
+                let proto = protocols_obj.get(i, context)?;
+                let proto_str = proto.to_string(context)?.to_std_string_escaped();
+
+                // Validate protocol (no control characters, spaces, or commas)
+                if proto_str.is_empty()
+                    || proto_str.chars().any(|c| c.is_ascii_control() || c == ' ' || c == ',')
+                {
+                    return Err(JsNativeError::syntax()
+                        .with_message("Invalid WebSocket subprotocol")
+                        .into());
+                }
+
+                // Check for duplicates
+                if protos.contains(&proto_str) {
+                    return Err(JsNativeError::syntax()
+                        .with_message("Duplicate WebSocket subprotocol")
+                        .into());
+                }
+
+                protos.push(proto_str);
+            }
+            protos
         } else {
-            // TODO: Handle protocols array/string parsing
-            Vec::new()
+            // Try to convert to string
+            vec![protocols_arg.to_string(context)?.to_std_string_escaped()]
         };
 
         // Create the WebSocket object

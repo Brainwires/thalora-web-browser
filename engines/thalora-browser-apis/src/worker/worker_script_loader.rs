@@ -345,16 +345,40 @@ impl WorkerExecutionContext {
 
     /// Post structured cloned message from main thread to worker
     pub async fn post_cloned_message_to_worker(&self, cloned_message: StructuredCloneValue) -> JsResult<()> {
+        self.post_cloned_message_to_worker_with_transfer(cloned_message, None).await
+    }
+
+    /// Post structured cloned message from main thread to worker with optional transferables
+    ///
+    /// Transferable objects (MessagePort, ArrayBuffer, etc.) are moved to the worker
+    /// rather than copied. The original objects become neutered/detached after transfer.
+    pub async fn post_cloned_message_to_worker_with_transfer(
+        &self,
+        cloned_message: StructuredCloneValue,
+        transfer_list: Option<TransferList>,
+    ) -> JsResult<()> {
         if self.is_terminated() {
             return Err(error_helpers::worker_terminated_error("send message").into());
         }
+
+        // Extract port identifiers from the transfer list
+        // Transferable objects include: MessagePort, ArrayBuffer, ImageBitmap, OffscreenCanvas
+        let ports = if let Some(ref transfer) = transfer_list {
+            // Get any MessagePort IDs from the transfer list
+            transfer.get_message_port_ids()
+                .iter()
+                .map(|id| format!("port-{}", id))
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         // Send message to worker's global scope
         if let Some(ref global_scope) = *self.global_scope.lock().unwrap() {
             if let Some(sender) = global_scope.get_main_thread_sender() {
                 let worker_msg = WorkerMessage {
                     data: cloned_message,
-                    ports: Vec::new(), // TODO: Handle transferable objects
+                    ports,
                     source: MessageSource::MainThread,
                 };
 

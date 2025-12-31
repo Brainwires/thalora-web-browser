@@ -37,6 +37,61 @@ fn cancel_stream(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
     boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
 }
 
+/// Normalize line endings to the native platform format
+/// Per File API spec: converts all \r\n and \r sequences to \n on Unix, or to \r\n on Windows
+pub fn normalize_line_endings(data: &[u8]) -> Vec<u8> {
+    let mut result = Vec::with_capacity(data.len());
+    let mut i = 0;
+
+    while i < data.len() {
+        if data[i] == b'\r' {
+            // Check for \r\n (CRLF)
+            if i + 1 < data.len() && data[i + 1] == b'\n' {
+                // CRLF - convert to native
+                #[cfg(windows)]
+                {
+                    result.push(b'\r');
+                    result.push(b'\n');
+                }
+                #[cfg(not(windows))]
+                {
+                    result.push(b'\n');
+                }
+                i += 2;
+            } else {
+                // Standalone \r - convert to native
+                #[cfg(windows)]
+                {
+                    result.push(b'\r');
+                    result.push(b'\n');
+                }
+                #[cfg(not(windows))]
+                {
+                    result.push(b'\n');
+                }
+                i += 1;
+            }
+        } else if data[i] == b'\n' {
+            // Standalone \n - convert to native
+            #[cfg(windows)]
+            {
+                result.push(b'\r');
+                result.push(b'\n');
+            }
+            #[cfg(not(windows))]
+            {
+                result.push(b'\n');
+            }
+            i += 1;
+        } else {
+            result.push(data[i]);
+            i += 1;
+        }
+    }
+
+    result
+}
+
 /// JavaScript `Blob` constructor implementation.
 #[derive(Debug, Copy, Clone)]
 pub struct Blob;
@@ -130,16 +185,17 @@ impl BlobReadableStreamData {
         let end_pos = std::cmp::min(self.position + self.chunk_size, self.blob_data.len());
         let chunk_data = &self.blob_data[self.position..end_pos];
 
-        // Create a Uint8Array for the chunk
-        let chunk_array = context
-            .intrinsics()
-            .constructors()
-            .typed_uint8_array()
-            .constructor()
-            .construct(&[JsValue::from(chunk_data.len())], None, context)?;
+        // Create a Uint8Array for the chunk with actual data
+        use boa_engine::object::builtins::{JsUint8Array, JsArrayBuffer, AlignedVec};
 
-        // TODO: Copy actual data into the Uint8Array
-        // For now, we'll return a simple array representation
+        // Create an AlignedVec from the chunk data (required by JsArrayBuffer)
+        let aligned_data = AlignedVec::<u8>::from_iter(0, chunk_data.iter().copied());
+
+        // Create an ArrayBuffer with the chunk data
+        let array_buffer = JsArrayBuffer::from_byte_block(aligned_data, context)?;
+
+        // Create a Uint8Array view over the ArrayBuffer
+        let chunk_array = JsUint8Array::from_array_buffer(array_buffer, context)?;
 
         self.position = end_pos;
         Ok(Some(chunk_array.into()))
@@ -248,6 +304,8 @@ impl BuiltInConstructor for Blob {
 
         // Handle options
         let mut mime_type = String::new();
+        let mut normalize_endings = false;
+
         if let Some(options) = args.get(1) {
             if let Some(options_obj) = options.as_object() {
                 let type_prop = options_obj.get(js_string!("type"), context)?;
@@ -255,9 +313,24 @@ impl BuiltInConstructor for Blob {
                     mime_type = type_prop.to_string(context)?.to_std_string_escaped();
                 }
 
-                // TODO: Handle endings option (normalize line endings)
+                // Handle endings option (normalize line endings)
+                // Per File API spec: "transparent" (default) or "native"
+                let endings_prop = options_obj.get(js_string!("endings"), context)?;
+                if !endings_prop.is_undefined() {
+                    let endings_str = endings_prop.to_string(context)?.to_std_string_escaped();
+                    if endings_str == "native" {
+                        normalize_endings = true;
+                    }
+                }
             }
         }
+
+        // Normalize line endings if requested
+        let data = if normalize_endings {
+            normalize_line_endings(&data)
+        } else {
+            data
+        };
 
         let blob_data = BlobData::new(data, mime_type);
 

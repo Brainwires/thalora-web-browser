@@ -585,14 +585,60 @@ impl BuiltInConstructor for Headers {
                 .into());
         }
 
-        let _init = args.get_or_undefined(0);
-        // TODO: Parse init parameter (can be array of [name, value] pairs, object, or another Headers)
+        let init = args.get_or_undefined(0);
+        let mut headers = HashMap::new();
+
+        // Parse init parameter (can be array of [name, value] pairs, object, or another Headers)
+        if !init.is_undefined() && !init.is_null() {
+            if let Some(init_obj) = init.as_object() {
+                // Check if it's a Headers object
+                if let Some(headers_data) = init_obj.downcast_ref::<HeadersData>() {
+                    // Copy headers from existing Headers object
+                    headers = headers_data.headers.clone();
+                } else {
+                    // Check if it's an array of [name, value] pairs
+                    let length_prop = init_obj.get(js_string!("length"), context)?;
+                    if !length_prop.is_undefined() {
+                        // Array-like: iterate and extract [name, value] pairs
+                        let length = length_prop.to_length(context)?;
+                        for i in 0..length {
+                            let pair = init_obj.get(i, context)?;
+                            if let Some(pair_obj) = pair.as_object() {
+                                let pair_len = pair_obj.get(js_string!("length"), context)?;
+                                if let Some(len) = pair_len.to_length(context).ok() {
+                                    if len >= 2 {
+                                        let name = pair_obj.get(0, context)?
+                                            .to_string(context)?
+                                            .to_std_string_escaped()
+                                            .to_lowercase();
+                                        let value = pair_obj.get(1, context)?
+                                            .to_string(context)?
+                                            .to_std_string_escaped();
+                                        headers.insert(name, value);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Regular object: iterate over own properties
+                        let keys = init_obj.own_property_keys(context)?;
+                        for key in keys {
+                            let value = init_obj.get(key.clone(), context)?;
+                            if !value.is_undefined() {
+                                // PropertyKey::to_string() returns a std::string::String
+                                let name = key.to_string().to_lowercase();
+                                let value_str = value.to_string(context)?.to_std_string_escaped();
+                                headers.insert(name, value_str);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Create the Headers object
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::headers, context)?;
-        let headers_data = HeadersData {
-            headers: HashMap::new(),
-        };
+        let headers_data = HeadersData { headers };
         let headers_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,

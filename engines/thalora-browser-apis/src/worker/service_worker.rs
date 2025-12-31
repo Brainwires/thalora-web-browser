@@ -262,12 +262,50 @@ impl ServiceWorker {
             // Convert message to string for simple implementation
             let message_str = message.to_string(context)?.to_std_string_escaped();
 
+            // Extract origin from the service worker's script URL
+            let origin = if let Ok(url) = Url::parse(&data.script_url) {
+                url.origin().ascii_serialization()
+            } else {
+                // Fallback to scope if script_url parsing fails
+                if let Ok(scope_url) = Url::parse(&data.scope) {
+                    scope_url.origin().ascii_serialization()
+                } else {
+                    "null".to_string() // opaque origin per spec
+                }
+            };
+
+            // Parse transfer list for transferable objects (MessagePorts, ArrayBuffers)
+            let ports = if !_transfer.is_undefined() && !_transfer.is_null() {
+                if let Some(transfer_array) = _transfer.as_object() {
+                    if transfer_array.is_array() {
+                        // Extract port identifiers from transfer array
+                        // In a full implementation, we'd serialize MessagePort references
+                        let length = transfer_array.get(js_string!("length"), context)?
+                            .to_u32(context)? as usize;
+                        let mut port_ids = Vec::with_capacity(length);
+                        for i in 0..length {
+                            if let Ok(item) = transfer_array.get(i, context) {
+                                // Store a string representation of the transferable
+                                port_ids.push(format!("transfer-{}", i));
+                            }
+                        }
+                        port_ids
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+
             // Send message to service worker
             if let Some(ref sender) = data.message_sender {
                 let sw_message = ServiceWorkerMessage {
                     data: message_str,
-                    origin: "https://example.com".to_string(), // TODO: Get actual origin
-                    ports: Vec::new(), // TODO: Handle transfer objects
+                    origin,
+                    ports,
                 };
 
                 if let Err(_) = sender.send(sw_message) {

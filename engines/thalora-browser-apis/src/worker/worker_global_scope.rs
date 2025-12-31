@@ -601,7 +601,33 @@ impl WorkerGlobalScope {
         let origin = match message.source {
             MessageSource::MainThread => Some("main"),
             MessageSource::Worker => Some("worker"),
-            MessageSource::SharedWorkerPort(_) => Some("sharedworker"),
+            MessageSource::SharedWorkerPort(ref port_name) => Some("sharedworker"),
+        };
+
+        // Create MessagePort array from transferred port identifiers
+        // Per HTML spec, the ports property is a frozen array of MessagePort objects
+        let ports = if !message.ports.is_empty() {
+            // Create an array of MessagePort placeholders for the transferred ports
+            // In a full implementation, we'd recreate actual MessagePort objects
+            // connected to their entangled counterparts
+            let ports_array = boa_engine::builtins::array::Array::array_create(
+                message.ports.len() as u64,
+                None,
+                context
+            )?;
+
+            for (i, port_id) in message.ports.iter().enumerate() {
+                // Create a placeholder MessagePort object
+                // In a full implementation, this would be a proper MessagePort
+                // connected to its entangled pair across the thread boundary
+                let port_obj = JsObject::with_object_proto(context.intrinsics());
+                port_obj.set(js_string!("id"), js_string!(port_id.clone()), false, context)?;
+                ports_array.set(i, port_obj, false, context)?;
+            }
+
+            Some(ports_array)
+        } else {
+            None
         };
 
         // Create proper MessageEvent using the built-in constructor
@@ -609,7 +635,7 @@ impl WorkerGlobalScope {
             deserialized_data,
             origin,
             None, // source: we could pass the worker object reference here
-            None, // ports: TODO - handle transferable objects
+            ports.map(|p| JsValue::from(p)), // Convert JsObject to JsValue
             context,
         )?;
 
@@ -717,13 +743,29 @@ impl WorkerGlobalScope {
     }
 
     /// Static implementation for close
+    ///
+    /// Per HTML spec: https://html.spec.whatwg.org/multipage/workers.html#dom-dedicatedworkerglobalscope-close
+    /// The close() method sets the worker's closing flag to true.
+    /// This prevents new tasks from being queued, and existing tasks
+    /// will complete before the worker terminates.
     fn close_impl(
         _this: &JsValue,
         _args: &[JsValue],
-        _context: &mut Context,
+        context: &mut Context,
     ) -> JsResult<JsValue> {
-        eprintln!("Worker close() called - worker will terminate");
-        // TODO: Set worker closing state through proper mechanism
+        eprintln!("Worker close() called - setting closing flag");
+
+        // Get the current worker scope and set its closing flag
+        if let Some(scope) = Self::get_current_scope_from_context(context) {
+            // Set the closing flag to true
+            if let Ok(mut closing) = scope.closing.lock() {
+                *closing = true;
+                eprintln!("Worker closing flag set to true");
+            }
+        } else {
+            eprintln!("Warning: Worker close() called but no scope found in context");
+        }
+
         Ok(JsValue::undefined())
     }
 

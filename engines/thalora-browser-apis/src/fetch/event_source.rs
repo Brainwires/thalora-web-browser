@@ -506,6 +506,21 @@ impl EventSource {
     }
 
     /// Dispatch an event to JavaScript
+    ///
+    /// Note: This internal function handles event dispatching from the async stream
+    /// processing context. In a full browser implementation, this would queue events
+    /// to be delivered via the event loop when JavaScript context is available.
+    ///
+    /// The event handlers (onopen, onmessage, onerror) are stored on the EventSource
+    /// object as properties. To call them, we would need to:
+    /// 1. Get a reference to the EventSource JsObject
+    /// 2. Get the handler property (e.g., "onmessage")
+    /// 3. Create a MessageEvent object with the event data
+    /// 4. Call the handler with the event
+    ///
+    /// This requires the JavaScript Context which is not available in the async
+    /// stream processing context. In a real implementation, events would be queued
+    /// and dispatched during the event loop tick.
     fn dispatch_event(event: &ServerSentEvent, data: &EventSourceData) {
         // Update last event ID if provided
         if let Some(ref id) = event.id {
@@ -514,11 +529,21 @@ impl EventSource {
             }
         }
 
-        // TODO: Dispatch the actual event to JavaScript
-        // This requires event system integration which would need more context setup
-        // For now, we'll print to demonstrate the events are being received
-        eprintln!("EventSource event: type={}, data={:?}, id={:?}",
-                 event.event_type, event.data, event.id);
+        // Update reconnection time if specified
+        if let Some(retry) = event.retry {
+            data.reconnect_time.store(retry, Ordering::Relaxed);
+        }
+
+        // Log event for debugging/demonstration
+        // In a full implementation, this would be queued for JavaScript delivery
+        eprintln!("[EventSource] event: type='{}', data='{}', id={:?}",
+                 event.event_type,
+                 if event.data.len() > 100 {
+                     format!("{}...", &event.data[..100])
+                 } else {
+                     event.data.clone()
+                 },
+                 event.id);
     }
 
     /// Close the EventSource connection

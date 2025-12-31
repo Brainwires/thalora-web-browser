@@ -19,8 +19,6 @@ use boa_engine::{
 };
 use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
-// TODO: Implement web_locks module
-// use crate::browser::web_locks::LockManagerObject;
 use crate::browser::clipboard;
 use crate::browser::permissions;
 use crate::browser::vibration;

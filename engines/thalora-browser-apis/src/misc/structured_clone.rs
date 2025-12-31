@@ -99,15 +99,45 @@ impl TransferList {
             return true;
         }
 
-        // TODO: Add checks for other transferable types:
-        // - MessagePort
-        // - OffscreenCanvas
-        // - ReadableStream
-        // - WritableStream
-        // - TransformStream
-        // - etc.
+        // Check for MessagePort
+        if obj.downcast_ref::<crate::messaging::message_port::MessagePortData>().is_some() {
+            return true;
+        }
+
+        // Note: Other transferable types (OffscreenCanvas, ReadableStream, WritableStream,
+        // TransformStream, VideoFrame, AudioData, etc.) would be checked here when implemented
 
         false
+    }
+
+    /// Get MessagePort IDs from the transfer list
+    ///
+    /// Returns unique identifiers for each MessagePort in the transfer list,
+    /// which can be used to reconstruct the ports on the receiving side.
+    pub fn get_message_port_ids(&self) -> Vec<usize> {
+        let mut ids = Vec::new();
+        for (index, obj) in self.objects.iter().enumerate() {
+            if obj.downcast_ref::<crate::messaging::message_port::MessagePortData>().is_some() {
+                // Use the index as a simple ID for now
+                // In a full implementation, we'd extract the actual port ID
+                ids.push(index);
+            }
+        }
+        ids
+    }
+
+    /// Check if this transfer list contains any MessagePorts
+    pub fn has_message_ports(&self) -> bool {
+        self.objects.iter().any(|obj|
+            obj.downcast_ref::<crate::messaging::message_port::MessagePortData>().is_some()
+        )
+    }
+
+    /// Check if this transfer list contains any ArrayBuffers
+    pub fn has_array_buffers(&self) -> bool {
+        self.objects.iter().any(|obj|
+            obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>().is_some()
+        )
     }
 }
 

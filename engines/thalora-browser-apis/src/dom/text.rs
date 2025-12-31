@@ -17,6 +17,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use super::{character_data::CharacterDataData, node::NodeType};
+use std::sync::{Arc, Mutex};
 
 /// Text data structure for text DOM nodes
 #[derive(Debug, Trace, Finalize, JsData)]
@@ -25,6 +26,9 @@ pub struct TextData {
     character_data: CharacterDataData,
     // Text-specific properties
     whole_text: bool,
+    // Shadow DOM slot assignment - tracks which slot this Text node is assigned to
+    #[unsafe_ignore_trace]
+    assigned_slot_name: Arc<Mutex<Option<String>>>,
 }
 
 impl TextData {
@@ -34,6 +38,7 @@ impl TextData {
         Self {
             character_data,
             whole_text: false,
+            assigned_slot_name: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -82,9 +87,29 @@ impl TextData {
         self.character_data.get_data().chars().all(|c| c.is_whitespace())
     }
 
+    /// Get the assigned slot name (for shadow DOM)
+    pub fn get_assigned_slot_name(&self) -> Option<String> {
+        self.assigned_slot_name.lock().unwrap().clone()
+    }
+
+    /// Set the assigned slot name (called by slot assignment algorithm)
+    pub fn set_assigned_slot_name(&self, slot_name: String) {
+        *self.assigned_slot_name.lock().unwrap() = Some(slot_name);
+    }
+
+    /// Clear the assigned slot (when removed from slot)
+    pub fn clear_assigned_slot(&self) {
+        *self.assigned_slot_name.lock().unwrap() = None;
+    }
+
     /// Get the assigned slot (for shadow DOM)
+    /// Returns the slot element this text node is assigned to, or None
     pub fn get_assigned_slot(&self) -> Option<JsObject> {
-        // TODO: Implement when shadow DOM slots are available
+        // In a full implementation, we would look up the slot element
+        // by name in the containing shadow root. For now, we track
+        // the assignment but don't store a reference to the actual slot object
+        // to avoid circular references between the slot and slottable.
+        // The slot assignment is tracked via assigned_slot_name.
         None
     }
 }

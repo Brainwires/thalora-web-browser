@@ -221,6 +221,8 @@ impl BuiltInConstructor for File {
         // Handle options
         let mut mime_type = String::new();
         let mut last_modified = None;
+        let mut normalize_endings = false;
+
         if let Some(options) = args.get(2) {
             if let Some(options_obj) = options.as_object() {
                 // Extract type
@@ -235,9 +237,24 @@ impl BuiltInConstructor for File {
                     last_modified = Some(last_modified_prop.to_number(context)? as u64);
                 }
 
-                // TODO: Handle endings option (normalize line endings)
+                // Handle endings option (normalize line endings)
+                // Per File API spec: "transparent" (default) or "native"
+                let endings_prop = options_obj.get(js_string!("endings"), context)?;
+                if !endings_prop.is_undefined() {
+                    let endings_str = endings_prop.to_string(context)?.to_std_string_escaped();
+                    if endings_str == "native" {
+                        normalize_endings = true;
+                    }
+                }
             }
         }
+
+        // Normalize line endings if requested
+        let data = if normalize_endings {
+            crate::file::blob::normalize_line_endings(&data)
+        } else {
+            data
+        };
 
         // Create blob data
         let blob_data = BlobData::new(data, mime_type);

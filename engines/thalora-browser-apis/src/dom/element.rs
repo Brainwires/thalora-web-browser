@@ -374,6 +374,9 @@ pub struct ElementData {
     /// Previous sibling in DOM tree
     #[unsafe_ignore_trace]
     previous_sibling: Arc<Mutex<Option<JsObject>>>,
+    /// Assigned slot name for Shadow DOM slotting (internal [[AssignedSlot]])
+    #[unsafe_ignore_trace]
+    assigned_slot_name: Arc<Mutex<Option<String>>>,
 }
 
 /// CSS Style Declaration for real style computation
@@ -534,6 +537,7 @@ impl ElementData {
             shadow_root: Arc::new(Mutex::new(None)),
             next_sibling: Arc::new(Mutex::new(None)),
             previous_sibling: Arc::new(Mutex::new(None)),
+            assigned_slot_name: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -964,6 +968,13 @@ impl ElementData {
         }
     }
 
+    /// Get event listeners for a specific event type
+    pub fn get_event_listeners(&self, event_type: &str) -> Option<Vec<JsValue>> {
+        self.event_listeners.lock().unwrap()
+            .get(event_type)
+            .cloned()
+    }
+
     /// Attach shadow root for Shadow DOM API
     pub fn attach_shadow_root(&self, shadow_root: JsObject) {
         if let Ok(mut guard) = self.shadow_root.try_lock() {
@@ -981,6 +992,21 @@ impl ElementData {
             eprintln!("WARNING: Shadow DOM mutex was locked, returning None");
             None
         }
+    }
+
+    /// Get assigned slot name for Shadow DOM slotting
+    pub fn get_assigned_slot_name(&self) -> Option<String> {
+        self.assigned_slot_name.lock().unwrap().clone()
+    }
+
+    /// Set assigned slot name for Shadow DOM slotting (internal [[AssignedSlot]])
+    pub fn set_assigned_slot_name(&self, slot_name: String) {
+        *self.assigned_slot_name.lock().unwrap() = Some(slot_name);
+    }
+
+    /// Clear assigned slot (when removed from slotting)
+    pub fn clear_assigned_slot(&self) {
+        *self.assigned_slot_name.lock().unwrap() = None;
     }
 
     /// Dispatch event on this element
