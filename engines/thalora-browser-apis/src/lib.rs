@@ -100,6 +100,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     events::ui_events::MouseEvent::init(&realm);
     events::ui_events::FocusEvent::init(&realm);
     events::ui_events::InputEvent::init(&realm);
+    events::custom_event::CustomEvent::init(&realm);
+    events::error_event::ErrorEvent::init(&realm);
+    events::message_event::MessageEvent::init(&realm);
+    events::abort_signal::AbortSignal::init(&realm);
 
     // Initialize DOM APIs
     dom::node::Node::init(&realm);
@@ -119,6 +123,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::selection::Selection::init(&realm);
     dom::html_image_element::HTMLImageElement::init(&realm);
     dom::image_bitmap::ImageBitmap::init(&realm);
+    dom::html_element::HTMLElement::init(&realm);
+    dom::html_script_element::HTMLScriptElement::init(&realm);
+    dom::dom_parser::DOMParser::init(&realm);
 
     // Initialize Canvas APIs
     canvas::path::Path2D::init(&realm);
@@ -191,6 +198,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Miscellaneous APIs
     misc::abort_controller::AbortController::init(&realm);
+    misc::encoding::TextEncoder::init(&realm);
+    misc::encoding::TextDecoder::init(&realm);
+    misc::url::Url::init(&realm);
+    misc::url::UrlSearchParams::init(&realm);
     misc::css::Css::init(&realm);
     misc::form::HTMLFormElement::init(&realm);
     misc::form::HTMLInputElement::init(&realm);
@@ -198,6 +209,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     misc::form::HTMLTextAreaElement::init(&realm);
     misc::form::HTMLOptionElement::init(&realm);
     misc::form::ValidityState::init(&realm);
+    misc::form_data::FormData::init(&realm);
+
+    // Initialize CSSOM APIs
+    browser::cssom::CSSStyleDeclaration::init(&realm);
 
     // Initialize Streams APIs
     streams::readable_stream::ReadableStream::init(&realm);
@@ -210,12 +225,22 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     web_components::custom_element_registry::CustomElementRegistry::init(context);
     web_components::html_template_element::HTMLTemplateElement::init(context);
 
+    // Initialize Worker APIs
+    #[cfg(feature = "native")]
+    worker::worker::WorkerConstructor::init(&realm);
+    #[cfg(feature = "native")]
+    worker::service_worker::ServiceWorker::init(&realm);
+    #[cfg(feature = "native")]
+    worker::service_worker_container::ServiceWorkerContainer::init(&realm);
+
     // Initialize Fetch APIs
     fetch::fetch::Fetch::init(&realm);
     fetch::fetch::Request::init(&realm);
     fetch::fetch::Response::init(&realm);
     fetch::fetch::Headers::init(&realm);
     fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
+    #[cfg(feature = "native")]
+    fetch::websocket::WebSocket::init(&realm);
 
     // Register browser APIs as global properties
     let global_object = context.global_object();
@@ -246,6 +271,46 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         events::event_target::EventTarget::NAME,
         PropertyDescriptor::builder()
             .value(events::event_target::EventTarget::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::custom_event::CustomEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::custom_event::CustomEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::error_event::ErrorEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::error_event::ErrorEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::message_event::MessageEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::message_event::MessageEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::abort_signal::AbortSignal::NAME,
+        PropertyDescriptor::builder()
+            .value(events::abort_signal::AbortSignal::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -297,6 +362,18 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         fetch::xmlhttprequest::XmlHttpRequest::NAME,
         PropertyDescriptor::builder()
             .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // WebSocket constructor
+    #[cfg(feature = "native")]
+    global_object.define_property_or_throw(
+        fetch::websocket::WebSocket::NAME,
+        PropertyDescriptor::builder()
+            .value(fetch::websocket::WebSocket::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -401,6 +478,53 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         misc::abort_controller::AbortController::NAME,
         PropertyDescriptor::builder()
             .value(misc::abort_controller::AbortController::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        misc::encoding::TextEncoder::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::encoding::TextEncoder::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        misc::encoding::TextDecoder::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::encoding::TextDecoder::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Global atob/btoa functions
+    let atob_fn = misc::encoding::create_atob_function(context)?;
+    global_object.set(js_string!("atob"), atob_fn, false, context)?;
+
+    let btoa_fn = misc::encoding::create_btoa_function(context)?;
+    global_object.set(js_string!("btoa"), btoa_fn, false, context)?;
+
+    global_object.define_property_or_throw(
+        misc::url::Url::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::url::Url::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        misc::url::UrlSearchParams::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::url::UrlSearchParams::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -589,6 +713,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // HTMLCollection constructor
+    global_object.define_property_or_throw(
+        dom::htmlcollection::HTMLCollection::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::htmlcollection::HTMLCollection::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // HTMLImageElement - real image element with image loading and decoding
     global_object.define_property_or_throw(
         dom::html_image_element::HTMLImageElement::NAME,
@@ -636,6 +771,65 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         false,
         context,
     )?;
+
+    // HTMLElement constructor
+    global_object.define_property_or_throw(
+        dom::html_element::HTMLElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_element::HTMLElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // HTMLScriptElement constructor
+    global_object.define_property_or_throw(
+        dom::html_script_element::HTMLScriptElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_script_element::HTMLScriptElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // DOMParser constructor
+    global_object.define_property_or_throw(
+        dom::dom_parser::DOMParser::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::dom_parser::DOMParser::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // FormData constructor
+    global_object.define_property_or_throw(
+        misc::form_data::FormData::NAME,
+        PropertyDescriptor::builder()
+            .value(misc::form_data::FormData::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // CSSStyleDeclaration constructor
+    global_object.define_property_or_throw(
+        browser::cssom::CSSStyleDeclaration::NAME,
+        PropertyDescriptor::builder()
+            .value(browser::cssom::CSSStyleDeclaration::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // getComputedStyle global function
+    let get_computed_style_fn = browser::cssom::create_get_computed_style_function(context)?;
+    global_object.set(js_string!("getComputedStyle"), get_computed_style_fn, false, context)?;
 
     // Canvas APIs
     global_object.define_property_or_throw(
@@ -716,6 +910,29 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         video::html_video_element::HTMLVideoElement::NAME,
         PropertyDescriptor::builder()
             .value(video::html_video_element::HTMLVideoElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Worker APIs (native only)
+    #[cfg(feature = "native")]
+    global_object.define_property_or_throw(
+        worker::worker::WorkerConstructor::NAME,
+        PropertyDescriptor::builder()
+            .value(worker::worker::WorkerConstructor::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    #[cfg(feature = "native")]
+    global_object.define_property_or_throw(
+        worker::service_worker::ServiceWorker::NAME,
+        PropertyDescriptor::builder()
+            .value(worker::service_worker::ServiceWorker::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -961,6 +1178,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.set(boa_engine::js_string!("location"), location_instance, false, context)
         .expect("failed to set global location");
 
+    // Create and set global history object
+    let history_constructor = context.intrinsics().constructors().history().constructor();
+    let history_instance = browser::history::History::constructor(
+        &history_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+    global_object.set(boa_engine::js_string!("history"), history_instance, false, context)
+        .expect("failed to set global history");
+
     // Create and set global performance object
     let performance_instance = browser::performance::create_performance_object(context)?;
     global_object.set(boa_engine::js_string!("performance"), performance_instance, false, context)
@@ -1022,6 +1249,34 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     .build();
     global_object.set(boa_engine::js_string!("dispatchEvent"), dispatch_fn, false, context)
         .expect("failed to set global dispatchEvent");
+
+    // postMessage global function (for window.postMessage behavior)
+    let post_message_fn = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            // Create a MessageEvent with the data and dispatch it
+            let message = args.get(0).cloned().unwrap_or(boa_engine::JsValue::undefined());
+            let _origin = args.get(1).cloned().unwrap_or(js_string!("*").into());
+
+            // For now, just dispatch a message event to self (in a full implementation,
+            // this would be used for cross-origin messaging)
+            let global = context.global_object();
+            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+
+            // Create a MessageEvent-like object
+            let event_obj = boa_engine::JsObject::with_null_proto();
+            event_obj.set(js_string!("type"), js_string!("message"), false, context)?;
+            event_obj.set(js_string!("data"), message, false, context)?;
+
+            // Dispatch the event
+            events::event_target::EventTarget::dispatch_event(&event_target, &[event_obj.into()], context)
+        }
+    )
+    .name(boa_engine::js_string!("postMessage"))
+    .length(1)
+    .build();
+    global_object.set(boa_engine::js_string!("postMessage"), post_message_fn, false, context)
+        .expect("failed to set global postMessage");
 
     // Create localStorage and sessionStorage instances
     // Storage constructor cannot be called directly, so we create instances manually

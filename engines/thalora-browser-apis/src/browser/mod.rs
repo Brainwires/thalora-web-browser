@@ -1,6 +1,7 @@
 //! Browser objects - Window, Navigator, History, Performance, Location
 
 pub mod clipboard;
+pub mod cssom;
 pub mod frame_selection;
 pub mod history;
 pub mod location;

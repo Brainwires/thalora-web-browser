@@ -5,8 +5,11 @@ pub mod character_data;
 pub mod document;
 pub mod document_fragment;
 pub mod document_parse;
+pub mod dom_parser;
 pub mod domtokenlist;
 pub mod element;
+pub mod html_element;
+pub mod html_script_element;
 
 // Native-only implementations using reqwest
 #[cfg(feature = "native")]

@@ -5,6 +5,9 @@ pub mod event_target;
 pub mod message_event;
 pub mod pageswap_event;
 pub mod ui_events;
+pub mod custom_event;
+pub mod error_event;
+pub mod abort_signal;
 
 #[cfg(test)]
 mod tests;
