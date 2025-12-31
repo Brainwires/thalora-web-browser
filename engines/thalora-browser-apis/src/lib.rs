@@ -76,6 +76,9 @@ pub mod web_components;
 // Intl API (provided by Boa engine, tests only)
 pub mod intl;
 
+// Audit module for Web API coverage testing
+pub mod audit;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
