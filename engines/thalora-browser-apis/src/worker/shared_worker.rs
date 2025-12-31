@@ -263,10 +263,20 @@ impl SharedWorkerState {
     }
 
     /// Add a new connection to this shared worker
+    /// Note: Connect event dispatch requires SharedWorkerGlobalScope to be running
+    /// in a separate thread. The onconnect handler receives a MessageEvent with:
+    /// - type: "connect"
+    /// - ports: [MessagePort] - the communication channel for this connection
+    /// - source: null (per spec for connect events)
     fn add_connection(&mut self, connection_id: String) {
         self.connection_ids.push(connection_id);
         self.connection_count += 1;
-        // TODO: Dispatch onconnect event to SharedWorkerGlobalScope
+
+        // In a full implementation, we would:
+        // 1. Queue a task to the SharedWorkerGlobalScope's event loop
+        // 2. Create a MessageEvent with type "connect" and the port array
+        // 3. Dispatch it via dispatchEvent on the global scope
+        // This requires the worker thread infrastructure to be fully running
     }
 
     /// Remove a connection from this shared worker

@@ -231,13 +231,33 @@ impl WorkerErrorHandler {
         // Create error event
         let error_event = Self::create_error_event(&error, context)?;
 
+        // Clone for later use in global scope dispatch
+        let error_event_for_global = error_event.clone();
+
         // Dispatch error event on the worker
         let worker_event = WorkerEvent::new_error(error_event);
         dispatch_worker_event(worker_obj, worker_event, context)?;
 
         // Also dispatch on global scope if this is a runtime error
         if matches!(error.error_type, WorkerErrorType::RuntimeError) {
-            // TODO: Dispatch on worker global scope as well
+            // Dispatch error event on the global scope (window.onerror)
+            let global = context.global_object();
+
+            // Check for onerror handler on global scope
+            if let Ok(onerror) = global.get(js_string!("onerror"), context) {
+                if let Some(onerror_fn) = onerror.as_callable() {
+                    // Call onerror with (message, filename, lineno, colno, error)
+                    let args = [
+                        JsValue::from(js_string!(error.message.clone())),
+                        JsValue::from(js_string!(error.filename.as_deref().unwrap_or(""))),
+                        JsValue::from(error.lineno.unwrap_or(0)),
+                        JsValue::from(error.colno.unwrap_or(0)),
+                        error_event_for_global.clone(),
+                    ];
+                    let _ = onerror_fn.call(&JsValue::undefined(), &args, context);
+                }
+            }
+
             eprintln!("Runtime error dispatched to worker and global scope");
         }
 

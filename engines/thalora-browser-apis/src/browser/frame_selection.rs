@@ -283,30 +283,72 @@ impl FrameSelection {
     }
 
     /// Modify selection (Chrome's modify method equivalent)
+    /// This modifies the selection based on alter (move/extend), direction, and granularity
     pub fn modify(&mut self, alter: SelectionModifyAlter, direction: SelectionModifyDirection,
                   granularity: SelectionGranularity) -> JsResult<bool> {
 
         self.granularity = granularity;
 
-        // TODO: Implement actual text modification logic based on DOM tree traversal
-        // For now, this is a stub that demonstrates the API structure
+        let mut selection = self.selection_in_dom_tree.lock().unwrap();
 
-        eprintln!("FrameSelection: Modify selection - alter: {:?}, direction: {:?}, granularity: {:?}",
-                alter, direction, granularity);
+        // If no selection exists, nothing to modify
+        if selection.is_none() {
+            return Ok(false);
+        }
 
-        // Simulate selection modification
+        // Calculate the offset delta based on granularity
+        // In a full implementation, this would do proper text analysis
+        let offset_delta: i32 = match granularity {
+            SelectionGranularity::Character => 1,
+            SelectionGranularity::Word => 5,       // Approximate word length
+            SelectionGranularity::Sentence => 50,  // Approximate sentence length
+            SelectionGranularity::Line => 80,      // Approximate line length
+            SelectionGranularity::Paragraph => 200,
+            SelectionGranularity::Document => i32::MAX,
+        };
+
+        // Calculate direction sign
+        let sign: i32 = match direction {
+            SelectionModifyDirection::Forward | SelectionModifyDirection::Right => 1,
+            SelectionModifyDirection::Backward | SelectionModifyDirection::Left => -1,
+        };
+
+        let delta = offset_delta * sign;
+
         match alter {
             SelectionModifyAlter::Move => {
-                // Move caret/selection
-                self.notify_selection_changed();
-                Ok(true)
-            },
+                // Move both anchor and focus to the new position
+                let new_offset = (selection.focus_offset() as i32 + delta).max(0) as u32;
+                let focus_node = selection.focus_node().cloned();
+
+                selection.set_selection(
+                    focus_node.clone(),
+                    new_offset,
+                    focus_node,
+                    new_offset,
+                    false, // Not directional for move
+                );
+            }
             SelectionModifyAlter::Extend => {
-                // Extend current selection
-                self.notify_selection_changed();
-                Ok(true)
+                // Keep anchor, move focus
+                let new_offset = (selection.focus_offset() as i32 + delta).max(0) as u32;
+                let anchor_node = selection.anchor_node().cloned();
+                let anchor_offset = selection.anchor_offset();
+                let focus_node = selection.focus_node().cloned();
+
+                selection.set_selection(
+                    anchor_node,
+                    anchor_offset,
+                    focus_node,
+                    new_offset,
+                    true, // Directional for extend
+                );
             }
         }
+
+        drop(selection); // Release lock before notify
+        self.notify_selection_changed();
+        Ok(true)
     }
 
     /// Get selection type
@@ -363,13 +405,39 @@ impl FrameSelection {
     }
 
     /// Notify all listeners of selection change
+    /// Note: Full event dispatching requires JavaScript context access
+    /// For listeners that are JsFunction values, we'd need to call them
+    /// This is typically handled at a higher level (e.g., Document.onselectionchange)
     fn notify_selection_changed(&self) {
         let listeners = self.change_listeners.lock().unwrap();
         if !listeners.is_empty() {
-            eprintln!("FrameSelection: Notifying {} selection change listeners", listeners.len());
-            // TODO: Actually dispatch events to listeners
-            // This would require access to the JavaScript context
+            // Store listener count for logging
+            let count = listeners.len();
+
+            // Note: To actually dispatch, we'd need to:
+            // 1. Create a "selectionchange" Event object
+            // 2. For each listener that is a callable JsFunction:
+            //    - Call listener.call(&event.into(), &[], context)
+            // 3. Handle any errors from the listener calls
+            //
+            // Since we don't have context access here, the actual dispatching
+            // is handled by the Selection JavaScript API layer which has context
+
+            eprintln!("FrameSelection: {} selection change listeners registered", count);
+
+            // Mark that a selection change occurred (could be used for batching)
+            // A full implementation might queue this for microtask dispatch
         }
+    }
+
+    /// Get pending listeners for external dispatching (called by Selection API)
+    pub fn get_change_listeners(&self) -> Vec<JsValue> {
+        self.change_listeners.lock().unwrap().clone()
+    }
+
+    /// Check if there are any change listeners
+    pub fn has_change_listeners(&self) -> bool {
+        !self.change_listeners.lock().unwrap().is_empty()
     }
 
     /// Compare two selections for equality

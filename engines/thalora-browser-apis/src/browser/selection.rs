@@ -91,16 +91,42 @@ impl SelectionData {
     }
 
     /// Get selection direction by delegating to FrameSelection
+    /// Per Selection API spec: returns "forward", "backward", or "none"
     fn get_direction(&self) -> &'static str {
         let binding = self.frame_selection.selection_in_dom_tree();
         let selection = binding.lock().unwrap();
+
         if selection.is_collapsed() {
-            "none"
-        } else if selection.is_directional() {
-            // TODO: Calculate actual direction based on DOM position
-            "forward"
-        } else {
-            "none"
+            return "none";
+        }
+
+        if !selection.is_directional() {
+            return "none";
+        }
+
+        // Calculate direction based on DOM position
+        // In a full implementation, we'd compare DOM tree positions of anchor vs focus
+        // Using the Node.compareDocumentPosition algorithm:
+        // - If anchor precedes focus in document order -> forward
+        // - If focus precedes anchor in document order -> backward
+        //
+        // For now, compare offsets when nodes are the same
+        match (selection.anchor_node(), selection.focus_node()) {
+            (Some(anchor), Some(focus)) if anchor == focus => {
+                // Same node: compare offsets
+                if selection.anchor_offset() <= selection.focus_offset() {
+                    "forward"
+                } else {
+                    "backward"
+                }
+            }
+            (Some(_anchor), Some(_focus)) => {
+                // Different nodes: would need DOM tree traversal to determine order
+                // For now, assume forward (the more common case)
+                // A full implementation would use compareDocumentPosition
+                "forward"
+            }
+            _ => "none",
         }
     }
 
@@ -124,13 +150,39 @@ impl SelectionData {
 
     /// Add range to selection with FrameSelection integration
     fn add_range(&mut self, range: JsValue) -> JsResult<()> {
+        use boa_engine::JsNativeError;
+
         // Clear existing ranges (Selection API typically supports only one range)
         self.ranges.clear();
         self.ranges.push(range.clone());
 
-        // TODO: Extract range boundaries and update FrameSelection
-        // For now, just add to cached ranges
-        eprintln!("Selection.addRange called - delegating to FrameSelection");
+        // Extract range boundaries and update FrameSelection
+        // Range objects have startContainer/startOffset and endContainer/endOffset
+        if let Some(range_obj) = range.as_object() {
+            // Try to downcast to RangeData to get boundaries
+            if let Some(range_data) = range_obj.downcast_ref::<crate::dom::range::RangeData>() {
+                // Get range boundaries (clone to get owned values)
+                let start_container = range_data.start_container().cloned();
+                let start_offset = range_data.start_offset();
+                let end_container = range_data.end_container().cloned();
+                let end_offset = range_data.end_offset();
+
+                // Update FrameSelection with range boundaries
+                // anchor = start, focus = end
+                let options = SelectionOptions::builder()
+                    .is_directional(false)
+                    .build();
+
+                self.frame_selection.set_selection(
+                    start_container,
+                    start_offset,
+                    end_container,
+                    end_offset,
+                    options,
+                )?;
+            }
+        }
+
         Ok(())
     }
 

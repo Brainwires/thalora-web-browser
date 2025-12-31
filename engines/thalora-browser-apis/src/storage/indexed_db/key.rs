@@ -88,6 +88,15 @@ impl IDBKey {
                 }
             }
 
+            // Check for ArrayBuffer or typed array (binary key support)
+            if Self::is_buffer_source(&obj, context) {
+                if let Some(bytes) = Self::extract_bytes_from_buffer_source(&obj, context) {
+                    if !bytes.is_empty() {
+                        return Ok(IDBKey::Binary(bytes));
+                    }
+                }
+            }
+
             // Check for Array
             if obj.is_array() {
                 // Get array length using the "length" property
@@ -111,40 +120,70 @@ impl IDBKey {
             .into())
     }
 
-    // TODO: Add Binary key support when ArrayBuffer APIs are available
-    //
-    // /// Check if an object is a typed array
-    // fn is_typed_array(obj: &JsObject) -> bool {
-    //     // Try to get the buffer property - all typed arrays have this
-    //     obj.has_property(js_string!("buffer"), context)
-    //         .unwrap_or(false)
-    // }
-    //
-    // /// Extract bytes from ArrayBuffer or typed array
-    // fn extract_bytes(obj: &JsObject, context: &mut Context) -> JsResult<Vec<u8>> {
-    //     // Try to get byte length
-    //     if let Ok(byte_length) = obj.get(js_string!("byteLength"), context) {
-    //         if let Some(len) = byte_length.as_number() {
-    //             let len = len as usize;
-    //             let mut bytes = Vec::with_capacity(len);
-    //
-    //             // Try to access via indexing
-    //             for i in 0..len {
-    //                 if let Ok(byte_val) = obj.get(i, context) {
-    //                     if let Some(byte) = byte_val.as_number() {
-    //                         bytes.push(byte as u8);
-    //                     }
-    //                 }
-    //             }
-    //
-    //             if bytes.len() == len {
-    //                 return Ok(bytes);
-    //             }
-    //         }
-    //     }
-    //
-    //     Ok(Vec::new())
-    // }
+    /// Check if an object is an ArrayBuffer or typed array (BufferSource)
+    /// BufferSource = ArrayBuffer | ArrayBufferView
+    fn is_buffer_source(obj: &JsObject, context: &mut Context) -> bool {
+        // Check for byteLength property - both ArrayBuffer and typed arrays have this
+        if let Ok(byte_length) = obj.get(js_string!("byteLength"), context) {
+            if byte_length.is_number() {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Extract bytes from ArrayBuffer or typed array
+    /// Returns None if not a valid buffer source
+    fn extract_bytes_from_buffer_source(obj: &JsObject, context: &mut Context) -> Option<Vec<u8>> {
+        // Try to get byte length
+        let byte_length = obj.get(js_string!("byteLength"), context).ok()?;
+        let len = byte_length.as_number()? as usize;
+
+        if len == 0 {
+            return Some(Vec::new());
+        }
+
+        // Check if this is a typed array (has buffer property) or ArrayBuffer directly
+        let is_typed_array = obj.has_property(js_string!("buffer"), context).unwrap_or(false);
+
+        if is_typed_array {
+            // For typed arrays, use the buffer property and byteOffset
+            let buffer = obj.get(js_string!("buffer"), context).ok()?;
+            let byte_offset = obj.get(js_string!("byteOffset"), context).ok()?
+                .as_number()
+                .unwrap_or(0.0) as usize;
+
+            // Try to access via indexing (works for Uint8Array, Int8Array, etc.)
+            let mut bytes = Vec::with_capacity(len);
+            for i in 0..len {
+                if let Ok(byte_val) = obj.get(i, context) {
+                    if let Some(num) = byte_val.as_number() {
+                        bytes.push(num as u8);
+                    } else {
+                        return None; // Invalid element
+                    }
+                } else {
+                    return None; // Index access failed
+                }
+            }
+
+            if bytes.len() == len {
+                return Some(bytes);
+            }
+        } else {
+            // For ArrayBuffer, try to create a Uint8Array view and extract bytes
+            // This is more complex - for now, check if we can downcast to JsArrayBuffer
+            use boa_engine::object::builtins::JsArrayBuffer;
+
+            if let Ok(array_buffer) = JsArrayBuffer::from_object(obj.clone()) {
+                if let Some(data) = array_buffer.data() {
+                    return Some(data.to_vec());
+                }
+            }
+        }
+
+        None
+    }
 
     /// Convert key to bytes for storage
     ///

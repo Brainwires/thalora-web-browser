@@ -138,7 +138,7 @@ fn get_port2(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 /// Helper function to create a MessagePort object with proper prototype and methods
 fn create_message_port_object(data: MessagePortData, context: &mut Context) -> JsResult<JsObject> {
     // Create the object with MessagePort prototype
-    let prototype = context.intrinsics().constructors().object().prototype(); // TODO: Use MessagePort prototype when available
+    let prototype = context.intrinsics().constructors().message_port().prototype();
     let port_obj = JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
         prototype,
@@ -205,7 +205,9 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
 
 /// MessagePort postMessage implementation
 fn message_port_post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let message = args.get_or_undefined(0).clone();
+    use crate::misc::structured_clone::{structured_clone, structured_deserialize};
+
+    let message = args.get_or_undefined(0);
 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("MessagePort.prototype.postMessage called on non-object")
@@ -221,9 +223,29 @@ fn message_port_post_message(this: &JsValue, args: &[JsValue], context: &mut Con
             .into());
     }
 
-    // TODO: Implement structured cloning for complex objects
-    // For now, we'll clone simple values
-    data.post_message(message)?;
+    // Parse optional transfer list from second argument
+    // Per spec: postMessage(message, transfer?) or postMessage(message, options?)
+    let transfer_list = if args.len() > 1 {
+        let transfer_arg = args.get_or_undefined(1);
+        if transfer_arg.is_object() {
+            // Could be an options object {transfer: [...]} or an array directly
+            // For now, we don't support transferables through MessagePort
+            None
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Perform structured cloning of the message
+    let cloned_value = structured_clone(message, context, transfer_list.as_ref())?;
+
+    // Deserialize back to JsValue for the message queue
+    // In a full implementation, we'd send the serialized form for cross-thread transfer
+    let deserialized_message = structured_deserialize(&cloned_value, context)?;
+
+    data.post_message(deserialized_message)?;
 
     Ok(JsValue::undefined())
 }

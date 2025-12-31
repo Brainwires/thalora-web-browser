@@ -903,100 +903,110 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     })?;
 
     let media_query = args.get_or_undefined(0).to_string(context)?;
-        let query_str = media_query.to_std_string_escaped();
+    let query_str = media_query.to_std_string_escaped();
 
-        // Create MediaQueryList object
-        let media_query_list = JsObject::default(context.intrinsics());
+    // Parse and evaluate the media query
+    let matches = evaluate_media_query(&query_str);
 
-        // Parse and evaluate the media query
-        let matches = evaluate_media_query(&query_str);
+    // Create MediaQueryListData with listener storage
+    let mql_data = MediaQueryListData::new(query_str.clone(), matches);
 
-        // Add properties to MediaQueryList
-        media_query_list.define_property_or_throw(
-            js_string!("media"),
-            PropertyDescriptorBuilder::new()
-                .configurable(false)
-                .enumerable(true)
-                .writable(false)
-                .value(media_query)
-                .build(),
-            context,
-        )?;
+    // Create MediaQueryList object with internal data
+    let media_query_list_typed = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        context.intrinsics().constructors().object().prototype(),
+        mql_data,
+    );
 
-        media_query_list.define_property_or_throw(
-            js_string!("matches"),
-            PropertyDescriptorBuilder::new()
-                .configurable(false)
-                .enumerable(true)
-                .writable(false)
-                .value(matches)
-                .build(),
-            context,
-        )?;
+    // Upcast to untyped JsObject for property definition methods
+    let media_query_list = media_query_list_typed.upcast();
 
-        // Add addListener method
-        let add_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_listener)
-            .name(js_string!("addListener"))
-            .build();
+    // Add properties to MediaQueryList
+    media_query_list.define_property_or_throw(
+        js_string!("media"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(media_query)
+            .build(),
+        context,
+    )?;
 
-        media_query_list.define_property_or_throw(
-            js_string!("addListener"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(add_listener_func)
-                .build(),
-            context,
-        )?;
+    media_query_list.define_property_or_throw(
+        js_string!("matches"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(matches)
+            .build(),
+        context,
+    )?;
 
-        // Add removeListener method
-        let remove_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_listener)
-            .name(js_string!("removeListener"))
-            .build();
+    // Add addListener method
+    let add_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_listener)
+        .name(js_string!("addListener"))
+        .build();
 
-        media_query_list.define_property_or_throw(
-            js_string!("removeListener"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(remove_listener_func)
-                .build(),
-            context,
-        )?;
+    media_query_list.define_property_or_throw(
+        js_string!("addListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(add_listener_func)
+            .build(),
+        context,
+    )?;
 
-        // Add addEventListener method (newer API)
-        let add_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_event_listener)
-            .name(js_string!("addEventListener"))
-            .build();
+    // Add removeListener method
+    let remove_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_listener)
+        .name(js_string!("removeListener"))
+        .build();
 
-        media_query_list.define_property_or_throw(
-            js_string!("addEventListener"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(add_event_listener_func)
-                .build(),
-            context,
-        )?;
+    media_query_list.define_property_or_throw(
+        js_string!("removeListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(remove_listener_func)
+            .build(),
+        context,
+    )?;
 
-        // Add removeEventListener method
-        let remove_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_event_listener)
-            .name(js_string!("removeEventListener"))
-            .build();
+    // Add addEventListener method (newer API)
+    let add_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_event_listener)
+        .name(js_string!("addEventListener"))
+        .build();
 
-        media_query_list.define_property_or_throw(
-            js_string!("removeEventListener"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(remove_event_listener_func)
-                .build(),
-            context,
-        )?;
+    media_query_list.define_property_or_throw(
+        js_string!("addEventListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(add_event_listener_func)
+            .build(),
+        context,
+    )?;
+
+    // Add removeEventListener method
+    let remove_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_event_listener)
+        .name(js_string!("removeEventListener"))
+        .build();
+
+    media_query_list.define_property_or_throw(
+        js_string!("removeEventListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(remove_event_listener_func)
+            .build(),
+        context,
+    )?;
 
     Ok(media_query_list.into())
 }
@@ -1184,34 +1194,134 @@ fn extract_numeric_value(feature: &str, property: &str) -> Option<u32> {
     None
 }
 
+/// Internal data for MediaQueryList objects
+/// Stores the media query string, match state, and event listeners
+#[derive(Debug, Trace, Finalize, JsData)]
+pub struct MediaQueryListData {
+    #[unsafe_ignore_trace]
+    media: String,
+    #[unsafe_ignore_trace]
+    matches: Arc<Mutex<bool>>,
+    /// Legacy addListener/removeListener callbacks (deprecated but still used)
+    #[unsafe_ignore_trace]
+    legacy_listeners: Arc<Mutex<Vec<JsValue>>>,
+    /// Modern addEventListener callbacks, keyed by event type ("change")
+    #[unsafe_ignore_trace]
+    event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
+}
+
+impl MediaQueryListData {
+    fn new(media: String, matches: bool) -> Self {
+        Self {
+            media,
+            matches: Arc::new(Mutex::new(matches)),
+            legacy_listeners: Arc::new(Mutex::new(Vec::new())),
+            event_listeners: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    fn get_media(&self) -> &str {
+        &self.media
+    }
+
+    fn get_matches(&self) -> bool {
+        *self.matches.lock().unwrap()
+    }
+
+    fn add_legacy_listener(&self, listener: JsValue) {
+        let mut listeners = self.legacy_listeners.lock().unwrap();
+        // Don't add duplicate listeners
+        if !listeners.iter().any(|l| JsValue::same_value(l, &listener)) {
+            listeners.push(listener);
+        }
+    }
+
+    fn remove_legacy_listener(&self, listener: &JsValue) {
+        let mut listeners = self.legacy_listeners.lock().unwrap();
+        listeners.retain(|l| !JsValue::same_value(l, listener));
+    }
+
+    fn add_event_listener(&self, event_type: String, listener: JsValue) {
+        let mut listeners = self.event_listeners.lock().unwrap();
+        let type_listeners = listeners.entry(event_type).or_insert_with(Vec::new);
+        // Don't add duplicate listeners
+        if !type_listeners.iter().any(|l| JsValue::same_value(l, &listener)) {
+            type_listeners.push(listener);
+        }
+    }
+
+    fn remove_event_listener(&self, event_type: &str, listener: &JsValue) {
+        let mut listeners = self.event_listeners.lock().unwrap();
+        if let Some(type_listeners) = listeners.get_mut(event_type) {
+            type_listeners.retain(|l| !JsValue::same_value(l, listener));
+        }
+    }
+}
+
 // MediaQueryList method implementations
-fn media_query_list_add_listener(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let _listener = args.get_or_undefined(0);
-    // TODO: Implement listener storage and management
-    eprintln!("MediaQueryList addListener called");
+fn media_query_list_add_listener(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let listener = args.get_or_undefined(0);
+    if listener.is_undefined() || listener.is_null() {
+        return Ok(JsValue::undefined());
+    }
+
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MediaQueryList.addListener called on non-object")
+    })?;
+
+    if let Some(mql_data) = this_obj.downcast_ref::<MediaQueryListData>() {
+        mql_data.add_legacy_listener(listener.clone());
+    }
     Ok(JsValue::undefined())
 }
 
-fn media_query_list_remove_listener(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let _listener = args.get_or_undefined(0);
-    // TODO: Implement listener removal
-    eprintln!("MediaQueryList removeListener called");
+fn media_query_list_remove_listener(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let listener = args.get_or_undefined(0);
+    if listener.is_undefined() || listener.is_null() {
+        return Ok(JsValue::undefined());
+    }
+
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MediaQueryList.removeListener called on non-object")
+    })?;
+
+    if let Some(mql_data) = this_obj.downcast_ref::<MediaQueryListData>() {
+        mql_data.remove_legacy_listener(listener);
+    }
     Ok(JsValue::undefined())
 }
 
-fn media_query_list_add_event_listener(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let _event_type = args.get_or_undefined(0);
-    let _listener = args.get_or_undefined(1);
-    // TODO: Implement event listener storage and management
-    eprintln!("MediaQueryList addEventListener called");
+fn media_query_list_add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1);
+    if listener.is_undefined() || listener.is_null() {
+        return Ok(JsValue::undefined());
+    }
+
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MediaQueryList.addEventListener called on non-object")
+    })?;
+
+    if let Some(mql_data) = this_obj.downcast_ref::<MediaQueryListData>() {
+        mql_data.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
+    }
     Ok(JsValue::undefined())
 }
 
-fn media_query_list_remove_event_listener(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let _event_type = args.get_or_undefined(0);
-    let _listener = args.get_or_undefined(1);
-    // TODO: Implement event listener removal
-    eprintln!("MediaQueryList removeEventListener called");
+fn media_query_list_remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let listener = args.get_or_undefined(1);
+    if listener.is_undefined() || listener.is_null() {
+        return Ok(JsValue::undefined());
+    }
+
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MediaQueryList.removeEventListener called on non-object")
+    })?;
+
+    if let Some(mql_data) = this_obj.downcast_ref::<MediaQueryListData>() {
+        mql_data.remove_event_listener(&event_type.to_std_string_escaped(), listener);
+    }
     Ok(JsValue::undefined())
 }
 
@@ -1393,20 +1503,54 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     Ok(screen.into())
 }
 
+/// Global storage for screen orientation lock state
+/// In a headless browser, we simulate orientation locking by tracking the state
+static SCREEN_ORIENTATION_LOCK: std::sync::OnceLock<Mutex<Option<String>>> = std::sync::OnceLock::new();
+
+fn get_orientation_lock() -> &'static Mutex<Option<String>> {
+    SCREEN_ORIENTATION_LOCK.get_or_init(|| Mutex::new(None))
+}
+
+/// Valid orientation values per the Screen Orientation API spec
+const VALID_ORIENTATIONS: &[&str] = &[
+    "any",
+    "natural",
+    "landscape",
+    "portrait",
+    "portrait-primary",
+    "portrait-secondary",
+    "landscape-primary",
+    "landscape-secondary",
+];
+
 // Screen orientation method implementations
 fn screen_orientation_lock(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _orientation = args.get_or_undefined(0).to_string(context)?;
-    // TODO: Implement actual screen orientation locking
-    eprintln!("Screen orientation lock called");
+    let orientation = args.get_or_undefined(0).to_string(context)?;
+    let orientation_str = orientation.to_std_string_escaped();
 
-    // Return a resolved Promise for now
+    // Validate orientation value
+    if !VALID_ORIENTATIONS.contains(&orientation_str.as_str()) {
+        // Per spec: TypeError for invalid orientation
+        return Err(JsNativeError::typ()
+            .with_message(format!("Invalid orientation: {}", orientation_str))
+            .into());
+    }
+
+    // Store the locked orientation
+    if let Ok(mut lock) = get_orientation_lock().lock() {
+        *lock = Some(orientation_str.clone());
+    }
+
+    // Return a resolved Promise (in headless, orientation is always "successful")
     let promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
     Ok(promise)
 }
 
-fn screen_orientation_unlock(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    // TODO: Implement actual screen orientation unlocking
-    eprintln!("Screen orientation unlock called");
+fn screen_orientation_unlock(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // Clear the locked orientation state
+    if let Ok(mut lock) = get_orientation_lock().lock() {
+        *lock = None;
+    }
 
     // Return undefined as per spec
     Ok(JsValue::undefined())
@@ -1755,9 +1899,29 @@ fn get_session_storage(_this: &JsValue, _args: &[JsValue], context: &mut Context
 }
 
 /// `window.indexedDB` getter
+#[cfg(feature = "native")]
+fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use crate::storage::indexed_db::factory::IDBFactory;
+
+    // Create a new IDBFactory instance
+    let factory = IDBFactory::new().map_err(|e| {
+        JsNativeError::error().with_message(format!("Failed to create IDBFactory: {}", e))
+    })?;
+
+    // Create JsObject with IDBFactory data
+    let factory_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        context.intrinsics().constructors().idb_factory().prototype(),
+        factory,
+    );
+
+    Ok(factory_obj.into())
+}
+
+/// `window.indexedDB` getter (WASM version - stub)
+#[cfg(not(feature = "native"))]
 fn get_indexed_db(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // TODO: Implement indexed_db module
-    // For now, return undefined to avoid compilation errors
+    // In WASM, we use the browser's native IndexedDB
     Ok(JsValue::undefined())
 }
 
