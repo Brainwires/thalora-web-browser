@@ -2,6 +2,10 @@
 //!
 //! The NodeList interface represents a collection of nodes.
 //! https://dom.spec.whatwg.org/#interface-nodelist
+//!
+//! This implementation supports both:
+//! - **Static NodeLists**: Snapshot of nodes at creation time (e.g., querySelectorAll)
+//! - **Live NodeLists**: Always reflects current DOM state (e.g., Node.childNodes)
 
 use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
@@ -13,23 +17,71 @@ use boa_engine::{
     string::{StaticJsStrings, JsString},
     Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, Trace};
+use std::sync::{Arc, Mutex, Weak};
+
+/// Source for a live NodeList - provides nodes dynamically
+#[derive(Debug, Clone)]
+pub enum NodeListSource {
+    /// Static list of nodes (snapshot)
+    Static(Arc<Mutex<Vec<JsObject>>>),
+    /// Live reference to a parent node's child list
+    /// Uses Weak to avoid preventing parent GC
+    LiveChildNodes(Weak<Mutex<Vec<JsObject>>>),
+}
+
+// Finalize implementation for NodeListSource
+impl Finalize for NodeListSource {
+    fn finalize(&self) {
+        // No special cleanup needed - Arc/Weak handle their own cleanup
+    }
+}
+
+// Manual Trace implementation since we can't auto-derive for Arc/Weak
+// This is safe because:
+// 1. Static nodes are owned by this NodeList and don't contain cycles
+// 2. Live nodes are referenced weakly, so the parent owns them and handles tracing
+unsafe impl Trace for NodeListSource {
+    unsafe fn trace(&self, _tracer: &mut boa_gc::Tracer) {
+        // Arc and Weak are not GC-managed, but the JsObjects inside are
+        // The parent NodeData holds the strong references to the actual nodes
+        // For Static: the nodes are also in the DOM tree which traces them
+        // For Live: we only hold a weak reference, no tracing needed
+    }
+
+    unsafe fn trace_non_roots(&self) {
+        // No GC handles in heap to trace
+    }
+
+    fn run_finalizer(&self) {
+        self.finalize();
+    }
+}
 
 /// The NodeList data implementation
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct NodeListData {
-    /// The collection of nodes
-    nodes: GcRefCell<Vec<JsObject>>,
+    /// The source of nodes (static or live reference)
+    #[unsafe_ignore_trace]
+    source: NodeListSource,
     /// Whether this is a live NodeList (updates automatically)
     live: bool,
 }
 
 impl NodeListData {
-    /// Create a new NodeList with the given nodes
+    /// Create a new static NodeList with the given nodes
     pub fn new(nodes: Vec<JsObject>, live: bool) -> Self {
         Self {
-            nodes: GcRefCell::new(nodes),
+            source: NodeListSource::Static(Arc::new(Mutex::new(nodes))),
             live,
+        }
+    }
+
+    /// Create a live NodeList that references a parent's child list
+    pub fn new_live(child_nodes: Arc<Mutex<Vec<JsObject>>>) -> Self {
+        Self {
+            source: NodeListSource::LiveChildNodes(Arc::downgrade(&child_nodes)),
+            live: true,
         }
     }
 
@@ -38,45 +90,81 @@ impl NodeListData {
         Self::new(Vec::new(), false)
     }
 
+    /// Get the nodes from the source (handles both static and live)
+    fn get_nodes(&self) -> Vec<JsObject> {
+        match &self.source {
+            NodeListSource::Static(arc) => {
+                arc.lock().unwrap().clone()
+            }
+            NodeListSource::LiveChildNodes(weak) => {
+                // Upgrade weak reference to get current nodes
+                weak.upgrade()
+                    .map(|arc| arc.lock().unwrap().clone())
+                    .unwrap_or_default()
+            }
+        }
+    }
+
     /// Get the length of the NodeList
     pub fn length(&self) -> usize {
-        self.nodes.borrow().len()
+        match &self.source {
+            NodeListSource::Static(arc) => arc.lock().unwrap().len(),
+            NodeListSource::LiveChildNodes(weak) => {
+                weak.upgrade()
+                    .map(|arc| arc.lock().unwrap().len())
+                    .unwrap_or(0)
+            }
+        }
     }
 
     /// Get the node at the specified index
     pub fn get_item(&self, index: usize) -> Option<JsObject> {
-        self.nodes.borrow().get(index).cloned()
+        match &self.source {
+            NodeListSource::Static(arc) => arc.lock().unwrap().get(index).cloned(),
+            NodeListSource::LiveChildNodes(weak) => {
+                weak.upgrade()
+                    .and_then(|arc| arc.lock().unwrap().get(index).cloned())
+            }
+        }
     }
 
     /// Get all nodes as a vector
     pub fn nodes(&self) -> Vec<JsObject> {
-        self.nodes.borrow().clone()
+        self.get_nodes()
     }
 
-    /// Add a node to the list (for live NodeLists)
+    /// Add a node to the list (only for static NodeLists)
+    /// Live NodeLists are modified through their parent
     pub fn add_node(&self, node: JsObject) {
-        if self.live {
-            self.nodes.borrow_mut().push(node);
+        if let NodeListSource::Static(arc) = &self.source {
+            arc.lock().unwrap().push(node);
         }
+        // For live NodeLists, modifications go through the parent NodeData
     }
 
-    /// Remove a node from the list (for live NodeLists)
+    /// Remove a node from the list (only for static NodeLists)
+    /// Live NodeLists are modified through their parent
     pub fn remove_node(&self, node: &JsObject) {
-        if self.live {
-            self.nodes.borrow_mut().retain(|n| !std::ptr::eq(n.as_ref(), node.as_ref()));
+        if let NodeListSource::Static(arc) = &self.source {
+            arc.lock().unwrap().retain(|n| !std::ptr::eq(n.as_ref(), node.as_ref()));
         }
+        // For live NodeLists, modifications go through the parent NodeData
     }
 
-    /// Clear all nodes (for live NodeLists)
+    /// Clear all nodes (only for static NodeLists)
+    /// Live NodeLists are modified through their parent
     pub fn clear(&self) {
-        if self.live {
-            self.nodes.borrow_mut().clear();
+        if let NodeListSource::Static(arc) = &self.source {
+            arc.lock().unwrap().clear();
         }
+        // For live NodeLists, modifications go through the parent NodeData
     }
 
     /// Replace all nodes (for static NodeLists)
     pub fn replace_nodes(&self, nodes: Vec<JsObject>) {
-        *self.nodes.borrow_mut() = nodes;
+        if let NodeListSource::Static(arc) = &self.source {
+            *arc.lock().unwrap() = nodes;
+        }
     }
 
     /// Check if this is a live NodeList
@@ -231,9 +319,24 @@ impl NodeListData {
 pub struct NodeList;
 
 impl NodeList {
-    /// Create a new NodeList from a vector of nodes
+    /// Create a new static NodeList from a vector of nodes
     pub fn create_from_nodes(nodes: Vec<JsObject>, live: bool, context: &mut Context) -> JsResult<JsObject> {
         let nodelist_data = NodeListData::new(nodes, live);
+
+        let nodelist_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context.intrinsics().constructors().nodelist().prototype(),
+            nodelist_data,
+        );
+
+        Ok(nodelist_obj.upcast())
+    }
+
+    /// Create a live NodeList that references a parent's child_nodes Arc.
+    /// This is the proper implementation for Node.childNodes per DOM spec.
+    /// The returned NodeList will always reflect the current state of the parent's children.
+    pub fn create_live_child_nodes(child_nodes_arc: Arc<Mutex<Vec<JsObject>>>, context: &mut Context) -> JsResult<JsObject> {
+        let nodelist_data = NodeListData::new_live(child_nodes_arc);
 
         let nodelist_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),

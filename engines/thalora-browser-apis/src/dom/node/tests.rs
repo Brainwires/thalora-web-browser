@@ -51,11 +51,13 @@ fn node_properties() {
         // Test parentNode property
         TestAction::assert_eq("node.parentNode()", JsValue::null()),
 
-        // Test childNodes property
+        // Test childNodes property - returns a live NodeList per DOM spec
         TestAction::run("var childNodes = node.childNodes()"),
         TestAction::assert_eq("typeof childNodes", js_str!("object")),
-        TestAction::assert("Array.isArray(childNodes)"),
+        // NodeList is not an Array, but has length and item() method
+        TestAction::assert("childNodes instanceof NodeList"),
         TestAction::assert_eq("childNodes.length", 0),
+        TestAction::assert_eq("childNodes.item(0)", JsValue::null()),
 
         // Test firstChild property
         TestAction::assert_eq("node.firstChild()", JsValue::null()),
@@ -295,5 +297,91 @@ fn node_properties_immutable() {
         TestAction::run("var originalValue = Node.ELEMENT_NODE"),
         TestAction::run("Node.ELEMENT_NODE = 999"),
         TestAction::assert_eq("Node.ELEMENT_NODE", 1),
+    ]);
+}
+
+#[test]
+fn node_is_default_namespace() {
+    run_test_actions([
+        // Test with bare Node - should have no default namespace (null == null is true)
+        TestAction::run("var node = new Node()"),
+        TestAction::assert_eq("node.isDefaultNamespace(null)", true),
+        TestAction::assert_eq("node.isDefaultNamespace('')", true),
+
+        // Non-null namespace should return false for bare Node
+        TestAction::assert_eq("node.isDefaultNamespace('http://www.w3.org/1999/xhtml')", false),
+        TestAction::assert_eq("node.isDefaultNamespace('http://www.w3.org/2000/svg')", false),
+        TestAction::assert_eq("node.isDefaultNamespace('http://example.com/custom')", false),
+    ]);
+}
+
+#[test]
+fn node_lookup_namespace_uri() {
+    run_test_actions([
+        TestAction::run("var node = new Node()"),
+
+        // lookupNamespaceURI(null) returns null for bare Node (no document context)
+        TestAction::assert_eq("node.lookupNamespaceURI(null)", JsValue::null()),
+
+        // Well-known prefixes should still work (they're spec-defined)
+        TestAction::assert_eq("node.lookupNamespaceURI('xml')", js_str!("http://www.w3.org/XML/1998/namespace")),
+        TestAction::assert_eq("node.lookupNamespaceURI('xmlns')", js_str!("http://www.w3.org/2000/xmlns/")),
+
+        // Unknown prefix returns null
+        TestAction::assert_eq("node.lookupNamespaceURI('unknown')", JsValue::null()),
+    ]);
+}
+
+#[test]
+fn node_text_content_on_node() {
+    run_test_actions([
+        // Test textContent on bare Node (DocumentFragment/Element types)
+        TestAction::run("var node = new Node()"),
+
+        // Setting textContent on a bare Node (which is type 0)
+        // For Node type, textContent should work but may behave differently
+        TestAction::run("node.textContent = 'Hello'"),
+
+        // For non-Element/DocumentFragment types, textContent may just set nodeValue
+        // Check that it doesn't throw
+        TestAction::run("var content = node.textContent"),
+    ]);
+}
+
+#[test]
+fn node_child_nodes_returns_nodelist() {
+    run_test_actions([
+        // Create a Node and test childNodes
+        TestAction::run("var node = new Node()"),
+        TestAction::run("var childNodes = node.childNodes()"),
+
+        // childNodes should return a NodeList
+        TestAction::assert("childNodes instanceof NodeList"),
+        TestAction::assert_eq("childNodes.length", 0),
+
+        // item(0) should return null for empty list
+        TestAction::assert_eq("childNodes.item(0)", JsValue::null()),
+    ]);
+}
+
+#[test]
+fn nodelist_basic_operations() {
+    run_test_actions([
+        // Create a standalone NodeList
+        TestAction::run("var nodeList = new NodeList()"),
+
+        // Test it's a NodeList
+        TestAction::assert("nodeList instanceof NodeList"),
+
+        // Test length property
+        TestAction::assert_eq("nodeList.length", 0),
+
+        // Test item() method on empty list
+        TestAction::assert_eq("nodeList.item(0)", JsValue::null()),
+
+        // Test forEach() on empty list doesn't throw
+        TestAction::run("var count = 0"),
+        TestAction::run("nodeList.forEach(function() { count++; })"),
+        TestAction::assert_eq("count", 0),
     ]);
 }

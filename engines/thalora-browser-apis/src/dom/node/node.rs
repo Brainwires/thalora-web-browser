@@ -18,6 +18,7 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use crate::dom::text::TextData;
 
 /// Node types as defined by the DOM specification
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
@@ -202,6 +203,12 @@ impl NodeData {
         self.child_nodes.lock().unwrap().clone()
     }
 
+    /// Get the Arc to the child_nodes Mutex for creating live NodeLists.
+    /// This allows NodeList to hold a weak reference and always reflect current children.
+    pub fn get_child_nodes_arc(&self) -> Arc<Mutex<Vec<JsObject>>> {
+        self.child_nodes.clone()
+    }
+
     pub fn add_child_node(&self, child: JsObject) {
         self.child_nodes.lock().unwrap().push(child);
     }
@@ -322,25 +329,51 @@ impl NodeData {
         }
     }
 
-    /// Set the text content, replacing all child nodes with a single text node
+    /// Set the text content for node types that store it in nodeValue.
+    /// For Element/DocumentFragment, use set_text_content_with_context instead.
     pub fn set_text_content(&self, content: Option<String>) {
         match self.node_type {
             NodeType::Text | NodeType::Comment | NodeType::ProcessingInstruction => {
                 self.set_node_value(content);
             }
             NodeType::DocumentFragment | NodeType::Element => {
-                // Remove all children and add a single text node if content is provided
+                // Clear all children - caller should use set_text_content_with_context
+                // to properly create a Text node child
                 self.child_nodes.lock().unwrap().clear();
-                if let Some(text) = content {
-                    if !text.is_empty() {
-                        // TODO: Create a proper text node here
-                        // For now, we'll store it in our text_content cache
-                        *self.text_content.lock().unwrap() = Some(text);
-                    }
-                }
+                *self.text_content.lock().unwrap() = content;
             }
             _ => {
                 // Document, DocumentType nodes: do nothing
+            }
+        }
+    }
+
+    /// Set text content with proper Text node creation.
+    /// This is used by the JavaScript textContent setter and creates a proper Text node child.
+    pub fn set_text_content_with_text_node(&self, text_node: Option<JsObject>) {
+        match self.node_type {
+            NodeType::DocumentFragment | NodeType::Element => {
+                // Clear all children
+                {
+                    let mut children = self.child_nodes.lock().unwrap();
+                    // Update parent references of old children
+                    for child_obj in children.iter() {
+                        if let Some(child_data) = child_obj.downcast_ref::<NodeData>() {
+                            child_data.set_parent_node(None);
+                        }
+                    }
+                    children.clear();
+                }
+                // Clear the text content cache
+                *self.text_content.lock().unwrap() = None;
+
+                // Add the text node as a child if provided
+                if let Some(text_obj) = text_node {
+                    self.add_child_node(text_obj);
+                }
+            }
+            _ => {
+                // Other node types don't create child text nodes
             }
         }
     }
@@ -623,6 +656,8 @@ impl NodeData {
     }
 
     fn get_child_nodes_accessor(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        use crate::dom::nodelist::NodeList;
+
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.childNodes called on non-object")
         })?;
@@ -632,16 +667,12 @@ impl NodeData {
                 .with_message("Node.childNodes called on non-Node object")
         })?;
 
-        // TODO: Return a proper live NodeList object
-        // For now, return an array-like object
-        let children = node.get_child_nodes();
-        let array = boa_engine::builtins::array::Array::array_create(children.len() as u64, None, context)?;
+        // Return a live NodeList that always reflects the current children
+        // Per DOM spec, Node.childNodes returns a live NodeList
+        let child_nodes_arc = node.get_child_nodes_arc();
+        let nodelist = NodeList::create_live_child_nodes(child_nodes_arc, context)?;
 
-        for (i, child) in children.iter().enumerate() {
-            array.set(i, child.clone(), false, context)?;
-        }
-
-        Ok(array.into())
+        Ok(nodelist.into())
     }
 
     fn get_first_child_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -792,12 +823,48 @@ impl NodeData {
         })?;
 
         let value = args.get_or_undefined(0);
-        let new_content = if value.is_null() {
-            None
-        } else {
-            Some(value.to_string(context)?.to_std_string_escaped())
-        };
-        node.set_text_content(new_content);
+
+        // Handle the different node types per DOM spec
+        match node.get_node_type() {
+            NodeType::Text | NodeType::Comment | NodeType::ProcessingInstruction => {
+                // For these node types, set the nodeValue directly
+                if value.is_null() {
+                    node.set_node_value(None);
+                } else {
+                    let content = value.to_string(context)?.to_std_string_escaped();
+                    node.set_node_value(Some(content));
+                }
+            }
+            NodeType::DocumentFragment | NodeType::Element => {
+                // For Element and DocumentFragment:
+                // 1. Remove all child nodes
+                // 2. If new value is not null/empty, create a Text node and append it
+                if value.is_null() {
+                    node.set_text_content_with_text_node(None);
+                } else {
+                    let content = value.to_string(context)?.to_std_string_escaped();
+                    if content.is_empty() {
+                        // Empty string means no text node child
+                        node.set_text_content_with_text_node(None);
+                    } else {
+                        // Create a proper Text node
+                        let text_data = TextData::new(content);
+                        let text_obj = JsObject::from_proto_and_data_with_shared_shape(
+                            context.root_shape(),
+                            context.intrinsics().constructors().text().prototype(),
+                            text_data,
+                        );
+                        // Upcast to untyped JsObject and set as child
+                        let text_obj_untyped = text_obj.upcast();
+                        node.set_text_content_with_text_node(Some(text_obj_untyped));
+                    }
+                }
+            }
+            _ => {
+                // Document, DocumentType nodes: setting textContent has no effect
+            }
+        }
+
         Ok(JsValue::undefined())
     }
 }
@@ -1505,7 +1572,28 @@ impl NodeData {
 
     /// Look up a namespace URI for a specific (non-null) prefix.
     /// Walks up the DOM tree looking for xmlns:prefix declarations.
+    ///
+    /// Per XML Namespaces spec, the "xml" and "xmlns" prefixes are always bound
+    /// to their fixed namespace URIs, regardless of any declarations.
     fn lookup_prefix_namespace(node_obj: &JsObject, prefix: &str) -> JsResult<JsValue> {
+        // Per XML Namespaces spec: "xml" and "xmlns" prefixes are always bound
+        // to their predeclared namespace URIs. This is true for ANY node type.
+        // These are spec-mandated and cannot be overridden.
+        match prefix {
+            "xml" => {
+                // The "xml" prefix is always bound to http://www.w3.org/XML/1998/namespace
+                // per XML Namespaces 1.0: https://www.w3.org/TR/xml-names/#ns-decl
+                return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into());
+            }
+            "xmlns" => {
+                // The "xmlns" prefix is always bound to http://www.w3.org/2000/xmlns/
+                // per Namespaces in XML: https://www.w3.org/TR/xml-names/#ns-decl
+                return Ok(js_string!("http://www.w3.org/2000/xmlns/").into());
+            }
+            _ => {}
+        }
+
+        // Walk the DOM tree looking for namespace declarations
         let mut current = Some(node_obj.clone());
 
         while let Some(current_obj) = current {
@@ -1514,20 +1602,6 @@ impl NodeData {
 
                 match node_type {
                     NodeType::Element => {
-                        // Check for well-known prefixes that have fixed namespace URIs
-                        // These are defined by the XML/HTML specs and never change
-                        match prefix {
-                            "xml" => {
-                                // The "xml" prefix is always bound to this namespace
-                                return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into());
-                            }
-                            "xmlns" => {
-                                // The "xmlns" prefix is always bound to this namespace
-                                return Ok(js_string!("http://www.w3.org/2000/xmlns/").into());
-                            }
-                            _ => {}
-                        }
-
                         // Check for common HTML/SVG/MathML namespace prefixes
                         // In a full implementation, we'd check actual xmlns:prefix attributes on elements
                         // For now, recognize the commonly used prefixes
@@ -1562,12 +1636,8 @@ impl NodeData {
                         current = current_node.get_parent_node();
                     }
                     NodeType::Document => {
-                        // Document node reached - check for well-known prefixes only
-                        match prefix {
-                            "xml" => return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into()),
-                            "xmlns" => return Ok(js_string!("http://www.w3.org/2000/xmlns/").into()),
-                            _ => return Ok(JsValue::null()),
-                        }
+                        // Document node reached - no more ancestors to check
+                        return Ok(JsValue::null());
                     }
                     _ => {
                         // For other node types, walk up to parent
