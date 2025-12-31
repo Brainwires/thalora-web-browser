@@ -1464,6 +1464,9 @@ impl NodeData {
 
     /// `Node.prototype.lookupNamespaceURI(prefix)`
     /// Returns the namespace URI associated with a given prefix.
+    ///
+    /// Per DOM spec: https://dom.spec.whatwg.org/#dom-node-lookupnamespaceuri
+    /// When prefix is null/empty, returns the default namespace (same as isDefaultNamespace checks)
     fn lookup_namespace_uri(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.lookupNamespaceURI called on non-object")
@@ -1481,58 +1484,118 @@ impl NodeData {
             }
         };
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        // Validate that this is a Node object
+        let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.lookupNamespaceURI called on non-Node object")
         })?;
 
-        // Walk up the tree looking for namespace declarations
-        let mut current = Some(this_obj.clone());
+        // For null/empty prefix, use the shared default namespace lookup
+        if prefix.is_none() {
+            let default_ns = Self::locate_default_namespace(&this_obj)?;
+            return match default_ns {
+                Some(ns) => Ok(js_string!(ns).into()),
+                None => Ok(JsValue::null()),
+            };
+        }
+
+        // For non-null prefix, look up the namespace declaration
+        Self::lookup_prefix_namespace(&this_obj, prefix.as_deref().unwrap())
+    }
+
+    /// Look up a namespace URI for a specific (non-null) prefix.
+    /// Walks up the DOM tree looking for xmlns:prefix declarations.
+    fn lookup_prefix_namespace(node_obj: &JsObject, prefix: &str) -> JsResult<JsValue> {
+        let mut current = Some(node_obj.clone());
+
         while let Some(current_obj) = current {
             if let Some(current_node) = current_obj.downcast_ref::<NodeData>() {
-                if current_node.get_node_type() == NodeType::Element {
-                    // Check for well-known prefixes
-                    match prefix.as_deref() {
-                        None => {
-                            // Default namespace - for HTML elements, return XHTML namespace
-                            return Ok(js_string!("http://www.w3.org/1999/xhtml").into());
+                let node_type = current_node.get_node_type();
+
+                match node_type {
+                    NodeType::Element => {
+                        // Check for well-known prefixes that have fixed namespace URIs
+                        // These are defined by the XML/HTML specs and never change
+                        match prefix {
+                            "xml" => {
+                                // The "xml" prefix is always bound to this namespace
+                                return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into());
+                            }
+                            "xmlns" => {
+                                // The "xmlns" prefix is always bound to this namespace
+                                return Ok(js_string!("http://www.w3.org/2000/xmlns/").into());
+                            }
+                            _ => {}
                         }
-                        Some("svg") => {
-                            return Ok(js_string!("http://www.w3.org/2000/svg").into());
+
+                        // Check for common HTML/SVG/MathML namespace prefixes
+                        // In a full implementation, we'd check actual xmlns:prefix attributes on elements
+                        // For now, recognize the commonly used prefixes
+
+                        // Check if the element itself uses this prefix in its name
+                        let node_name = current_node.get_node_name();
+                        if let Some((element_prefix, _)) = node_name.split_once(':') {
+                            if element_prefix == prefix {
+                                // The element uses this prefix - return its namespace
+                                // In a full implementation, this would come from the element's namespaceURI
+                                // For now, infer from common prefixes
+                                match prefix {
+                                    "svg" => return Ok(js_string!("http://www.w3.org/2000/svg").into()),
+                                    "math" => return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into()),
+                                    "xlink" => return Ok(js_string!("http://www.w3.org/1999/xlink").into()),
+                                    "xhtml" => return Ok(js_string!("http://www.w3.org/1999/xhtml").into()),
+                                    _ => {}
+                                }
+                            }
                         }
-                        Some("math") => {
-                            return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into());
+
+                        // Common namespace prefixes - these are conventions but browsers recognize them
+                        match prefix {
+                            "svg" => return Ok(js_string!("http://www.w3.org/2000/svg").into()),
+                            "math" => return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into()),
+                            "xlink" => return Ok(js_string!("http://www.w3.org/1999/xlink").into()),
+                            "xhtml" => return Ok(js_string!("http://www.w3.org/1999/xhtml").into()),
+                            _ => {}
                         }
-                        Some("xlink") => {
-                            return Ok(js_string!("http://www.w3.org/1999/xlink").into());
+
+                        // Continue up the tree
+                        current = current_node.get_parent_node();
+                    }
+                    NodeType::Document => {
+                        // Document node reached - check for well-known prefixes only
+                        match prefix {
+                            "xml" => return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into()),
+                            "xmlns" => return Ok(js_string!("http://www.w3.org/2000/xmlns/").into()),
+                            _ => return Ok(JsValue::null()),
                         }
-                        Some("xml") => {
-                            return Ok(js_string!("http://www.w3.org/XML/1998/namespace").into());
-                        }
-                        Some("xmlns") => {
-                            return Ok(js_string!("http://www.w3.org/2000/xmlns/").into());
-                        }
-                        _ => {}
+                    }
+                    _ => {
+                        // For other node types, walk up to parent
+                        current = current_node.get_parent_node();
                     }
                 }
-                current = current_node.get_parent_node();
             } else {
                 break;
             }
         }
 
+        // Prefix not found in any ancestor
         Ok(JsValue::null())
     }
 
-    /// `Node.prototype.isDefaultNamespace(namespace)`
-    /// Returns true if the specified namespace is the default namespace for this node.
+    /// `Node.prototype.isDefaultNamespace(namespaceURI)`
+    /// Returns true if namespaceURI is the default namespace on the given node.
+    ///
+    /// Per DOM spec: https://dom.spec.whatwg.org/#dom-node-isdefaultnamespace
+    /// This is equivalent to: node.lookupNamespaceURI(null) === namespaceURI
     fn is_default_namespace(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.isDefaultNamespace called on non-object")
         })?;
 
+        // Get the namespace argument - null and empty string are equivalent per spec
         let namespace_arg = args.get_or_undefined(0);
-        let namespace = if namespace_arg.is_null() || namespace_arg.is_undefined() {
+        let namespace: Option<String> = if namespace_arg.is_null() || namespace_arg.is_undefined() {
             None
         } else {
             let ns = namespace_arg.to_string(context)?.to_std_string_escaped();
@@ -1543,19 +1606,115 @@ impl NodeData {
             }
         };
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        // Validate that this is a Node object
+        let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.isDefaultNamespace called on non-Node object")
         })?;
 
-        // Get the default namespace for this node
-        // For HTML documents, the default namespace is http://www.w3.org/1999/xhtml
-        let default_ns = "http://www.w3.org/1999/xhtml";
+        // Per DOM spec, isDefaultNamespace returns true if:
+        // lookupNamespaceURI(null) === namespaceURI
+        //
+        // We implement the same algorithm as lookupNamespaceURI(null) here:
+        // 1. Walk up to find the first Element ancestor (or self if Element)
+        // 2. Look for the default namespace declaration (xmlns attribute or inherited)
+        // 3. For HTML documents, Elements default to the XHTML namespace
 
-        match namespace {
-            None => Ok(JsValue::from(default_ns.is_empty())),
-            Some(ns) => Ok(JsValue::from(ns == default_ns)),
+        let default_namespace = Self::locate_default_namespace(&this_obj)?;
+
+        // Compare: both null means equal, otherwise string comparison
+        let result = match (&namespace, &default_namespace) {
+            (None, None) => true,
+            (Some(ns), Some(default_ns)) => ns == default_ns,
+            _ => false,
+        };
+
+        Ok(JsValue::from(result))
+    }
+
+    /// Locate the default namespace for a node by walking up the tree.
+    /// This implements the core algorithm used by both lookupNamespaceURI(null)
+    /// and isDefaultNamespace.
+    fn locate_default_namespace(node_obj: &JsObject) -> JsResult<Option<String>> {
+        let mut current = Some(node_obj.clone());
+
+        while let Some(current_obj) = current {
+            if let Some(current_node) = current_obj.downcast_ref::<NodeData>() {
+                let node_type = current_node.get_node_type();
+
+                match node_type {
+                    NodeType::Element => {
+                        // For Element nodes, check for xmlns attribute (default namespace declaration)
+                        // In a full implementation with Element attributes, we would:
+                        // 1. Check if element has xmlns="..." attribute
+                        // 2. If so, return its value (or None if xmlns="")
+                        // 3. Otherwise, check the element's namespaceURI if it has no prefix
+                        //
+                        // For HTML elements (which is the common case for a headless browser),
+                        // the default namespace is the XHTML namespace when in an HTML document.
+                        //
+                        // Check if we're in a document context by checking ownerDocument or isConnected
+                        let is_connected = *current_node.is_connected.lock().unwrap();
+                        let has_document = current_node.owner_document.lock().unwrap().is_some();
+
+                        if is_connected || has_document {
+                            // In document context: HTML elements default to XHTML namespace
+                            return Ok(Some("http://www.w3.org/1999/xhtml".to_string()));
+                        }
+
+                        // Element not connected to document - check for xmlns attribute
+                        // For now, we don't have attribute storage on NodeData, so check common patterns
+                        // based on element name. A full implementation would check actual attributes.
+                        let node_name = current_node.get_node_name().to_uppercase();
+
+                        // SVG root element implies SVG namespace
+                        if node_name == "SVG" {
+                            return Ok(Some("http://www.w3.org/2000/svg".to_string()));
+                        }
+                        // MathML root element implies MathML namespace
+                        if node_name == "MATH" {
+                            return Ok(Some("http://www.w3.org/1998/Math/MathML".to_string()));
+                        }
+
+                        // For HTML-like elements (any element with uppercase name typically)
+                        // that are not connected, we still can infer HTML namespace
+                        // This matches browser behavior where HTML elements are implicitly in XHTML ns
+                        if node_name.chars().all(|c| c.is_ascii_alphabetic() || c == '-') {
+                            // Likely an HTML element - return XHTML namespace
+                            return Ok(Some("http://www.w3.org/1999/xhtml".to_string()));
+                        }
+
+                        // No default namespace found at this element, continue up
+                        current = current_node.get_parent_node();
+                    }
+                    NodeType::Document => {
+                        // Document nodes: the default namespace for an HTML document is XHTML
+                        return Ok(Some("http://www.w3.org/1999/xhtml".to_string()));
+                    }
+                    NodeType::DocumentType | NodeType::DocumentFragment => {
+                        // DocumentType and DocumentFragment don't have namespace
+                        return Ok(None);
+                    }
+                    NodeType::Attribute => {
+                        // Per spec: for Attr nodes, use the element (if any)
+                        // Attributes inherit from their owner element
+                        // Since we don't track owner element on attributes directly,
+                        // return None (attributes don't have a default namespace themselves)
+                        return Ok(None);
+                    }
+                    _ => {
+                        // For Text, Comment, CDATA, ProcessingInstruction:
+                        // Walk up to parent and check there
+                        current = current_node.get_parent_node();
+                    }
+                }
+            } else {
+                break;
+            }
         }
+
+        // No Element or Document found in the ancestor chain
+        Ok(None)
     }
 
     /// `Node.prototype.hasChildNodes()`
