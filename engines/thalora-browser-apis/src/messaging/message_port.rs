@@ -90,6 +90,13 @@ impl MessagePortData {
         *self.started.lock().unwrap()
     }
 
+    /// Gets a unique port ID based on the sender pointer
+    /// This is used for transferring ports across contexts
+    pub fn get_port_id(&self) -> usize {
+        // Use the Arc pointer address as a unique identifier
+        Arc::as_ptr(&self.sender) as usize
+    }
+
     /// Creates a MessagePort object from MessagePortData for use in JavaScript
     pub fn create_js_object(&self, context: &mut Context) -> JsResult<JsObject> {
         let proto = context.intrinsics().constructors().message_port().prototype();

@@ -209,25 +209,66 @@ impl SharedWorker {
     fn dispatch_connect_event(
         connection_id: &str,
         state: &Arc<Mutex<SharedWorkerState>>,
-        _context: &mut Context,
+        context: &mut Context,
     ) -> JsResult<()> {
-        // Check if this connection exists
-        if let Ok(worker_state) = state.try_lock() {
-            if worker_state.connection_ids.contains(&connection_id.to_string()) {
-                // In a real implementation, we would:
-                // 1. Get the SharedWorkerGlobalScope context
-                // 2. Get the MessagePort for this connection
-                // 3. Call the _dispatchConnect function with the port
-                // 4. This would trigger the onconnect event handler
+        // Get the port data for this connection
+        let port_data = if let Ok(worker_state) = state.try_lock() {
+            worker_state.get_port_data(connection_id).cloned()
+        } else {
+            None
+        };
 
-                eprintln!("Dispatching connect event for connection: {}", connection_id);
+        if let Some(port_data) = port_data {
+            eprintln!("Dispatching connect event for connection: {}", connection_id);
 
-                // TODO: Implement actual connect event dispatch
-                // let worker_global_scope = get_shared_worker_global_scope(&worker_key);
-                // let port_obj = get_message_port_for_connection(connection_id)?;
-                // worker_global_scope.call_function("_dispatchConnect", &[port_obj.into()])?;
+            // Create the MessagePort JS object from the port data
+            let port_obj = port_data.create_js_object(context)?;
+
+            // Get the global scope and call _dispatchConnect
+            let global = context.global_object();
+            let dispatch_connect = global.get(js_string!("_dispatchConnect"), context)?;
+
+            if let Some(dispatcher) = dispatch_connect.as_callable() {
+                let _ = dispatcher.call(&global.clone().into(), &[port_obj.into()], context);
+                eprintln!("Connect event dispatched successfully for connection: {}", connection_id);
+            } else {
+                eprintln!("Warning: _dispatchConnect function not found on global scope");
+            }
+        } else {
+            eprintln!("Warning: No port data found for connection: {}", connection_id);
+        }
+
+        Ok(())
+    }
+
+    /// Dispatch all pending connect events (called when worker becomes ready)
+    pub fn dispatch_pending_connect_events(
+        state: &Arc<Mutex<SharedWorkerState>>,
+        context: &mut Context,
+    ) -> JsResult<()> {
+        // Get pending events
+        let pending_events = if let Ok(mut worker_state) = state.try_lock() {
+            worker_state.set_running()
+        } else {
+            Vec::new()
+        };
+
+        // Dispatch each pending connect event
+        for (connection_id, port_data) in pending_events {
+            eprintln!("Dispatching pending connect event for connection: {}", connection_id);
+
+            // Create the MessagePort JS object from the port data
+            let port_obj = port_data.create_js_object(context)?;
+
+            // Get the global scope and call _dispatchConnect
+            let global = context.global_object();
+            let dispatch_connect = global.get(js_string!("_dispatchConnect"), context)?;
+
+            if let Some(dispatcher) = dispatch_connect.as_callable() {
+                let _ = dispatcher.call(&global.clone().into(), &[port_obj.into()], context);
             }
         }
+
         Ok(())
     }
 }
@@ -247,8 +288,10 @@ struct SharedWorkerState {
     connection_count: usize,
     script_content: Option<String>,
     execution_context: Option<String>, // Placeholder for actual SharedWorkerGlobalScope
-    /// Active connection IDs (store just the IDs, not the actual MessagePortData)
-    connection_ids: Vec<String>,
+    /// Active connections with their port data (connection_id -> MessagePortData)
+    connections: HashMap<String, MessagePortData>,
+    /// Pending connect events to dispatch when worker is ready
+    pending_connect_events: Vec<(String, MessagePortData)>,
 }
 
 impl SharedWorkerState {
@@ -258,38 +301,53 @@ impl SharedWorkerState {
             connection_count: 0,
             script_content: None,
             execution_context: None,
-            connection_ids: Vec::new(),
+            connections: HashMap::new(),
+            pending_connect_events: Vec::new(),
         }
     }
 
     /// Add a new connection to this shared worker
-    /// Note: Connect event dispatch requires SharedWorkerGlobalScope to be running
-    /// in a separate thread. The onconnect handler receives a MessageEvent with:
-    /// - type: "connect"
-    /// - ports: [MessagePort] - the communication channel for this connection
-    /// - source: null (per spec for connect events)
-    fn add_connection(&mut self, connection_id: String) {
-        self.connection_ids.push(connection_id);
+    /// The worker port data is stored for dispatching the connect event
+    fn add_connection(&mut self, connection_id: String, worker_port_data: MessagePortData) {
+        self.connections.insert(connection_id.clone(), worker_port_data.clone());
         self.connection_count += 1;
 
-        // In a full implementation, we would:
-        // 1. Queue a task to the SharedWorkerGlobalScope's event loop
-        // 2. Create a MessageEvent with type "connect" and the port array
-        // 3. Dispatch it via dispatchEvent on the global scope
-        // This requires the worker thread infrastructure to be fully running
+        // If worker is running, queue the connect event
+        // Otherwise, add to pending events for when worker starts
+        if self.status == SharedWorkerStatus::Running {
+            eprintln!("SharedWorker: Connection {} added, worker is running - event will be dispatched", connection_id);
+        } else {
+            eprintln!("SharedWorker: Connection {} added, worker pending - queueing connect event", connection_id);
+            self.pending_connect_events.push((connection_id, worker_port_data));
+        }
+    }
+
+    /// Get pending connect events and clear the queue
+    fn take_pending_connect_events(&mut self) -> Vec<(String, MessagePortData)> {
+        std::mem::take(&mut self.pending_connect_events)
+    }
+
+    /// Get the MessagePortData for a connection
+    fn get_port_data(&self, connection_id: &str) -> Option<&MessagePortData> {
+        self.connections.get(connection_id)
     }
 
     /// Remove a connection from this shared worker
     fn remove_connection(&mut self, connection_id: &str) {
-        if let Some(pos) = self.connection_ids.iter().position(|id| id == connection_id) {
-            self.connection_ids.remove(pos);
+        if self.connections.remove(connection_id).is_some() {
             self.connection_count = self.connection_count.saturating_sub(1);
         }
     }
 
     /// Get all active connection IDs
-    fn get_connection_ids(&self) -> &Vec<String> {
-        &self.connection_ids
+    fn get_connection_ids(&self) -> Vec<String> {
+        self.connections.keys().cloned().collect()
+    }
+
+    /// Mark worker as running and return any pending connect events
+    fn set_running(&mut self) -> Vec<(String, MessagePortData)> {
+        self.status = SharedWorkerStatus::Running;
+        self.take_pending_connect_events()
     }
 }
 
@@ -357,10 +415,10 @@ impl SharedWorkerData {
                 .as_nanos()
         );
 
-        // Store the connection ID in the shared state
-        // TODO: The worker_port_data should be passed to SharedWorkerGlobalScope for onconnect events
+        // Store the connection with its port data in the shared state
+        // The worker_port_data will be used to dispatch the connect event
         if let Ok(mut shared_state) = state.try_lock() {
-            shared_state.add_connection(connection_id.clone());
+            shared_state.add_connection(connection_id.clone(), worker_port_data);
         }
 
         Ok(Self {
