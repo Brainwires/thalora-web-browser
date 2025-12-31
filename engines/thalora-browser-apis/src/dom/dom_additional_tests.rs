@@ -317,3 +317,96 @@ fn test_text_property_descriptor() {
     "#)).unwrap();
     assert_eq!(result.to_boolean(), true);
 }
+
+// ============================================================================
+// Text Node Slot Assignment Tests
+// ============================================================================
+
+#[test]
+fn test_text_assigned_slot_property_exists() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = new Text('hello');
+        'assignedSlot' in text;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_text_assigned_slot_initial_value() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let text = new Text('hello');
+        // Initially, text node is not assigned to any slot
+        text.assignedSlot === null;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_text_assigned_slot_accessor_is_getter() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let desc = Object.getOwnPropertyDescriptor(Text.prototype, 'assignedSlot');
+        desc !== undefined && typeof desc.get === 'function' && desc.set === undefined;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// Range.createContextualFragment Tests
+// ============================================================================
+
+#[test]
+fn test_range_create_contextual_fragment_method_exists() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let range = new Range();
+        typeof range.createContextualFragment === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_range_create_contextual_fragment_returns_document_fragment() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let range = new Range();
+        let frag = range.createContextualFragment('<div>test</div>');
+        frag instanceof DocumentFragment;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_range_create_contextual_fragment_returns_node() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let range = new Range();
+        let frag = range.createContextualFragment('<span>content</span>');
+        frag instanceof Node;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_range_create_contextual_fragment_with_empty_string() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let range = new Range();
+        let frag = range.createContextualFragment('');
+        frag !== null && frag instanceof DocumentFragment;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_range_create_contextual_fragment_with_text() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let range = new Range();
+        let frag = range.createContextualFragment('plain text');
+        frag instanceof DocumentFragment;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}

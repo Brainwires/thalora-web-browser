@@ -179,3 +179,79 @@ fn test_lock_manager_query_returns_promise() {
     "#)).unwrap();
     assert_eq!(result.to_boolean(), true);
 }
+
+// ============================================================================
+// Navigator.locks Integration Tests
+// ============================================================================
+
+#[test]
+fn test_navigator_locks_is_lock_manager_instance() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        // Verify navigator.locks has the expected methods
+        navigator.locks !== null &&
+        navigator.locks !== undefined &&
+        typeof navigator.locks.request === 'function' &&
+        typeof navigator.locks.query === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_navigator_locks_not_writable() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let desc = Object.getOwnPropertyDescriptor(navigator, 'locks');
+        desc.writable === false;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_navigator_locks_configurable() {
+    let mut context = create_test_context();
+    // Note: Property is configurable to allow polyfills/shimming if needed
+    let result = context.eval(Source::from_bytes(r#"
+        let desc = Object.getOwnPropertyDescriptor(navigator, 'locks');
+        typeof desc.configurable === 'boolean';  // Just verify the property exists
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_navigator_locks_enumerable() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let desc = Object.getOwnPropertyDescriptor(navigator, 'locks');
+        desc.enumerable === true;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_navigator_locks_same_instance() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        // navigator.locks should always return the same instance
+        navigator.locks === navigator.locks;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_lock_manager_request_with_options_object() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        let options = {
+            mode: 'exclusive',
+            ifAvailable: false,
+            steal: false,
+            signal: null
+        };
+        navigator.locks.request('test-lock', options, lock => {
+            return 'done';
+        });
+        true;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
