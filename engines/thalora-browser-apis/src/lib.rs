@@ -102,6 +102,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     events::ui_events::InputEvent::init(&realm);
     events::custom_event::CustomEvent::init(&realm);
     events::error_event::ErrorEvent::init(&realm);
+    events::progress_event::ProgressEvent::init(&realm);
+    events::hash_change_event::HashChangeEvent::init(&realm);
+    events::pop_state_event::PopStateEvent::init(&realm);
+    events::close_event::CloseEvent::init(&realm);
     events::message_event::MessageEvent::init(&realm);
     events::abort_signal::AbortSignal::init(&realm);
 
@@ -317,6 +321,98 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // UI Event APIs
+    global_object.define_property_or_throw(
+        events::ui_events::UIEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::ui_events::UIEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::ui_events::MouseEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::ui_events::MouseEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::ui_events::KeyboardEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::ui_events::KeyboardEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::ui_events::FocusEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::ui_events::FocusEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::ui_events::InputEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::ui_events::InputEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Progress/Navigation Events
+    global_object.define_property_or_throw(
+        events::progress_event::ProgressEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::progress_event::ProgressEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::hash_change_event::HashChangeEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::hash_change_event::HashChangeEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::pop_state_event::PopStateEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::pop_state_event::PopStateEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::close_event::CloseEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::close_event::CloseEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // Fetch APIs
     global_object.define_property_or_throw(
         js_string!("fetch"),
@@ -436,6 +532,28 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         observers::resize_observer::ResizeObserver::NAME,
         PropertyDescriptor::builder()
             .value(observers::resize_observer::ResizeObserver::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // IntersectionObserverEntry constructor
+    global_object.define_property_or_throw(
+        observers::intersection_observer::IntersectionObserverEntry::NAME,
+        PropertyDescriptor::builder()
+            .value(observers::intersection_observer::IntersectionObserverEntry::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // MutationRecord constructor
+    global_object.define_property_or_throw(
+        observers::mutation_observer::MutationRecord::NAME,
+        PropertyDescriptor::builder()
+            .value(observers::mutation_observer::MutationRecord::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -707,6 +825,50 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         dom::range::Range::NAME,
         PropertyDescriptor::builder()
             .value(dom::range::Range::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // NamedNodeMap constructor
+    global_object.define_property_or_throw(
+        dom::namednodemap::NamedNodeMap::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::namednodemap::NamedNodeMap::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // TreeWalker constructor
+    global_object.define_property_or_throw(
+        dom::treewalker::TreeWalker::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::treewalker::TreeWalker::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // NodeIterator constructor
+    global_object.define_property_or_throw(
+        dom::nodeiterator::NodeIterator::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::nodeiterator::NodeIterator::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Selection constructor
+    global_object.define_property_or_throw(
+        dom::selection::Selection::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::selection::Selection::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1036,6 +1198,72 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         storage::indexed_db::key_range::IDBKeyRange::NAME,
         PropertyDescriptor::builder()
             .value(storage::indexed_db::key_range::IDBKeyRange::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBDatabase constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::database::IDBDatabase::NAME,
+        PropertyDescriptor::builder()
+            .value(storage::indexed_db::database::IDBDatabase::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBTransaction constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::transaction::IDBTransaction::NAME,
+        PropertyDescriptor::builder()
+            .value(storage::indexed_db::transaction::IDBTransaction::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBObjectStore constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::object_store::IDBObjectStore::NAME,
+        PropertyDescriptor::builder()
+            .value(<storage::indexed_db::object_store::IDBObjectStore as IntrinsicObject>::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBCursor constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::cursor::IDBCursor::NAME,
+        PropertyDescriptor::builder()
+            .value(storage::indexed_db::cursor::IDBCursor::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBIndex constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::index::IDBIndex::NAME,
+        PropertyDescriptor::builder()
+            .value(<storage::indexed_db::index::IDBIndex as IntrinsicObject>::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register IDBRequest constructor
+    global_object.define_property_or_throw(
+        storage::indexed_db::request::IDBRequest::NAME,
+        PropertyDescriptor::builder()
+            .value(storage::indexed_db::request::IDBRequest::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),

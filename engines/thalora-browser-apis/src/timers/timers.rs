@@ -73,6 +73,33 @@ impl Timers {
                 NativeFunction::from_fn_ptr(Self::clear_interval),
             )
             .expect("Failed to register clearInterval");
+
+        // requestAnimationFrame
+        context
+            .register_global_builtin_callable(
+                js_string!("requestAnimationFrame"),
+                1,
+                NativeFunction::from_fn_ptr(Self::request_animation_frame),
+            )
+            .expect("Failed to register requestAnimationFrame");
+
+        // cancelAnimationFrame
+        context
+            .register_global_builtin_callable(
+                js_string!("cancelAnimationFrame"),
+                1,
+                NativeFunction::from_fn_ptr(Self::cancel_animation_frame),
+            )
+            .expect("Failed to register cancelAnimationFrame");
+
+        // queueMicrotask
+        context
+            .register_global_builtin_callable(
+                js_string!("queueMicrotask"),
+                1,
+                NativeFunction::from_fn_ptr(Self::queue_microtask),
+            )
+            .expect("Failed to register queueMicrotask");
     }
 
     /// setTimeout(callback, delay, ...args)
@@ -93,6 +120,64 @@ impl Timers {
     /// clearInterval(id)
     fn clear_interval(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         Self::clear_timer(args, context)
+    }
+
+    /// requestAnimationFrame(callback)
+    /// In a headless environment, we simulate ~60fps (16ms delay)
+    fn request_animation_frame(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        // requestAnimationFrame is essentially setTimeout with ~16ms delay
+        // In headless mode, we just schedule it like a timer
+        if args.is_empty() {
+            return Ok(JsValue::from(0));
+        }
+
+        // Generate timer ID
+        let timer_id = {
+            let mut next_id = NEXT_TIMER_ID.lock().unwrap();
+            let id = *next_id;
+            *next_id += 1;
+            id
+        };
+
+        // Store timer info (16ms delay to simulate ~60fps)
+        let timer_info = TimerInfo {
+            id: timer_id,
+            created_at: Instant::now(),
+            delay: 16, // ~60fps
+            repeating: false,
+            active: true,
+        };
+
+        {
+            let mut timers = TIMERS.lock().unwrap();
+            timers.insert(timer_id, timer_info);
+        }
+
+        Ok(JsValue::from(timer_id))
+    }
+
+    /// cancelAnimationFrame(id)
+    fn cancel_animation_frame(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        Self::clear_timer(args, context)
+    }
+
+    /// queueMicrotask(callback)
+    /// Queues a microtask to be executed
+    fn queue_microtask(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        // In a headless environment without an event loop, we execute immediately
+        // This is a simplified implementation - a full implementation would queue for next microtask checkpoint
+        if args.is_empty() {
+            return Ok(JsValue::undefined());
+        }
+
+        let callback = args.get_or_undefined(0);
+        if let Some(callable) = callback.as_callable() {
+            // Execute the callback immediately (simplified behavior)
+            // A full implementation would queue this for the microtask checkpoint
+            let _ = callable.call(&JsValue::undefined(), &[], context);
+        }
+
+        Ok(JsValue::undefined())
     }
 
     /// Schedule a timer (setTimeout or setInterval)
