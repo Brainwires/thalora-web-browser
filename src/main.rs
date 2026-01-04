@@ -5,6 +5,8 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::panic;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 // Core modules organized by functionality
 pub mod engine;
@@ -18,6 +20,19 @@ pub mod gui;
 
 use protocols::mcp_server::McpServer;
 use engine::{EngineType, EngineFactory, EngineConfig};
+
+/// Global flag to signal shutdown
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// Check if shutdown was requested
+pub fn is_shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+}
+
+/// Request shutdown
+pub fn request_shutdown() {
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+}
 
 /// Install a custom panic hook that logs panics to stderr instead of crashing
 /// This helps prevent "broken pipe" errors when panics occur in async tasks
@@ -129,15 +144,15 @@ async fn main() -> Result<()> {
 
     // Create engine configuration
     let engine_config = EngineConfig::new(use_v8)?;
-    
+
     // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
             .init();
-        
+
         tracing::info!("Using {} JavaScript engine", engine_config.engine_type);
-        
+
         // Display available engines for info
         let available = EngineFactory::available_engines();
         let available_names: Vec<String> = available.iter().map(|e| e.to_string()).collect();
@@ -149,10 +164,19 @@ async fn main() -> Result<()> {
             .init();
     }
 
+    // Set up signal handling for graceful shutdown
+    let shutdown_signal = setup_signal_handler();
+
     match cli.command {
         Some(Commands::Session { session_id, socket_path, persistent }) => {
-            // Run as browser session process
-            run_browser_session(session_id, socket_path, persistent, engine_config).await
+            // Run as browser session process with signal handling
+            tokio::select! {
+                result = run_browser_session(session_id, socket_path, persistent, engine_config) => result,
+                _ = shutdown_signal => {
+                    eprintln!("🛑 Session received shutdown signal");
+                    Ok(())
+                }
+            }
         }
         Some(Commands::Browser { url, width, height, fullscreen, debug }) => {
             // Run as graphical web browser
@@ -169,7 +193,18 @@ async fn main() -> Result<()> {
             eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
 
             let mut server = McpServer::new_with_engine(engine_config);
-            server.run().await
+
+            // Run server with signal handling
+            tokio::select! {
+                result = server.run() => result,
+                _ = shutdown_signal => {
+                    eprintln!("🛑 MCP Server received shutdown signal, cleaning up...");
+                    request_shutdown();
+                    server.cleanup().await;
+                    eprintln!("✅ MCP Server shutdown complete");
+                    Ok(())
+                }
+            }
         }
         None => {
             // Run as MCP server (default mode)
@@ -178,8 +213,55 @@ async fn main() -> Result<()> {
             eprintln!("🚀 Starting Thalora MCP Server in 'minimal' mode");
 
             let mut server = McpServer::new_with_engine(engine_config);
-            server.run().await
+
+            // Run server with signal handling
+            tokio::select! {
+                result = server.run() => result,
+                _ = shutdown_signal => {
+                    eprintln!("🛑 MCP Server received shutdown signal, cleaning up...");
+                    request_shutdown();
+                    server.cleanup().await;
+                    eprintln!("✅ MCP Server shutdown complete");
+                    Ok(())
+                }
+            }
         }
+    }
+}
+
+/// Set up signal handlers for graceful shutdown
+async fn setup_signal_handler() {
+    use tokio::signal;
+
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let mut sigterm = signal(SignalKind::terminate())
+            .expect("Failed to set up SIGTERM handler");
+        let mut sigint = signal(SignalKind::interrupt())
+            .expect("Failed to set up SIGINT handler");
+        let mut sighup = signal(SignalKind::hangup())
+            .expect("Failed to set up SIGHUP handler");
+
+        tokio::select! {
+            _ = sigterm.recv() => {
+                eprintln!("📡 Received SIGTERM");
+            }
+            _ = sigint.recv() => {
+                eprintln!("📡 Received SIGINT");
+            }
+            _ = sighup.recv() => {
+                eprintln!("📡 Received SIGHUP");
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On non-Unix systems, just wait for Ctrl+C
+        signal::ctrl_c().await.expect("Failed to set up Ctrl+C handler");
+        eprintln!("📡 Received Ctrl+C");
     }
 }
 
