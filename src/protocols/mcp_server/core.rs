@@ -162,17 +162,40 @@ impl McpServer {
         let mut reader = AsyncBufReader::new(stdin);
         let mut stdout = tokio::io::stdout();
 
-        trace!("MCP Server starting stdio loop");
+        // Configure idle timeout - if no input received for this duration, exit gracefully
+        // Default: 5 minutes, can be overridden with THALORA_IDLE_TIMEOUT_SECS env var
+        let idle_timeout_secs = std::env::var("THALORA_IDLE_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(300); // 5 minutes default
+
+        let idle_timeout = std::time::Duration::from_secs(idle_timeout_secs);
+
+        trace!("MCP Server starting stdio loop (idle timeout: {}s)", idle_timeout_secs);
 
         loop {
             trace!("Waiting for input...");
             let mut line = String::new();
-            match reader.read_line(&mut line).await {
-                Ok(0) => {
+
+            // Use timeout on the read operation to prevent hanging forever
+            let read_result = tokio::time::timeout(idle_timeout, reader.read_line(&mut line)).await;
+
+            match read_result {
+                Ok(Ok(0)) => {
                     trace!("EOF received, shutting down");
                     break;
                 }
-                Ok(n) => {
+                Ok(Err(e)) => {
+                    error!("Failed to read from stdin: {}", e);
+                    break;
+                }
+                Err(_) => {
+                    // Timeout occurred - no input received for idle_timeout duration
+                    trace!("Idle timeout reached ({}s with no input), shutting down", idle_timeout_secs);
+                    eprintln!("⏱️ MCP Server idle timeout reached ({}s), shutting down gracefully", idle_timeout_secs);
+                    break;
+                }
+                Ok(Ok(n)) => {
                     trace!("Read {} bytes from stdin", n);
                     let line = line.trim();
                     if line.is_empty() {
@@ -256,10 +279,6 @@ impl McpServer {
                             }
                         }
                     }
-                }
-                Err(e) => {
-                    error!("Failed to read from stdin: {}", e);
-                    break;
                 }
             }
         }
