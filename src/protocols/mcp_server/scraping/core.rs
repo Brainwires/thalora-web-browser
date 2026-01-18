@@ -271,6 +271,9 @@ impl McpServer {
                 min_paragraph_count: 2,
             };
 
+            // Check if content is likely plain text/code (minimal HTML structure)
+            let is_plain_text_content = Self::is_plain_text_content(&html_content);
+
             match extractor.extract(&document, &options) {
                 Ok(extraction_result) => {
                     if extraction_result.success {
@@ -281,6 +284,14 @@ impl McpServer {
                             "quality": extraction_result.quality,
                             "processing_time_ms": extraction_result.processing_time_ms
                         });
+                    } else if is_plain_text_content {
+                        // Fallback: for plain text/code content, return raw text
+                        result["readable"] = serde_json::json!({
+                            "content": Self::extract_plain_text(&html_content),
+                            "format": "text",
+                            "is_plain_text_fallback": true,
+                            "note": "Content detected as plain text/code - HTML readability extraction not applicable"
+                        });
                     } else {
                         result["readable"] = serde_json::json!({
                             "error": extraction_result.error.unwrap_or("Extraction failed".to_string())
@@ -288,9 +299,19 @@ impl McpServer {
                     }
                 },
                 Err(e) => {
-                    result["readable"] = serde_json::json!({
-                        "error": format!("Readability extraction failed: {}", e)
-                    });
+                    if is_plain_text_content {
+                        // Fallback: for plain text/code content, return raw text
+                        result["readable"] = serde_json::json!({
+                            "content": Self::extract_plain_text(&html_content),
+                            "format": "text",
+                            "is_plain_text_fallback": true,
+                            "note": "Content detected as plain text/code - HTML readability extraction not applicable"
+                        });
+                    } else {
+                        result["readable"] = serde_json::json!({
+                            "error": format!("Readability extraction failed: {}", e)
+                        });
+                    }
                 }
             }
         }
@@ -352,5 +373,80 @@ impl McpServer {
             "text": serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
         });
         McpResponse::success(mcp_content)
+    }
+
+    /// Detect if content is likely plain text/code (minimal HTML structure)
+    ///
+    /// Returns true if:
+    /// - Content has very few HTML tags
+    /// - Content lacks typical HTML structure (html, body, div, p tags)
+    /// - Content appears to be source code or plain text
+    fn is_plain_text_content(content: &str) -> bool {
+        let content_trimmed = content.trim();
+
+        // If content starts with common code patterns, it's likely plain text
+        let code_indicators = [
+            "import ", "export ", "const ", "let ", "var ", "function ", "class ",
+            "use ", "mod ", "pub ", "fn ", "struct ", "impl ", "enum ",  // Rust
+            "#include", "#define", "int ", "void ", "char ",  // C/C++
+            "package ", "interface ",  // Go/Java
+            "def ", "from ", "class ",  // Python
+            "<?php", "<?=",  // PHP
+            "#!/", "#!", "---",  // Shell/YAML
+        ];
+
+        for indicator in &code_indicators {
+            if content_trimmed.starts_with(indicator) {
+                return true;
+            }
+        }
+
+        // Count HTML-specific tags
+        let html_tags = ["<html", "<body", "<div", "<p>", "<article", "<section",
+                         "<main", "<header", "<footer", "<nav", "<aside"];
+
+        let mut html_tag_count = 0;
+        for tag in &html_tags {
+            if content.to_lowercase().contains(tag) {
+                html_tag_count += 1;
+            }
+        }
+
+        // If we have very few HTML structural tags (0-1), likely plain text
+        // Also check the ratio of < characters to total content
+        let angle_bracket_count = content.matches('<').count();
+        let content_len = content.len();
+
+        // Plain text/code typically has < for comparisons, but not many
+        // HTML has lots of < for tags
+        let angle_bracket_ratio = if content_len > 0 {
+            angle_bracket_count as f32 / content_len as f32
+        } else {
+            0.0
+        };
+
+        // If less than 1 HTML tag per 500 chars on average, likely plain text
+        // Or if we found no structural HTML tags
+        html_tag_count == 0 && angle_bracket_ratio < 0.02
+    }
+
+    /// Extract plain text from content, handling both HTML and raw text
+    fn extract_plain_text(content: &str) -> String {
+        let content_trimmed = content.trim();
+
+        // If it looks like it might have some HTML, try to parse it
+        if content_trimmed.contains("</") || content_trimmed.contains("/>") {
+            let document = Html::parse_document(content);
+            let text = document.root_element().text().collect::<Vec<_>>().join("");
+            let cleaned = text.trim().to_string();
+
+            // If parsing resulted in meaningful content, use it
+            if !cleaned.is_empty() {
+                return cleaned;
+            }
+        }
+
+        // Otherwise return the raw content (it's already plain text)
+        content_trimmed.to_string()
     }
 }
