@@ -66,7 +66,7 @@ impl BrowserTools {
                     }
 
                     match browser_guard.click_element(selector).await {
-                        Ok(mut resp) => {
+                        Ok(resp) => {
                             // Add potential new window info to response
                             if let Some(new_window_info) = potential_new_window_info {
                                 let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
@@ -191,7 +191,7 @@ impl BrowserTools {
                     }
 
                     match browser_guard.submit_form(form_selector, form_map).await {
-                        Ok(mut resp) => {
+                        Ok(resp) => {
                             // Add potential new window info to response
                             let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
                             if let Some(new_window_info) = potential_new_window_info {

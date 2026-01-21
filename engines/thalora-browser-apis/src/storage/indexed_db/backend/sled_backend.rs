@@ -3,6 +3,11 @@
 //! Provides persistent storage for IndexedDB using the Sled embedded database.
 //! Data survives process restarts and is stored on disk.
 //!
+//! ## Security
+//!
+//! All stored values are encrypted at rest using AES-256-GCM with a key derived
+//! from the `THALORA_SESSION_SECRET` environment variable or an auto-generated secret.
+//!
 //! Sled is a high-performance embedded database that provides:
 //! - ACID transactions
 //! - Crash recovery
@@ -15,6 +20,123 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+
+// Encryption imports
+use aes_gcm::{
+    aead::{Aead, KeyInit, OsRng},
+    Aes256Gcm, Nonce,
+};
+use aes_gcm::aead::rand_core::RngCore;
+use sha2::{Sha256, Digest};
+
+/// Encryption module for IndexedDB storage
+mod encryption {
+    use super::*;
+
+    /// Get the path for the secret file.
+    fn get_secret_path() -> PathBuf {
+        #[cfg(feature = "native")]
+        {
+            if let Some(data_dir) = dirs::data_local_dir() {
+                return data_dir.join("thalora").join(".session_secret");
+            }
+        }
+        std::env::temp_dir().join(".thalora_session_secret")
+    }
+
+    /// Derive a 256-bit key for IndexedDB encryption.
+    fn derive_key() -> [u8; 32] {
+        let secret = std::env::var("THALORA_SESSION_SECRET")
+            .unwrap_or_else(|_| {
+                let secret_path = get_secret_path();
+
+                if let Ok(secret) = std::fs::read_to_string(&secret_path) {
+                    let secret = secret.trim().to_string();
+                    if secret.len() >= 32 {
+                        return secret;
+                    }
+                }
+
+                // Generate and save new secret
+                let mut bytes = [0u8; 32];
+                OsRng.fill_bytes(&mut bytes);
+                let new_secret: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+
+                if let Some(parent) = secret_path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .mode(0o600)
+                        .open(&secret_path)
+                    {
+                        use std::io::Write;
+                        let _ = file.write_all(new_secret.as_bytes());
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    let _ = std::fs::write(&secret_path, &new_secret);
+                }
+
+                new_secret
+            });
+
+        // Derive key with IndexedDB-specific salt
+        let mut hasher = Sha256::new();
+        hasher.update(secret.as_bytes());
+        hasher.update(b"indexeddb-encryption-salt");
+        let result = hasher.finalize();
+
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&result);
+        key
+    }
+
+    /// Encrypt value data using AES-256-GCM.
+    /// Returns: [12-byte nonce][ciphertext with auth tag]
+    pub fn encrypt_value(plaintext: &[u8]) -> Result<Vec<u8>, String> {
+        let key = derive_key();
+        let cipher = Aes256Gcm::new_from_slice(&key)
+            .map_err(|e| format!("Failed to create cipher: {}", e))?;
+
+        let mut nonce_bytes = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        let ciphertext = cipher.encrypt(nonce, plaintext)
+            .map_err(|e| format!("Encryption failed: {}", e))?;
+
+        let mut result = Vec::with_capacity(12 + ciphertext.len());
+        result.extend_from_slice(&nonce_bytes);
+        result.extend_from_slice(&ciphertext);
+
+        Ok(result)
+    }
+
+    /// Decrypt value data using AES-256-GCM.
+    /// Expects: [12-byte nonce][ciphertext with auth tag]
+    pub fn decrypt_value(encrypted: &[u8]) -> Result<Vec<u8>, String> {
+        if encrypted.len() < 12 {
+            return Err("Encrypted data too short".to_string());
+        }
+
+        let key = derive_key();
+        let cipher = Aes256Gcm::new_from_slice(&key)
+            .map_err(|e| format!("Failed to create cipher: {}", e))?;
+
+        let (nonce_bytes, ciphertext) = encrypted.split_at(12);
+        let nonce = Nonce::from_slice(nonce_bytes);
+
+        cipher.decrypt(nonce, ciphertext)
+            .map_err(|_| "Decryption failed: invalid key or corrupted data".to_string())
+    }
+}
 
 /// Sled-based persistent storage backend
 pub struct SledBackend {
@@ -339,7 +461,10 @@ impl StorageBackend for SledBackend {
             return Err("Key already exists".to_string());
         }
 
-        tree.insert(&key_bytes, value)
+        // Encrypt the value before storing
+        let encrypted_value = encryption::encrypt_value(value)?;
+
+        tree.insert(&key_bytes, encrypted_value)
             .map_err(|e| format!("Failed to insert: {}", e))?;
 
         Ok(key.clone())
@@ -349,7 +474,10 @@ impl StorageBackend for SledBackend {
         let tree = self.get_store_tree(db, store)?;
         let key_bytes = key.to_bytes();
 
-        tree.insert(&key_bytes, value)
+        // Encrypt the value before storing
+        let encrypted_value = encryption::encrypt_value(value)?;
+
+        tree.insert(&key_bytes, encrypted_value)
             .map_err(|e| format!("Failed to insert: {}", e))?;
 
         Ok(key.clone())
@@ -359,10 +487,14 @@ impl StorageBackend for SledBackend {
         let tree = self.get_store_tree(db, store)?;
         let key_bytes = key.to_bytes();
 
-        tree.get(&key_bytes)
-            .map_err(|e| format!("Failed to get: {}", e))?
-            .map(|ivec| Ok(ivec.to_vec()))
-            .transpose()
+        match tree.get(&key_bytes).map_err(|e| format!("Failed to get: {}", e))? {
+            Some(encrypted_value) => {
+                // Decrypt the value before returning
+                let decrypted = encryption::decrypt_value(&encrypted_value)?;
+                Ok(Some(decrypted))
+            }
+            None => Ok(None),
+        }
     }
 
     fn delete(&mut self, db: &str, store: &str, key: &IDBKey) -> Result<(), String> {
@@ -454,7 +586,10 @@ impl StorageBackend for SledBackend {
                     true
                 }
             })
-            .map(|(_, value)| value.to_vec())
+            // Decrypt each value
+            .filter_map(|(_, encrypted_value)| {
+                encryption::decrypt_value(&encrypted_value).ok()
+            })
             .collect();
 
         if let Some(limit) = count {
@@ -531,12 +666,17 @@ impl StorageBackend for SledBackend {
         if let Some(primary_key_bytes) = index_tree.get(&key_bytes)
             .map_err(|e| format!("Failed to get from index: {}", e))? {
 
-            // Get value from store using primary key
+            // Get encrypted value from store using primary key
             let store_tree = self.get_store_tree(db, store)?;
-            store_tree.get(&primary_key_bytes)
-                .map_err(|e| format!("Failed to get from store: {}", e))?
-                .map(|ivec| Ok(ivec.to_vec()))
-                .transpose()
+            match store_tree.get(&primary_key_bytes)
+                .map_err(|e| format!("Failed to get from store: {}", e))? {
+                Some(encrypted_value) => {
+                    // Decrypt the value before returning
+                    let decrypted = encryption::decrypt_value(&encrypted_value)?;
+                    Ok(Some(decrypted))
+                }
+                None => Ok(None),
+            }
         } else {
             Ok(None)
         }
@@ -596,10 +736,12 @@ impl StorageBackend for SledBackend {
                     }
                 }
 
-                // Get value from store
-                if let Some(value) = store_tree.get(&primary_key_bytes)
+                // Get encrypted value from store and decrypt
+                if let Some(encrypted_value) = store_tree.get(&primary_key_bytes)
                     .map_err(|e| format!("Failed to get from store: {}", e))? {
-                    results.push(value.to_vec());
+                    if let Ok(decrypted) = encryption::decrypt_value(&encrypted_value) {
+                        results.push(decrypted);
+                    }
                 }
             }
         }

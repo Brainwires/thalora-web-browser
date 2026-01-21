@@ -126,7 +126,7 @@ impl SessionManager {
             cmd.arg("--persistent");
         }
 
-        let mut child = cmd
+        let child = cmd
             .stdin(Stdio::null())
             .stdout(Stdio::piped()) // Capture output for debugging
             .stderr(Stdio::piped()) // Capture errors for debugging

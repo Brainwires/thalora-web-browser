@@ -2485,6 +2485,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dirs-next"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b98cf8ebf19c3d1b223e151f99a4f9f0690dca41414773390fc824184ac833e1"
+dependencies = [
+ "cfg-if",
+ "dirs-sys-next",
+]
+
+[[package]]
 name = "dirs-sys"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9485,6 +9495,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chacha20poly1305",
+ "dirs-next",
  "once_cell",
  "serde",
  "sha2",

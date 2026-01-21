@@ -1,3 +1,45 @@
+// ============================================================================
+// SECURITY WARNING: real_fs FEATURE
+// ============================================================================
+#[cfg(feature = "real_fs")]
+compile_error!(
+    "\n\n\
+    ============================================================================\n\
+    SECURITY ERROR: The 'real_fs' feature is enabled!\n\
+    ============================================================================\n\
+    \n\
+    This feature bypasses the VFS sandbox and grants FULL FILESYSTEM ACCESS.\n\
+    It is intended ONLY for testing and development purposes.\n\
+    \n\
+    DO NOT use this feature in production builds!\n\
+    \n\
+    If you truly need real filesystem access for testing:\n\
+    1. Acknowledge you understand the security implications\n\
+    2. Use the 'real_fs_acknowledged' feature instead\n\
+    3. Never ship builds with this feature enabled\n\
+    \n\
+    To proceed with real_fs for testing only:\n\
+    - Use --features real_fs_acknowledged instead of --features real_fs\n\
+    ============================================================================\n\n"
+);
+
+// When real_fs_acknowledged is enabled, print a warning at runtime on first use
+#[cfg(feature = "real_fs_acknowledged")]
+mod real_fs_warning {
+    use std::sync::Once;
+    static WARN_ONCE: Once = Once::new();
+
+    pub fn warn() {
+        WARN_ONCE.call_once(|| {
+            eprintln!(
+                "\n[SECURITY WARNING] VFS real_fs_acknowledged feature is enabled!\n\
+                 The VFS sandbox is BYPASSED. Full filesystem access is granted.\n\
+                 This should NEVER be used in production.\n"
+            );
+        });
+    }
+}
+
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 #[allow(dead_code)]
@@ -18,20 +60,129 @@ use chacha20poly1305::aead::rand_core::RngCore;
 use zeroize::Zeroizing;
 use sha2::{Sha256, Digest};
 
-/// Derive a 256-bit encryption key from a session ID and optional secret.
+/// Secret management for session encryption.
 ///
 /// # Security
-/// Uses SHA-256 to derive a key from:
-/// - THALORA_SESSION_SECRET environment variable (if set)
-/// - A hardcoded fallback secret (for development/testing only)
-/// - The session_id
 ///
-/// In production, THALORA_SESSION_SECRET should be set to a cryptographically
-/// random 32+ byte value.
+/// This module manages the session secret used for encrypting VFS data.
+/// The secret is obtained from (in order of priority):
+///
+/// 1. `THALORA_SESSION_SECRET` environment variable (recommended for production)
+/// 2. Auto-generated secret stored in a secure location (fallback)
+///
+/// The hardcoded fallback has been REMOVED for security reasons.
+mod secret {
+    use super::*;
+
+    /// Path to store the auto-generated secret
+    fn secret_file_path() -> PathBuf {
+        // Try to use a secure location
+        if let Some(data_dir) = dirs_next::data_local_dir() {
+            let thalora_dir = data_dir.join("thalora");
+            return thalora_dir.join(".session_secret");
+        }
+
+        // Fallback to temp directory (less secure but always available)
+        std::env::temp_dir().join(".thalora_session_secret")
+    }
+
+    /// Generate a cryptographically secure random secret
+    fn generate_secret() -> String {
+        let mut bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut bytes);
+        // Use hex encoding for readability and easy storage
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// Load or generate the session secret.
+    ///
+    /// # Security
+    ///
+    /// - In production, set THALORA_SESSION_SECRET environment variable
+    /// - If not set, generates a random secret and stores it on first use
+    /// - The stored secret is created with restricted permissions
+    pub fn get_session_secret() -> String {
+        // Priority 1: Environment variable
+        if let Ok(secret) = std::env::var("THALORA_SESSION_SECRET") {
+            if secret.len() >= 32 {
+                return secret;
+            }
+            // Secret too short, log warning and continue to fallback
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "[SECURITY WARNING] THALORA_SESSION_SECRET is too short ({} chars). \
+                 Minimum 32 characters required. Using auto-generated secret.",
+                secret.len()
+            );
+        }
+
+        // Priority 2: Stored secret file
+        let secret_path = secret_file_path();
+        if let Ok(secret) = stdfs::read_to_string(&secret_path) {
+            let secret = secret.trim().to_string();
+            if secret.len() >= 32 {
+                return secret;
+            }
+        }
+
+        // Priority 3: Generate new secret and store it
+        let new_secret = generate_secret();
+
+        // Try to create parent directory
+        if let Some(parent) = secret_path.parent() {
+            let _ = stdfs::create_dir_all(parent);
+        }
+
+        // Write the secret with restricted permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            if let Ok(mut file) = stdfs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600) // Owner read/write only
+                .open(&secret_path)
+            {
+                use std::io::Write;
+                let _ = file.write_all(new_secret.as_bytes());
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On Windows, just write the file
+            let _ = stdfs::write(&secret_path, &new_secret);
+        }
+
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "[SECURITY WARNING] Using auto-generated session secret. \
+             For production, set THALORA_SESSION_SECRET environment variable \
+             to a cryptographically random 32+ byte value."
+        );
+
+        new_secret
+    }
+}
+
+/// Derive a 256-bit encryption key from a session ID and the session secret.
+///
+/// # Security
+///
+/// Uses SHA-256 to derive a key from:
+/// - The session secret (from environment variable or auto-generated)
+/// - The session_id (for session-specific key derivation)
+///
+/// The session secret is obtained from:
+/// 1. THALORA_SESSION_SECRET environment variable (recommended for production)
+/// 2. Auto-generated and persisted secret (fallback)
+///
+/// **IMPORTANT**: In production deployments, always set THALORA_SESSION_SECRET
+/// to a cryptographically random 32+ byte value.
 pub fn derive_session_key(session_id: &str) -> Zeroizing<[u8; 32]> {
-    // Get secret from environment or use fallback
-    let secret = std::env::var("THALORA_SESSION_SECRET")
-        .unwrap_or_else(|_| "thalora-dev-session-secret-do-not-use-in-production".to_string());
+    // Get secret from secure source (no more hardcoded fallback!)
+    let secret = secret::get_session_secret();
 
     // Derive key using SHA-256(secret || session_id)
     let mut hasher = Sha256::new();
@@ -42,6 +193,97 @@ pub fn derive_session_key(session_id: &str) -> Zeroizing<[u8; 32]> {
     let mut key = Zeroizing::new([0u8; 32]);
     key.copy_from_slice(&result);
     key
+}
+
+/// Check if the session secret is properly configured.
+///
+/// Returns `true` if THALORA_SESSION_SECRET is set and has sufficient length.
+/// This can be used to warn users in production environments.
+pub fn is_session_secret_configured() -> bool {
+    std::env::var("THALORA_SESSION_SECRET")
+        .map(|s| s.len() >= 32)
+        .unwrap_or(false)
+}
+
+// =============================================================================
+// PATH SECURITY
+// =============================================================================
+
+/// Normalize a path by removing `.` and resolving `..` components.
+///
+/// # Security
+///
+/// This function prevents path traversal attacks by:
+/// - Removing `.` (current directory) components
+/// - Resolving `..` (parent directory) components without going above root
+/// - Rejecting paths with null bytes
+///
+/// This provides defense-in-depth for VFS operations.
+///
+/// # Returns
+///
+/// Returns `Some(normalized_path)` if the path is safe, `None` if the path
+/// is malicious (e.g., contains null bytes or attempts to escape root).
+pub fn normalize_path(path: &Path) -> Option<PathBuf> {
+    // Check for null bytes (path injection attack)
+    if path.to_string_lossy().contains('\0') {
+        return None;
+    }
+
+    let mut normalized = PathBuf::new();
+    let mut depth: i32 = 0;
+
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(c) => {
+                // Check for null bytes in component
+                if c.to_string_lossy().contains('\0') {
+                    return None;
+                }
+                normalized.push(c);
+                depth += 1;
+            }
+            std::path::Component::RootDir => {
+                normalized.push("/");
+            }
+            std::path::Component::CurDir => {
+                // Skip `.` - no effect on path
+            }
+            std::path::Component::ParentDir => {
+                // Only go up if we have depth to spare (prevent escaping root)
+                if depth > 0 {
+                    normalized.pop();
+                    depth -= 1;
+                }
+                // If depth is 0, silently ignore (can't go above root)
+            }
+            std::path::Component::Prefix(p) => {
+                normalized.push(p.as_os_str());
+            }
+        }
+    }
+
+    // Ensure we have at least root or the path isn't empty
+    if normalized.as_os_str().is_empty() {
+        normalized.push("/");
+    }
+
+    Some(normalized)
+}
+
+/// Validate and normalize a path, returning an error if the path is malicious.
+///
+/// # Security
+///
+/// This function should be called on all user-provided paths before using them
+/// in VFS operations.
+pub fn validate_path(path: &Path) -> io::Result<PathBuf> {
+    normalize_path(path).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid path: contains forbidden characters or traversal sequences",
+        )
+    })
 }
 
 #[cfg(not(feature = "real_fs"))]
@@ -219,18 +461,78 @@ pub fn get_current_vfs() -> Option<Arc<VfsInstance>> {
     cur.clone()
 }
 
-#[cfg(feature = "real_fs")]
+// real_fs feature intentionally causes compile error (see top of file)
+// real_fs_acknowledged is the acknowledged variant for testing
+#[cfg(feature = "real_fs_acknowledged")]
 pub mod fs {
     pub use std::fs::*;
     use std::path::Path;
 
+    /// Initialize the real_fs module (prints security warning)
+    fn init_warning() {
+        #[cfg(feature = "real_fs_acknowledged")]
+        super::real_fs_warning::warn();
+    }
+
     /// Check if a path exists (wrapper for Path::exists for API compatibility)
     pub fn exists<P: AsRef<Path>>(path: P) -> bool {
+        init_warning();
         path.as_ref().exists()
+    }
+
+    // Re-export with warning on first use
+    pub fn read_to_string<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
+        init_warning();
+        std::fs::read_to_string(path)
+    }
+
+    pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> std::io::Result<()> {
+        init_warning();
+        std::fs::write(path, contents)
+    }
+
+    pub fn read<P: AsRef<Path>>(path: P) -> std::io::Result<Vec<u8>> {
+        init_warning();
+        std::fs::read(path)
+    }
+
+    pub fn create_dir_all<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
+        init_warning();
+        std::fs::create_dir_all(path)
+    }
+
+    pub fn metadata<P: AsRef<Path>>(path: P) -> std::io::Result<std::fs::Metadata> {
+        init_warning();
+        std::fs::metadata(path)
+    }
+
+    pub fn remove_file<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
+        init_warning();
+        std::fs::remove_file(path)
+    }
+
+    pub fn remove_dir_all<P: AsRef<Path>>(path: P) -> std::io::Result<()> {
+        init_warning();
+        std::fs::remove_dir_all(path)
+    }
+
+    pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> std::io::Result<()> {
+        init_warning();
+        std::fs::rename(from, to)
+    }
+
+    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> std::io::Result<u64> {
+        init_warning();
+        std::fs::copy(from, to)
+    }
+
+    pub fn read_dir<P: AsRef<Path>>(path: P) -> std::io::Result<std::fs::ReadDir> {
+        init_warning();
+        std::fs::read_dir(path)
     }
 }
 
-#[cfg(not(feature = "real_fs"))]
+#[cfg(not(feature = "real_fs_acknowledged"))]
 pub mod fs {
     use super::*;
 
@@ -242,13 +544,16 @@ pub mod fs {
         Some(Arc::new(Mutex::new(IN_MEM_FILES.lock().unwrap().clone())))
     }
 
-    pub fn create_dir_all<P: AsRef<Path>>(_path: P) -> io::Result<()> {
+    pub fn create_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
+        // Validate path to prevent traversal attacks
+        let _p = validate_path(path.as_ref())?;
         // Directories are implicit in in-memory VFS.
         Ok(())
     }
 
     pub fn read_to_string<P: AsRef<Path>>(path: P) -> io::Result<String> {
-        let p = path.as_ref().to_path_buf();
+        // Validate and normalize path to prevent traversal attacks
+        let p = validate_path(path.as_ref())?;
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let map = map_arc.lock().unwrap();
@@ -266,7 +571,8 @@ pub mod fs {
     }
 
     pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result<()> {
-        let p = path.as_ref().to_path_buf();
+        // Validate and normalize path to prevent traversal attacks
+        let p = validate_path(path.as_ref())?;
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let mut map = map_arc.lock().unwrap();
@@ -280,7 +586,8 @@ pub mod fs {
     }
 
     pub fn read<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-        let p = path.as_ref().to_path_buf();
+        // Validate and normalize path to prevent traversal attacks
+        let p = validate_path(path.as_ref())?;
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let map = map_arc.lock().unwrap();
@@ -315,7 +622,8 @@ pub mod fs {
     }
 
     pub fn remove_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
-        let p = path.as_ref().to_path_buf();
+        // Validate and normalize path to prevent traversal attacks
+        let p = validate_path(path.as_ref())?;
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let mut map = map_arc.lock().unwrap();
@@ -329,8 +637,9 @@ pub mod fs {
     }
 
     pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<u64> {
-        let fromp = from.as_ref().to_path_buf();
-        let top = to.as_ref().to_path_buf();
+        // Validate and normalize paths to prevent traversal attacks
+        let fromp = validate_path(from.as_ref())?;
+        let top = validate_path(to.as_ref())?;
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let mut map = map_arc.lock().unwrap();
@@ -354,7 +663,8 @@ pub mod fs {
     }
 
     pub fn metadata<P: AsRef<Path>>(path: P) -> io::Result<Metadata> {
-        let p = path.as_ref().to_path_buf();
+        // Validate and normalize path to prevent traversal attacks
+        let p = validate_path(path.as_ref())?;
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let map = map_arc.lock().unwrap();
@@ -364,8 +674,16 @@ pub mod fs {
                     len: bytes.len() as u64,
                 })
             } else {
-                // check if any file is a descendant -> treat as dir
-                let is_dir = map.keys().any(|k| k.starts_with(&p));
+                // Check if any file is a descendant -> treat as dir
+                // SECURITY: Use normalized path for comparison
+                let is_dir = map.keys().any(|k| {
+                    // Normalize stored paths for safe comparison
+                    if let Some(normalized_k) = normalize_path(k) {
+                        normalized_k.starts_with(&p)
+                    } else {
+                        false
+                    }
+                });
                 if is_dir {
                     Ok(Metadata { is_dir: true, len: 0 })
                 } else {
@@ -380,7 +698,14 @@ pub mod fs {
                     len: bytes.len() as u64,
                 })
             } else {
-                let is_dir = map.keys().any(|k| k.starts_with(&p));
+                // SECURITY: Use normalized path for comparison
+                let is_dir = map.keys().any(|k| {
+                    if let Some(normalized_k) = normalize_path(k) {
+                        normalized_k.starts_with(&p)
+                    } else {
+                        false
+                    }
+                });
                 if is_dir {
                     Ok(Metadata { is_dir: true, len: 0 })
                 } else {
@@ -433,7 +758,8 @@ pub mod fs {
 
     /// List immediate children (files and directories) of `path` within the in-memory VFS
     pub fn read_dir<P: AsRef<Path>>(path: P) -> io::Result<ReadDir> {
-        let root = path.as_ref().to_path_buf();
+        // Validate and normalize path to prevent traversal attacks
+        let root = validate_path(path.as_ref())?;
         use std::collections::HashMap as StdMap;
         let mut children: StdMap<PathBuf, (bool, u64)> = StdMap::new();
 
@@ -441,7 +767,12 @@ pub mod fs {
             let map_arc = vfs.as_map();
             let map = map_arc.lock().unwrap();
             for (file_path, bytes) in map.iter() {
-                if let Ok(relative) = file_path.strip_prefix(&root) {
+                // SECURITY: Normalize file paths before comparison
+                let normalized_path = match normalize_path(file_path) {
+                    Some(p) => p,
+                    None => continue, // Skip malformed paths
+                };
+                if let Ok(relative) = normalized_path.strip_prefix(&root) {
                     let mut comps = relative.components();
                     if let Some(first) = comps.next() {
                         let child = root.join(first.as_os_str());
@@ -458,7 +789,12 @@ pub mod fs {
         } else {
             let map = IN_MEM_FILES.lock().unwrap();
             for (file_path, bytes) in map.iter() {
-                if let Ok(relative) = file_path.strip_prefix(&root) {
+                // SECURITY: Normalize file paths before comparison
+                let normalized_path = match normalize_path(file_path) {
+                    Some(p) => p,
+                    None => continue, // Skip malformed paths
+                };
+                if let Ok(relative) = normalized_path.strip_prefix(&root) {
                     let mut comps = relative.components();
                     if let Some(first) = comps.next() {
                         let child = root.join(first.as_os_str());
@@ -483,7 +819,11 @@ pub mod fs {
     }
 
     pub fn exists<P: AsRef<Path>>(path: P) -> bool {
-        let p = path.as_ref().to_path_buf();
+        // Validate and normalize path; return false for malicious paths
+        let p = match validate_path(path.as_ref()) {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
         if let Some(vfs) = get_current_vfs() {
             let map_arc = vfs.as_map();
             let map = map_arc.lock().unwrap();

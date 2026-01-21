@@ -7,7 +7,33 @@ license = "MIT"
 [features]
 # By default use an in-memory virtual filesystem. Enable `real_fs` to delegate to `std::fs`.
 default = []
+
+# ============================================================================
+# SECURITY WARNING: DO NOT USE `real_fs` IN PRODUCTION!
+# ============================================================================
+#
+# The `real_fs` feature grants FULL FILESYSTEM ACCESS to code using this crate.
+# This completely bypasses the in-memory VFS sandbox and allows:
+#   - Reading any file on the system
+#   - Writing to any writable location
+#   - Deleting files and directories
+#
+# This feature exists ONLY for testing and development purposes.
+#
+# If you enable `real_fs`, you are effectively disabling the security sandbox
+# that protects the host system from untrusted web content.
+#
+# IMPORTANT: Using --features real_fs will now FAIL TO COMPILE intentionally.
+# If you absolutely need real filesystem access for testing:
+#   - Use --features real_fs_acknowledged instead
+#   - This proves you have read and accepted the security implications
+#
+# ============================================================================
 real_fs = []
+
+# Acknowledged variant - only use if you understand the security implications
+# This bypasses the VFS sandbox for testing purposes ONLY.
+real_fs_acknowledged = []
 
 [dependencies]
 once_cell = "1.20"
@@ -18,3 +44,5 @@ uuid = { version = "1.4", features = ["v4"] }
 chacha20poly1305 = "0.10"
 sha2 = "0.10"
 zeroize = { version = "1.7", features = ["zeroize_derive"] }
+# Platform directories for secure secret storage
+dirs-next = "2.0"

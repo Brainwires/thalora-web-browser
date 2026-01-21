@@ -105,110 +105,108 @@ impl RuntimeTools {
         }
 
         let browser = self.browser_tools.get_or_create_session(session_id, false);
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
 
-        {
-            let lock_res = browser.lock();
-            match lock_res {
-                Ok(mut browser_guard) => {
-                    match browser_guard.execute_javascript(expression).await {
-                        Ok(js_result) => {
-                            // Try to parse as different types
-                            if js_result == "true" || js_result == "false" {
-                                response = McpResponse::ToolResult {
-                                    content: vec![serde_json::json!({
-                                        "type": "text",
-                                        "text": format!("JavaScript result (boolean): {}", js_result)
-                                    })],
-                                    is_error: false,
-                                };
-                            } else if let Ok(num) = js_result.parse::<f64>() {
-                                response = McpResponse::ToolResult {
-                                    content: vec![serde_json::json!({
-                                        "type": "text",
-                                        "text": format!("JavaScript result (number): {}", num)
-                                    })],
-                                    is_error: false,
-                                };
-                            } else {
-                                response = McpResponse::ToolResult {
-                                    content: vec![serde_json::json!({
-                                        "type": "text",
-                                        "text": format!("JavaScript result: {}", js_result)
-                                    })],
-                                    is_error: false,
-                                };
-                            }
-                        },
-                        Err(e) => {
+        let response;
+        let lock_res = browser.lock();
+        match lock_res {
+            Ok(mut browser_guard) => {
+                match browser_guard.execute_javascript(expression).await {
+                    Ok(js_result) => {
+                        // Try to parse as different types
+                        if js_result == "true" || js_result == "false" {
                             response = McpResponse::ToolResult {
                                 content: vec![serde_json::json!({
                                     "type": "text",
-                                    "text": format!("JavaScript execution error: {}", e)
+                                    "text": format!("JavaScript result (boolean): {}", js_result)
                                 })],
-                                is_error: true,
+                                is_error: false,
                             };
-                        }
-                    }
-                }
-                Err(_) => {
-                    // If session browser fails, try CDP server as fallback
-                    let command = CdpCommand {
-                        id: 2,
-                        method: "Runtime.evaluate".to_string(),
-                        params: Some(serde_json::json!({
-                            "expression": expression,
-                            "returnByValue": true
-                        })),
-                        session_id: None,
-                    };
-
-                    match cdp_server.handle_message(CdpMessage::Command(command)) {
-                        Ok(Some(CdpMessage::Response(cdp_response))) => {
-                            if let Some(error) = cdp_response.error {
-                                response = McpResponse::ToolResult {
-                                    content: vec![serde_json::json!({
-                                        "type": "text",
-                                        "text": format!("CDP JavaScript evaluation failed: {}", error.message)
-                                    })],
-                                    is_error: true,
-                                };
-                            } else if let Some(result) = cdp_response.result {
-                                response = McpResponse::ToolResult {
-                                    content: vec![serde_json::json!({
-                                        "type": "text",
-                                        "text": format!("CDP JavaScript evaluation result: {}", result)
-                                    })],
-                                    is_error: false,
-                                };
-                            } else {
-                                response = McpResponse::ToolResult {
-                                    content: vec![serde_json::json!({
-                                        "type": "text",
-                                        "text": "CDP JavaScript evaluation completed (no result)"
-                                    })],
-                                    is_error: false,
-                                };
-                            }
-                        }
-                        Ok(_) => {
+                        } else if let Ok(num) = js_result.parse::<f64>() {
                             response = McpResponse::ToolResult {
                                 content: vec![serde_json::json!({
                                     "type": "text",
-                                    "text": "CDP JavaScript evaluation completed (no response)"
+                                    "text": format!("JavaScript result (number): {}", num)
+                                })],
+                                is_error: false,
+                            };
+                        } else {
+                            response = McpResponse::ToolResult {
+                                content: vec![serde_json::json!({
+                                    "type": "text",
+                                    "text": format!("JavaScript result: {}", js_result)
                                 })],
                                 is_error: false,
                             };
                         }
-                        Err(e) => {
+                    }
+                    Err(e) => {
+                        response = McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript execution error: {}", e)
+                            })],
+                            is_error: true,
+                        };
+                    }
+                }
+            }
+            Err(_) => {
+                // If session browser fails, try CDP server as fallback
+                let command = CdpCommand {
+                    id: 2,
+                    method: "Runtime.evaluate".to_string(),
+                    params: Some(serde_json::json!({
+                        "expression": expression,
+                        "returnByValue": true
+                    })),
+                    session_id: None,
+                };
+
+                match cdp_server.handle_message(CdpMessage::Command(command)) {
+                    Ok(Some(CdpMessage::Response(cdp_response))) => {
+                        if let Some(error) = cdp_response.error {
                             response = McpResponse::ToolResult {
                                 content: vec![serde_json::json!({
                                     "type": "text",
-                                    "text": format!("CDP JavaScript evaluation error: {}", e)
+                                    "text": format!("CDP JavaScript evaluation failed: {}", error.message)
                                 })],
                                 is_error: true,
                             };
+                        } else if let Some(result) = cdp_response.result {
+                            response = McpResponse::ToolResult {
+                                content: vec![serde_json::json!({
+                                    "type": "text",
+                                    "text": format!("CDP JavaScript evaluation result: {}", result)
+                                })],
+                                is_error: false,
+                            };
+                        } else {
+                            response = McpResponse::ToolResult {
+                                content: vec![serde_json::json!({
+                                    "type": "text",
+                                    "text": "CDP JavaScript evaluation completed (no result)"
+                                })],
+                                is_error: false,
+                            };
                         }
+                    }
+                    Ok(_) => {
+                        response = McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": "CDP JavaScript evaluation completed (no response)"
+                            })],
+                            is_error: false,
+                        };
+                    }
+                    Err(e) => {
+                        response = McpResponse::ToolResult {
+                            content: vec![serde_json::json!({
+                                "type": "text",
+                                "text": format!("CDP JavaScript evaluation error: {}", e)
+                            })],
+                            is_error: true,
+                        };
                     }
                 }
             }
