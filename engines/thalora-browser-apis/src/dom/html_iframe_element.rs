@@ -564,6 +564,13 @@ pub fn initialize_iframe_context(
     let iframe_document_obj = iframe_document.as_object().unwrap().clone();
     eprintln!("🔲 IFRAME: Created iframe document");
 
+    // Initialize the iframe document with basic HTML structure
+    // This ensures getElementsByTagName('head')[0] works
+    if let Some(doc_data) = iframe_document_obj.downcast_ref::<crate::dom::document::DocumentData>() {
+        doc_data.set_html_content("<!DOCTYPE html><html><head></head><body></body></html>");
+        eprintln!("🔲 IFRAME: Initialized iframe document with basic HTML structure");
+    }
+
     // Check if createElement method exists on the prototype
     if let Ok(create_element) = iframe_document_obj.get(js_string!("createElement"), context) {
         eprintln!("🔲 IFRAME: iframe document.createElement = {:?}", create_element.get_type());
