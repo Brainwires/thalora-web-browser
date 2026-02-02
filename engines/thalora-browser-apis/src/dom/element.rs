@@ -411,6 +411,14 @@ impl IntrinsicObject for Element {
             .method(remove_event_listener, js_string!("removeEventListener"), 2)
             .method(dispatch_event, js_string!("dispatchEvent"), 1)
             .method(attach_shadow, js_string!("attachShadow"), 1)
+            // ParentNode mixin methods (for modern JS compatibility)
+            .method(append_method, js_string!("append"), 0)
+            .method(prepend_method, js_string!("prepend"), 0)
+            .method(after_method, js_string!("after"), 0)
+            .method(before_method, js_string!("before"), 0)
+            .method(remove_method, js_string!("remove"), 0)
+            .method(replace_with_method, js_string!("replaceWith"), 0)
+            .method(replace_children_method, js_string!("replaceChildren"), 0)
             .build();
     }
 
@@ -971,6 +979,38 @@ impl ElementData {
 
     pub fn append_child(&self, child: JsObject) {
         self.children.lock().unwrap().push(child);
+    }
+
+    /// Insert a child at the beginning (for prepend)
+    pub fn prepend_child(&self, child: JsObject) {
+        self.children.lock().unwrap().insert(0, child);
+    }
+
+    /// Insert a node after a reference node
+    pub fn insert_after(&self, new_child: JsObject, reference: &JsObject) {
+        let mut children = self.children.lock().unwrap();
+        if let Some(idx) = children.iter().position(|c| JsObject::equals(c, reference)) {
+            children.insert(idx + 1, new_child);
+        } else {
+            // If reference not found, append at the end
+            children.push(new_child);
+        }
+    }
+
+    /// Insert a node before a reference node (for before())
+    pub fn insert_before_elem(&self, new_child: JsObject, reference: &JsObject) {
+        let mut children = self.children.lock().unwrap();
+        if let Some(idx) = children.iter().position(|c| JsObject::equals(c, reference)) {
+            children.insert(idx, new_child);
+        } else {
+            // If reference not found, append at the end
+            children.push(new_child);
+        }
+    }
+
+    /// Clear all children (for replaceChildren)
+    pub fn clear_children(&self) {
+        self.children.lock().unwrap().clear();
     }
 
     pub fn remove_child(&self, child: &JsObject) {
@@ -2003,6 +2043,253 @@ fn remove_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
             .with_message("Element.prototype.removeChild requires an Element argument")
             .into())
     }
+}
+
+/// `Element.prototype.append(...nodes)` - ParentNode mixin
+/// Appends nodes or strings as the last children of the element
+/// https://dom.spec.whatwg.org/#dom-parentnode-append
+fn append_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.append called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.append called on non-Element object")
+    })?;
+
+    // Process each argument and append
+    for arg in args {
+        if let Some(child_obj) = arg.as_object() {
+            // It's a Node - append it
+            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+                child_element.set_parent_node(Some(this_obj.clone()));
+            }
+            element.append_child(child_obj.clone());
+
+            // Check if the appended child is a script element and execute it
+            if is_script_element(&child_obj, context)? {
+                execute_script_element(&child_obj, context)?;
+            }
+        } else {
+            // It's a string - create a Text node and append it
+            let text_content = arg.to_string(context)?.to_std_string_escaped();
+            // Create a simple text node representation
+            let text_obj = JsObject::with_null_proto();
+            text_obj.set(js_string!("nodeType"), 3, false, context)?; // TEXT_NODE
+            text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element.append_child(text_obj);
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.prepend(...nodes)` - ParentNode mixin
+/// Inserts nodes or strings before the first child of the element
+/// https://dom.spec.whatwg.org/#dom-parentnode-prepend
+fn prepend_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.prepend called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.prepend called on non-Element object")
+    })?;
+
+    // Process each argument in reverse order and insert at the beginning
+    for arg in args.iter().rev() {
+        if let Some(child_obj) = arg.as_object() {
+            // It's a Node - prepend it
+            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+                child_element.set_parent_node(Some(this_obj.clone()));
+            }
+            element.prepend_child(child_obj.clone());
+        } else {
+            // It's a string - create a Text node and prepend it
+            let text_content = arg.to_string(context)?.to_std_string_escaped();
+            let text_obj = JsObject::with_null_proto();
+            text_obj.set(js_string!("nodeType"), 3, false, context)?;
+            text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element.prepend_child(text_obj);
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.after(...nodes)` - ChildNode mixin
+/// Inserts nodes or strings after this element
+/// https://dom.spec.whatwg.org/#dom-childnode-after
+fn after_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.after called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.after called on non-Element object")
+    })?;
+
+    // Get parent node
+    if let Some(parent_obj) = element.get_parent_node() {
+        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
+            // Process each argument and insert after this element
+            for arg in args.iter() {
+                if let Some(child_obj) = arg.as_object() {
+                    if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+                        child_element.set_parent_node(Some(parent_obj.clone()));
+                    }
+                    parent_element.insert_after(child_obj.clone(), &this_obj);
+                } else {
+                    let text_content = arg.to_string(context)?.to_std_string_escaped();
+                    let text_obj = JsObject::with_null_proto();
+                    text_obj.set(js_string!("nodeType"), 3, false, context)?;
+                    text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+                    parent_element.insert_after(text_obj, &this_obj);
+                }
+            }
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.before(...nodes)` - ChildNode mixin
+/// Inserts nodes or strings before this element
+/// https://dom.spec.whatwg.org/#dom-childnode-before
+fn before_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.before called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.before called on non-Element object")
+    })?;
+
+    // Get parent node
+    if let Some(parent_obj) = element.get_parent_node() {
+        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
+            // Process each argument in reverse and insert before this element
+            for arg in args.iter().rev() {
+                if let Some(child_obj) = arg.as_object() {
+                    if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+                        child_element.set_parent_node(Some(parent_obj.clone()));
+                    }
+                    parent_element.insert_before_elem(child_obj.clone(), &this_obj);
+                } else {
+                    let text_content = arg.to_string(context)?.to_std_string_escaped();
+                    let text_obj = JsObject::with_null_proto();
+                    text_obj.set(js_string!("nodeType"), 3, false, context)?;
+                    text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+                    parent_element.insert_before_elem(text_obj, &this_obj);
+                }
+            }
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.remove()` - ChildNode mixin
+/// Removes this element from its parent
+/// https://dom.spec.whatwg.org/#dom-childnode-remove
+fn remove_method(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.remove called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.remove called on non-Element object")
+    })?;
+
+    // Get parent node and remove this element from it
+    if let Some(parent_obj) = element.get_parent_node() {
+        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
+            parent_element.remove_child(&this_obj);
+            element.set_parent_node(None);
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.replaceWith(...nodes)` - ChildNode mixin
+/// Replaces this element with nodes or strings
+/// https://dom.spec.whatwg.org/#dom-childnode-replacewith
+fn replace_with_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.replaceWith called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.replaceWith called on non-Element object")
+    })?;
+
+    // Get parent node
+    if let Some(parent_obj) = element.get_parent_node() {
+        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
+            // Insert all new nodes before this element
+            for arg in args.iter() {
+                if let Some(child_obj) = arg.as_object() {
+                    if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+                        child_element.set_parent_node(Some(parent_obj.clone()));
+                    }
+                    parent_element.insert_before_elem(child_obj.clone(), &this_obj);
+                } else {
+                    let text_content = arg.to_string(context)?.to_std_string_escaped();
+                    let text_obj = JsObject::with_null_proto();
+                    text_obj.set(js_string!("nodeType"), 3, false, context)?;
+                    text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+                    parent_element.insert_before_elem(text_obj, &this_obj);
+                }
+            }
+            // Remove this element
+            parent_element.remove_child(&this_obj);
+            element.set_parent_node(None);
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.replaceChildren(...nodes)` - ParentNode mixin
+/// Replaces all children of this element with new nodes or strings
+/// https://dom.spec.whatwg.org/#dom-parentnode-replacechildren
+fn replace_children_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.replaceChildren called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.replaceChildren called on non-Element object")
+    })?;
+
+    // Clear all existing children
+    element.clear_children();
+
+    // Add all new nodes
+    for arg in args {
+        if let Some(child_obj) = arg.as_object() {
+            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
+                child_element.set_parent_node(Some(this_obj.clone()));
+            }
+            element.append_child(child_obj.clone());
+        } else {
+            let text_content = arg.to_string(context)?.to_std_string_escaped();
+            let text_obj = JsObject::with_null_proto();
+            text_obj.set(js_string!("nodeType"), 3, false, context)?;
+            text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element.append_child(text_obj);
+        }
+    }
+
+    Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.setHTML(input, options)` - Chrome 124

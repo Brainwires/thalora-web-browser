@@ -1212,3 +1212,181 @@ fn test_element_layout_properties() {
 
     println!("✅ All layout properties work correctly!");
 }
+
+#[test]
+fn test_parentnode_methods() {
+    use thalora_browser_apis::boa_engine::{Context, Source};
+
+    let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Test ParentNode methods that Cloudflare might need
+    let test_code = r#"
+        var div = document.createElement('div');
+        var results = {
+            append: typeof div.append,
+            prepend: typeof div.prepend,
+            replaceChildren: typeof div.replaceChildren,
+            after: typeof div.after,
+            before: typeof div.before,
+            remove: typeof div.remove,
+            replaceWith: typeof div.replaceWith,
+        };
+        JSON.stringify(results);
+    "#;
+
+    let result = context.eval(Source::from_bytes(test_code)).unwrap();
+    let result_str = result.to_string(&mut context).unwrap().to_std_string_escaped();
+    println!("ParentNode methods: {}", result_str);
+}
+
+#[test]
+fn test_element_animate() {
+    use thalora_browser_apis::boa_engine::{Context, Source};
+
+    let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Test Web Animations API
+    let test_code = r#"
+        var div = document.createElement('div');
+        var results = {
+            animate: typeof div.animate,
+            Animation: typeof Animation,
+            KeyframeEffect: typeof KeyframeEffect,
+            DocumentTimeline: typeof DocumentTimeline,
+            getAnimations: typeof div.getAnimations,
+        };
+        JSON.stringify(results);
+    "#;
+
+    let result = context.eval(Source::from_bytes(test_code)).unwrap();
+    let result_str = result.to_string(&mut context).unwrap().to_std_string_escaped();
+    println!("Web Animations API: {}", result_str);
+}
+
+#[test]
+fn test_document_special_apis() {
+    use thalora_browser_apis::boa_engine::{Context, Source};
+
+    let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Test special document APIs that Cloudflare might use
+    let test_code = r#"
+        var results = {
+            fonts: typeof document.fonts,
+            adoptedStyleSheets: typeof document.adoptedStyleSheets,
+            styleSheets: typeof document.styleSheets,
+            elementFromPoint: typeof document.elementFromPoint,
+            elementsFromPoint: typeof document.elementsFromPoint,
+            caretRangeFromPoint: typeof document.caretRangeFromPoint,
+            getSelection: typeof document.getSelection,
+            caretPositionFromPoint: typeof document.caretPositionFromPoint,
+            hidden: typeof document.hidden,
+            visibilityState: typeof document.visibilityState,
+        };
+        JSON.stringify(results);
+    "#;
+
+    let result = context.eval(Source::from_bytes(test_code)).unwrap();
+    let result_str = result.to_string(&mut context).unwrap().to_std_string_escaped();
+    println!("Document special APIs: {}", result_str);
+}
+
+#[test]
+fn test_htmlcollection_array_methods() {
+    use thalora_browser_apis::boa_engine::{Context, Source};
+
+    let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Test HTMLCollection array-like access patterns
+    let test_code = r#"
+        var scripts = document.scripts;
+        var results = {
+            scriptsType: typeof scripts,
+            scriptsLength: typeof scripts.length,
+            scriptsItem: typeof scripts.item,
+            scriptsNamedItem: typeof scripts.namedItem,
+            scriptsForEach: typeof scripts.forEach,
+            scriptsIterator: typeof scripts[Symbol.iterator],
+        };
+        JSON.stringify(results);
+    "#;
+
+    let result = context.eval(Source::from_bytes(test_code)).unwrap();
+    let result_str = result.to_string(&mut context).unwrap().to_std_string_escaped();
+    println!("HTMLCollection methods: {}", result_str);
+}
+
+#[test]
+fn test_cssom_apis() {
+    use thalora_browser_apis::boa_engine::{Context, Source};
+
+    let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Test CSSOM APIs that Cloudflare might use
+    let test_code = r#"
+        var div = document.createElement('div');
+        document.body.appendChild(div);
+        var results = {};
+
+        // getComputedStyle
+        try {
+            var style = getComputedStyle(div);
+            results.computedStyle = typeof style;
+            results.computedStyleGetPropertyValue = typeof style.getPropertyValue;
+        } catch(e) {
+            results.computedStyleError = e.message;
+        }
+
+        // matchMedia
+        try {
+            var mq = matchMedia('(prefers-color-scheme: dark)');
+            results.matchMedia = typeof mq;
+            results.matchMediaMatches = typeof mq.matches;
+            results.matchMediaAddListener = typeof mq.addListener;
+            results.matchMediaAddEventListener = typeof mq.addEventListener;
+        } catch(e) {
+            results.matchMediaError = e.message;
+        }
+
+        JSON.stringify(results);
+    "#;
+
+    let result = context.eval(Source::from_bytes(test_code)).unwrap();
+    let result_str = result.to_string(&mut context).unwrap().to_std_string_escaped();
+    println!("CSSOM APIs: {}", result_str);
+}
+
+#[test]
+fn test_raf_callback_with_args() {
+    use thalora_browser_apis::boa_engine::{Context, Source};
+
+    let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
+
+    // Test that requestAnimationFrame passes a timestamp to callback
+    context.eval(Source::from_bytes(r#"
+        window._rafCallbackArgs = null;
+        requestAnimationFrame(function(timestamp) {
+            window._rafCallbackArgs = {
+                argCount: arguments.length,
+                timestampType: typeof timestamp,
+                timestampValue: timestamp
+            };
+        });
+    "#)).unwrap();
+
+    // Process timers
+    use thalora_browser_apis::timers::timers::Timers;
+    Timers::process_timers(&mut context);
+
+    let result = context.eval(Source::from_bytes(r#"
+        window._rafCallbackArgs ? JSON.stringify(window._rafCallbackArgs) : 'callback not called'
+    "#)).unwrap();
+    let result_str = result.to_string(&mut context).unwrap().to_std_string_escaped();
+    println!("requestAnimationFrame callback args: {}", result_str);
+}

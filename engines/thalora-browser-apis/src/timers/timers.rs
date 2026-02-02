@@ -113,6 +113,24 @@ impl Timers {
                 NativeFunction::from_fn_ptr(Self::queue_microtask),
             )
             .expect("Failed to register queueMicrotask");
+
+        // requestIdleCallback - schedules low-priority background tasks
+        context
+            .register_global_builtin_callable(
+                js_string!("requestIdleCallback"),
+                1,
+                NativeFunction::from_fn_ptr(Self::request_idle_callback),
+            )
+            .expect("Failed to register requestIdleCallback");
+
+        // cancelIdleCallback
+        context
+            .register_global_builtin_callable(
+                js_string!("cancelIdleCallback"),
+                1,
+                NativeFunction::from_fn_ptr(Self::cancel_idle_callback),
+            )
+            .expect("Failed to register cancelIdleCallback");
     }
 
     /// setTimeout(callback, delay, ...args)
@@ -144,6 +162,14 @@ impl Timers {
             return Ok(JsValue::from(0));
         }
 
+        let callback = args.get_or_undefined(0);
+
+        // Callback must be callable
+        let callable = match callback.as_object() {
+            Some(obj) if obj.is_callable() => obj.clone(),
+            _ => return Ok(JsValue::from(0)),
+        };
+
         // Generate timer ID
         let timer_id = {
             let mut next_id = NEXT_TIMER_ID.lock().unwrap();
@@ -165,6 +191,13 @@ impl Timers {
             let mut timers = TIMERS.lock().unwrap();
             timers.insert(timer_id, timer_info);
         }
+
+        // Store callback in thread-local storage
+        // RAF callbacks receive a DOMHighResTimeStamp (milliseconds since page load)
+        // We'll pass performance.now() value when executing
+        TIMER_CALLBACKS.with(|callbacks| {
+            callbacks.borrow_mut().insert(timer_id, (callable, Vec::new()));
+        });
 
         Ok(JsValue::from(timer_id))
     }
@@ -191,6 +224,78 @@ impl Timers {
         }
 
         Ok(JsValue::undefined())
+    }
+
+    /// requestIdleCallback(callback, options?)
+    /// Schedules a callback to run during browser's idle periods
+    /// In our headless implementation, we treat it like a setTimeout with 0 delay
+    fn request_idle_callback(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        if args.is_empty() {
+            return Ok(JsValue::from(0));
+        }
+
+        let callback = args.get_or_undefined(0);
+
+        // Callback must be callable
+        let callable = match callback.as_object() {
+            Some(obj) if obj.is_callable() => obj.clone(),
+            _ => return Ok(JsValue::from(0)),
+        };
+
+        // Get timeout option if provided
+        let timeout = if args.len() > 1 {
+            if let Some(options) = args.get_or_undefined(1).as_object() {
+                if let Ok(timeout_val) = options.get(js_string!("timeout"), context) {
+                    timeout_val.to_number(context).unwrap_or(0.0) as u32
+                } else {
+                    0
+                }
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        // Generate timer ID
+        let timer_id = {
+            let mut next_id = NEXT_TIMER_ID.lock().unwrap();
+            let id = *next_id;
+            *next_id += 1;
+            id
+        };
+
+        // Store timer info with minimal delay (1ms for idle callbacks)
+        let timer_info = TimerInfo {
+            id: timer_id,
+            created_at: Instant::now(),
+            delay: if timeout > 0 { timeout } else { 1 },
+            repeating: false,
+            active: true,
+        };
+
+        {
+            let mut timers = TIMERS.lock().unwrap();
+            timers.insert(timer_id, timer_info);
+        }
+
+        // Create IdleDeadline-like object to pass to callback
+        // For simplicity, we'll pass an object with timeRemaining() and didTimeout
+        let idle_deadline = context.eval(boa_engine::Source::from_bytes(
+            "({ timeRemaining: function() { return 50; }, didTimeout: false })"
+        )).unwrap_or(JsValue::undefined());
+
+        // Store callback with the deadline argument
+        TIMER_CALLBACKS.with(|callbacks| {
+            callbacks.borrow_mut().insert(timer_id, (callable, vec![idle_deadline]));
+        });
+
+        Ok(JsValue::from(timer_id))
+    }
+
+    /// cancelIdleCallback(id)
+    fn cancel_idle_callback(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        Self::clear_timer(args, context)
     }
 
     /// Schedule a timer (setTimeout or setInterval)
