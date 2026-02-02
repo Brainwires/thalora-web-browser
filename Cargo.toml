@@ -231,6 +231,7 @@ native = [
     # Enable native features in sub-crates
     "thalora-browser-apis/native",
     "boa_engine/native",
+    "boa_engine/temporal",
 ]
 
 # WASM build - uses web-sys for browser API delegation
