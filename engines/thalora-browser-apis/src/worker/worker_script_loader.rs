@@ -183,8 +183,8 @@ impl WorkerExecutionContext {
 
     /// Fetch script from remote URL
     async fn fetch_remote_script(&self, url: &Url) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        // Use reqwest for HTTP fetching
-        let client = reqwest::Client::builder()
+        // Use rquest for HTTP fetching
+        let client = rquest::Client::builder()
             .user_agent("Thalora-WebBrowser/1.0")
             .timeout(std::time::Duration::from_secs(30))
             .build()?;

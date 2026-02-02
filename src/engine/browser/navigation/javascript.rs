@@ -5,12 +5,165 @@ use rand;
 
 use crate::engine::security::SsrfProtection;
 
+/// Cloudflare challenge detection patterns
+const CF_CHALLENGE_MARKERS: &[&str] = &[
+    "challenges.cloudflare.com",
+    "cf-browser-verification",
+    "cf_chl_prog",
+    "cf-turnstile",
+    "__cf_chl_rt_tk",
+    "Just a moment...",
+    "Checking your browser before accessing",
+    "Please wait while we verify your browser",
+    "cf-spinner-please-wait",
+    "ray-id",
+];
+
+/// Maximum number of Cloudflare challenge retry attempts
+const MAX_CF_RETRIES: u32 = 3;
+
 impl super::super::HeadlessWebBrowser {
+    /// Detect if the page content is a Cloudflare challenge page
+    fn is_cloudflare_challenge(&self, content: &str) -> bool {
+        // Count how many challenge markers are present
+        let marker_count = CF_CHALLENGE_MARKERS.iter()
+            .filter(|marker| content.contains(*marker))
+            .count();
+
+        // Need at least 2 markers to confirm it's a Cloudflare challenge
+        // (to avoid false positives from pages that just mention Cloudflare)
+        if marker_count >= 2 {
+            eprintln!("🛡️ CLOUDFLARE: Detected challenge page ({} markers found)", marker_count);
+            return true;
+        }
+
+        // Also check for the specific challenge page HTML structure
+        if content.contains("<title>Just a moment...</title>")
+            || (content.contains("cf-browser-verification") && content.contains("challenge-running")) {
+            eprintln!("🛡️ CLOUDFLARE: Detected challenge page (title/structure match)");
+            return true;
+        }
+
+        false
+    }
+
+    /// Handle Cloudflare challenge by executing JavaScript and waiting for completion
+    async fn handle_cloudflare_challenge(&mut self, url: &str, content: &str) -> Result<String> {
+        eprintln!("🛡️ CLOUDFLARE: Starting challenge resolution for {}", url);
+
+        // Store the challenge page content
+        self.current_content = content.to_string();
+        self.current_url = Some(url.to_string());
+
+        // Update the renderer with challenge page HTML
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.update_document_html(content)?;
+        }
+
+        // Execute all scripts on the challenge page
+        // This will run Cloudflare's JavaScript challenge
+        self.execute_page_scripts(content, false).await?;
+        self.fire_dom_content_loaded().await?;
+        self.execute_page_scripts(content, true).await?;
+
+        // Wait for the challenge to complete
+        // Cloudflare typically sets cookies and redirects after verification
+        eprintln!("🛡️ CLOUDFLARE: Waiting for challenge JavaScript to execute...");
+
+        // Wait for cf_clearance cookie or challenge completion
+        let wait_result = self.wait_for_cloudflare_clearance(15000).await;
+
+        match wait_result {
+            Ok(true) => {
+                eprintln!("🛡️ CLOUDFLARE: Challenge appears to be resolved, retrying request...");
+
+                // Add a small delay before retrying
+                sleep(Duration::from_millis(500)).await;
+
+                // Retry the original request - the cookies should now be set
+                let headers = self.create_standard_browser_headers(url);
+                let response = self.client.get(url).headers(headers).send().await?;
+                let new_content = response.text().await?;
+
+                // Check if we're still on a challenge page
+                if self.is_cloudflare_challenge(&new_content) {
+                    eprintln!("🛡️ CLOUDFLARE: Still on challenge page after retry");
+                    Err(anyhow!("Cloudflare challenge could not be resolved automatically"))
+                } else {
+                    eprintln!("🛡️ CLOUDFLARE: Successfully bypassed challenge!");
+                    Ok(new_content)
+                }
+            }
+            Ok(false) => {
+                eprintln!("🛡️ CLOUDFLARE: Challenge timeout - clearance not obtained");
+                Err(anyhow!("Cloudflare challenge timeout - could not obtain clearance"))
+            }
+            Err(e) => {
+                eprintln!("🛡️ CLOUDFLARE: Challenge error: {}", e);
+                Err(e)
+            }
+        }
+    }
+
+    /// Wait for Cloudflare clearance cookie to be set
+    async fn wait_for_cloudflare_clearance(&mut self, timeout_ms: u64) -> Result<bool> {
+        let js_code = format!(r#"
+        (function() {{
+            return new Promise(function(resolve) {{
+                var startTime = Date.now();
+                var timeout = {};
+
+                function checkClearance() {{
+                    // Check for cf_clearance cookie
+                    var cookies = document.cookie;
+                    if (cookies.includes('cf_clearance')) {{
+                        resolve(true);
+                        return;
+                    }}
+
+                    // Check if the challenge spinner is gone
+                    var spinner = document.querySelector('.cf-spinner-please-wait');
+                    var challengeRunning = document.querySelector('.challenge-running');
+                    var challengeSuccess = document.querySelector('.challenge-success');
+
+                    if (challengeSuccess || (!spinner && !challengeRunning && document.readyState === 'complete')) {{
+                        // Challenge might be complete, give it a moment
+                        setTimeout(function() {{
+                            resolve(true);
+                        }}, 500);
+                        return;
+                    }}
+
+                    // Check timeout
+                    if (Date.now() - startTime > timeout) {{
+                        resolve(false);
+                        return;
+                    }}
+
+                    // Check again in 200ms
+                    setTimeout(checkClearance, 200);
+                }}
+
+                checkClearance();
+            }});
+        }})()
+        "#, timeout_ms);
+
+        match self.execute_javascript(&js_code).await {
+            Ok(result) => Ok(result.trim() == "true"),
+            Err(e) => Err(e)
+        }
+    }
+
     /// Navigate to URL with full control over waiting behavior
     ///
     /// # Security
     /// This function validates URLs to prevent SSRF attacks (CWE-918).
     /// Access to private IPs, localhost, and cloud metadata endpoints is blocked.
+    ///
+    /// # Cloudflare Handling
+    /// This function automatically detects and attempts to solve Cloudflare
+    /// challenge pages by executing their JavaScript verification.
     pub async fn navigate_to_with_js_option(&mut self, url: &str, wait_for_load: bool, wait_for_js: bool) -> Result<String> {
         eprintln!("🔍 DEBUG: navigate_to_with_js_option - URL: {}, wait_for_load: {}, wait_for_js: {}", url, wait_for_load, wait_for_js);
 
@@ -32,7 +185,37 @@ impl super::super::HeadlessWebBrowser {
             }
             e
         })?;
-        let content = response.text().await?;
+        let mut content = response.text().await?;
+
+        // Check for Cloudflare challenge and handle it
+        let mut retry_count = 0;
+        while self.is_cloudflare_challenge(&content) && retry_count < MAX_CF_RETRIES {
+            retry_count += 1;
+            eprintln!("🛡️ CLOUDFLARE: Challenge detected, attempt {}/{}", retry_count, MAX_CF_RETRIES);
+
+            match self.handle_cloudflare_challenge(url, &content).await {
+                Ok(new_content) => {
+                    content = new_content;
+                    if !self.is_cloudflare_challenge(&content) {
+                        eprintln!("🛡️ CLOUDFLARE: Challenge resolved on attempt {}", retry_count);
+                        break;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("🛡️ CLOUDFLARE: Challenge handling failed: {}", e);
+                    if retry_count >= MAX_CF_RETRIES {
+                        return Err(anyhow!("Failed to bypass Cloudflare challenge after {} attempts: {}", MAX_CF_RETRIES, e));
+                    }
+                    // Wait before retrying
+                    sleep(Duration::from_millis(1000 * retry_count as u64)).await;
+
+                    // Refresh the page for another attempt
+                    let headers = self.create_standard_browser_headers(url);
+                    let response = self.client.get(url).headers(headers).send().await?;
+                    content = response.text().await?;
+                }
+            }
+        }
 
         // Store the current content and URL
         self.current_content = content.clone();

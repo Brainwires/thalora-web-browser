@@ -1,6 +1,6 @@
 //! Web Workers APIs
 
-// Native implementations using tokio/reqwest
+// Native implementations using tokio/rquest
 #[cfg(feature = "native")]
 pub mod import_scripts;
 #[cfg(feature = "native")]

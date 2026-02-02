@@ -56,3 +56,5 @@ mod tests;
 // Re-exports at module level
 pub use context::WebGLRenderingContext;
 pub use context2::WebGL2RenderingContext;
+#[cfg(feature = "native")]
+pub use context::{WebGLFingerprint, set_webgl_fingerprint, get_webgl_fingerprint};

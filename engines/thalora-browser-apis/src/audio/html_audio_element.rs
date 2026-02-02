@@ -251,24 +251,34 @@ impl HTMLAudioElementData {
     }
 
     fn load_from_url(url: &str) -> Result<(Vec<u8>, f64), String> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+        // Use tokio block_on for synchronous HTTP request
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
             .build()
-            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
 
-        let response = client
-            .get(url)
-            .send()
-            .map_err(|e| format!("Failed to fetch audio: {}", e))?;
+        let data = rt.block_on(async {
+            let client = rquest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-        if !response.status().is_success() {
-            return Err(format!("HTTP error: {}", response.status()));
-        }
+            let response = client
+                .get(url)
+                .send()
+                .await
+                .map_err(|e| format!("Failed to fetch audio: {}", e))?;
 
-        let data = response
-            .bytes()
-            .map_err(|e| format!("Failed to read audio data: {}", e))?
-            .to_vec();
+            if !response.status().is_success() {
+                return Err(format!("HTTP error: {}", response.status()));
+            }
+
+            response
+                .bytes()
+                .await
+                .map_err(|e| format!("Failed to read audio data: {}", e))
+                .map(|b| b.to_vec())
+        })?;
 
         // Try to get duration from the audio data
         let duration = Self::get_audio_duration(&data).unwrap_or(0.0);

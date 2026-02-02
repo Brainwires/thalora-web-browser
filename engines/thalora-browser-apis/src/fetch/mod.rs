@@ -1,6 +1,6 @@
 //! Fetch & Networking APIs
 
-// Native implementations using reqwest/tokio
+// Native implementations using rquest/tokio
 #[cfg(feature = "native")]
 pub mod event_source;
 #[cfg(feature = "native")]

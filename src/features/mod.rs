@@ -10,6 +10,10 @@ pub use fingerprinting_wasm as fingerprinting;
 
 pub mod webgl;
 
+// Mouse simulation and event dispatching for realistic human-like interactions
+pub mod mouse_simulation;
+pub mod event_dispatcher;
+
 // Native-only: ai_memory uses dirs crate for filesystem paths
 #[cfg(any(feature = "native", feature = "web-search"))]
 pub mod ai_memory;
@@ -29,3 +33,7 @@ pub use webgl::WebGLManager;
 #[cfg(any(feature = "native", feature = "web-search"))]
 pub use ai_memory::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 pub use readability::{ReadabilityEngine, ReadabilityConfig, QualityMetrics, ExtractionResult, ExtractionOptions, OutputFormat};
+
+// Mouse simulation exports
+pub use mouse_simulation::{MousePath, MousePoint, MousePathConfig, ClickSequence};
+pub use event_dispatcher::{EventSequence, EventAction, EventCoords, MouseEventType, MouseButton};

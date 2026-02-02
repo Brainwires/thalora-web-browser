@@ -209,27 +209,35 @@ impl HTMLVideoElementData {
     }
 
     fn fetch_video_metadata(url: &str) -> Result<VideoMetadata, String> {
-        // Fetch video headers to determine type
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
+        // Use tokio block_on for synchronous HTTP request
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
             .build()
-            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
 
-        let response = client
-            .head(url)
-            .send()
-            .map_err(|e| format!("Failed to fetch video: {}", e))?;
+        let content_type = rt.block_on(async {
+            let client = rquest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-        if !response.status().is_success() {
-            return Err(format!("HTTP error: {}", response.status()));
-        }
+            let response = client
+                .head(url)
+                .send()
+                .await
+                .map_err(|e| format!("Failed to fetch video: {}", e))?;
 
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from)
-            .unwrap_or_else(|| Self::guess_mime_type(url));
+            if !response.status().is_success() {
+                return Err(format!("HTTP error: {}", response.status()));
+            }
+
+            Ok(response
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from)
+                .unwrap_or_else(|| Self::guess_mime_type(url)))
+        })?;
 
         // For remote videos, we can't easily determine dimensions without downloading
         // Return placeholder dimensions; real implementation would need partial download

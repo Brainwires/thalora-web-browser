@@ -2,8 +2,14 @@
 //!
 //! Manages the drawing state including transforms, styles, and clipping regions.
 
-use tiny_skia::{Color, Pixmap, Transform, Paint, PathBuilder, Path, FillRule, Stroke, LineCap, LineJoin};
+use tiny_skia::{Color, Pixmap, Transform, Paint, PathBuilder, Path, FillRule, Stroke, LineCap, LineJoin, BlendMode};
 use std::sync::{Arc, Mutex};
+use once_cell::sync::Lazy;
+
+use super::text_renderer::{TextRenderer, TextMetrics};
+
+/// Global text renderer instance (shared across all canvas contexts)
+static TEXT_RENDERER: Lazy<TextRenderer> = Lazy::new(|| TextRenderer::new());
 
 /// Fill or stroke style
 #[derive(Debug, Clone)]
@@ -553,5 +559,180 @@ impl CanvasState {
     /// Translate the current transform
     pub fn translate(&mut self, x: f32, y: f32) {
         self.current.transform = self.current.transform.post_translate(x, y);
+    }
+
+    /// Fill text at the given position
+    pub fn fill_text(&mut self, text: &str, x: f32, y: f32, max_width: Option<f32>) {
+        let color = match &self.current.fill_style {
+            CanvasStyle::Color(c) => *c,
+            _ => Color::BLACK,
+        };
+
+        if let Some((text_pixmap, width, height)) = TEXT_RENDERER.render_to_pixmap(
+            text,
+            &self.current.font,
+            color,
+            false,
+            self.current.line_width,
+        ) {
+            // Calculate position based on text alignment
+            let mut draw_x = x;
+            match self.current.text_align.as_str() {
+                "center" => draw_x -= width / 2.0,
+                "right" | "end" => draw_x -= width,
+                _ => {} // "left", "start" - no adjustment
+            }
+
+            // Calculate position based on text baseline
+            let metrics = TEXT_RENDERER.measure(text, &self.current.font);
+            let mut draw_y = y;
+            match self.current.text_baseline.as_str() {
+                "top" => draw_y += metrics.actual_bounding_box_ascent as f32,
+                "hanging" => draw_y += metrics.hanging_baseline as f32,
+                "middle" => draw_y += (metrics.actual_bounding_box_ascent as f32 - metrics.actual_bounding_box_descent as f32) / 2.0,
+                "alphabetic" => {} // default baseline, no adjustment
+                "ideographic" => draw_y -= metrics.ideographic_baseline as f32,
+                "bottom" => draw_y -= metrics.actual_bounding_box_descent as f32,
+                _ => {}
+            }
+
+            // Account for the text pixmap padding (baseline is at padding + ascent)
+            let padding = 2.0;
+            draw_y -= metrics.actual_bounding_box_ascent as f32 + padding;
+            draw_x -= padding;
+
+            // Apply max_width scaling if needed
+            let scale_x = if let Some(max_w) = max_width {
+                if width > max_w { max_w / width } else { 1.0 }
+            } else {
+                1.0
+            };
+
+            // Composite the text pixmap onto the canvas
+            self.composite_pixmap(&text_pixmap, draw_x as i32, draw_y as i32, scale_x);
+        }
+    }
+
+    /// Stroke text at the given position
+    pub fn stroke_text(&mut self, text: &str, x: f32, y: f32, max_width: Option<f32>) {
+        let color = match &self.current.stroke_style {
+            CanvasStyle::Color(c) => *c,
+            _ => Color::BLACK,
+        };
+
+        if let Some((text_pixmap, width, height)) = TEXT_RENDERER.render_to_pixmap(
+            text,
+            &self.current.font,
+            color,
+            true,
+            self.current.line_width,
+        ) {
+            // Calculate position based on text alignment
+            let mut draw_x = x;
+            match self.current.text_align.as_str() {
+                "center" => draw_x -= width / 2.0,
+                "right" | "end" => draw_x -= width,
+                _ => {} // "left", "start" - no adjustment
+            }
+
+            // Calculate position based on text baseline
+            let metrics = TEXT_RENDERER.measure(text, &self.current.font);
+            let mut draw_y = y;
+            match self.current.text_baseline.as_str() {
+                "top" => draw_y += metrics.actual_bounding_box_ascent as f32,
+                "hanging" => draw_y += metrics.hanging_baseline as f32,
+                "middle" => draw_y += (metrics.actual_bounding_box_ascent as f32 - metrics.actual_bounding_box_descent as f32) / 2.0,
+                "alphabetic" => {} // default baseline, no adjustment
+                "ideographic" => draw_y -= metrics.ideographic_baseline as f32,
+                "bottom" => draw_y -= metrics.actual_bounding_box_descent as f32,
+                _ => {}
+            }
+
+            // Account for the text pixmap padding and stroke width
+            let padding = self.current.line_width.ceil() + 2.0;
+            draw_y -= metrics.actual_bounding_box_ascent as f32 + padding;
+            draw_x -= padding;
+
+            // Apply max_width scaling if needed
+            let scale_x = if let Some(max_w) = max_width {
+                if width > max_w { max_w / width } else { 1.0 }
+            } else {
+                1.0
+            };
+
+            // Composite the text pixmap onto the canvas
+            self.composite_pixmap(&text_pixmap, draw_x as i32, draw_y as i32, scale_x);
+        }
+    }
+
+    /// Measure text and return TextMetrics
+    pub fn measure_text(&self, text: &str) -> TextMetrics {
+        TEXT_RENDERER.measure(text, &self.current.font)
+    }
+
+    /// Composite a pixmap onto the canvas at the given position
+    fn composite_pixmap(&mut self, src: &Pixmap, x: i32, y: i32, scale_x: f32) {
+        let src_width = src.width() as i32;
+        let src_height = src.height() as i32;
+        let dst_width = self.pixmap.width() as i32;
+        let dst_height = self.pixmap.height() as i32;
+
+        let src_pixels = src.pixels();
+        let dst_pixels = self.pixmap.pixels_mut();
+
+        for sy in 0..src_height {
+            for sx in 0..src_width {
+                // Apply horizontal scaling
+                let scaled_x = if scale_x != 1.0 {
+                    (sx as f32 / scale_x) as i32
+                } else {
+                    sx
+                };
+
+                let dx = x + (sx as f32 * scale_x) as i32;
+                let dy = y + sy;
+
+                if dx >= 0 && dx < dst_width && dy >= 0 && dy < dst_height {
+                    let src_idx = (sy * src_width + scaled_x.min(src_width - 1)) as usize;
+                    let dst_idx = (dy * dst_width + dx) as usize;
+
+                    if src_idx < src_pixels.len() && dst_idx < dst_pixels.len() {
+                        let src_pixel = src_pixels[src_idx];
+                        let src_alpha = src_pixel.alpha() as u16;
+
+                        if src_alpha > 0 {
+                            let dst_pixel = dst_pixels[dst_idx];
+                            let dst_alpha = dst_pixel.alpha() as u16;
+
+                            // Simple alpha blending (source over)
+                            if src_alpha == 255 {
+                                dst_pixels[dst_idx] = src_pixel;
+                            } else if dst_alpha == 0 {
+                                dst_pixels[dst_idx] = src_pixel;
+                            } else {
+                                // Blend colors
+                                let inv_alpha = 255 - src_alpha;
+                                let out_alpha = src_alpha + (dst_alpha * inv_alpha / 255);
+
+                                if out_alpha > 0 {
+                                    let blend = |s: u8, d: u8| -> u8 {
+                                        ((s as u16 * src_alpha + d as u16 * dst_alpha * inv_alpha / 255) / out_alpha) as u8
+                                    };
+
+                                    if let Some(blended) = tiny_skia::PremultipliedColorU8::from_rgba(
+                                        blend(src_pixel.red(), dst_pixel.red()),
+                                        blend(src_pixel.green(), dst_pixel.green()),
+                                        blend(src_pixel.blue(), dst_pixel.blue()),
+                                        out_alpha as u8,
+                                    ) {
+                                        dst_pixels[dst_idx] = blended;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

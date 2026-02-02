@@ -1,34 +1,37 @@
 //! Native platform implementation for Thalora Web Browser
 //!
-//! Uses reqwest for HTTP, tokio-tungstenite for WebSocket, and sled for storage.
+//! Uses rquest for HTTP (with Chrome TLS fingerprint impersonation),
+//! tokio-tungstenite for WebSocket, and sled for storage.
 
 use super::{HttpClient, HttpRequest, HttpResponse, HttpError, HttpErrorKind, HttpMethod};
+use rquest_util::Emulation;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-/// Native HTTP client using reqwest
+/// Native HTTP client using rquest with Chrome TLS fingerprint impersonation
 pub struct NativeHttpClient {
-    client: reqwest::Client,
+    client: rquest::Client,
 }
 
 impl NativeHttpClient {
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
+        // Use Chrome 131 emulation for proper TLS/HTTP2 fingerprinting
+        let client = rquest::Client::builder()
+            .emulation(Emulation::Chrome131)
             .cookie_store(true)
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .gzip(true)
             .brotli(true)
             .deflate(true)
             .build()
-            .expect("Failed to create HTTP client");
+            .expect("Failed to create HTTP client with Chrome 131 emulation");
 
         Self { client }
     }
 
-    pub fn with_config(config: reqwest::ClientBuilder) -> Self {
+    pub fn with_config(config: rquest::ClientBuilder) -> Self {
         Self {
             client: config.build().expect("Failed to create HTTP client"),
         }
@@ -45,13 +48,13 @@ impl HttpClient for NativeHttpClient {
     fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>> {
         Box::pin(async move {
             let method = match request.method {
-                HttpMethod::Get => reqwest::Method::GET,
-                HttpMethod::Post => reqwest::Method::POST,
-                HttpMethod::Put => reqwest::Method::PUT,
-                HttpMethod::Delete => reqwest::Method::DELETE,
-                HttpMethod::Head => reqwest::Method::HEAD,
-                HttpMethod::Options => reqwest::Method::OPTIONS,
-                HttpMethod::Patch => reqwest::Method::PATCH,
+                HttpMethod::Get => rquest::Method::GET,
+                HttpMethod::Post => rquest::Method::POST,
+                HttpMethod::Put => rquest::Method::PUT,
+                HttpMethod::Delete => rquest::Method::DELETE,
+                HttpMethod::Head => rquest::Method::HEAD,
+                HttpMethod::Options => rquest::Method::OPTIONS,
+                HttpMethod::Patch => rquest::Method::PATCH,
             };
 
             let mut req_builder = self.client.request(method, &request.url);

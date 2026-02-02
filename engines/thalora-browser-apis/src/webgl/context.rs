@@ -234,15 +234,56 @@ pub fn get_location_id(val: &JsValue, ctx: &mut Context) -> JsResult<u32> {
     get_object_id(val, ctx)
 }
 
+/// WebGL fingerprint configuration for consistent fingerprinting
+#[derive(Debug, Clone)]
+pub struct WebGLFingerprint {
+    pub vendor: String,
+    pub renderer: String,
+    pub version: String,
+    pub shading_language_version: String,
+    pub unmasked_vendor: String,
+    pub unmasked_renderer: String,
+}
+
+impl Default for WebGLFingerprint {
+    fn default() -> Self {
+        // Default Chrome fingerprint for Cloudflare compatibility
+        Self {
+            vendor: "WebKit".to_string(),
+            renderer: "WebKit WebGL".to_string(),
+            version: "WebGL 1.0 (OpenGL ES 2.0 Chromium)".to_string(),
+            shading_language_version: "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)".to_string(),
+            unmasked_vendor: "Google Inc. (NVIDIA)".to_string(),
+            unmasked_renderer: "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)".to_string(),
+        }
+    }
+}
+
+/// Global WebGL fingerprint (can be set by the browser to match its fingerprint config)
+static WEBGL_FINGERPRINT: std::sync::OnceLock<WebGLFingerprint> = std::sync::OnceLock::new();
+
+/// Set the global WebGL fingerprint (should be called during browser initialization)
+pub fn set_webgl_fingerprint(fingerprint: WebGLFingerprint) {
+    let _ = WEBGL_FINGERPRINT.set(fingerprint);
+}
+
+/// Get the current WebGL fingerprint
+pub fn get_webgl_fingerprint() -> &'static WebGLFingerprint {
+    WEBGL_FINGERPRINT.get_or_init(WebGLFingerprint::default)
+}
+
 /// Get parameter value
 pub fn get_parameter(data: &WebGLRenderingContextData, pname: u32, ctx: &mut Context) -> JsResult<JsValue> {
     let state = data.state.lock().unwrap();
+    let fingerprint = get_webgl_fingerprint();
 
     match pname {
-        WebGLConstants::VENDOR => Ok(JsValue::from(js_string!("Thalora"))),
-        WebGLConstants::RENDERER => Ok(JsValue::from(js_string!("Thalora WebGL"))),
-        WebGLConstants::VERSION => Ok(JsValue::from(js_string!("WebGL 1.0 (Thalora)"))),
-        WebGLConstants::SHADING_LANGUAGE_VERSION => Ok(JsValue::from(js_string!("WebGL GLSL ES 1.0"))),
+        WebGLConstants::VENDOR => Ok(JsValue::from(js_string!(fingerprint.vendor.clone()))),
+        WebGLConstants::RENDERER => Ok(JsValue::from(js_string!(fingerprint.renderer.clone()))),
+        WebGLConstants::VERSION => Ok(JsValue::from(js_string!(fingerprint.version.clone()))),
+        WebGLConstants::SHADING_LANGUAGE_VERSION => Ok(JsValue::from(js_string!(fingerprint.shading_language_version.clone()))),
+        WebGLConstants::UNMASKED_VENDOR_WEBGL => Ok(JsValue::from(js_string!(fingerprint.unmasked_vendor.clone()))),
+        WebGLConstants::UNMASKED_RENDERER_WEBGL => Ok(JsValue::from(js_string!(fingerprint.unmasked_renderer.clone()))),
         WebGLConstants::MAX_TEXTURE_SIZE => Ok(JsValue::from(4096)),
         WebGLConstants::MAX_CUBE_MAP_TEXTURE_SIZE => Ok(JsValue::from(4096)),
         WebGLConstants::MAX_RENDERBUFFER_SIZE => Ok(JsValue::from(4096)),

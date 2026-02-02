@@ -7,13 +7,14 @@ use boa_engine::{Context, JsResult, JsValue, JsNativeError, Source, js_string};
 use url::Url;
 use std::sync::Arc;
 use std::time::Duration;
+use crate::http_blocking::BlockingClient;
 
 /// Script fetcher for importScripts()
 pub struct ScriptImporter {
     /// Base URL for relative script resolution
     base_url: Option<Url>,
     /// HTTP client for fetching scripts
-    client: reqwest::blocking::Client,
+    client: BlockingClient,
 }
 
 impl ScriptImporter {
@@ -24,7 +25,7 @@ impl ScriptImporter {
         });
 
         // Create HTTP client with reasonable timeout
-        let client = reqwest::blocking::Client::builder()
+        let client = BlockingClient::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .expect("Failed to create HTTP client for importScripts");

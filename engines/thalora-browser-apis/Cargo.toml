@@ -9,11 +9,12 @@ license = "MIT"
 [features]
 default = ["native"]
 
-# Native build - includes tokio, reqwest, wasmtime, etc.
+# Native build - includes tokio, rquest, wasmtime, etc.
 native = [
     "dep:tokio",
     "dep:tokio-tungstenite",
-    "dep:reqwest",
+    "dep:rquest",
+    "dep:rquest-util",
     "dep:webrtc",
     "dep:wasmtime",
     "dep:sled",
@@ -44,12 +45,14 @@ futures-util = "0.3"
 futures-channel = "0.3"
 crossbeam-channel = "0.5"
 
-# HTTP client for Fetch API (native only)
-reqwest = { version = "0.11", features = ["json", "stream", "blocking"], optional = true }
+# HTTP client for Fetch API with Chrome TLS fingerprint (native only)
+rquest = { version = "5", features = ["json", "stream", "cookies"], optional = true }
+rquest-util = { version = "2", optional = true }
 bytes = "1.5"
 
 # WebSocket support (native only)
-tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
+# Using rustls-tls-webpki-roots instead of native-tls to avoid OpenSSL/BoringSSL conflict with rquest
+tokio-tungstenite = { version = "0.20", default-features = false, features = ["connect", "rustls-tls-webpki-roots"], optional = true }
 
 # URL handling (matching Boa)
 url = "2.4"
@@ -129,6 +132,7 @@ image = { version = "0.25", features = ["png", "jpeg", "gif", "webp", "bmp", "ic
 tiny-skia = "0.11"
 fontdb = "0.16"
 rustybuzz = "0.12"
+ttf-parser = "0.21"
 
 # Audio playback (Phase 3: Audio) - native only
 rodio = { version = "0.19", default-features = false, features = ["symphonia-all"], optional = true }

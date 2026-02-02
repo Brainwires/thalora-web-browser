@@ -11,7 +11,7 @@ pub mod element;
 pub mod html_element;
 pub mod html_script_element;
 
-// Native-only implementations using reqwest
+// Native-only implementations using rquest
 #[cfg(feature = "native")]
 pub mod html_image_element;
 

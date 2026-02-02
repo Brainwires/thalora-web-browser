@@ -20,7 +20,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use futures_util::{Stream, StreamExt};
-use reqwest::Client;
+use rquest::Client;
 use std::{
     collections::HashMap,
     sync::{
@@ -398,7 +398,7 @@ impl EventSource {
 
     /// Process the Server-Sent Events stream
     async fn process_stream(
-        mut stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin,
+        mut stream: impl Stream<Item = Result<Bytes, rquest::Error>> + Unpin,
         data: &EventSourceData,
         control_rx: &mut mpsc::UnboundedReceiver<EventSourceControl>,
     ) -> Result<(), ()> {

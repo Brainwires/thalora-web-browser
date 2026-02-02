@@ -1,4 +1,5 @@
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
+use rand::prelude::*;
+use rquest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::types::StealthConfig;
 use thalora_constants::USER_AGENT as SHARED_USER_AGENT;
 

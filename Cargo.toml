@@ -28,8 +28,10 @@ serde_json = "1.0"
 # Async runtime (native only)
 tokio = { version = "1", features = ["full"], optional = true }
 
-# HTTP client (native only)
-reqwest = { version = "0.12", features = ["json", "native-tls", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart", "blocking"], default-features = false, optional = true }
+# HTTP client with browser impersonation for TLS/JA3 fingerprint matching (native only)
+# Uses BoringSSL internally for Chrome TLS fingerprint emulation
+rquest = { version = "5", features = ["json", "gzip", "brotli", "deflate", "zstd", "cookies", "stream", "multipart"], default-features = true, optional = true }
+rquest-util = { version = "2", optional = true }
 
 # HTML parsing
 scraper = "0.24"
@@ -59,7 +61,8 @@ wasm-encoder = { version = "0.38", optional = true }
 
 # Geolocation services (native only)
 sysinfo = { version = "0.31", optional = true }
-ipgeolocate = { version = "0.3", optional = true }
+# NOTE: ipgeolocate removed - pulls in reqwest with OpenSSL which conflicts with rquest's BoringSSL
+# Geolocation will be implemented directly using rquest if needed
 
 # WebRTC implementation (native only)
 webrtc = { version = "0.11", optional = true }
@@ -125,8 +128,9 @@ html-escape = "0.2"
 uuid = { version = "1.0", features = ["v4", "js"] }
 
 # WebSocket implementation (native only)
-tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
-tungstenite = { version = "0.20", optional = true }
+# Using rustls-tls-webpki-roots instead of native-tls to avoid OpenSSL/BoringSSL conflict with rquest
+tokio-tungstenite = { version = "0.20", default-features = false, features = ["connect", "rustls-tls-webpki-roots"], optional = true }
+tungstenite = { version = "0.20", default-features = false, features = ["handshake", "__rustls-tls"], optional = true }
 futures-util = "0.3"
 
 # Service Worker implementation (extends existing tokio features)
@@ -140,8 +144,9 @@ argon2 = { version = "0.5", features = ["std"] }
 sha2 = "0.10"
 zeroize = { version = "1.7", features = ["zeroize_derive"] }
 
-# Cookie management - shared cookie store for reqwest (native only)
-reqwest_cookie_store = { version = "0.9", optional = true }
+# Cookie management - shared cookie store compatible with rquest (native only)
+cookie_store = { version = "0.21", optional = true }
+cookie = { version = "0.18", optional = true }
 
 # IP address parsing and validation for SSRF prevention
 ipnetwork = "0.20"
@@ -196,8 +201,10 @@ default = ["native"]
 # Native build - includes all platform-specific dependencies
 native = [
     "dep:tokio",
-    "dep:reqwest",
-    "dep:reqwest_cookie_store",
+    "dep:rquest",
+    "dep:rquest-util",
+    "dep:cookie_store",
+    "dep:cookie",
     "dep:tokio-tungstenite",
     "dep:tungstenite",
     "dep:tokio-util",
@@ -214,7 +221,6 @@ native = [
     "dep:webrtc-ice",
     "dep:webrtc-dtls",
     "dep:sysinfo",
-    "dep:ipgeolocate",
     "dep:dirs",
     "dep:wasmtime",
     "dep:wasmtime-wasi",
@@ -246,8 +252,10 @@ gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster",
 # Minimal build for web search/scraping only (no audio, video, WebRTC, wasmtime)
 web-search = [
     "dep:tokio",
-    "dep:reqwest",
-    "dep:reqwest_cookie_store",
+    "dep:rquest",
+    "dep:rquest-util",
+    "dep:cookie_store",
+    "dep:cookie",
     "dep:tokio-util",
     "dep:dirs",
     # Enable native features in sub-crates

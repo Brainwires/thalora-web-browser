@@ -20,10 +20,18 @@ pub struct BrowserFingerprint {
     pub browser_headers: HashMap<String, String>,
     /// Canvas fingerprint simulation
     pub canvas_fingerprint: String,
-    /// WebGL fingerprint simulation
+    /// WebGL fingerprint simulation (legacy HashMap format)
     pub webgl_fingerprint: HashMap<String, String>,
     /// Screen resolution and display info
     pub screen_info: ScreenInfo,
+    /// WebGL vendor string for UNMASKED_VENDOR_WEBGL
+    pub webgl_vendor: String,
+    /// WebGL renderer string for UNMASKED_RENDERER_WEBGL
+    pub webgl_renderer: String,
+    /// WebGL version string
+    pub webgl_version: String,
+    /// WebGL shading language version
+    pub webgl_shading_language_version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,30 +99,32 @@ impl BrowserFingerprint {
     }
 
     /// Generate Chrome fingerprint (most common, good for general use)
+    /// Uses the centralized Chrome version constant for consistency
     fn generate_chrome() -> Self {
-        let mut rng = rand::thread_rng();
-        let version = rng.gen_range(115..121); // Recent Chrome versions
-        let build = rng.gen_range(1000..9999);
-        
-        let user_agent = format!(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{}.0.{}.88 Safari/537.36",
-            version, build
-        );
+        use thalora_constants::{USER_AGENT, SEC_CH_UA, CHROME_VERSION};
+
+        let user_agent = USER_AGENT.to_string();
 
         let mut accept_headers = HashMap::new();
         accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".to_string());
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br, zstd".to_string());
         accept_headers.insert("Sec-Fetch-Dest".to_string(), "document".to_string());
         accept_headers.insert("Sec-Fetch-Mode".to_string(), "navigate".to_string());
         accept_headers.insert("Sec-Fetch-Site".to_string(), "none".to_string());
         accept_headers.insert("Sec-Fetch-User".to_string(), "?1".to_string());
         accept_headers.insert("Upgrade-Insecure-Requests".to_string(), "1".to_string());
+        // Chrome 131+ sends priority hints
+        accept_headers.insert("Priority".to_string(), "u=0, i".to_string());
 
         let mut browser_headers = HashMap::new();
-        browser_headers.insert("sec-ch-ua".to_string(), format!(r#""Google Chrome";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#, version, version));
+        browser_headers.insert("sec-ch-ua".to_string(), SEC_CH_UA.to_string());
         browser_headers.insert("sec-ch-ua-mobile".to_string(), "?0".to_string());
         browser_headers.insert("sec-ch-ua-platform".to_string(), r#""Windows""#.to_string());
+        // Full client hints for Chrome 131+
+        browser_headers.insert("sec-ch-ua-full-version-list".to_string(), format!(r#""Google Chrome";v="{}.0.0.0", "Chromium";v="{}.0.0.0", "Not_A Brand";v="24.0.0.0""#, CHROME_VERSION, CHROME_VERSION));
+
+        let webgl = Self::generate_chrome_webgl();
 
         Self {
             user_agent,
@@ -123,7 +133,11 @@ impl BrowserFingerprint {
             http2_settings: Self::generate_chrome_http2(),
             browser_headers,
             canvas_fingerprint: Self::generate_chrome_canvas(),
-            webgl_fingerprint: Self::generate_chrome_webgl(),
+            webgl_vendor: webgl.get("vendor").cloned().unwrap_or_else(|| "Google Inc. (NVIDIA)".to_string()),
+            webgl_renderer: webgl.get("renderer").cloned().unwrap_or_else(|| "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)".to_string()),
+            webgl_version: webgl.get("version").cloned().unwrap_or_else(|| "WebGL 1.0 (OpenGL ES 2.0 Chromium)".to_string()),
+            webgl_shading_language_version: webgl.get("shading_language_version").cloned().unwrap_or_else(|| "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)".to_string()),
+            webgl_fingerprint: webgl,
             screen_info: Self::generate_common_screen(),
         }
     }
@@ -144,6 +158,8 @@ impl BrowserFingerprint {
         accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
         accept_headers.insert("Upgrade-Insecure-Requests".to_string(), "1".to_string());
 
+        let webgl = Self::generate_firefox_webgl();
+
         Self {
             user_agent,
             accept_headers,
@@ -151,7 +167,11 @@ impl BrowserFingerprint {
             http2_settings: Self::generate_firefox_http2(),
             browser_headers: HashMap::new(), // Firefox doesn't send sec-ch-ua
             canvas_fingerprint: Self::generate_firefox_canvas(),
-            webgl_fingerprint: Self::generate_firefox_webgl(),
+            webgl_vendor: webgl.get("vendor").cloned().unwrap_or_else(|| "Mozilla".to_string()),
+            webgl_renderer: webgl.get("renderer").cloned().unwrap_or_else(|| "Mozilla -- NVIDIA GeForce RTX 3080/PCIe/SSE2".to_string()),
+            webgl_version: webgl.get("version").cloned().unwrap_or_else(|| "WebGL 1.0".to_string()),
+            webgl_shading_language_version: webgl.get("shading_language_version").cloned().unwrap_or_else(|| "WebGL GLSL ES 1.0".to_string()),
+            webgl_fingerprint: webgl,
             screen_info: Self::generate_common_screen(),
         }
     }
@@ -172,6 +192,8 @@ impl BrowserFingerprint {
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
         accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
 
+        let webgl = Self::generate_safari_webgl();
+
         Self {
             user_agent,
             accept_headers,
@@ -179,7 +201,11 @@ impl BrowserFingerprint {
             http2_settings: Self::generate_safari_http2(),
             browser_headers: HashMap::new(),
             canvas_fingerprint: Self::generate_safari_canvas(),
-            webgl_fingerprint: Self::generate_safari_webgl(),
+            webgl_vendor: webgl.get("vendor").cloned().unwrap_or_else(|| "Apple Inc.".to_string()),
+            webgl_renderer: webgl.get("renderer").cloned().unwrap_or_else(|| "Apple GPU".to_string()),
+            webgl_version: webgl.get("version").cloned().unwrap_or_else(|| "WebGL 1.0 (OpenGL ES 2.0 Apple-1.0)".to_string()),
+            webgl_shading_language_version: webgl.get("shading_language_version").cloned().unwrap_or_else(|| "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Apple-1.0)".to_string()),
+            webgl_fingerprint: webgl,
             screen_info: ScreenInfo {
                 width: 1440,
                 height: 900,
@@ -212,6 +238,8 @@ impl BrowserFingerprint {
         browser_headers.insert("sec-ch-ua-mobile".to_string(), "?0".to_string());
         browser_headers.insert("sec-ch-ua-platform".to_string(), r#""Windows""#.to_string());
 
+        let webgl = Self::generate_chrome_webgl(); // Edge uses same WebGL as Chrome
+
         Self {
             user_agent,
             accept_headers,
@@ -219,7 +247,11 @@ impl BrowserFingerprint {
             http2_settings: Self::generate_chrome_http2(),
             browser_headers,
             canvas_fingerprint: Self::generate_chrome_canvas(),
-            webgl_fingerprint: Self::generate_chrome_webgl(),
+            webgl_vendor: webgl.get("vendor").cloned().unwrap_or_else(|| "Google Inc. (NVIDIA)".to_string()),
+            webgl_renderer: webgl.get("renderer").cloned().unwrap_or_else(|| "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)".to_string()),
+            webgl_version: webgl.get("version").cloned().unwrap_or_else(|| "WebGL 1.0 (OpenGL ES 2.0 Chromium)".to_string()),
+            webgl_shading_language_version: webgl.get("shading_language_version").cloned().unwrap_or_else(|| "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)".to_string()),
+            webgl_fingerprint: webgl,
             screen_info: Self::generate_common_screen(),
         }
     }
@@ -402,37 +434,19 @@ impl BrowserFingerprint {
         }
     }
 
-    /// Apply fingerprint to reqwest client builder
-    pub fn apply_to_client_builder(&self, builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-        let mut default_headers = reqwest::header::HeaderMap::new();
-        
-        // Add User-Agent
-        default_headers.insert(
-            reqwest::header::USER_AGENT,
-            self.user_agent.parse().unwrap(),
-        );
-
-        // Add accept headers
-        for (key, value) in &self.accept_headers {
-            if let (Ok(header_name), Ok(header_value)) = (
-                reqwest::header::HeaderName::from_lowercase(key.to_lowercase().as_bytes()),
-                reqwest::header::HeaderValue::from_str(value)
-            ) {
-                default_headers.insert(header_name, header_value);
-            }
+    // Note: Browser fingerprinting is now handled by rquest's Emulation::Chrome131
+    // This method is deprecated but kept for reference
+    #[deprecated(note = "Use rquest with Emulation::Chrome131 instead - it handles TLS/HTTP2 fingerprinting automatically")]
+    pub fn get_default_headers(&self) -> std::collections::HashMap<String, String> {
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("User-Agent".to_string(), self.user_agent.clone());
+        for (k, v) in &self.accept_headers {
+            headers.insert(k.clone(), v.clone());
         }
-
-        // Add browser-specific headers
-        for (key, value) in &self.browser_headers {
-            if let (Ok(header_name), Ok(header_value)) = (
-                reqwest::header::HeaderName::from_lowercase(key.to_lowercase().as_bytes()),
-                reqwest::header::HeaderValue::from_str(value)
-            ) {
-                default_headers.insert(header_name, header_value);
-            }
+        for (k, v) in &self.browser_headers {
+            headers.insert(k.clone(), v.clone());
         }
-
-        builder.default_headers(default_headers)
+        headers
     }
 }
 

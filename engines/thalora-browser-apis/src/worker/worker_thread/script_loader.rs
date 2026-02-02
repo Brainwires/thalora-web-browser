@@ -65,44 +65,54 @@ pub fn extract_from_data_url(data_url: &str) -> JsResult<String> {
 fn fetch_script_from_url(url: &str) -> JsResult<String> {
     eprintln!("[Worker] Fetching script from URL: {}", url);
 
-    // Use reqwest blocking client for synchronous fetch
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+    // Use rquest async client with tokio block_on for synchronous fetch
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
         .build()
         .map_err(|e| JsNativeError::error()
-            .with_message(format!("Failed to create HTTP client: {}", e)))?;
+            .with_message(format!("Failed to create tokio runtime: {}", e)))?;
 
-    let response = client.get(url)
-        .header("Accept", "application/javascript, text/javascript, */*")
-        .send()
-        .map_err(|e| JsNativeError::error()
-            .with_message(format!("Failed to fetch worker script: {}", e)))?;
+    rt.block_on(async {
+        let client = rquest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| JsNativeError::error()
+                .with_message(format!("Failed to create HTTP client: {}", e)))?;
 
-    // Check for successful response
-    if !response.status().is_success() {
-        return Err(JsNativeError::error()
-            .with_message(format!("Failed to fetch worker script: HTTP {}", response.status()))
-            .into());
-    }
+        let response = client.get(url)
+            .header("Accept", "application/javascript, text/javascript, */*")
+            .send()
+            .await
+            .map_err(|e| JsNativeError::error()
+                .with_message(format!("Failed to fetch worker script: {}", e)))?;
 
-    // Get content type to verify it's JavaScript
-    let content_type = response.headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+        // Check for successful response
+        if !response.status().is_success() {
+            return Err(JsNativeError::error()
+                .with_message(format!("Failed to fetch worker script: HTTP {}", response.status()))
+                .into());
+        }
 
-    // Allow common JavaScript MIME types
-    let is_javascript = content_type.contains("javascript")
-        || content_type.contains("text/plain")
-        || content_type.is_empty(); // Some servers don't set content-type
+        // Get content type to verify it's JavaScript
+        let content_type = response.headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
 
-    if !is_javascript && !content_type.contains("application/octet-stream") {
-        eprintln!("[Worker] Warning: Script content-type is '{}', expected JavaScript", content_type);
-    }
+        // Allow common JavaScript MIME types
+        let is_javascript = content_type.contains("javascript")
+            || content_type.contains("text/plain")
+            || content_type.is_empty(); // Some servers don't set content-type
 
-    // Read the response body as text
-    response.text()
-        .map_err(|e| JsNativeError::error()
-            .with_message(format!("Failed to read worker script response: {}", e))
-            .into())
+        if !is_javascript && !content_type.contains("application/octet-stream") {
+            eprintln!("[Worker] Warning: Script content-type is '{}', expected JavaScript", content_type);
+        }
+
+        // Read the response body as text
+        response.text()
+            .await
+            .map_err(|e| JsNativeError::error()
+                .with_message(format!("Failed to read worker script response: {}", e))
+                .into())
+    })
 }

@@ -17,7 +17,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
-use reqwest;
+use rquest;
 use url::Url;
 
 /// JavaScript `XMLHttpRequest` constructor implementation.
@@ -314,9 +314,9 @@ impl XmlHttpRequest {
         Self::update_ready_state(&xhr_obj, 2, context)?;
 
         // Perform HTTP request
-        let client = reqwest::Client::new();
+        let client = rquest::Client::new();
         let mut request_builder = client.request(
-            reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
+            rquest::Method::from_bytes(method.as_bytes()).unwrap_or(rquest::Method::GET),
             &url
         );
 

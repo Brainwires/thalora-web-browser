@@ -3,7 +3,7 @@
 //! This module provides video playback capabilities.
 //! https://html.spec.whatwg.org/multipage/media.html#htmlvideoelement
 
-// Native implementation using reqwest
+// Native implementation using rquest
 #[cfg(feature = "native")]
 pub mod html_video_element;
 

@@ -18,7 +18,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
-use reqwest;
+use rquest;
 use url::Url;
 
 /// JavaScript `fetch()` global function implementation.
@@ -84,9 +84,9 @@ fn fetch(
     context.enqueue_job(
         NativeAsyncJob::new(async move |context| {
             // Perform HTTP request in the background
-            let client = reqwest::Client::new();
+            let client = rquest::Client::new();
             let mut request_builder = client.request(
-                reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
+                rquest::Method::from_bytes(method.as_bytes()).unwrap_or(rquest::Method::GET),
                 &url_string
             );
 

@@ -1,18 +1,50 @@
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
-use reqwest_cookie_store::CookieStoreMutex;
+use rquest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
+use rquest_util::Emulation;
 use crate::engine::renderer::RustRenderer;
 use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry};
 use crate::engine::browser::scraper::WebScraper;
 use crate::engine::browser::{FormAnalyzer, FormInfo};
 
+/// A cookie store wrapper that implements rquest's CookieStore trait
+pub struct CookieStoreWrapper(pub RwLock<cookie_store::CookieStore>);
+
+impl rquest::cookie::CookieStore for CookieStoreWrapper {
+    fn set_cookies(&self, url: &url::Url, cookie_headers: &mut dyn Iterator<Item = &rquest::header::HeaderValue>) {
+        let mut store = self.0.write().unwrap();
+        for header in cookie_headers {
+            if let Ok(header_str) = header.to_str() {
+                if let Ok(raw_cookie) = cookie::Cookie::parse(header_str) {
+                    let cookie = cookie_store::RawCookie::new(raw_cookie.name().to_string(), raw_cookie.value().to_string());
+                    let _ = store.insert_raw(&cookie, url);
+                }
+            }
+        }
+    }
+
+    fn cookies(&self, url: &url::Url) -> Option<rquest::header::HeaderValue> {
+        let store = self.0.read().unwrap();
+        let cookies: Vec<String> = store
+            .matches(url)
+            .iter()
+            .map(|c| format!("{}={}", c.name(), c.value()))
+            .collect();
+
+        if cookies.is_empty() {
+            None
+        } else {
+            rquest::header::HeaderValue::from_str(&cookies.join("; ")).ok()
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub struct HeadlessWebBrowser {
-    pub(super) client: reqwest::Client,
-    pub(super) cookie_store: Arc<CookieStoreMutex>,
+    pub(super) client: rquest::Client,
+    pub(super) cookie_store: Arc<CookieStoreWrapper>,
     pub(super) renderer: Option<RustRenderer>,
     pub(super) current_url: Option<String>,
     pub(super) current_content: String,
@@ -31,25 +63,26 @@ impl HeadlessWebBrowser {
 
     pub fn new_with_engine(engine_type: crate::engine::engine_trait::EngineType) -> Arc<Mutex<Self>> {
         // Create shared cookie store for cookie management
-        let cookie_store = Arc::new(CookieStoreMutex::new(
-            reqwest_cookie_store::CookieStore::default()
+        let cookie_store = Arc::new(CookieStoreWrapper(
+            RwLock::new(cookie_store::CookieStore::default())
         ));
 
-        // Configure client with enhanced stealth capabilities
-        // Use centralized USER_AGENT constant for consistency
-        let client = reqwest::Client::builder()
+        // Configure client with Chrome 131 TLS/HTTP2 fingerprint impersonation
+        // This makes the browser appear as a real Chrome 131 to Cloudflare and other
+        // fingerprinting systems by matching:
+        // - TLS cipher suites and extension order (JA3 fingerprint)
+        // - HTTP/2 settings and frame behavior (Akamai fingerprint)
+        // - Header ordering and values
+        let client = rquest::Client::builder()
+            .emulation(Emulation::Chrome131)
             .cookie_provider(Arc::clone(&cookie_store))
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent(super::USER_AGENT)
             .gzip(true)
             .brotli(true)
             .deflate(true)
-            // Let reqwest negotiate HTTP/2 via ALPN naturally - http2_prior_knowledge() can cause connection failures
-            .http2_adaptive_window(true)
-            .tcp_keepalive(std::time::Duration::from_secs(60))
-            .tcp_nodelay(true)
+            .zstd(true) // Chrome 131+ supports zstd compression
             .build()
-            .expect("Failed to create HTTP client");
+            .expect("Failed to create HTTP client with Chrome 131 emulation");
 
     let renderer = RustRenderer::new_with_engine(engine_type);
 
@@ -116,7 +149,7 @@ impl HeadlessWebBrowser {
         (self.storage.local_storage.clone(), self.storage.session_storage.clone())
     }
 
-    pub fn get_chrome_headers(&self, url: &str) -> reqwest::header::HeaderMap {
+    pub fn get_chrome_headers(&self, url: &str) -> rquest::header::HeaderMap {
         self.create_standard_browser_headers(url)
     }
 
@@ -172,6 +205,8 @@ impl HeadlessWebBrowser {
     }
 
     pub fn create_standard_browser_headers(&self, url: &str) -> HeaderMap {
+        use thalora_constants::SEC_CH_UA;
+
         let mut headers = HeaderMap::new();
 
         // Use shared Chrome USER_AGENT constant - single source of truth!
@@ -185,13 +220,16 @@ impl HeadlessWebBrowser {
         // Chrome language preferences
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
 
-        // Chrome compression support
-        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
+        // Chrome compression support (Chrome 131+ supports zstd)
+        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br, zstd"));
 
-        // Chrome sends client hints - add them for Chrome fingerprint consistency
-        headers.insert("sec-ch-ua", HeaderValue::from_static("\"Chromium\";v=\"120\", \"Not A(Brand\";v=\"99\""));
+        // Chrome sends client hints - use centralized constants for version consistency
+        headers.insert("sec-ch-ua", HeaderValue::from_static(SEC_CH_UA));
         headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
         headers.insert("sec-ch-ua-platform", HeaderValue::from_static("\"Windows\""));
+
+        // Priority hints (Chrome 131+)
+        headers.insert("priority", HeaderValue::from_static("u=0, i"));
 
         // Proper fetch metadata for Chrome
         if url.starts_with("https://www.google.com") {
@@ -342,7 +380,7 @@ impl Drop for HeadlessWebBrowser {
         self.current_content.clear();
         self.current_url = None;
 
-        // Note: reqwest::Client will be dropped automatically
+        // Note: rquest::Client will be dropped automatically
         // It will close connection pools when the last reference is dropped
     }
 }

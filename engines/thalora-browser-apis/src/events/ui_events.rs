@@ -666,6 +666,46 @@ impl MouseEventData {
         }
     }
 
+    /// Create a new trusted mouse event (for browser-initiated events)
+    /// This sets is_trusted to true and includes a proper timestamp.
+    pub fn new_trusted(event_type: String, bubbles: bool, cancelable: bool) -> Self {
+        let mut event = Self::new(event_type, bubbles, cancelable);
+        event.ui_event.event.set_is_trusted(true);
+        event
+    }
+
+    /// Create a trusted mouse event with all coordinates specified
+    pub fn new_trusted_with_coords(
+        event_type: String,
+        bubbles: bool,
+        cancelable: bool,
+        client_x: f64,
+        client_y: f64,
+        screen_x: f64,
+        screen_y: f64,
+        page_x: f64,
+        page_y: f64,
+        movement_x: f64,
+        movement_y: f64,
+        button: i16,
+        buttons: u16,
+    ) -> Self {
+        let mut event = Self::new_trusted(event_type, bubbles, cancelable);
+        event.client_x = client_x;
+        event.client_y = client_y;
+        event.screen_x = screen_x;
+        event.screen_y = screen_y;
+        event.page_x = page_x;
+        event.page_y = page_y;
+        event.offset_x = client_x; // Offset is typically same as client for viewport
+        event.offset_y = client_y;
+        event.movement_x = movement_x;
+        event.movement_y = movement_y;
+        event.button = button;
+        event.buttons = buttons;
+        event
+    }
+
     /// Check if any modifier key is pressed
     pub fn get_modifier_state(&self, key: &str) -> bool {
         match key {

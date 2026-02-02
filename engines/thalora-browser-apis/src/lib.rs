@@ -16,6 +16,10 @@ pub mod dom;
 // Fetch & Networking APIs
 pub mod fetch;
 
+// Blocking HTTP client (rquest doesn't have a blocking module)
+#[cfg(feature = "native")]
+pub mod http_blocking;
+
 // Storage APIs
 pub mod storage;
 

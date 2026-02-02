@@ -71,6 +71,20 @@ impl EventData {
         }
     }
 
+    /// Create a new trusted event (for browser-initiated events like mouse clicks)
+    /// Trusted events have is_trusted set to true, indicating they were created
+    /// by the user agent rather than by JavaScript code.
+    pub fn new_trusted(event_type: String, bubbles: bool, cancelable: bool) -> Self {
+        let mut event = Self::new(event_type, bubbles, cancelable);
+        event.is_trusted = true;
+        // Trusted events get a proper timestamp
+        event.timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as f64)
+            .unwrap_or(0.0);
+        event
+    }
+
     pub fn prevent_default(&mut self) {
         if self.cancelable {
             self.default_prevented = true;
