@@ -10,6 +10,7 @@ pub mod domtokenlist;
 pub mod element;
 pub mod html_element;
 pub mod html_script_element;
+pub mod html_iframe_element;
 
 // Native-only implementations using rquest
 #[cfg(feature = "native")]

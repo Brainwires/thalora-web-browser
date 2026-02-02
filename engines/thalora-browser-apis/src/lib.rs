@@ -137,6 +137,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::image_bitmap::ImageBitmap::init(&realm);
     dom::html_element::HTMLElement::init(&realm);
     dom::html_script_element::HTMLScriptElement::init(&realm);
+    dom::html_iframe_element::HTMLIFrameElement::init(&realm);
     dom::dom_parser::DOMParser::init(&realm);
 
     // Initialize Canvas APIs

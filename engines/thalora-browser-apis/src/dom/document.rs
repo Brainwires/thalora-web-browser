@@ -792,6 +792,37 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         )?;
     }
 
+    // Add IFrame-specific functionality for <iframe> elements
+    if tag_name_upper == "IFRAME" {
+        // Create an HTMLIFrameElement instead of generic Element
+        let iframe_constructor = context.intrinsics().constructors().html_iframe_element().constructor();
+        let iframe = crate::dom::html_iframe_element::HTMLIFrameElement::constructor(
+            &iframe_constructor.clone().into(),
+            &[],
+            context,
+        )?;
+
+        let iframe_obj = iframe.as_object().unwrap();
+
+        // Initialize the iframe's isolated browsing context (contentDocument/contentWindow)
+        crate::dom::html_iframe_element::initialize_iframe_context(&iframe_obj, context)?;
+
+        return Ok(iframe);
+    }
+
+    // Add Script-specific functionality for <script> elements
+    if tag_name_upper == "SCRIPT" {
+        // Create an HTMLScriptElement instead of generic Element
+        let script_constructor = context.intrinsics().constructors().html_script_element().constructor();
+        let script = crate::dom::html_script_element::HTMLScriptElement::constructor(
+            &script_constructor.clone().into(),
+            &[],
+            context,
+        )?;
+
+        return Ok(script);
+    }
+
     Ok(element)
 }
 
