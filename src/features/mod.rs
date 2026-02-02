@@ -14,6 +14,9 @@ pub mod webgl;
 pub mod mouse_simulation;
 pub mod event_dispatcher;
 
+// Challenge solver for handling Cloudflare/Turnstile through proper browser behavior
+pub mod solver;
+
 // Native-only: ai_memory uses dirs crate for filesystem paths
 #[cfg(any(feature = "native", feature = "web-search"))]
 pub mod ai_memory;
@@ -37,3 +40,6 @@ pub use readability::{ReadabilityEngine, ReadabilityConfig, QualityMetrics, Extr
 // Mouse simulation exports
 pub use mouse_simulation::{MousePath, MousePoint, MousePathConfig, ClickSequence};
 pub use event_dispatcher::{EventSequence, EventAction, EventCoords, MouseEventType, MouseButton};
+
+// Challenge solver exports
+pub use solver::{ChallengeSolver, ChallengeDetector, ChallengeType, DetectedChallenge, BehavioralSimulator, BehavioralConfig};

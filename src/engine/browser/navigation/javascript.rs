@@ -4,52 +4,45 @@ use std::error::Error;
 use rand;
 
 use crate::engine::security::SsrfProtection;
-
-/// Cloudflare challenge detection patterns
-const CF_CHALLENGE_MARKERS: &[&str] = &[
-    "challenges.cloudflare.com",
-    "cf-browser-verification",
-    "cf_chl_prog",
-    "cf-turnstile",
-    "__cf_chl_rt_tk",
-    "Just a moment...",
-    "Checking your browser before accessing",
-    "Please wait while we verify your browser",
-    "cf-spinner-please-wait",
-    "ray-id",
-];
+use crate::features::solver::{ChallengeSolver, ChallengeDetector, DetectedChallenge, ChallengeType};
 
 /// Maximum number of Cloudflare challenge retry attempts
 const MAX_CF_RETRIES: u32 = 3;
 
+/// Default viewport dimensions for behavioral simulation
+const VIEWPORT_WIDTH: f64 = 1366.0;
+const VIEWPORT_HEIGHT: f64 = 768.0;
+
 impl super::super::HeadlessWebBrowser {
-    /// Detect if the page content is a Cloudflare challenge page
-    fn is_cloudflare_challenge(&self, content: &str) -> bool {
-        // Count how many challenge markers are present
-        let marker_count = CF_CHALLENGE_MARKERS.iter()
-            .filter(|marker| content.contains(*marker))
-            .count();
-
-        // Need at least 2 markers to confirm it's a Cloudflare challenge
-        // (to avoid false positives from pages that just mention Cloudflare)
-        if marker_count >= 2 {
-            eprintln!("🛡️ CLOUDFLARE: Detected challenge page ({} markers found)", marker_count);
-            return true;
-        }
-
-        // Also check for the specific challenge page HTML structure
-        if content.contains("<title>Just a moment...</title>")
-            || (content.contains("cf-browser-verification") && content.contains("challenge-running")) {
-            eprintln!("🛡️ CLOUDFLARE: Detected challenge page (title/structure match)");
-            return true;
-        }
-
-        false
+    /// Detect if the page content is a challenge page using the challenge solver
+    fn detect_challenge(&self, content: &str, url: &str) -> Option<DetectedChallenge> {
+        let detector = ChallengeDetector::new();
+        detector.detect(content, url)
     }
 
-    /// Handle Cloudflare challenge by executing JavaScript and waiting for completion
+    /// Detect if the page content is a Cloudflare challenge page (legacy method)
+    fn is_cloudflare_challenge(&self, content: &str) -> bool {
+        self.detect_challenge(content, "").is_some()
+    }
+
+    /// Handle challenge by simulating realistic browser behavior
+    /// This is the key insight: we don't "bypass" challenges, we behave like a real browser
     async fn handle_cloudflare_challenge(&mut self, url: &str, content: &str) -> Result<String> {
-        eprintln!("🛡️ CLOUDFLARE: Starting challenge resolution for {}", url);
+        // Use the new challenge solver for detection and behavioral simulation
+        let solver = ChallengeSolver::new();
+
+        // Detect the specific challenge type
+        let challenge = match solver.detect_challenge(content, url) {
+            Some(c) => c,
+            None => {
+                eprintln!("🛡️ CHALLENGE: No challenge detected, returning content as-is");
+                return Ok(content.to_string());
+            }
+        };
+
+        eprintln!("🛡️ CHALLENGE: Detected {:?} (confidence: {:.2})", challenge.challenge_type, challenge.confidence);
+        eprintln!("🛡️ CHALLENGE: Requires interaction: {}", challenge.requires_interaction);
+        eprintln!("🛡️ CHALLENGE: Starting behavioral resolution for {}", url);
 
         // Store the challenge page content
         self.current_content = content.to_string();
@@ -60,97 +53,99 @@ impl super::super::HeadlessWebBrowser {
             renderer.update_document_html(content)?;
         }
 
-        // Execute all scripts on the challenge page
-        // This will run Cloudflare's JavaScript challenge
+        // Phase 1: Execute page scripts (Cloudflare's JS challenge)
+        eprintln!("🛡️ CHALLENGE: Phase 1 - Executing challenge scripts...");
         self.execute_page_scripts(content, false).await?;
         self.fire_dom_content_loaded().await?;
         self.execute_page_scripts(content, true).await?;
 
-        // Wait for the challenge to complete
-        // Cloudflare typically sets cookies and redirects after verification
-        eprintln!("🛡️ CLOUDFLARE: Waiting for challenge JavaScript to execute...");
-
-        // Wait for cf_clearance cookie or challenge completion
-        let wait_result = self.wait_for_cloudflare_clearance(15000).await;
-
-        match wait_result {
-            Ok(true) => {
-                eprintln!("🛡️ CLOUDFLARE: Challenge appears to be resolved, retrying request...");
-
-                // Add a small delay before retrying
-                sleep(Duration::from_millis(500)).await;
-
-                // Retry the original request - the cookies should now be set
-                let headers = self.create_standard_browser_headers(url);
-                let response = self.client.get(url).headers(headers).send().await?;
-                let new_content = response.text().await?;
-
-                // Check if we're still on a challenge page
-                if self.is_cloudflare_challenge(&new_content) {
-                    eprintln!("🛡️ CLOUDFLARE: Still on challenge page after retry");
-                    Err(anyhow!("Cloudflare challenge could not be resolved automatically"))
-                } else {
-                    eprintln!("🛡️ CLOUDFLARE: Successfully bypassed challenge!");
-                    Ok(new_content)
+        // Phase 2: Behavioral simulation (act like a real user)
+        eprintln!("🛡️ CHALLENGE: Phase 2 - Simulating user behavior...");
+        match solver.generate_interaction_js(&challenge, VIEWPORT_WIDTH, VIEWPORT_HEIGHT) {
+            Ok(behavior_js) => {
+                // Execute behavioral simulation (mouse movements, clicks, timing)
+                match self.execute_javascript(&behavior_js).await {
+                    Ok(_) => eprintln!("🛡️ CHALLENGE: Behavioral simulation executed"),
+                    Err(e) => eprintln!("🛡️ CHALLENGE: Behavioral simulation warning: {} (continuing)", e),
                 }
             }
-            Ok(false) => {
-                eprintln!("🛡️ CLOUDFLARE: Challenge timeout - clearance not obtained");
-                Err(anyhow!("Cloudflare challenge timeout - could not obtain clearance"))
+            Err(e) => {
+                eprintln!("🛡️ CHALLENGE: Could not generate behavioral simulation: {} (continuing)", e);
+            }
+        }
+
+        // Small delay to let behavioral simulation settle
+        let settle_delay = 500 + (rand::random::<u64>() % 500);
+        sleep(Duration::from_millis(settle_delay)).await;
+
+        // Phase 3: Wait for challenge resolution
+        let timeout_ms = challenge.expected_resolution_time_ms.max(10000);
+        eprintln!("🛡️ CHALLENGE: Phase 3 - Waiting for resolution ({}ms timeout)...", timeout_ms);
+
+        let wait_js = solver.generate_wait_for_resolution_js(&challenge, timeout_ms);
+        let wait_result = self.execute_javascript(&wait_js).await;
+
+        // Analyze the result
+        match wait_result {
+            Ok(result) => {
+                let result_str = result.trim();
+                eprintln!("🛡️ CHALLENGE: Resolution result: {}", result_str);
+
+                // Check if resolution was successful (result contains "success": true)
+                if result_str.contains("\"success\":true") || result_str.contains("success: true") || result_str == "true" {
+                    eprintln!("🛡️ CHALLENGE: Resolution successful, retrying request...");
+
+                    // Add a small delay before retrying
+                    let retry_delay = 500 + (rand::random::<u64>() % 500);
+                    sleep(Duration::from_millis(retry_delay)).await;
+
+                    // Retry the original request - the cookies should now be set
+                    let headers = self.create_standard_browser_headers(url);
+                    let response = self.client.get(url).headers(headers).send().await?;
+                    let new_content = response.text().await?;
+
+                    // Check if we're still on a challenge page
+                    if self.detect_challenge(&new_content, url).is_some() {
+                        eprintln!("🛡️ CHALLENGE: Still on challenge page after resolution");
+                        Err(anyhow!("Challenge could not be resolved automatically"))
+                    } else {
+                        eprintln!("🛡️ CHALLENGE: Successfully passed challenge!");
+                        Ok(new_content)
+                    }
+                } else {
+                    eprintln!("🛡️ CHALLENGE: Resolution indicated failure or timeout");
+                    Err(anyhow!("Challenge resolution failed: {}", result_str))
+                }
             }
             Err(e) => {
-                eprintln!("🛡️ CLOUDFLARE: Challenge error: {}", e);
+                eprintln!("🛡️ CHALLENGE: Resolution error: {}", e);
                 Err(e)
             }
         }
     }
 
-    /// Wait for Cloudflare clearance cookie to be set
+    /// Legacy wait method - now uses the solver's wait logic
     async fn wait_for_cloudflare_clearance(&mut self, timeout_ms: u64) -> Result<bool> {
-        let js_code = format!(r#"
-        (function() {{
-            return new Promise(function(resolve) {{
-                var startTime = Date.now();
-                var timeout = {};
+        let solver = ChallengeSolver::new();
 
-                function checkClearance() {{
-                    // Check for cf_clearance cookie
-                    var cookies = document.cookie;
-                    if (cookies.includes('cf_clearance')) {{
-                        resolve(true);
-                        return;
-                    }}
+        // Create a generic Cloudflare challenge for the wait logic
+        let challenge = DetectedChallenge {
+            challenge_type: ChallengeType::CloudflareJS,
+            confidence: 1.0,
+            widget_selector: None,
+            click_target_selector: None,
+            requires_interaction: false,
+            expected_resolution_time_ms: timeout_ms,
+            detected_markers: vec![],
+        };
 
-                    // Check if the challenge spinner is gone
-                    var spinner = document.querySelector('.cf-spinner-please-wait');
-                    var challengeRunning = document.querySelector('.challenge-running');
-                    var challengeSuccess = document.querySelector('.challenge-success');
+        let wait_js = solver.generate_wait_for_resolution_js(&challenge, timeout_ms);
 
-                    if (challengeSuccess || (!spinner && !challengeRunning && document.readyState === 'complete')) {{
-                        // Challenge might be complete, give it a moment
-                        setTimeout(function() {{
-                            resolve(true);
-                        }}, 500);
-                        return;
-                    }}
-
-                    // Check timeout
-                    if (Date.now() - startTime > timeout) {{
-                        resolve(false);
-                        return;
-                    }}
-
-                    // Check again in 200ms
-                    setTimeout(checkClearance, 200);
-                }}
-
-                checkClearance();
-            }});
-        }})()
-        "#, timeout_ms);
-
-        match self.execute_javascript(&js_code).await {
-            Ok(result) => Ok(result.trim() == "true"),
+        match self.execute_javascript(&wait_js).await {
+            Ok(result) => {
+                let success = result.contains("\"success\":true") || result.contains("success: true") || result.trim() == "true";
+                Ok(success)
+            }
             Err(e) => Err(e)
         }
     }

@@ -1081,8 +1081,53 @@ impl ElementData {
     }
 
     /// Get bounding client rectangle
+    /// First checks the global layout registry for computed positions,
+    /// then falls back to the stored bounding_rect
     pub fn get_bounding_client_rect(&self) -> DOMRect {
+        // Try to get computed layout from the registry
+        let element_id = self.get_element_identifier();
+        let tag = self.tag_name.lock().unwrap().to_lowercase();
+
+        // Query the layout registry
+        let layout = crate::layout_registry::get_element_layout(&element_id, &tag);
+
+        // If we got a non-zero layout from the registry, use it
+        if layout.width > 0.0 || layout.height > 0.0 {
+            return DOMRect {
+                x: layout.x,
+                y: layout.y,
+                width: layout.width,
+                height: layout.height,
+                top: layout.top,
+                right: layout.right,
+                bottom: layout.bottom,
+                left: layout.left,
+            };
+        }
+
+        // Fall back to stored bounding_rect
         self.bounding_rect.lock().unwrap().clone()
+    }
+
+    /// Get a unique identifier for this element for layout registry lookups
+    fn get_element_identifier(&self) -> String {
+        // Prefer ID attribute
+        let id = self.get_id();
+        if !id.is_empty() {
+            return format!("#{}", id);
+        }
+
+        // Use tag + first class
+        let tag = self.tag_name.lock().unwrap().to_lowercase();
+        let class_list = self.class_name.lock().unwrap();
+        if !class_list.is_empty() {
+            let first_class = class_list.split_whitespace().next().unwrap_or("");
+            if !first_class.is_empty() {
+                return format!("{}.{}", tag, first_class);
+            }
+        }
+
+        tag
     }
 
     /// Real DOM tree traversal - get element by ID

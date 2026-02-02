@@ -320,6 +320,19 @@ pub fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
         context,
     )?;
 
+    // interactionCount - counts user interactions for INP (Interaction to Next Paint)
+    // https://developer.mozilla.org/en-US/docs/Web/API/Performance/interactionCount
+    performance_obj.define_property_or_throw(
+        js_string!("interactionCount"),
+        PropertyDescriptor::builder()
+            .value(0) // Start at 0, would increment on user interactions
+            .writable(false)
+            .enumerable(true)
+            .configurable(false)
+            .build(),
+        context,
+    )?;
+
     Ok(performance_obj.into())
 }
 

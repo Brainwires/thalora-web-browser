@@ -2,8 +2,10 @@ use anyhow::Result;
 use thalora_browser_apis::boa_engine::{Context, module::IdleModuleLoader};
 use std::sync::{Arc, Mutex};
 use std::rc::Rc;
+use std::collections::HashMap;
 use crate::apis::WebApis;
 use crate::engine::engine_trait::EngineType;
+use super::layout_integration::{LayoutIntegration, ElementLayoutInfo};
 // events API is now natively implemented in Boa engine
 // WebAssembly is now natively implemented in Boa engine
 
@@ -20,6 +22,11 @@ pub struct RustRenderer {
     // infinite recursion / stack overflows when JS evaluation or window getters
     // triggered additional document updates.
     pub(super) in_update: bool,
+    /// Layout integration for computing element positions
+    /// This enables realistic getBoundingClientRect() values
+    layout_integration: LayoutIntegration,
+    /// Cached layout results for the current document
+    pub(super) layout_cache: HashMap<String, ElementLayoutInfo>,
 }
 
 impl RustRenderer {
@@ -46,6 +53,10 @@ impl RustRenderer {
                 // Setup polyfills (now excludes DOM globals which are native)
                 crate::apis::polyfills::setup_all_polyfills(&mut context).unwrap();
 
+                // Setup dynamic script execution hooks
+                // This must be called AFTER DOM is initialized so Node/Element prototypes exist
+                crate::apis::polyfills::setup_dynamic_script_hooks(&mut context).unwrap();
+
                 // Setup Web APIs polyfills (requires window and console to be defined)
                 web_apis.setup_all_apis(&mut context).unwrap();
 
@@ -60,6 +71,8 @@ impl RustRenderer {
                     web_apis,
                     history_initialized: false,
                     in_update: false,
+                    layout_integration: LayoutIntegration::new(),
+                    layout_cache: HashMap::new(),
                 }
             }
             EngineType::V8 => {
@@ -75,6 +88,8 @@ impl RustRenderer {
                     web_apis,
                     history_initialized: false,
                     in_update: false,
+                    layout_integration: LayoutIntegration::new(),
+                    layout_cache: HashMap::new(),
                 }
             }
         }
@@ -162,6 +177,7 @@ impl RustRenderer {
     }
 
     /// Update the document's HTML content to enable real DOM querying
+    /// Also computes CSS layout for realistic getBoundingClientRect() values
     pub fn update_document_html(&mut self, html_content: &str) -> Result<()> {
         use thalora_browser_apis::boa_engine::js_string;
         // Prevent re-entrant updates which could cause infinite recursion by
@@ -172,6 +188,37 @@ impl RustRenderer {
         }
 
         self.in_update = true;
+
+        // Compute layout for realistic element positions
+        // This enables getBoundingClientRect() to return real values
+        match self.layout_integration.compute_layout_for_html(html_content) {
+            Ok(layouts) => {
+                // Convert to registry format and populate the global registry
+                let registry_layouts: std::collections::HashMap<String, thalora_browser_apis::layout_registry::ComputedLayout> =
+                    layouts.iter().map(|(id, info)| {
+                        (id.clone(), thalora_browser_apis::layout_registry::ComputedLayout {
+                            x: info.x,
+                            y: info.y,
+                            width: info.width,
+                            height: info.height,
+                            top: info.top,
+                            right: info.right,
+                            bottom: info.bottom,
+                            left: info.left,
+                        })
+                    }).collect();
+
+                // Populate the global layout registry for DOM element access
+                thalora_browser_apis::layout_registry::set_layouts(registry_layouts);
+
+                self.layout_cache = layouts;
+                eprintln!("🔍 DEBUG: Computed layout for {} elements", self.layout_cache.len());
+            }
+            Err(e) => {
+                eprintln!("🔍 DEBUG: Layout computation failed (non-fatal): {}", e);
+                // Continue even if layout fails - DOM still needs to be updated
+            }
+        }
 
         match self.engine_type {
             EngineType::Boa => {
@@ -198,6 +245,19 @@ impl RustRenderer {
         self.in_update = false;
 
         Ok(())
+    }
+
+    /// Get the computed layout for an element by ID or selector
+    /// Returns (x, y, width, height, top, right, bottom, left) or None if not found
+    pub fn get_element_layout(&self, element_id: &str) -> Option<(f64, f64, f64, f64, f64, f64, f64, f64)> {
+        self.layout_cache.get(element_id).map(|info| {
+            (info.x, info.y, info.width, info.height, info.top, info.right, info.bottom, info.left)
+        })
+    }
+
+    /// Get all computed layouts
+    pub fn get_all_layouts(&self) -> &HashMap<String, ElementLayoutInfo> {
+        &self.layout_cache
     }
 
     /// TEMPORARY: Get debugging information from Bing debug polyfill

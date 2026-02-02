@@ -219,6 +219,9 @@ impl IntrinsicObject for Navigator {
             // Vibration API
             .method(Self::vibrate, js_string!("vibrate"), 1)
 
+            // Beacon API
+            .method(Self::send_beacon, js_string!("sendBeacon"), 2)
+
             // Web Locks and Service Workers
             // Note: locks is set as an instance property, not a prototype accessor
             .accessor(
@@ -397,6 +400,144 @@ impl Navigator {
         eprintln!("Protocol handler unregistered: {} -> {}", scheme, url);
 
         Ok(JsValue::undefined())
+    }
+
+    /// `navigator.sendBeacon(url, data?)` method - sends a small amount of data asynchronously
+    ///
+    /// The Beacon API is used to send analytics and diagnostics to a web server.
+    /// It returns true if the user agent successfully queued the data for transfer.
+    /// https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon
+    /// https://w3c.github.io/beacon/
+    fn send_beacon(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let url = args.get_or_undefined(0);
+
+        // URL is required
+        if url.is_undefined() || url.is_null() {
+            return Err(boa_engine::JsNativeError::typ()
+                .with_message("Failed to execute 'sendBeacon' on 'Navigator': 1 argument required, but only 0 present.")
+                .into());
+        }
+
+        let url_str = url.to_string(context)?.to_std_string_escaped();
+
+        // Validate URL - must be valid and use http/https
+        let parsed_url = match url::Url::parse(&url_str) {
+            Ok(u) => u,
+            Err(_) => {
+                return Err(boa_engine::JsNativeError::typ()
+                    .with_message("Failed to execute 'sendBeacon' on 'Navigator': The URL provided is invalid.")
+                    .into());
+            }
+        };
+
+        // Per spec, only http and https are allowed
+        if parsed_url.scheme() != "http" && parsed_url.scheme() != "https" {
+            return Err(boa_engine::JsNativeError::typ()
+                .with_message("Failed to execute 'sendBeacon' on 'Navigator': Beacons are only supported over HTTP(S).")
+                .into());
+        }
+
+        // Get optional data and determine content type
+        let data = args.get_or_undefined(1);
+        let (body_data, content_type): (Vec<u8>, &str) = if data.is_undefined() || data.is_null() {
+            (Vec::new(), "text/plain;charset=UTF-8")
+        } else if let Some(data_string) = data.as_string() {
+            // String data
+            (data_string.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+        } else if let Some(obj) = data.as_object() {
+            // Check for Blob
+            if let Ok(blob_type) = obj.get(js_string!("type"), context) {
+                if let Some(type_str) = blob_type.as_string() {
+                    let mime = type_str.to_std_string_escaped();
+                    // Try to get arrayBuffer or text from Blob
+                    if let Ok(text_val) = obj.get(js_string!("_data"), context) {
+                        if let Some(text) = text_val.as_string() {
+                            (text.to_std_string_escaped().into_bytes(),
+                             if mime.is_empty() { "application/octet-stream" } else { Box::leak(mime.into_boxed_str()) })
+                        } else {
+                            (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+                        }
+                    } else {
+                        (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+                    }
+                } else {
+                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+                }
+            }
+            // Check for FormData
+            else if let Ok(entries) = obj.get(js_string!("_entries"), context) {
+                if !entries.is_undefined() {
+                    // FormData - serialize as URL-encoded
+                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "application/x-www-form-urlencoded")
+                } else {
+                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+                }
+            }
+            // Check for URLSearchParams
+            else if let Ok(to_string) = obj.get(js_string!("toString"), context) {
+                if to_string.is_callable() {
+                    if let Ok(result) = to_string.as_callable().unwrap().call(&data, &[], context) {
+                        (result.to_string(context)?.to_std_string_escaped().into_bytes(), "application/x-www-form-urlencoded")
+                    } else {
+                        (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+                    }
+                } else {
+                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+                }
+            } else {
+                (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+            }
+        } else {
+            (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
+        };
+
+        // Per spec: payload must be <= 64KB
+        if body_data.len() > 65536 {
+            // Return false if payload too large (per spec)
+            return Ok(JsValue::from(false));
+        }
+
+        // Spawn async task to send the beacon
+        // The key behavior of sendBeacon is that it returns immediately and sends in the background
+        #[cfg(feature = "native")]
+        {
+            let url_clone = url_str.clone();
+            let content_type_owned = content_type.to_string();
+
+            std::thread::spawn(move || {
+                // Use a blocking runtime for the HTTP request
+                let rt = match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(rt) => rt,
+                    Err(_) => return,
+                };
+
+                rt.block_on(async {
+                    // Build and send the POST request
+                    let client = match rquest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(30))
+                        .build()
+                    {
+                        Ok(c) => c,
+                        Err(_) => return,
+                    };
+
+                    let _ = client
+                        .post(&url_clone)
+                        .header("Content-Type", content_type_owned)
+                        .body(body_data)
+                        .send()
+                        .await;
+
+                    // We don't care about the response - beacon is fire-and-forget
+                });
+            });
+        }
+
+        // Return true - the beacon was successfully queued
+        Ok(JsValue::from(true))
     }
 
     /// Create a Navigator instance for the global object
