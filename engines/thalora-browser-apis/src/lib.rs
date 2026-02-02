@@ -1002,6 +1002,10 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     let get_computed_style_fn = browser::cssom::create_get_computed_style_function(context)?;
     global_object.set(js_string!("getComputedStyle"), get_computed_style_fn, false, context)?;
 
+    // matchMedia global function
+    let match_media_fn = browser::window::create_match_media_function(context)?;
+    global_object.set(js_string!("matchMedia"), match_media_fn, false, context)?;
+
     // Canvas APIs
     global_object.define_property_or_throw(
         canvas::path::Path2D::NAME,
@@ -1305,16 +1309,22 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.set(boa_engine::js_string!("document"), document_instance, false, context)
         .expect("failed to set global document");
 
-    // Create a global window instance
-    let window_constructor = browser::window::Window::get(context.intrinsics());
-    let window_args = [];
-    let window_instance = browser::window::Window::constructor(
-        &window_constructor.clone().into(),
-        &window_args,
-        context,
-    ).expect("failed to create window instance");
+    // IMPORTANT: In browsers, window === globalThis === self === this (at global scope)
+    // The global object IS the window object. Scripts expect 'this' at global scope to equal 'window'.
+    // So we make 'window' point to the global object itself, not a separate Window instance.
+    //
+    // We still create Window instance properties and methods, but attach them to globalThis.
+    // This ensures that:
+    // - window === globalThis (true)
+    // - this === window at global scope (true, since 'this' is the global object)
+    // - typeof window === 'object' (true)
 
-    global_object.set(boa_engine::js_string!("window"), window_instance.clone(), false, context)
+    // Create Window instance to get its data/methods, but don't use it directly
+    let _window_constructor = browser::window::Window::get(context.intrinsics());
+
+    // Set 'window' to be the global object itself (circular reference, as in browsers)
+    // This ensures window === globalThis === self === this (at global scope)
+    global_object.set(boa_engine::js_string!("window"), global_object.clone(), false, context)
         .expect("failed to set global window");
 
     // Create navigator instance manually with proper prototype and data
@@ -1392,16 +1402,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     let navigator_instance: boa_engine::JsValue = navigator_generic.into();
 
-    // Now set navigator on the window object (after setting storage and locks)
-    if let Some(window_obj) = window_instance.as_object() {
-        if let Some(window_data) = window_obj.downcast_ref::<browser::window::WindowData>() {
-            if let Some(nav_obj) = navigator_instance.as_object() {
-                window_data.set_navigator(nav_obj.clone());
-            }
-        }
-    }
-
-    // Also set as global navigator
+    // Set navigator on the global object
+    // Note: With window === globalThis, window.navigator === navigator
     global_object.set(boa_engine::js_string!("navigator"), navigator_instance.clone(), false, context)
         .expect("failed to set global navigator");
 
@@ -1558,17 +1560,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
     let indexed_db: boa_engine::JsValue = indexed_db_obj.into();
 
-    // Set on window object (must be done BEFORE window is finalized)
-    if let Some(window_obj) = window_instance.as_object() {
-        window_obj.set(boa_engine::js_string!("localStorage"), local_storage.clone(), false, context)
-            .expect("failed to set window.localStorage");
-        window_obj.set(boa_engine::js_string!("sessionStorage"), session_storage.clone(), false, context)
-            .expect("failed to set window.sessionStorage");
-        window_obj.set(boa_engine::js_string!("indexedDB"), indexed_db.clone(), false, context)
-            .expect("failed to set window.indexedDB");
-    }
-
-    // Set as globals
+    // Set storage APIs on global object (window === globalThis, so window.localStorage works)
     global_object.set(boa_engine::js_string!("localStorage"), local_storage, false, context)
         .expect("failed to set global localStorage");
     global_object.set(boa_engine::js_string!("sessionStorage"), session_storage, false, context)

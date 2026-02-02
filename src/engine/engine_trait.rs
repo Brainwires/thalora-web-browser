@@ -53,6 +53,13 @@ pub trait ThaloraBrowserEngine {
     /// Run pending microtasks/jobs
     fn run_jobs(&mut self) -> Result<()>;
 
+    /// Process due timer callbacks (setTimeout/setInterval).
+    /// Returns the number of timers that were executed.
+    fn process_timers(&mut self) -> usize;
+
+    /// Run the event loop: process timers and jobs until no more work or timeout.
+    fn run_event_loop(&mut self, max_iterations: usize) -> Result<()>;
+
     /// Create a test instance (for unit testing)
     fn new_test() -> Result<Box<dyn ThaloraBrowserEngine>>
     where
@@ -180,6 +187,14 @@ impl ThaloraBrowserEngine for BoaEngineWrapper {
 
     fn run_jobs(&mut self) -> Result<()> {
         self.engine.run_jobs()
+    }
+
+    fn process_timers(&mut self) -> usize {
+        self.engine.process_timers()
+    }
+
+    fn run_event_loop(&mut self, max_iterations: usize) -> Result<()> {
+        self.engine.run_event_loop(max_iterations)
     }
 
     fn new_test() -> Result<Box<dyn ThaloraBrowserEngine>> {

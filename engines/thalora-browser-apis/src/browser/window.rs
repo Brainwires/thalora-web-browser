@@ -82,6 +82,23 @@ impl IntrinsicObject for Window {
             .name(js_string!("showDirectoryPicker"))
             .build();
 
+        // Frame hierarchy accessors
+        let parent_func = BuiltInBuilder::callable(realm, get_window_self)
+            .name(js_string!("get parent"))
+            .build();
+
+        let top_func = BuiltInBuilder::callable(realm, get_window_self)
+            .name(js_string!("get top"))
+            .build();
+
+        let self_func = BuiltInBuilder::callable(realm, get_window_self)
+            .name(js_string!("get self"))
+            .build();
+
+        let frames_func = BuiltInBuilder::callable(realm, get_window_self)
+            .name(js_string!("get frames"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("location"),
@@ -154,15 +171,76 @@ impl IntrinsicObject for Window {
                 768, // Standard desktop height
                 Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
             )
+            // Frame hierarchy properties - return self for top-level window
+            .accessor(
+                js_string!("parent"),
+                Some(parent_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("top"),
+                Some(top_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("self"),
+                Some(self_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("frames"),
+                Some(frames_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("length"),
+                0, // Number of frames
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("frameElement"),
+                JsValue::null(), // null if not in an iframe
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
             .method(add_event_listener, js_string!("addEventListener"), 2)
             .method(remove_event_listener, js_string!("removeEventListener"), 2)
             .method(dispatch_event, js_string!("dispatchEvent"), 1)
             .method(match_media, js_string!("matchMedia"), 1)
             .method(get_selection, js_string!("getSelection"), 0)
             .method(get_computed_style, js_string!("getComputedStyle"), 1)
+            .method(post_message, js_string!("postMessage"), 2)
             .method(show_open_file_picker, js_string!("showOpenFilePicker"), 0)
             .method(show_save_file_picker, js_string!("showSaveFilePicker"), 0)
             .method(show_directory_picker, js_string!("showDirectoryPicker"), 0)
+            // Scroll methods
+            .method(scroll_to, js_string!("scrollTo"), 2)
+            .method(scroll_to, js_string!("scroll"), 2)
+            .method(scroll_by, js_string!("scrollBy"), 2)
+            // Scroll position properties
+            .property(
+                js_string!("scrollX"),
+                0,
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("scrollY"),
+                0,
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("pageXOffset"),
+                0,
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
+            .property(
+                js_string!("pageYOffset"),
+                0,
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -1011,6 +1089,132 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
             .enumerable(true)
             .writable(true)
             .value(remove_event_listener_func)
+            .build(),
+        context,
+    )?;
+
+    Ok(media_query_list.into())
+}
+
+/// Create the matchMedia global function for use outside Window context
+pub fn create_match_media_function(context: &mut Context) -> JsResult<JsValue> {
+    use boa_engine::object::FunctionObjectBuilder;
+    use boa_engine::NativeFunction;
+
+    let func = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(global_match_media),
+    )
+    .name(js_string!("matchMedia"))
+    .length(1)
+    .build();
+
+    Ok(func.into())
+}
+
+/// Global matchMedia function - creates MediaQueryList without requiring Window context
+fn global_match_media(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let media_query = args.get_or_undefined(0).to_string(context)?;
+    let query_str = media_query.to_std_string_escaped();
+
+    // Parse and evaluate the media query
+    let matches = evaluate_media_query(&query_str);
+
+    // Create MediaQueryListData with listener storage
+    let mql_data = MediaQueryListData::new(query_str.clone(), matches);
+
+    // Create MediaQueryList object with internal data
+    let media_query_list_typed = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        context.intrinsics().constructors().object().prototype(),
+        mql_data,
+    );
+
+    let media_query_list = media_query_list_typed.upcast();
+
+    // Add properties to MediaQueryList
+    media_query_list.define_property_or_throw(
+        js_string!("media"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(media_query)
+            .build(),
+        context,
+    )?;
+
+    media_query_list.define_property_or_throw(
+        js_string!("matches"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(matches)
+            .build(),
+        context,
+    )?;
+
+    // Add addEventListener method
+    let add_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_event_listener)
+        .name(js_string!("addEventListener"))
+        .build();
+
+    media_query_list.define_property_or_throw(
+        js_string!("addEventListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(add_event_listener_func)
+            .build(),
+        context,
+    )?;
+
+    // Add removeEventListener method
+    let remove_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_event_listener)
+        .name(js_string!("removeEventListener"))
+        .build();
+
+    media_query_list.define_property_or_throw(
+        js_string!("removeEventListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(remove_event_listener_func)
+            .build(),
+        context,
+    )?;
+
+    // Add legacy addListener method
+    let add_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_listener)
+        .name(js_string!("addListener"))
+        .build();
+
+    media_query_list.define_property_or_throw(
+        js_string!("addListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(add_listener_func)
+            .build(),
+        context,
+    )?;
+
+    // Add legacy removeListener method
+    let remove_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_listener)
+        .name(js_string!("removeListener"))
+        .build();
+
+    media_query_list.define_property_or_throw(
+        js_string!("removeListener"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(remove_listener_func)
             .build(),
         context,
     )?;
@@ -2146,4 +2350,164 @@ fn computed_style_get_property_value(this: &JsValue, args: &[JsValue], context: 
     } else {
         Ok(value)
     }
+}
+
+/// `window.postMessage(message, targetOrigin, transfer)` implementation
+/// Sends a cross-origin message to another window (or the same window)
+/// https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
+fn post_message(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let message = args.get_or_undefined(0).clone();
+    let target_origin = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+    let _transfer = args.get(2); // Optional transferable objects (not fully implemented)
+
+    eprintln!("DEBUG: postMessage called with targetOrigin: {}", target_origin);
+
+    // Create a MessageEvent with the posted message
+    let message_event_constructor = context.intrinsics().constructors().message_event().constructor();
+
+    // Create event init object
+    let event_init = JsObject::default(context.intrinsics());
+    event_init.set(js_string!("data"), message.clone(), false, context)?;
+    event_init.set(js_string!("origin"), js_string!(target_origin.clone()), false, context)?;
+    event_init.set(js_string!("source"), JsValue::null(), false, context)?;
+    event_init.set(js_string!("bubbles"), JsValue::from(false), false, context)?;
+    event_init.set(js_string!("cancelable"), JsValue::from(false), false, context)?;
+
+    // Create the MessageEvent
+    let event_args = [
+        js_string!("message").into(),
+        event_init.into(),
+    ];
+
+    let message_event = crate::events::message_event::MessageEvent::constructor(
+        &message_event_constructor.clone().into(),
+        &event_args,
+        context,
+    )?;
+
+    // In a real browser, this would be dispatched asynchronously to the target window
+    // For now, we dispatch it to the current window's event listeners immediately
+    // This is a simplified implementation that handles same-origin messages
+
+    // Get the window object to dispatch the event
+    if let Ok(window_obj) = context.global_object().get(js_string!("window"), context) {
+        if let Some(window) = window_obj.as_object() {
+            if let Some(window_data) = window.downcast_ref::<WindowData>() {
+                // Get message event listeners
+                let listeners = window_data.event_listeners.lock().unwrap();
+                if let Some(message_listeners) = listeners.get("message") {
+                    for listener in message_listeners {
+                        // Call each listener with the message event using the callable interface
+                        if let Some(callable) = listener.as_callable() {
+                            let _ = callable.call(&window_obj, &[message_event.clone()], context);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// Getter for `window.self`, `window.parent`, `window.top`, `window.frames`
+/// Returns the window object itself (for top-level window context)
+fn get_window_self(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Return the global window object
+    context.global_object().get(js_string!("window"), context)
+}
+
+/// Scrolls the window to a particular position
+/// https://developer.mozilla.org/en-US/docs/Web/API/Window/scrollTo
+fn scroll_to(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // In a headless browser, scrolling is a no-op but we still need to accept the call
+    // This supports both scrollTo(x, y) and scrollTo(options) signatures
+
+    let (x, y) = if args.len() >= 2 {
+        // scrollTo(x, y) form
+        let x = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
+        let y = args.get_or_undefined(1).to_number(context).unwrap_or(0.0);
+        (x, y)
+    } else if let Some(options) = args.get(0).and_then(|v| v.as_object()) {
+        // scrollTo(options) form
+        let x = options.get(js_string!("left"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        let y = options.get(js_string!("top"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        (x, y)
+    } else {
+        (0.0, 0.0)
+    };
+
+    // Update scrollX and scrollY on the window object
+    if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+        if let Some(window) = window_val.as_object() {
+            let _ = window.set(js_string!("scrollX"), x, false, context);
+            let _ = window.set(js_string!("scrollY"), y, false, context);
+            let _ = window.set(js_string!("pageXOffset"), x, false, context);
+            let _ = window.set(js_string!("pageYOffset"), y, false, context);
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// Scrolls the window by a given amount
+/// https://developer.mozilla.org/en-US/docs/Web/API/Window/scrollBy
+fn scroll_by(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Get current scroll position
+    let (current_x, current_y) = if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+        if let Some(window) = window_val.as_object() {
+            let x = window.get(js_string!("scrollX"), context)
+                .ok()
+                .and_then(|v| v.to_number(context).ok())
+                .unwrap_or(0.0);
+            let y = window.get(js_string!("scrollY"), context)
+                .ok()
+                .and_then(|v| v.to_number(context).ok())
+                .unwrap_or(0.0);
+            (x, y)
+        } else {
+            (0.0, 0.0)
+        }
+    } else {
+        (0.0, 0.0)
+    };
+
+    // Get delta values
+    let (dx, dy) = if args.len() >= 2 {
+        let dx = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
+        let dy = args.get_or_undefined(1).to_number(context).unwrap_or(0.0);
+        (dx, dy)
+    } else if let Some(options) = args.get(0).and_then(|v| v.as_object()) {
+        let dx = options.get(js_string!("left"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        let dy = options.get(js_string!("top"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        (dx, dy)
+    } else {
+        (0.0, 0.0)
+    };
+
+    // Update scroll position
+    if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+        if let Some(window) = window_val.as_object() {
+            let new_x = current_x + dx;
+            let new_y = current_y + dy;
+            let _ = window.set(js_string!("scrollX"), new_x, false, context);
+            let _ = window.set(js_string!("scrollY"), new_y, false, context);
+            let _ = window.set(js_string!("pageXOffset"), new_x, false, context);
+            let _ = window.set(js_string!("pageYOffset"), new_y, false, context);
+        }
+    }
+
+    Ok(JsValue::undefined())
 }

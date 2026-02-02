@@ -36,7 +36,12 @@ impl JavaScriptEngine {
         let timers = Arc::new(Mutex::new(HashMap::new()));
         let next_timer_id = Arc::new(Mutex::new(1));
 
-        // Setup real Web APIs instead of browser globals
+        // Initialize core browser APIs (timers, DOM, events, etc.)
+        // This is required for libraries like GSAP that depend on these APIs
+        thalora_browser_apis::initialize_browser_apis(&mut context)
+            .map_err(|e| anyhow!("failed to initialize browser APIs: {:?}", e))?;
+
+        // Setup additional Web APIs (credentials, URL, service workers, etc.)
         let web_apis = crate::apis::WebApis::new();
         web_apis.setup_all_apis(&mut context)?;
 
@@ -99,6 +104,34 @@ impl JavaScriptEngine {
         self.context
             .run_jobs()
             .map_err(|e| anyhow!("JS job executor error: {}", e))?;
+        Ok(())
+    }
+
+    /// Process due timer callbacks (setTimeout/setInterval).
+    /// Returns the number of timers that were executed.
+    pub fn process_timers(&mut self) -> usize {
+        use thalora_browser_apis::timers::timers::Timers;
+        Timers::process_timers(&mut self.context)
+    }
+
+    /// Run the event loop: process timers and jobs until no more work or timeout.
+    /// This is useful for tests that need async operations to complete.
+    pub fn run_event_loop(&mut self, max_iterations: usize) -> Result<()> {
+        for _ in 0..max_iterations {
+            // Process Promise microtasks
+            self.run_jobs()?;
+
+            // Process timer callbacks
+            let timers_executed = self.process_timers();
+
+            // If no timers fired, we're done (no more async work pending)
+            if timers_executed == 0 {
+                break;
+            }
+
+            // Run jobs again in case timer callbacks scheduled promises
+            self.run_jobs()?;
+        }
         Ok(())
     }
 }

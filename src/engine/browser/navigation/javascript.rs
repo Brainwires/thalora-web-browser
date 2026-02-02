@@ -1,10 +1,12 @@
 use anyhow::{Result, anyhow};
 use tokio::time::{sleep, Duration};
 use std::error::Error;
+use std::collections::HashMap;
 use rand;
 
 use crate::engine::security::SsrfProtection;
 use crate::features::solver::{ChallengeSolver, ChallengeDetector, DetectedChallenge, ChallengeType};
+use thalora_browser_apis::dom::document::ScriptEntry;
 
 /// Maximum number of Cloudflare challenge retry attempts
 const MAX_CF_RETRIES: u32 = 3;
@@ -83,7 +85,16 @@ impl super::super::HeadlessWebBrowser {
         eprintln!("🛡️ CHALLENGE: Phase 3 - Waiting for resolution ({}ms timeout)...", timeout_ms);
 
         let wait_js = solver.generate_wait_for_resolution_js(&challenge, timeout_ms);
-        let wait_result = self.execute_javascript(&wait_js).await;
+
+        // Use async wait method to properly handle setTimeout callbacks
+        let wait_result = if let Some(ref mut renderer) = self.renderer {
+            let timeout_duration = std::time::Duration::from_millis(timeout_ms + 1000); // Extra buffer
+            let poll_interval = 100; // Poll every 100ms
+            renderer.evaluate_javascript_with_async_wait(&wait_js, timeout_duration, poll_interval)
+        } else {
+            // Fallback to regular execution (won't work for async)
+            self.execute_javascript(&wait_js).await
+        };
 
         // Analyze the result
         match wait_result {
@@ -141,7 +152,16 @@ impl super::super::HeadlessWebBrowser {
 
         let wait_js = solver.generate_wait_for_resolution_js(&challenge, timeout_ms);
 
-        match self.execute_javascript(&wait_js).await {
+        // Use async wait method to properly handle setTimeout callbacks
+        let result = if let Some(ref mut renderer) = self.renderer {
+            let timeout_duration = std::time::Duration::from_millis(timeout_ms + 1000);
+            let poll_interval = 100;
+            renderer.evaluate_javascript_with_async_wait(&wait_js, timeout_duration, poll_interval)
+        } else {
+            self.execute_javascript(&wait_js).await
+        };
+
+        match result {
             Ok(result) => {
                 let success = result.contains("\"success\":true") || result.contains("success: true") || result.trim() == "true";
                 Ok(success)
@@ -299,6 +319,12 @@ impl super::super::HeadlessWebBrowser {
         // Get the current URL to resolve relative script paths
         let base_url = self.current_url.clone().unwrap_or_else(|| "https://example.com".to_string());
 
+        // Check if this is a challenge page by content - if so, use trusted execution for all scripts
+        let is_challenge_by_content = Self::is_challenge_content(html);
+        if is_challenge_by_content {
+            eprintln!("🔓 TRUSTED: Detected challenge page content - using trusted execution for all scripts");
+        }
+
         for script_element in document.select(&script_selector) {
             // Get the script type attribute
             let script_type = script_element.value().attr("type").unwrap_or("text/javascript");
@@ -340,14 +366,67 @@ impl super::super::HeadlessWebBrowser {
 
                 eprintln!("🔍 DEBUG: Fetching external script from: {}", script_url);
 
+                // Collect ALL attributes from the HTML element for script registration
+                let mut script_attrs: HashMap<String, String> = HashMap::new();
+                for (key, value) in script_element.value().attrs() {
+                    script_attrs.insert(key.to_string(), value.to_string());
+                }
+
+                // Check if this is a trusted challenge provider script or on a challenge page
+                let is_trusted = Self::is_trusted_challenge_script(&script_url) || is_challenge_by_content;
+                if is_trusted {
+                    eprintln!("🔓 TRUSTED: Script from trusted challenge provider or challenge page");
+                }
+
                 // Fetch the external script
                 match self.fetch_external_script(&script_url).await {
                     Ok(script_content) => {
                         eprintln!("🔍 DEBUG: Fetched external script ({} chars)", script_content.len());
                         external_scripts_fetched += 1;
 
-                        // Execute the fetched script
-                        match self.execute_javascript(&script_content).await {
+                        // Register the script BEFORE executing it
+                        // This ensures document.scripts can find it when the script runs
+                        let script_entry = ScriptEntry {
+                            src: Some(script_url.clone()),
+                            script_type: script_attrs.get("type").cloned(),
+                            async_: is_async,
+                            defer: is_defer,
+                            text: script_content.clone(),
+                            attributes: script_attrs.clone(),
+                        };
+
+                        if let Some(ref mut renderer) = self.renderer {
+                            if let Err(e) = renderer.register_script(script_entry.clone()) {
+                                eprintln!("⚠️  WARNING: Failed to register script: {}", e);
+                            } else {
+                                eprintln!("🔍 DEBUG: Registered script with {} attributes (including data-* attrs)", script_attrs.len());
+                                // Log important attributes for debugging Turnstile
+                                for (key, value) in &script_attrs {
+                                    if key.starts_with("data-") {
+                                        eprintln!("🔍 DEBUG: Script attribute: {} = {}", key, value);
+                                    }
+                                }
+                            }
+
+                            // Set document.currentScript before execution (per HTML spec)
+                            if let Err(e) = renderer.set_current_script(&script_entry) {
+                                eprintln!("⚠️  WARNING: Failed to set currentScript: {}", e);
+                            }
+                        }
+
+                        // Execute the fetched script - use trusted execution for challenge providers/pages
+                        let exec_result = if is_trusted {
+                            self.execute_javascript_trusted(&script_content).await
+                        } else {
+                            self.execute_javascript(&script_content).await
+                        };
+
+                        // Clear document.currentScript after execution (per HTML spec)
+                        if let Some(ref mut renderer) = self.renderer {
+                            let _ = renderer.clear_current_script();
+                        }
+
+                        match exec_result {
                             Ok(result) => {
                                 scripts_executed += 1;
                                 eprintln!("🔍 DEBUG: External script executed successfully");
@@ -373,8 +452,52 @@ impl super::super::HeadlessWebBrowser {
 
                 eprintln!("🔍 DEBUG: Executing inline script ({} chars)", script_content.len());
 
+                // Collect ALL attributes from the HTML element for script registration
+                let mut script_attrs: HashMap<String, String> = HashMap::new();
+                for (key, value) in script_element.value().attrs() {
+                    script_attrs.insert(key.to_string(), value.to_string());
+                }
+
+                // Register the inline script so it shows up in document.scripts
+                let script_entry = ScriptEntry {
+                    src: None,
+                    script_type: script_attrs.get("type").cloned(),
+                    async_: is_async,
+                    defer: is_defer,
+                    text: script_content.clone(),
+                    attributes: script_attrs.clone(),
+                };
+
+                if let Some(ref mut renderer) = self.renderer {
+                    if let Err(e) = renderer.register_script(script_entry.clone()) {
+                        eprintln!("⚠️  WARNING: Failed to register inline script: {}", e);
+                    }
+
+                    // Set document.currentScript before execution (per HTML spec)
+                    if let Err(e) = renderer.set_current_script(&script_entry) {
+                        eprintln!("⚠️  WARNING: Failed to set currentScript for inline script: {}", e);
+                    }
+                }
+
+                // Check if we're on a challenge page - use trusted execution for challenge page scripts
+                let is_challenge_page = Self::is_challenge_page(&base_url) || is_challenge_by_content;
+                if is_challenge_page {
+                    eprintln!("🔓 TRUSTED: Inline script on challenge page");
+                }
+
                 // Execute the script through the JavaScript engine
-                match self.execute_javascript(&script_content).await {
+                let exec_result = if is_challenge_page {
+                    self.execute_javascript_trusted(&script_content).await
+                } else {
+                    self.execute_javascript(&script_content).await
+                };
+
+                // Clear document.currentScript after execution (per HTML spec)
+                if let Some(ref mut renderer) = self.renderer {
+                    let _ = renderer.clear_current_script();
+                }
+
+                match exec_result {
                     Ok(result) => {
                         scripts_executed += 1;
                         eprintln!("🔍 DEBUG: Inline script executed successfully");
@@ -683,5 +806,82 @@ impl super::super::HeadlessWebBrowser {
             .map_err(|e| anyhow!("Failed to read script content: {}", e))?;
 
         Ok(content)
+    }
+
+    /// Check if a script URL is from a trusted challenge provider.
+    /// These providers need to use advanced JavaScript features (Symbol, Proxy, WebAssembly, etc.)
+    /// that would normally be blocked by the security validator.
+    ///
+    /// Trusted domains:
+    /// - challenges.cloudflare.com (Cloudflare Turnstile)
+    /// - www.google.com/recaptcha (Google reCAPTCHA)
+    /// - www.gstatic.com/recaptcha (Google reCAPTCHA assets)
+    /// - hcaptcha.com (hCaptcha)
+    fn is_trusted_challenge_script(url: &str) -> bool {
+        let trusted_domains = [
+            "challenges.cloudflare.com",
+            "www.google.com/recaptcha",
+            "www.gstatic.com/recaptcha",
+            "hcaptcha.com",
+            "js.hcaptcha.com",
+            "newassets.hcaptcha.com",
+            "cdn.jsdelivr.net/npm/turnstile", // CDN-hosted Turnstile
+        ];
+
+        for domain in &trusted_domains {
+            if url.contains(domain) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Check if the current page URL indicates a challenge page.
+    /// Challenge pages need to run their scripts with elevated privileges
+    /// because they use advanced JavaScript features.
+    fn is_challenge_page(url: &str) -> bool {
+        let challenge_indicators = [
+            "challenges.cloudflare.com", // Cloudflare challenge page
+            "/cdn-cgi/challenge",        // Cloudflare challenge path
+            "captcha",                   // Generic captcha path
+            "recaptcha",                 // Google reCAPTCHA
+            "hcaptcha",                  // hCaptcha
+        ];
+
+        let url_lower = url.to_lowercase();
+        for indicator in &challenge_indicators {
+            if url_lower.contains(indicator) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Check if the page content indicates it's a Cloudflare challenge page.
+    /// This is used when the URL doesn't reveal the challenge (e.g., challenge
+    /// served from the target domain).
+    fn is_challenge_content(content: &str) -> bool {
+        let challenge_markers = [
+            "challenges.cloudflare.com",
+            "cf-turnstile",
+            "data-cf-turnstile",
+            "cf_chl_",
+            "__cf_chl_",
+            "ray_id",
+            "cf-please-wait",
+            "Checking your browser",
+            "Just a moment...",
+            "Enable JavaScript and cookies",
+        ];
+
+        for marker in &challenge_markers {
+            if content.contains(marker) {
+                return true;
+            }
+        }
+
+        false
     }
 }

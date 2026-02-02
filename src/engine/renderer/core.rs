@@ -247,6 +247,100 @@ impl RustRenderer {
         Ok(())
     }
 
+    /// Register a script that has been loaded/executed
+    /// This makes the script visible in document.scripts and getElementsByTagName("script")
+    pub fn register_script(&mut self, entry: thalora_browser_apis::dom::document::ScriptEntry) -> Result<()> {
+        use thalora_browser_apis::boa_engine::js_string;
+
+        match self.engine_type {
+            EngineType::Boa => {
+                if let Some(ctx) = &mut self.js_context {
+                    let global = ctx.global_object().clone();
+                    if let Ok(document_value) = global.get(js_string!("document"), ctx) {
+                        if let Some(document_obj) = document_value.as_object() {
+                            if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
+                                document_data.register_script(entry);
+                            }
+                        }
+                    }
+                }
+            }
+            EngineType::V8 => {
+                // TODO: Implement V8 script registration
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Set the currently executing script for document.currentScript
+    /// This creates an HTMLScriptElement with the given attributes and sets it as __currentScript__
+    pub fn set_current_script(&mut self, entry: &thalora_browser_apis::dom::document::ScriptEntry) -> Result<()> {
+        use thalora_browser_apis::boa_engine::js_string;
+
+        match self.engine_type {
+            EngineType::Boa => {
+                if let Some(ctx) = &mut self.js_context {
+                    // Create an HTMLScriptElement for the current script
+                    let script_constructor = ctx.intrinsics().constructors().html_script_element().constructor();
+                    if let Ok(script_obj) = script_constructor.construct(&[], None, ctx) {
+                        // Set all the script attributes
+                        if let Some(script_data) = script_obj.downcast_ref::<thalora_browser_apis::dom::html_script_element::HTMLScriptElementData>() {
+                            if let Some(ref src) = entry.src {
+                                script_data.set_src(src.clone());
+                            }
+                            if let Some(ref type_) = entry.script_type {
+                                script_data.set_type(type_.clone());
+                            }
+                            script_data.set_async(entry.async_);
+                            script_data.set_defer(entry.defer);
+                            script_data.set_text(entry.text.clone());
+
+                            // Set all custom attributes (including data-* attributes)
+                            for (key, value) in &entry.attributes {
+                                script_data.set_attribute(key, value.clone());
+                            }
+                        }
+
+                        // Set __currentScript__ on global object
+                        let global = ctx.global_object().clone();
+                        let script_value: thalora_browser_apis::boa_engine::JsValue = script_obj.into();
+                        if let Err(e) = global.set(js_string!("__currentScript__"), script_value, false, ctx) {
+                            return Err(anyhow::anyhow!("Failed to set __currentScript__: {:?}", e));
+                        }
+                        eprintln!("🔍 DEBUG: Set __currentScript__ for src={:?}", entry.src);
+                    }
+                }
+            }
+            EngineType::V8 => {
+                // TODO: Implement V8 currentScript
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Clear the currently executing script (set document.currentScript to null)
+    pub fn clear_current_script(&mut self) -> Result<()> {
+        use thalora_browser_apis::boa_engine::{js_string, JsValue};
+
+        match self.engine_type {
+            EngineType::Boa => {
+                if let Some(ctx) = &mut self.js_context {
+                    let global = ctx.global_object().clone();
+                    if let Err(e) = global.set(js_string!("__currentScript__"), JsValue::null(), false, ctx) {
+                        return Err(anyhow::anyhow!("Failed to clear __currentScript__: {:?}", e));
+                    }
+                }
+            }
+            EngineType::V8 => {
+                // TODO: Implement V8 currentScript
+            }
+        }
+
+        Ok(())
+    }
+
     /// Get the computed layout for an element by ID or selector
     /// Returns (x, y, width, height, top, right, bottom, left) or None if not found
     pub fn get_element_layout(&self, element_id: &str) -> Option<(f64, f64, f64, f64, f64, f64, f64, f64)> {

@@ -76,6 +76,7 @@ impl HeadlessWebBrowser {
         let client = rquest::Client::builder()
             .emulation(Emulation::Chrome131)
             .cookie_provider(Arc::clone(&cookie_store))
+            .redirect(rquest::redirect::Policy::limited(10)) // Follow up to 10 redirects
             .timeout(std::time::Duration::from_secs(30))
             .gzip(true)
             .brotli(true)
@@ -199,6 +200,20 @@ impl HeadlessWebBrowser {
         if let Some(ref mut renderer) = self.renderer {
             // Delegate to renderer's evaluate_javascript which already handles timeouts and safety
             renderer.evaluate_javascript(js_code)
+        } else {
+            Err(anyhow::anyhow!("Renderer not available"))
+        }
+    }
+
+    /// Execute JavaScript from a trusted source (like Cloudflare challenges) without security checks.
+    /// This allows challenge scripts to use advanced JavaScript features that would normally be blocked.
+    ///
+    /// # Security
+    /// Only use this for scripts from known trusted domains like challenges.cloudflare.com.
+    pub async fn execute_javascript_trusted(&mut self, js_code: &str) -> Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            // Use trusted execution with 10 second timeout for complex challenge scripts
+            renderer.evaluate_javascript_trusted(js_code, std::time::Duration::from_secs(10))
         } else {
             Err(anyhow::anyhow!("Renderer not available"))
         }

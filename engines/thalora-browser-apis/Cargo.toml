@@ -36,7 +36,9 @@ wasm = [
 thalora-constants = { path = "../../shared/thalora-constants" }
 
 # Boa engine - required for JavaScript integration
-boa_engine = { path = "../boa/core/engine", features = ["intl_bundled"], default-features = false }
+# annex-b enables legacy ECMAScript features like String.prototype.substr that are widely used
+# temporal enables TC39 Temporal API (required for proper feature unification in workspace builds)
+boa_engine = { path = "../boa/core/engine", features = ["intl_bundled", "annex-b", "temporal"], default-features = false }
 boa_gc = { path = "../boa/core/gc" }
 
 # Async runtime and utilities (native only)

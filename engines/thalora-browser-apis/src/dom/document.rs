@@ -103,6 +103,14 @@ impl IntrinsicObject for Document {
             .name(js_string!("get activeElement"))
             .build();
 
+        let current_script_func = BuiltInBuilder::callable(realm, get_current_script)
+            .name(js_string!("get currentScript"))
+            .build();
+
+        let scrolling_element_func = BuiltInBuilder::callable(realm, get_scrolling_element)
+            .name(js_string!("get scrollingElement"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Document -> Node -> EventTarget
             .inherits(Some(realm.intrinsics().constructors().node().prototype()))
@@ -214,7 +222,20 @@ impl IntrinsicObject for Document {
                 None,
                 Attribute::CONFIGURABLE,
             )
+            .accessor(
+                js_string!("currentScript"),
+                Some(current_script_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scrollingElement"),
+                Some(scrolling_element_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(create_element, js_string!("createElement"), 1)
+            .method(create_element_ns, js_string!("createElementNS"), 2)
             .method(create_text_node, js_string!("createTextNode"), 1)
             .method(create_document_fragment, js_string!("createDocumentFragment"), 0)
             .method(create_range, js_string!("createRange"), 0)
@@ -236,6 +257,9 @@ impl IntrinsicObject for Document {
             // DOM Traversal methods
             .method(create_tree_walker, js_string!("createTreeWalker"), 1)
             .method(create_node_iterator, js_string!("createNodeIterator"), 1)
+            // CSSOM View methods (used by Cloudflare Turnstile for bot detection)
+            .method(element_from_point, js_string!("elementFromPoint"), 2)
+            .method(elements_from_point, js_string!("elementsFromPoint"), 2)
             .build();
     }
 
@@ -250,7 +274,7 @@ impl BuiltInObject for Document {
 
 impl BuiltInConstructor for Document {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 56; // Accessors and methods on prototype (adjusted from 47)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 65; // Accessors and methods on prototype (adjusted for createElementNS)
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -279,6 +303,69 @@ impl BuiltInConstructor for Document {
     }
 }
 
+/// Represents a loaded script element with all its attributes
+/// This is used to track dynamically loaded scripts that need to be
+/// visible in document.scripts and getElementsByTagName("script")
+#[derive(Debug, Clone)]
+pub struct ScriptEntry {
+    pub src: Option<String>,
+    pub script_type: Option<String>,
+    pub async_: bool,
+    pub defer: bool,
+    pub text: String,
+    pub attributes: HashMap<String, String>,
+}
+
+impl ScriptEntry {
+    pub fn new() -> Self {
+        Self {
+            src: None,
+            script_type: None,
+            async_: false,
+            defer: false,
+            text: String::new(),
+            attributes: HashMap::new(),
+        }
+    }
+
+    /// Create a ScriptEntry with a source URL
+    pub fn with_src(src: String) -> Self {
+        Self {
+            src: Some(src),
+            script_type: None,
+            async_: false,
+            defer: false,
+            text: String::new(),
+            attributes: HashMap::new(),
+        }
+    }
+
+    /// Set all attributes from an iterator (typically from HTML parsing)
+    pub fn with_attributes<I, K, V>(mut self, attrs: I) -> Self
+    where
+        I: Iterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        for (key, value) in attrs {
+            let key_str = key.as_ref().to_string();
+            let value_str = value.as_ref().to_string();
+
+            // Also set known fields from attributes
+            match key_str.as_str() {
+                "src" => self.src = Some(value_str.clone()),
+                "type" => self.script_type = Some(value_str.clone()),
+                "async" => self.async_ = true,
+                "defer" => self.defer = true,
+                _ => {}
+            }
+
+            self.attributes.insert(key_str, value_str);
+        }
+        self
+    }
+}
+
 /// Internal data for Document objects
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct DocumentData {
@@ -304,6 +391,11 @@ pub struct DocumentData {
     event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
     #[unsafe_ignore_trace]
     html_content: Arc<Mutex<String>>,
+    /// Registry of loaded scripts (both from HTML and dynamically created)
+    /// This allows document.scripts and getElementsByTagName("script") to find
+    /// scripts that were executed but not statically present in the current HTML
+    #[unsafe_ignore_trace]
+    loaded_scripts: Arc<Mutex<Vec<ScriptEntry>>>,
 }
 
 impl DocumentData {
@@ -320,6 +412,7 @@ impl DocumentData {
             elements: Arc::new(Mutex::new(HashMap::new())),
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             html_content: Arc::new(Mutex::new("".to_string())),
+            loaded_scripts: Arc::new(Mutex::new(Vec::new())),
         };
 
         // Set up DOM sync bridge - connect Element changes to Document updates
@@ -459,6 +552,27 @@ impl DocumentData {
             .get(event_type)
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// Register a script that has been loaded/executed
+    /// This makes the script visible in document.scripts and getElementsByTagName("script")
+    pub fn register_script(&self, entry: ScriptEntry) {
+        self.loaded_scripts.lock().unwrap().push(entry);
+    }
+
+    /// Get all registered loaded scripts
+    pub fn get_loaded_scripts(&self) -> Vec<ScriptEntry> {
+        self.loaded_scripts.lock().unwrap().clone()
+    }
+
+    /// Clear all registered scripts (typically when navigating to a new page)
+    pub fn clear_scripts(&self) {
+        self.loaded_scripts.lock().unwrap().clear();
+    }
+
+    /// Get a reference to the loaded_scripts Arc for sharing with other components
+    pub fn get_loaded_scripts_ref(&self) -> Arc<Mutex<Vec<ScriptEntry>>> {
+        self.loaded_scripts.clone()
     }
 }
 
@@ -826,6 +940,208 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     Ok(element)
 }
 
+/// `Document.prototype.createElementNS(namespaceURI, qualifiedName)`
+/// Creates an element with the specified namespace URI and qualified name.
+/// Used for creating SVG, MathML, and other namespaced elements.
+fn create_element_ns(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.createElementNS called on non-object")
+    })?;
+
+    let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.createElementNS called on non-Document object")
+    })?;
+
+    // Get namespace URI (can be null)
+    let namespace_uri = args.get_or_undefined(0);
+    let namespace_str = if namespace_uri.is_null() || namespace_uri.is_undefined() {
+        None
+    } else {
+        Some(namespace_uri.to_string(context)?.to_std_string_escaped())
+    };
+
+    // Get qualified name (required)
+    let qualified_name = args.get_or_undefined(1).to_string(context)?;
+    let qualified_name_str = qualified_name.to_std_string_escaped();
+
+    // Extract local name (after the colon if there's a prefix)
+    let local_name = if let Some(colon_pos) = qualified_name_str.find(':') {
+        &qualified_name_str[colon_pos + 1..]
+    } else {
+        &qualified_name_str
+    };
+
+    // Create a proper Element object using Element constructor
+    let element_constructor = context.intrinsics().constructors().element().constructor();
+    let element = crate::dom::element::Element::constructor(
+        &element_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    let element_obj = element.as_object().unwrap();
+
+    // For SVG namespace, use lowercase tag name; otherwise uppercase
+    let is_svg = namespace_str.as_deref() == Some("http://www.w3.org/2000/svg");
+    let tag_name = if is_svg {
+        local_name.to_string()
+    } else {
+        local_name.to_uppercase()
+    };
+
+    // Set tagName property
+    element_obj.define_property_or_throw(
+        js_string!("tagName"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(JsString::from(tag_name.as_str()))
+            .build(),
+        context,
+    )?;
+
+    // Set namespace URI if provided
+    if let Some(ref ns) = namespace_str {
+        element_obj.define_property_or_throw(
+            js_string!("namespaceURI"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsString::from(ns.as_str()))
+                .build(),
+            context,
+        )?;
+    }
+
+    // Set the element data
+    if let Some(element_data) = element_obj.downcast_ref::<crate::dom::element::ElementData>() {
+        element_data.set_tag_name(tag_name.clone());
+        element_data.set_namespace_uri(namespace_str.clone());
+    }
+
+    // Add style property
+    let style_obj = JsObject::default(context.intrinsics());
+    element_obj.define_property_or_throw(
+        js_string!("style"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(style_obj)
+            .build(),
+        context,
+    )?;
+
+    // For SVG elements, add SVG-specific properties
+    if is_svg {
+        // Add SVGAnimatedLength-like properties for common SVG attributes
+        // These return objects with baseVal and animVal properties
+        let svg_animated_props = ["width", "height", "x", "y", "cx", "cy", "r", "rx", "ry"];
+        for prop in svg_animated_props {
+            let animated_length = JsObject::default(context.intrinsics());
+            animated_length.define_property_or_throw(
+                js_string!("baseVal"),
+                PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(JsValue::from(0))
+                    .build(),
+                context,
+            )?;
+            animated_length.define_property_or_throw(
+                js_string!("animVal"),
+                PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(JsValue::from(0))
+                    .build(),
+                context,
+            )?;
+
+            element_obj.define_property_or_throw(
+                js_string!(prop),
+                PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(animated_length)
+                    .build(),
+                context,
+            )?;
+        }
+
+        // Add getBBox method for SVG elements
+        let get_bbox_func = BuiltInBuilder::callable(context.realm(), svg_get_bbox)
+            .name(js_string!("getBBox"))
+            .build();
+
+        element_obj.define_property_or_throw(
+            js_string!("getBBox"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(get_bbox_func)
+                .build(),
+            context,
+        )?;
+    }
+
+    Ok(element)
+}
+
+/// SVG getBBox() implementation - returns bounding box for SVG elements
+fn svg_get_bbox(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Return a DOMRect-like object with x, y, width, height
+    let bbox = JsObject::default(context.intrinsics());
+    bbox.define_property_or_throw(
+        js_string!("x"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(JsValue::from(0))
+            .build(),
+        context,
+    )?;
+    bbox.define_property_or_throw(
+        js_string!("y"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(JsValue::from(0))
+            .build(),
+        context,
+    )?;
+    bbox.define_property_or_throw(
+        js_string!("width"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(JsValue::from(0))
+            .build(),
+        context,
+    )?;
+    bbox.define_property_or_throw(
+        js_string!("height"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(true)
+            .value(JsValue::from(0))
+            .build(),
+        context,
+    )?;
+    Ok(bbox.into())
+}
+
 /// `Document.prototype.createTextNode(data)`
 fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let data = args.get_or_undefined(0).to_string(context)?;
@@ -955,12 +1271,8 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
             let inner_html = element_ref.inner_html();
             element_obj.set(js_string!("innerHTML"), js_string!(inner_html), false, context)?;
 
-            // Add common DOM methods
-            let focus_fn = context.intrinsics().constructors().function().constructor();
-            element_obj.set(js_string!("focus"), focus_fn, false, context)?;
-
-            let click_fn = context.intrinsics().constructors().function().constructor();
-            element_obj.set(js_string!("click"), click_fn, false, context)?;
+            // Note: focus, click, and other DOM methods are inherited from the Element prototype
+            // Do NOT overwrite them - the Element constructor already set them up correctly
 
             // Add value property for input elements
             if tag_name == "INPUT" {
@@ -1071,12 +1383,8 @@ fn create_all_real_elements_from_html(context: &mut Context, selector: &str, htm
             let inner_html = element_ref.inner_html();
             element_obj.set(js_string!("innerHTML"), js_string!(inner_html), false, context)?;
 
-            // Add common DOM methods
-            let focus_fn = context.intrinsics().constructors().function().constructor();
-            element_obj.set(js_string!("focus"), focus_fn, false, context)?;
-
-            let click_fn = context.intrinsics().constructors().function().constructor();
-            element_obj.set(js_string!("click"), click_fn, false, context)?;
+            // Note: focus, click, and other DOM methods are inherited from the Element prototype
+            // Do NOT overwrite them - the Element constructor already set them up correctly
 
             // Add value property for input elements
             if tag_name == "INPUT" {
@@ -1406,6 +1714,11 @@ fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Cont
     let tag_name = args.get_or_undefined(0).to_string(context)?;
     let tag_name_str = tag_name.to_std_string_escaped().to_lowercase();
 
+    // Special handling for "script" tag - use proper HTMLScriptElement with full attributes
+    if tag_name_str == "script" {
+        return get_scripts(this, args, context);
+    }
+
     // Get HTML content and parse
     let html_content = document.html_content.lock().unwrap().clone();
     let fragment = scraper::Html::parse_fragment(&html_content);
@@ -1458,6 +1771,12 @@ fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Cont
                     .build(),
                 context,
             )?;
+
+            // Add getAttribute method for all elements
+            let attrs_copy: HashMap<String, String> = element.value().attrs()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            add_get_attribute_method(&element_obj, attrs_copy, context)?;
 
             result.define_property_or_throw(
                 index,
@@ -2438,6 +2757,7 @@ fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 }
 
 /// `Document.prototype.scripts` getter - returns HTMLCollection of all script elements
+/// This includes both scripts from the static HTML and dynamically loaded scripts
 fn get_scripts(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.scripts called on non-object")
@@ -2452,24 +2772,93 @@ fn get_scripts(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     let doc = scraper::Html::parse_document(&html_content);
 
     let mut scripts = Vec::new();
+
+    // Track script sources to avoid duplicates (static HTML vs registered)
+    let mut seen_srcs: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // First, get scripts from static HTML parsing
     if let Ok(selector) = scraper::Selector::parse("script") {
         for script_element in doc.select(&selector) {
-            let element_constructor = context.intrinsics().constructors().element().constructor();
-            if let Ok(script_obj) = element_constructor.construct(&[], None, context) {
-                if let Some(elem_data) = script_obj.downcast_ref::<crate::dom::element::ElementData>() {
-                    elem_data.set_tag_name("SCRIPT".to_string());
-                    if let Some(src) = script_element.value().attr("src") {
-                        elem_data.set_attribute("src".to_string(), src.to_string());
+            // Create proper HTMLScriptElement instead of generic Element
+            let script_constructor = context.intrinsics().constructors().html_script_element().constructor();
+            if let Ok(script_obj) = script_constructor.construct(&[], None, context) {
+                // Collect all attributes from the HTML element
+                let mut attrs: HashMap<String, String> = HashMap::new();
+                for (key, value) in script_element.value().attrs() {
+                    attrs.insert(key.to_string(), value.to_string());
+                }
+
+                // Track the src to avoid duplicates
+                if let Some(src) = script_element.value().attr("src") {
+                    seen_srcs.insert(src.to_string());
+                }
+
+                // Set attributes on the HTMLScriptElement
+                if let Some(script_data) = script_obj.downcast_ref::<crate::dom::html_script_element::HTMLScriptElementData>() {
+                    if let Some(src) = attrs.get("src") {
+                        script_data.set_src(src.clone());
                     }
-                    if let Some(script_type) = script_element.value().attr("type") {
-                        elem_data.set_attribute("type".to_string(), script_type.to_string());
+                    if let Some(type_) = attrs.get("type") {
+                        script_data.set_type(type_.clone());
                     }
-                    if let Some(id) = script_element.value().attr("id") {
-                        elem_data.set_id(id.to_string());
+                    if attrs.contains_key("async") {
+                        script_data.set_async(true);
+                    }
+                    if attrs.contains_key("defer") {
+                        script_data.set_defer(true);
+                    }
+                    if let Some(id) = attrs.get("id") {
+                        script_data.set_id(id.clone());
+                    }
+                    // Set all custom attributes (including data-* attributes)
+                    for (key, value) in &attrs {
+                        script_data.set_attribute(key, value.clone());
                     }
                 }
+
+                // Also set the text content (inline script)
+                let text_content: String = script_element.text().collect();
+                if !text_content.is_empty() {
+                    if let Some(script_data) = script_obj.downcast_ref::<crate::dom::html_script_element::HTMLScriptElementData>() {
+                        script_data.set_text(text_content);
+                    }
+                }
+
                 scripts.push(JsValue::from(script_obj));
             }
+        }
+    }
+
+    // Then, add scripts from the loaded_scripts registry that aren't already in the HTML
+    let loaded_scripts = document.get_loaded_scripts();
+    for entry in loaded_scripts {
+        // Skip if we already have this script from HTML parsing
+        if let Some(ref src) = entry.src {
+            if seen_srcs.contains(src) {
+                continue;
+            }
+        }
+
+        // Create HTMLScriptElement for the registered script
+        let script_constructor = context.intrinsics().constructors().html_script_element().constructor();
+        if let Ok(script_obj) = script_constructor.construct(&[], None, context) {
+            if let Some(script_data) = script_obj.downcast_ref::<crate::dom::html_script_element::HTMLScriptElementData>() {
+                if let Some(ref src) = entry.src {
+                    script_data.set_src(src.clone());
+                }
+                if let Some(ref type_) = entry.script_type {
+                    script_data.set_type(type_.clone());
+                }
+                script_data.set_async(entry.async_);
+                script_data.set_defer(entry.defer);
+                script_data.set_text(entry.text.clone());
+
+                // Set all custom attributes
+                for (key, value) in &entry.attributes {
+                    script_data.set_attribute(key, value.clone());
+                }
+            }
+            scripts.push(JsValue::from(script_obj));
         }
     }
 
@@ -2527,6 +2916,41 @@ fn add_html_collection_methods(array: &JsObject, context: &mut Context) -> JsRes
     .name(js_string!("namedItem"))
     .build();
     array.set(js_string!("namedItem"), named_item_fn, false, context)?;
+
+    Ok(())
+}
+
+/// Helper function to add getAttribute method to an element with captured attributes
+fn add_get_attribute_method(element: &JsObject, attrs: HashMap<String, String>, context: &mut Context) -> JsResult<()> {
+    // Store attributes on the element object itself as a hidden property
+    // This allows getAttribute to access them
+    let attrs_obj = JsObject::default(context.intrinsics());
+    for (key, value) in &attrs {
+        attrs_obj.set(js_string!(key.clone()), js_string!(value.clone()), false, context)?;
+    }
+    element.set(js_string!("__attributes__"), attrs_obj, false, context)?;
+
+    // Create getAttribute method that reads from __attributes__
+    let get_attr_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+        let name = args.get_or_undefined(0).to_string(ctx)?.to_std_string_escaped();
+
+        if let Some(this_obj) = this.as_object() {
+            if let Ok(attrs_val) = this_obj.get(js_string!("__attributes__"), ctx) {
+                if let Some(attrs_obj) = attrs_val.as_object() {
+                    if let Ok(value) = attrs_obj.get(js_string!(name.clone()), ctx) {
+                        if !value.is_undefined() {
+                            return Ok(value);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(JsValue::null())
+    })
+    .name(js_string!("getAttribute"))
+    .build();
+
+    element.set(js_string!("getAttribute"), get_attr_fn, false, context)?;
 
     Ok(())
 }
@@ -2691,6 +3115,122 @@ fn get_active_element(this: &JsValue, _args: &[JsValue], context: &mut Context) 
         }
         document.add_element("body".to_string(), body_element.clone());
         Ok(body_element.into())
+    }
+}
+
+/// `Document.prototype.currentScript` getter
+/// Returns the script element that is currently being executed, or null if no script is executing.
+fn get_current_script(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Try to get the currently executing script from global state
+    // The script execution code should set this when executing a script element
+    if let Ok(current) = context.global_object().get(js_string!("__currentScript__"), context) {
+        if !current.is_undefined() && !current.is_null() {
+            return Ok(current);
+        }
+    }
+    // Per spec, returns null when not inside a script element's execution
+    Ok(JsValue::null())
+}
+
+/// `Document.prototype.scrollingElement` getter
+/// Returns the Element that scrolls the document, typically document.documentElement or document.body
+/// https://drafts.csswg.org/cssom-view/#dom-document-scrollingelement
+fn get_scrolling_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // In standards mode, return documentElement (html element)
+    // In quirks mode, return body
+    // For simplicity, we always return documentElement (standards mode behavior)
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.scrollingElement called on non-object")
+    })?;
+
+    let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.scrollingElement called on non-Document object")
+    })?;
+
+    // Return documentElement (html element)
+    get_document_element(this, _args, context)
+}
+
+/// `Document.prototype.elementFromPoint(x, y)`
+/// Returns the topmost Element at the specified coordinates (relative to viewport).
+/// Used by Cloudflare Turnstile for bot detection during mouse interactions.
+/// https://drafts.csswg.org/cssom-view/#dom-document-elementfrompoint
+fn element_from_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Document.prototype.elementFromPoint called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.elementFromPoint called on non-Document object")
+    })?;
+
+    // Get x and y coordinates
+    let x = args.get_or_undefined(0).to_number(context)?;
+    let y = args.get_or_undefined(1).to_number(context)?;
+
+    // If coordinates are negative, return null per spec
+    if x < 0.0 || y < 0.0 {
+        return Ok(JsValue::null());
+    }
+
+    // Get viewport dimensions
+    let viewport_width = crate::layout_registry::get_viewport_width();
+    let viewport_height = crate::layout_registry::get_viewport_height();
+
+    // If outside viewport, return null
+    if x > viewport_width || y > viewport_height {
+        return Ok(JsValue::null());
+    }
+
+    // Get HTML content to find elements
+    let html_content = document.get_html_content();
+
+    // In a real browser, this would do hit-testing based on rendered layout.
+    // For our headless implementation, we return the body element as a reasonable
+    // fallback for bot detection purposes. This allows Turnstile's mouse event
+    // validation to find a target element.
+    if !html_content.is_empty() {
+        // Parse HTML and return body element
+        let parsed_doc = scraper::Html::parse_document(&html_content);
+        if let Ok(body_selector) = scraper::Selector::parse("body") {
+            if let Some(body_ref) = parsed_doc.select(&body_selector).next() {
+                let element_constructor = context.intrinsics().constructors().element().constructor();
+                let element_obj = element_constructor.construct(&[], Some(&element_constructor), context)?;
+
+                element_obj.set(js_string!("tagName"), js_string!("BODY"), false, context)?;
+                element_obj.set(js_string!("nodeType"), 1, false, context)?;
+
+                // Copy attributes
+                for (attr_name, attr_value) in body_ref.value().attrs() {
+                    element_obj.set(js_string!(attr_name), js_string!(attr_value), false, context)?;
+                }
+
+                return Ok(element_obj.into());
+            }
+        }
+    }
+
+    // If no body found, return null
+    Ok(JsValue::null())
+}
+
+/// `Document.prototype.elementsFromPoint(x, y)`
+/// Returns an array of all Elements at the specified coordinates.
+/// https://drafts.csswg.org/cssom-view/#dom-document-elementsfrompoint
+fn elements_from_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Get the topmost element
+    let top_element = element_from_point(this, args, context)?;
+
+    // Create an array with the element (simplified - real impl would return all stacked elements)
+    if !top_element.is_null() {
+        let array = boa_engine::builtins::array::Array::array_create(1, None, context)?;
+        array.set(0, top_element, true, context)?;
+        Ok(array.into())
+    } else {
+        let array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+        Ok(array.into())
     }
 }
 

@@ -548,6 +548,8 @@ pub fn initialize_iframe_context(
     iframe_obj: &JsObject,
     context: &mut Context,
 ) -> JsResult<()> {
+    eprintln!("🔲 IFRAME: Initializing iframe context...");
+
     let iframe_data = iframe_obj.downcast_ref::<HTMLIFrameElementData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Not an HTMLIFrameElement")
     })?;
@@ -560,6 +562,14 @@ pub fn initialize_iframe_context(
         context,
     )?;
     let iframe_document_obj = iframe_document.as_object().unwrap().clone();
+    eprintln!("🔲 IFRAME: Created iframe document");
+
+    // Check if createElement method exists on the prototype
+    if let Ok(create_element) = iframe_document_obj.get(js_string!("createElement"), context) {
+        eprintln!("🔲 IFRAME: iframe document.createElement = {:?}", create_element.get_type());
+    } else {
+        eprintln!("🔲 IFRAME: iframe document.createElement NOT FOUND!");
+    }
 
     // Create isolated Window for iframe
     let window_constructor = context.intrinsics().constructors().window().constructor();
@@ -569,13 +579,16 @@ pub fn initialize_iframe_context(
         context,
     )?;
     let iframe_window_obj = iframe_window.as_object().unwrap().clone();
+    eprintln!("🔲 IFRAME: Created iframe window");
 
     // Link window.document to the iframe's document
     iframe_window_obj.set(js_string!("document"), iframe_document_obj.clone(), false, context)?;
+    eprintln!("🔲 IFRAME: Linked window.document to iframe document");
 
     // Store the isolated context in the iframe data
     iframe_data.set_content_document(iframe_document_obj);
     iframe_data.set_content_window(iframe_window_obj);
+    eprintln!("🔲 IFRAME: Context stored in iframe data");
 
     Ok(())
 }

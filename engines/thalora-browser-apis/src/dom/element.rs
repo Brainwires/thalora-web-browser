@@ -141,6 +141,69 @@ impl IntrinsicObject for Element {
             .name(js_string!("get childNodes"))
             .build();
 
+        // Layout dimension accessors (read-only)
+        let offset_width_func = BuiltInBuilder::callable(realm, get_offset_width)
+            .name(js_string!("get offsetWidth"))
+            .build();
+
+        let offset_height_func = BuiltInBuilder::callable(realm, get_offset_height)
+            .name(js_string!("get offsetHeight"))
+            .build();
+
+        let offset_top_func = BuiltInBuilder::callable(realm, get_offset_top)
+            .name(js_string!("get offsetTop"))
+            .build();
+
+        let offset_left_func = BuiltInBuilder::callable(realm, get_offset_left)
+            .name(js_string!("get offsetLeft"))
+            .build();
+
+        let offset_parent_func = BuiltInBuilder::callable(realm, get_offset_parent)
+            .name(js_string!("get offsetParent"))
+            .build();
+
+        let client_width_func = BuiltInBuilder::callable(realm, get_client_width)
+            .name(js_string!("get clientWidth"))
+            .build();
+
+        let client_height_func = BuiltInBuilder::callable(realm, get_client_height)
+            .name(js_string!("get clientHeight"))
+            .build();
+
+        let client_top_func = BuiltInBuilder::callable(realm, get_client_top)
+            .name(js_string!("get clientTop"))
+            .build();
+
+        let client_left_func = BuiltInBuilder::callable(realm, get_client_left)
+            .name(js_string!("get clientLeft"))
+            .build();
+
+        // Scroll dimension accessors (read-only)
+        let scroll_width_func = BuiltInBuilder::callable(realm, get_scroll_width)
+            .name(js_string!("get scrollWidth"))
+            .build();
+
+        let scroll_height_func = BuiltInBuilder::callable(realm, get_scroll_height)
+            .name(js_string!("get scrollHeight"))
+            .build();
+
+        // Scroll position accessors (read/write)
+        let scroll_top_func = BuiltInBuilder::callable(realm, get_scroll_top)
+            .name(js_string!("get scrollTop"))
+            .build();
+
+        let scroll_top_setter_func = BuiltInBuilder::callable(realm, set_scroll_top)
+            .name(js_string!("set scrollTop"))
+            .build();
+
+        let scroll_left_func = BuiltInBuilder::callable(realm, get_scroll_left)
+            .name(js_string!("get scrollLeft"))
+            .build();
+
+        let scroll_left_setter_func = BuiltInBuilder::callable(realm, set_scroll_left)
+            .name(js_string!("set scrollLeft"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("tagName"),
@@ -242,6 +305,86 @@ impl IntrinsicObject for Element {
                 js_string!("childNodes"),
                 Some(child_nodes_func),
                 None,
+                Attribute::CONFIGURABLE,
+            )
+            // Layout dimension accessors
+            .accessor(
+                js_string!("offsetWidth"),
+                Some(offset_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetHeight"),
+                Some(offset_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetTop"),
+                Some(offset_top_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetLeft"),
+                Some(offset_left_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetParent"),
+                Some(offset_parent_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientWidth"),
+                Some(client_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientHeight"),
+                Some(client_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientTop"),
+                Some(client_top_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientLeft"),
+                Some(client_left_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            // Scroll dimension accessors
+            .accessor(
+                js_string!("scrollWidth"),
+                Some(scroll_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scrollHeight"),
+                Some(scroll_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scrollTop"),
+                Some(scroll_top_func),
+                Some(scroll_top_setter_func),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scrollLeft"),
+                Some(scroll_left_func),
+                Some(scroll_left_setter_func),
                 Attribute::CONFIGURABLE,
             )
             .method(set_attribute, js_string!("setAttribute"), 2)
@@ -377,6 +520,15 @@ pub struct ElementData {
     /// Assigned slot name for Shadow DOM slotting (internal [[AssignedSlot]])
     #[unsafe_ignore_trace]
     assigned_slot_name: Arc<Mutex<Option<String>>>,
+    /// Layout dimensions (offset properties)
+    #[unsafe_ignore_trace]
+    offset_dimensions: Arc<Mutex<LayoutDimensions>>,
+    /// Client dimensions (inner dimensions excluding borders/scrollbars)
+    #[unsafe_ignore_trace]
+    client_dimensions: Arc<Mutex<ClientDimensions>>,
+    /// Scroll dimensions and position
+    #[unsafe_ignore_trace]
+    scroll_state: Arc<Mutex<ScrollState>>,
 }
 
 /// CSS Style Declaration for real style computation
@@ -517,6 +669,67 @@ impl DOMRect {
     }
 }
 
+/// Layout dimensions for offset* properties
+#[derive(Debug, Clone)]
+pub struct LayoutDimensions {
+    pub width: f64,
+    pub height: f64,
+    pub top: f64,
+    pub left: f64,
+}
+
+impl LayoutDimensions {
+    fn new() -> Self {
+        // Default to reasonable values for a typical element
+        Self {
+            width: 0.0,
+            height: 0.0,
+            top: 0.0,
+            left: 0.0,
+        }
+    }
+}
+
+/// Client dimensions (inner area excluding borders and scrollbars)
+#[derive(Debug, Clone)]
+pub struct ClientDimensions {
+    pub width: f64,
+    pub height: f64,
+    pub top: f64,  // Border width top
+    pub left: f64, // Border width left
+}
+
+impl ClientDimensions {
+    fn new() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            top: 0.0,
+            left: 0.0,
+        }
+    }
+}
+
+/// Scroll state for scroll* properties
+#[derive(Debug, Clone)]
+pub struct ScrollState {
+    pub width: f64,   // Total scrollable width
+    pub height: f64,  // Total scrollable height
+    pub top: f64,     // Current scroll position Y
+    pub left: f64,    // Current scroll position X
+}
+
+impl ScrollState {
+    fn new() -> Self {
+        Self {
+            width: 0.0,
+            height: 0.0,
+            top: 0.0,
+            left: 0.0,
+        }
+    }
+}
+
 impl ElementData {
     fn new() -> Self {
         let node_id = NODE_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -538,6 +751,9 @@ impl ElementData {
             next_sibling: Arc::new(Mutex::new(None)),
             previous_sibling: Arc::new(Mutex::new(None)),
             assigned_slot_name: Arc::new(Mutex::new(None)),
+            offset_dimensions: Arc::new(Mutex::new(LayoutDimensions::new())),
+            client_dimensions: Arc::new(Mutex::new(ClientDimensions::new())),
+            scroll_state: Arc::new(Mutex::new(ScrollState::new())),
         }
     }
 
@@ -1007,6 +1223,119 @@ impl ElementData {
     /// Clear assigned slot (when removed from slotting)
     pub fn clear_assigned_slot(&self) {
         *self.assigned_slot_name.lock().unwrap() = None;
+    }
+
+    // =========================================================================
+    // Layout dimension getters (offset* properties)
+    // =========================================================================
+
+    /// Get offsetWidth - element width including borders
+    pub fn get_offset_width(&self) -> f64 {
+        self.offset_dimensions.lock().unwrap().width
+    }
+
+    /// Get offsetHeight - element height including borders
+    pub fn get_offset_height(&self) -> f64 {
+        self.offset_dimensions.lock().unwrap().height
+    }
+
+    /// Get offsetTop - top position relative to offsetParent
+    pub fn get_offset_top(&self) -> f64 {
+        self.offset_dimensions.lock().unwrap().top
+    }
+
+    /// Get offsetLeft - left position relative to offsetParent
+    pub fn get_offset_left(&self) -> f64 {
+        self.offset_dimensions.lock().unwrap().left
+    }
+
+    /// Set offset dimensions (used internally when layout is computed)
+    pub fn set_offset_dimensions(&self, width: f64, height: f64, top: f64, left: f64) {
+        let mut dims = self.offset_dimensions.lock().unwrap();
+        dims.width = width;
+        dims.height = height;
+        dims.top = top;
+        dims.left = left;
+    }
+
+    // =========================================================================
+    // Client dimension getters (client* properties)
+    // =========================================================================
+
+    /// Get clientWidth - inner width excluding borders and scrollbars
+    pub fn get_client_width(&self) -> f64 {
+        self.client_dimensions.lock().unwrap().width
+    }
+
+    /// Get clientHeight - inner height excluding borders and scrollbars
+    pub fn get_client_height(&self) -> f64 {
+        self.client_dimensions.lock().unwrap().height
+    }
+
+    /// Get clientTop - top border width
+    pub fn get_client_top(&self) -> f64 {
+        self.client_dimensions.lock().unwrap().top
+    }
+
+    /// Get clientLeft - left border width
+    pub fn get_client_left(&self) -> f64 {
+        self.client_dimensions.lock().unwrap().left
+    }
+
+    /// Set client dimensions (used internally when layout is computed)
+    pub fn set_client_dimensions(&self, width: f64, height: f64, top: f64, left: f64) {
+        let mut dims = self.client_dimensions.lock().unwrap();
+        dims.width = width;
+        dims.height = height;
+        dims.top = top;
+        dims.left = left;
+    }
+
+    // =========================================================================
+    // Scroll dimension and position getters/setters
+    // =========================================================================
+
+    /// Get scrollWidth - total width of content including overflow
+    pub fn get_scroll_width(&self) -> f64 {
+        self.scroll_state.lock().unwrap().width
+    }
+
+    /// Get scrollHeight - total height of content including overflow
+    pub fn get_scroll_height(&self) -> f64 {
+        self.scroll_state.lock().unwrap().height
+    }
+
+    /// Get scrollTop - current vertical scroll position
+    pub fn get_scroll_top(&self) -> f64 {
+        self.scroll_state.lock().unwrap().top
+    }
+
+    /// Set scrollTop - set vertical scroll position
+    pub fn set_scroll_top(&self, value: f64) {
+        let mut scroll = self.scroll_state.lock().unwrap();
+        // Clamp to valid range
+        let max_scroll = (scroll.height - self.get_client_height()).max(0.0);
+        scroll.top = value.max(0.0).min(max_scroll);
+    }
+
+    /// Get scrollLeft - current horizontal scroll position
+    pub fn get_scroll_left(&self) -> f64 {
+        self.scroll_state.lock().unwrap().left
+    }
+
+    /// Set scrollLeft - set horizontal scroll position
+    pub fn set_scroll_left(&self, value: f64) {
+        let mut scroll = self.scroll_state.lock().unwrap();
+        // Clamp to valid range
+        let max_scroll = (scroll.width - self.get_client_width()).max(0.0);
+        scroll.left = value.max(0.0).min(max_scroll);
+    }
+
+    /// Set scroll dimensions (used internally when content size is computed)
+    pub fn set_scroll_dimensions(&self, width: f64, height: f64) {
+        let mut scroll = self.scroll_state.lock().unwrap();
+        scroll.width = width;
+        scroll.height = height;
     }
 
     /// Dispatch event on this element
@@ -2745,5 +3074,234 @@ fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
 fn execute_external_script(_url: &str, _context: &mut Context) -> JsResult<()> {
     eprintln!("DEBUG: External script execution not supported in WASM mode");
     Ok(())
+}
+
+// =============================================================================
+// Layout dimension getters (read-only properties)
+// =============================================================================
+
+/// `Element.prototype.offsetWidth` - returns layout width including borders
+fn get_offset_width(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetWidth getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        // Try to get computed dimensions from stored data
+        let width = element.get_offset_width();
+        return Ok(JsValue::from(width as i32));
+    }
+
+    // Default value for elements without layout (like detached elements)
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.offsetHeight` - returns layout height including borders
+fn get_offset_height(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetHeight getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let height = element.get_offset_height();
+        return Ok(JsValue::from(height as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.offsetTop` - returns top offset from offsetParent
+fn get_offset_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetTop getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let top = element.get_offset_top();
+        return Ok(JsValue::from(top as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.offsetLeft` - returns left offset from offsetParent
+fn get_offset_left(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetLeft getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let left = element.get_offset_left();
+        return Ok(JsValue::from(left as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.offsetParent` - returns nearest positioned ancestor
+fn get_offset_parent(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetParent getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        // For now return null - proper implementation would walk up DOM tree
+        // to find positioned ancestor
+        if let Some(parent) = element.get_parent_node() {
+            return Ok(JsValue::from(parent));
+        }
+    }
+
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.clientWidth` - returns inner width (excluding borders, scrollbar)
+fn get_client_width(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("clientWidth getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let width = element.get_client_width();
+        return Ok(JsValue::from(width as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.clientHeight` - returns inner height (excluding borders, scrollbar)
+fn get_client_height(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("clientHeight getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let height = element.get_client_height();
+        return Ok(JsValue::from(height as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.clientTop` - returns top border width
+fn get_client_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("clientTop getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let top = element.get_client_top();
+        return Ok(JsValue::from(top as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.clientLeft` - returns left border width
+fn get_client_left(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("clientLeft getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let left = element.get_client_left();
+        return Ok(JsValue::from(left as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+// =============================================================================
+// Scroll dimension getters
+// =============================================================================
+
+/// `Element.prototype.scrollWidth` - returns total width of content (including overflow)
+fn get_scroll_width(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollWidth getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let width = element.get_scroll_width();
+        return Ok(JsValue::from(width as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.scrollHeight` - returns total height of content (including overflow)
+fn get_scroll_height(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollHeight getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let height = element.get_scroll_height();
+        return Ok(JsValue::from(height as i32));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+// =============================================================================
+// Scroll position getters and setters
+// =============================================================================
+
+/// `Element.prototype.scrollTop` getter - returns scroll position from top
+fn get_scroll_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollTop getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let top = element.get_scroll_top();
+        return Ok(JsValue::from(top));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.scrollTop` setter - sets scroll position from top
+fn set_scroll_top(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollTop setter called on non-object")
+    })?;
+
+    let value = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.set_scroll_top(value);
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.scrollLeft` getter - returns scroll position from left
+fn get_scroll_left(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollLeft getter called on non-object")
+    })?;
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        let left = element.get_scroll_left();
+        return Ok(JsValue::from(left));
+    }
+
+    Ok(JsValue::from(0))
+}
+
+/// `Element.prototype.scrollLeft` setter - sets scroll position from left
+fn set_scroll_left(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollLeft setter called on non-object")
+    })?;
+
+    let value = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
+
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.set_scroll_left(value);
+    }
+
+    Ok(JsValue::undefined())
 }
 

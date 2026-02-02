@@ -100,62 +100,71 @@ impl ChallengeResolver {
     }
 
     /// Generate wait JavaScript for Cloudflare JS challenge
+    /// Uses window._asyncResult and window._asyncComplete for result storage
     fn generate_cloudflare_js_wait(&self, timeout_ms: u64) -> String {
         format!(
-            r#"new Promise(function(resolve) {{
+            r#"(function() {{
     var startTime = Date.now();
     var timeout = {};
     var pollInterval = {};
     var postDelay = {};
 
+    function completeWith(result) {{
+        window._asyncResult = result;
+        window._asyncComplete = true;
+    }}
+
     function checkResolution() {{
-        // Check for cf_clearance cookie
-        var cookies = document.cookie;
-        if (cookies.includes('cf_clearance')) {{
-            // Cookie found! Wait a bit then resolve
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'cf_clearance cookie found' }});
-            }}, postDelay);
-            return;
-        }}
-
-        // Check if challenge elements are gone
-        var challengeRunning = document.querySelector('.challenge-running');
-        var spinner = document.querySelector('.cf-spinner-please-wait');
-        var challengeForm = document.querySelector('#challenge-form');
-
-        if (!challengeRunning && !spinner && document.readyState === 'complete') {{
-            // Challenge elements gone, check page title
-            var title = document.title || '';
-            if (!title.includes('Just a moment')) {{
+        try {{
+            // Check for cf_clearance cookie
+            var cookies = document.cookie;
+            if (cookies.indexOf('cf_clearance') !== -1) {{
+                // Cookie found! Wait a bit then complete
                 setTimeout(function() {{
-                    resolve({{ success: true, reason: 'challenge elements removed' }});
+                    completeWith({{ success: true, reason: 'cf_clearance cookie found' }});
                 }}, postDelay);
                 return;
             }}
-        }}
 
-        // Check for challenge success class
-        var challengeSuccess = document.querySelector('.challenge-success');
-        if (challengeSuccess) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'challenge-success element found' }});
-            }}, postDelay);
-            return;
-        }}
+            // Check if challenge elements are gone
+            var challengeRunning = document.querySelector('.challenge-running');
+            var spinner = document.querySelector('.cf-spinner-please-wait');
 
-        // Check timeout
-        if (Date.now() - startTime > timeout) {{
-            resolve({{ success: false, reason: 'timeout' }});
-            return;
-        }}
+            if (!challengeRunning && !spinner && document.readyState === 'complete') {{
+                // Challenge elements gone, check page title
+                var title = document.title || '';
+                if (title.indexOf('Just a moment') === -1) {{
+                    setTimeout(function() {{
+                        completeWith({{ success: true, reason: 'challenge elements removed' }});
+                    }}, postDelay);
+                    return;
+                }}
+            }}
 
-        // Poll again
-        setTimeout(checkResolution, pollInterval);
+            // Check for challenge success class
+            var challengeSuccess = document.querySelector('.challenge-success');
+            if (challengeSuccess) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'challenge-success element found' }});
+                }}, postDelay);
+                return;
+            }}
+
+            // Check timeout
+            if (Date.now() - startTime > timeout) {{
+                completeWith({{ success: false, reason: 'timeout' }});
+                return;
+            }}
+
+            // Poll again
+            setTimeout(checkResolution, pollInterval);
+        }} catch(e) {{
+            completeWith({{ success: false, reason: 'error: ' + e.message }});
+        }}
     }}
 
     checkResolution();
-}})"#,
+}})()"#,
             timeout_ms,
             self.config.poll_interval_ms,
             self.config.post_resolution_delay_ms
@@ -163,89 +172,112 @@ impl ChallengeResolver {
     }
 
     /// Generate wait JavaScript for Turnstile challenge
+    /// Uses window._asyncResult and window._asyncComplete for result storage
     fn generate_turnstile_wait(&self, timeout_ms: u64) -> String {
         format!(
-            r#"new Promise(function(resolve) {{
+            r#"(function() {{
     var startTime = Date.now();
     var timeout = {};
     var pollInterval = {};
     var postDelay = {};
 
+    function completeWith(result) {{
+        window._asyncResult = result;
+        window._asyncComplete = true;
+    }}
+
     function checkResolution() {{
-        // Check for Turnstile token in form inputs
-        var tokenInput = document.querySelector('input[name="cf-turnstile-response"]');
-        if (tokenInput && tokenInput.value) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'turnstile token found', token: tokenInput.value }});
-            }}, postDelay);
-            return;
-        }}
+        try {{
+            // Check turnstile API directly for existing responses (most reliable)
+            if (typeof turnstile !== 'undefined' && turnstile.getResponse) {{
+                // Try to get response using widget IDs from data attributes
+                try {{
+                    var containers = document.querySelectorAll('.cf-turnstile, [data-cf-turnstile]');
+                    for (var i = 0; i < containers.length; i++) {{
+                        var container = containers[i];
+                        var widgetId = container.getAttribute('data-cf-turnstile-widget-id') || container.id || '0';
+                        try {{
+                            var response = turnstile.getResponse(widgetId);
+                            if (response) {{
+                                setTimeout(function() {{
+                                    completeWith({{ success: true, reason: 'turnstile API response', token: response }});
+                                }}, postDelay);
+                                return;
+                            }}
+                        }} catch (e) {{}}
+                    }}
+                }} catch (e) {{}}
 
-        // Check for success callback on window
-        if (window._turnstileSuccess) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'turnstile callback triggered' }});
-            }}, postDelay);
-            return;
-        }}
+                // Try default widget ID '0'
+                try {{
+                    var response = turnstile.getResponse('0');
+                    if (response) {{
+                        setTimeout(function() {{
+                            completeWith({{ success: true, reason: 'turnstile default widget response', token: response }});
+                        }}, postDelay);
+                        return;
+                    }}
+                }} catch (e) {{}}
+            }}
 
-        // Check if widget shows success state
-        var widget = document.querySelector('[data-cf-turnstile-widget]');
-        if (widget) {{
-            var successIndicator = widget.querySelector('.success, [data-success="true"]');
-            if (successIndicator) {{
+            // Check for stored token from callback hook
+            if (window._turnstileSuccess && window._turnstileToken) {{
                 setTimeout(function() {{
-                    resolve({{ success: true, reason: 'turnstile success indicator' }});
+                    completeWith({{ success: true, reason: 'turnstile callback triggered', token: window._turnstileToken }});
                 }}, postDelay);
                 return;
             }}
+
+            // Check for Turnstile token in form inputs (fallback for DOM-based detection)
+            var tokenInput = document.querySelector('input[name="cf-turnstile-response"]');
+            if (tokenInput && tokenInput.value) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'turnstile token found', token: tokenInput.value }});
+                }}, postDelay);
+                return;
+            }}
+
+            // Check for cf_clearance cookie as fallback
+            if (document.cookie.indexOf('cf_clearance') !== -1) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'cf_clearance cookie found' }});
+                }}, postDelay);
+                return;
+            }}
+
+            // Check timeout
+            if (Date.now() - startTime > timeout) {{
+                completeWith({{ success: false, reason: 'timeout' }});
+                return;
+            }}
+
+            // Poll again
+            setTimeout(checkResolution, pollInterval);
+        }} catch(e) {{
+            completeWith({{ success: false, reason: 'error: ' + e.message }});
         }}
-
-        // Check for cf_clearance cookie as fallback
-        if (document.cookie.includes('cf_clearance')) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'cf_clearance cookie found' }});
-            }}, postDelay);
-            return;
-        }}
-
-        // Check if challenge elements are gone
-        var challengeWrapper = document.querySelector('.cf-turnstile, [data-cf-turnstile]');
-        var challengeFrame = document.querySelector('iframe[src*="challenges.cloudflare.com"]');
-
-        if (!challengeWrapper && !challengeFrame) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'turnstile elements removed' }});
-            }}, postDelay);
-            return;
-        }}
-
-        // Check timeout
-        if (Date.now() - startTime > timeout) {{
-            resolve({{ success: false, reason: 'timeout' }});
-            return;
-        }}
-
-        // Poll again
-        setTimeout(checkResolution, pollInterval);
     }}
 
-    // Set up callback hook for Turnstile
-    if (typeof turnstile !== 'undefined') {{
+    // Set up callback hook for Turnstile render (catches future renders)
+    if (typeof turnstile !== 'undefined' && !window._turnstileHooked) {{
+        window._turnstileHooked = true;
         var originalRender = turnstile.render;
-        turnstile.render = function(element, options) {{
-            var originalCallback = options.callback;
-            options.callback = function(token) {{
-                window._turnstileSuccess = true;
-                window._turnstileToken = token;
-                if (originalCallback) originalCallback(token);
+        if (originalRender) {{
+            turnstile.render = function(element, options) {{
+                options = options || {{}};
+                var originalCallback = options.callback;
+                options.callback = function(token) {{
+                    window._turnstileSuccess = true;
+                    window._turnstileToken = token;
+                    if (originalCallback) originalCallback(token);
+                }};
+                return originalRender.call(this, element, options);
             }};
-            return originalRender.call(this, element, options);
-        }};
+        }}
     }}
 
     checkResolution();
-}})"#,
+}})()"#,
             timeout_ms,
             self.config.poll_interval_ms,
             self.config.post_resolution_delay_ms
@@ -253,43 +285,54 @@ impl ChallengeResolver {
     }
 
     /// Generate wait JavaScript for hCaptcha challenge
+    /// Uses window._asyncResult and window._asyncComplete for result storage
     fn generate_hcaptcha_wait(&self, timeout_ms: u64) -> String {
         format!(
-            r#"new Promise(function(resolve) {{
+            r#"(function() {{
     var startTime = Date.now();
     var timeout = {};
     var pollInterval = {};
     var postDelay = {};
 
+    function completeWith(result) {{
+        window._asyncResult = result;
+        window._asyncComplete = true;
+    }}
+
     function checkResolution() {{
-        // Check for hCaptcha response in form
-        var tokenInput = document.querySelector('[name="h-captcha-response"]');
-        if (tokenInput && tokenInput.value) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'hcaptcha token found' }});
-            }}, postDelay);
-            return;
-        }}
+        try {{
+            // Check for hCaptcha response in form
+            var tokenInput = document.querySelector('[name="h-captcha-response"]');
+            if (tokenInput && tokenInput.value) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'hcaptcha token found' }});
+                }}, postDelay);
+                return;
+            }}
 
-        // Check for success callback
-        if (window._hcaptchaSuccess) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'hcaptcha callback triggered' }});
-            }}, postDelay);
-            return;
-        }}
+            // Check for success callback
+            if (window._hcaptchaSuccess) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'hcaptcha callback triggered' }});
+                }}, postDelay);
+                return;
+            }}
 
-        // Check timeout
-        if (Date.now() - startTime > timeout) {{
-            resolve({{ success: false, reason: 'timeout' }});
-            return;
-        }}
+            // Check timeout
+            if (Date.now() - startTime > timeout) {{
+                completeWith({{ success: false, reason: 'timeout' }});
+                return;
+            }}
 
-        setTimeout(checkResolution, pollInterval);
+            setTimeout(checkResolution, pollInterval);
+        }} catch(e) {{
+            completeWith({{ success: false, reason: 'error: ' + e.message }});
+        }}
     }}
 
     // Hook into hcaptcha if available
-    if (typeof hcaptcha !== 'undefined') {{
+    if (typeof hcaptcha !== 'undefined' && !window._hcaptchaHooked) {{
+        window._hcaptchaHooked = true;
         var originalRender = hcaptcha.render;
         hcaptcha.render = function(element, options) {{
             var originalCallback = options.callback;
@@ -302,7 +345,7 @@ impl ChallengeResolver {
     }}
 
     checkResolution();
-}})"#,
+}})()"#,
             timeout_ms,
             self.config.poll_interval_ms,
             self.config.post_resolution_delay_ms
@@ -310,48 +353,58 @@ impl ChallengeResolver {
     }
 
     /// Generate wait JavaScript for reCAPTCHA challenge
+    /// Uses window._asyncResult and window._asyncComplete for result storage
     fn generate_recaptcha_wait(&self, timeout_ms: u64) -> String {
         format!(
-            r#"new Promise(function(resolve) {{
+            r#"(function() {{
     var startTime = Date.now();
     var timeout = {};
     var pollInterval = {};
     var postDelay = {};
 
+    function completeWith(result) {{
+        window._asyncResult = result;
+        window._asyncComplete = true;
+    }}
+
     function checkResolution() {{
-        // Check for reCAPTCHA response
-        var tokenInput = document.querySelector('[name="g-recaptcha-response"]');
-        if (tokenInput && tokenInput.value) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'recaptcha token found' }});
-            }}, postDelay);
-            return;
-        }}
+        try {{
+            // Check for reCAPTCHA response
+            var tokenInput = document.querySelector('[name="g-recaptcha-response"]');
+            if (tokenInput && tokenInput.value) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'recaptcha token found' }});
+                }}, postDelay);
+                return;
+            }}
 
-        // Check grecaptcha API
-        if (typeof grecaptcha !== 'undefined') {{
-            try {{
-                var response = grecaptcha.getResponse();
-                if (response) {{
-                    setTimeout(function() {{
-                        resolve({{ success: true, reason: 'grecaptcha response found' }});
-                    }}, postDelay);
-                    return;
-                }}
-            }} catch(e) {{}}
-        }}
+            // Check grecaptcha API
+            if (typeof grecaptcha !== 'undefined') {{
+                try {{
+                    var response = grecaptcha.getResponse();
+                    if (response) {{
+                        setTimeout(function() {{
+                            completeWith({{ success: true, reason: 'grecaptcha response found' }});
+                        }}, postDelay);
+                        return;
+                    }}
+                }} catch(e) {{}}
+            }}
 
-        // Check timeout
-        if (Date.now() - startTime > timeout) {{
-            resolve({{ success: false, reason: 'timeout' }});
-            return;
-        }}
+            // Check timeout
+            if (Date.now() - startTime > timeout) {{
+                completeWith({{ success: false, reason: 'timeout' }});
+                return;
+            }}
 
-        setTimeout(checkResolution, pollInterval);
+            setTimeout(checkResolution, pollInterval);
+        }} catch(e) {{
+            completeWith({{ success: false, reason: 'error: ' + e.message }});
+        }}
     }}
 
     checkResolution();
-}})"#,
+}})()"#,
             timeout_ms,
             self.config.poll_interval_ms,
             self.config.post_resolution_delay_ms
@@ -359,50 +412,60 @@ impl ChallengeResolver {
     }
 
     /// Generate wait JavaScript for generic interstitial
+    /// Uses window._asyncResult and window._asyncComplete for result storage
     fn generate_generic_wait(&self, timeout_ms: u64) -> String {
         format!(
-            r#"new Promise(function(resolve) {{
+            r#"(function() {{
     var startTime = Date.now();
     var timeout = {};
     var pollInterval = {};
     var postDelay = {};
     var initialContent = document.body ? document.body.innerHTML.length : 0;
 
+    function completeWith(result) {{
+        window._asyncResult = result;
+        window._asyncComplete = true;
+    }}
+
     function checkResolution() {{
-        // Check if page content has significantly changed
-        var currentContent = document.body ? document.body.innerHTML.length : 0;
-        var contentChanged = Math.abs(currentContent - initialContent) > 1000;
+        try {{
+            // Check if page content has significantly changed
+            var currentContent = document.body ? document.body.innerHTML.length : 0;
+            var contentChanged = Math.abs(currentContent - initialContent) > 1000;
 
-        // Check if document is fully loaded and content changed
-        if (document.readyState === 'complete' && contentChanged) {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'page content changed' }});
-            }}, postDelay);
-            return;
+            // Check if document is fully loaded and content changed
+            if (document.readyState === 'complete' && contentChanged) {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'page content changed' }});
+                }}, postDelay);
+                return;
+            }}
+
+            // Check for common loading indicators gone
+            var loadingElements = document.querySelectorAll('.loading, .spinner, [class*="loading"], [class*="spinner"]');
+            var hasLoading = loadingElements.length > 0;
+
+            if (!hasLoading && document.readyState === 'complete') {{
+                setTimeout(function() {{
+                    completeWith({{ success: true, reason: 'loading complete' }});
+                }}, postDelay);
+                return;
+            }}
+
+            // Check timeout
+            if (Date.now() - startTime > timeout) {{
+                completeWith({{ success: false, reason: 'timeout' }});
+                return;
+            }}
+
+            setTimeout(checkResolution, pollInterval);
+        }} catch(e) {{
+            completeWith({{ success: false, reason: 'error: ' + e.message }});
         }}
-
-        // Check for common loading indicators gone
-        var loadingElements = document.querySelectorAll('.loading, .spinner, [class*="loading"], [class*="spinner"]');
-        var hasLoading = loadingElements.length > 0;
-
-        if (!hasLoading && document.readyState === 'complete') {{
-            setTimeout(function() {{
-                resolve({{ success: true, reason: 'loading complete' }});
-            }}, postDelay);
-            return;
-        }}
-
-        // Check timeout
-        if (Date.now() - startTime > timeout) {{
-            resolve({{ success: false, reason: 'timeout' }});
-            return;
-        }}
-
-        setTimeout(checkResolution, pollInterval);
     }}
 
     checkResolution();
-}})"#,
+}})()"#,
             timeout_ms,
             self.config.poll_interval_ms,
             self.config.post_resolution_delay_ms
