@@ -2182,17 +2182,9 @@ fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
 
 /// `Element.prototype.setAttribute(name, value)`
 fn set_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    // Always log to confirm function is being called - write to file for persistence
-    {
-        use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("/tmp/setattr_debug.log")
-        {
-            let _ = writeln!(f, "setAttribute ENTRY: type={}", this.type_of());
-        }
-    }
+    use crate::debug_utils::log_to_file;
+
+    log_to_file("/tmp/setattr_debug.log", || format!("setAttribute ENTRY: type={}", this.type_of()));
 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.setAttribute called on non-object")
@@ -2200,59 +2192,40 @@ fn set_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 
     // Try to downcast to ElementData first, then try HTMLElementData as fallback
     let element = if let Some(data) = this_obj.downcast_ref::<ElementData>() {
-        {
-            use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
-                let _ = writeln!(f, "setAttribute SUCCESS: ElementData");
-            }
-        }
+        log_to_file("/tmp/setattr_debug.log", || "setAttribute SUCCESS: ElementData");
         data
     } else if let Some(_html_data) = this_obj.downcast_ref::<crate::dom::html_element::HTMLElementData>() {
         // HTMLElement objects also need setAttribute support
         let name = args.get_or_undefined(0).to_string(context)?;
         let _value = args.get_or_undefined(1).to_string(context)?;
-        {
-            use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
-                let _ = writeln!(f, "setAttribute: HTMLElementData name='{}'", name.to_std_string_escaped());
-            }
-        }
+        log_to_file("/tmp/setattr_debug.log", || format!("setAttribute: HTMLElementData name='{}'", name.to_std_string_escaped()));
         return Ok(JsValue::undefined());
     } else if let Some(iframe_data) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
         // HTMLIFrameElement objects
         let name = args.get_or_undefined(0).to_string(context)?;
         let value = args.get_or_undefined(1).to_string(context)?;
         iframe_data.set_attribute(&name.to_std_string_escaped(), value.to_std_string_escaped());
-        {
-            use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
-                let _ = writeln!(f, "setAttribute SUCCESS: HTMLIFrameElementData name='{}'", name.to_std_string_escaped());
-            }
-        }
+        log_to_file("/tmp/setattr_debug.log", || format!("setAttribute SUCCESS: HTMLIFrameElementData name='{}'", name.to_std_string_escaped()));
         return Ok(JsValue::undefined());
     } else {
         // Debug output to understand what type of object this is
-        {
-            use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
-                // Get the constructor name
-                let constructor_name = if let Ok(constructor) = this_obj.get(js_string!("constructor"), context) {
-                    if let Some(ctor_obj) = constructor.as_object() {
-                        ctor_obj.get(js_string!("name"), context)
-                            .map(|n| n.to_string(context).map(|s| s.to_std_string_escaped()).unwrap_or_default())
-                            .unwrap_or_else(|_| "?".to_string())
-                    } else { "not an object".to_string() }
-                } else { "no constructor".to_string() };
+        let constructor_name = if let Ok(constructor) = this_obj.get(js_string!("constructor"), context) {
+            if let Some(ctor_obj) = constructor.as_object() {
+                ctor_obj.get(js_string!("name"), context)
+                    .map(|n| n.to_string(context).map(|s| s.to_std_string_escaped()).unwrap_or_default())
+                    .unwrap_or_else(|_| "?".to_string())
+            } else { "not an object".to_string() }
+        } else { "no constructor".to_string() };
 
-                // Check for common data types
-                let has_document_data = this_obj.downcast_ref::<crate::dom::document::DocumentData>().is_some();
-                let has_nodelist_data = this_obj.downcast_ref::<crate::dom::nodelist::NodeListData>().is_some();
-                let has_style_data = this_obj.downcast_ref::<crate::browser::cssom::CSSStyleDeclarationData>().is_some();
+        let has_document_data = this_obj.downcast_ref::<crate::dom::document::DocumentData>().is_some();
+        let has_nodelist_data = this_obj.downcast_ref::<crate::dom::nodelist::NodeListData>().is_some();
+        let has_style_data = this_obj.downcast_ref::<crate::browser::cssom::CSSStyleDeclarationData>().is_some();
 
-                let _ = writeln!(f, "setAttribute FAIL: unknown type, constructor='{}', isDoc={}, isNodeList={}, isStyle={}",
-                    constructor_name, has_document_data, has_nodelist_data, has_style_data);
-            }
-        }
+        log_to_file("/tmp/setattr_debug.log", || {
+            format!("setAttribute FAIL: unknown type, constructor='{}', isDoc={}, isNodeList={}, isStyle={}",
+                constructor_name, has_document_data, has_nodelist_data, has_style_data)
+        });
+
         return Err(JsNativeError::typ()
             .with_message("Element.prototype.setAttribute called on non-Element object")
             .into());

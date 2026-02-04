@@ -873,6 +873,10 @@ impl NodeData {
 impl NodeData {
     /// `Node.prototype.appendChild(child)`
     fn append_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        use crate::debug_utils::log_to_file;
+
+        log_to_file("/tmp/node_appendchild_debug.log", || "Node.appendChild ENTRY");
+
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.appendChild called on non-object")
         })?;
@@ -881,6 +885,19 @@ impl NodeData {
         let child_obj = child_arg.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.appendChild: child must be a Node")
         })?;
+
+        // Debug: check what types we have
+        let has_node_data = this_obj.downcast_ref::<NodeData>().is_some();
+        let has_element_data = this_obj.downcast_ref::<crate::dom::element::ElementData>().is_some();
+        let has_iframe_data = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>().is_some();
+        let has_document_data = this_obj.downcast_ref::<crate::dom::document::DocumentData>().is_some();
+        let has_html_element_data = this_obj.downcast_ref::<crate::dom::html_element::HTMLElementData>().is_some();
+        let has_document_fragment_data = this_obj.downcast_ref::<crate::dom::document_fragment::DocumentFragmentData>().is_some();
+
+        log_to_file("/tmp/node_appendchild_debug.log", || {
+            format!("Node.appendChild: has_node={} has_elem={} has_iframe={} has_doc={} has_htmlelem={} has_docfrag={}",
+                has_node_data, has_element_data, has_iframe_data, has_document_data, has_html_element_data, has_document_fragment_data)
+        });
 
         // Try NodeData first, then other element types
         if let Some(parent_node) = this_obj.downcast_ref::<NodeData>() {
@@ -919,6 +936,12 @@ impl NodeData {
         } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
             // HTMLIFrameElementData handling
             iframe.append_child(child_obj.clone());
+            Ok(child_obj.into())
+        } else if let Some(doc_fragment) = this_obj.downcast_ref::<crate::dom::document_fragment::DocumentFragmentData>() {
+            // DocumentFragmentData handling
+            doc_fragment.append_impl(child_obj.clone()).map_err(|e| {
+                boa_engine::JsError::from(JsNativeError::error().with_message(e))
+            })?;
             Ok(child_obj.into())
         } else {
             Err(JsNativeError::typ()
