@@ -116,6 +116,33 @@ fn test_document_current_script() {
     assert_eq!(result, serde_json::json!(true), "document.currentScript should be null when not executing a script element");
 }
 
+/// Test document.scrollTo and __dispatchTrustedMouseEvent methods exist
+/// These methods are used by Cloudflare Turnstile and other bot detection scripts
+#[test]
+fn test_document_scroll_and_event_methods() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Check that scrollTo exists on document
+    let result = engine.execute(r#"
+        typeof document.scrollTo === 'function';
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true), "document.scrollTo should be a function");
+
+    // Check that scroll exists on document (alias for scrollTo)
+    let result = engine.execute(r#"
+        typeof document.scroll === 'function';
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true), "document.scroll should be a function");
+
+    // Check that __dispatchTrustedMouseEvent exists on document
+    let result = engine.execute(r#"
+        typeof document.__dispatchTrustedMouseEvent === 'function';
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true), "document.__dispatchTrustedMouseEvent should be a function");
+}
+
 /// Test that window === globalThis
 #[test]
 fn test_window_equals_global_this() {
@@ -889,4 +916,182 @@ fn test_turnstile_iframe_pattern() {
     assert_eq!(parsed["hasContentDocument"], true, "iframe should have contentDocument");
     assert_eq!(parsed["parentIsWindow"], true, "iframe contentWindow.parent should be window");
     assert_eq!(parsed["topIsWindow"], true, "iframe contentWindow.top should be window");
+}
+
+/// Test Document instantiation prototype chain
+/// This test verifies that Document instances have the correct prototype chain
+/// using the same method as the VM error logging
+#[test]
+fn test_document_prototype_chain() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // First, check if Document constructor exists
+    let doc_exists = engine.execute(r#"
+        typeof Document
+    "#).unwrap();
+    println!("typeof Document = {}", doc_exists);
+
+    // Check document's constructor name via JS - step by step to isolate issues
+    let result = engine.execute(r#"
+        (function() {
+            var info = {};
+
+            // Direct constructor check
+            info.docConstructorName = document.constructor ? document.constructor.name : "no constructor";
+
+            // Prototype chain check
+            var proto = Object.getPrototypeOf(document);
+            info.protoConstructorName = proto && proto.constructor ? proto.constructor.name : "no proto constructor";
+
+            // instanceof checks - guard against undefined constructors
+            info.documentConstructorExists = typeof Document !== 'undefined';
+            info.isDocument = typeof Document !== 'undefined' && document instanceof Document;
+            info.isNode = typeof Node !== 'undefined' && document instanceof Node;
+            info.isEventTarget = typeof EventTarget !== 'undefined' && document instanceof EventTarget;
+            info.isObject = document instanceof Object;
+
+            // Type checks
+            info.typeofDocument = typeof document;
+            info.nodeType = document.nodeType;
+
+            // Method existence
+            info.hasScrollTo = typeof document.scrollTo;
+            info.hasDispatchTrusted = typeof document.__dispatchTrustedMouseEvent;
+
+            // Check if Document.prototype has the methods (if Document exists)
+            if (typeof Document !== 'undefined' && Document.prototype) {
+                info.protoHasScrollTo = typeof Document.prototype.scrollTo;
+                info.protoHasDispatchTrusted = typeof Document.prototype.__dispatchTrustedMouseEvent;
+            } else {
+                info.protoHasScrollTo = "Document undefined";
+                info.protoHasDispatchTrusted = "Document undefined";
+            }
+
+            return JSON.stringify(info);
+        })()
+    "#).unwrap();
+
+    println!("Document prototype chain info: {}", result);
+
+    let parsed: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+
+    // Verify constructor names
+    println!("document.constructor.name = {}", parsed["docConstructorName"]);
+    println!("Object.getPrototypeOf(document).constructor.name = {}", parsed["protoConstructorName"]);
+    println!("Document constructor exists = {}", parsed["documentConstructorExists"]);
+
+    // These should be "Document", not "Object"
+    assert_eq!(parsed["docConstructorName"], "Document",
+        "document.constructor.name should be 'Document', not '{}'", parsed["docConstructorName"]);
+    assert_eq!(parsed["protoConstructorName"], "Document",
+        "document's prototype constructor should be 'Document', not '{}'", parsed["protoConstructorName"]);
+
+    // instanceof checks
+    assert_eq!(parsed["isDocument"], true, "document instanceof Document should be true");
+
+    // Method checks
+    assert_eq!(parsed["hasScrollTo"], "function", "document.scrollTo should be a function");
+    assert_eq!(parsed["hasDispatchTrusted"], "function", "document.__dispatchTrustedMouseEvent should be a function");
+    assert_eq!(parsed["protoHasScrollTo"], "function", "Document.prototype.scrollTo should be a function");
+    assert_eq!(parsed["protoHasDispatchTrusted"], "function", "Document.prototype.__dispatchTrustedMouseEvent should be a function");
+}
+
+/// Test that creating a new Document() also has the correct prototype chain
+#[test]
+fn test_new_document_prototype_chain() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // First check if Document constructor exists
+    let exists = engine.execute(r#"typeof Document"#).unwrap();
+    println!("typeof Document = {}", exists);
+
+    if exists.as_str() == Some("undefined") {
+        panic!("Document constructor is undefined");
+    }
+
+    // Try to create a new Document
+    let new_doc_result = engine.execute(r#"
+        (function() {
+            try {
+                var newDoc = new Document();
+                return newDoc ? "created" : "returned null";
+            } catch (e) {
+                return "error: " + e.message;
+            }
+        })()
+    "#).unwrap();
+    println!("new Document() result: {}", new_doc_result);
+
+    // Check its constructor name
+    let result = engine.execute(r#"
+        (function() {
+            var newDoc = new Document();
+            var info = {};
+            info.constructorName = newDoc.constructor ? newDoc.constructor.name : "no constructor";
+            var proto = Object.getPrototypeOf(newDoc);
+            info.protoConstructorName = proto && proto.constructor ? proto.constructor.name : "no proto";
+            info.isDocument = newDoc instanceof Document;
+            info.hasScrollTo = typeof newDoc.scrollTo;
+            info.hasDispatchTrusted = typeof newDoc.__dispatchTrustedMouseEvent;
+            return JSON.stringify(info);
+        })()
+    "#).unwrap();
+
+    println!("New Document instance info: {}", result);
+
+    let parsed: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+
+    assert_eq!(parsed["constructorName"], "Document",
+        "new Document().constructor.name should be 'Document'");
+    assert_eq!(parsed["isDocument"], true,
+        "new Document() instanceof Document should be true");
+    assert_eq!(parsed["hasScrollTo"], "function",
+        "new Document().scrollTo should be a function");
+}
+
+/// Test iframe document prototype chain
+#[test]
+fn test_iframe_document_prototype_chain() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Create iframe and check its contentDocument prototype chain
+    let result = engine.execute(r#"
+        (function() {
+            var iframe = document.createElement('iframe');
+            document.body.appendChild(iframe);
+
+            // Wait for iframe to initialize (synchronous in our impl)
+            var iframeDoc = iframe.contentDocument;
+
+            var info = {};
+            info.hasContentDocument = iframeDoc !== null && iframeDoc !== undefined;
+            info.constructorName = iframeDoc && iframeDoc.constructor ? iframeDoc.constructor.name : "no constructor";
+            var proto = iframeDoc ? Object.getPrototypeOf(iframeDoc) : null;
+            info.protoConstructorName = proto && proto.constructor ? proto.constructor.name : "no proto";
+            info.isDocument = typeof Document !== 'undefined' && iframeDoc instanceof Document;
+            info.hasScrollTo = iframeDoc ? typeof iframeDoc.scrollTo : "no doc";
+            info.hasDispatchTrusted = iframeDoc ? typeof iframeDoc.__dispatchTrustedMouseEvent : "no doc";
+            return JSON.stringify(info);
+        })()
+    "#).unwrap();
+
+    println!("Iframe document info: {}", result);
+
+    let parsed: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+
+    assert_eq!(parsed["hasContentDocument"], true, "iframe should have contentDocument");
+
+    // This is the key test - iframe contentDocument should have Document as constructor
+    assert_eq!(parsed["constructorName"], "Document",
+        "iframe.contentDocument.constructor.name should be 'Document', not '{}'", parsed["constructorName"]);
+    assert_eq!(parsed["isDocument"], true,
+        "iframe.contentDocument instanceof Document should be true");
+    assert_eq!(parsed["hasScrollTo"], "function",
+        "iframe.contentDocument.scrollTo should be a function");
 }

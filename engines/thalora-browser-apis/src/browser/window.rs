@@ -703,11 +703,12 @@ fn get_document(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
 
     // Initialize document if needed
     if !document.has_property(js_string!("readyState"), context)? {
-        // Create a new Document instance
+        // Create a new Document instance with proper prototype chain
         use crate::dom::document::Document;
 
+        let document_constructor = context.intrinsics().constructors().document().constructor();
         let document_constructor_args: &[JsValue] = &[];
-        let new_document = Document::constructor(&JsValue::undefined(), document_constructor_args, context)?;
+        let new_document = Document::constructor(&document_constructor.clone().into(), document_constructor_args, context)?;
 
         if let Some(doc_obj) = new_document.as_object() {
             window.set_document(doc_obj.clone());

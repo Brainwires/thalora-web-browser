@@ -260,6 +260,11 @@ impl IntrinsicObject for Document {
             // CSSOM View methods (used by Cloudflare Turnstile for bot detection)
             .method(element_from_point, js_string!("elementFromPoint"), 2)
             .method(elements_from_point, js_string!("elementsFromPoint"), 2)
+            // Scroll methods (Document delegates to Window)
+            .method(scroll_to_document, js_string!("scrollTo"), 2)
+            .method(scroll_to_document, js_string!("scroll"), 2)  // alias for scrollTo
+            // Internal trusted event dispatch (for Cloudflare etc.)
+            .method(dispatch_trusted_mouse_event_document, js_string!("__dispatchTrustedMouseEvent"), 3)
             .build();
     }
 
@@ -274,7 +279,7 @@ impl BuiltInObject for Document {
 
 impl BuiltInConstructor for Document {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 65; // Accessors and methods on prototype (adjusted for createElementNS)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 68; // Accessors and methods on prototype (added scrollTo, scroll, __dispatchTrustedMouseEvent)
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1363,39 +1368,34 @@ fn create_all_real_elements_from_html(context: &mut Context, selector: &str, htm
 
     if let Ok(css_selector) = scraper::Selector::parse(selector) {
         for element_ref in document.select(&css_selector) {
-            let element_obj = context.intrinsics().constructors().element().constructor();
-
-            // Set real properties from the actual HTML element
+            // Get real properties from the actual HTML element
             let tag_name = element_ref.value().name().to_uppercase();
-            element_obj.set(js_string!("tagName"), js_string!(tag_name.clone()), false, context)?;
-            element_obj.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
 
-            // Set real attributes from the HTML
+            // Create a proper Element using ElementData with correct prototype
+            let element_data = crate::dom::element::ElementData::with_tag_name(tag_name.clone());
+
+            // Set attributes from the parsed HTML
             for (attr_name, attr_value) in element_ref.value().attrs() {
-                element_obj.set(js_string!(attr_name), js_string!(attr_value), false, context)?;
+                element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
             }
 
             // Set text content
             let text_content: String = element_ref.text().collect();
-            element_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element_data.set_text_content(text_content);
 
             // Set innerHTML
             let inner_html = element_ref.inner_html();
-            element_obj.set(js_string!("innerHTML"), js_string!(inner_html), false, context)?;
+            element_data.set_inner_html(inner_html);
 
-            // Note: focus, click, and other DOM methods are inherited from the Element prototype
-            // Do NOT overwrite them - the Element constructor already set them up correctly
+            // Create JsObject with proper prototype chain
+            let prototype = context.intrinsics().constructors().element().prototype();
+            let element_obj = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                prototype,
+                element_data,
+            );
 
-            // Add value property for input elements
-            if tag_name == "INPUT" {
-                if let Some(value) = element_ref.value().attr("value") {
-                    element_obj.set(js_string!("value"), js_string!(value), false, context)?;
-                } else {
-                    element_obj.set(js_string!("value"), js_string!(""), false, context)?;
-                }
-            }
-
-            elements.push(element_obj.into());
+            elements.push(element_obj.upcast().into());
         }
     }
 
@@ -1630,51 +1630,30 @@ fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Co
 
     if let Ok(selector) = scraper::Selector::parse(&selector_str) {
         for element in fragment.select(&selector) {
-            // Create element object for each match
-            let element_obj = JsObject::default(context.intrinsics());
+            // Create proper ElementData with correct prototype
+            let tag_name = element.value().name().to_uppercase();
+            let element_data = crate::dom::element::ElementData::with_tag_name(tag_name.clone());
 
-            // Set tag name
-            element_obj.define_property_or_throw(
-                js_string!("tagName"),
-                PropertyDescriptorBuilder::new()
-                    .value(js_string!(element.value().name().to_uppercase()))
-                    .writable(false)
-                    .enumerable(true)
-                    .configurable(true)
-                    .build(),
-                context,
-            )?;
-
-            // Set class name
-            if let Some(class) = element.value().attr("class") {
-                element_obj.define_property_or_throw(
-                    js_string!("className"),
-                    PropertyDescriptorBuilder::new()
-                        .value(js_string!(class))
-                        .writable(true)
-                        .enumerable(true)
-                        .configurable(true)
-                        .build(),
-                    context,
-                )?;
+            // Set attributes from the parsed HTML (including class)
+            for (attr_name, attr_value) in element.value().attrs() {
+                element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
             }
 
             // Set innerHTML
-            element_obj.define_property_or_throw(
-                js_string!("innerHTML"),
-                PropertyDescriptorBuilder::new()
-                    .value(js_string!(element.inner_html()))
-                    .writable(true)
-                    .enumerable(true)
-                    .configurable(true)
-                    .build(),
-                context,
-            )?;
+            element_data.set_inner_html(element.inner_html());
+
+            // Create JsObject with proper prototype chain
+            let prototype = context.intrinsics().constructors().element().prototype();
+            let element_obj = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                prototype,
+                element_data,
+            );
 
             result.define_property_or_throw(
                 index,
                 PropertyDescriptorBuilder::new()
-                    .value(element_obj)
+                    .value(element_obj.upcast())
                     .writable(false)
                     .enumerable(true)
                     .configurable(true)
@@ -1735,53 +1714,30 @@ fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Cont
 
     if let Ok(selector) = scraper::Selector::parse(&selector_str) {
         for element in fragment.select(&selector) {
-            let element_obj = JsObject::default(context.intrinsics());
+            // Create proper ElementData with correct prototype
+            let tag_name = element.value().name().to_uppercase();
+            let element_data = crate::dom::element::ElementData::with_tag_name(tag_name.clone());
 
-            element_obj.define_property_or_throw(
-                js_string!("tagName"),
-                PropertyDescriptorBuilder::new()
-                    .value(js_string!(element.value().name().to_uppercase()))
-                    .writable(false)
-                    .enumerable(true)
-                    .configurable(true)
-                    .build(),
-                context,
-            )?;
-
-            if let Some(id) = element.value().attr("id") {
-                element_obj.define_property_or_throw(
-                    js_string!("id"),
-                    PropertyDescriptorBuilder::new()
-                        .value(js_string!(id))
-                        .writable(true)
-                        .enumerable(true)
-                        .configurable(true)
-                        .build(),
-                    context,
-                )?;
+            // Set attributes from the parsed HTML
+            for (attr_name, attr_value) in element.value().attrs() {
+                element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
             }
 
-            element_obj.define_property_or_throw(
-                js_string!("innerHTML"),
-                PropertyDescriptorBuilder::new()
-                    .value(js_string!(element.inner_html()))
-                    .writable(true)
-                    .enumerable(true)
-                    .configurable(true)
-                    .build(),
-                context,
-            )?;
+            // Set innerHTML
+            element_data.set_inner_html(element.inner_html());
 
-            // Add getAttribute method for all elements
-            let attrs_copy: HashMap<String, String> = element.value().attrs()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect();
-            add_get_attribute_method(&element_obj, attrs_copy, context)?;
+            // Create JsObject with proper prototype chain
+            let prototype = context.intrinsics().constructors().element().prototype();
+            let element_obj = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                prototype,
+                element_data,
+            );
 
             result.define_property_or_throw(
                 index,
                 PropertyDescriptorBuilder::new()
-                    .value(element_obj)
+                    .value(element_obj.upcast())
                     .writable(false)
                     .enumerable(true)
                     .configurable(true)
@@ -1830,36 +1786,27 @@ fn get_elements_by_name(this: &JsValue, args: &[JsValue], context: &mut Context)
 
     if let Ok(selector) = scraper::Selector::parse(&selector_str) {
         for element in fragment.select(&selector) {
-            let element_obj = JsObject::default(context.intrinsics());
+            // Create proper ElementData with correct prototype
+            let tag_name = element.value().name().to_uppercase();
+            let element_data = crate::dom::element::ElementData::with_tag_name(tag_name.clone());
 
-            element_obj.define_property_or_throw(
-                js_string!("tagName"),
-                PropertyDescriptorBuilder::new()
-                    .value(js_string!(element.value().name().to_uppercase()))
-                    .writable(false)
-                    .enumerable(true)
-                    .configurable(true)
-                    .build(),
-                context,
-            )?;
-
-            if let Some(name_attr) = element.value().attr("name") {
-                element_obj.define_property_or_throw(
-                    js_string!("name"),
-                    PropertyDescriptorBuilder::new()
-                        .value(js_string!(name_attr))
-                        .writable(true)
-                        .enumerable(true)
-                        .configurable(true)
-                        .build(),
-                    context,
-                )?;
+            // Set attributes from the parsed HTML
+            for (attr_name, attr_value) in element.value().attrs() {
+                element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
             }
+
+            // Create JsObject with proper prototype chain
+            let prototype = context.intrinsics().constructors().element().prototype();
+            let element_obj = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                prototype,
+                element_data,
+            );
 
             result.define_property_or_throw(
                 index,
                 PropertyDescriptorBuilder::new()
-                    .value(element_obj)
+                    .value(element_obj.upcast())
                     .writable(false)
                     .enumerable(true)
                     .configurable(true)
@@ -3232,5 +3179,135 @@ fn elements_from_point(this: &JsValue, args: &[JsValue], context: &mut Context) 
         let array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
         Ok(array.into())
     }
+}
+
+/// `Document.prototype.scrollTo(x, y)` or `Document.prototype.scrollTo(options)`
+/// In browsers, this scrolls the viewport (delegates to window.scrollTo)
+fn scroll_to_document(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Parse arguments - supports both scrollTo(x, y) and scrollTo(options) forms
+    let (x, y) = if args.len() >= 2 {
+        // scrollTo(x, y) form
+        let x = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
+        let y = args.get_or_undefined(1).to_number(context).unwrap_or(0.0);
+        (x, y)
+    } else if let Some(options) = args.get(0).and_then(|v| v.as_object()) {
+        // scrollTo(options) form
+        let x = options.get(js_string!("left"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        let y = options.get(js_string!("top"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        (x, y)
+    } else {
+        (0.0, 0.0)
+    };
+
+    // Delegate to window.scrollTo via global object
+    if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+        if let Some(window_obj) = window_val.as_object() {
+            let _ = window_obj.set(js_string!("scrollX"), x, false, context);
+            let _ = window_obj.set(js_string!("scrollY"), y, false, context);
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Document.prototype.__dispatchTrustedMouseEvent(eventType, clientX, clientY, options?)`
+/// Dispatches a trusted mouse event. Used for Cloudflare Turnstile and similar bot detection.
+fn dispatch_trusted_mouse_event_document(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use crate::events::ui_events::MouseEventData;
+
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("__dispatchTrustedMouseEvent called on non-object")
+    })?;
+
+    // Verify this is a Document
+    if this_obj.downcast_ref::<DocumentData>().is_none() {
+        return Err(JsNativeError::typ()
+            .with_message("__dispatchTrustedMouseEvent called on non-Document object")
+            .into());
+    }
+
+    // Get event type
+    let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+
+    // Get coordinates
+    let client_x = args.get_or_undefined(1).to_number(context).unwrap_or(0.0);
+    let client_y = args.get_or_undefined(2).to_number(context).unwrap_or(0.0);
+
+    // Get optional parameters
+    let options = args.get_or_undefined(3);
+    let (button, buttons, ctrl_key, shift_key, alt_key, meta_key) = if options.is_object() {
+        let opts = options.as_object().unwrap();
+        let button = opts.get(js_string!("button"), context)
+            .map(|v| v.to_i32(context).unwrap_or(0) as i16)
+            .unwrap_or(0);
+        let buttons = opts.get(js_string!("buttons"), context)
+            .map(|v| v.to_u32(context).unwrap_or(0) as u16)
+            .unwrap_or(if event_type.contains("down") || event_type == "click" { 1 } else { 0 });
+        let ctrl_key = opts.get(js_string!("ctrlKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let shift_key = opts.get(js_string!("shiftKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let alt_key = opts.get(js_string!("altKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let meta_key = opts.get(js_string!("metaKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        (button, buttons, ctrl_key, shift_key, alt_key, meta_key)
+    } else {
+        let buttons = if event_type.contains("down") || event_type == "click" { 1 } else { 0 };
+        (0, buttons, false, false, false, false)
+    };
+
+    // Determine event properties
+    let (bubbles, cancelable) = match event_type.as_str() {
+        "click" | "dblclick" | "mousedown" | "mouseup" | "mousemove"
+        | "mouseover" | "mouseout" | "mouseenter" | "mouseleave" => (true, true),
+        _ => (true, false),
+    };
+
+    // Create trusted mouse event data
+    let mut mouse_event = MouseEventData::new_trusted_with_coords(
+        event_type.clone(),
+        bubbles,
+        cancelable,
+        client_x,
+        client_y,
+        client_x,  // screen_x (same as clientX for simplicity)
+        client_y,  // screen_y
+        client_x,  // page_x
+        client_y,  // page_y
+        0.0,       // movement_x
+        0.0,       // movement_y
+        button,
+        buttons,
+    );
+
+    // Set modifier keys directly (fields are public)
+    mouse_event.ctrl_key = ctrl_key;
+    mouse_event.shift_key = shift_key;
+    mouse_event.alt_key = alt_key;
+    mouse_event.meta_key = meta_key;
+
+    // Create the event object
+    let event_prototype = context.intrinsics().constructors().mouse_event().prototype();
+    let event_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        event_prototype,
+        mouse_event,
+    );
+
+    // Dispatch to the document using dispatchEvent
+    dispatch_event(this, &[event_obj.upcast().into()], context)?;
+
+    Ok(true.into())
 }
 

@@ -419,6 +419,14 @@ impl IntrinsicObject for Element {
             .method(remove_method, js_string!("remove"), 0)
             .method(replace_with_method, js_string!("replaceWith"), 0)
             .method(replace_children_method, js_string!("replaceChildren"), 0)
+            // Selector API
+            .method(query_selector_js, js_string!("querySelector"), 1)
+            .method(query_selector_all_js, js_string!("querySelectorAll"), 1)
+            // Scroll methods
+            .method(scroll_to_element, js_string!("scrollTo"), 2)
+            .method(scroll_to_element, js_string!("scroll"), 2)  // scroll is an alias for scrollTo
+            // Internal trusted event dispatch (for Cloudflare etc.)
+            .method(dispatch_trusted_mouse_event, js_string!("__dispatchTrustedMouseEvent"), 3)
             .build();
     }
 
@@ -1664,9 +1672,14 @@ pub fn parse_html_elements_with_context(
                                 }
                             }
 
-                            // Create JsObject for the element
-                            let element = JsObject::from_proto_and_data(None, element_data);
-                            elements.push(element);
+                            // Create JsObject for the element with proper prototype chain
+                            let prototype = context.intrinsics().constructors().element().prototype();
+                            let element = JsObject::from_proto_and_data_with_shared_shape(
+                                context.root_shape(),
+                                prototype,
+                                element_data,
+                            );
+                            elements.push(element.upcast());
                         }
                     }
                 }
@@ -1682,12 +1695,17 @@ pub fn parse_html_elements_with_context(
 
             let text_content = html[text_start..text_end].trim();
             if !text_content.is_empty() {
-                // Create text node as element with special tag
+                // Create text node as element with special tag and proper prototype
                 let text_element = ElementData::with_tag_name("#text".to_string());
                 text_element.set_text_content(text_content.to_string());
 
-                let text_obj = JsObject::from_proto_and_data(None, text_element);
-                elements.push(text_obj);
+                let prototype = context.intrinsics().constructors().element().prototype();
+                let text_obj = JsObject::from_proto_and_data_with_shared_shape(
+                    context.root_shape(),
+                    prototype,
+                    text_element,
+                );
+                elements.push(text_obj.upcast());
             }
 
             current_pos = text_end;
@@ -2120,33 +2138,20 @@ fn get_style(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
         JsNativeError::typ().with_message("Element.prototype.style called on non-object")
     })?;
 
-    // Verify it's an element (but we don't actually need the data since the function
-    // currently just returns an empty style object)
-    {
-        if this_obj.downcast_ref::<ElementData>().is_none() {
-            return Err(JsNativeError::typ()
-                .with_message("Element.prototype.style called on non-Element object")
-                .into());
-        }
+    // Verify it's an element
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.style called on non-Element object")
+            .into());
     }
 
-    // Create a style object with getters/setters for CSS properties
-    let style_obj = JsObject::default(context.intrinsics());
-
-    // Add common CSS properties as dynamic getters/setters
-    let css_properties = ["width", "height", "color", "background-color", "display",
-                         "position", "left", "top", "right", "bottom", "margin", "padding"];
-
-    for property in css_properties {
-        // Create getter for this property
-        let prop_name = property.replace("-", "_"); // Convert kebab-case to snake_case for JS
-        let property_copy = property.to_string();
-
-        // This would need proper closure binding in real implementation
-        // For now, return empty style object
-    }
-
-    Ok(style_obj.into())
+    // Create a proper CSSStyleDeclaration object with the correct prototype
+    let css_style_constructor = context.intrinsics().constructors().css_style_declaration().constructor();
+    crate::browser::cssom::CSSStyleDeclaration::constructor(
+        &css_style_constructor.into(),
+        &[],
+        context,
+    )
 }
 
 /// `Element.prototype.classList` getter
@@ -3881,5 +3886,187 @@ fn set_scroll_left(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     }
 
     Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.scrollTo(x, y)` or `Element.prototype.scrollTo(options)`
+/// Scrolls the element's content to the specified position
+fn scroll_to_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.scrollTo called on non-object")
+    })?;
+
+    // Parse arguments - supports both scrollTo(x, y) and scrollTo(options) forms
+    let (x, y) = if args.len() >= 2 {
+        // scrollTo(x, y) form
+        let x = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
+        let y = args.get_or_undefined(1).to_number(context).unwrap_or(0.0);
+        (x, y)
+    } else if let Some(options) = args.get(0).and_then(|v| v.as_object()) {
+        // scrollTo(options) form
+        let x = options.get(js_string!("left"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        let y = options.get(js_string!("top"), context)
+            .ok()
+            .and_then(|v| v.to_number(context).ok())
+            .unwrap_or(0.0);
+        (x, y)
+    } else {
+        (0.0, 0.0)
+    };
+
+    // Update the element's scroll position
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.set_scroll_left(x);
+        element.set_scroll_top(y);
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.querySelector(selector)` - find first matching descendant
+fn query_selector_js(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.querySelector called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.querySelector called on non-Element object")
+    })?;
+
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+
+    // Use the element's query_selector method
+    if let Some(result) = element.query_selector(&selector_str) {
+        Ok(result.into())
+    } else {
+        Ok(JsValue::null())
+    }
+}
+
+/// `Element.prototype.querySelectorAll(selector)` - find all matching descendants
+fn query_selector_all_js(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.querySelectorAll called on non-object")
+    })?;
+
+    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Element.prototype.querySelectorAll called on non-Element object")
+    })?;
+
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+
+    // Use the element's query_selector_all method
+    let results = element.query_selector_all(&selector_str);
+
+    // Convert to JS array
+    use boa_engine::builtins::array::Array;
+    let array = Array::create_array_from_list(
+        results.into_iter().map(|obj| obj.into()).collect::<Vec<_>>(),
+        context,
+    );
+    Ok(array.into())
+}
+
+/// `Element.prototype.__dispatchTrustedMouseEvent(eventType, clientX, clientY, options?)`
+///
+/// Dispatches a trusted mouse event to this element.
+/// This is a browser-internal API for automation that creates events with isTrusted: true.
+fn dispatch_trusted_mouse_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use crate::events::ui_events::MouseEventData;
+
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("__dispatchTrustedMouseEvent called on non-object")
+    })?;
+
+    // Verify this is an element
+    if this_obj.downcast_ref::<ElementData>().is_none() {
+        return Err(JsNativeError::typ()
+            .with_message("__dispatchTrustedMouseEvent called on non-Element object")
+            .into());
+    }
+
+    // Get event type
+    let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+
+    // Get coordinates
+    let client_x = args.get_or_undefined(1).to_number(context).unwrap_or(0.0);
+    let client_y = args.get_or_undefined(2).to_number(context).unwrap_or(0.0);
+
+    // Get optional parameters
+    let options = args.get_or_undefined(3);
+    let (button, buttons, ctrl_key, shift_key, alt_key, meta_key) = if options.is_object() {
+        let opts = options.as_object().unwrap();
+        let button = opts.get(js_string!("button"), context)
+            .map(|v| v.to_i32(context).unwrap_or(0) as i16)
+            .unwrap_or(0);
+        let buttons = opts.get(js_string!("buttons"), context)
+            .map(|v| v.to_u32(context).unwrap_or(0) as u16)
+            .unwrap_or(if event_type.contains("down") || event_type == "click" { 1 } else { 0 });
+        let ctrl_key = opts.get(js_string!("ctrlKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let shift_key = opts.get(js_string!("shiftKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let alt_key = opts.get(js_string!("altKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let meta_key = opts.get(js_string!("metaKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        (button, buttons, ctrl_key, shift_key, alt_key, meta_key)
+    } else {
+        let buttons = if event_type.contains("down") || event_type == "click" { 1 } else { 0 };
+        (0, buttons, false, false, false, false)
+    };
+
+    // Determine event properties
+    let (bubbles, cancelable) = match event_type.as_str() {
+        "click" | "dblclick" | "mousedown" | "mouseup" | "mousemove"
+        | "mouseover" | "mouseout" | "mouseenter" | "mouseleave" => (true, true),
+        _ => (true, false),
+    };
+
+    // Create trusted mouse event data
+    let mut mouse_event = MouseEventData::new_trusted_with_coords(
+        event_type.clone(),
+        bubbles,
+        cancelable,
+        client_x,
+        client_y,
+        client_x,  // screen_x (same as clientX for simplicity)
+        client_y,  // screen_y
+        client_x,  // page_x
+        client_y,  // page_y
+        0.0,       // movement_x
+        0.0,       // movement_y
+        button,
+        buttons,
+    );
+
+    // Set modifier keys directly (fields are public)
+    mouse_event.ctrl_key = ctrl_key;
+    mouse_event.shift_key = shift_key;
+    mouse_event.alt_key = alt_key;
+    mouse_event.meta_key = meta_key;
+
+    // Create the event object
+    let event_prototype = context.intrinsics().constructors().mouse_event().prototype();
+    let event_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        event_prototype,
+        mouse_event,
+    );
+
+    // Dispatch to the element using dispatchEvent
+    dispatch_event(this, &[event_obj.upcast().into()], context)?;
+
+    Ok(true.into())
 }
 
