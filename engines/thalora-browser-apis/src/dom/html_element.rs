@@ -40,6 +40,8 @@ impl IntrinsicObject for HTMLElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: HTMLElement -> Element -> Node -> EventTarget -> Object
+            .inherits(Some(realm.intrinsics().constructors().element().prototype()))
             .accessor(
                 js_string!("innerText"),
                 Some(inner_text_getter),

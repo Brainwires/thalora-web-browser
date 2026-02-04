@@ -308,10 +308,11 @@ impl RustRenderer {
             // For DOM and Worker ecosystem tests, execute directly without wrapper to avoid context isolation
             js_code.to_string()
         } else {
+            // FIXED: Added `return` before user code so the result is captured
             format!(r#"
 (function() {{
     try {{
-        {}
+        return {};
     }} catch(e) {{
         console.log("🔍 DOM DEBUG: JavaScript error handled safely:", e.message);
         return undefined;

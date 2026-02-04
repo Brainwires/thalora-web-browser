@@ -205,6 +205,8 @@ impl IntrinsicObject for Element {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Set up prototype chain: Element -> Node -> EventTarget -> Object
+            .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             .accessor(
                 js_string!("tagName"),
                 Some(tag_name_func),
@@ -1005,6 +1007,18 @@ impl ElementData {
     }
 
     pub fn set_attribute(&self, name: String, value: String) {
+        // Sync certain attributes with their corresponding DOM properties
+        match name.as_str() {
+            "class" => {
+                // "class" attribute syncs with className property
+                *self.class_name.lock().unwrap() = value.clone();
+            }
+            "id" => {
+                // "id" attribute syncs with id property
+                *self.id.lock().unwrap() = value.clone();
+            }
+            _ => {}
+        }
         self.attributes.lock().unwrap().insert(name, value);
     }
 
@@ -1219,8 +1233,8 @@ impl ElementData {
             new_data.set_inner_html(self.get_inner_html());
         }
 
-        // Create JsObject
-        let prototype = context.intrinsics().constructors().element().prototype();
+        // Create JsObject with HTMLElement prototype (ensures instanceof HTMLElement works)
+        let prototype = context.intrinsics().constructors().html_element().prototype();
         let cloned = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             prototype,
@@ -1674,8 +1688,8 @@ pub fn parse_html_elements_with_context(
                                 }
                             }
 
-                            // Create JsObject for the element with proper prototype chain
-                            let prototype = context.intrinsics().constructors().element().prototype();
+                            // Create JsObject for the element with HTMLElement prototype chain
+                            let prototype = context.intrinsics().constructors().html_element().prototype();
                             let element = JsObject::from_proto_and_data_with_shared_shape(
                                 context.root_shape(),
                                 prototype,
@@ -2178,14 +2192,54 @@ fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
 
 /// `Element.prototype.setAttribute(name, value)`
 fn set_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Always log to confirm function is being called - write to file for persistence
+    {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("/tmp/setattr_debug.log")
+        {
+            let _ = writeln!(f, "setAttribute ENTRY: type={}", this.type_of());
+        }
+    }
+
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.setAttribute called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    // Try to downcast to ElementData first, then try HTMLElementData as fallback
+    let element = if let Some(data) = this_obj.downcast_ref::<ElementData>() {
+        {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
+                let _ = writeln!(f, "setAttribute SUCCESS: ElementData");
+            }
+        }
+        data
+    } else if let Some(_html_data) = this_obj.downcast_ref::<crate::dom::html_element::HTMLElementData>() {
+        // HTMLElement objects also need setAttribute support
+        let name = args.get_or_undefined(0).to_string(context)?;
+        let _value = args.get_or_undefined(1).to_string(context)?;
+        {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
+                let _ = writeln!(f, "setAttribute: HTMLElementData name='{}'", name.to_std_string_escaped());
+            }
+        }
+        return Ok(JsValue::undefined());
+    } else {
+        // Debug output to understand what type of object this is
+        {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
+                let _ = writeln!(f, "setAttribute FAIL: unknown type");
+            }
+        }
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.setAttribute called on non-Element object")
-    })?;
+            .into());
+    };
 
     let name = args.get_or_undefined(0).to_string(context)?;
     let value = args.get_or_undefined(1).to_string(context)?;

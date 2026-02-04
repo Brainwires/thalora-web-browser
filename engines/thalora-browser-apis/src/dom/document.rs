@@ -1245,41 +1245,43 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
 
     if let Ok(css_selector) = scraper::Selector::parse(selector) {
         if let Some(element_ref) = document.select(&css_selector).next() {
-            eprintln!("DEBUG: querySelector creating element using Element constructor");
-
-            // Actually construct a new Element instance using the Element constructor
-            let element_constructor = context.intrinsics().constructors().element().constructor();
-            let element_obj = element_constructor.construct(&[], Some(&element_constructor), context)?;
-
-            eprintln!("DEBUG: Element created, checking for dispatchEvent...");
-            if let Ok(dispatch_event) = element_obj.get(js_string!("dispatchEvent"), context) {
-                eprintln!("DEBUG: dispatchEvent found on created element: {:?}", dispatch_event.type_of());
-            } else {
-                eprintln!("DEBUG: dispatchEvent NOT found on created element!");
-            }
-
-            // Set real properties from the actual HTML element
+            // Get real properties from the actual HTML element
             let tag_name = element_ref.value().name().to_uppercase();
-            element_obj.set(js_string!("tagName"), js_string!(tag_name.clone()), false, context)?;
-            element_obj.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
+            eprintln!("DEBUG: querySelector creating element with tagName: {}", tag_name);
 
-            // Set real attributes from the HTML
+            // Create a proper Element using ElementData with correct prototype
+            // This ensures getters (tagName, className, etc.) work correctly
+            let element_data = crate::dom::element::ElementData::with_tag_name(tag_name.clone());
+
+            // Set attributes from the parsed HTML
             for (attr_name, attr_value) in element_ref.value().attrs() {
-                element_obj.set(js_string!(attr_name), js_string!(attr_value), false, context)?;
+                element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
             }
 
             // Set text content
             let text_content: String = element_ref.text().collect();
-            element_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element_data.set_text_content(text_content);
 
             // Set innerHTML
             let inner_html = element_ref.inner_html();
-            element_obj.set(js_string!("innerHTML"), js_string!(inner_html), false, context)?;
+            element_data.set_inner_html(inner_html);
 
-            // Note: focus, click, and other DOM methods are inherited from the Element prototype
-            // Do NOT overwrite them - the Element constructor already set them up correctly
+            // Create JsObject with proper prototype chain
+            // Use HTMLElement prototype for HTML elements (ensures instanceof HTMLElement works)
+            // This ensures methods like dispatchEvent, getBoundingClientRect work correctly
+            let prototype = context.intrinsics().constructors().html_element().prototype();
+            let typed_element_obj = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                prototype,
+                element_data,
+            );
 
-            // Add value property for input elements
+            // Convert to generic JsObject to use .set() method for form handling
+            let element_obj = typed_element_obj.upcast();
+
+            eprintln!("DEBUG: Element created with proper ElementData, tagName: {}", tag_name);
+
+            // Add value property for input elements (needs special handling)
             if tag_name == "INPUT" {
                 if let Some(value) = element_ref.value().attr("value") {
                     element_obj.set(js_string!("value"), js_string!(value), false, context)?;
@@ -1387,8 +1389,8 @@ fn create_all_real_elements_from_html(context: &mut Context, selector: &str, htm
             let inner_html = element_ref.inner_html();
             element_data.set_inner_html(inner_html);
 
-            // Create JsObject with proper prototype chain
-            let prototype = context.intrinsics().constructors().element().prototype();
+            // Create JsObject with HTMLElement prototype chain (ensures instanceof HTMLElement works)
+            let prototype = context.intrinsics().constructors().html_element().prototype();
             let element_obj = JsObject::from_proto_and_data_with_shared_shape(
                 context.root_shape(),
                 prototype,
@@ -1642,8 +1644,8 @@ fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Co
             // Set innerHTML
             element_data.set_inner_html(element.inner_html());
 
-            // Create JsObject with proper prototype chain
-            let prototype = context.intrinsics().constructors().element().prototype();
+            // Create JsObject with HTMLElement prototype chain (ensures instanceof HTMLElement works)
+            let prototype = context.intrinsics().constructors().html_element().prototype();
             let element_obj = JsObject::from_proto_and_data_with_shared_shape(
                 context.root_shape(),
                 prototype,
@@ -1726,8 +1728,8 @@ fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Cont
             // Set innerHTML
             element_data.set_inner_html(element.inner_html());
 
-            // Create JsObject with proper prototype chain
-            let prototype = context.intrinsics().constructors().element().prototype();
+            // Create JsObject with HTMLElement prototype chain (ensures instanceof HTMLElement works)
+            let prototype = context.intrinsics().constructors().html_element().prototype();
             let element_obj = JsObject::from_proto_and_data_with_shared_shape(
                 context.root_shape(),
                 prototype,
@@ -1795,8 +1797,8 @@ fn get_elements_by_name(this: &JsValue, args: &[JsValue], context: &mut Context)
                 element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
             }
 
-            // Create JsObject with proper prototype chain
-            let prototype = context.intrinsics().constructors().element().prototype();
+            // Create JsObject with HTMLElement prototype chain (ensures instanceof HTMLElement works)
+            let prototype = context.intrinsics().constructors().html_element().prototype();
             let element_obj = JsObject::from_proto_and_data_with_shared_shape(
                 context.root_shape(),
                 prototype,

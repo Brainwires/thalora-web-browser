@@ -70,6 +70,147 @@ impl super::super::HeadlessWebBrowser {
             Err(e) => eprintln!("🛡️ CHALLENGE: Error checking __dispatchTrustedMouseEvent: {}", e),
         }
 
+        // Debug: Check what's in the DOM before widget detection (step by step to isolate issues)
+        // First, simple test to verify JS execution works
+        match self.execute_javascript("'hello'").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: Simple JS test: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: Simple JS test error: {}", e),
+        }
+
+        // Test if document exists
+        match self.execute_javascript("typeof document").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: typeof document: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: typeof document error: {}", e),
+        }
+
+        // Test if body exists
+        match self.execute_javascript("document.body ? 'has body' : 'no body'").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: document.body check: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: document.body check error: {}", e),
+        }
+
+        // Test body children count
+        match self.execute_javascript("document.body && document.body.children ? document.body.children.length : -1").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: body children count: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: body children count error: {}", e),
+        }
+
+        // Check for cf-turnstile class
+        let cf_check_js = "document.querySelector('.cf-turnstile') ? 'found' : 'not found'";
+        match self.execute_javascript(cf_check_js).await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: .cf-turnstile: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: .cf-turnstile error: {}", e),
+        }
+
+        // Check cf-turnstile element details
+        let cf_detail_js = r#"(function() {
+            var el = document.querySelector('.cf-turnstile');
+            if (!el) return 'not found';
+            return JSON.stringify({
+                tagName: el.tagName,
+                childCount: el.children ? el.children.length : -1,
+                innerHTML: el.innerHTML ? el.innerHTML.substring(0, 200) : 'no innerHTML',
+                dataSitekey: el.getAttribute ? (el.getAttribute('data-sitekey') ? 'yes' : 'no') : 'no getAttribute',
+                classAttr: el.getAttribute ? (el.getAttribute('class') || 'none') : 'no getAttribute',
+                style: el.getAttribute ? (el.getAttribute('style') || 'none') : 'no getAttribute',
+                className: el.className || 'empty'
+            });
+        })()"#;
+        match self.execute_javascript(cf_detail_js).await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: .cf-turnstile details: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: .cf-turnstile details error: {}", e),
+        }
+
+        // Count iframes
+        match self.execute_javascript("document.querySelectorAll('iframe').length").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: iframe count: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: iframe count error: {}", e),
+        }
+
+        // Check if turnstile global exists and what methods it has
+        match self.execute_javascript("typeof turnstile").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: typeof turnstile: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: typeof turnstile error: {}", e),
+        }
+
+        // Check turnstile object details
+        let turnstile_check_js = r#"(function() {
+            if (typeof turnstile === 'undefined') return 'turnstile undefined';
+            var props = [];
+            for (var key in turnstile) {
+                props.push(key + ':' + typeof turnstile[key]);
+            }
+            return props.join(', ');
+        })()"#;
+        match self.execute_javascript(turnstile_check_js).await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: turnstile properties: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: turnstile properties error: {}", e),
+        }
+
+        // Check if our element passes instanceof checks
+        let instanceof_js = r#"(function() {
+            var el = document.querySelector('.cf-turnstile');
+            if (!el) return 'no element';
+            return JSON.stringify({
+                isHTMLElement: el instanceof HTMLElement,
+                isElement: el instanceof Element,
+                isNode: el instanceof Node,
+                constructorName: el.constructor ? el.constructor.name : 'none',
+                prototypeChain: (function() {
+                    var chain = [];
+                    var proto = Object.getPrototypeOf(el);
+                    var depth = 0;
+                    while (proto && depth < 10) {
+                        chain.push(proto.constructor ? proto.constructor.name : 'unknown');
+                        proto = Object.getPrototypeOf(proto);
+                        depth++;
+                    }
+                    return chain;
+                })()
+            });
+        })()"#;
+        match self.execute_javascript(instanceof_js).await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: element instanceof checks: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: element instanceof error: {}", e),
+        }
+
+        // Try to manually trigger turnstile.render with selector string
+        let render_js = r#"(function() {
+            try {
+                if (typeof turnstile === 'undefined') return 'turnstile undefined';
+                if (typeof turnstile.render !== 'function') return 'turnstile.render not a function';
+
+                var container = document.querySelector('.cf-turnstile');
+                if (!container) return 'no container found';
+                var sitekey = container.getAttribute('data-sitekey');
+                if (!sitekey) return 'no sitekey';
+
+                // Try using selector string instead of element reference
+                var result = turnstile.render('.cf-turnstile', { sitekey: sitekey });
+                return 'render called with selector, returned: ' + String(result);
+            } catch (e) {
+                return 'render error: ' + e.message + ' | stack: ' + String(e.stack).substring(0, 200);
+            }
+        })()"#;
+        match self.execute_javascript(render_js).await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: turnstile render result: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: turnstile render error: {}", e),
+        }
+
+        // Check container after render attempt
+        let after_render_js = r#"(function() {
+            var container = document.querySelector('.cf-turnstile');
+            if (!container) return 'no container';
+            return JSON.stringify({
+                childCount: container.children ? container.children.length : -1,
+                innerHTML: container.innerHTML ? container.innerHTML.substring(0, 300) : 'empty'
+            });
+        })()"#;
+        match self.execute_javascript(after_render_js).await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: after render: {}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: after render error: {}", e),
+        }
+
         match solver.generate_interaction_js(&challenge, VIEWPORT_WIDTH, VIEWPORT_HEIGHT) {
             Ok(behavior_js) => {
                 // Log the generated JS for debugging

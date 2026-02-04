@@ -64,7 +64,19 @@ fn test_cloudflare_turnstile_nowsecure() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     println!("=== STDOUT ===\n{}", stdout);
-    println!("=== STDERR (last 2000 chars) ===\n{}", &stderr[stderr.len().saturating_sub(2000)..]);
+
+    // Filter stderr to show only relevant debug lines (challenge, scrape, widget, etc.)
+    let relevant_lines: Vec<&str> = stderr.lines()
+        .filter(|l| l.contains("CHALLENGE") || l.contains("SCRAPE") || l.contains("widget") ||
+                    l.contains("Turnstile") || l.contains("Phase") || l.contains("DOM state"))
+        .collect();
+    println!("=== FILTERED STDERR ({} relevant lines) ===", relevant_lines.len());
+    for line in &relevant_lines {
+        println!("{}", line);
+    }
+
+    // Also show last 2000 chars for context
+    println!("\n=== STDERR (last 2000 chars) ===\n{}", &stderr[stderr.len().saturating_sub(2000)..]);
 
     // Check for known issues
     let has_callable_error = stderr.contains("not a callable function");

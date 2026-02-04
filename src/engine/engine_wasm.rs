@@ -104,4 +104,27 @@ impl JavaScriptEngine {
             .map_err(|e| anyhow!("Failed to run jobs: {}", e))?;
         Ok(())
     }
+
+    /// Process pending timers and return the number executed
+    pub fn process_timers(&mut self) -> usize {
+        use thalora_browser_apis::timers::timers::Timers;
+        Timers::process_timers(&mut self.context)
+    }
+
+    /// Run the event loop: process timers and jobs until no more work or max iterations reached
+    pub fn run_event_loop(&mut self, max_iterations: usize) -> Result<()> {
+        for _ in 0..max_iterations {
+            // Process Promise microtasks
+            self.run_jobs()?;
+
+            // Process timer callbacks
+            let timers_executed = self.process_timers();
+
+            // If no timers fired, we're done (no more async work pending)
+            if timers_executed == 0 {
+                break;
+            }
+        }
+        Ok(())
+    }
 }
