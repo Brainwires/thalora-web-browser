@@ -247,11 +247,12 @@ impl BehavioralSimulator {
     }
 
     /// Estimate the position of a challenge widget on the page
+    /// This is a fallback when we can't find the actual widget
     fn estimate_widget_position(
         &self,
         viewport_width: f64,
         viewport_height: f64,
-        challenge: &DetectedChallenge,
+        _challenge: &DetectedChallenge,
     ) -> (f64, f64) {
         let mut rng = rand::thread_rng();
 
@@ -275,6 +276,237 @@ impl BehavioralSimulator {
         let click_offset_y = rng.r#gen::<f64>() * widget_height * 0.3 - widget_height * 0.15;
 
         (center_x + click_offset_x, center_y + click_offset_y)
+    }
+
+    /// Generate JavaScript code that finds the actual Turnstile widget and returns
+    /// the coordinates where the checkbox should be clicked.
+    ///
+    /// For WASM-rendered widgets, the checkbox isn't a DOM element - it's pixels
+    /// drawn at a specific location. This function calculates that location.
+    ///
+    /// Returns JavaScript that sets `window._widgetClickTarget = {x, y, found: bool}`
+    pub fn generate_widget_detection_js(challenge: &DetectedChallenge) -> String {
+        let widget_selector = challenge.widget_selector.clone()
+            .unwrap_or_else(|| ".cf-turnstile, [data-cf-turnstile], iframe[src*='challenges.cloudflare.com']".to_string());
+
+        format!(r#"
+(function() {{
+    console.log('[Turnstile] Starting widget detection...');
+    window._widgetClickTarget = {{ found: false, x: 0, y: 0, width: 0, height: 0, reason: 'not searched' }};
+
+    // Selectors to try for finding the Turnstile widget
+    var selectors = '{}';
+
+    // Debug: Log what's in the DOM
+    console.log('[Turnstile] DOM body children:', document.body ? document.body.children.length : 'no body');
+
+    // Debug: List all elements with 'cf' or 'turnstile' in class/id
+    var allElements = document.querySelectorAll('*');
+    var cfElements = [];
+    for (var i = 0; i < allElements.length; i++) {{
+        var el = allElements[i];
+        var id = el.id || '';
+        var className = el.className || '';
+        if (typeof className !== 'string') className = '';
+        if (id.indexOf('cf') !== -1 || id.indexOf('turnstile') !== -1 ||
+            className.indexOf('cf') !== -1 || className.indexOf('turnstile') !== -1) {{
+            cfElements.push({{
+                tag: el.tagName,
+                id: id,
+                className: className
+            }});
+        }}
+    }}
+    console.log('[Turnstile] Found ' + cfElements.length + ' elements with cf/turnstile in id/class:', JSON.stringify(cfElements));
+
+    // Debug: List all iframes
+    var allIframes = document.querySelectorAll('iframe');
+    console.log('[Turnstile] Found ' + allIframes.length + ' iframes total');
+    for (var j = 0; j < allIframes.length; j++) {{
+        var iframe = allIframes[j];
+        console.log('[Turnstile] iframe[' + j + ']: src=' + (iframe.src || 'empty') + ', id=' + (iframe.id || 'none'));
+    }}
+
+    // Try to find the widget container
+    var widget = document.querySelector(selectors);
+    console.log('[Turnstile] querySelector result for "' + selectors + '":', widget ? widget.tagName : 'null');
+
+    if (!widget) {{
+        // Try finding any iframe that might be Turnstile
+        var iframes = document.querySelectorAll('iframe');
+        for (var i = 0; i < iframes.length; i++) {{
+            var src = iframes[i].src || '';
+            if (src.indexOf('turnstile') !== -1 || src.indexOf('challenges.cloudflare') !== -1) {{
+                widget = iframes[i];
+                console.log('[Turnstile] Found Turnstile iframe by src:', src);
+                break;
+            }}
+        }}
+    }}
+
+    if (!widget) {{
+        // Last resort: look for div with data attributes
+        var divs = document.querySelectorAll('div[data-sitekey], div[data-callback]');
+        console.log('[Turnstile] Found ' + divs.length + ' divs with data-sitekey or data-callback');
+        if (divs.length > 0) {{
+            widget = divs[0];
+            console.log('[Turnstile] Using first div with data attributes');
+        }}
+    }}
+
+    if (!widget) {{
+        window._widgetClickTarget = {{ found: false, x: 0, y: 0, reason: 'widget not found', cfElements: cfElements.length, totalIframes: allIframes.length }};
+        console.log('[Turnstile] Widget detection failed:', window._widgetClickTarget);
+        return;
+    }}
+
+    // Get the widget's bounding rectangle
+    var rect = widget.getBoundingClientRect();
+    console.log('[Turnstile] Widget bounding rect:', JSON.stringify(rect));
+
+    if (rect.width === 0 || rect.height === 0) {{
+        window._widgetClickTarget = {{ found: false, x: 0, y: 0, reason: 'widget has zero size', tagName: widget.tagName }};
+        console.log('[Turnstile] Widget has zero size');
+        return;
+    }}
+
+    // Calculate the checkbox click position
+    // Turnstile checkbox is typically:
+    // - About 20-30px from the left edge
+    // - Vertically centered
+    // - The clickable area is roughly a 20x20 circle
+    //
+    // Widget layout (approximately):
+    // [  (checkbox)  |  "Verify you are human"  |  logo  ]
+    // |<-- ~25px -->|
+
+    var checkboxOffsetX = 25;  // Distance from left edge to checkbox center
+    var checkboxOffsetY = rect.height / 2;  // Vertically centered
+
+    // Add small random jitter to appear human (±3px)
+    var jitterX = (Math.random() - 0.5) * 6;
+    var jitterY = (Math.random() - 0.5) * 6;
+
+    var clickX = rect.left + checkboxOffsetX + jitterX;
+    var clickY = rect.top + checkboxOffsetY + jitterY;
+
+    window._widgetClickTarget = {{
+        found: true,
+        x: clickX,
+        y: clickY,
+        widgetLeft: rect.left,
+        widgetTop: rect.top,
+        width: rect.width,
+        height: rect.height,
+        tagName: widget.tagName,
+        reason: 'success'
+    }};
+
+    console.log('[Turnstile] Widget found:', JSON.stringify(window._widgetClickTarget));
+}})();
+"#, widget_selector)
+    }
+
+    /// Generate JavaScript that waits for the Turnstile widget to be ready/interactive
+    /// before attempting to click.
+    pub fn generate_widget_ready_wait_js() -> String {
+        r#"
+(async function() {
+    console.log('[Turnstile] Waiting for widget to be ready...');
+
+    // Wait for widget to be potentially interactive
+    // Turnstile typically needs a moment after rendering to accept clicks
+
+    var maxWait = 5000;  // Max 5 seconds
+    var checkInterval = 200;
+    var waited = 0;
+
+    while (waited < maxWait) {
+        // Check if widget has rendered and is potentially interactive
+        var widget = document.querySelector('.cf-turnstile, [data-cf-turnstile], iframe[src*="challenges.cloudflare"]');
+
+        if (widget) {
+            console.log('[Turnstile] Widget element found after', waited, 'ms:', widget.tagName);
+            var rect = widget.getBoundingClientRect();
+            console.log('[Turnstile] Widget rect: width=' + rect.width + ', height=' + rect.height);
+
+            if (rect.width > 0 && rect.height > 0) {
+                // Widget has size, give it a bit more time to become interactive
+                console.log('[Turnstile] Widget has size, waiting 500ms for interactivity...');
+                await new Promise(r => setTimeout(r, 500));
+                console.log('[Turnstile] Widget appears ready after', waited + 500, 'ms');
+                return true;
+            }
+        } else {
+            // Log what we CAN find for debugging
+            if (waited % 1000 === 0) {  // Every second
+                var allDivs = document.querySelectorAll('div');
+                var iframes = document.querySelectorAll('iframe');
+                console.log('[Turnstile] Still waiting... divs=' + allDivs.length + ', iframes=' + iframes.length);
+            }
+        }
+
+        await new Promise(r => setTimeout(r, checkInterval));
+        waited += checkInterval;
+    }
+
+    console.log('[Turnstile] Widget ready timeout after', waited, 'ms');
+
+    // Final debug dump
+    var finalWidgetCheck = document.querySelector('.cf-turnstile, [data-cf-turnstile], iframe[src*="challenges.cloudflare"]');
+    console.log('[Turnstile] Final widget check:', finalWidgetCheck ? finalWidgetCheck.tagName : 'null');
+
+    return false;
+})()
+"#.to_string()
+    }
+
+    /// Generate a click at the detected widget position (or fallback to estimated)
+    pub fn generate_widget_click_js(fallback_x: f64, fallback_y: f64) -> String {
+        format!(r#"
+(function() {{
+    var target = window._widgetClickTarget;
+    var clickX, clickY;
+
+    if (target && target.found) {{
+        clickX = target.x;
+        clickY = target.y;
+        console.log('[Turnstile] Clicking at detected position:', clickX, clickY);
+    }} else {{
+        // Fallback to estimated position
+        clickX = {};
+        clickY = {};
+        console.log('[Turnstile] Clicking at fallback position:', clickX, clickY);
+    }}
+
+    // Dispatch the click events (mousedown, mouseup, click)
+    var eventTypes = ['mousedown', 'mouseup', 'click'];
+
+    eventTypes.forEach(function(eventType) {{
+        if (typeof window.__dispatchTrustedMouseEvent === 'function') {{
+            window.__dispatchTrustedMouseEvent(eventType, clickX, clickY, {{
+                button: 0,
+                buttons: eventType === 'mouseup' ? 0 : 1
+            }});
+        }} else {{
+            // Fallback to standard event
+            var target = document.elementFromPoint(clickX, clickY) || document.body;
+            var event = new MouseEvent(eventType, {{
+                bubbles: true,
+                cancelable: true,
+                view: window,
+                clientX: clickX,
+                clientY: clickY,
+                button: 0,
+                buttons: eventType === 'mouseup' ? 0 : 1
+            }});
+            target.dispatchEvent(event);
+        }}
+    }});
+
+    return {{ clickedAt: {{ x: clickX, y: clickY }}, usedDetection: target && target.found }};
+}})();
+"#, fallback_x, fallback_y)
     }
 
     /// Generate random delays between phases
@@ -318,6 +550,89 @@ impl BehavioralSimulator {
         js_parts.push(self.event_sequence_to_js(&result.event_sequence));
 
         // Wrap in async IIFE since we use await
+        format!("(async function() {{\n{}\n}})()", js_parts.join("\n"))
+    }
+
+    /// Convert an interaction result to JavaScript with smart widget detection.
+    ///
+    /// This version is specifically designed for WASM-rendered widgets like Turnstile
+    /// where the checkbox isn't a DOM element but pixels drawn at a specific location.
+    ///
+    /// Flow:
+    /// 1. Wait for widget to be ready
+    /// 2. Detect widget position via DOM measurement
+    /// 3. Execute scanning movements
+    /// 4. Click at detected position (or fallback)
+    pub fn to_javascript_with_widget_detection(
+        &self,
+        result: &InteractionResult,
+        challenge: &DetectedChallenge,
+    ) -> String {
+        let mut js_parts = Vec::new();
+
+        // Phase 0: Wait for widget to be ready
+        js_parts.push("// Phase 0: Wait for widget to be ready".to_string());
+        js_parts.push(Self::generate_widget_ready_wait_js());
+
+        // Phase 0.5: Detect widget position
+        js_parts.push("// Phase 0.5: Detect widget position".to_string());
+        js_parts.push(Self::generate_widget_detection_js(challenge));
+
+        // Phase 1: Scanning movements (build anticipation, look human)
+        js_parts.push("// Phase 1: Scanning movements".to_string());
+        for (i, scan) in result.scan_movements.iter().enumerate() {
+            if i < result.phase_delays.len() {
+                let delay = result.phase_delays[i].as_millis();
+                js_parts.push(format!("await new Promise(r => setTimeout(r, {}));", delay));
+            }
+            js_parts.push(self.event_sequence_to_js(scan));
+        }
+
+        // Add final delay before main interaction
+        if let Some(delay) = result.phase_delays.last() {
+            js_parts.push(format!("await new Promise(r => setTimeout(r, {}));", delay.as_millis()));
+        }
+
+        // Phase 2: Move mouse towards widget area (using detected or fallback position)
+        // We generate mouse movement towards the detected position
+        js_parts.push("// Phase 2: Move towards widget".to_string());
+        js_parts.push(r#"
+await (async function() {
+    var target = window._widgetClickTarget;
+    if (target && target.found) {
+        // Generate a few mouse movements towards the widget
+        var currentX = 100, currentY = 100;  // Approximate current position
+        var targetX = target.x, targetY = target.y;
+
+        // Move in 3-4 steps
+        var steps = 3 + Math.floor(Math.random() * 2);
+        for (var i = 1; i <= steps; i++) {
+            var progress = i / steps;
+            // Add slight curve (ease-out)
+            progress = 1 - Math.pow(1 - progress, 2);
+
+            var x = currentX + (targetX - currentX) * progress + (Math.random() - 0.5) * 10;
+            var y = currentY + (targetY - currentY) * progress + (Math.random() - 0.5) * 10;
+
+            if (typeof window.__dispatchTrustedMouseEvent === 'function') {
+                window.__dispatchTrustedMouseEvent('mousemove', x, y, { button: 0, buttons: 0 });
+            }
+
+            await new Promise(r => setTimeout(r, 30 + Math.random() * 50));
+        }
+    }
+})();
+"#.to_string());
+
+        // Brief pause before click (human hesitation)
+        js_parts.push("await new Promise(r => setTimeout(r, 100 + Math.random() * 200));".to_string());
+
+        // Phase 3: Click at detected position
+        js_parts.push("// Phase 3: Click at widget".to_string());
+        let fallback = result.click_target.unwrap_or((200.0, 200.0));
+        js_parts.push(Self::generate_widget_click_js(fallback.0, fallback.1));
+
+        // Wrap in async IIFE
         format!("(async function() {{\n{}\n}})()", js_parts.join("\n"))
     }
 

@@ -77,6 +77,9 @@ impl ChallengeSolver {
 
     /// Generate JavaScript code to execute the behavioral simulation
     /// This returns JS that dispatches proper mouse events with realistic timing
+    ///
+    /// For Turnstile and other WASM-rendered widgets, this uses smart widget detection
+    /// to find the actual click target coordinates at runtime.
     pub fn generate_interaction_js(
         &self,
         challenge: &DetectedChallenge,
@@ -84,7 +87,21 @@ impl ChallengeSolver {
         viewport_height: f64,
     ) -> Result<String> {
         let interaction = self.generate_interaction_sequence(challenge, viewport_width, viewport_height)?;
-        Ok(self.simulator.to_javascript(&interaction))
+
+        // Use smart widget detection for Turnstile (WASM-rendered checkbox)
+        match challenge.challenge_type {
+            detector::ChallengeType::CloudflareTurnstile |
+            detector::ChallengeType::HCaptcha |
+            detector::ChallengeType::ReCaptchaV2 => {
+                // These challenges have WASM/iframe-rendered checkboxes
+                // Use widget detection to find real coordinates
+                Ok(self.simulator.to_javascript_with_widget_detection(&interaction, challenge))
+            }
+            _ => {
+                // For other challenge types, use the standard method
+                Ok(self.simulator.to_javascript(&interaction))
+            }
+        }
     }
 
     /// Get the recommended wait time for challenge resolution

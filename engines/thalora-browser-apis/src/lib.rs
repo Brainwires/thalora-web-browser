@@ -87,6 +87,10 @@ pub mod audit;
 // Allows the layout engine to populate computed element positions
 pub mod layout_registry;
 
+// CSS Transform module for 3D transform parsing and coordinate transformation
+// Used for accurate click handling on transformed elements (e.g., Cloudflare Turnstile)
+pub mod css_transform;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};

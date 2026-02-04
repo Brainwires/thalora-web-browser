@@ -3161,6 +3161,9 @@ fn scroll_to(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         }
     }
 
+    // Update the layout registry scroll position for viewport visibility calculations
+    crate::layout_registry::set_scroll_position(x, y);
+
     Ok(JsValue::undefined())
 }
 
@@ -3206,7 +3209,7 @@ fn scroll_by(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
     };
 
     // Update scroll position
-    if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+    let (new_x, new_y) = if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
         if let Some(window) = window_val.as_object() {
             let new_x = current_x + dx;
             let new_y = current_y + dy;
@@ -3214,8 +3217,16 @@ fn scroll_by(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
             let _ = window.set(js_string!("scrollY"), new_y, false, context);
             let _ = window.set(js_string!("pageXOffset"), new_x, false, context);
             let _ = window.set(js_string!("pageYOffset"), new_y, false, context);
+            (new_x, new_y)
+        } else {
+            (current_x + dx, current_y + dy)
         }
-    }
+    } else {
+        (current_x + dx, current_y + dy)
+    };
+
+    // Update the layout registry scroll position for viewport visibility calculations
+    crate::layout_registry::set_scroll_position(new_x, new_y);
 
     Ok(JsValue::undefined())
 }

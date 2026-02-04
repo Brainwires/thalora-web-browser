@@ -163,7 +163,11 @@ impl BuiltInConstructor for IntersectionObserver {
 
 impl IntersectionObserver {
     /// `IntersectionObserver.prototype.observe()` method
-    fn observe(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    ///
+    /// Per the IntersectionObserver spec, when observe() is called, the observer
+    /// should immediately queue a task to deliver the initial intersection entry.
+    /// This is critical for widgets like Cloudflare Turnstile that check visibility.
+    fn observe(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let observer_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("IntersectionObserver.observe called on non-object")
         })?;
@@ -179,14 +183,154 @@ impl IntersectionObserver {
 
         let target_obj = target.as_object().unwrap().clone();
 
-        // Update observer data
-        if let Some(mut observer_data) = observer_obj.downcast_mut::<IntersectionObserverData>() {
-            let target_id = format!("{:p}", target_obj.as_ref());
-            observer_data.observed_targets.insert(target_id, target_obj);
+        // Get element layout information for visibility calculation
+        let (element_id, tag_name, bounding_rect) = Self::get_element_info(&target_obj, context)?;
+
+        // Calculate intersection with viewport
+        let is_in_viewport = crate::layout_registry::is_element_in_viewport(&element_id, &tag_name);
+        let intersection_ratio = crate::layout_registry::get_intersection_ratio(&element_id, &tag_name);
+        let (int_x, int_y, int_width, int_height) = crate::layout_registry::get_intersection_rect(&element_id, &tag_name);
+        let (root_x, root_y, root_width, root_height) = crate::layout_registry::get_root_bounds();
+
+        eprintln!("🔍 IntersectionObserver.observe: element={}, in_viewport={}, ratio={:.2}",
+            element_id, is_in_viewport, intersection_ratio);
+
+        // Get the callback from observer data
+        let callback = {
+            let observer_data = observer_obj.downcast_ref::<IntersectionObserverData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("IntersectionObserver.observe called on non-IntersectionObserver object")
+            })?;
+            observer_data.callback.clone()
+        };
+
+        // Update observer data - add target to observed list
+        {
+            let mut observer_data = observer_obj.downcast_mut::<IntersectionObserverData>().ok_or_else(|| {
+                JsNativeError::typ().with_message("IntersectionObserver.observe called on non-IntersectionObserver object")
+            })?;
+            let target_id_key = format!("{:p}", target_obj.as_ref());
+            observer_data.observed_targets.insert(target_id_key, target_obj.clone());
             observer_data.is_observing = true;
         }
 
+        // Create initial IntersectionObserverEntry
+        let entry = IntersectionObserverEntryData {
+            target: Some(target_obj.clone()),
+            intersection_ratio,
+            is_intersecting: is_in_viewport && intersection_ratio > 0.0,
+            time: Self::get_current_time(),
+            bounding_client_rect: DOMRectData::new(
+                bounding_rect.0,
+                bounding_rect.1,
+                bounding_rect.2,
+                bounding_rect.3,
+            ),
+            intersection_rect: DOMRectData::new(int_x, int_y, int_width, int_height),
+            root_bounds: Some(DOMRectData::new(root_x, root_y, root_width, root_height)),
+        };
+
+        // Create entries array with single entry
+        let entries_array = boa_engine::builtins::array::Array::array_create(1, None, context)?;
+        let entry_obj = entry.to_js_object(context)?;
+        entries_array.set(0usize, entry_obj, false, context)?;
+
+        // Call the callback with (entries, observer)
+        // This is the critical part - Turnstile expects to receive an initial callback
+        if let Some(callback_fn) = callback.as_callable() {
+            eprintln!("🔍 IntersectionObserver: Calling callback with isIntersecting={}",
+                is_in_viewport && intersection_ratio > 0.0);
+            let result = callback_fn.call(
+                &JsValue::undefined(),
+                &[entries_array.into(), observer_obj.clone().into()],
+                context,
+            );
+            if let Err(e) = result {
+                eprintln!("⚠️ IntersectionObserver callback error: {:?}", e);
+            }
+        }
+
         Ok(JsValue::undefined())
+    }
+
+    /// Helper to get element ID and tag name from a target object
+    fn get_element_info(target: &JsObject, context: &mut Context) -> JsResult<(String, String, (f64, f64, f64, f64))> {
+        use crate::dom::element::ElementData;
+
+        // Try to get ElementData if it's an actual Element
+        if let Some(element_data) = target.downcast_ref::<ElementData>() {
+            let id = element_data.get_id();
+            let tag = element_data.get_tag_name().to_lowercase();
+            let rect = element_data.get_bounding_client_rect();
+
+            // Create element identifier for layout registry lookup
+            let element_id = if !id.is_empty() {
+                format!("#{}", id)
+            } else {
+                tag.clone()
+            };
+
+            return Ok((element_id, tag, (rect.x, rect.y, rect.width, rect.height)));
+        }
+
+        // Fallback: try to read properties from the object
+        let tag_name = target.get(js_string!("tagName"), context)
+            .ok()
+            .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped().to_lowercase()))
+            .unwrap_or_else(|| "div".to_string());
+
+        let id = target.get(js_string!("id"), context)
+            .ok()
+            .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+            .unwrap_or_default();
+
+        let element_id = if !id.is_empty() {
+            format!("#{}", id)
+        } else {
+            tag_name.clone()
+        };
+
+        // Try to get bounding rect from getBoundingClientRect
+        let rect = if let Ok(get_rect) = target.get(js_string!("getBoundingClientRect"), context) {
+            if let Some(get_rect_fn) = get_rect.as_callable() {
+                if let Ok(rect_val) = get_rect_fn.call(&target.clone().into(), &[], context) {
+                    if let Some(rect_obj) = rect_val.as_object() {
+                        let x = rect_obj.get(js_string!("x"), context).ok()
+                            .and_then(|v| v.to_number(context).ok())
+                            .unwrap_or(0.0);
+                        let y = rect_obj.get(js_string!("y"), context).ok()
+                            .and_then(|v| v.to_number(context).ok())
+                            .unwrap_or(0.0);
+                        let width = rect_obj.get(js_string!("width"), context).ok()
+                            .and_then(|v| v.to_number(context).ok())
+                            .unwrap_or(0.0);
+                        let height = rect_obj.get(js_string!("height"), context).ok()
+                            .and_then(|v| v.to_number(context).ok())
+                            .unwrap_or(0.0);
+                        (x, y, width, height)
+                    } else {
+                        (0.0, 0.0, 100.0, 100.0) // Default visible size
+                    }
+                } else {
+                    (0.0, 0.0, 100.0, 100.0)
+                }
+            } else {
+                (0.0, 0.0, 100.0, 100.0)
+            }
+        } else {
+            // Default to visible dimensions if we can't determine
+            (0.0, 0.0, 100.0, 100.0)
+        };
+
+        Ok((element_id, tag_name, rect))
+    }
+
+    /// Get current time in milliseconds (like performance.now())
+    fn get_current_time() -> f64 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0)
     }
 
     /// `IntersectionObserver.prototype.unobserve()` method

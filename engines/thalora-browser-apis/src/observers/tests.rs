@@ -470,3 +470,140 @@ fn test_all_observers_including_performance() {
     "#)).unwrap();
     assert_eq!(result.to_boolean(), true);
 }
+
+// ============================================================================
+// IntersectionObserver Callback Tests (for Turnstile compatibility)
+// ============================================================================
+
+#[test]
+fn test_intersection_observer_calls_callback_on_observe() {
+    let mut context = create_test_context();
+    // Test that IntersectionObserver calls the callback immediately when observe() is called
+    // This is critical for Cloudflare Turnstile which checks visibility
+    let result = context.eval(Source::from_bytes(r#"
+        let callbackCalled = false;
+        let entriesReceived = null;
+
+        const observer = new IntersectionObserver((entries, obs) => {
+            callbackCalled = true;
+            entriesReceived = entries;
+        });
+
+        // Create a target element
+        const target = document.createElement('div');
+        target.id = 'turnstile-widget';
+
+        // Observe should trigger the callback immediately
+        observer.observe(target);
+
+        // Check that callback was called
+        callbackCalled === true && entriesReceived !== null;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_intersection_observer_entry_has_required_properties() {
+    let mut context = create_test_context();
+    // Test that IntersectionObserverEntry has all required properties
+    let result = context.eval(Source::from_bytes(r#"
+        let entry = null;
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.length > 0) {
+                entry = entries[0];
+            }
+        });
+
+        const target = document.createElement('div');
+        observer.observe(target);
+
+        // Check all required properties exist
+        entry !== null &&
+        typeof entry.target === 'object' &&
+        typeof entry.intersectionRatio === 'number' &&
+        typeof entry.isIntersecting === 'boolean' &&
+        typeof entry.time === 'number' &&
+        typeof entry.boundingClientRect === 'object' &&
+        typeof entry.intersectionRect === 'object';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_intersection_observer_reports_visible_element() {
+    let mut context = create_test_context();
+    // Test that IntersectionObserver reports an element as visible
+    // when it's in the viewport (default case for headless browser)
+    let result = context.eval(Source::from_bytes(r#"
+        let isIntersecting = null;
+        let ratio = null;
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.length > 0) {
+                isIntersecting = entries[0].isIntersecting;
+                ratio = entries[0].intersectionRatio;
+            }
+        });
+
+        // Create a visible widget element
+        const target = document.createElement('div');
+        target.id = 'cf-turnstile';
+        target.style.width = '300px';
+        target.style.height = '65px';
+
+        observer.observe(target);
+
+        // The element should be reported as intersecting
+        // (visible in viewport since we're at scroll position 0,0)
+        isIntersecting === true;
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// ============================================================================
+// Element.checkVisibility() Tests
+// ============================================================================
+
+#[test]
+fn test_element_check_visibility_exists() {
+    let mut context = create_test_context();
+    let result = context.eval(Source::from_bytes(r#"
+        const div = document.createElement('div');
+        typeof div.checkVisibility === 'function';
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_element_check_visibility_returns_true_for_visible() {
+    let mut context = create_test_context();
+    // Default elements should be visible
+    let result = context.eval(Source::from_bytes(r#"
+        const div = document.createElement('div');
+        div.checkVisibility();
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+#[test]
+fn test_element_check_visibility_accepts_options() {
+    let mut context = create_test_context();
+    // Test that checkVisibility accepts options without throwing
+    let result = context.eval(Source::from_bytes(r#"
+        const div = document.createElement('div');
+        // Should not throw with various option combinations
+        div.checkVisibility({}) &&
+        div.checkVisibility({ checkOpacity: true }) &&
+        div.checkVisibility({ checkVisibilityCSS: true }) &&
+        div.checkVisibility({ opacityProperty: true }) &&
+        div.checkVisibility({ visibilityProperty: true });
+    "#)).unwrap();
+    assert_eq!(result.to_boolean(), true);
+}
+
+// Note: Tests for display:none, visibility:hidden, and opacity:0 require
+// proper style persistence on Element, which is a separate feature.
+// The current style getter creates a new CSSStyleDeclaration each time.
+// For Turnstile compatibility, the important thing is that elements
+// report as visible by default (which they do).
