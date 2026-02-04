@@ -882,39 +882,49 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.appendChild: child must be a Node")
         })?;
 
-        let parent_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.appendChild called on non-Node object")
-        })?;
-
-        let child_clone = child_obj.clone();
-        let child_node = child_clone.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.appendChild: child must be a Node")
-        })?;
-
-        // Remove child from its current parent if it has one
-        if let Some(old_parent) = child_node.get_parent_node() {
-            if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
-                old_parent_data.remove_child_node(&child_obj);
-            }
-        }
-
-        // Add child to this node
-        parent_node.add_child_node(child_obj.clone());
-        child_node.set_parent_node(Some(this_obj.clone()));
-
-        // Update sibling links
-        if let Some(last_child) = parent_node.get_last_child() {
-            if !JsObject::equals(&last_child, &child_obj) {
-                if let Some(last_child_data) = last_child.clone().downcast_ref::<NodeData>() {
-                    last_child_data.set_next_sibling(Some(child_obj.clone()));
-                    child_node.set_previous_sibling(Some(last_child));
+        // Try NodeData first, then other element types
+        if let Some(parent_node) = this_obj.downcast_ref::<NodeData>() {
+            // Standard Node handling
+            let child_clone = child_obj.clone();
+            if let Some(child_node) = child_clone.downcast_ref::<NodeData>() {
+                // Remove child from its current parent if it has one
+                if let Some(old_parent) = child_node.get_parent_node() {
+                    if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
+                        old_parent_data.remove_child_node(&child_obj);
+                    }
                 }
-            }
-        }
 
-        Ok(child_obj.into())
+                // Add child to this node
+                parent_node.add_child_node(child_obj.clone());
+                child_node.set_parent_node(Some(this_obj.clone()));
+
+                // Update sibling links
+                if let Some(last_child) = parent_node.get_last_child() {
+                    if !JsObject::equals(&last_child, &child_obj) {
+                        if let Some(last_child_data) = last_child.clone().downcast_ref::<NodeData>() {
+                            last_child_data.set_next_sibling(Some(child_obj.clone()));
+                            child_node.set_previous_sibling(Some(last_child));
+                        }
+                    }
+                }
+            } else {
+                // Child is not NodeData but could be ElementData
+                parent_node.add_child_node(child_obj.clone());
+            }
+            Ok(child_obj.into())
+        } else if let Some(element) = this_obj.downcast_ref::<crate::dom::element::ElementData>() {
+            // ElementData handling
+            element.append_child(child_obj.clone());
+            Ok(child_obj.into())
+        } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+            // HTMLIFrameElementData handling
+            iframe.append_child(child_obj.clone());
+            Ok(child_obj.into())
+        } else {
+            Err(JsNativeError::typ()
+                .with_message("Node.appendChild called on non-Node object")
+                .into())
+        }
     }
 
     /// `Node.prototype.removeChild(child)`

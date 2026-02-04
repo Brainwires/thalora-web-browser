@@ -15,6 +15,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use crate::browser::window_registry;
 use crate::browser::window::WindowData;
 
@@ -249,6 +250,18 @@ pub struct HTMLIFrameElementData {
     /// Isolated window for the iframe's browsing context
     #[unsafe_ignore_trace]
     content_window: Arc<Mutex<Option<JsObject>>>,
+    /// Generic attributes storage for any attribute
+    #[unsafe_ignore_trace]
+    attributes: Arc<Mutex<HashMap<String, String>>>,
+    /// Element ID
+    #[unsafe_ignore_trace]
+    id: Arc<Mutex<String>>,
+    /// Element class name
+    #[unsafe_ignore_trace]
+    class_name: Arc<Mutex<String>>,
+    /// Child elements
+    #[unsafe_ignore_trace]
+    children: Arc<Mutex<Vec<JsObject>>>,
 }
 
 impl HTMLIFrameElementData {
@@ -264,6 +277,10 @@ impl HTMLIFrameElementData {
             loading: Arc::new(Mutex::new("eager".to_string())),
             content_document: Arc::new(Mutex::new(None)),
             content_window: Arc::new(Mutex::new(None)),
+            attributes: Arc::new(Mutex::new(HashMap::new())),
+            id: Arc::new(Mutex::new(String::new())),
+            class_name: Arc::new(Mutex::new(String::new())),
+            children: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -285,6 +302,82 @@ impl HTMLIFrameElementData {
     /// Get the content window
     pub fn get_content_window(&self) -> Option<JsObject> {
         self.content_window.lock().unwrap().clone()
+    }
+
+    /// Set an attribute on the iframe element
+    pub fn set_attribute(&self, name: &str, value: String) {
+        // Handle known attributes with dedicated fields
+        match name.to_lowercase().as_str() {
+            "src" => *self.src.lock().unwrap() = value.clone(),
+            "srcdoc" => *self.srcdoc.lock().unwrap() = value.clone(),
+            "name" => *self.name.lock().unwrap() = value.clone(),
+            "sandbox" => *self.sandbox.lock().unwrap() = value.clone(),
+            "allow" => *self.allow.lock().unwrap() = value.clone(),
+            "width" => *self.width.lock().unwrap() = value.clone(),
+            "height" => *self.height.lock().unwrap() = value.clone(),
+            "id" => *self.id.lock().unwrap() = value.clone(),
+            "class" => *self.class_name.lock().unwrap() = value.clone(),
+            "loading" => {
+                let valid = match value.as_str() {
+                    "lazy" => "lazy",
+                    _ => "eager",
+                };
+                *self.loading.lock().unwrap() = valid.to_string();
+                // Also store in attributes map
+            }
+            _ => {}
+        }
+        // Store all attributes in the generic attributes map
+        self.attributes.lock().unwrap().insert(name.to_string(), value);
+    }
+
+    /// Get an attribute from the iframe element
+    pub fn get_attribute(&self, name: &str) -> Option<String> {
+        match name.to_lowercase().as_str() {
+            "src" => Some(self.src.lock().unwrap().clone()),
+            "srcdoc" => Some(self.srcdoc.lock().unwrap().clone()),
+            "name" => Some(self.name.lock().unwrap().clone()),
+            "sandbox" => Some(self.sandbox.lock().unwrap().clone()),
+            "allow" => Some(self.allow.lock().unwrap().clone()),
+            "width" => Some(self.width.lock().unwrap().clone()),
+            "height" => Some(self.height.lock().unwrap().clone()),
+            "loading" => Some(self.loading.lock().unwrap().clone()),
+            "id" => Some(self.id.lock().unwrap().clone()),
+            "class" => Some(self.class_name.lock().unwrap().clone()),
+            _ => self.attributes.lock().unwrap().get(name).cloned()
+        }
+    }
+
+    /// Get the element ID
+    pub fn get_id(&self) -> String {
+        self.id.lock().unwrap().clone()
+    }
+
+    /// Set the element ID
+    pub fn set_id(&self, id: String) {
+        *self.id.lock().unwrap() = id.clone();
+        self.attributes.lock().unwrap().insert("id".to_string(), id);
+    }
+
+    /// Get the element class name
+    pub fn get_class_name(&self) -> String {
+        self.class_name.lock().unwrap().clone()
+    }
+
+    /// Set the element class name
+    pub fn set_class_name(&self, class_name: String) {
+        *self.class_name.lock().unwrap() = class_name.clone();
+        self.attributes.lock().unwrap().insert("class".to_string(), class_name);
+    }
+
+    /// Append a child element
+    pub fn append_child(&self, child: JsObject) {
+        self.children.lock().unwrap().push(child);
+    }
+
+    /// Get children
+    pub fn get_children(&self) -> Vec<JsObject> {
+        self.children.lock().unwrap().clone()
     }
 
     // =========================================================================

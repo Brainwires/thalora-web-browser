@@ -1874,24 +1874,15 @@ fn get_id(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("Element.prototype.id called on non-object")
     })?;
 
-    let value = {
-
-
-        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
-            JsNativeError::typ()
-
-
-                .with_message("Element.prototype.id called on non-Element object")
-
-
-        })?;
-
-
+    // Try ElementData first, then HTMLIFrameElementData
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
         element.get_id()
-
-
+    } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+        iframe.get_id()
+    } else {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.id called on non-Element object")
+            .into());
     };
     Ok(JsString::from(value).into())
 }
@@ -1902,15 +1893,19 @@ fn set_id(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Element.prototype.id setter called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.id setter called on non-Element object")
-    })?;
-
     let id = args.get_or_undefined(0).to_string(context)?;
     let id_string = id.to_std_string_escaped();
 
-    element.set_id(id_string);
+    // Try ElementData first, then HTMLIFrameElementData
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.set_id(id_string);
+    } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+        iframe.set_id(id_string);
+    } else {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.id setter called on non-Element object")
+            .into());
+    }
 
     Ok(JsValue::undefined())
 }
@@ -1921,24 +1916,15 @@ fn get_class_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("Element.prototype.className called on non-object")
     })?;
 
-    let value = {
-
-
-        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
-            JsNativeError::typ()
-
-
-                .with_message("Element.prototype.className called on non-Element object")
-
-
-        })?;
-
-
+    // Try ElementData first, then HTMLIFrameElementData
+    let value = if let Some(element) = this_obj.downcast_ref::<ElementData>() {
         element.get_class_name()
-
-
+    } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+        iframe.get_class_name()
+    } else {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.className called on non-Element object")
+            .into());
     };
     Ok(JsString::from(value).into())
 }
@@ -1949,15 +1935,19 @@ fn set_class_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.className setter called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.className setter called on non-Element object")
-    })?;
-
     let class_name = args.get_or_undefined(0).to_string(context)?;
     let class_name_string = class_name.to_std_string_escaped();
 
-    element.set_class_name(class_name_string);
+    // Try ElementData first, then HTMLIFrameElementData
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        element.set_class_name(class_name_string);
+    } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+        iframe.set_class_name(class_name_string);
+    } else {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.className setter called on non-Element object")
+            .into());
+    }
 
     Ok(JsValue::undefined())
 }
@@ -2228,12 +2218,39 @@ fn set_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
             }
         }
         return Ok(JsValue::undefined());
+    } else if let Some(iframe_data) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+        // HTMLIFrameElement objects
+        let name = args.get_or_undefined(0).to_string(context)?;
+        let value = args.get_or_undefined(1).to_string(context)?;
+        iframe_data.set_attribute(&name.to_std_string_escaped(), value.to_std_string_escaped());
+        {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
+                let _ = writeln!(f, "setAttribute SUCCESS: HTMLIFrameElementData name='{}'", name.to_std_string_escaped());
+            }
+        }
+        return Ok(JsValue::undefined());
     } else {
         // Debug output to understand what type of object this is
         {
             use std::io::Write;
             if let Ok(mut f) = std::fs::OpenOptions::new().append(true).open("/tmp/setattr_debug.log") {
-                let _ = writeln!(f, "setAttribute FAIL: unknown type");
+                // Get the constructor name
+                let constructor_name = if let Ok(constructor) = this_obj.get(js_string!("constructor"), context) {
+                    if let Some(ctor_obj) = constructor.as_object() {
+                        ctor_obj.get(js_string!("name"), context)
+                            .map(|n| n.to_string(context).map(|s| s.to_std_string_escaped()).unwrap_or_default())
+                            .unwrap_or_else(|_| "?".to_string())
+                    } else { "not an object".to_string() }
+                } else { "no constructor".to_string() };
+
+                // Check for common data types
+                let has_document_data = this_obj.downcast_ref::<crate::dom::document::DocumentData>().is_some();
+                let has_nodelist_data = this_obj.downcast_ref::<crate::dom::nodelist::NodeListData>().is_some();
+                let has_style_data = this_obj.downcast_ref::<crate::browser::cssom::CSSStyleDeclarationData>().is_some();
+
+                let _ = writeln!(f, "setAttribute FAIL: unknown type, constructor='{}', isDoc={}, isNodeList={}, isStyle={}",
+                    constructor_name, has_document_data, has_nodelist_data, has_style_data);
             }
         }
         return Err(JsNativeError::typ()
@@ -2303,18 +2320,23 @@ fn append_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Element.prototype.appendChild called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.appendChild called on non-Element object")
-    })?;
-
     let child_value = args.get_or_undefined(0);
     if let Some(child_obj) = child_value.as_object() {
         // Set parent relationship
         if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
             child_element.set_parent_node(Some(this_obj.clone()));
         }
-        element.append_child(child_obj.clone());
+
+        // Try ElementData first, then HTMLIFrameElementData
+        if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+            element.append_child(child_obj.clone());
+        } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
+            iframe.append_child(child_obj.clone());
+        } else {
+            return Err(JsNativeError::typ()
+                .with_message("Node.appendChild called on non-Node object")
+                .into());
+        }
 
         // Check if the appended child is a script element and execute it
         if is_script_element(&child_obj, context)? {
