@@ -15,6 +15,8 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
+use crate::browser::window_registry;
+use crate::browser::window::WindowData;
 
 /// JavaScript `HTMLIFrameElement` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -284,6 +286,40 @@ impl HTMLIFrameElementData {
     pub fn get_content_window(&self) -> Option<JsObject> {
         self.content_window.lock().unwrap().clone()
     }
+
+    // =========================================================================
+    // Mutex getters for direct field access (used by innerHTML parsing)
+    // =========================================================================
+
+    /// Get reference to src mutex for direct access
+    pub fn get_src_mutex(&self) -> &Arc<Mutex<String>> {
+        &self.src
+    }
+
+    /// Get reference to name mutex for direct access
+    pub fn get_name_mutex(&self) -> &Arc<Mutex<String>> {
+        &self.name
+    }
+
+    /// Get reference to width mutex for direct access
+    pub fn get_width_mutex(&self) -> &Arc<Mutex<String>> {
+        &self.width
+    }
+
+    /// Get reference to height mutex for direct access
+    pub fn get_height_mutex(&self) -> &Arc<Mutex<String>> {
+        &self.height
+    }
+
+    /// Get reference to sandbox mutex for direct access
+    pub fn get_sandbox_mutex(&self) -> &Arc<Mutex<String>> {
+        &self.sandbox
+    }
+
+    /// Get reference to allow mutex for direct access
+    pub fn get_allow_mutex(&self) -> &Arc<Mutex<String>> {
+        &self.allow
+    }
 }
 
 // ============================================================================
@@ -309,8 +345,23 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 
     let src = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
 
+    // Store the src value
     if let Some(data) = this_obj.downcast_ref::<HTMLIFrameElementData>() {
-        *data.src.lock().unwrap() = src;
+        let old_src = data.src.lock().unwrap().clone();
+        *data.src.lock().unwrap() = src.clone();
+
+        // Only trigger load if src actually changed and is a real URL
+        if src != old_src && !src.is_empty() && src != "about:blank" {
+            eprintln!("🔲 IFRAME: src changed from '{}' to '{}', triggering load", old_src, src);
+            // Trigger content load
+            // Note: We need to drop the borrow before calling load_iframe_content
+            drop(data);
+
+            // Load the content - errors are logged but don't fail the setter
+            if let Err(e) = load_iframe_content(&this_obj.clone(), &src, context) {
+                eprintln!("🔲 IFRAME: Load failed: {:?}", e);
+            }
+        }
     }
 
     Ok(JsValue::undefined())
@@ -554,6 +605,39 @@ pub fn initialize_iframe_context(
         JsNativeError::typ().with_message("Not an HTMLIFrameElement")
     })?;
 
+    // Get the window registry
+    let registry = window_registry::get_registry();
+
+    // Get parent window from global context
+    let parent_window = context.global_object().get(js_string!("window"), context)?;
+    let parent_window_obj = parent_window.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Could not get parent window")
+    })?;
+
+    // Get parent's window ID from registry
+    // Try WindowData first, then fall back to top-level ID
+    let parent_id = if let Some(window_data) = parent_window_obj.downcast_ref::<WindowData>() {
+        window_data.get_window_id()
+    } else {
+        // Not a WindowData - use top-level ID
+        registry.get_top_level_id()
+    };
+    eprintln!("🔲 IFRAME: Parent window ID: {:?}", parent_id);
+
+    // Determine iframe origin from src attribute
+    let iframe_origin = iframe_data.src.lock().unwrap().clone();
+    let origin = if iframe_origin.is_empty() {
+        // If no src, use parent's origin (about:srcdoc)
+        if let Some(pid) = parent_id {
+            registry.get_origin(pid).unwrap_or_else(|| "about:blank".to_string())
+        } else {
+            "about:blank".to_string()
+        }
+    } else {
+        extract_origin_from_url(&iframe_origin)
+    };
+    eprintln!("🔲 IFRAME: Iframe origin: {}", origin);
+
     // Create isolated Document for iframe
     let document_constructor = context.intrinsics().constructors().document().constructor();
     let iframe_document = crate::dom::document::Document::constructor(
@@ -588,6 +672,31 @@ pub fn initialize_iframe_context(
     let iframe_window_obj = iframe_window.as_object().unwrap().clone();
     eprintln!("🔲 IFRAME: Created iframe window");
 
+    // Register iframe window in the window registry and store hierarchy info in WindowData
+    if let Some(pid) = parent_id {
+        let window_id = registry.register_iframe_window(pid, origin.clone());
+        eprintln!("🔲 IFRAME: Registered iframe in window registry with ID {}", window_id);
+
+        // Store the window ID, parent window, and frame element in WindowData
+        if let Some(window_data) = iframe_window_obj.downcast_ref::<WindowData>() {
+            window_data.set_window_id(window_id);
+            window_data.set_current_url(if iframe_origin.is_empty() { "about:blank".to_string() } else { iframe_origin });
+            // Store parent window reference for window.parent
+            window_data.set_parent_window(parent_window_obj.clone());
+            // Store frame element reference for window.frameElement
+            window_data.set_frame_element(iframe_obj.clone());
+            eprintln!("🔲 IFRAME: Set window_id {}, parent_window, and frame_element in WindowData", window_id);
+        }
+    } else {
+        eprintln!("⚠️ IFRAME: Parent window not registered in registry, iframe hierarchy may not work correctly");
+        // Still set parent and frame element even without registry entry
+        if let Some(window_data) = iframe_window_obj.downcast_ref::<WindowData>() {
+            window_data.set_parent_window(parent_window_obj.clone());
+            window_data.set_frame_element(iframe_obj.clone());
+            eprintln!("🔲 IFRAME: Set parent_window and frame_element in WindowData (no registry entry)");
+        }
+    }
+
     // Link window.document to the iframe's document
     iframe_window_obj.set(js_string!("document"), iframe_document_obj.clone(), false, context)?;
     eprintln!("🔲 IFRAME: Linked window.document to iframe document");
@@ -596,6 +705,240 @@ pub fn initialize_iframe_context(
     iframe_data.set_content_document(iframe_document_obj);
     iframe_data.set_content_window(iframe_window_obj);
     eprintln!("🔲 IFRAME: Context stored in iframe data");
+
+    Ok(())
+}
+
+/// Extract the origin from a URL string
+fn extract_origin_from_url(url: &str) -> String {
+    if url.is_empty() || url == "about:blank" {
+        return "null".to_string();
+    }
+
+    if let Some(scheme_end) = url.find("://") {
+        let scheme = &url[..scheme_end];
+        let after_scheme = &url[scheme_end + 3..];
+        let host_end = after_scheme.find('/').unwrap_or(after_scheme.len());
+        let host_with_port = &after_scheme[..host_end];
+        format!("{}://{}", scheme, host_with_port)
+    } else {
+        "null".to_string()
+    }
+}
+
+// ============================================================================
+// Iframe Content Loading
+// ============================================================================
+
+/// Load content into an iframe from its src URL
+/// This fetches the URL, parses the HTML, and sets up the iframe's document
+pub fn load_iframe_content(
+    iframe_obj: &JsObject,
+    url: &str,
+    context: &mut Context,
+) -> JsResult<()> {
+    // Skip loading for about:blank or empty URLs
+    if url.is_empty() || url == "about:blank" || url.starts_with("about:") {
+        eprintln!("🔲 IFRAME LOAD: Skipping load for special URL: {}", url);
+        return Ok(());
+    }
+
+    // Skip loading for javascript: URLs (security)
+    if url.starts_with("javascript:") {
+        eprintln!("🔲 IFRAME LOAD: Skipping javascript: URL for security");
+        return Ok(());
+    }
+
+    eprintln!("🔲 IFRAME LOAD: Loading content from {}", url);
+
+    // Fetch the content using the blocking HTTP client
+    let html_content = match fetch_iframe_url(url) {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("🔲 IFRAME LOAD: Failed to fetch {}: {}", url, e);
+            // Don't fail - just leave the iframe with empty content
+            return Ok(());
+        }
+    };
+
+    eprintln!("🔲 IFRAME LOAD: Fetched {} bytes from {}", html_content.len(), url);
+
+    // Get the iframe's contentDocument
+    let iframe_data = iframe_obj.downcast_ref::<HTMLIFrameElementData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Not an HTMLIFrameElement")
+    })?;
+
+    let content_document = iframe_data.get_content_document().ok_or_else(|| {
+        JsNativeError::typ().with_message("Iframe has no contentDocument")
+    })?;
+
+    let content_window = iframe_data.get_content_window().ok_or_else(|| {
+        JsNativeError::typ().with_message("Iframe has no contentWindow")
+    })?;
+
+    // Set the HTML content on the iframe's document
+    if let Some(doc_data) = content_document.downcast_ref::<crate::dom::document::DocumentData>() {
+        doc_data.set_html_content(&html_content);
+        eprintln!("🔲 IFRAME LOAD: Set HTML content on iframe document");
+    }
+
+    // Extract and execute scripts from the loaded HTML
+    execute_iframe_scripts(&html_content, &content_window, &content_document, context)?;
+
+    // Fire load event on the iframe
+    fire_iframe_load_event(iframe_obj, context)?;
+
+    eprintln!("🔲 IFRAME LOAD: Completed loading {}", url);
+
+    Ok(())
+}
+
+/// Fetch URL content using blocking HTTP client
+#[cfg(feature = "native")]
+fn fetch_iframe_url(url: &str) -> Result<String, String> {
+    use crate::http_blocking::BlockingClient;
+    use std::time::Duration;
+
+    let client = BlockingClient::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client.get(url)
+        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        .send()
+        .map_err(|e| format!("HTTP request failed: {}", e))?;
+
+    response.text()
+        .map_err(|e| format!("Failed to read response body: {}", e))
+}
+
+#[cfg(not(feature = "native"))]
+fn fetch_iframe_url(_url: &str) -> Result<String, String> {
+    // In WASM, we can't make blocking HTTP requests
+    Err("Iframe src loading not available in WASM mode".to_string())
+}
+
+/// Execute scripts from iframe HTML in the iframe's context
+fn execute_iframe_scripts(
+    html: &str,
+    content_window: &JsObject,
+    content_document: &JsObject,
+    context: &mut Context,
+) -> JsResult<()> {
+    // Extract script tags from HTML
+    let scripts = extract_scripts_from_html(html);
+
+    if scripts.is_empty() {
+        eprintln!("🔲 IFRAME SCRIPTS: No scripts found in iframe content");
+        return Ok(());
+    }
+
+    eprintln!("🔲 IFRAME SCRIPTS: Found {} scripts to execute", scripts.len());
+
+    for (i, script) in scripts.iter().enumerate() {
+        if script.trim().is_empty() {
+            continue;
+        }
+
+        eprintln!("🔲 IFRAME SCRIPTS: Executing script {} ({} chars)", i + 1, script.len());
+
+        // Wrap the script to execute in the iframe's context
+        // This creates a closure where window/document/self refer to the iframe's objects
+        let wrapped_script = format!(
+            r#"(function(window, document, self, parent, top) {{
+                "use strict";
+                try {{
+                    {}
+                }} catch (e) {{
+                    console.error("Iframe script error:", e);
+                }}
+            }}).call(arguments[0], arguments[0], arguments[1], arguments[0], arguments[0].parent, arguments[0].top)"#,
+            script
+        );
+
+        // Create the function and call it with iframe's window and document
+        let func_result = context.eval(boa_engine::Source::from_bytes(&wrapped_script));
+
+        match func_result {
+            Ok(func_val) => {
+                // The wrapped script is an IIFE, so it executes immediately
+                // We need to call it with the iframe's window and document
+                if let Some(func) = func_val.as_callable() {
+                    let args = vec![
+                        content_window.clone().into(),
+                        content_document.clone().into(),
+                    ];
+                    match func.call(&content_window.clone().into(), &args, context) {
+                        Ok(_) => eprintln!("🔲 IFRAME SCRIPTS: Script {} executed successfully", i + 1),
+                        Err(e) => eprintln!("🔲 IFRAME SCRIPTS: Script {} execution error: {:?}", i + 1, e),
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("🔲 IFRAME SCRIPTS: Script {} parse error: {:?}", i + 1, e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Extract inline script content from HTML
+fn extract_scripts_from_html(html: &str) -> Vec<String> {
+    let mut scripts = Vec::new();
+    let mut search_start = 0;
+
+    while let Some(start) = html[search_start..].find("<script") {
+        let abs_start = search_start + start;
+
+        // Find the end of the opening tag
+        if let Some(tag_end) = html[abs_start..].find('>') {
+            let tag_content = &html[abs_start..abs_start + tag_end];
+
+            // Skip external scripts (they have src attribute)
+            if tag_content.contains("src=") {
+                // For external scripts, we'd need to fetch them too
+                // For now, skip them
+                search_start = abs_start + tag_end + 1;
+                continue;
+            }
+
+            // Find the closing </script> tag
+            let content_start = abs_start + tag_end + 1;
+            if let Some(close_tag) = html[content_start..].find("</script>") {
+                let script_content = &html[content_start..content_start + close_tag];
+                if !script_content.trim().is_empty() {
+                    scripts.push(script_content.to_string());
+                }
+                search_start = content_start + close_tag + 9; // 9 = len("</script>")
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    scripts
+}
+
+/// Fire the load event on an iframe element
+fn fire_iframe_load_event(iframe_obj: &JsObject, context: &mut Context) -> JsResult<()> {
+    // Create a load event
+    let event_constructor = context.intrinsics().constructors().event().constructor();
+    let load_event = event_constructor.construct(
+        &[js_string!("load").into()],
+        None,
+        context,
+    )?;
+
+    // Dispatch the event on the iframe
+    // This would trigger any onload handlers
+    if let Some(dispatch_event) = iframe_obj.get(js_string!("dispatchEvent"), context)?.as_callable() {
+        let _ = dispatch_event.call(&iframe_obj.clone().into(), &[load_event.into()], context);
+    }
 
     Ok(())
 }

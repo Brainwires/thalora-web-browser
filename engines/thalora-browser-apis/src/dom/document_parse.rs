@@ -5,10 +5,10 @@
 //! https://developer.mozilla.org/en-US/docs/Web/API/Document/parseHTMLUnsafe_static
 
 use boa_engine::{
-    builtins::BuiltInBuilder,
+    builtins::{BuiltInBuilder, BuiltInConstructor},
     object::JsObject,
     value::JsValue,
-    Context, JsArgs, JsResult, js_string,
+    Context, JsArgs, JsResult, JsNativeError, js_string,
     property::PropertyDescriptorBuilder,
 };
 use std::collections::HashMap;
@@ -166,12 +166,14 @@ fn parse_elements(html: &str, config: &SanitizerConfig) -> Vec<ParsedElement> {
     let mut elements = Vec::new();
 
     // Basic tag extraction (simplified - production would use proper parser)
+    // Note: iframe is included to support Turnstile and similar scripts that create iframes
     let tag_patterns = [
         ("div", r"<div[^>]*>(.*?)</div>"),
         ("p", r"<p[^>]*>(.*?)</p>"),
         ("span", r"<span[^>]*>(.*?)</span>"),
         ("button", r"<button[^>]*>(.*?)</button>"),
         ("template", r"<template[^>]*>(.*?)</template>"),
+        ("iframe", r"<iframe[^>]*>(.*?)</iframe>"),
     ];
 
     for (tag, _pattern) in tag_patterns {
@@ -188,19 +190,106 @@ fn parse_elements(html: &str, config: &SanitizerConfig) -> Vec<ParsedElement> {
             }
         }
 
-        // Simple count for demo (production would extract actual elements)
-        let count = html.matches(&format!("<{}", tag)).count();
-        if count > 0 {
-            elements.push(ParsedElement {
-                tag_name: tag.to_string(),
-                attributes: HashMap::new(),
-                text_content: format!("Content from {} {} elements", count, tag),
-                children: Vec::new(),
-            });
+        // For iframes, do more detailed parsing to extract attributes
+        if tag == "iframe" {
+            let iframe_elements = parse_iframe_tags(html);
+            elements.extend(iframe_elements);
+        } else {
+            // Simple count for demo (production would extract actual elements)
+            let count = html.matches(&format!("<{}", tag)).count();
+            if count > 0 {
+                elements.push(ParsedElement {
+                    tag_name: tag.to_string(),
+                    attributes: HashMap::new(),
+                    text_content: format!("Content from {} {} elements", count, tag),
+                    children: Vec::new(),
+                });
+            }
         }
     }
 
     elements
+}
+
+/// Parse iframe tags from HTML and extract their attributes
+fn parse_iframe_tags(html: &str) -> Vec<ParsedElement> {
+    let mut iframes = Vec::new();
+    let mut search_start = 0;
+
+    while let Some(start) = html[search_start..].find("<iframe") {
+        let abs_start = search_start + start;
+
+        // Find the end of the opening tag
+        if let Some(tag_end) = html[abs_start..].find('>') {
+            let tag_content = &html[abs_start + 7..abs_start + tag_end]; // Skip "<iframe"
+
+            let mut attributes = HashMap::new();
+
+            // Parse attributes from tag content
+            let attr_str = tag_content.trim();
+            for part in split_attributes(attr_str) {
+                if let Some(eq_pos) = part.find('=') {
+                    let attr_name = part[..eq_pos].trim();
+                    let attr_value = part[eq_pos + 1..]
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'');
+                    attributes.insert(attr_name.to_string(), attr_value.to_string());
+                }
+            }
+
+            iframes.push(ParsedElement {
+                tag_name: "iframe".to_string(),
+                attributes,
+                text_content: String::new(),
+                children: Vec::new(),
+            });
+
+            search_start = abs_start + tag_end + 1;
+        } else {
+            break;
+        }
+    }
+
+    iframes
+}
+
+/// Split attribute string into individual attribute parts
+/// Handles quoted values containing spaces
+fn split_attributes(attr_str: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut quote_char = '"';
+
+    for c in attr_str.chars() {
+        match c {
+            '"' | '\'' if !in_quotes => {
+                in_quotes = true;
+                quote_char = c;
+                current.push(c);
+            }
+            c if c == quote_char && in_quotes => {
+                in_quotes = false;
+                current.push(c);
+            }
+            ' ' | '\t' | '\n' if !in_quotes => {
+                if !current.is_empty() {
+                    result.push(current.clone());
+                    current.clear();
+                }
+            }
+            _ => {
+                current.push(c);
+            }
+        }
+    }
+
+    if !current.is_empty() {
+        result.push(current);
+    }
+
+    result
 }
 
 /// Extract declarative shadow roots
@@ -287,7 +376,13 @@ fn create_dom_structure(parsed: ParsedDocument, context: &mut Context) -> JsResu
 }
 
 /// Create JavaScript object representing a parsed element
+/// For iframe elements, creates actual HTMLIFrameElement with proper context initialization
 fn create_element_object(element: &ParsedElement, context: &mut Context) -> JsResult<JsValue> {
+    // Special handling for iframe elements - create actual HTMLIFrameElement with context
+    if element.tag_name.to_uppercase() == "IFRAME" {
+        return create_iframe_element_from_parsed(element, context);
+    }
+
     let obj_constructor = context.intrinsics().constructors().object().constructor();
     let element_obj = obj_constructor.construct(&[], None, context)?;
 
@@ -328,6 +423,82 @@ fn create_element_object(element: &ParsedElement, context: &mut Context) -> JsRe
     }
 
     Ok(element_obj.into())
+}
+
+/// Create an actual HTMLIFrameElement from parsed data with proper context initialization
+fn create_iframe_element_from_parsed(element: &ParsedElement, context: &mut Context) -> JsResult<JsValue> {
+    use crate::dom::html_iframe_element::{HTMLIFrameElement, HTMLIFrameElementData, initialize_iframe_context};
+
+    eprintln!("🔲 IFRAME: Creating iframe via parseHTMLUnsafe...");
+
+    // Create HTMLIFrameElement via constructor
+    let iframe_constructor = context.intrinsics().constructors().html_iframe_element().constructor();
+    let iframe = HTMLIFrameElement::constructor(
+        &iframe_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    let iframe_obj = iframe.as_object().ok_or_else(|| {
+        boa_engine::JsNativeError::typ().with_message("Failed to create HTMLIFrameElement")
+    })?.clone();
+
+    // Apply parsed attributes to the iframe
+    if let Some(data) = iframe_obj.downcast_ref::<HTMLIFrameElementData>() {
+        for (attr_name, attr_value) in &element.attributes {
+            match attr_name.to_lowercase().as_str() {
+                "src" => {
+                    *data.get_src_mutex().lock().unwrap() = attr_value.clone();
+                }
+                "name" => {
+                    *data.get_name_mutex().lock().unwrap() = attr_value.clone();
+                }
+                "width" => {
+                    *data.get_width_mutex().lock().unwrap() = attr_value.clone();
+                }
+                "height" => {
+                    *data.get_height_mutex().lock().unwrap() = attr_value.clone();
+                }
+                "sandbox" => {
+                    *data.get_sandbox_mutex().lock().unwrap() = attr_value.clone();
+                }
+                "allow" => {
+                    *data.get_allow_mutex().lock().unwrap() = attr_value.clone();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Set attributes that need to go on the JS object (like id)
+    for (attr_name, attr_value) in &element.attributes {
+        if attr_name.to_lowercase() == "id" {
+            iframe_obj.set(
+                js_string!("id"),
+                js_string!(attr_value.as_str()),
+                false,
+                context,
+            )?;
+        }
+    }
+
+    // Initialize iframe context (creates contentWindow/contentDocument)
+    initialize_iframe_context(&iframe_obj, context)?;
+
+    eprintln!("🔲 IFRAME: Created iframe via parseHTMLUnsafe - context initialized");
+
+    // If the iframe has a src, trigger content loading
+    if let Some(src) = element.attributes.get("src") {
+        if !src.is_empty() && src != "about:blank" && !src.starts_with("about:") {
+            eprintln!("🔲 IFRAME: parseHTMLUnsafe iframe has src='{}', triggering load", src);
+            if let Err(e) = crate::dom::html_iframe_element::load_iframe_content(&iframe_obj, src, context) {
+                eprintln!("🔲 IFRAME: Load failed: {:?}", e);
+                // Don't fail iframe creation if load fails
+            }
+        }
+    }
+
+    Ok(iframe_obj.into())
 }
 
 /// Create attributes object

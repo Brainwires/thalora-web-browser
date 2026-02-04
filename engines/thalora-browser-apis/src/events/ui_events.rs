@@ -724,6 +724,7 @@ pub(crate) struct MouseEvent;
 
 impl IntrinsicObject for MouseEvent {
     fn init(realm: &Realm) {
+        // MouseEvent-specific accessors
         let client_x_func = BuiltInBuilder::callable(realm, get_client_x)
             .name(js_string!("get clientX"))
             .build();
@@ -790,7 +791,27 @@ impl IntrinsicObject for MouseEvent {
             .name(js_string!("get y"))
             .build();
 
+        // Event properties (inherited from Event, but need to be directly on MouseEvent prototype
+        // since Boa doesn't automatically set up prototype chain inheritance)
+        let type_func = BuiltInBuilder::callable(realm, get_mouse_event_type)
+            .name(js_string!("get type"))
+            .build();
+        let bubbles_func = BuiltInBuilder::callable(realm, get_mouse_event_bubbles)
+            .name(js_string!("get bubbles"))
+            .build();
+        let cancelable_func = BuiltInBuilder::callable(realm, get_mouse_event_cancelable)
+            .name(js_string!("get cancelable"))
+            .build();
+        let is_trusted_func = BuiltInBuilder::callable(realm, get_mouse_event_is_trusted)
+            .name(js_string!("get isTrusted"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            // Event properties first (for proper inheritance behavior)
+            .accessor(js_string!("type"), Some(type_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("bubbles"), Some(bubbles_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("cancelable"), Some(cancelable_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("isTrusted"), Some(is_trusted_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("clientX"), Some(client_x_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("clientY"), Some(client_y_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("screenX"), Some(screen_x_func), None, Attribute::CONFIGURABLE)
@@ -827,7 +848,7 @@ impl BuiltInObject for MouseEvent {
 
 impl BuiltInConstructor for MouseEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 43; // 21 accessors * 2 + 1 method
+    const PROTOTYPE_STORAGE_SLOTS: usize = 51; // 25 accessors * 2 + 1 method (includes type, bubbles, cancelable, isTrusted)
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1419,4 +1440,52 @@ fn get_target_ranges(this: &JsValue, _: &[JsValue], context: &mut Context) -> Js
     // Returns an empty array - StaticRange not yet implemented
     let array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
     Ok(array.into())
+}
+
+// ============================================================================
+// MouseEvent Event property accessors (for proper Event inheritance)
+// ============================================================================
+
+/// Get the event type for MouseEvent
+fn get_mouse_event_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-object")
+    })?;
+    let data = this_obj.downcast_ref::<MouseEventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-MouseEvent object")
+    })?;
+    Ok(JsValue::from(js_string!(data.ui_event.event.get_type())))
+}
+
+/// Get whether the event bubbles for MouseEvent
+fn get_mouse_event_bubbles(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-object")
+    })?;
+    let data = this_obj.downcast_ref::<MouseEventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-MouseEvent object")
+    })?;
+    Ok(JsValue::from(data.ui_event.event.get_bubbles()))
+}
+
+/// Get whether the event is cancelable for MouseEvent
+fn get_mouse_event_cancelable(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-object")
+    })?;
+    let data = this_obj.downcast_ref::<MouseEventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-MouseEvent object")
+    })?;
+    Ok(JsValue::from(data.ui_event.event.get_cancelable()))
+}
+
+/// Get whether the event is trusted for MouseEvent
+fn get_mouse_event_is_trusted(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-object")
+    })?;
+    let data = this_obj.downcast_ref::<MouseEventData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("MouseEvent method called on non-MouseEvent object")
+    })?;
+    Ok(JsValue::from(data.ui_event.event.get_is_trusted()))
 }

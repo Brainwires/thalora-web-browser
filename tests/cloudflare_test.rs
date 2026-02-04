@@ -428,3 +428,465 @@ fn test_setinterval_repeats() {
 
     assert!(count >= 3, "Interval should have fired at least 3 times, got {}", count);
 }
+
+/// Test that MouseEvent objects have proper Event properties (type, bubbles, etc.)
+#[test]
+fn test_mouse_event_has_type_property() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test creating a MouseEvent and accessing its type
+    let result = engine.execute(r#"
+        var event = new MouseEvent('click', { bubbles: true, cancelable: true });
+        event.type
+    "#).unwrap();
+
+    assert_eq!(result, serde_json::json!("click"),
+        "MouseEvent should have 'click' as its type, got {:?}", result);
+
+    // Test bubbles property
+    let result2 = engine.execute(r#"
+        var event = new MouseEvent('mousemove', { bubbles: true });
+        event.bubbles
+    "#).unwrap();
+
+    assert_eq!(result2, serde_json::json!(true),
+        "MouseEvent should have bubbles=true");
+
+    // Test isTrusted (should be false for script-created events)
+    let result3 = engine.execute(r#"
+        var event = new MouseEvent('click');
+        event.isTrusted
+    "#).unwrap();
+
+    assert_eq!(result3, serde_json::json!(false),
+        "Script-created MouseEvent should have isTrusted=false");
+}
+
+/// Test that __dispatchTrustedMouseEvent creates events with proper type property
+#[test]
+fn test_trusted_mouse_event_has_type() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Set up a click listener that captures the event
+    let result = engine.execute(r#"
+        var capturedEvent = null;
+        document.body.addEventListener('mousemove', function(e) {
+            capturedEvent = { type: e.type, isTrusted: e.isTrusted };
+        });
+        // Dispatch a trusted mouse event
+        if (typeof __dispatchTrustedMouseEvent === 'function') {
+            __dispatchTrustedMouseEvent('mousemove', 100, 100);
+        }
+        capturedEvent ? JSON.stringify(capturedEvent) : 'no event captured'
+    "#).unwrap();
+
+    eprintln!("Trusted event result: {:?}", result);
+    // The event should have been captured with type='mousemove'
+    assert!(result.to_string().contains("mousemove"),
+        "Should capture mousemove event with type, got {:?}", result);
+}
+
+/// Test that __dispatchTrustedMouseEvent is available on globalThis/window
+#[test]
+fn test_trusted_mouse_event_dispatcher_exists() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test that the function exists on window (which is globalThis)
+    let result = engine.execute(r#"
+        typeof window.__dispatchTrustedMouseEvent
+    "#).unwrap();
+
+    assert_eq!(result, serde_json::json!("function"),
+        "__dispatchTrustedMouseEvent should be a function on window, got {:?}", result);
+
+    // Also test it's the same on globalThis
+    let result2 = engine.execute(r#"
+        typeof globalThis.__dispatchTrustedMouseEvent
+    "#).unwrap();
+
+    assert_eq!(result2, serde_json::json!("function"),
+        "__dispatchTrustedMouseEvent should be a function on globalThis");
+
+    // Test that window === globalThis (browser standard)
+    let result3 = engine.execute(r#"
+        window === globalThis
+    "#).unwrap();
+
+    assert_eq!(result3, serde_json::json!(true),
+        "window should equal globalThis");
+}
+
+// ============================================================================
+// Window Hierarchy Tests - Tests for window.parent, window.top, window.frameElement
+// ============================================================================
+
+/// Test that top-level window has correct parent/top/frameElement values
+#[test]
+fn test_top_level_window_hierarchy() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test window.parent === window (top-level window)
+    let result = engine.execute(r#"
+        window.parent === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "window.parent should equal window for top-level window");
+
+    // Test window.top === window (top-level window)
+    let result = engine.execute(r#"
+        window.top === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "window.top should equal window for top-level window");
+
+    // Test window.frameElement === null (top-level window)
+    let result = engine.execute(r#"
+        window.frameElement === null
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "window.frameElement should be null for top-level window");
+
+    // Test window.self === window
+    let result = engine.execute(r#"
+        window.self === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "window.self should equal window");
+}
+
+/// Test that HTMLIFrameElement constructor is available globally
+#[test]
+fn test_html_iframe_element_global() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test HTMLIFrameElement is defined
+    let result = engine.execute(r#"
+        typeof HTMLIFrameElement
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!("function"),
+        "HTMLIFrameElement should be a function constructor");
+
+    // Test that we can create an iframe via document.createElement
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.tagName
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!("IFRAME"),
+        "createElement('iframe') should create an IFRAME element");
+}
+
+/// Test iframe contentWindow hierarchy
+#[test]
+fn test_iframe_content_window_hierarchy() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Create iframe and test its contentWindow exists
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentWindow !== null
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow should exist after creation");
+
+    // Test iframe contentWindow.parent points to the parent window
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentWindow.parent === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow.parent should equal the parent window");
+
+    // Test iframe contentWindow.top points to the top window
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentWindow.top === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow.top should equal the top-level window");
+
+    // Test iframe contentWindow.frameElement points to the iframe element
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentWindow.frameElement === iframe
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow.frameElement should equal the iframe element");
+
+    // Test iframe contentWindow is different from parent window
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentWindow !== window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow should be different from parent window");
+}
+
+/// Test nested iframe hierarchy
+#[test]
+fn test_nested_iframe_hierarchy() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test nested iframes - create iframe1, then create iframe2 in iframe1's context
+    // Note: We test the hierarchy relationships, not actual DOM nesting
+    let result = engine.execute(r#"
+        // Create first level iframe
+        const iframe1 = document.createElement('iframe');
+        const win1 = iframe1.contentWindow;
+
+        // win1.parent should be window
+        const test1 = win1.parent === window;
+
+        // win1.top should be window
+        const test2 = win1.top === window;
+
+        // win1.frameElement should be iframe1
+        const test3 = win1.frameElement === iframe1;
+
+        JSON.stringify({
+            parentIsWindow: test1,
+            topIsWindow: test2,
+            frameElementIsIframe: test3
+        })
+    "#).unwrap();
+
+    let parsed: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+    assert_eq!(parsed["parentIsWindow"], true, "iframe contentWindow.parent should be the parent window");
+    assert_eq!(parsed["topIsWindow"], true, "iframe contentWindow.top should be the top-level window");
+    assert_eq!(parsed["frameElementIsIframe"], true, "iframe contentWindow.frameElement should be the iframe");
+}
+
+/// Test iframe contentDocument exists and is linked to window
+#[test]
+fn test_iframe_content_document() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test iframe contentDocument exists
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentDocument !== null
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentDocument should exist after creation");
+
+    // Test iframe contentWindow.document exists
+    let result = engine.execute(r#"
+        const iframe = document.createElement('iframe');
+        iframe.contentWindow.document !== null
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow.document should exist");
+
+    // Note: contentWindow.document and contentDocument may be different object references
+    // in our implementation, but they represent the same document semantically.
+    // The important thing is that both exist and the iframe has a proper document.
+}
+
+/// Test iframe creation via innerHTML (Turnstile pattern)
+///
+/// This is the critical test for Turnstile support. Turnstile creates iframes via
+/// innerHTML injection, not document.createElement(). Without context-aware parsing,
+/// these iframes would lack contentWindow and contentDocument, breaking postMessage.
+#[test]
+fn test_iframe_creation_via_innerhtml() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test that iframes created via innerHTML have contentWindow
+    // Note: We access children via array-style indexing since children is an HTMLCollection
+    let result = engine.execute(r#"
+        const div = document.createElement('div');
+        div.innerHTML = '<iframe id="test-frame" src="about:blank"></iframe>';
+        const children = div.children;
+        var iframe = null;
+        // Use direct array access since HTMLCollection may not implement .item()
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (child && child.tagName === 'IFRAME') {
+                iframe = child;
+                break;
+            }
+        }
+        iframe !== null && iframe.contentWindow !== null
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe created via innerHTML should have contentWindow");
+}
+
+/// Test iframe.contentWindow.parent via innerHTML
+#[test]
+fn test_iframe_innerhtml_parent_window() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test that iframes created via innerHTML have parent set correctly
+    let result = engine.execute(r#"
+        const div = document.createElement('div');
+        div.innerHTML = '<iframe src="about:blank"></iframe>';
+        const children = div.children;
+        var iframe = null;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (child && child.tagName === 'IFRAME') {
+                iframe = child;
+                break;
+            }
+        }
+        iframe.contentWindow.parent === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow.parent should equal parent window for innerHTML-created iframes");
+}
+
+/// Test iframe.contentWindow.top via innerHTML
+#[test]
+fn test_iframe_innerhtml_top_window() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test that iframes created via innerHTML have top set correctly
+    let result = engine.execute(r#"
+        const div = document.createElement('div');
+        div.innerHTML = '<iframe></iframe>';
+        const children = div.children;
+        var iframe = null;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (child && child.tagName === 'IFRAME') {
+                iframe = child;
+                break;
+            }
+        }
+        iframe.contentWindow.top === window
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentWindow.top should equal top-level window for innerHTML-created iframes");
+}
+
+/// Test iframe.contentDocument via innerHTML
+#[test]
+fn test_iframe_innerhtml_content_document() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test that iframes created via innerHTML have contentDocument
+    let result = engine.execute(r#"
+        const div = document.createElement('div');
+        div.innerHTML = '<iframe></iframe>';
+        const children = div.children;
+        var iframe = null;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (child && child.tagName === 'IFRAME') {
+                iframe = child;
+                break;
+            }
+        }
+        iframe.contentDocument !== null
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "iframe.contentDocument should exist for innerHTML-created iframes");
+}
+
+/// Test postMessage between innerHTML-created iframe and parent
+#[test]
+fn test_iframe_innerhtml_postmessage() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test postMessage from iframe to parent
+    let result = engine.execute(r#"
+        var received = null;
+
+        // Set up message listener on parent window
+        window.addEventListener('message', function(e) {
+            received = e.data;
+        });
+
+        // Create iframe via innerHTML
+        const div = document.createElement('div');
+        div.innerHTML = '<iframe></iframe>';
+        const children = div.children;
+        var iframe = null;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (child && child.tagName === 'IFRAME') {
+                iframe = child;
+                break;
+            }
+        }
+
+        // Post message from iframe to parent
+        iframe.contentWindow.parent.postMessage('hello from iframe', '*');
+
+        // Check if message was received
+        received === 'hello from iframe'
+    "#).unwrap();
+    assert_eq!(result, serde_json::json!(true),
+        "postMessage should work from innerHTML-created iframe to parent");
+}
+
+/// Test complex Turnstile-like iframe creation pattern
+#[test]
+fn test_turnstile_iframe_pattern() {
+    use thalora::engine::create_test_engine;
+
+    let mut engine = create_test_engine().unwrap();
+
+    // Test the pattern Turnstile uses: create container, inject iframe HTML
+    let result = engine.execute(r#"
+        // Create container element (like Turnstile does)
+        const container = document.createElement('div');
+        container.id = 'cf-turnstile-container';
+
+        // Inject iframe HTML (like Turnstile does)
+        container.innerHTML = '<iframe src="https://challenges.cloudflare.com/cdn-cgi/challenge-platform/..." style="border: none; overflow: hidden; width: 300px; height: 65px;"></iframe>';
+
+        // Find the iframe
+        const children = container.children;
+        var iframe = null;
+        for (var i = 0; i < children.length; i++) {
+            var child = children[i];
+            if (child && child.tagName === 'IFRAME') {
+                iframe = child;
+                break;
+            }
+        }
+
+        // Verify iframe has proper context
+        JSON.stringify({
+            iframeExists: iframe !== null,
+            hasContentWindow: iframe && iframe.contentWindow !== null,
+            hasContentDocument: iframe && iframe.contentDocument !== null,
+            parentIsWindow: iframe && iframe.contentWindow && iframe.contentWindow.parent === window,
+            topIsWindow: iframe && iframe.contentWindow && iframe.contentWindow.top === window
+        })
+    "#).unwrap();
+
+    let parsed: serde_json::Value = serde_json::from_str(result.as_str().unwrap()).unwrap();
+    assert_eq!(parsed["iframeExists"], true, "iframe should exist");
+    assert_eq!(parsed["hasContentWindow"], true, "iframe should have contentWindow");
+    assert_eq!(parsed["hasContentDocument"], true, "iframe should have contentDocument");
+    assert_eq!(parsed["parentIsWindow"], true, "iframe contentWindow.parent should be window");
+    assert_eq!(parsed["topIsWindow"], true, "iframe contentWindow.top should be window");
+}

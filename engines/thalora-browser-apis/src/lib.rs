@@ -100,6 +100,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // Initialize Timer APIs (foundational for async operations)
     timers::timers::Timers::init(context);
 
+    // Initialize Window global functions (browser automation APIs)
+    browser::window::Window::init_globals(context);
+
     // Initialize Event APIs (foundational for DOM)
     events::event::Event::init(&realm);
     events::event_target::EventTarget::init(&realm);
@@ -965,6 +968,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // HTMLIFrameElement constructor
+    global_object.define_property_or_throw(
+        dom::html_iframe_element::HTMLIFrameElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_iframe_element::HTMLIFrameElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
     // DOMParser constructor
     global_object.define_property_or_throw(
         dom::dom_parser::DOMParser::NAME,
@@ -1327,6 +1341,20 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.set(boa_engine::js_string!("window"), global_object.clone(), false, context)
         .expect("failed to set global window");
 
+    // Register the top-level window in the window registry for iframe hierarchy support
+    // This allows iframes to find their parent window and enables proper
+    // window.parent, window.top, window.frameElement, and postMessage routing
+    let registry = browser::window_registry::get_registry();
+    let top_window_id = registry.register_top_window("about:blank".to_string()); // Origin will be updated when page loads
+    eprintln!("📋 BROWSER_INIT: Registered top-level window with ID {}", top_window_id);
+
+    // Store the window ID in the global window's WindowData if available
+    // Note: The global object acts as window, so we try to get WindowData from it
+    if let Some(window_data) = global_object.downcast_ref::<browser::window::WindowData>() {
+        window_data.set_window_id(top_window_id);
+        eprintln!("📋 BROWSER_INIT: Set window_id {} in top-level WindowData", top_window_id);
+    }
+
     // Create navigator instance manually with proper prototype and data
     let navigator_proto = global_object.get(browser::navigator::Navigator::NAME, context)?
         .as_object()
@@ -1516,6 +1544,84 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     .build();
     global_object.set(boa_engine::js_string!("postMessage"), post_message_fn, false, context)
         .expect("failed to set global postMessage");
+
+    // Add window hierarchy accessors (parent, top, frameElement, self, frames)
+    // These are needed for iframe communication support
+
+    // window.parent - returns parent window or self for top-level
+    let parent_getter = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            // Top-level window: parent === window
+            context.global_object().get(boa_engine::js_string!("window"), context)
+        }
+    )
+    .name(boa_engine::js_string!("get parent"))
+    .build();
+    global_object.define_property_or_throw(
+        boa_engine::js_string!("parent"),
+        PropertyDescriptor::builder()
+            .get(parent_getter)
+            .enumerable(true)
+            .configurable(true),
+        context,
+    )?;
+
+    // window.top - returns topmost window or self for top-level
+    let top_getter = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            // Top-level window: top === window
+            context.global_object().get(boa_engine::js_string!("window"), context)
+        }
+    )
+    .name(boa_engine::js_string!("get top"))
+    .build();
+    global_object.define_property_or_throw(
+        boa_engine::js_string!("top"),
+        PropertyDescriptor::builder()
+            .get(top_getter)
+            .enumerable(true)
+            .configurable(true),
+        context,
+    )?;
+
+    // window.frameElement - returns null for top-level window
+    let frame_element_getter = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], _context: &mut boa_engine::Context| {
+            // Top-level window: frameElement === null
+            Ok(boa_engine::JsValue::null())
+        }
+    )
+    .name(boa_engine::js_string!("get frameElement"))
+    .build();
+    global_object.define_property_or_throw(
+        boa_engine::js_string!("frameElement"),
+        PropertyDescriptor::builder()
+            .get(frame_element_getter)
+            .enumerable(true)
+            .configurable(true),
+        context,
+    )?;
+
+    // window.frames - returns window (same as self)
+    let frames_getter = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            context.global_object().get(boa_engine::js_string!("window"), context)
+        }
+    )
+    .name(boa_engine::js_string!("get frames"))
+    .build();
+    global_object.define_property_or_throw(
+        boa_engine::js_string!("frames"),
+        PropertyDescriptor::builder()
+            .get(frames_getter)
+            .enumerable(true)
+            .configurable(true),
+        context,
+    )?;
 
     // Create localStorage and sessionStorage instances
     // Storage constructor cannot be called directly, so we create instances manually

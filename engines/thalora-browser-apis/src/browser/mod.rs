@@ -12,6 +12,7 @@ pub mod permissions;
 pub mod selection;
 pub mod vibration;
 pub mod window;
+pub mod window_registry;
 
 #[cfg(test)]
 mod tests;

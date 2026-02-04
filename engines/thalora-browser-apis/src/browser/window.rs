@@ -14,6 +14,7 @@ use boa_engine::{
 };
 use crate::storage::storage::Storage;
 use crate::file::file_system::{show_open_file_picker, show_save_file_picker, show_directory_picker};
+use crate::browser::window_registry::{self, WindowId};
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -46,6 +47,14 @@ impl IntrinsicObject for Window {
 
         let screen_func = BuiltInBuilder::callable(realm, get_screen)
             .name(js_string!("get screen"))
+            .build();
+
+        let visual_viewport_func = BuiltInBuilder::callable(realm, get_visual_viewport)
+            .name(js_string!("get visualViewport"))
+            .build();
+
+        let speech_synthesis_func = BuiltInBuilder::callable(realm, get_speech_synthesis)
+            .name(js_string!("get speechSynthesis"))
             .build();
 
         let chrome_func = BuiltInBuilder::callable(realm, get_chrome)
@@ -82,12 +91,12 @@ impl IntrinsicObject for Window {
             .name(js_string!("showDirectoryPicker"))
             .build();
 
-        // Frame hierarchy accessors
-        let parent_func = BuiltInBuilder::callable(realm, get_window_self)
+        // Frame hierarchy accessors - each uses the window registry for proper hierarchy
+        let parent_func = BuiltInBuilder::callable(realm, get_window_parent)
             .name(js_string!("get parent"))
             .build();
 
-        let top_func = BuiltInBuilder::callable(realm, get_window_self)
+        let top_func = BuiltInBuilder::callable(realm, get_window_top)
             .name(js_string!("get top"))
             .build();
 
@@ -97,6 +106,10 @@ impl IntrinsicObject for Window {
 
         let frames_func = BuiltInBuilder::callable(realm, get_window_self)
             .name(js_string!("get frames"))
+            .build();
+
+        let frame_element_func = BuiltInBuilder::callable(realm, get_frame_element)
+            .name(js_string!("get frameElement"))
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
@@ -133,6 +146,18 @@ impl IntrinsicObject for Window {
             .accessor(
                 js_string!("screen"),
                 Some(screen_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("visualViewport"),
+                Some(visual_viewport_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("speechSynthesis"),
+                Some(speech_synthesis_func),
                 None,
                 Attribute::CONFIGURABLE,
             )
@@ -201,10 +226,11 @@ impl IntrinsicObject for Window {
                 0, // Number of frames
                 Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
             )
-            .property(
+            .accessor(
                 js_string!("frameElement"),
-                JsValue::null(), // null if not in an iframe
-                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+                Some(frame_element_func),
+                None,
+                Attribute::CONFIGURABLE,
             )
             .method(add_event_listener, js_string!("addEventListener"), 2)
             .method(remove_event_listener, js_string!("removeEventListener"), 2)
@@ -220,6 +246,8 @@ impl IntrinsicObject for Window {
             .method(scroll_to, js_string!("scrollTo"), 2)
             .method(scroll_to, js_string!("scroll"), 2)
             .method(scroll_by, js_string!("scrollBy"), 2)
+            // Trusted event dispatcher for browser automation
+            .method(dispatch_trusted_mouse_event, js_string!("__dispatchTrustedMouseEvent"), 3)
             // Scroll position properties
             .property(
                 js_string!("scrollX"),
@@ -284,6 +312,29 @@ impl BuiltInConstructor for Window {
     }
 }
 
+impl Window {
+    /// Initialize global Window functions that need to be directly on globalThis.
+    /// Since window === globalThis in browsers, methods like __dispatchTrustedMouseEvent
+    /// must be registered directly on the global object.
+    pub fn init_globals(context: &mut Context) {
+        use boa_engine::NativeFunction;
+
+        // Register trusted event dispatcher for browser automation
+        context
+            .register_global_builtin_callable(
+                js_string!("__dispatchTrustedMouseEvent"),
+                4, // eventType, clientX, clientY, options
+                NativeFunction::from_fn_ptr(dispatch_trusted_mouse_event_global),
+            )
+            .expect("Failed to register __dispatchTrustedMouseEvent");
+    }
+}
+
+/// Global version of dispatch_trusted_mouse_event for registration on globalThis
+fn dispatch_trusted_mouse_event_global(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    dispatch_trusted_mouse_event(_this, args, context)
+}
+
 /// Internal data for Window objects
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct WindowData {
@@ -299,6 +350,15 @@ pub struct WindowData {
     event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
     #[unsafe_ignore_trace]
     current_url: Arc<Mutex<String>>,
+    /// Window ID in the window registry for frame hierarchy tracking
+    #[unsafe_ignore_trace]
+    window_id: Arc<Mutex<Option<WindowId>>>,
+    /// Parent window reference (for iframe windows)
+    #[unsafe_ignore_trace]
+    parent_window: Arc<Mutex<Option<JsObject>>>,
+    /// Frame element that contains this window (for iframe windows)
+    #[unsafe_ignore_trace]
+    frame_element: Arc<Mutex<Option<JsObject>>>,
 }
 
 impl WindowData {
@@ -310,6 +370,9 @@ impl WindowData {
             navigator: Arc::new(Mutex::new(JsObject::default(context.intrinsics()))),
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             current_url: Arc::new(Mutex::new("about:blank".to_string())),
+            window_id: Arc::new(Mutex::new(None)),
+            parent_window: Arc::new(Mutex::new(None)),
+            frame_element: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -371,6 +434,36 @@ impl WindowData {
 
     pub fn get_current_url(&self) -> String {
         self.current_url.lock().unwrap().clone()
+    }
+
+    /// Set the window ID in the registry
+    pub fn set_window_id(&self, id: WindowId) {
+        *self.window_id.lock().unwrap() = Some(id);
+    }
+
+    /// Get the window ID in the registry
+    pub fn get_window_id(&self) -> Option<WindowId> {
+        *self.window_id.lock().unwrap()
+    }
+
+    /// Set the parent window (for iframe windows)
+    pub fn set_parent_window(&self, parent: JsObject) {
+        *self.parent_window.lock().unwrap() = Some(parent);
+    }
+
+    /// Get the parent window (for iframe windows)
+    pub fn get_parent_window(&self) -> Option<JsObject> {
+        self.parent_window.lock().unwrap().clone()
+    }
+
+    /// Set the frame element (for iframe windows)
+    pub fn set_frame_element(&self, frame: JsObject) {
+        *self.frame_element.lock().unwrap() = Some(frame);
+    }
+
+    /// Get the frame element (for iframe windows)
+    pub fn get_frame_element(&self) -> Option<JsObject> {
+        self.frame_element.lock().unwrap().clone()
     }
 }
 
@@ -896,6 +989,104 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
                     .build(),
                 context,
             )?;
+
+            // Add MediaDevices API (navigator.mediaDevices)
+            let media_devices = JsObject::default(context.intrinsics());
+
+            // enumerateDevices() - returns Promise resolving to array of MediaDeviceInfo
+            let enumerate_devices_func = BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
+                use boa_engine::object::builtins::JsPromise;
+
+                // Create realistic device list (typical desktop setup)
+                // 1. Default audio output (speakers)
+                let audio_output = JsObject::default(context.intrinsics());
+                audio_output.set(js_string!("deviceId"), js_string!("default"), false, context)?;
+                audio_output.set(js_string!("groupId"), js_string!(""), false, context)?;
+                audio_output.set(js_string!("kind"), js_string!("audiooutput"), false, context)?;
+                audio_output.set(js_string!("label"), js_string!("Default"), false, context)?;
+
+                // 2. Communications audio output
+                let comms_output = JsObject::default(context.intrinsics());
+                comms_output.set(js_string!("deviceId"), js_string!("communications"), false, context)?;
+                comms_output.set(js_string!("groupId"), js_string!(""), false, context)?;
+                comms_output.set(js_string!("kind"), js_string!("audiooutput"), false, context)?;
+                comms_output.set(js_string!("label"), js_string!("Communications"), false, context)?;
+
+                // 3. Default audio input (microphone)
+                let audio_input = JsObject::default(context.intrinsics());
+                audio_input.set(js_string!("deviceId"), js_string!("default"), false, context)?;
+                audio_input.set(js_string!("groupId"), js_string!(""), false, context)?;
+                audio_input.set(js_string!("kind"), js_string!("audioinput"), false, context)?;
+                audio_input.set(js_string!("label"), js_string!("Default"), false, context)?;
+
+                // 4. Video input (webcam) - common but may be absent
+                let video_input = JsObject::default(context.intrinsics());
+                video_input.set(js_string!("deviceId"), js_string!(""), false, context)?;
+                video_input.set(js_string!("groupId"), js_string!(""), false, context)?;
+                video_input.set(js_string!("kind"), js_string!("videoinput"), false, context)?;
+                video_input.set(js_string!("label"), js_string!(""), false, context)?;
+
+                // Create array from device list
+                let devices = Array::create_array_from_list([
+                    audio_output.into(),
+                    comms_output.into(),
+                    audio_input.into(),
+                    video_input.into(),
+                ], context);
+
+                // Return a resolved promise with the devices array
+                Ok(JsPromise::resolve(devices, context).into())
+            })
+            .name(js_string!("enumerateDevices"))
+            .length(0)
+            .build();
+
+            media_devices.set(js_string!("enumerateDevices"), enumerate_devices_func, false, context)?;
+
+            // getUserMedia() - stub that rejects (no actual camera/mic access)
+            let get_user_media_func = BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
+                use boa_engine::object::builtins::JsPromise;
+
+                // Reject with NotAllowedError (permission denied)
+                let error = JsNativeError::typ()
+                    .with_message("Permission denied");
+
+                Ok(JsPromise::reject(error, context).into())
+            })
+            .name(js_string!("getUserMedia"))
+            .length(1)
+            .build();
+
+            media_devices.set(js_string!("getUserMedia"), get_user_media_func, false, context)?;
+
+            // getDisplayMedia() - stub that rejects
+            let get_display_media_func = BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
+                use boa_engine::object::builtins::JsPromise;
+
+                let error = JsNativeError::typ()
+                    .with_message("Permission denied");
+
+                Ok(JsPromise::reject(error, context).into())
+            })
+            .name(js_string!("getDisplayMedia"))
+            .length(1)
+            .build();
+
+            media_devices.set(js_string!("getDisplayMedia"), get_display_media_func, false, context)?;
+
+            // Add ondevicechange event handler placeholder
+            media_devices.set(js_string!("ondevicechange"), JsValue::null(), false, context)?;
+
+            navigator.define_property_or_throw(
+                js_string!("mediaDevices"),
+                PropertyDescriptorBuilder::new()
+                    .configurable(false)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(media_devices)
+                    .build(),
+                context,
+            )?;
         } else {
             eprintln!("🔍 DEBUG: navigator already has userAgent, using existing object");
         }
@@ -1405,6 +1596,30 @@ fn extract_numeric_value(feature: &str, property: &str) -> Option<u32> {
     None
 }
 
+/// Extract the origin from a URL string
+/// Returns scheme://host:port format, or "null" for invalid URLs
+fn extract_origin(url: &str) -> String {
+    // Handle special cases
+    if url.is_empty() || url == "about:blank" {
+        return "null".to_string();
+    }
+
+    // Find the scheme
+    if let Some(scheme_end) = url.find("://") {
+        let scheme = &url[..scheme_end];
+        let after_scheme = &url[scheme_end + 3..];
+
+        // Find the host (up to the first / or end of string)
+        let host_end = after_scheme.find('/').unwrap_or(after_scheme.len());
+        let host_with_port = &after_scheme[..host_end];
+
+        // Construct origin
+        format!("{}://{}", scheme, host_with_port)
+    } else {
+        "null".to_string()
+    }
+}
+
 /// Internal data for MediaQueryList objects
 /// Stores the media query string, match state, and event listeners
 #[derive(Debug, Trace, Finalize, JsData)]
@@ -1714,6 +1929,223 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     Ok(screen.into())
 }
 
+/// `Window.prototype.visualViewport` getter - VisualViewport API
+/// https://drafts.csswg.org/cssom-view/#visualviewport
+fn get_visual_viewport(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Check if we already have a visualViewport object in global scope
+    if let Ok(existing) = context.global_object().get(js_string!("_visualViewport"), context) {
+        if !existing.is_undefined() {
+            return Ok(existing);
+        }
+    }
+
+    // Create VisualViewport object
+    let viewport = JsObject::default(context.intrinsics());
+
+    // Viewport dimensions (typical desktop values)
+    let width = 1920.0_f64;
+    let height = 1080.0_f64;
+
+    // Define viewport properties (read-only)
+    viewport.define_property_or_throw(
+        js_string!("width"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(width)
+            .build(),
+        context,
+    )?;
+
+    viewport.define_property_or_throw(
+        js_string!("height"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(height)
+            .build(),
+        context,
+    )?;
+
+    viewport.define_property_or_throw(
+        js_string!("offsetLeft"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(0.0)
+            .build(),
+        context,
+    )?;
+
+    viewport.define_property_or_throw(
+        js_string!("offsetTop"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(0.0)
+            .build(),
+        context,
+    )?;
+
+    viewport.define_property_or_throw(
+        js_string!("pageLeft"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(0.0)
+            .build(),
+        context,
+    )?;
+
+    viewport.define_property_or_throw(
+        js_string!("pageTop"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(0.0)
+            .build(),
+        context,
+    )?;
+
+    viewport.define_property_or_throw(
+        js_string!("scale"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(1.0)
+            .build(),
+        context,
+    )?;
+
+    // Event handlers (null by default)
+    viewport.set(js_string!("onresize"), JsValue::null(), false, context)?;
+    viewport.set(js_string!("onscroll"), JsValue::null(), false, context)?;
+    viewport.set(js_string!("onscrollend"), JsValue::null(), false, context)?;
+
+    // Cache it for future calls
+    context.global_object().set(
+        js_string!("_visualViewport"),
+        viewport.clone(),
+        false,
+        context,
+    )?;
+
+    Ok(viewport.into())
+}
+
+/// `Window.prototype.speechSynthesis` getter - Web Speech API
+/// https://wicg.github.io/speech-api/#tts-section
+fn get_speech_synthesis(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use boa_engine::object::builtins::JsPromise;
+
+    // Check if we already have a speechSynthesis object in global scope
+    if let Ok(existing) = context.global_object().get(js_string!("_speechSynthesis"), context) {
+        if !existing.is_undefined() {
+            return Ok(existing);
+        }
+    }
+
+    // Create SpeechSynthesis object
+    let speech = JsObject::default(context.intrinsics());
+
+    // Properties
+    speech.define_property_or_throw(
+        js_string!("pending"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(false)
+            .build(),
+        context,
+    )?;
+
+    speech.define_property_or_throw(
+        js_string!("speaking"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(false)
+            .build(),
+        context,
+    )?;
+
+    speech.define_property_or_throw(
+        js_string!("paused"),
+        PropertyDescriptorBuilder::new()
+            .configurable(false)
+            .enumerable(true)
+            .writable(false)
+            .value(false)
+            .build(),
+        context,
+    )?;
+
+    // Methods (stubs that do nothing but exist)
+    let speak_func = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        Ok(JsValue::undefined())
+    })
+    .name(js_string!("speak"))
+    .length(1)
+    .build();
+    speech.set(js_string!("speak"), speak_func, false, context)?;
+
+    let cancel_func = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        Ok(JsValue::undefined())
+    })
+    .name(js_string!("cancel"))
+    .length(0)
+    .build();
+    speech.set(js_string!("cancel"), cancel_func, false, context)?;
+
+    let pause_func = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        Ok(JsValue::undefined())
+    })
+    .name(js_string!("pause"))
+    .length(0)
+    .build();
+    speech.set(js_string!("pause"), pause_func, false, context)?;
+
+    let resume_func = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        Ok(JsValue::undefined())
+    })
+    .name(js_string!("resume"))
+    .length(0)
+    .build();
+    speech.set(js_string!("resume"), resume_func, false, context)?;
+
+    // getVoices() returns empty array (no voices available)
+    let get_voices_func = BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
+        use boa_engine::builtins::array::Array;
+        Ok(Array::create_array_from_list([], context).into())
+    })
+    .name(js_string!("getVoices"))
+    .length(0)
+    .build();
+    speech.set(js_string!("getVoices"), get_voices_func, false, context)?;
+
+    // Event handlers (null by default)
+    speech.set(js_string!("onvoiceschanged"), JsValue::null(), false, context)?;
+
+    // Cache it for future calls
+    context.global_object().set(
+        js_string!("_speechSynthesis"),
+        speech.clone(),
+        false,
+        context,
+    )?;
+
+    Ok(speech.into())
+}
+
 /// Global storage for screen orientation lock state
 /// In a headless browser, we simulate orientation locking by tracking the state
 static SCREEN_ORIENTATION_LOCK: std::sync::OnceLock<Mutex<Option<String>>> = std::sync::OnceLock::new();
@@ -1955,9 +2387,78 @@ fn get_chrome(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     )?;
 
     // Add csi method (Chrome Speed Index)
-    let csi_func = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-        // Return empty object for CSI data
-        Ok(JsValue::undefined())
+    // Returns timing data: startE, onloadT, pageT, tran
+    let csi_func = BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let csi = JsObject::default(context.intrinsics());
+
+        // Get current time in milliseconds since epoch
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as f64;
+
+        // startE: NavigationStart timestamp (when browsing started)
+        // Simulate page loaded ~1-3 seconds ago
+        let start_e = now_ms - rand::random::<f64>() * 2000.0 - 1000.0;
+
+        // onloadT: DOMContentLoaded timestamp
+        // Should be after startE, typically 100-800ms later
+        let onload_t = start_e + rand::random::<f64>() * 700.0 + 100.0;
+
+        // pageT: Time since navigation start (in ms with microsecond precision)
+        let page_t = now_ms - start_e;
+
+        // tran: Navigation type (15 = navigate, 0 = reload, 1 = back/forward)
+        // Most common is navigate (15)
+        let tran = 15i32;
+
+        csi.define_property_or_throw(
+            js_string!("startE"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(start_e)
+                .build(),
+            context,
+        )?;
+
+        csi.define_property_or_throw(
+            js_string!("onloadT"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(onload_t)
+                .build(),
+            context,
+        )?;
+
+        csi.define_property_or_throw(
+            js_string!("pageT"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(page_t)
+                .build(),
+            context,
+        )?;
+
+        csi.define_property_or_throw(
+            js_string!("tran"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(tran)
+                .build(),
+            context,
+        )?;
+
+        Ok(csi.into())
     })
     .name(js_string!("csi"))
     .build();
@@ -2355,12 +2856,73 @@ fn computed_style_get_property_value(this: &JsValue, args: &[JsValue], context: 
 /// `window.postMessage(message, targetOrigin, transfer)` implementation
 /// Sends a cross-origin message to another window (or the same window)
 /// https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
-fn post_message(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let message = args.get_or_undefined(0).clone();
     let target_origin = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
     let _transfer = args.get(2); // Optional transferable objects (not fully implemented)
 
-    eprintln!("DEBUG: postMessage called with targetOrigin: {}", target_origin);
+    eprintln!("📨 postMessage called with targetOrigin: {}", target_origin);
+
+    // Determine the target window - `this` is the window we're sending to
+    // e.g., iframe.contentWindow.postMessage() - `this` is the iframe's contentWindow
+    // e.g., window.parent.postMessage() - `this` is the parent window
+    let target_window = if let Some(this_obj) = this.as_object() {
+        if this_obj.is::<WindowData>() {
+            this_obj.clone()
+        } else {
+            // Fallback to global window if `this` is not a Window
+            if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+                if let Some(w) = window_val.as_object() {
+                    w.clone()
+                } else {
+                    return Ok(JsValue::undefined());
+                }
+            } else {
+                return Ok(JsValue::undefined());
+            }
+        }
+    } else {
+        // Fallback to global window
+        if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+            if let Some(w) = window_val.as_object() {
+                w.clone()
+            } else {
+                return Ok(JsValue::undefined());
+            }
+        } else {
+            return Ok(JsValue::undefined());
+        }
+    };
+
+    // Get the source window (the window calling postMessage)
+    let source_window = context.global_object().get(js_string!("window"), context)?;
+
+    // Get the source origin - try WindowData first, then fall back to registry's top-level
+    let registry = window_registry::get_registry();
+    let source_origin = if let Some(source_obj) = source_window.as_object() {
+        // Try to get window_id from WindowData
+        if let Some(window_data) = source_obj.downcast_ref::<WindowData>() {
+            if let Some(source_id) = window_data.get_window_id() {
+                registry.get_origin(source_id).unwrap_or_else(|| {
+                    extract_origin(&window_data.get_current_url())
+                })
+            } else {
+                // Window doesn't have ID set - use current URL
+                extract_origin(&window_data.get_current_url())
+            }
+        } else {
+            // Not a WindowData (likely the global object) - use top-level ID
+            if let Some(top_id) = registry.get_top_level_id() {
+                registry.get_origin(top_id).unwrap_or_else(|| "null".to_string())
+            } else {
+                "null".to_string()
+            }
+        }
+    } else {
+        "null".to_string()
+    };
+
+    eprintln!("📨 postMessage: source_origin={}, target_origin={}", source_origin, target_origin);
 
     // Create a MessageEvent with the posted message
     let message_event_constructor = context.intrinsics().constructors().message_event().constructor();
@@ -2368,8 +2930,8 @@ fn post_message(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     // Create event init object
     let event_init = JsObject::default(context.intrinsics());
     event_init.set(js_string!("data"), message.clone(), false, context)?;
-    event_init.set(js_string!("origin"), js_string!(target_origin.clone()), false, context)?;
-    event_init.set(js_string!("source"), JsValue::null(), false, context)?;
+    event_init.set(js_string!("origin"), js_string!(source_origin.clone()), false, context)?;
+    event_init.set(js_string!("source"), source_window.clone(), false, context)?;
     event_init.set(js_string!("bubbles"), JsValue::from(false), false, context)?;
     event_init.set(js_string!("cancelable"), JsValue::from(false), false, context)?;
 
@@ -2385,36 +2947,181 @@ fn post_message(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         context,
     )?;
 
-    // In a real browser, this would be dispatched asynchronously to the target window
-    // For now, we dispatch it to the current window's event listeners immediately
-    // This is a simplified implementation that handles same-origin messages
-
-    // Get the window object to dispatch the event
-    if let Ok(window_obj) = context.global_object().get(js_string!("window"), context) {
-        if let Some(window) = window_obj.as_object() {
-            if let Some(window_data) = window.downcast_ref::<WindowData>() {
-                // Get message event listeners
-                let listeners = window_data.event_listeners.lock().unwrap();
-                if let Some(message_listeners) = listeners.get("message") {
-                    for listener in message_listeners {
-                        // Call each listener with the message event using the callable interface
-                        if let Some(callable) = listener.as_callable() {
-                            let _ = callable.call(&window_obj, &[message_event.clone()], context);
-                        }
-                    }
+    // Dispatch to the TARGET window's listeners
+    if let Some(target_data) = target_window.downcast_ref::<WindowData>() {
+        // Get message event listeners from target window
+        let listeners = target_data.event_listeners.lock().unwrap();
+        if let Some(message_listeners) = listeners.get("message") {
+            eprintln!("📨 postMessage: dispatching to {} listeners on target window", message_listeners.len());
+            for listener in message_listeners {
+                // Call each listener with the message event
+                if let Some(callable) = listener.as_callable() {
+                    let target_window_value: JsValue = target_window.clone().into();
+                    let _ = callable.call(&target_window_value, &[message_event.clone()], context);
                 }
             }
+        } else {
+            eprintln!("📨 postMessage: no 'message' listeners on target window");
         }
+    } else {
+        eprintln!("📨 postMessage: target is not a WindowData object");
     }
 
     Ok(JsValue::undefined())
 }
 
-/// Getter for `window.self`, `window.parent`, `window.top`, `window.frames`
-/// Returns the window object itself (for top-level window context)
+/// Getter for `window.self` and `window.frames`
+/// Returns the current window object
 fn get_window_self(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Return the global window object
     context.global_object().get(js_string!("window"), context)
+}
+
+/// Getter for `window.parent`
+/// Returns the parent window, or self if this is a top-level window
+fn get_window_parent(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Try to get window from `this` first
+    let current_window = if let Some(this_obj) = this.as_object() {
+        if this_obj.is::<WindowData>() {
+            this_obj.clone()
+        } else {
+            // Fallback to global window
+            if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+                if let Some(w) = window_val.as_object() {
+                    w.clone()
+                } else {
+                    return context.global_object().get(js_string!("window"), context);
+                }
+            } else {
+                return Ok(JsValue::undefined());
+            }
+        }
+    } else {
+        // Fallback to global window
+        if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+            if let Some(w) = window_val.as_object() {
+                w.clone()
+            } else {
+                return context.global_object().get(js_string!("window"), context);
+            }
+        } else {
+            return Ok(JsValue::undefined());
+        }
+    };
+
+    // Try to get parent from WindowData
+    if let Some(window_data) = current_window.downcast_ref::<WindowData>() {
+        if let Some(parent) = window_data.get_parent_window() {
+            eprintln!("📋 WINDOW: window.parent returning parent window");
+            return Ok(parent.into());
+        }
+    }
+
+    // No parent found, return self (this is how browsers behave for top-level windows)
+    Ok(current_window.into())
+}
+
+/// Getter for `window.top`
+/// Returns the topmost window in the hierarchy
+fn get_window_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Try to get window from `this` first
+    let current_window = if let Some(this_obj) = this.as_object() {
+        if this_obj.is::<WindowData>() {
+            this_obj.clone()
+        } else {
+            // Fallback to global window
+            if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+                if let Some(w) = window_val.as_object() {
+                    w.clone()
+                } else {
+                    return context.global_object().get(js_string!("window"), context);
+                }
+            } else {
+                return Ok(JsValue::undefined());
+            }
+        }
+    } else {
+        // Fallback to global window
+        if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+            if let Some(w) = window_val.as_object() {
+                w.clone()
+            } else {
+                return context.global_object().get(js_string!("window"), context);
+            }
+        } else {
+            return Ok(JsValue::undefined());
+        }
+    };
+
+    // Walk up the parent chain to find the topmost window
+    let mut top_window = current_window.clone();
+    let mut visited_count = 0;
+    const MAX_DEPTH: usize = 100; // Prevent infinite loops
+
+    while visited_count < MAX_DEPTH {
+        // Get parent from WindowData, if any
+        let next_parent = top_window
+            .downcast_ref::<WindowData>()
+            .and_then(|window_data| window_data.get_parent_window());
+
+        if let Some(parent) = next_parent {
+            top_window = parent;
+            visited_count += 1;
+        } else {
+            // No parent means we've reached the top (or not a WindowData object)
+            break;
+        }
+    }
+
+    if visited_count > 0 {
+        eprintln!("📋 WINDOW: window.top returning top window (depth: {})", visited_count);
+    }
+
+    Ok(top_window.into())
+}
+
+/// Getter for `window.frameElement`
+/// Returns the iframe element that contains this window, or null if top-level
+fn get_frame_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Try to get window from `this` first
+    let current_window = if let Some(this_obj) = this.as_object() {
+        if this_obj.is::<WindowData>() {
+            this_obj.clone()
+        } else {
+            // Fallback to global window
+            if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+                if let Some(w) = window_val.as_object() {
+                    w.clone()
+                } else {
+                    return Ok(JsValue::null());
+                }
+            } else {
+                return Ok(JsValue::null());
+            }
+        }
+    } else {
+        // Fallback to global window
+        if let Ok(window_val) = context.global_object().get(js_string!("window"), context) {
+            if let Some(w) = window_val.as_object() {
+                w.clone()
+            } else {
+                return Ok(JsValue::null());
+            }
+        } else {
+            return Ok(JsValue::null());
+        }
+    };
+
+    // Try to get frame element from WindowData
+    if let Some(window_data) = current_window.downcast_ref::<WindowData>() {
+        if let Some(frame_element) = window_data.get_frame_element() {
+            eprintln!("📋 WINDOW: window.frameElement returning iframe element");
+            return Ok(frame_element.into());
+        }
+    }
+
+    // No frame element found, return null (top-level window)
+    Ok(JsValue::null())
 }
 
 /// Scrolls the window to a particular position
@@ -2510,4 +3217,142 @@ fn scroll_by(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
     }
 
     Ok(JsValue::undefined())
+}
+
+/// `window.__dispatchTrustedMouseEvent(eventType, clientX, clientY, options?)`
+///
+/// Dispatches a TRUSTED mouse event to the element at the given coordinates.
+/// This is a browser-internal API for automation that creates events with isTrusted: true.
+///
+/// Parameters:
+/// - eventType: 'click', 'mousedown', 'mouseup', 'mousemove', 'mouseover', 'mouseout', etc.
+/// - clientX: X coordinate relative to viewport
+/// - clientY: Y coordinate relative to viewport
+/// - options (optional): { button: 0, buttons: 1, ctrlKey: false, ... }
+///
+/// Returns: true if event was dispatched, false otherwise
+fn dispatch_trusted_mouse_event(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use crate::events::ui_events::MouseEventData;
+    use crate::events::event::EventData;
+
+    // Get event type
+    let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+
+    eprintln!("🖱️ TRUSTED EVENT: Dispatching '{}' at ({}, {})", event_type,
+        args.get_or_undefined(1).to_number(context).unwrap_or(0.0),
+        args.get_or_undefined(2).to_number(context).unwrap_or(0.0));
+
+    // Get coordinates
+    let client_x = args.get_or_undefined(1).to_number(context)? as f64;
+    let client_y = args.get_or_undefined(2).to_number(context)? as f64;
+
+    // Get optional parameters
+    let options = args.get_or_undefined(3);
+    let (button, buttons, ctrl_key, shift_key, alt_key, meta_key) = if options.is_object() {
+        let opts = options.as_object().unwrap();
+        let button = opts.get(js_string!("button"), context)
+            .map(|v| v.to_i32(context).unwrap_or(0) as i16)
+            .unwrap_or(0);
+        let buttons = opts.get(js_string!("buttons"), context)
+            .map(|v| v.to_u32(context).unwrap_or(0) as u16)
+            .unwrap_or(if event_type.contains("down") || event_type == "click" { 1 } else { 0 });
+        let ctrl_key = opts.get(js_string!("ctrlKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let shift_key = opts.get(js_string!("shiftKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let alt_key = opts.get(js_string!("altKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        let meta_key = opts.get(js_string!("metaKey"), context)
+            .map(|v| v.to_boolean())
+            .unwrap_or(false);
+        (button, buttons, ctrl_key, shift_key, alt_key, meta_key)
+    } else {
+        let buttons = if event_type.contains("down") || event_type == "click" { 1 } else { 0 };
+        (0, buttons, false, false, false, false)
+    };
+
+    // Determine event properties
+    let (bubbles, cancelable) = match event_type.as_str() {
+        "click" | "dblclick" | "mousedown" | "mouseup" | "mousemove"
+        | "mouseover" | "mouseout" | "mouseenter" | "mouseleave" => (true, true),
+        _ => (true, false),
+    };
+
+    // Create trusted mouse event data
+    let mut mouse_event = MouseEventData::new_trusted_with_coords(
+        event_type.clone(),
+        bubbles,
+        cancelable,
+        client_x,        // client_x
+        client_y,        // client_y
+        client_x,        // screen_x (same as clientX for simplicity)
+        client_y,        // screen_y (same as clientY for simplicity)
+        client_x,        // page_x
+        client_y,        // page_y
+        0.0,             // movement_x
+        0.0,             // movement_y
+        button,
+        buttons,
+    );
+    mouse_event.ctrl_key = ctrl_key;
+    mouse_event.shift_key = shift_key;
+    mouse_event.alt_key = alt_key;
+    mouse_event.meta_key = meta_key;
+
+    // Create the JS MouseEvent object
+    // We need to get the MouseEvent.prototype object (what instances inherit from),
+    // not the constructor's own prototype. The standard_constructor().prototype() returns
+    // the correct prototype that was set up by IntrinsicObject::init().
+    let prototype = context.intrinsics().constructors().mouse_event().prototype();
+    let event_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        prototype,
+        mouse_event,
+    );
+
+    // Find target element using document.elementFromPoint
+    let document = context.global_object().get(js_string!("document"), context)?;
+    if let Some(doc_obj) = document.as_object() {
+        // Call elementFromPoint to get target
+        if let Ok(efp) = doc_obj.get(js_string!("elementFromPoint"), context) {
+            if let Some(efp_func) = efp.as_callable() {
+                let target = efp_func.call(
+                    &document,
+                    &[JsValue::from(client_x), JsValue::from(client_y)],
+                    context,
+                )?;
+
+                if target.is_object() {
+                    // Dispatch event to target
+                    if let Some(target_obj) = target.as_object() {
+                        if let Ok(dispatch_fn) = target_obj.get(js_string!("dispatchEvent"), context) {
+                            if let Some(dispatch) = dispatch_fn.as_callable() {
+                                let result = dispatch.call(&target, &[event_obj.into()], context)?;
+                                return Ok(result);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: dispatch to document.body
+    if let Some(doc_obj) = document.as_object() {
+        if let Ok(body) = doc_obj.get(js_string!("body"), context) {
+            if let Some(body_obj) = body.as_object() {
+                if let Ok(dispatch_fn) = body_obj.get(js_string!("dispatchEvent"), context) {
+                    if let Some(dispatch) = dispatch_fn.as_callable() {
+                        let result = dispatch.call(&body, &[event_obj.into()], context)?;
+                        return Ok(result);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(JsValue::from(false))
 }

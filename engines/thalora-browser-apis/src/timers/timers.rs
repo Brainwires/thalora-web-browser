@@ -16,23 +16,22 @@ use boa_engine::{
     js_string,
 };
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use once_cell::sync::Lazy;
+use std::cell::RefCell;
 
-/// Global timer storage - stores timer info (without callbacks due to thread-safety)
-static TIMERS: Lazy<Arc<Mutex<HashMap<u32, TimerInfo>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
-
-/// Next timer ID
-static NEXT_TIMER_ID: Lazy<Arc<Mutex<u32>>> =
-    Lazy::new(|| Arc::new(Mutex::new(1)));
-
-/// Timer callbacks stored separately (JsObject is not Send/Sync, so context-local)
-/// This is stored in the JS context via a global variable
+/// Thread-local timer storage for complete test isolation.
+/// All timer data (metadata, callbacks, and ID counter) is thread-local
+/// to ensure tests running in parallel don't interfere with each other.
 thread_local! {
-    static TIMER_CALLBACKS: std::cell::RefCell<HashMap<u32, (JsObject, Vec<JsValue>)>> =
-        std::cell::RefCell::new(HashMap::new());
+    /// Timer metadata storage (ID -> TimerInfo)
+    static TIMERS: RefCell<HashMap<u32, TimerInfo>> = RefCell::new(HashMap::new());
+
+    /// Next timer ID counter (starts at 1)
+    static NEXT_TIMER_ID: RefCell<u32> = const { RefCell::new(1) };
+
+    /// Timer callbacks (JsObject is not Send/Sync, so must be thread-local)
+    static TIMER_CALLBACKS: RefCell<HashMap<u32, (JsObject, Vec<JsValue>)>> =
+        RefCell::new(HashMap::new());
 }
 
 /// Timer information (metadata only - callback stored separately)
@@ -171,12 +170,12 @@ impl Timers {
         };
 
         // Generate timer ID
-        let timer_id = {
-            let mut next_id = NEXT_TIMER_ID.lock().unwrap();
-            let id = *next_id;
-            *next_id += 1;
+        let timer_id = NEXT_TIMER_ID.with(|next_id| {
+            let mut id_ref = next_id.borrow_mut();
+            let id = *id_ref;
+            *id_ref += 1;
             id
-        };
+        });
 
         // Store timer info (16ms delay to simulate ~60fps)
         let timer_info = TimerInfo {
@@ -187,10 +186,9 @@ impl Timers {
             active: true,
         };
 
-        {
-            let mut timers = TIMERS.lock().unwrap();
-            timers.insert(timer_id, timer_info);
-        }
+        TIMERS.with(|timers| {
+            timers.borrow_mut().insert(timer_id, timer_info);
+        });
 
         // Store callback in thread-local storage
         // RAF callbacks receive a DOMHighResTimeStamp (milliseconds since page load)
@@ -258,12 +256,12 @@ impl Timers {
         };
 
         // Generate timer ID
-        let timer_id = {
-            let mut next_id = NEXT_TIMER_ID.lock().unwrap();
-            let id = *next_id;
-            *next_id += 1;
+        let timer_id = NEXT_TIMER_ID.with(|next_id| {
+            let mut id_ref = next_id.borrow_mut();
+            let id = *id_ref;
+            *id_ref += 1;
             id
-        };
+        });
 
         // Store timer info with minimal delay (1ms for idle callbacks)
         let timer_info = TimerInfo {
@@ -274,10 +272,9 @@ impl Timers {
             active: true,
         };
 
-        {
-            let mut timers = TIMERS.lock().unwrap();
-            timers.insert(timer_id, timer_info);
-        }
+        TIMERS.with(|timers| {
+            timers.borrow_mut().insert(timer_id, timer_info);
+        });
 
         // Create IdleDeadline-like object to pass to callback
         // For simplicity, we'll pass an object with timeRemaining() and didTimeout
@@ -337,12 +334,12 @@ impl Timers {
         };
 
         // Generate timer ID
-        let timer_id = {
-            let mut next_id = NEXT_TIMER_ID.lock().unwrap();
-            let id = *next_id;
-            *next_id += 1;
+        let timer_id = NEXT_TIMER_ID.with(|next_id| {
+            let mut id_ref = next_id.borrow_mut();
+            let id = *id_ref;
+            *id_ref += 1;
             id
-        };
+        });
 
         // Store timer metadata
         let timer_info = TimerInfo {
@@ -353,10 +350,9 @@ impl Timers {
             active: true,
         };
 
-        {
-            let mut timers = TIMERS.lock().unwrap();
-            timers.insert(timer_id, timer_info);
-        }
+        TIMERS.with(|timers| {
+            timers.borrow_mut().insert(timer_id, timer_info);
+        });
 
         // Store callback in thread-local storage
         TIMER_CALLBACKS.with(|callbacks| {
@@ -375,10 +371,9 @@ impl Timers {
         let timer_id = args.get_or_undefined(0).to_u32(context)?;
 
         // Remove timer from metadata storage
-        {
-            let mut timers = TIMERS.lock().unwrap();
-            timers.remove(&timer_id);
-        }
+        TIMERS.with(|timers| {
+            timers.borrow_mut().remove(&timer_id);
+        });
 
         // Remove callback from thread-local storage
         TIMER_CALLBACKS.with(|callbacks| {
@@ -399,9 +394,9 @@ impl Timers {
         let mut to_remove: Vec<u32> = Vec::new();
 
         // First pass: find due timers
-        {
-            let timers = TIMERS.lock().unwrap();
-            for (id, info) in timers.iter() {
+        TIMERS.with(|timers| {
+            let timers_ref = timers.borrow();
+            for (id, info) in timers_ref.iter() {
                 if !info.active {
                     continue;
                 }
@@ -418,7 +413,7 @@ impl Timers {
                     }
                 }
             }
-        }
+        });
 
         // Execute callbacks
         for timer_id in to_execute {
@@ -441,15 +436,15 @@ impl Timers {
         }
 
         // Update timer storage
-        {
-            let mut timers = TIMERS.lock().unwrap();
+        TIMERS.with(|timers| {
+            let mut timers_ref = timers.borrow_mut();
             for id in &to_remove {
-                timers.remove(id);
+                timers_ref.remove(id);
             }
             for (id, info) in to_reschedule {
-                timers.insert(id, info);
+                timers_ref.insert(id, info);
             }
-        }
+        });
 
         // Remove non-repeating timer callbacks
         TIMER_CALLBACKS.with(|callbacks| {
@@ -464,43 +459,39 @@ impl Timers {
 
     /// Check if any timers are pending (for event loop to know if it should keep running)
     pub fn has_pending_timers() -> bool {
-        let timers = TIMERS.lock().unwrap();
-        !timers.is_empty()
+        TIMERS.with(|timers| !timers.borrow().is_empty())
     }
 
     /// Get count of pending timers
     pub fn pending_timers_count() -> usize {
-        let timers = TIMERS.lock().unwrap();
-        timers.len()
+        TIMERS.with(|timers| timers.borrow().len())
     }
 
     /// Get timer info (for testing)
     #[cfg(test)]
     pub fn get_timer_info(timer_id: u32) -> Option<TimerInfo> {
-        let timers = TIMERS.lock().unwrap();
-        timers.get(&timer_id).cloned()
+        TIMERS.with(|timers| timers.borrow().get(&timer_id).cloned())
     }
 
     /// Get all active timers count (for testing)
     #[cfg(test)]
     pub fn active_timers_count() -> usize {
-        let timers = TIMERS.lock().unwrap();
-        timers.len()
+        TIMERS.with(|timers| timers.borrow().len())
     }
 
     /// Clear all timers (for testing)
     #[cfg(test)]
     pub fn clear_all_timers() {
-        {
-            let mut timers = TIMERS.lock().unwrap();
-            timers.clear();
-        }
+        TIMERS.with(|timers| {
+            timers.borrow_mut().clear();
+        });
         // Clear callbacks
         TIMER_CALLBACKS.with(|callbacks| {
             callbacks.borrow_mut().clear();
         });
         // Reset the timer ID counter
-        let mut next_id = NEXT_TIMER_ID.lock().unwrap();
-        *next_id = 1;
+        NEXT_TIMER_ID.with(|next_id| {
+            *next_id.borrow_mut() = 1;
+        });
     }
 }

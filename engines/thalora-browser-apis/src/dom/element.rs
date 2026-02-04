@@ -890,6 +890,35 @@ impl ElementData {
         elements
     }
 
+    /// Set innerHTML with context - needed for proper iframe creation
+    /// When iframes are parsed via innerHTML, they need a Context to initialize
+    /// their contentWindow and contentDocument properly
+    pub fn set_inner_html_with_context(&self, html: String, context: &mut Context) -> JsResult<()> {
+        *self.inner_html.lock().unwrap() = html.clone();
+
+        // Parse HTML and update DOM tree with context awareness for iframes
+        self.parse_and_update_children_with_context(&html, context)?;
+
+        // Recompute text content from parsed children
+        self.recompute_text_content();
+
+        // CRITICAL: Update the document's HTML content so querySelector can find changes
+        self.update_document_html_content();
+
+        Ok(())
+    }
+
+    /// Parse HTML string and create child elements with context (for iframe support)
+    fn parse_and_update_children_with_context(&self, html: &str, context: &mut Context) -> JsResult<()> {
+        let parsed_elements = parse_html_elements_with_context(html, context)?;
+
+        let mut children = self.children.lock().unwrap();
+        children.clear();
+        children.extend(parsed_elements);
+
+        Ok(())
+    }
+
     /// Recompute text content from all child text nodes
     fn recompute_text_content(&self) {
         let children = self.children.lock().unwrap();
@@ -1587,6 +1616,196 @@ impl ElementData {
     }
 }
 
+// ============================================================================
+// Context-aware HTML parsing for iframe support
+// ============================================================================
+
+/// Parse HTML string and create elements, properly handling iframes with context initialization
+///
+/// When parsing `<iframe>` tags via innerHTML, this function creates proper HTMLIFrameElement
+/// instances with their contentWindow and contentDocument initialized, enabling:
+/// - postMessage communication between windows
+/// - window.parent/top/frameElement navigation
+/// - Proper browsing context for Turnstile and similar scripts
+pub fn parse_html_elements_with_context(
+    html: &str,
+    context: &mut Context,
+) -> JsResult<Vec<JsObject>> {
+    let mut elements = Vec::new();
+    let mut current_pos = 0;
+    let html_bytes = html.as_bytes();
+
+    while current_pos < html_bytes.len() {
+        if html_bytes[current_pos] == b'<' {
+            // Find end of tag
+            if let Some(tag_end) = html[current_pos..].find('>') {
+                let tag_content = &html[current_pos + 1..current_pos + tag_end];
+
+                if !tag_content.starts_with('/') { // Not a closing tag
+                    // Parse opening tag
+                    let parts: Vec<&str> = tag_content.split_whitespace().collect();
+                    if let Some(tag_name) = parts.first() {
+                        let tag_upper = tag_name.to_uppercase();
+
+                        // Handle IFRAME specially - create with full context
+                        if tag_upper == "IFRAME" {
+                            let iframe = create_parsed_iframe(&parts[1..], context)?;
+                            elements.push(iframe);
+                        } else {
+                            // Create normal element
+                            let element_data = ElementData::with_tag_name(tag_upper);
+
+                            // Parse attributes
+                            for attr_part in parts.iter().skip(1) {
+                                if let Some(eq_pos) = attr_part.find('=') {
+                                    let attr_name = &attr_part[..eq_pos];
+                                    let attr_value = &attr_part[eq_pos + 1..].trim_matches('"');
+                                    element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
+                                }
+                            }
+
+                            // Create JsObject for the element
+                            let element = JsObject::from_proto_and_data(None, element_data);
+                            elements.push(element);
+                        }
+                    }
+                }
+
+                current_pos += tag_end + 1;
+            } else {
+                current_pos += 1;
+            }
+        } else {
+            // Text content - find next tag or end
+            let text_start = current_pos;
+            let text_end = html[current_pos..].find('<').map(|pos| current_pos + pos).unwrap_or(html.len());
+
+            let text_content = html[text_start..text_end].trim();
+            if !text_content.is_empty() {
+                // Create text node as element with special tag
+                let text_element = ElementData::with_tag_name("#text".to_string());
+                text_element.set_text_content(text_content.to_string());
+
+                let text_obj = JsObject::from_proto_and_data(None, text_element);
+                elements.push(text_obj);
+            }
+
+            current_pos = text_end;
+        }
+    }
+
+    Ok(elements)
+}
+
+/// Create an iframe element from parsed HTML attributes with proper context initialization
+///
+/// This creates a full HTMLIFrameElement with:
+/// - All parsed attributes (src, id, name, width, height, etc.)
+/// - Initialized contentWindow with parent/top/frameElement set up
+/// - Initialized contentDocument
+/// - Registration in the window hierarchy
+fn create_parsed_iframe(
+    attrs: &[&str],
+    context: &mut Context,
+) -> JsResult<JsObject> {
+    use crate::dom::html_iframe_element::{HTMLIFrameElement, HTMLIFrameElementData, initialize_iframe_context};
+
+    eprintln!("🔲 IFRAME: Creating iframe via innerHTML parsing...");
+
+    // Create HTMLIFrameElement via constructor
+    let iframe_constructor = context.intrinsics().constructors().html_iframe_element().constructor();
+    let iframe = HTMLIFrameElement::constructor(
+        &iframe_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    let iframe_obj = iframe.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Failed to create HTMLIFrameElement")
+    })?.clone();
+
+    // Parse attributes into separate collections to avoid borrow conflicts
+    // We need to separate:
+    // 1. Attributes that go to HTMLIFrameElementData (src, name, width, height, sandbox, allow)
+    // 2. Attributes that get set on the JS object (id, generic attributes)
+    let mut src_val = None;
+    let mut name_val = None;
+    let mut width_val = None;
+    let mut height_val = None;
+    let mut sandbox_val = None;
+    let mut allow_val = None;
+    let mut js_attrs: Vec<(String, String)> = Vec::new();
+
+    for attr_part in attrs {
+        let attr_part = attr_part.trim_end_matches('/'); // Handle self-closing tags
+        if let Some(eq_pos) = attr_part.find('=') {
+            let attr_name = &attr_part[..eq_pos];
+            let attr_value = attr_part[eq_pos + 1..].trim_matches('"').trim_matches('\'');
+
+            match attr_name.to_lowercase().as_str() {
+                "src" => src_val = Some(attr_value.to_string()),
+                "name" => name_val = Some(attr_value.to_string()),
+                "width" => width_val = Some(attr_value.to_string()),
+                "height" => height_val = Some(attr_value.to_string()),
+                "sandbox" => sandbox_val = Some(attr_value.to_string()),
+                "allow" => allow_val = Some(attr_value.to_string()),
+                "id" => js_attrs.push(("id".to_string(), attr_value.to_string())),
+                _ => js_attrs.push((attr_name.to_string(), attr_value.to_string())),
+            }
+        }
+    }
+
+    // Set HTMLIFrameElementData fields (no context needed, borrow-safe)
+    if let Some(data) = iframe_obj.downcast_ref::<HTMLIFrameElementData>() {
+        if let Some(ref v) = src_val {
+            *data.get_src_mutex().lock().unwrap() = v.clone();
+        }
+        if let Some(v) = name_val {
+            *data.get_name_mutex().lock().unwrap() = v;
+        }
+        if let Some(v) = width_val {
+            *data.get_width_mutex().lock().unwrap() = v;
+        }
+        if let Some(v) = height_val {
+            *data.get_height_mutex().lock().unwrap() = v;
+        }
+        if let Some(v) = sandbox_val {
+            *data.get_sandbox_mutex().lock().unwrap() = v;
+        }
+        if let Some(v) = allow_val {
+            *data.get_allow_mutex().lock().unwrap() = v;
+        }
+    }
+
+    // Set JS object attributes (requires context, done after borrow is released)
+    for (attr_name, attr_value) in js_attrs {
+        iframe_obj.set(
+            JsString::from(attr_name.as_str()),
+            js_string!(attr_value.as_str()),
+            false,
+            context,
+        )?;
+    }
+
+    // Initialize iframe context (creates contentWindow/contentDocument)
+    initialize_iframe_context(&iframe_obj, context)?;
+
+    eprintln!("🔲 IFRAME: Created iframe via innerHTML parsing - context initialized");
+
+    // If the iframe has a src, trigger content loading
+    if let Some(ref src) = src_val {
+        if !src.is_empty() && src != "about:blank" && !src.starts_with("about:") {
+            eprintln!("🔲 IFRAME: innerHTML iframe has src='{}', triggering load", src);
+            if let Err(e) = crate::dom::html_iframe_element::load_iframe_content(&iframe_obj, src, context) {
+                eprintln!("🔲 IFRAME: Load failed: {:?}", e);
+                // Don't fail iframe creation if load fails
+            }
+        }
+    }
+
+    Ok(iframe_obj)
+}
+
 /// `Element.prototype.tagName` getter
 fn get_tag_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
@@ -1738,21 +1957,51 @@ fn get_inner_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
 }
 
 /// `Element.prototype.innerHTML` setter
+///
+/// This now uses context-aware parsing to properly handle iframe elements.
+/// When `<iframe>` tags are set via innerHTML, their contentWindow and contentDocument
+/// are properly initialized, enabling postMessage and window hierarchy navigation.
 fn set_inner_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.innerHTML setter called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.innerHTML setter called on non-Element object")
-    })?;
-
     let html = args.get_or_undefined(0).to_string(context)?;
     let html_string = html.to_std_string_escaped();
 
-    element.set_inner_html(html_string);
+    // IMPORTANT: We can't hold a borrow on the ElementData while calling context methods
+    // because creating iframes requires context access which would cause a borrow conflict.
+    // Instead, we:
+    // 1. Parse HTML with context first (creates iframe elements with proper context)
+    // 2. Then update the ElementData's children (quick operation, no context needed)
+
+    // Parse HTML with context-aware handling for iframes
+    let parsed_elements = parse_html_elements_with_context(&html_string, context)?;
+
+    // Now update the ElementData with the parsed children
+    // This must be done in a separate scope to avoid holding the borrow during context calls
+    {
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Element.prototype.innerHTML setter called on non-Element object")
+        })?;
+
+        // Store the raw HTML
+        *element.inner_html.lock().unwrap() = html_string;
+
+        // Update children
+        let mut children = element.children.lock().unwrap();
+        children.clear();
+        children.extend(parsed_elements);
+
+        // Recompute text content
+        drop(children); // Release children lock before calling method
+        element.recompute_text_content();
+
+        // Update document HTML
+        element.update_document_html_content();
+    }
 
     Ok(JsValue::undefined())
 }
@@ -2293,39 +2542,67 @@ fn replace_children_method(this: &JsValue, args: &[JsValue], context: &mut Conte
 }
 
 /// `Element.prototype.setHTML(input, options)` - Chrome 124
+/// Uses context-aware parsing to properly handle iframe elements
 fn set_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.setHTML called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.setHTML called on non-Element object")
-    })?;
-
     let input = args.get_or_undefined(0).to_string(context)?;
+    let html_string = input.to_std_string_escaped();
     let _options = args.get(1).cloned().unwrap_or(JsValue::undefined());
 
-    // In a real implementation, this would sanitize the HTML
-    // For now, we just set it as innerHTML
-    element.set_inner_html(input.to_std_string_escaped());
+    // Parse HTML with context-aware handling for iframes
+    let parsed_elements = parse_html_elements_with_context(&html_string, context)?;
+
+    // Update the ElementData
+    {
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Element.prototype.setHTML called on non-Element object")
+        })?;
+
+        *element.inner_html.lock().unwrap() = html_string;
+        let mut children = element.children.lock().unwrap();
+        children.clear();
+        children.extend(parsed_elements);
+        drop(children);
+        element.recompute_text_content();
+        element.update_document_html_content();
+    }
+
     Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.setHTMLUnsafe(input)` - Chrome 124
+/// Uses context-aware parsing to properly handle iframe elements
 fn set_html_unsafe(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.setHTMLUnsafe called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.setHTMLUnsafe called on non-Element object")
-    })?;
-
     let input = args.get_or_undefined(0).to_string(context)?;
-    // Set HTML without sanitization
-    element.set_inner_html(input.to_std_string_escaped());
+    let html_string = input.to_std_string_escaped();
+
+    // Parse HTML with context-aware handling for iframes
+    let parsed_elements = parse_html_elements_with_context(&html_string, context)?;
+
+    // Update the ElementData
+    {
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Element.prototype.setHTMLUnsafe called on non-Element object")
+        })?;
+
+        *element.inner_html.lock().unwrap() = html_string;
+        let mut children = element.children.lock().unwrap();
+        children.clear();
+        children.extend(parsed_elements);
+        drop(children);
+        element.recompute_text_content();
+        element.update_document_html_content();
+    }
+
     Ok(JsValue::undefined())
 }
 
@@ -3064,22 +3341,36 @@ fn get_outer_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
 }
 
 /// `Element.prototype.outerHTML` setter
+/// Uses context-aware parsing to properly handle iframe elements
 fn set_outer_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.outerHTML setter called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.outerHTML setter called on non-Element object")
-    })?;
-
     let html = args.get_or_undefined(0).to_string(context)?;
+    let html_string = html.to_std_string_escaped();
 
+    // Parse HTML with context-aware handling for iframes
+    let parsed_elements = parse_html_elements_with_context(&html_string, context)?;
+
+    // Update the ElementData
     // Setting outerHTML replaces this element in its parent
     // For now, we'll just update the innerHTML and attributes
     // Full implementation would require parent manipulation
-    element.set_inner_html(html.to_std_string_escaped());
+    {
+        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Element.prototype.outerHTML setter called on non-Element object")
+        })?;
+
+        *element.inner_html.lock().unwrap() = html_string;
+        let mut children = element.children.lock().unwrap();
+        children.clear();
+        children.extend(parsed_elements);
+        drop(children);
+        element.recompute_text_content();
+        element.update_document_html_content();
+    }
 
     Ok(JsValue::undefined())
 }

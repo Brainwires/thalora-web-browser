@@ -63,11 +63,47 @@ impl super::super::HeadlessWebBrowser {
 
         // Phase 2: Behavioral simulation (act like a real user)
         eprintln!("🛡️ CHALLENGE: Phase 2 - Simulating user behavior...");
+
+        // First, check if trusted event dispatcher is available
+        match self.execute_javascript("typeof window.__dispatchTrustedMouseEvent").await {
+            Ok(result) => eprintln!("🛡️ CHALLENGE: typeof __dispatchTrustedMouseEvent = {:?}", result),
+            Err(e) => eprintln!("🛡️ CHALLENGE: Error checking __dispatchTrustedMouseEvent: {}", e),
+        }
+
         match solver.generate_interaction_js(&challenge, VIEWPORT_WIDTH, VIEWPORT_HEIGHT) {
             Ok(behavior_js) => {
-                // Execute behavioral simulation (mouse movements, clicks, timing)
-                match self.execute_javascript(&behavior_js).await {
-                    Ok(_) => eprintln!("🛡️ CHALLENGE: Behavioral simulation executed"),
+                // Log the generated JS for debugging
+                eprintln!("🛡️ CHALLENGE: Generated behavioral JS (first 500 chars): {}", &behavior_js[..behavior_js.len().min(500)]);
+
+                // Wrap behavioral JS to signal completion for async wait
+                let wrapped_behavior_js = format!(
+                    r#"(async function() {{
+                        try {{
+                            {}
+                            window._asyncResult = {{ success: true, completed: true }};
+                        }} catch (e) {{
+                            window._asyncResult = {{ success: false, error: e.message }};
+                        }}
+                        window._asyncComplete = true;
+                    }})()"#,
+                    // Extract the body of the async IIFE - remove outer wrapper
+                    behavior_js.trim_start_matches("(async function() {")
+                        .trim_end_matches("})()")
+                        .trim()
+                );
+
+                // Execute behavioral simulation using async wait to run event loop
+                let behavior_result = if let Some(ref mut renderer) = self.renderer {
+                    // Allow up to 10 seconds for behavioral simulation (has delays between events)
+                    let behavior_timeout = std::time::Duration::from_millis(10000);
+                    renderer.evaluate_javascript_with_async_wait(&wrapped_behavior_js, behavior_timeout, 50)
+                } else {
+                    // Fallback to regular execution (won't wait for async)
+                    self.execute_javascript(&behavior_js).await
+                };
+
+                match behavior_result {
+                    Ok(result) => eprintln!("🛡️ CHALLENGE: Behavioral simulation completed: {:?}", result),
                     Err(e) => eprintln!("🛡️ CHALLENGE: Behavioral simulation warning: {} (continuing)", e),
                 }
             }
@@ -76,8 +112,8 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        // Small delay to let behavioral simulation settle
-        let settle_delay = 500 + (rand::random::<u64>() % 500);
+        // Small additional delay to let events settle
+        let settle_delay = 200 + (rand::random::<u64>() % 300);
         sleep(Duration::from_millis(settle_delay)).await;
 
         // Phase 3: Wait for challenge resolution

@@ -342,32 +342,48 @@ impl BehavioralSimulator {
     }
 
     /// Convert a single event action to JavaScript
+    /// Uses __dispatchTrustedMouseEvent for isTrusted: true events
     fn event_action_to_js(&self, event: &EventAction) -> String {
         let event_type = event.event_type.as_str();
 
+        // Use the native trusted event dispatcher if available, fall back to JS MouseEvent
         format!(
             r#"(function() {{
-    var target = document.elementFromPoint({}, {}) || document.body;
-    var event = new MouseEvent('{}', {{
-        bubbles: {},
-        cancelable: {},
-        view: window,
-        detail: 1,
-        screenX: {},
-        screenY: {},
-        clientX: {},
-        clientY: {},
-        movementX: {},
-        movementY: {},
-        button: {},
-        buttons: {},
-        ctrlKey: false,
-        shiftKey: false,
-        altKey: false,
-        metaKey: false
-    }});
-    target.dispatchEvent(event);
+    // Try to use trusted event dispatcher (isTrusted: true)
+    if (typeof window.__dispatchTrustedMouseEvent === 'function') {{
+        window.__dispatchTrustedMouseEvent('{}', {}, {}, {{
+            button: {},
+            buttons: {}
+        }});
+    }} else {{
+        // Fallback to standard MouseEvent (isTrusted: false)
+        var target = document.elementFromPoint({}, {}) || document.body;
+        var event = new MouseEvent('{}', {{
+            bubbles: {},
+            cancelable: {},
+            view: window,
+            detail: 1,
+            screenX: {},
+            screenY: {},
+            clientX: {},
+            clientY: {},
+            movementX: {},
+            movementY: {},
+            button: {},
+            buttons: {},
+            ctrlKey: false,
+            shiftKey: false,
+            altKey: false,
+            metaKey: false
+        }});
+        target.dispatchEvent(event);
+    }}
 }})()"#,
+            event_type,
+            event.coords.client_x,
+            event.coords.client_y,
+            event.button as i16,
+            event.buttons,
             event.coords.client_x,
             event.coords.client_y,
             event_type,
