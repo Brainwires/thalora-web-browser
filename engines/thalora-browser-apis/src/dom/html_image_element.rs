@@ -444,44 +444,33 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
                 // Synchronous loading for now (async will be added with proper event loop integration)
                 // In a real browser, this would use fetch() asynchronously
                 if let Ok(url) = url::Url::parse(&value) {
-                    // Use tokio block_on since rquest doesn't have a blocking module
-                    let rt = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build();
+                    use crate::http_blocking::block_on_compat;
 
-                    match rt {
-                        Ok(runtime) => {
-                            let url_clone = url.to_string();
-                            let result = runtime.block_on(async {
-                                let client = rquest::Client::builder()
-                                    .timeout(std::time::Duration::from_secs(30))
-                                    .build()?;
-                                let response = client.get(&url_clone).send().await?;
-                                let status = response.status();
-                                let bytes = response.bytes().await?;
-                                Ok::<(rquest::StatusCode, bytes::Bytes), rquest::Error>((status, bytes))
-                            });
+                    let url_clone = url.to_string();
+                    let result = block_on_compat(async move {
+                        let client = rquest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(30))
+                            .build()?;
+                        let response = client.get(&url_clone).send().await?;
+                        let status = response.status();
+                        let bytes = response.bytes().await?;
+                        Ok::<(rquest::StatusCode, bytes::Bytes), rquest::Error>((status, bytes))
+                    });
 
-                            match result {
-                                Ok((status, bytes)) => {
-                                    if status.is_success() {
-                                        if let Err(e) = data.load_from_bytes(&bytes) {
-                                            eprintln!("Image decode error: {}", e);
-                                        }
-                                    } else {
-                                        *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                        *data.error_message.lock().unwrap() = Some(format!("HTTP error: {}", status));
-                                    }
+                    match result {
+                        Ok((status, bytes)) => {
+                            if status.is_success() {
+                                if let Err(e) = data.load_from_bytes(&bytes) {
+                                    eprintln!("Image decode error: {}", e);
                                 }
-                                Err(e) => {
-                                    *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                    *data.error_message.lock().unwrap() = Some(format!("Network error: {}", e));
-                                }
+                            } else {
+                                *data.load_state.lock().unwrap() = ImageLoadState::Broken;
+                                *data.error_message.lock().unwrap() = Some(format!("HTTP error: {}", status));
                             }
                         }
                         Err(e) => {
                             *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                            *data.error_message.lock().unwrap() = Some(format!("Failed to create runtime: {}", e));
+                            *data.error_message.lock().unwrap() = Some(format!("Network error: {}", e));
                         }
                     }
                 } else if value.starts_with("data:") {

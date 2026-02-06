@@ -6,10 +6,38 @@
 use std::time::Duration;
 use rquest::header::{HeaderMap, HeaderName, HeaderValue};
 
+/// Execute a future in a blocking context, handling nested runtime detection.
+/// If already inside a tokio runtime, spawns a separate OS thread with its own runtime
+/// to avoid the "Cannot start a runtime from within a runtime" panic.
+pub fn block_on_compat<F, T>(future: F) -> T
+where
+    F: std::future::Future<Output = T> + Send + 'static,
+    T: Send + 'static,
+{
+    if tokio::runtime::Handle::try_current().is_ok() {
+        // Inside an existing runtime — spawn thread with fresh runtime
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create tokio runtime");
+            rt.block_on(future)
+        })
+        .join()
+        .expect("Blocking thread panicked")
+    } else {
+        // Not in a runtime — create one directly
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create tokio runtime");
+        rt.block_on(future)
+    }
+}
+
 /// A blocking HTTP client that wraps rquest's async client
 pub struct BlockingClient {
     client: rquest::Client,
-    runtime: tokio::runtime::Runtime,
 }
 
 impl BlockingClient {
@@ -26,7 +54,6 @@ impl BlockingClient {
     /// Perform a blocking GET request
     pub fn get(&self, url: &str) -> BlockingRequestBuilder {
         BlockingRequestBuilder {
-            runtime: &self.runtime,
             request: self.client.get(url),
         }
     }
@@ -65,22 +92,16 @@ impl BlockingClientBuilder {
 
         let client = builder.build()?;
 
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create tokio runtime for blocking client");
-
-        Ok(BlockingClient { client, runtime })
+        Ok(BlockingClient { client })
     }
 }
 
 /// A request builder for blocking requests
-pub struct BlockingRequestBuilder<'a> {
-    runtime: &'a tokio::runtime::Runtime,
+pub struct BlockingRequestBuilder {
     request: rquest::RequestBuilder,
 }
 
-impl<'a> BlockingRequestBuilder<'a> {
+impl BlockingRequestBuilder {
     /// Add a header to the request
     pub fn header(mut self, key: &str, value: &str) -> Self {
         if let (Ok(name), Ok(val)) = (
@@ -94,11 +115,10 @@ impl<'a> BlockingRequestBuilder<'a> {
 
     /// Send the request and get a blocking response
     pub fn send(self) -> Result<BlockingResponse, rquest::Error> {
-        self.runtime.block_on(async {
-            let response = self.request.send().await?;
-            Ok(BlockingResponse {
-                response,
-            })
+        let request = self.request;
+        block_on_compat(async {
+            let response = request.send().await?;
+            Ok(BlockingResponse { response })
         })
     }
 }
@@ -121,26 +141,13 @@ impl BlockingResponse {
 
     /// Get the response body as text (blocking)
     pub fn text(self) -> Result<String, rquest::Error> {
-        // We need a runtime to block on the async text() method
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create runtime for response text");
-
-        rt.block_on(async {
-            self.response.text().await
-        })
+        let response = self.response;
+        block_on_compat(async { response.text().await })
     }
 
     /// Get the response body as bytes (blocking)
     pub fn bytes(self) -> Result<bytes::Bytes, rquest::Error> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create runtime for response bytes");
-
-        rt.block_on(async {
-            self.response.bytes().await
-        })
+        let response = self.response;
+        block_on_compat(async { response.bytes().await })
     }
 }

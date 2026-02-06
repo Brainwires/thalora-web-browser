@@ -209,20 +209,17 @@ impl HTMLVideoElementData {
     }
 
     fn fetch_video_metadata(url: &str) -> Result<VideoMetadata, String> {
-        // Use tokio block_on for synchronous HTTP request
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+        use crate::http_blocking::block_on_compat;
 
-        let content_type = rt.block_on(async {
+        let url = url.to_string();
+        let content_type = block_on_compat(async move {
             let client = rquest::Client::builder()
                 .timeout(std::time::Duration::from_secs(10))
                 .build()
                 .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
             let response = client
-                .head(url)
+                .head(&url)
                 .send()
                 .await
                 .map_err(|e| format!("Failed to fetch video: {}", e))?;
@@ -236,7 +233,7 @@ impl HTMLVideoElementData {
                 .get("content-type")
                 .and_then(|v| v.to_str().ok())
                 .map(String::from)
-                .unwrap_or_else(|| Self::guess_mime_type(url)))
+                .unwrap_or_else(|| Self::guess_mime_type(&url)))
         })?;
 
         // For remote videos, we can't easily determine dimensions without downloading

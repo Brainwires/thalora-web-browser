@@ -251,20 +251,17 @@ impl HTMLAudioElementData {
     }
 
     fn load_from_url(url: &str) -> Result<(Vec<u8>, f64), String> {
-        // Use tokio block_on for synchronous HTTP request
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+        use crate::http_blocking::block_on_compat;
 
-        let data = rt.block_on(async {
+        let url = url.to_string();
+        let data = block_on_compat(async move {
             let client = rquest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
             let response = client
-                .get(url)
+                .get(&url)
                 .send()
                 .await
                 .map_err(|e| format!("Failed to fetch audio: {}", e))?;

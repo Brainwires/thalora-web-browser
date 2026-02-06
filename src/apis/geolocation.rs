@@ -206,8 +206,10 @@ impl GeolocationManager {
 
     /// Real IP geolocation lookup using free ip-api.com service
     fn ip_geolocation() -> Result<(f64, f64)> {
+        use thalora_browser_apis::http_blocking::block_on_compat;
+
         // ip-api.com is free for non-commercial use, no API key required
-        let do_fetch = || async {
+        block_on_compat(async {
             let client = rquest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5))
                 .build()
@@ -241,22 +243,6 @@ impl GeolocationManager {
                 .ok_or_else(|| anyhow::anyhow!("Missing longitude in response"))?;
 
             Ok((lat, lon))
-        };
-
-        // If already inside a tokio runtime, use a separate OS thread to avoid nesting panic
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            let join_handle = std::thread::spawn(move || {
-                handle.block_on(do_fetch())
-            });
-            return join_handle.join()
-                .map_err(|_| anyhow::anyhow!("Geolocation thread panicked"))?;
-        }
-
-        // Not in a runtime — create one
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to create tokio runtime: {}", e))?;
-        rt.block_on(do_fetch())
+        })
     }
 }
