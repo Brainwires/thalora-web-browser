@@ -19,8 +19,8 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use boa_gc::GcRefCell;
 use std::collections::HashMap;
-use super::node::{NodeData, NodeType};
-use super::element::CSSStyleDeclaration;
+use crate::dom::node::{NodeData, NodeType};
+use crate::dom::element::CSSStyleDeclaration;
 
 /// DocumentFragment data structure for lightweight document containers
 #[derive(Debug, Trace, Finalize, JsData)]

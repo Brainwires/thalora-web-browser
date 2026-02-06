@@ -3,8 +3,10 @@
 pub mod attr;
 pub mod character_data;
 pub mod document;
-pub mod document_fragment;
-pub mod document_parse;
+
+// Backward-compatible re-exports (document_fragment and document_parse now live inside document/)
+pub use document::document_fragment;
+pub use document::document_parse;
 pub mod dom_parser;
 pub mod domtokenlist;
 pub mod element;
@@ -33,9 +35,6 @@ pub mod range;
 pub mod selection;
 pub mod shadow;
 pub mod text;
-
-#[cfg(test)]
-mod document_tests;
 
 #[cfg(test)]
 mod element_tests;
