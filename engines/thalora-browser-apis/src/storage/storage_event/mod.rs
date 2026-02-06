@@ -19,45 +19,36 @@ use boa_engine::{
 };
 use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
+use boa_engine::object::internal_methods::get_prototype_from_constructor;
+use boa_engine::context::intrinsics::StandardConstructors;
+
+use crate::events::event::EventData;
 
 /// `StorageEvent` implementation for the Web Storage API events.
-#[derive(Debug, Clone, Finalize)]
+#[derive(Debug, Clone, Trace, Finalize, JsData)]
 pub struct StorageEvent {
+    /// Base event data
+    pub event: EventData,
     /// The key being changed. null if clear() was called.
-    key: std::cell::RefCell<Option<String>>,
+    #[unsafe_ignore_trace]
+    key: Option<String>,
     /// The old value. null if the key is new.
-    old_value: std::cell::RefCell<Option<String>>,
+    #[unsafe_ignore_trace]
+    old_value: Option<String>,
     /// The new value. null if the key was deleted.
-    new_value: std::cell::RefCell<Option<String>>,
+    #[unsafe_ignore_trace]
+    new_value: Option<String>,
     /// The URL of the document whose key changed.
-    url: std::cell::RefCell<String>,
+    #[unsafe_ignore_trace]
+    url: String,
     /// The Storage object that was affected.
-    storage_area: std::cell::RefCell<Option<JsObject>>,
+    storage_area: Option<JsObject>,
 }
-
-unsafe impl Trace for StorageEvent {
-    unsafe fn trace(&self, tracer: &mut boa_gc::Tracer) {
-        if let Some(ref storage_area) = *self.storage_area.borrow() {
-            unsafe { storage_area.trace(tracer); }
-        }
-    }
-
-    unsafe fn trace_non_roots(&self) {
-        if let Some(ref storage_area) = *self.storage_area.borrow() {
-            unsafe { storage_area.trace_non_roots(); }
-        }
-    }
-
-    fn run_finalizer(&self) {
-        // No cleanup needed for StorageEvent
-    }
-}
-
-impl JsData for StorageEvent {}
 
 impl StorageEvent {
     /// Creates a new `StorageEvent` instance.
     pub(crate) fn new(
+        event: EventData,
         key: Option<String>,
         old_value: Option<String>,
         new_value: Option<String>,
@@ -65,11 +56,12 @@ impl StorageEvent {
         storage_area: Option<JsObject>,
     ) -> Self {
         Self {
-            key: std::cell::RefCell::new(key),
-            old_value: std::cell::RefCell::new(old_value),
-            new_value: std::cell::RefCell::new(new_value),
-            url: std::cell::RefCell::new(url),
-            storage_area: std::cell::RefCell::new(storage_area),
+            event,
+            key,
+            old_value,
+            new_value,
+            url,
+            storage_area,
         }
     }
 
@@ -82,56 +74,23 @@ impl StorageEvent {
         storage_area: Option<JsObject>,
         context: &mut Context,
     ) -> JsObject {
-        let event = StorageEvent::new(key.clone(), old_value.clone(), new_value.clone(), url.clone(), storage_area.clone());
+        let event_data = EventData::new("storage".to_string(), false, false);
+        let event = StorageEvent::new(event_data, key, old_value, new_value, url, storage_area);
 
-        let event_obj = JsObject::from_proto_and_data(
-            Some(context.intrinsics().constructors().storage_event().prototype()),
+        let event_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            context.intrinsics().constructors().storage_event().prototype(),
             event
         );
 
-        // Set event properties
-        event_obj.set(js_string!("type"), JsValue::from(JsString::from("storage")), false, context).ok();
-        event_obj.set(js_string!("bubbles"), JsValue::from(false), false, context).ok();
-        event_obj.set(js_string!("cancelable"), JsValue::from(false), false, context).ok();
-
-        // Set StorageEvent-specific properties
-        event_obj.set(
-            js_string!("key"),
-            key.map(|k| JsValue::from(JsString::from(k))).unwrap_or(JsValue::null()),
-            false,
-            context
-        ).ok();
-
-        event_obj.set(
-            js_string!("oldValue"),
-            old_value.map(|v| JsValue::from(JsString::from(v))).unwrap_or(JsValue::null()),
-            false,
-            context
-        ).ok();
-
-        event_obj.set(
-            js_string!("newValue"),
-            new_value.map(|v| JsValue::from(JsString::from(v))).unwrap_or(JsValue::null()),
-            false,
-            context
-        ).ok();
-
-        event_obj.set(js_string!("url"), JsValue::from(JsString::from(url)), false, context).ok();
-
-        event_obj.set(
-            js_string!("storageArea"),
-            storage_area.map(|s| JsValue::from(s)).unwrap_or(JsValue::null()),
-            false,
-            context
-        ).ok();
-
-        event_obj
+        event_obj.upcast()
     }
 }
 
 impl IntrinsicObject for StorageEvent {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("key"),
                 Some(BuiltInBuilder::callable(realm, Self::get_key)
@@ -187,20 +146,24 @@ impl BuiltInObject for StorageEvent {
 
 impl BuiltInConstructor for StorageEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 12;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
         |constructors| constructors.storage_event();
 
     fn constructor(
-        _new_target: &JsValue,
+        new_target: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
         let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
         let event_init = args.get_or_undefined(1);
 
+        let proto = get_prototype_from_constructor(new_target, StandardConstructors::storage_event, context)?;
+
+        let mut bubbles = false;
+        let mut cancelable = false;
         let mut key: Option<String> = None;
         let mut old_value: Option<String> = None;
         let mut new_value: Option<String> = None;
@@ -208,30 +171,32 @@ impl BuiltInConstructor for StorageEvent {
         let mut storage_area: Option<JsObject> = None;
 
         if let Some(init_obj) = event_init.as_object() {
+            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
+                bubbles = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
+                cancelable = v.to_boolean();
+            }
             if let Ok(key_val) = init_obj.get(js_string!("key"), context) {
                 if !key_val.is_null() && !key_val.is_undefined() {
                     key = Some(key_val.to_string(context)?.to_std_string_escaped());
                 }
             }
-
             if let Ok(old_val) = init_obj.get(js_string!("oldValue"), context) {
                 if !old_val.is_null() && !old_val.is_undefined() {
                     old_value = Some(old_val.to_string(context)?.to_std_string_escaped());
                 }
             }
-
             if let Ok(new_val) = init_obj.get(js_string!("newValue"), context) {
                 if !new_val.is_null() && !new_val.is_undefined() {
                     new_value = Some(new_val.to_string(context)?.to_std_string_escaped());
                 }
             }
-
             if let Ok(url_val) = init_obj.get(js_string!("url"), context) {
                 if !url_val.is_null() && !url_val.is_undefined() {
                     url = url_val.to_string(context)?.to_std_string_escaped();
                 }
             }
-
             if let Ok(storage_val) = init_obj.get(js_string!("storageArea"), context) {
                 if let Some(storage_obj) = storage_val.as_object() {
                     storage_area = Some(storage_obj.clone());
@@ -239,16 +204,14 @@ impl BuiltInConstructor for StorageEvent {
             }
         }
 
-        let storage_event = StorageEvent::new(key, old_value, new_value, url, storage_area);
-        let event_obj = JsObject::from_proto_and_data(
-            Some(context.intrinsics().constructors().storage_event().prototype()),
+        let event_data = EventData::new(event_type, bubbles, cancelable);
+        let storage_event = StorageEvent::new(event_data, key, old_value, new_value, url, storage_area);
+
+        let event_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            proto,
             storage_event
         );
-
-        // Set basic event properties
-        event_obj.set(js_string!("type"), JsValue::from(JsString::from(event_type)), false, context)?;
-        event_obj.set(js_string!("bubbles"), JsValue::from(false), false, context)?;
-        event_obj.set(js_string!("cancelable"), JsValue::from(false), false, context)?;
 
         Ok(event_obj.into())
     }
@@ -271,8 +234,7 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        let key_value = storage_event.key.borrow().clone();
-        Ok(key_value
+        Ok(storage_event.key.clone()
             .map(|k| JsValue::from(JsString::from(k)))
             .unwrap_or(JsValue::null()))
     }
@@ -292,8 +254,7 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        let old_value = storage_event.old_value.borrow().clone();
-        Ok(old_value
+        Ok(storage_event.old_value.clone()
             .map(|v| JsValue::from(JsString::from(v)))
             .unwrap_or(JsValue::null()))
     }
@@ -313,8 +274,7 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        let new_value = storage_event.new_value.borrow().clone();
-        Ok(new_value
+        Ok(storage_event.new_value.clone()
             .map(|v| JsValue::from(JsString::from(v)))
             .unwrap_or(JsValue::null()))
     }
@@ -334,8 +294,7 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        let url = storage_event.url.borrow().clone();
-        Ok(JsValue::from(JsString::from(url)))
+        Ok(JsValue::from(JsString::from(storage_event.url.clone())))
     }
 
     /// `StorageEvent.prototype.storageArea` getter
@@ -353,8 +312,7 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        let storage_area = storage_event.storage_area.borrow().clone();
-        Ok(storage_area
+        Ok(storage_event.storage_area.clone()
             .map(|s| JsValue::from(s))
             .unwrap_or(JsValue::null()))
     }
@@ -363,8 +321,8 @@ impl StorageEvent {
     fn init_storage_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // First, extract all values from args before borrowing the object
         let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let _bubbles = args.get_or_undefined(1).to_boolean();
-        let _cancelable = args.get_or_undefined(2).to_boolean();
+        let bubbles = args.get_or_undefined(1).to_boolean();
+        let cancelable = args.get_or_undefined(2).to_boolean();
 
         let key_value = if args.get_or_undefined(3).is_null() || args.get_or_undefined(3).is_undefined() {
             None
@@ -400,23 +358,16 @@ impl StorageEvent {
                     .with_message("'this' is not a StorageEvent object")
             })?;
 
-        {
-            let storage_event = obj.downcast_ref::<StorageEvent>()
-                .ok_or_else(|| {
-                    JsNativeError::typ()
-                        .with_message("'this' is not a StorageEvent object")
-                })?;
-
-            // Update internal fields using RefCell::replace()
-            storage_event.key.replace(key_value);
-            storage_event.old_value.replace(old_value);
-            storage_event.new_value.replace(new_value);
-            storage_event.url.replace(url_value);
-            storage_event.storage_area.replace(storage_area_value);
-        } // Drop storage_event reference here
-
-        // Set properties on the event object for compatibility
-        obj.set(js_string!("type"), JsValue::from(JsString::from(event_type)), false, context)?;
+        if let Some(mut storage_event) = obj.downcast_mut::<StorageEvent>() {
+            // Update the embedded EventData
+            storage_event.event.init_event(event_type, bubbles, cancelable);
+            // Update StorageEvent-specific fields
+            storage_event.key = key_value;
+            storage_event.old_value = old_value;
+            storage_event.new_value = new_value;
+            storage_event.url = url_value;
+            storage_event.storage_area = storage_area_value;
+        }
 
         Ok(JsValue::undefined())
     }

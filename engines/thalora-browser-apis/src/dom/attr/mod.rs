@@ -307,6 +307,7 @@ impl IntrinsicObject for Attr {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             .accessor(
                 js_string!("name"),
                 Some(name_getter),

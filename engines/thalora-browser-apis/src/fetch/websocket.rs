@@ -61,6 +61,7 @@ impl IntrinsicObject for WebSocket {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Static constants
             .static_accessor(
                 js_string!("CONNECTING"),

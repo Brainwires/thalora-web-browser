@@ -156,6 +156,7 @@ impl IntrinsicObject for EventSource {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .static_property(
                 js_string!("CONNECTING"),
                 ReadyState::Connecting,

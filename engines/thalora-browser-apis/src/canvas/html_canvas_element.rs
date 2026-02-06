@@ -167,6 +167,7 @@ impl IntrinsicObject for HTMLCanvasElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             .accessor(
                 js_string!("width"),
                 Some(width_getter),

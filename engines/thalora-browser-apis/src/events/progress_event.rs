@@ -15,6 +15,8 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
+use super::event::EventData;
+
 /// JavaScript `ProgressEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ProgressEvent;
@@ -34,6 +36,7 @@ impl IntrinsicObject for ProgressEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("lengthComputable"),
                 Some(length_computable_getter),
@@ -66,8 +69,8 @@ impl BuiltInObject for ProgressEvent {
 
 impl BuiltInConstructor for ProgressEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 6;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::progress_event;
@@ -90,73 +93,49 @@ impl BuiltInConstructor for ProgressEvent {
 
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::progress_event, context)?;
 
-        let (length_computable, loaded, total) = if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                let length_computable = init_obj.get(js_string!("lengthComputable"), context)
-                    .ok()
-                    .map(|v| v.to_boolean())
-                    .unwrap_or(false);
-                let loaded = init_obj.get(js_string!("loaded"), context)
-                    .ok()
-                    .and_then(|v| v.to_number(context).ok())
-                    .unwrap_or(0.0) as u64;
-                let total = init_obj.get(js_string!("total"), context)
-                    .ok()
-                    .and_then(|v| v.to_number(context).ok())
-                    .unwrap_or(0.0) as u64;
-                (length_computable, loaded, total)
-            } else {
-                (false, 0, 0)
-            }
-        } else {
-            (false, 0, 0)
-        };
+        // Parse eventInitDict
+        let mut bubbles = false;
+        let mut cancelable = false;
+        let mut length_computable = false;
+        let mut loaded = 0u64;
+        let mut total = 0u64;
 
-        let progress_event_data = ProgressEventData::new(
-            event_type.to_std_string_escaped(),
-            length_computable,
-            loaded,
-            total,
-        );
+        if let Some(init_obj) = event_init_dict.as_object() {
+            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
+                bubbles = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
+                cancelable = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("lengthComputable"), context) {
+                length_computable = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("loaded"), context) {
+                loaded = v.to_number(context)? as u64;
+            }
+            if let Ok(v) = init_obj.get(js_string!("total"), context) {
+                total = v.to_number(context)? as u64;
+            }
+        }
+
+        let event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
+        let progress_event_data = ProgressEventData::new(event_data, length_computable, loaded, total);
+
         let progress_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             progress_event_data,
         );
 
-        let progress_event_generic = progress_event_obj.upcast();
-
-        // Set Event interface properties
-        progress_event_generic.set(js_string!("type"), event_type, false, context)?;
-        progress_event_generic.set(js_string!("bubbles"), false, false, context)?;
-        progress_event_generic.set(js_string!("cancelable"), false, false, context)?;
-        progress_event_generic.set(js_string!("composed"), false, false, context)?;
-        progress_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
-        progress_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
-        progress_event_generic.set(js_string!("isTrusted"), false, false, context)?;
-        progress_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        progress_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        progress_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
-
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    progress_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    progress_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
-                }
-            }
-        }
-
-        Ok(progress_event_generic.into())
+        Ok(progress_event_obj.into())
     }
 }
 
+/// Internal data for ProgressEvent instances - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
-struct ProgressEventData {
-    #[unsafe_ignore_trace]
-    event_type: String,
+pub struct ProgressEventData {
+    /// Base event data
+    pub event: EventData,
     #[unsafe_ignore_trace]
     length_computable: bool,
     #[unsafe_ignore_trace]
@@ -166,8 +145,8 @@ struct ProgressEventData {
 }
 
 impl ProgressEventData {
-    fn new(event_type: String, length_computable: bool, loaded: u64, total: u64) -> Self {
-        Self { event_type, length_computable, loaded, total }
+    pub fn new(event: EventData, length_computable: bool, loaded: u64, total: u64) -> Self {
+        Self { event, length_computable, loaded, total }
     }
 }
 

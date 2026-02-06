@@ -290,6 +290,7 @@ impl IntrinsicObject for WorkerConstructor {
     fn init(realm: &Realm) {
         // Build the Worker constructor
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .property(
                 js_string!("postMessage"),
                 BuiltInBuilder::callable(realm, post_message)

@@ -15,6 +15,8 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
+use super::event::EventData;
+
 /// JavaScript `ErrorEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ErrorEvent;
@@ -42,6 +44,7 @@ impl IntrinsicObject for ErrorEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("message"),
                 Some(message_getter),
@@ -86,8 +89,8 @@ impl BuiltInObject for ErrorEvent {
 
 impl BuiltInConstructor for ErrorEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 10;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::error_event;
@@ -111,88 +114,57 @@ impl BuiltInConstructor for ErrorEvent {
 
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::error_event, context)?;
 
-        // Get properties from eventInitDict
-        let (message, filename, lineno, colno, error) = if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                let message = init_obj.get(js_string!("message"), context)
-                    .ok()
-                    .map(|v| v.to_string(context).ok())
-                    .flatten()
-                    .map(|s| s.to_std_string_escaped())
-                    .unwrap_or_default();
-                let filename = init_obj.get(js_string!("filename"), context)
-                    .ok()
-                    .map(|v| v.to_string(context).ok())
-                    .flatten()
-                    .map(|s| s.to_std_string_escaped())
-                    .unwrap_or_default();
-                let lineno = init_obj.get(js_string!("lineno"), context)
-                    .ok()
-                    .and_then(|v| v.to_u32(context).ok())
-                    .unwrap_or(0);
-                let colno = init_obj.get(js_string!("colno"), context)
-                    .ok()
-                    .and_then(|v| v.to_u32(context).ok())
-                    .unwrap_or(0);
-                let error = init_obj.get(js_string!("error"), context)
-                    .unwrap_or(JsValue::undefined());
-                (message, filename, lineno, colno, error)
-            } else {
-                (String::new(), String::new(), 0, 0, JsValue::undefined())
-            }
-        } else {
-            (String::new(), String::new(), 0, 0, JsValue::undefined())
-        };
+        // Parse eventInitDict
+        let mut bubbles = false;
+        let mut cancelable = false;
+        let mut message = String::new();
+        let mut filename = String::new();
+        let mut lineno = 0u32;
+        let mut colno = 0u32;
+        let mut error = JsValue::undefined();
 
-        let error_event_data = ErrorEventData::new(
-            event_type.to_std_string_escaped(),
-            message,
-            filename,
-            lineno,
-            colno,
-            error,
-        );
+        if let Some(init_obj) = event_init_dict.as_object() {
+            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
+                bubbles = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
+                cancelable = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("message"), context) {
+                message = v.to_string(context)?.to_std_string_escaped();
+            }
+            if let Ok(v) = init_obj.get(js_string!("filename"), context) {
+                filename = v.to_string(context)?.to_std_string_escaped();
+            }
+            if let Ok(v) = init_obj.get(js_string!("lineno"), context) {
+                lineno = v.to_u32(context)?;
+            }
+            if let Ok(v) = init_obj.get(js_string!("colno"), context) {
+                colno = v.to_u32(context)?;
+            }
+            if let Ok(v) = init_obj.get(js_string!("error"), context) {
+                error = v;
+            }
+        }
+
+        let event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
+        let error_event_data = ErrorEventData::new(event_data, message, filename, lineno, colno, error);
+
         let error_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             error_event_data,
         );
 
-        let error_event_generic = error_event_obj.upcast();
-
-        // Set Event interface properties
-        error_event_generic.set(js_string!("type"), event_type, false, context)?;
-        error_event_generic.set(js_string!("bubbles"), false, false, context)?;
-        error_event_generic.set(js_string!("cancelable"), false, false, context)?;
-        error_event_generic.set(js_string!("composed"), false, false, context)?;
-        error_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
-        error_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
-        error_event_generic.set(js_string!("isTrusted"), false, false, context)?;
-        error_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        error_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        error_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
-
-        // Parse eventInitDict for Event properties
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    error_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    error_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
-                }
-            }
-        }
-
-        Ok(error_event_generic.into())
+        Ok(error_event_obj.into())
     }
 }
 
-/// Internal data for ErrorEvent instances
+/// Internal data for ErrorEvent instances - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
-struct ErrorEventData {
-    #[unsafe_ignore_trace]
-    event_type: String,
+pub struct ErrorEventData {
+    /// Base event data
+    pub event: EventData,
     #[unsafe_ignore_trace]
     message: String,
     #[unsafe_ignore_trace]
@@ -205,8 +177,8 @@ struct ErrorEventData {
 }
 
 impl ErrorEventData {
-    fn new(event_type: String, message: String, filename: String, lineno: u32, colno: u32, error: JsValue) -> Self {
-        Self { event_type, message, filename, lineno, colno, error }
+    pub fn new(event: EventData, message: String, filename: String, lineno: u32, colno: u32, error: JsValue) -> Self {
+        Self { event, message, filename, lineno, colno, error }
     }
 }
 

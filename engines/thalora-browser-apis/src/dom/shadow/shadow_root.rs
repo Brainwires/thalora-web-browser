@@ -611,6 +611,7 @@ impl IntrinsicObject for ShadowRoot {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().document_fragment().prototype()))
             // Properties
             .accessor(
                 js_string!("mode"),

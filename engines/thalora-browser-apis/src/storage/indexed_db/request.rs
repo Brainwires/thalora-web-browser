@@ -343,6 +343,7 @@ impl IntrinsicObject for IDBRequest {
         let _intrinsics = realm.intrinsics();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Properties
             .accessor(
                 js_string!("readyState"),

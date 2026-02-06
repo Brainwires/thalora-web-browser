@@ -13,7 +13,8 @@ use boa_engine::{
     JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder}
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex};
+
+use super::event::EventData;
 
 /// JavaScript `PageSwapEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -30,6 +31,7 @@ impl IntrinsicObject for PageSwapEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("activation"),
                 Some(activation_func),
@@ -56,8 +58,8 @@ impl BuiltInObject for PageSwapEvent {
 
 impl BuiltInConstructor for PageSwapEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 4;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::pageswap_event;
@@ -74,15 +76,38 @@ impl BuiltInConstructor for PageSwapEvent {
         )?;
 
         let event_type = args.get_or_undefined(0);
-        let event_init = args.get(1).cloned().unwrap_or(JsValue::undefined());
+        let event_init = args.get_or_undefined(1);
 
         // Validate event type
         let type_string = event_type.to_string(context)?;
 
-        let pageswap_data = PageSwapEventData::new(
-            type_string.to_std_string_escaped(),
-            event_init,
-        );
+        // Parse eventInitDict
+        let mut bubbles = false;
+        let mut cancelable = false;
+        let mut activation: Option<JsValue> = None;
+        let mut view_transition: Option<JsValue> = None;
+
+        if let Some(init_obj) = event_init.as_object() {
+            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
+                bubbles = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
+                cancelable = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("activation"), context) {
+                if !v.is_null() && !v.is_undefined() {
+                    activation = Some(v);
+                }
+            }
+            if let Ok(v) = init_obj.get(js_string!("viewTransition"), context) {
+                if !v.is_null() && !v.is_undefined() {
+                    view_transition = Some(v);
+                }
+            }
+        }
+
+        let event_data = EventData::new(type_string.to_std_string_escaped(), bubbles, cancelable);
+        let pageswap_data = PageSwapEventData::new(event_data, activation, view_transition);
 
         let pageswap_event = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -94,67 +119,34 @@ impl BuiltInConstructor for PageSwapEvent {
     }
 }
 
-/// Internal data for PageSwapEvent objects
+/// Internal data for PageSwapEvent objects - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct PageSwapEventData {
-    #[unsafe_ignore_trace]
-    event_type: Arc<Mutex<String>>,
-    #[unsafe_ignore_trace]
-    activation: Arc<Mutex<Option<JsValue>>>,
-    #[unsafe_ignore_trace]
-    view_transition: Arc<Mutex<Option<JsValue>>>,
-    #[unsafe_ignore_trace]
-    bubbles: Arc<Mutex<bool>>,
-    #[unsafe_ignore_trace]
-    cancelable: Arc<Mutex<bool>>,
+    /// Base event data
+    pub event: EventData,
+    activation: Option<JsValue>,
+    view_transition: Option<JsValue>,
 }
 
 impl PageSwapEventData {
-    fn new(event_type: String, _event_init: JsValue) -> Self {
-        let activation = None;
-        let view_transition = None;
-        let bubbles = false;
-        let cancelable = false;
-
-        // Parse event_init if it's an object
-        // Note: In a real implementation, we would properly parse the event_init dict
-        // For now, we just create default values
-
-        Self {
-            event_type: Arc::new(Mutex::new(event_type)),
-            activation: Arc::new(Mutex::new(activation)),
-            view_transition: Arc::new(Mutex::new(view_transition)),
-            bubbles: Arc::new(Mutex::new(bubbles)),
-            cancelable: Arc::new(Mutex::new(cancelable)),
-        }
-    }
-
-    pub fn get_type(&self) -> String {
-        self.event_type.lock().unwrap().clone()
+    pub fn new(event: EventData, activation: Option<JsValue>, view_transition: Option<JsValue>) -> Self {
+        Self { event, activation, view_transition }
     }
 
     pub fn get_activation(&self) -> Option<JsValue> {
-        self.activation.lock().unwrap().clone()
+        self.activation.clone()
     }
 
     pub fn get_view_transition(&self) -> Option<JsValue> {
-        self.view_transition.lock().unwrap().clone()
+        self.view_transition.clone()
     }
 
-    pub fn set_activation(&self, activation: Option<JsValue>) {
-        *self.activation.lock().unwrap() = activation;
+    pub fn set_activation(&mut self, activation: Option<JsValue>) {
+        self.activation = activation;
     }
 
-    pub fn set_view_transition(&self, view_transition: Option<JsValue>) {
-        *self.view_transition.lock().unwrap() = view_transition;
-    }
-
-    pub fn is_bubbles(&self) -> bool {
-        *self.bubbles.lock().unwrap()
-    }
-
-    pub fn is_cancelable(&self) -> bool {
-        *self.cancelable.lock().unwrap()
+    pub fn set_view_transition(&mut self, view_transition: Option<JsValue>) {
+        self.view_transition = view_transition;
     }
 }
 
@@ -189,33 +181,31 @@ fn get_view_transition(this: &JsValue, _args: &[JsValue], _context: &mut Context
 /// Navigation activation entry for PageSwap events
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct NavigationActivationData {
+    entry: JsValue,
+    from: Option<JsValue>,
     #[unsafe_ignore_trace]
-    entry: Arc<Mutex<JsValue>>,
-    #[unsafe_ignore_trace]
-    from: Arc<Mutex<Option<JsValue>>>,
-    #[unsafe_ignore_trace]
-    navigation_type: Arc<Mutex<String>>,
+    navigation_type: String,
 }
 
 impl NavigationActivationData {
     pub fn new(entry: JsValue, from: Option<JsValue>, navigation_type: String) -> Self {
         Self {
-            entry: Arc::new(Mutex::new(entry)),
-            from: Arc::new(Mutex::new(from)),
-            navigation_type: Arc::new(Mutex::new(navigation_type)),
+            entry,
+            from,
+            navigation_type,
         }
     }
 
     pub fn get_entry(&self) -> JsValue {
-        self.entry.lock().unwrap().clone()
+        self.entry.clone()
     }
 
     pub fn get_from(&self) -> Option<JsValue> {
-        self.from.lock().unwrap().clone()
+        self.from.clone()
     }
 
     pub fn get_navigation_type(&self) -> String {
-        self.navigation_type.lock().unwrap().clone()
+        self.navigation_type.clone()
     }
 }
 
@@ -228,7 +218,7 @@ pub fn create_pageswap_event(
     // Create event init dictionary
     let event_init = JsObject::default(context.intrinsics());
 
-    if let Some(activation_val) = activation {
+    if let Some(activation_val) = activation.clone() {
         event_init.define_property_or_throw(
             js_string!("activation"),
             PropertyDescriptorBuilder::new()
@@ -241,7 +231,7 @@ pub fn create_pageswap_event(
         )?;
     }
 
-    if let Some(view_transition_val) = view_transition {
+    if let Some(view_transition_val) = view_transition.clone() {
         event_init.define_property_or_throw(
             js_string!("viewTransition"),
             PropertyDescriptorBuilder::new()
@@ -254,9 +244,18 @@ pub fn create_pageswap_event(
         )?;
     }
 
-    // Create PageSwapEvent
-    let args = [JsValue::from(js_string!("pageswap")), event_init.into()];
-    PageSwapEvent::constructor(&JsValue::undefined(), &args, context)
+    // Create the event data directly
+    let event_data = EventData::new("pageswap".to_string(), false, false);
+    let pageswap_data = PageSwapEventData::new(event_data, activation, view_transition);
+
+    let proto = context.intrinsics().constructors().pageswap_event().prototype();
+    let pageswap_event = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        proto,
+        pageswap_data,
+    );
+
+    Ok(pageswap_event.into())
 }
 
 /// Dispatch a pageswap event on the window object

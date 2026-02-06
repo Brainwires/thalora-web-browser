@@ -263,6 +263,7 @@ impl IntrinsicObject for HTMLImageElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             // Properties with accessors
             .accessor(
                 js_string!("src"),

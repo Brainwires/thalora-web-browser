@@ -15,6 +15,8 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
+use super::event::EventData;
+
 /// JavaScript `CustomEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct CustomEvent;
@@ -26,6 +28,7 @@ impl IntrinsicObject for CustomEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("detail"),
                 Some(detail_getter),
@@ -47,8 +50,8 @@ impl BuiltInObject for CustomEvent {
 
 impl BuiltInConstructor for CustomEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 4;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::custom_event;
@@ -72,68 +75,53 @@ impl BuiltInConstructor for CustomEvent {
 
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::custom_event, context)?;
 
-        // Get detail from eventInitDict
-        let detail = if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                init_obj.get(js_string!("detail"), context).unwrap_or(JsValue::null())
-            } else {
-                JsValue::null()
-            }
-        } else {
-            JsValue::null()
-        };
+        // Parse eventInitDict
+        let mut bubbles = false;
+        let mut cancelable = false;
+        let mut composed = false;
+        let mut detail = JsValue::null();
 
-        let custom_event_data = CustomEventData::new(event_type.to_std_string_escaped(), detail);
+        if let Some(init_obj) = event_init_dict.as_object() {
+            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
+                bubbles = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
+                cancelable = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("composed"), context) {
+                composed = v.to_boolean();
+            }
+            if let Ok(v) = init_obj.get(js_string!("detail"), context) {
+                detail = v;
+            }
+        }
+
+        let mut event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
+        event_data.set_composed(composed);
+
+        let custom_event_data = CustomEventData::new(event_data, detail);
         let custom_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             custom_event_data,
         );
 
-        let custom_event_generic = custom_event_obj.upcast();
-
-        // Set Event interface properties
-        custom_event_generic.set(js_string!("type"), event_type, false, context)?;
-        custom_event_generic.set(js_string!("bubbles"), false, false, context)?;
-        custom_event_generic.set(js_string!("cancelable"), false, false, context)?;
-        custom_event_generic.set(js_string!("composed"), false, false, context)?;
-        custom_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
-        custom_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
-        custom_event_generic.set(js_string!("isTrusted"), false, false, context)?;
-        custom_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        custom_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        custom_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
-
-        // Parse eventInitDict for Event properties
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    custom_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    custom_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
-                }
-                if let Ok(composed_val) = init_obj.get(js_string!("composed"), context) {
-                    custom_event_generic.set(js_string!("composed"), composed_val.to_boolean(), false, context)?;
-                }
-            }
-        }
-
-        Ok(custom_event_generic.into())
+        Ok(custom_event_obj.into())
     }
 }
 
-/// Internal data for CustomEvent instances
+/// Internal data for CustomEvent instances - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
-struct CustomEventData {
-    #[unsafe_ignore_trace]
-    event_type: String,
+pub struct CustomEventData {
+    /// Base event data
+    pub event: EventData,
+    /// The detail value
     detail: JsValue,
 }
 
 impl CustomEventData {
-    fn new(event_type: String, detail: JsValue) -> Self {
-        Self { event_type, detail }
+    pub fn new(event: EventData, detail: JsValue) -> Self {
+        Self { event, detail }
     }
 }
 
@@ -157,17 +145,14 @@ fn init_custom_event(this: &JsValue, args: &[JsValue], context: &mut Context) ->
         JsNativeError::typ().with_message("CustomEvent.prototype.initCustomEvent called on non-object")
     })?;
 
-    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let event_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
     let bubbles = args.get_or_undefined(1).to_boolean();
     let cancelable = args.get_or_undefined(2).to_boolean();
     let detail = args.get_or_undefined(3).clone();
 
-    this_obj.set(js_string!("type"), event_type, false, context)?;
-    this_obj.set(js_string!("bubbles"), bubbles, false, context)?;
-    this_obj.set(js_string!("cancelable"), cancelable, false, context)?;
-
-    // Update detail in the data if possible
+    // Update the embedded event data
     if let Some(mut custom_event) = this_obj.downcast_mut::<CustomEventData>() {
+        custom_event.event.init_event(event_type, bubbles, cancelable);
         custom_event.detail = detail;
     }
 

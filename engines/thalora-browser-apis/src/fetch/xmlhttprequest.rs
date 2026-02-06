@@ -27,6 +27,7 @@ pub struct XmlHttpRequest;
 impl IntrinsicObject for XmlHttpRequest {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .method(Self::open, js_string!("open"), 2)
             .method(Self::send, js_string!("send"), 0)
             .method(Self::set_request_header, js_string!("setRequestHeader"), 2)

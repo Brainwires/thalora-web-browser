@@ -215,6 +215,7 @@ impl IntrinsicObject for FileReader {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // ReadyState constants
             .static_property(js_string!("EMPTY"), 0, boa_engine::property::Attribute::default())
             .static_property(js_string!("LOADING"), 1, boa_engine::property::Attribute::default())

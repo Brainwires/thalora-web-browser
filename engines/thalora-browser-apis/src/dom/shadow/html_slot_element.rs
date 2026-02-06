@@ -400,6 +400,7 @@ impl IntrinsicObject for HTMLSlotElement {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             // Properties
             .accessor(
                 js_string!("name"),

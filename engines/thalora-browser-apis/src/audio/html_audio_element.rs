@@ -537,6 +537,7 @@ impl IntrinsicObject for HTMLAudioElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             .accessor(
                 js_string!("src"),
                 Some(src_getter),

@@ -437,6 +437,7 @@ impl IntrinsicObject for HTMLVideoElement {
         let seeking_getter = BuiltInBuilder::callable(realm, get_seeking).name(js_string!("get seeking")).build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
+            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             // Static constants on constructor (HTMLVideoElement.HAVE_NOTHING, etc.)
             .static_property(js_string!("HAVE_NOTHING"), ready_state::HAVE_NOTHING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
             .static_property(js_string!("HAVE_METADATA"), ready_state::HAVE_METADATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
