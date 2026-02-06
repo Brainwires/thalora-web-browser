@@ -272,10 +272,16 @@ impl BuiltInConstructor for Navigator {
     fn constructor(
         _new_target: &JsValue,
         _args: &[JsValue],
-        _context: &mut Context,
+        context: &mut Context,
     ) -> JsResult<JsValue> {
-        // Navigator constructor is not meant to be called directly
-        Ok(JsValue::undefined())
+        let navigator_data = Navigator::new();
+        let prototype = context.intrinsics().constructors().navigator().prototype();
+        let navigator_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            prototype,
+            navigator_data,
+        );
+        Ok(navigator_obj.upcast().into())
     }
 }
 

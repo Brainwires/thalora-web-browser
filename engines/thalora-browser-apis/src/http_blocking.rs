@@ -56,7 +56,8 @@ impl BlockingClientBuilder {
 
     /// Build the blocking client
     pub fn build(self) -> Result<BlockingClient, rquest::Error> {
-        let mut builder = rquest::Client::builder();
+        let mut builder = rquest::Client::builder()
+            .redirect(rquest::redirect::Policy::limited(10));
 
         if let Some(timeout) = self.timeout {
             builder = builder.timeout(timeout);

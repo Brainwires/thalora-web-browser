@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use thalora_browser_apis::boa_engine::{Context, Source};
 use std::time::{Duration, Instant};
-use std::error::Error;
 use crate::engine::renderer::core::RustRenderer;
 
 impl RustRenderer {
@@ -32,19 +31,14 @@ impl RustRenderer {
 
         // Execute JavaScript directly without wrapper for form interactions
         let source = Source::from_bytes(js_code);
-        eprintln!("🔍 DEBUG: About to eval direct JavaScript: {}", if js_code.len() > 200 { &js_code[..200] } else { js_code });
 
         if let Some(ctx) = &mut self.js_context {
             match ctx.eval(source) {
                 Ok(value) => {
-                    eprintln!("🔍 DEBUG: Direct JavaScript eval succeeded, value type: {:?}", value.get_type());
-                    // Convert JS value to string - this should preserve JSON strings
                     let result = self.js_value_to_string(value);
-                    eprintln!("🔍 DEBUG: Direct conversion to string: {}", result);
                     Ok(result)
                 },
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: Direct JavaScript execution error: {:?}", e);
                     Err(anyhow!("JavaScript execution failed: {}", e))
                 }
             }
@@ -197,8 +191,7 @@ impl RustRenderer {
             }
         "#;
 
-        let result = self.evaluate_javascript_with_timeout(form_injection_code, Duration::from_secs(2))?;
-        eprintln!("🔍 DEBUG: Form injection result: {}", result);
+        let _result = self.evaluate_javascript_with_timeout(form_injection_code, Duration::from_secs(2))?;
         Ok(())
     }
 
@@ -208,7 +201,6 @@ impl RustRenderer {
         // This is documented in engines/boa/core/engine/src/builtins/element/tests.rs:286
 
         let result = "Shadow DOM APIs: SKIPPED (BorrowMutError fix pending), Element.prototype.attachShadow: true";
-        eprintln!("🔍 DEBUG: Shadow DOM test skipped to prevent BorrowMutError crash");
         Ok(result.to_string())
     }
 
@@ -302,20 +294,29 @@ impl RustRenderer {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));
         }
 
-        // TEMPORARY: Disable safe wrapper to test context isolation
-        // Simple error-safe wrapper that prevents Google's JavaScript from crashing
-        let safe_wrapper = if js_code.contains("typeof window") || js_code.contains("Worker") || js_code.contains("ServiceWorker") || js_code.contains("Worklet") || js_code.contains("MessageChannel") {
-            // For DOM and Worker ecosystem tests, execute directly without wrapper to avoid context isolation
+        // Simple error-safe wrapper that prevents page JavaScript from crashing the engine.
+        // Code that is already wrapped in an IIFE (starts with "(function") bypasses the
+        // wrapper entirely — this preserves return values from internal callers like
+        // fire_dom_content_loaded, wait_for_js_execution, DOM serialization, etc.
+        // Raw page scripts from <script> tags get a safety wrapper WITHOUT `return`,
+        // which prevents `return var x = ...` SyntaxErrors.
+        let safe_wrapper = if js_code.trim().starts_with("(function")
+            || js_code.trim().starts_with("(async function")
+            || js_code.contains("typeof window")
+            || js_code.contains("Worker")
+            || js_code.contains("ServiceWorker")
+            || js_code.contains("Worklet")
+            || js_code.contains("MessageChannel") {
+            // Already wrapped in IIFE or uses advanced patterns — execute directly
             js_code.to_string()
         } else {
-            // FIXED: Added `return` before user code so the result is captured
+            // Raw page script — wrap in try/catch for safety, NO return
             format!(r#"
 (function() {{
     try {{
-        return {};
+        {};
     }} catch(e) {{
-        console.log("🔍 DOM DEBUG: JavaScript error handled safely:", e.message);
-        return undefined;
+        console.log("Script error:", e.message);
     }}
 }})()
             "#, js_code)
@@ -323,27 +324,6 @@ impl RustRenderer {
 
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);
-        eprintln!("🔍 DEBUG: About to eval JavaScript: {}", if safe_wrapper.len() > 200 { &safe_wrapper[..200] } else { &safe_wrapper });
-
-        // Run bot detection test BEFORE executing page scripts
-        if safe_wrapper.contains("window.google") {
-            eprintln!("🤖 RUNNING BOT DETECTION TEST ON GOOGLE PAGE");
-            if let Some(ctx) = &mut self.js_context {
-                let test_script = r#"
-                console.log("=== BOT DETECTION ===");
-                console.log("navigator:", typeof navigator);
-                console.log("navigator.webdriver:", typeof navigator.webdriver, navigator.webdriver);
-                console.log("navigator.plugins:", typeof navigator.plugins, navigator.plugins);
-                console.log("navigator.plugins.length:", navigator.plugins ? navigator.plugins.length : "plugins is undefined/null");
-                console.log("window.chrome:", typeof window.chrome);
-                console.log("window.outerWidth:", typeof window.outerWidth, window.outerWidth);
-                console.log("Image constructor:", typeof Image);
-                console.log("screen:", typeof screen);
-                console.log("=== END TEST ===");
-                "#;
-                let _ = ctx.eval(Source::from_bytes(test_script));
-            }
-        }
 
         if let Some(ctx) = &mut self.js_context {
             // SECURITY: Set execution deadline to enforce timeout
@@ -357,10 +337,7 @@ impl RustRenderer {
 
             match result {
                 Ok(value) => {
-                    eprintln!("🔍 DEBUG: JavaScript eval succeeded, value type: {:?}", value.get_type());
-                    // Convert JS value to string
                     let result = self.js_value_to_string(value);
-                    eprintln!("🔍 DEBUG: Converted to string: {}", result);
                     Ok(result)
                 },
                 Err(e) => {
@@ -369,16 +346,8 @@ impl RustRenderer {
                     if error_str.contains("timeout") || error_str.contains("ExecutionTimeout") {
                         return Err(anyhow!("JavaScript execution timeout after {:?}", timeout_duration));
                     }
-                    // For Google's JavaScript, we'll be more forgiving of errors
-                    eprintln!("🔍 DEBUG: JavaScript execution had recoverable error: {:?}", e);
-                    eprintln!("🔴 JS ERROR DETAILS:");
-                    eprintln!("   Error type: {}", e);
-                    if let Some(cause) = e.cause() {
-                        eprintln!("   Caused by: {:?}", cause);
-                    }
-                    // Try to get more info from the JsError
-                    eprintln!("   Full error: {:#?}", e);
-                    Ok("undefined".to_string()) // Return success with undefined result
+                    // Non-timeout errors are recoverable — return undefined
+                    Ok("undefined".to_string())
                 }
             }
         } else {

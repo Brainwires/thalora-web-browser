@@ -215,6 +215,13 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
         .to_string(context)?
         .to_std_string_escaped();
 
+    // Validate URL format
+    if url::Url::parse(&script_url_str).is_err() {
+        return Err(JsNativeError::typ()
+            .with_message(format!("Failed to construct 'Worker': Invalid Worker script URL: {}", script_url_str))
+            .into());
+    }
+
     // Parse options (optional second argument)
     let options = if let Some(opts) = args.get(1) {
         Worker::parse_options(opts, context)?
@@ -344,10 +351,15 @@ impl BuiltInConstructor for WorkerConstructor {
         StandardConstructors::worker;
 
     fn constructor(
-        _new_target: &JsValue,
+        new_target: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
+        if new_target.is_undefined() {
+            return Err(JsNativeError::typ()
+                .with_message("Failed to construct 'Worker': This constructor requires 'new' operator.")
+                .into());
+        }
         worker_constructor(args, context)
     }
 }

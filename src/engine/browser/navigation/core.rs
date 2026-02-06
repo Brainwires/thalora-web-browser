@@ -11,8 +11,8 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Navigate to URL with options for JavaScript execution
-    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_load: bool) -> Result<String> {
-        self.navigate_to_with_js_option(url, wait_for_load, false).await
+    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
+        self.navigate_to_with_js_option(url, wait_for_js, wait_for_js).await
     }
 
     /// Extract page title from HTML

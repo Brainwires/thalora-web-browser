@@ -25,28 +25,42 @@ pub struct Location;
 /// Internal data for Location objects
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
 pub struct LocationData {
-    href: String,
+    #[unsafe_ignore_trace]
+    href: std::sync::Arc<std::sync::Mutex<String>>,
 }
 
 impl LocationData {
     /// Create a new LocationData with default values
     pub fn new() -> Self {
         Self {
-            href: "about:blank".to_string(),
+            href: std::sync::Arc::new(std::sync::Mutex::new("about:blank".to_string())),
         }
     }
 
     /// Create LocationData with specific href
     pub fn with_href(href: String) -> Self {
-        Self { href }
+        Self {
+            href: std::sync::Arc::new(std::sync::Mutex::new(href)),
+        }
+    }
+
+    /// Set the href (for navigation URL updates)
+    pub fn set_href(&self, href: &str) {
+        *self.href.lock().unwrap() = href.to_string();
+    }
+
+    /// Get the current href
+    pub fn get_href(&self) -> String {
+        self.href.lock().unwrap().clone()
     }
 
     /// Parse URL components from href
     fn parse_url(&self) -> ParsedUrl {
+        let href = self.get_href();
         // Simple URL parsing - in production would use url crate
-        if let Some(protocol_end) = self.href.find("://") {
-            let protocol = &self.href[..protocol_end + 1];
-            let rest = &self.href[protocol_end + 3..];
+        if let Some(protocol_end) = href.find("://") {
+            let protocol = &href[..protocol_end + 1];
+            let rest = &href[protocol_end + 3..];
 
             let (host, path_search_hash) = if let Some(slash_pos) = rest.find('/') {
                 (&rest[..slash_pos], &rest[slash_pos..])
@@ -57,7 +71,7 @@ impl LocationData {
             let (pathname, search, hash) = Self::split_path(path_search_hash);
 
             ParsedUrl {
-                href: self.href.clone(),
+                href: href.clone(),
                 protocol: protocol.to_string(),
                 host: host.to_string(),
                 hostname: host.split(':').next().unwrap_or(host).to_string(),
@@ -70,12 +84,12 @@ impl LocationData {
         } else {
             // Fallback for invalid URLs
             ParsedUrl {
-                href: self.href.clone(),
+                href: href.clone(),
                 protocol: "".to_string(),
                 host: "".to_string(),
                 hostname: "".to_string(),
                 port: "".to_string(),
-                pathname: self.href.clone(),
+                pathname: href.clone(),
                 search: "".to_string(),
                 hash: "".to_string(),
                 origin: "null".to_string(),
@@ -230,7 +244,7 @@ impl Location {
             JsNativeError::typ().with_message("'this' is not a Location object")
         })?;
 
-        Ok(JsValue::from(js_string!(data.href.clone())))
+        Ok(JsValue::from(js_string!(data.get_href())))
     }
 
     /// `location.protocol` getter

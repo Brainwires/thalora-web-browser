@@ -236,6 +236,7 @@ impl IntrinsicObject for Document {
             .method(create_text_node, js_string!("createTextNode"), 1)
             .method(create_document_fragment, js_string!("createDocumentFragment"), 0)
             .method(create_range, js_string!("createRange"), 0)
+            .method(create_event, js_string!("createEvent"), 1)
             .method(get_element_by_id, js_string!("getElementById"), 1)
             .method(query_selector, js_string!("querySelector"), 1)
             .method(query_selector_all, js_string!("querySelectorAll"), 1)

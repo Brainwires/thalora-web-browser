@@ -43,6 +43,21 @@ impl BuiltInObject for Fetch {
     const NAME: JsString = js_string!("fetch");
 }
 
+/// Get the base URL from the JS context by reading window.location.href
+/// Used by fetch() and XMLHttpRequest to resolve relative URLs
+pub(crate) fn get_base_url_from_context(context: &mut Context) -> Option<String> {
+    let global = context.global_object();
+    let location = global.get(js_string!("location"), context).ok()?;
+    let loc_obj = location.as_object()?;
+    let href = loc_obj.get(js_string!("href"), context).ok()?;
+    let href_str = href.to_string(context).ok()?.to_std_string_escaped();
+    if href_str.is_empty() || href_str == "undefined" || href_str == "about:blank" {
+        None
+    } else {
+        Some(href_str)
+    }
+}
+
 /// `fetch(input, init)` global function
 fn fetch(
     _this: &JsValue,
@@ -65,10 +80,33 @@ fn fetch(
         input.to_string(context)?.to_std_string_escaped()
     };
 
-    // Validate URL
-    let _url = Url::parse(&url_string).map_err(|_| {
-        JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string))
-    })?;
+    // Resolve URL — support relative URLs by resolving against current page origin
+    let url_string = match Url::parse(&url_string) {
+        Ok(_) => url_string, // Already absolute
+        Err(_) => {
+            // Try to resolve relative URL against window.location.href
+            let base_url = get_base_url_from_context(context);
+            if let Some(base) = base_url {
+                if let Ok(base_parsed) = Url::parse(&base) {
+                    if let Ok(resolved) = base_parsed.join(&url_string) {
+                        resolved.to_string()
+                    } else {
+                        return Err(JsNativeError::typ()
+                            .with_message(format!("Invalid URL: {}", url_string))
+                            .into());
+                    }
+                } else {
+                    return Err(JsNativeError::typ()
+                        .with_message(format!("Invalid URL: {}", url_string))
+                        .into());
+                }
+            } else {
+                return Err(JsNativeError::typ()
+                    .with_message(format!("Invalid URL: {} (no base URL available)", url_string))
+                    .into());
+            }
+        }
+    };
 
     // Parse init options
     let (method, headers, body) = if !init.is_undefined() {
@@ -82,8 +120,11 @@ fn fetch(
 
     // Enqueue an async job to perform the actual HTTP request
     context.enqueue_job(
-        NativeAsyncJob::new(async move |context| {
-            // Perform HTTP request in the background
+        NativeAsyncJob::new(async move |ctx_ref| {
+            // Perform HTTP request in the background.
+            // IMPORTANT: We must NOT hold the RefCell borrow across .await points,
+            // otherwise other async jobs can't access the context and will panic
+            // with "RefCell already borrowed".
             let client = rquest::Client::new();
             let mut request_builder = client.request(
                 rquest::Method::from_bytes(method.as_bytes()).unwrap_or(rquest::Method::GET),
@@ -100,18 +141,15 @@ fn fetch(
                 request_builder = request_builder.body(body_content);
             }
 
-            // Execute the request
+            // Phase 1: Async HTTP send (no borrow held)
             let response_result = request_builder.send().await;
-
-            let context = &mut context.borrow_mut();
 
             match response_result {
                 Ok(response) => {
-                    // Extract response data
+                    // Extract response metadata (no borrow needed)
                     let status = response.status().as_u16();
                     let status_text = response.status().canonical_reason().unwrap_or("").to_string();
 
-                    // Convert headers
                     let mut response_headers = HashMap::new();
                     for (name, value) in response.headers() {
                         if let Ok(value_str) = value.to_str() {
@@ -119,11 +157,13 @@ fn fetch(
                         }
                     }
 
-                    // Get response body
+                    // Phase 2: Async body read (no borrow held)
                     let body_result = response.text().await;
+
+                    // Phase 3: Brief borrow to resolve/reject promise
+                    let context = &mut ctx_ref.borrow_mut();
                     match body_result {
                         Ok(body_text) => {
-                            // Create Response object and resolve the promise
                             let response_data = ResponseData {
                                 body: Some(body_text),
                                 status,
@@ -132,9 +172,10 @@ fn fetch(
                                 url: url_string.clone(),
                             };
 
-                            let response_obj = JsObject::from_proto_and_data(None, response_data);
+                            // Use the proper Response prototype so .json(), .text() etc. are available
+                            let prototype = context.intrinsics().constructors().response().prototype();
+                            let response_obj = JsObject::from_proto_and_data(Some(prototype), response_data);
 
-                            // Add properties to the Response object
                             drop(response_obj.set(js_string!("status"), JsValue::from(status), false, context));
                             drop(response_obj.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context));
                             drop(response_obj.set(js_string!("ok"), JsValue::from(status >= 200 && status < 300), false, context));
@@ -143,7 +184,6 @@ fn fetch(
                             resolvers.resolve.call(&JsValue::undefined(), &[response_obj.into()], context)
                         }
                         Err(e) => {
-                            // Reject promise with body read error
                             let error = JsNativeError::typ()
                                 .with_message(format!("Failed to read response body: {}", e))
                                 .into_opaque(context);
@@ -152,7 +192,7 @@ fn fetch(
                     }
                 }
                 Err(e) => {
-                    // Reject promise with network error
+                    let context = &mut ctx_ref.borrow_mut();
                     let error = JsNativeError::typ()
                         .with_message(format!("Fetch request failed: {}", e))
                         .into_opaque(context);
@@ -275,15 +315,34 @@ impl BuiltInConstructor for Request {
         let input = args.get_or_undefined(0);
         let init = args.get_or_undefined(1);
 
-        // Parse URL
-        let url = input.to_string(context)?.to_std_string_escaped();
-
-        // Validate URL
-        if Url::parse(&url).is_err() {
-            return Err(JsNativeError::typ()
-                .with_message("Invalid URL")
-                .into());
-        }
+        // Parse URL — resolve relative URLs against page origin
+        let url_raw = input.to_string(context)?.to_std_string_escaped();
+        let url = match Url::parse(&url_raw) {
+            Ok(parsed) => parsed.to_string(),
+            Err(_) => {
+                // Try to resolve as relative URL
+                let base_url = get_base_url_from_context(context);
+                if let Some(base) = base_url {
+                    if let Ok(base_parsed) = Url::parse(&base) {
+                        if let Ok(resolved) = base_parsed.join(&url_raw) {
+                            resolved.to_string()
+                        } else {
+                            return Err(JsNativeError::typ()
+                                .with_message("Invalid URL")
+                                .into());
+                        }
+                    } else {
+                        return Err(JsNativeError::typ()
+                            .with_message("Invalid URL")
+                            .into());
+                    }
+                } else {
+                    return Err(JsNativeError::typ()
+                        .with_message("Invalid URL")
+                        .into());
+                }
+            }
+        };
 
         // Create the Request object
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::request, context)?;

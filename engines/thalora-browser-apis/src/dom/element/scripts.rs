@@ -195,50 +195,91 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
 #[cfg(feature = "native")]
 fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
     use crate::http_blocking::BlockingClient;
+    use url::Url;
 
     eprintln!("DEBUG: Fetching external script: {}", url);
 
-    // Create a blocking HTTP client
-    let client = match BlockingClient::new() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("DEBUG: Failed to create HTTP client: {:?}", e);
-            return Ok(());
+    // Resolve relative URLs against the current page's base URL
+    let resolved_url = match Url::parse(url) {
+        Ok(_) => url.to_string(), // Already absolute
+        Err(_) => {
+            // Try to resolve against window.location.href
+            let base_url = crate::fetch::fetch::get_base_url_from_context(context);
+            if let Some(base) = base_url {
+                if let Ok(base_parsed) = Url::parse(&base) {
+                    match base_parsed.join(url) {
+                        Ok(resolved) => {
+                            let resolved_str = resolved.to_string();
+                            eprintln!("DEBUG: Resolved relative script URL '{}' -> '{}'", url, resolved_str);
+                            resolved_str
+                        }
+                        Err(e) => {
+                            eprintln!("DEBUG: Failed to resolve script URL '{}': {:?}", url, e);
+                            return Ok(());
+                        }
+                    }
+                } else {
+                    eprintln!("DEBUG: Invalid base URL for script resolution: {}", base);
+                    return Ok(());
+                }
+            } else {
+                eprintln!("DEBUG: No base URL available to resolve relative script URL: {}", url);
+                return Ok(());
+            }
         }
     };
 
-    // Use blocking HTTP client to fetch the script
-    match client.get(url).send() {
-        Ok(response) => {
-            if response.status().is_success() {
-                match response.text() {
-                    Ok(script_content) => {
-                        eprintln!("DEBUG: Fetched {} bytes of script content", script_content.len());
-
-                        // Execute the fetched script
-                        match context.eval(boa_engine::Source::from_bytes(&script_content)) {
-                            Ok(_) => {
-                                eprintln!("DEBUG: External script executed successfully");
-                                Ok(())
-                            }
-                            Err(e) => {
-                                eprintln!("DEBUG: External script execution error: {:?}", e);
-                                Ok(()) // Don't propagate
-                            }
+    // Fetch the script in a separate thread to avoid "cannot start a runtime
+    // from within a runtime" panic when called from async navigation code
+    let fetch_url = resolved_url.clone();
+    let script_content = std::thread::spawn(move || -> Option<String> {
+        let client = match BlockingClient::new() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("DEBUG: [thread] Failed to create HTTP client: {:?}", e);
+                return None;
+            }
+        };
+        match client.get(&fetch_url).send() {
+            Ok(response) => {
+                if response.status().is_success() {
+                    match response.text() {
+                        Ok(text) => Some(text),
+                        Err(e) => {
+                            eprintln!("DEBUG: [thread] Failed to read response body: {:?}", e);
+                            None
                         }
                     }
-                    Err(e) => {
-                        eprintln!("DEBUG: Failed to read script response: {:?}", e);
-                        Ok(())
-                    }
+                } else {
+                    eprintln!("DEBUG: [thread] Script fetch returned status: {}", response.status());
+                    None
                 }
-            } else {
-                eprintln!("DEBUG: Failed to fetch script, status: {}", response.status());
-                Ok(())
+            }
+            Err(e) => {
+                eprintln!("DEBUG: [thread] Script fetch network error: {:?}", e);
+                None
             }
         }
-        Err(e) => {
-            eprintln!("DEBUG: Failed to fetch script: {:?}", e);
+    }).join().ok().flatten();
+
+    match script_content {
+        Some(content) => {
+            eprintln!("DEBUG: Fetched {} bytes of script content", content.len());
+
+            // Execute the fetched script
+            match context.eval(boa_engine::Source::from_bytes(&content)) {
+                Ok(_) => {
+                    eprintln!("DEBUG: External script executed successfully");
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("DEBUG: External script execution error: {:?}", e);
+                    Ok(()) // Don't propagate
+                }
+            }
+        }
+        None => {
+            eprintln!("DEBUG: Failed to fetch script from: {}", resolved_url);
             Ok(())
         }
     }

@@ -280,9 +280,10 @@ pub(super) fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], conte
     // Parse class names (space-separated)
     let classes: Vec<&str> = class_names_str.split_whitespace().collect();
 
-    // Get HTML content and parse
+    // Get HTML content and parse (use parse_document, not parse_fragment,
+    // because fragment parsing uses <body> context which drops <head> elements per HTML5 spec)
     let html_content = document.html_content.lock().unwrap().clone();
-    let fragment = scraper::Html::parse_fragment(&html_content);
+    let fragment = scraper::Html::parse_document(&html_content);
 
     // Build CSS selector for matching all classes
     let selector_str = classes.iter()
@@ -363,9 +364,10 @@ pub(super) fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context
         return get_scripts(this, args, context);
     }
 
-    // Get HTML content and parse
+    // Get HTML content and parse (use parse_document, not parse_fragment,
+    // because fragment parsing uses <body> context which drops <head> elements per HTML5 spec)
     let html_content = document.html_content.lock().unwrap().clone();
-    let fragment = scraper::Html::parse_fragment(&html_content);
+    let fragment = scraper::Html::parse_document(&html_content);
 
     let result = JsObject::default(context.intrinsics());
     let mut index = 0u32;
@@ -442,7 +444,7 @@ pub(super) fn get_elements_by_name(this: &JsValue, args: &[JsValue], context: &m
     let name_str = name.to_std_string_escaped();
 
     let html_content = document.html_content.lock().unwrap().clone();
-    let fragment = scraper::Html::parse_fragment(&html_content);
+    let fragment = scraper::Html::parse_document(&html_content);
 
     let result = JsObject::default(context.intrinsics());
     let mut index = 0u32;

@@ -51,6 +51,11 @@ impl super::super::HeadlessWebBrowser {
         self.current_content = content.to_string();
         self.current_url = Some(url.to_string());
 
+        // Set window.location.href before executing scripts
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.set_page_url(url)?;
+        }
+
         if let Some(ref mut renderer) = self.renderer {
             renderer.update_document_html(content)?;
         }
@@ -140,6 +145,12 @@ impl super::super::HeadlessWebBrowser {
 
         self.current_content = content.to_string();
         self.current_url = Some(url.to_string());
+
+        // Set window.location.href BEFORE updating HTML or executing scripts
+        // so that relative URL resolution (fetch, XHR, dynamic scripts) works
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.set_page_url(url)?;
+        }
 
         // Update the renderer with challenge page HTML
         if let Some(ref mut renderer) = self.renderer {
@@ -288,6 +299,11 @@ impl super::super::HeadlessWebBrowser {
         self.current_content = content.clone();
         self.current_url = Some(url.to_string());
 
+        // Set window.location.href so scripts can resolve relative URLs
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.set_page_url(url)?;
+        }
+
         // Update document HTML in the renderer if available
         if let Some(ref mut renderer) = self.renderer {
             renderer.update_document_html(&content)?;
@@ -321,6 +337,24 @@ impl super::super::HeadlessWebBrowser {
             match self.wait_for_js_execution(10000).await {
                 Ok(_) => {}
                 Err(_e) => {} // timeout is non-fatal
+            }
+
+            // After JS execution, serialize the live DOM back to HTML
+            // This captures any content rendered dynamically by JavaScript
+            match self.execute_javascript("(function(){ try { return document.documentElement.outerHTML; } catch(e) { return ''; } })()").await {
+                Ok(updated_html) => {
+                    let trimmed = updated_html.trim();
+                    if !trimmed.is_empty() && trimmed.len() > self.current_content.len() / 2 {
+                        // Wrap in doctype + html if needed
+                        let full_html = if trimmed.starts_with("<!") || trimmed.starts_with("<html") {
+                            trimmed.to_string()
+                        } else {
+                            format!("<!DOCTYPE html>{}", trimmed)
+                        };
+                        self.current_content = full_html;
+                    }
+                }
+                Err(_) => {} // Fall back to original content
             }
         }
 
@@ -374,7 +408,6 @@ impl super::super::HeadlessWebBrowser {
             if let Some(src) = script_element.value().attr("src") {
                 // Resolve the URL (handle relative paths, protocol-relative URLs)
                 let script_url = self.resolve_script_url(&base_url, src)?;
-
                 // Collect ALL attributes from the HTML element for script registration
                 let mut script_attrs: HashMap<String, String> = HashMap::new();
                 for (key, value) in script_element.value().attrs() {
@@ -416,9 +449,11 @@ impl super::super::HeadlessWebBrowser {
                         }
 
                         match exec_result {
-                            Ok(_) => { _scripts_executed += 1; }
+                            Ok(_result) => {
+                                _scripts_executed += 1;
+                            }
                             Err(e) => {
-                                eprintln!("WARNING: External script execution failed: {}", e);
+                                eprintln!("WARNING: External script execution failed for {}: {}", script_url, e);
                             }
                         }
                     }
@@ -469,9 +504,11 @@ impl super::super::HeadlessWebBrowser {
                 }
 
                 match exec_result {
-                    Ok(_) => { _scripts_executed += 1; }
+                    Ok(_result) => {
+                        _scripts_executed += 1;
+                    }
                     Err(e) => {
-                        eprintln!("WARNING: Inline script execution failed: {}", e);
+                        eprintln!("WARNING: Inline script execution failed ({}B): {}", script_content.len(), e);
                     }
                 }
             }
@@ -669,6 +706,11 @@ impl super::super::HeadlessWebBrowser {
         self.current_content = content.clone();
         self.current_url = Some(url.to_string());
 
+        // Set window.location.href so scripts can resolve relative URLs
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.set_page_url(url)?;
+        }
+
         // Update document HTML in the renderer if available
         if let Some(ref mut renderer) = self.renderer {
             renderer.update_document_html(&content)?;
@@ -765,13 +807,16 @@ impl super::super::HeadlessWebBrowser {
 
     /// Check if the page content indicates it's a Cloudflare challenge page.
     fn is_challenge_content(content: &str) -> bool {
-        // Use strong indicators that together reliably identify CF challenges
-        // Require at least one strong + one supporting indicator to avoid false positives
+        // Definitive markers that ONLY appear on challenge pages
+        let definitive_markers = [
+            "_cf_chl_opt",           // Challenge options object
+            "challenge-error-text",  // Challenge error UI element
+        ];
+
+        // Strong markers — present on challenge pages but could appear in other contexts
         let strong_markers = [
             "challenges.cloudflare.com",
             "/cdn-cgi/challenge-platform/",
-            "/cdn-cgi/challenge",
-            "_cf_chl_opt",
         ];
 
         let supporting_markers = [
@@ -779,15 +824,18 @@ impl super::super::HeadlessWebBrowser {
             "cf-turnstile",
             "cf-please-wait",
             "Checking your browser",
-            "challenge-error-text",
-            "__cf_chl_",
         ];
 
+        // Check definitive markers first
+        if definitive_markers.iter().any(|m| content.contains(m)) {
+            return true;
+        }
+
+        // Require BOTH strong AND supporting markers to avoid false positives
+        // from pages that happen to reference Cloudflare's CDN
         let has_strong = strong_markers.iter().any(|m| content.contains(m));
         let has_supporting = supporting_markers.iter().any(|m| content.contains(m));
 
-        // A page is a challenge if it has at least one strong marker,
-        // or if it has "Just a moment..." as title (very reliable)
-        has_strong || (has_supporting && content.contains("Just a moment..."))
+        has_strong && has_supporting
     }
 }

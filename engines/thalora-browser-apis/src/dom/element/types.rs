@@ -519,33 +519,32 @@ impl ElementData {
         *self.text_content.lock().unwrap() = text_parts.join("");
     }
 
-    /// Update the document's HTML content to reflect DOM changes
-    /// This is CRITICAL for querySelector to find dynamically added content
+    /// Update the document's HTML content to reflect DOM changes.
+    /// This is CRITICAL for querySelector to find dynamically added content.
+    ///
+    /// Note: We intentionally do NOT rebuild the full document HTML here.
+    /// querySelector works on the original HTML + in-memory element state.
+    /// The live DOM is captured via `document.documentElement.outerHTML` after
+    /// JS execution completes (see navigate_to_with_js_option).
     pub(super) fn update_document_html_content(&self) {
-        eprintln!("DEBUG: update_document_html_content called - implementing PROPER fix");
-
-        // REAL FIX: The bug was that serialize_to_html() only builds HTML for this one element,
-        // but then we were overwriting the ENTIRE document with just that element's HTML.
-
-        // Get access to the Document's HTML content through the global sync
-        let dom_sync = GLOBAL_DOM_SYNC.get_or_init(|| DomSync::new());
-
-        // Instead of overwriting the entire document with just this element,
-        // we need to tell the document that this specific element has changed.
-
-        // For now, signal that DOM has been modified without corrupting the full HTML.
-        // This allows querySelector to continue working on the full document while
-        // recognizing that individual elements may have been modified in memory.
-
-        eprintln!("DEBUG: Element {} content updated - document HTML preserved", self.get_tag_name());
-
-        // The key insight: querySelector works on the original HTML + in-memory element state.
-        // We don't need to rebuild the entire document HTML for individual element changes.
+        let _dom_sync = GLOBAL_DOM_SYNC.get_or_init(|| DomSync::new());
+        // Signal that DOM has been modified without corrupting the full HTML.
+        // Individual element changes are tracked in-memory and serialized on demand
+        // via serialize_to_html() which walks the live children vector.
     }
 
-    /// Serialize this element and all children to HTML string
+    /// Serialize this element and all children to HTML string.
+    /// Walks the live `children` vector to capture dynamically appended nodes
+    /// (e.g. via `appendChild`). Falls back to cached `inner_html` only when
+    /// the children vector is empty (text-only content or innerHTML-set leaves).
     pub(super) fn serialize_to_html(&self) -> String {
         let tag_name = self.get_tag_name();
+
+        // Text nodes serialize as just their text content
+        if tag_name == "#text" {
+            return self.get_text_content();
+        }
+
         let mut html = format!("<{}", tag_name);
 
         // Add attributes
@@ -555,10 +554,30 @@ impl ElementData {
         }
         html.push('>');
 
-        // Add inner HTML
-        html.push_str(&self.get_inner_html());
+        // Serialize content: prefer walking live children, fall back to cached innerHTML
+        let children = self.children.lock().unwrap();
+        if children.is_empty() {
+            // No child elements — use cached innerHTML (text content, or set via innerHTML)
+            html.push_str(&self.get_inner_html());
+        } else {
+            // Walk live DOM children and serialize each one recursively
+            for child in children.iter() {
+                if let Some(child_html) = try_with_element_data(child, |child_data| {
+                    child_data.serialize_to_html()
+                }) {
+                    html.push_str(&child_html);
+                }
+            }
+        }
 
-        html.push_str(&format!("</{}>", tag_name));
+        // Void elements don't get closing tags
+        let tag_lower = tag_name.to_lowercase();
+        if !matches!(tag_lower.as_str(), "area" | "base" | "br" | "col" | "embed" |
+            "hr" | "img" | "input" | "link" | "meta" | "param" | "source" |
+            "track" | "wbr") {
+            html.push_str(&format!("</{}>", tag_name));
+        }
+
         html
     }
 

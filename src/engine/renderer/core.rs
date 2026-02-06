@@ -247,6 +247,38 @@ impl RustRenderer {
         Ok(())
     }
 
+    /// Set the current page URL on the window object so window.location.href
+    /// returns the correct URL. Must be called before executing any page scripts.
+    pub fn set_page_url(&mut self, url: &str) -> Result<()> {
+        use thalora_browser_apis::boa_engine::js_string;
+
+        match self.engine_type {
+            EngineType::Boa => {
+                if let Some(ctx) = &mut self.js_context {
+                    let global = ctx.global_object().clone();
+
+                    // Update WindowData.current_url if available
+                    if let Some(window_data) = global.downcast_ref::<thalora_browser_apis::browser::window::WindowData>() {
+                        window_data.set_current_url(url.to_string());
+                    }
+
+                    // Update LocationData.href directly via the native data
+                    // This ensures location.href getter returns the correct URL
+                    if let Ok(location_val) = global.get(js_string!("location"), ctx) {
+                        if let Some(location_obj) = location_val.as_object() {
+                            if let Some(location_data) = location_obj.downcast_ref::<thalora_browser_apis::browser::location::LocationData>() {
+                                location_data.set_href(url);
+                            }
+                        }
+                    }
+                }
+            }
+            EngineType::V8 => {}
+        }
+
+        Ok(())
+    }
+
     /// Register a script that has been loaded/executed
     /// This makes the script visible in document.scripts and getElementsByTagName("script")
     pub fn register_script(&mut self, entry: thalora_browser_apis::dom::document::ScriptEntry) -> Result<()> {

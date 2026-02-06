@@ -11,6 +11,11 @@ use boa_engine::{
 };
 
 use super::types::DocumentData;
+use crate::events::event::EventData;
+use crate::events::custom_event::CustomEventData;
+use crate::events::ui_events::{
+    UIEventData, MouseEventData, KeyboardEventData, FocusEventData, InputEventData,
+};
 
 /// `Document.prototype.addEventListener(type, listener)`
 pub(super) fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -177,4 +182,112 @@ pub(super) fn start_view_transition(this: &JsValue, args: &[JsValue], context: &
     )?;
 
     Ok(transition.into())
+}
+
+/// `Document.prototype.createEvent(interface)`
+///
+/// Legacy method for creating events. Creates an uninitialized event of the
+/// specified type. The caller must then call initEvent() (or initCustomEvent(),
+/// initMouseEvent(), etc.) to initialize it before dispatching.
+///
+/// Per the W3C DOM spec: https://dom.spec.whatwg.org/#dom-document-createevent
+pub(super) fn create_event(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let interface = args.get_or_undefined(0).to_string(context)?;
+    let interface_str = interface.to_std_string_escaped();
+
+    // Per spec, the interface string is case-insensitive
+    let interface_lower = interface_str.to_ascii_lowercase();
+
+    match interface_lower.as_str() {
+        // Event, Events, HTMLEvents → base Event
+        "event" | "events" | "htmlevents" => {
+            let data = EventData::new(String::new(), false, false);
+            let proto = context.intrinsics().constructors().event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        // CustomEvent → CustomEvent
+        "customevent" => {
+            let event_data = EventData::new(String::new(), false, false);
+            let data = CustomEventData::new(event_data, JsValue::null());
+            let proto = context.intrinsics().constructors().custom_event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        // UIEvent, UIEvents → UIEvent
+        "uievent" | "uievents" => {
+            let data = UIEventData::new(String::new(), false, false);
+            let proto = context.intrinsics().constructors().ui_event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        // MouseEvent, MouseEvents → MouseEvent
+        "mouseevent" | "mouseevents" => {
+            let data = MouseEventData::new(String::new(), false, false);
+            let proto = context.intrinsics().constructors().mouse_event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        // KeyboardEvent, KeyboardEvents → KeyboardEvent
+        "keyboardevent" | "keyboardevents" => {
+            let data = KeyboardEventData::new(String::new(), false, false);
+            let proto = context.intrinsics().constructors().keyboard_event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        // FocusEvent → FocusEvent
+        "focusevent" => {
+            let data = FocusEventData::new(String::new(), false, false);
+            let proto = context.intrinsics().constructors().focus_event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        // InputEvent → InputEvent
+        "inputevent" => {
+            let data = InputEventData::new(String::new(), false, false);
+            let proto = context.intrinsics().constructors().input_event().prototype();
+            let event = JsObject::from_proto_and_data_with_shared_shape(
+                context.root_shape(),
+                proto,
+                data,
+            );
+            Ok(event.into())
+        }
+
+        _ => {
+            Err(JsNativeError::error()
+                .with_message(format!("The provided event type ('{}') is not supported", interface_str))
+                .into())
+        }
+    }
 }
