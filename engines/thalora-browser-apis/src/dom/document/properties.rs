@@ -154,6 +154,11 @@ pub(super) fn get_cookie(this: &JsValue, _args: &[JsValue], _context: &mut Conte
 }
 
 /// `Document.prototype.cookie` setter
+///
+/// Per the spec, `document.cookie = "name=value; Path=/; Secure"` stores ONLY `name=value`.
+/// Attributes (Path, Domain, Secure, HttpOnly, SameSite, Expires, Max-Age) are directives
+/// to the cookie store, NOT part of the cookie value returned by the getter.
+/// Setting `max-age=0` or a negative value deletes the cookie.
 pub(super) fn set_cookie(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.cookie setter called on non-object")
@@ -164,31 +169,61 @@ pub(super) fn set_cookie(this: &JsValue, args: &[JsValue], context: &mut Context
             .with_message("Document.prototype.cookie setter called on non-Document object")
     })?;
 
-    let new_cookie = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let new_cookie_str = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
 
-    // Cookie setting appends to existing cookies (doesn't replace)
-    // Parse the new cookie and add/update it
+    // Parse: first part before ';' is the name=value, rest are attributes
+    let parts: Vec<&str> = new_cookie_str.split(';').collect();
+    let name_value = parts[0].trim();
+
+    // Extract cookie name for merging — must contain '='
+    let cookie_name = match name_value.find('=') {
+        Some(pos) => &name_value[..pos],
+        None => return Ok(JsValue::undefined()), // Invalid cookie string, ignore
+    };
+
+    // Check for deletion directives: max-age=0 or max-age=<negative>
+    let is_delete = parts.iter().skip(1).any(|attr| {
+        let attr = attr.trim().to_lowercase();
+        if let Some(rest) = attr.strip_prefix("max-age=") {
+            match rest.trim().parse::<i64>() {
+                Ok(v) => v <= 0,
+                Err(_) => false,
+            }
+        } else {
+            false
+        }
+    });
+
     let mut cookies = document.cookie.lock().unwrap();
-    if cookies.is_empty() {
-        *cookies = new_cookie;
+
+    if is_delete {
+        // Remove this cookie by name
+        let existing: Vec<&str> = cookies.split("; ").filter(|c| !c.is_empty()).collect();
+        let updated: Vec<&str> = existing.into_iter()
+            .filter(|c| {
+                // Match by cookie name prefix "name="
+                !c.starts_with(&format!("{}=", cookie_name))
+            })
+            .collect();
+        *cookies = updated.join("; ");
     } else {
-        // Parse the cookie name from the new cookie
-        if let Some(eq_pos) = new_cookie.find('=') {
-            let new_name = &new_cookie[..eq_pos];
-            // Check if this cookie already exists
+        // Add or update — store ONLY name=value (strip all attributes)
+        if cookies.is_empty() {
+            *cookies = name_value.to_string();
+        } else {
+            let existing: Vec<&str> = cookies.split("; ").filter(|c| !c.is_empty()).collect();
             let mut found = false;
-            let existing: Vec<&str> = cookies.split("; ").collect();
-            let mut updated = Vec::new();
+            let mut updated: Vec<String> = Vec::new();
             for cookie in existing {
-                if cookie.starts_with(&format!("{}=", new_name)) {
-                    updated.push(new_cookie.as_str());
+                if cookie.starts_with(&format!("{}=", cookie_name)) {
+                    updated.push(name_value.to_string());
                     found = true;
                 } else {
-                    updated.push(cookie);
+                    updated.push(cookie.to_string());
                 }
             }
             if !found {
-                updated.push(&new_cookie);
+                updated.push(name_value.to_string());
             }
             *cookies = updated.join("; ");
         }

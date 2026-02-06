@@ -115,6 +115,9 @@ impl super::super::HeadlessWebBrowser {
             Ok(result) => {
                 let result_str = result.trim();
                 if result_str.contains("\"success\":true") || result_str.contains("success: true") || result_str == "true" {
+                    // Bridge: sync JS document.cookie into the HTTP cookie store
+                    self.bridge_js_cookies_to_http_store(url);
+
                     // Retry the original request with cookies now set
                     let headers = self.create_standard_browser_headers(url);
                     let response = self.client.get(url).headers(headers).send().await?;
@@ -170,6 +173,11 @@ impl super::super::HeadlessWebBrowser {
             Ok(false) => eprintln!("CHALLENGE: Challenge resolution timed out"),
             Err(e) => eprintln!("CHALLENGE: Error waiting for resolution: {} (continuing)", e),
         }
+
+        // Bridge: sync JS document.cookie into the HTTP cookie store
+        // This ensures cookies set by challenge JavaScript (like cf_clearance)
+        // are included in the re-fetch request
+        self.bridge_js_cookies_to_http_store(url);
 
         // Re-fetch the original URL — cookies should now be set
         let headers = self.create_standard_browser_headers(url);
@@ -837,5 +845,55 @@ impl super::super::HeadlessWebBrowser {
         let has_supporting = supporting_markers.iter().any(|m| content.contains(m));
 
         has_strong && has_supporting
+    }
+
+    /// Bridge cookies from the JS engine's `document.cookie` into the HTTP cookie store.
+    ///
+    /// When challenge JavaScript sets cookies (like `cf_clearance`) via `document.cookie`,
+    /// those only live in the JS engine's document object. The HTTP client's cookie store
+    /// (used for subsequent requests) doesn't see them. This method extracts all cookies
+    /// from `document.cookie` and inserts them into the HTTP cookie store so the next
+    /// HTTP request includes them.
+    fn bridge_js_cookies_to_http_store(&mut self, url: &str) {
+        let js_cookies = if let Some(ref mut renderer) = self.renderer {
+            match renderer.evaluate_javascript_direct("document.cookie") {
+                Ok(raw) => {
+                    // evaluate_javascript_direct may return the string quoted
+                    let trimmed = raw.trim().trim_matches('"').to_string();
+                    if trimmed.is_empty() { None } else { Some(trimmed) }
+                }
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(js_cookies) = js_cookies {
+            let domain = url::Url::parse(url)
+                .ok()
+                .and_then(|u| u.host_str().map(String::from))
+                .unwrap_or_default();
+
+            if domain.is_empty() {
+                return;
+            }
+
+            let mut bridged = 0usize;
+            for cookie_pair in js_cookies.split("; ") {
+                let cookie_pair = cookie_pair.trim();
+                if !cookie_pair.is_empty() && cookie_pair.contains('=') {
+                    // Format as a Set-Cookie header with domain and path so the
+                    // cookie store accepts and sends it for subsequent requests
+                    let set_cookie_str = format!("{}; Domain={}; Path=/", cookie_pair, domain);
+                    if self.set_cookie(&domain, &set_cookie_str).is_ok() {
+                        bridged += 1;
+                    }
+                }
+            }
+
+            if bridged > 0 {
+                eprintln!("CHALLENGE: Bridged {} JS cookie(s) to HTTP store for domain {}", bridged, domain);
+            }
+        }
     }
 }

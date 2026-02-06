@@ -299,6 +299,12 @@ impl IntrinsicObject for Window {
                 0,
                 Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
             )
+            // Device pixel ratio — real Chrome returns 1 on standard displays, 2 on HiDPI
+            .property(
+                js_string!("devicePixelRatio"),
+                1,
+                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
