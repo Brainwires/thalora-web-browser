@@ -407,6 +407,41 @@ fn get_event_data_from_obj(this_obj: &JsObject) -> Option<EventData> {
     None
 }
 
+/// Helper function to mutably access EventData from any event type (EventData, UIEventData, MouseEventData, etc.)
+/// This is needed for methods like preventDefault, stopPropagation that modify the event.
+fn with_event_data_mut<F, R>(this_obj: &JsObject, f: F) -> Option<R>
+where
+    F: FnOnce(&mut EventData) -> R,
+{
+    use super::ui_events::{UIEventData, MouseEventData, KeyboardEventData, FocusEventData, InputEventData};
+
+    // Try EventData directly
+    if let Some(mut data) = this_obj.downcast_mut::<EventData>() {
+        return Some(f(&mut data));
+    }
+    // Try MouseEventData
+    if let Some(mut data) = this_obj.downcast_mut::<MouseEventData>() {
+        return Some(f(&mut data.ui_event.event));
+    }
+    // Try KeyboardEventData
+    if let Some(mut data) = this_obj.downcast_mut::<KeyboardEventData>() {
+        return Some(f(&mut data.ui_event.event));
+    }
+    // Try FocusEventData
+    if let Some(mut data) = this_obj.downcast_mut::<FocusEventData>() {
+        return Some(f(&mut data.ui_event.event));
+    }
+    // Try InputEventData
+    if let Some(mut data) = this_obj.downcast_mut::<InputEventData>() {
+        return Some(f(&mut data.ui_event.event));
+    }
+    // Try UIEventData
+    if let Some(mut data) = this_obj.downcast_mut::<UIEventData>() {
+        return Some(f(&mut data.event));
+    }
+    None
+}
+
 /// Get whether the event bubbles.
 fn get_bubbles(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
@@ -439,12 +474,11 @@ fn get_default_prevented(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
-        event_data.get_default_prevented()
-    } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
-    };
-    Ok(JsValue::from(value))
+    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
+        JsNativeError::typ().with_message("Event method called on non-Event object")
+    })?;
+
+    Ok(JsValue::from(event_data.get_default_prevented()))
 }
 
 /// Get the current event phase.
@@ -542,9 +576,9 @@ fn prevent_default(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
+    with_event_data_mut(&this_obj, |event_data| {
         event_data.prevent_default();
-    }
+    });
 
     Ok(JsValue::undefined())
 }
@@ -555,9 +589,9 @@ fn stop_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
+    with_event_data_mut(&this_obj, |event_data| {
         event_data.stop_propagation();
-    }
+    });
 
     Ok(JsValue::undefined())
 }
@@ -568,9 +602,9 @@ fn stop_immediate_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) ->
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
+    with_event_data_mut(&this_obj, |event_data| {
         event_data.stop_immediate_propagation();
-    }
+    });
 
     Ok(JsValue::undefined())
 }
@@ -581,13 +615,14 @@ fn init_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
-        let event_type = args.get_or_undefined(0).to_string(context)?;
-        let bubbles = args.get_or_undefined(1).to_boolean();
-        let cancelable = args.get_or_undefined(2).to_boolean();
+    let event_type = args.get_or_undefined(0).to_string(context)?;
+    let bubbles = args.get_or_undefined(1).to_boolean();
+    let cancelable = args.get_or_undefined(2).to_boolean();
+    let event_type_str = event_type.to_std_string_escaped();
 
-        event_data.init_event(event_type.to_std_string_escaped(), bubbles, cancelable);
-    }
+    with_event_data_mut(&this_obj, |event_data| {
+        event_data.init_event(event_type_str.clone(), bubbles, cancelable);
+    });
 
     Ok(JsValue::undefined())
 }
