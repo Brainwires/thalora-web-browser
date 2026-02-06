@@ -134,30 +134,30 @@ fn setup_misc_apis(context: &mut Context) -> JsResult<()> {
             };
         }
 
-        // Basic navigation.userAgentData (Chrome 89+)
+        // Basic navigation.userAgentData (Chrome 89+) - must match Chrome 131/Windows
         if (typeof navigator !== 'undefined' && typeof navigator.userAgentData === 'undefined') {
             Object.defineProperty(navigator, 'userAgentData', {
                 value: {
                     brands: [
-                        { brand: 'Chromium', version: '140' },
-                        { brand: 'Chrome', version: '140' },
-                        { brand: 'Not_A Brand', version: '99' }
+                        { brand: 'Google Chrome', version: '131' },
+                        { brand: 'Chromium', version: '131' },
+                        { brand: 'Not_A Brand', version: '24' }
                     ],
                     mobile: false,
-                    platform: 'Linux',
+                    platform: 'Windows',
 
                     getHighEntropyValues: function(hints) {
                         return Promise.resolve({
                             architecture: 'x86',
                             bitness: '64',
                             model: '',
-                            platform: 'Linux',
-                            platformVersion: '6.0.0',
-                            uaFullVersion: '140.0.0.0',
+                            platform: 'Windows',
+                            platformVersion: '15.0.0',
+                            uaFullVersion: '131.0.0.0',
                             fullVersionList: [
-                                { brand: 'Thalora', version: '1.0.0.0' },
-                                { brand: 'Chromium', version: '140.0.0.0' },
-                                { brand: 'Chrome', version: '140.0.0.0' }
+                                { brand: 'Google Chrome', version: '131.0.0.0' },
+                                { brand: 'Chromium', version: '131.0.0.0' },
+                                { brand: 'Not_A Brand', version: '24.0.0.0' }
                             ]
                         });
                     },
@@ -173,6 +173,24 @@ fn setup_misc_apis(context: &mut Context) -> JsResult<()> {
                 writable: false,
                 enumerable: true,
                 configurable: false
+            });
+        }
+
+        // navigator.connection (NetworkInformation API) - Cloudflare checks this exists
+        if (typeof navigator !== 'undefined' && typeof navigator.connection === 'undefined') {
+            Object.defineProperty(navigator, 'connection', {
+                value: {
+                    effectiveType: '4g',
+                    downlink: 10,
+                    rtt: 50,
+                    saveData: false,
+                    type: 'wifi',
+                    addEventListener: function() {},
+                    removeEventListener: function() {}
+                },
+                writable: false,
+                enumerable: true,
+                configurable: true
             });
         }
     "#))?;

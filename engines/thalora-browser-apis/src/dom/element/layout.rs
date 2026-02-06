@@ -295,8 +295,7 @@ pub(super) fn scroll_into_view(this: &JsValue, args: &[JsValue], _context: &mut 
     // but we should still accept the call without error
     let _options = args.get_or_undefined(0);
 
-    // Log for debugging purposes
-    eprintln!("scrollIntoView called (no-op in headless mode)");
+    // No-op in headless mode
 
     Ok(JsValue::undefined())
 }

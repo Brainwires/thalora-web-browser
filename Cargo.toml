@@ -451,6 +451,10 @@ wasm = [
     "boa_engine/wasm",
 ]
 
+# Challenge solver - behavioral simulation for Cloudflare/Turnstile (disabled by default)
+# When disabled, challenges are handled through correct browser behavior alone
+solver = []
+
 # GUI mode with winit and wgpu for graphical browser interface (native only)
 gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
 

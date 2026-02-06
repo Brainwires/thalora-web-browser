@@ -88,11 +88,11 @@ impl Navigator {
         use thalora_constants::USER_AGENT;
 
         Self {
-            // NavigatorID - Chrome 120.0 on Windows 10 (WHATWG compliant)
+            // NavigatorID - Chrome 131.0 on Windows 10 (WHATWG compliant)
             user_agent: USER_AGENT.to_string(),
             app_code_name: "Mozilla".to_string(),
             app_name: "Netscape".to_string(),
-            app_version: "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
+            app_version: "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
             platform: "Win32".to_string(),
             product: "Gecko".to_string(),
             product_sub: "20030107".to_string(),
@@ -161,16 +161,21 @@ impl IntrinsicObject for Navigator {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            // NavigatorID properties
-            .property(js_string!("userAgent"), js_string!("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            // NavigatorID properties - use shared constants for consistency
+            .property(js_string!("userAgent"), js_string!(thalora_constants::USER_AGENT), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("appCodeName"), js_string!("Mozilla"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("appName"), js_string!("Netscape"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
-            .property(js_string!("appVersion"), js_string!("5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
-            .property(js_string!("platform"), js_string!("MacIntel"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            .property(js_string!("appVersion"), js_string!("5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            .property(js_string!("platform"), js_string!("Win32"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("product"), js_string!("Gecko"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("productSub"), js_string!("20030107"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("vendor"), js_string!("Google Inc."), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("vendorSub"), js_string!(""), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+
+            // Additional properties Cloudflare checks
+            .property(js_string!("deviceMemory"), JsValue::from(8), Attribute::CONFIGURABLE)
+            .property(js_string!("maxTouchPoints"), JsValue::from(0), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            .property(js_string!("webdriver"), JsValue::from(false), Attribute::CONFIGURABLE)
 
             // NavigatorLanguage properties
             .property(js_string!("language"), js_string!("en-US"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
@@ -332,19 +337,48 @@ impl Navigator {
         Ok(JsValue::from(array))
     }
 
-    /// `navigator.plugins` getter - returns empty PluginArray for security
+    /// `navigator.plugins` getter - returns Chrome-like PluginArray
+    /// Cloudflare checks navigator.plugins.length > 0
     fn plugins_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        // Return empty plugin array for security/privacy
-        // Arrays already have a length property set to 0
-        let plugin_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+        // Chrome reports 5 plugins (PDF Viewer, Chrome PDF Viewer, etc.)
+        let plugin_array = boa_engine::builtins::array::Array::array_create(5, None, context)?;
+
+        let plugin_names = [
+            "PDF Viewer",
+            "Chrome PDF Viewer",
+            "Chromium PDF Viewer",
+            "Microsoft Edge PDF Viewer",
+            "WebKit built-in PDF",
+        ];
+        for (i, name) in plugin_names.iter().enumerate() {
+            let plugin = JsObject::default(context.intrinsics());
+            plugin.set(js_string!("name"), js_string!(*name), false, context)?;
+            plugin.set(js_string!("description"), js_string!("Portable Document Format"), false, context)?;
+            plugin.set(js_string!("filename"), js_string!("internal-pdf-viewer"), false, context)?;
+            plugin.set(js_string!("length"), JsValue::from(1), false, context)?;
+            plugin_array.create_data_property_or_throw(i, plugin, context)?;
+        }
+
         Ok(JsValue::from(plugin_array))
     }
 
-    /// `navigator.mimeTypes` getter - returns empty MimeTypeArray for security
+    /// `navigator.mimeTypes` getter - returns Chrome-like MimeTypeArray
     fn mime_types_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        // Return empty mime types array for security/privacy
-        // Arrays already have a length property set to 0
-        let mime_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+        // Chrome reports 2 mime types for PDF
+        let mime_array = boa_engine::builtins::array::Array::array_create(2, None, context)?;
+
+        let mime_types = [
+            ("application/pdf", "Portable Document Format", "pdf"),
+            ("text/pdf", "Portable Document Format", "pdf"),
+        ];
+        for (i, (type_str, desc, suffixes)) in mime_types.iter().enumerate() {
+            let mime = JsObject::default(context.intrinsics());
+            mime.set(js_string!("type"), js_string!(*type_str), false, context)?;
+            mime.set(js_string!("description"), js_string!(*desc), false, context)?;
+            mime.set(js_string!("suffixes"), js_string!(*suffixes), false, context)?;
+            mime_array.create_data_property_or_throw(i, mime, context)?;
+        }
+
         Ok(JsValue::from(mime_array))
     }
 

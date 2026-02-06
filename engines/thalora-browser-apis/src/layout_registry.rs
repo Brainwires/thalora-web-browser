@@ -89,11 +89,11 @@ thread_local! {
     /// Thread-local layout cache mapping element identifiers to their computed layouts
     static LAYOUT_CACHE: RefCell<HashMap<String, ComputedLayout>> = RefCell::new(HashMap::new());
 
-    /// Default viewport width for calculations
-    static VIEWPORT_WIDTH: RefCell<f64> = const { RefCell::new(1366.0) };
+    /// Default viewport width for calculations (standard desktop Chrome)
+    static VIEWPORT_WIDTH: RefCell<f64> = const { RefCell::new(1920.0) };
 
-    /// Default viewport height for calculations
-    static VIEWPORT_HEIGHT: RefCell<f64> = const { RefCell::new(768.0) };
+    /// Default viewport height for calculations (standard desktop Chrome)
+    static VIEWPORT_HEIGHT: RefCell<f64> = const { RefCell::new(1080.0) };
 
     /// Current document scroll position X
     static SCROLL_X: RefCell<f64> = const { RefCell::new(0.0) };
@@ -342,22 +342,26 @@ mod tests {
 
     #[test]
     fn test_element_specific_defaults() {
-        let input_layout = ComputedLayout::default_for_element("input", 1366.0);
+        let input_layout = ComputedLayout::default_for_element("input", 1920.0);
         assert_eq!(input_layout.width, 173.0); // Chrome default
 
-        let canvas_layout = ComputedLayout::default_for_element("canvas", 1366.0);
+        let canvas_layout = ComputedLayout::default_for_element("canvas", 1920.0);
         assert_eq!(canvas_layout.width, 300.0);
         assert_eq!(canvas_layout.height, 150.0);
     }
 
     #[test]
     fn test_viewport() {
-        set_viewport(1920.0, 1080.0);
+        // Default should be 1920x1080
         assert_eq!(get_viewport_width(), 1920.0);
         assert_eq!(get_viewport_height(), 1080.0);
 
+        set_viewport(2560.0, 1440.0);
+        assert_eq!(get_viewport_width(), 2560.0);
+        assert_eq!(get_viewport_height(), 1440.0);
+
         // Reset for other tests
-        set_viewport(1366.0, 768.0);
+        set_viewport(1920.0, 1080.0);
     }
 
     #[test]
@@ -373,7 +377,7 @@ mod tests {
     #[test]
     fn test_element_in_viewport() {
         clear_layouts();
-        set_viewport(1366.0, 768.0);
+        set_viewport(1920.0, 1080.0);
         set_scroll_position(0.0, 0.0);
 
         // Element at top of page - should be visible
@@ -418,6 +422,6 @@ mod tests {
 
         // Reset
         set_scroll_position(0.0, 0.0);
-        set_viewport(1366.0, 768.0);
+        set_viewport(1920.0, 1080.0);
     }
 }

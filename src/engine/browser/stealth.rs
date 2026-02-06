@@ -38,10 +38,10 @@ impl StealthManager {
             headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
             headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
 
-            // Additional headers to look more like a real browser
-            headers.insert("sec-ch-ua", HeaderValue::from_static(r#""Not_A Brand";v="8", "Chromium";v="140", "Chrome";v="140""#));
+            // Client hints - must match thalora_constants (Chrome 131, Windows)
+            headers.insert("sec-ch-ua", HeaderValue::from_static(thalora_constants::SEC_CH_UA));
             headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
-            headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Linux""#));
+            headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Windows""#));
 
             // DNT header (Do Not Track)
             headers.insert("dnt", HeaderValue::from_static("1"));

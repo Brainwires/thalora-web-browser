@@ -15,6 +15,7 @@ pub mod mouse_simulation;
 pub mod event_dispatcher;
 
 // Challenge solver for handling Cloudflare/Turnstile through proper browser behavior
+#[cfg(feature = "solver")]
 pub mod solver;
 
 // Native-only: ai_memory uses dirs crate for filesystem paths
@@ -42,4 +43,5 @@ pub use mouse_simulation::{MousePath, MousePoint, MousePathConfig, ClickSequence
 pub use event_dispatcher::{EventSequence, EventAction, EventCoords, MouseEventType, MouseButton};
 
 // Challenge solver exports
+#[cfg(feature = "solver")]
 pub use solver::{ChallengeSolver, ChallengeDetector, ChallengeType, DetectedChallenge, BehavioralSimulator, BehavioralConfig};
