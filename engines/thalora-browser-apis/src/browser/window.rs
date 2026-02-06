@@ -112,6 +112,22 @@ impl IntrinsicObject for Window {
             .name(js_string!("get frameElement"))
             .build();
 
+        let inner_width_func = BuiltInBuilder::callable(realm, get_inner_width)
+            .name(js_string!("get innerWidth"))
+            .build();
+
+        let inner_height_func = BuiltInBuilder::callable(realm, get_inner_height)
+            .name(js_string!("get innerHeight"))
+            .build();
+
+        let outer_width_func = BuiltInBuilder::callable(realm, get_outer_width)
+            .name(js_string!("get outerWidth"))
+            .build();
+
+        let outer_height_func = BuiltInBuilder::callable(realm, get_outer_height)
+            .name(js_string!("get outerHeight"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("location"),
@@ -186,15 +202,29 @@ impl IntrinsicObject for Window {
             //     None,
             //     Attribute::CONFIGURABLE,
             // )
-            .property(
+            .accessor(
                 js_string!("innerWidth"),
-                1366, // Standard desktop width
-                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+                Some(inner_width_func),
+                None,
+                Attribute::CONFIGURABLE,
             )
-            .property(
+            .accessor(
                 js_string!("innerHeight"),
-                768, // Standard desktop height
-                Attribute::WRITABLE | Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
+                Some(inner_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("outerWidth"),
+                Some(outer_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("outerHeight"),
+                Some(outer_height_func),
+                None,
+                Attribute::CONFIGURABLE,
             )
             // Frame hierarchy properties - return self for top-level window
             .accessor(
@@ -3367,4 +3397,40 @@ fn dispatch_trusted_mouse_event(_this: &JsValue, args: &[JsValue], context: &mut
     }
 
     Ok(JsValue::from(false))
+}
+
+// =============================================================================
+// Viewport Dimension Accessors
+// =============================================================================
+
+/// `Window.prototype.innerWidth` getter
+/// Returns the viewport width from the centralized layout registry
+fn get_inner_width(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let width = crate::layout_registry::get_viewport_width();
+    Ok(JsValue::from(width as i32))
+}
+
+/// `Window.prototype.innerHeight` getter
+/// Returns the viewport height from the centralized layout registry
+fn get_inner_height(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let height = crate::layout_registry::get_viewport_height();
+    Ok(JsValue::from(height as i32))
+}
+
+/// `Window.prototype.outerWidth` getter
+/// Returns the browser window width (slightly larger than viewport)
+fn get_outer_width(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // outerWidth includes browser chrome (window decorations)
+    // Typically 0-16 pixels wider than innerWidth on desktop
+    let width = crate::layout_registry::get_viewport_width();
+    Ok(JsValue::from((width + 16.0) as i32))
+}
+
+/// `Window.prototype.outerHeight` getter
+/// Returns the browser window height (includes browser UI)
+fn get_outer_height(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // outerHeight includes browser chrome (tabs, address bar, etc.)
+    // Typically 70-120 pixels taller than innerHeight
+    let height = crate::layout_registry::get_viewport_height();
+    Ok(JsValue::from((height + 100.0) as i32))
 }

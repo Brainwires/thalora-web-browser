@@ -116,18 +116,27 @@ impl ChallengeDetector {
     pub fn new() -> Self {
         Self {
             cf_markers: vec![
+                // Strong indicators (these alone can identify a Cloudflare challenge)
                 "challenges.cloudflare.com",
+                "Just a moment...",
+                "/cdn-cgi/challenge-platform/",  // Challenge script path
+                "/cdn-cgi/challenge",            // General challenge path
+                "_cf_chl_opt",                   // Current Cloudflare JS config variable
+                "_cf_chl_",                      // General prefix (catches _cf_chl_rt_tk, _cf_chl_f_tk, etc.)
+                "cf_chl_",                       // Alternative prefix variant
+                // Moderate indicators
                 "cf-browser-verification",
                 "cf_chl_prog",
                 "__cf_chl_rt_tk",
-                "Just a moment...",
                 "Checking your browser before accessing",
                 "Please wait while we verify your browser",
                 "cf-spinner-please-wait",
-                "ray-id",
                 "challenge-running",
                 "challenge-form",
                 "cf-im-under-attack-mode",
+                "challenge-error-text",          // Current challenge error element
+                "cRay",                          // Current ray ID format
+                "ray-id",                        // Legacy ray ID format
             ],
             turnstile_markers: vec![
                 "cf-turnstile",
@@ -161,6 +170,23 @@ impl ChallengeDetector {
             .map(|s| s.to_string())
             .collect();
 
+        // Strong indicators that alone can identify a Cloudflare challenge
+        let has_strong_indicator = cf_matches.iter().any(|m| {
+            let m_lower = m.to_lowercase();
+            m_lower.contains("just a moment")
+                || m_lower.contains("_cf_chl")
+                || m_lower.contains("cf_chl_")
+                || m_lower.contains("/cdn-cgi/challenge")
+                || m_lower.contains("challenges.cloudflare.com")
+        });
+
+        // If we have a strong indicator, only need 1 match for detection
+        if has_strong_indicator && !cf_matches.is_empty() {
+            let confidence = (cf_matches.len() as f64 / 3.0).min(1.0).max(0.8);
+            return Some(DetectedChallenge::cloudflare_js(confidence, cf_matches));
+        }
+
+        // For weaker markers, require 2+ matches
         if cf_matches.len() >= 2 {
             let confidence = (cf_matches.len() as f64 / 5.0).min(1.0);
             return Some(DetectedChallenge::cloudflare_js(confidence, cf_matches));
@@ -325,5 +351,96 @@ mod tests {
 
         let challenge = result.unwrap();
         assert_eq!(challenge.challenge_type, ChallengeType::HCaptcha);
+    }
+
+    /// Test detection of current Cloudflare challenge format (2024+)
+    /// This tests the updated markers that match current Cloudflare HTML patterns
+    #[test]
+    fn test_current_cloudflare_format_detection() {
+        let detector = ChallengeDetector::new();
+
+        // Simulated current Cloudflare challenge page HTML (based on actual observed patterns)
+        let cf_html = r#"
+            <!DOCTYPE html>
+            <html lang="en-US">
+            <head>
+                <title>Just a moment...</title>
+                <script>
+                    window._cf_chl_opt={
+                        cvId: '3',
+                        cZone: 'example.com',
+                        cType: 'managed',
+                        cRay: 'abc123def456',
+                    };
+                </script>
+            </head>
+            <body>
+                <div id="challenge-error-text">
+                    Enable JavaScript and cookies to continue
+                </div>
+                <script src="/cdn-cgi/challenge-platform/scripts/abc123.js"></script>
+            </body>
+            </html>
+        "#;
+
+        let result = detector.detect(cf_html, "https://example.com");
+        assert!(result.is_some(), "Should detect current Cloudflare challenge format");
+
+        let challenge = result.unwrap();
+        assert_eq!(challenge.challenge_type, ChallengeType::CloudflareJS);
+        assert!(challenge.confidence >= 0.8, "Confidence should be high for strong indicators");
+    }
+
+    /// Test that a page with only _cf_chl_opt is detected (strong indicator)
+    #[test]
+    fn test_cf_chl_opt_strong_indicator() {
+        let detector = ChallengeDetector::new();
+
+        let cf_html = r#"
+            <html>
+            <head><script>window._cf_chl_opt={cvId:'3'};</script></head>
+            <body></body>
+            </html>
+        "#;
+
+        let result = detector.detect(cf_html, "https://example.com");
+        assert!(result.is_some(), "_cf_chl_opt alone should be detected as a challenge");
+
+        let challenge = result.unwrap();
+        assert_eq!(challenge.challenge_type, ChallengeType::CloudflareJS);
+    }
+
+    /// Test that /cdn-cgi/challenge path is detected (strong indicator)
+    #[test]
+    fn test_cdn_cgi_challenge_path() {
+        let detector = ChallengeDetector::new();
+
+        let cf_html = r#"
+            <html>
+            <body>
+                <script src="/cdn-cgi/challenge-platform/h/g/scripts/something.js"></script>
+            </body>
+            </html>
+        "#;
+
+        let result = detector.detect(cf_html, "https://example.com");
+        assert!(result.is_some(), "/cdn-cgi/challenge path should be detected as a challenge");
+    }
+
+    /// Test that "Just a moment..." title alone is detected (strong indicator)
+    #[test]
+    fn test_just_a_moment_title_strong_indicator() {
+        let detector = ChallengeDetector::new();
+
+        let cf_html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head><title>Just a moment...</title></head>
+            <body></body>
+            </html>
+        "#;
+
+        let result = detector.detect(cf_html, "https://example.com");
+        assert!(result.is_some(), "'Just a moment...' alone should be detected as a challenge");
     }
 }

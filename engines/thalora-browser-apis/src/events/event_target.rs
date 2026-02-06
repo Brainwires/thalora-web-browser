@@ -100,6 +100,33 @@ impl EventTargetData {
         }
     }
 
+    /// Get listeners for a specific event type and phase
+    /// If capture is true, returns only capture listeners; if false, returns only bubble listeners
+    pub fn get_listeners_for_phase(&self, event_type: &str, capture: bool) -> Vec<JsValue> {
+        if let Some(listeners) = self.listeners.borrow().get(event_type) {
+            listeners
+                .iter()
+                .filter(|l| l.is_active() && l.capture == capture)
+                .map(|l| l.callback.clone())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Get all listeners for a specific event type (both capture and bubble)
+    pub fn get_all_listeners(&self, event_type: &str) -> Vec<JsValue> {
+        if let Some(listeners) = self.listeners.borrow().get(event_type) {
+            listeners
+                .iter()
+                .filter(|l| l.is_active())
+                .map(|l| l.callback.clone())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     /// Dispatch an event to all matching listeners
     pub fn dispatch_event(&self, event: &JsObject, context: &mut Context) -> JsResult<bool> {
         // Get event type

@@ -205,6 +205,36 @@ impl HeadlessWebBrowser {
         }
     }
 
+    /// Get any pending navigation requests queued by JavaScript execution
+    /// (from link clicks, form submissions, etc.)
+    /// Returns a list of NavigationRequest that the caller should process
+    pub fn get_pending_navigations(&self) -> Vec<thalora_browser_apis::browser::navigation_bridge::NavigationRequest> {
+        thalora_browser_apis::browser::navigation_bridge::drain_navigation_requests()
+    }
+
+    /// Check if there are any pending navigation requests
+    pub fn has_pending_navigations(&self) -> bool {
+        thalora_browser_apis::browser::navigation_bridge::has_pending_navigations()
+    }
+
+    /// Resolve a potentially relative URL against the current page URL
+    pub fn resolve_url(&self, url: &str) -> Option<String> {
+        if url.starts_with("http://") || url.starts_with("https://") {
+            Some(url.to_string())
+        } else if let Some(ref current_url) = self.current_url {
+            // Resolve relative to current URL
+            match url::Url::parse(current_url) {
+                Ok(base) => match base.join(url) {
+                    Ok(resolved) => Some(resolved.to_string()),
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+
     /// Execute JavaScript from a trusted source (like Cloudflare challenges) without security checks.
     /// This allows challenge scripts to use advanced JavaScript features that would normally be blocked.
     ///

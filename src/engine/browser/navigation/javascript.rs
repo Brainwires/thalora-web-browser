@@ -409,6 +409,12 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
+        // Final sanity check: never return a challenge page as success
+        // This catches cases where the retry loop exhausted but we're still on a challenge page
+        if self.is_cloudflare_challenge(&content) {
+            return Err(anyhow!("Cloudflare challenge could not be resolved - still on challenge page after {} attempts", MAX_CF_RETRIES));
+        }
+
         // Store the current content and URL
         self.current_content = content.clone();
         self.current_url = Some(url.to_string());
@@ -1041,16 +1047,25 @@ impl super::super::HeadlessWebBrowser {
     /// served from the target domain).
     fn is_challenge_content(content: &str) -> bool {
         let challenge_markers = [
+            // Strong indicators
             "challenges.cloudflare.com",
+            "Just a moment...",
+            "/cdn-cgi/challenge-platform/",
+            "/cdn-cgi/challenge",
+            "_cf_chl_opt",
+            "_cf_chl_",
+            "cf_chl_",
+            // Turnstile-specific
             "cf-turnstile",
             "data-cf-turnstile",
-            "cf_chl_",
+            // Other Cloudflare markers
             "__cf_chl_",
+            "cRay",
             "ray_id",
             "cf-please-wait",
             "Checking your browser",
-            "Just a moment...",
             "Enable JavaScript and cookies",
+            "challenge-error-text",
         ];
 
         for marker in &challenge_markers {

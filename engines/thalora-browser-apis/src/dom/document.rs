@@ -3042,6 +3042,7 @@ fn get_hidden(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
 }
 
 /// `Document.prototype.activeElement` getter
+/// Returns the currently focused element, or body if nothing is focused
 fn get_active_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.activeElement called on non-object")
@@ -3052,7 +3053,12 @@ fn get_active_element(this: &JsValue, _args: &[JsValue], context: &mut Context) 
             .with_message("Document.prototype.activeElement called on non-Document object")
     })?;
 
-    // Return body as default active element (per spec, when no element has focus)
+    // Check the focus manager for the currently active element
+    if let Some(active) = crate::browser::focus_manager::FocusManager::get_active_element() {
+        return Ok(active.into());
+    }
+
+    // Per spec: return body as default active element when no element has focus
     if let Some(body) = document.get_element("body") {
         Ok(body.into())
     } else {

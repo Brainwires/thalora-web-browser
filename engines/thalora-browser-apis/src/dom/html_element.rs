@@ -193,18 +193,78 @@ fn get_style(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
     )
 }
 
-fn click(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In a headless browser, click is a no-op but valid
+fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    // Delegate to Element's click() which has full event propagation
+    // HTMLElement inherits from Element, so we use the same implementation
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("HTMLElement.prototype.click called on non-object")
+    })?;
+
+    // Try to use Element's click implementation by dispatching a click event
+    use crate::events::event::EventData;
+    use crate::events::propagation::dispatch_event_with_propagation;
+    use crate::events::ui_events::{MouseEventData, UIEventData};
+
+    // Create trusted MouseEvent
+    let mut event_base = EventData::new_trusted("click".to_string(), true, true);
+    event_base.set_target(Some(this_obj.clone()));
+
+    let mut ui_event = UIEventData::new("click".to_string(), true, true);
+    ui_event.event = event_base;
+    ui_event.detail = 1;
+
+    let mouse_event_data = MouseEventData {
+        ui_event,
+        screen_x: 0.0,
+        screen_y: 0.0,
+        client_x: 0.0,
+        client_y: 0.0,
+        page_x: 0.0,
+        page_y: 0.0,
+        offset_x: 0.0,
+        offset_y: 0.0,
+        movement_x: 0.0,
+        movement_y: 0.0,
+        ctrl_key: false,
+        shift_key: false,
+        alt_key: false,
+        meta_key: false,
+        button: 0,
+        buttons: 1,
+        related_target: None,
+    };
+
+    let mouse_event_proto = context.intrinsics().constructors().mouse_event().prototype();
+    let click_event = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        mouse_event_proto,
+        mouse_event_data,
+    );
+
+    dispatch_event_with_propagation(&click_event.upcast(), &this_obj, context)?;
+
     Ok(JsValue::undefined())
 }
 
-fn focus(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In a headless browser, focus is a no-op but valid
+fn focus(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("HTMLElement.prototype.focus called on non-object")
+    })?;
+
+    // Use the focus manager to properly handle focus with events
+    crate::browser::focus_manager::focus_element(&this_obj, context)?;
+
     Ok(JsValue::undefined())
 }
 
-fn blur(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    // In a headless browser, blur is a no-op but valid
+fn blur(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("HTMLElement.prototype.blur called on non-object")
+    })?;
+
+    // Use the focus manager to properly handle blur with events
+    crate::browser::focus_manager::blur_element(&this_obj, context)?;
+
     Ok(JsValue::undefined())
 }
 

@@ -17,6 +17,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}};
 use std::sync::OnceLock;
 
+use crate::events::propagation::dispatch_event_with_propagation;
+
 /// Global node ID counter for unique DOM node identification
 static NODE_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
 
@@ -2950,30 +2952,31 @@ fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context
 }
 
 /// `Element.prototype.dispatchEvent(event)`
-/// JavaScript wrapper for EventTarget functionality
+/// JavaScript wrapper for EventTarget functionality with full event propagation
 fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.dispatchEvent called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+    // Verify this is an Element
+    let _ = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.dispatchEvent called on non-Element object")
     })?;
 
     let event = args.get_or_undefined(0);
 
-    // Get event type from event object
+    // Get event object
     if event.is_object() {
         if let Some(event_obj) = event.as_object() {
-            // Get the 'type' property from the event object
+            // Get the 'type' property from the event object to validate it's an event
             let event_type_value = event_obj.get(js_string!("type"), context)
                 .unwrap_or(JsValue::undefined());
 
             if !event_type_value.is_undefined() {
-                let event_type = event_type_value.to_string(context)?;
-                element.dispatch_event(&event_type.to_std_string_escaped(), &event, context)?;
-                Ok(JsValue::from(true)) // Return true (event was dispatched successfully)
+                // Use full event propagation system (capturing, at-target, bubbling)
+                let result = dispatch_event_with_propagation(&event_obj, &this_obj, context)?;
+                Ok(JsValue::from(result))
             } else {
                 Err(JsNativeError::typ()
                     .with_message("Event object must have a 'type' property")
@@ -3221,75 +3224,183 @@ fn scroll_into_view(this: &JsValue, args: &[JsValue], _context: &mut Context) ->
 }
 
 /// `Element.prototype.focus()`
+/// Focuses the element and dispatches appropriate focus events
 fn focus(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.focus called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+    // Verify it's an element
+    let _ = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.focus called on non-Element object")
     })?;
 
-    // Dispatch focus event
-    let focus_event = JsObject::default(context.intrinsics());
-    focus_event.set(js_string!("type"), js_string!("focus"), false, context)?;
-    focus_event.set(js_string!("bubbles"), false, false, context)?;
-    focus_event.set(js_string!("cancelable"), false, false, context)?;
-    focus_event.set(js_string!("target"), this_obj.clone(), false, context)?;
-
-    element.dispatch_event("focus", &focus_event.into(), context)?;
+    // Use the focus manager to properly handle focus with events
+    crate::browser::focus_manager::focus_element(&this_obj, context)?;
 
     Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.blur()`
+/// Blurs (unfocuses) the element and dispatches appropriate blur events
 fn blur(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.blur called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+    // Verify it's an element
+    let _ = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.blur called on non-Element object")
     })?;
 
-    // Dispatch blur event
-    let blur_event = JsObject::default(context.intrinsics());
-    blur_event.set(js_string!("type"), js_string!("blur"), false, context)?;
-    blur_event.set(js_string!("bubbles"), false, false, context)?;
-    blur_event.set(js_string!("cancelable"), false, false, context)?;
-    blur_event.set(js_string!("target"), this_obj.clone(), false, context)?;
-
-    element.dispatch_event("blur", &blur_event.into(), context)?;
+    // Use the focus manager to properly handle blur with events
+    crate::browser::focus_manager::blur_element(&this_obj, context)?;
 
     Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.click()`
+/// Simulates a mouse click on the element with full event propagation
 fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.click called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+    let element_data = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.click called on non-Element object")
     })?;
 
-    // Dispatch click event
-    let click_event = JsObject::default(context.intrinsics());
-    click_event.set(js_string!("type"), js_string!("click"), false, context)?;
-    click_event.set(js_string!("bubbles"), true, false, context)?;
-    click_event.set(js_string!("cancelable"), true, false, context)?;
-    click_event.set(js_string!("target"), this_obj.clone(), false, context)?;
-    click_event.set(js_string!("clientX"), 0, false, context)?;
-    click_event.set(js_string!("clientY"), 0, false, context)?;
-    click_event.set(js_string!("button"), 0, false, context)?;
+    // Create a proper MouseEvent using the MouseEventData structure
+    use crate::events::event::EventData;
+    use crate::events::ui_events::{MouseEventData, UIEventData};
 
-    element.dispatch_event("click", &click_event.into(), context)?;
+    // Create trusted MouseEvent (click events from element.click() are trusted)
+    let mut event_base = EventData::new_trusted("click".to_string(), true, true);
+    event_base.set_target(Some(this_obj.clone()));
+
+    let mut ui_event = UIEventData::new("click".to_string(), true, true);
+    ui_event.event = event_base;
+    ui_event.detail = 1; // Click count
+
+    let mouse_event_data = MouseEventData {
+        ui_event,
+        screen_x: 0.0,
+        screen_y: 0.0,
+        client_x: 0.0,
+        client_y: 0.0,
+        page_x: 0.0,
+        page_y: 0.0,
+        offset_x: 0.0,
+        offset_y: 0.0,
+        movement_x: 0.0,
+        movement_y: 0.0,
+        ctrl_key: false,
+        shift_key: false,
+        alt_key: false,
+        meta_key: false,
+        button: 0,
+        buttons: 1,
+        related_target: None,
+    };
+
+    // Create JsObject from MouseEventData
+    let mouse_event_proto = context.intrinsics().constructors().mouse_event().prototype();
+    let click_event = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        mouse_event_proto,
+        mouse_event_data,
+    );
+
+    // Dispatch with full propagation (capturing, at-target, bubbling)
+    let default_not_prevented = dispatch_event_with_propagation(&click_event.upcast(), &this_obj, context)?;
+
+    // Handle default action if not prevented
+    if default_not_prevented {
+        let tag_name = element_data.get_tag_name().to_uppercase();
+
+        match tag_name.as_str() {
+            "A" => {
+                // For anchor elements, queue navigation
+                if let Some(href) = element_data.get_attribute("href") {
+                    // Queue navigation through the browser bridge
+                    crate::browser::navigation_bridge::queue_navigation(&href);
+                }
+            }
+            "BUTTON" | "INPUT" => {
+                let button_type = element_data.get_attribute("type").unwrap_or_default().to_lowercase();
+                if button_type == "submit" {
+                    // Find and submit parent form
+                    if let Some(form) = find_parent_form(&this_obj) {
+                        submit_form(&form, context)?;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 
     Ok(JsValue::undefined())
+}
+
+/// Find the parent form element for a given element
+fn find_parent_form(element: &JsObject) -> Option<JsObject> {
+    if let Some(element_data) = element.downcast_ref::<ElementData>() {
+        let mut current = element_data.get_parent_node();
+        while let Some(parent) = current {
+            // Check if this parent is a FORM element
+            let is_form = if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
+                parent_data.get_tag_name().to_uppercase() == "FORM"
+            } else {
+                false
+            };
+
+            if is_form {
+                return Some(parent);
+            }
+
+            // Get next parent
+            current = if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
+                parent_data.get_parent_node()
+            } else {
+                None
+            };
+        }
+    }
+    None
+}
+
+/// Submit a form element
+fn submit_form(form: &JsObject, context: &mut Context) -> JsResult<()> {
+    use crate::events::event::EventData;
+
+    let form_data = form.downcast_ref::<ElementData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("submit_form called on non-Element object")
+    })?;
+
+    // Create submit event
+    let submit_event_data = EventData::new("submit".to_string(), true, true);
+    let submit_event_proto = context.intrinsics().constructors().event().prototype();
+    let submit_event = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        submit_event_proto,
+        submit_event_data,
+    );
+
+    // Dispatch submit event on the form with propagation
+    let default_not_prevented = dispatch_event_with_propagation(&submit_event.upcast(), form, context)?;
+
+    // If not prevented, queue form submission
+    if default_not_prevented {
+        if let Some(action) = form_data.get_attribute("action") {
+            let method = form_data.get_attribute("method").unwrap_or_else(|| "GET".to_string());
+            crate::browser::navigation_bridge::queue_form_submission(&action, &method);
+        }
+    }
+
+    Ok(())
 }
 
 // ============================================================================
