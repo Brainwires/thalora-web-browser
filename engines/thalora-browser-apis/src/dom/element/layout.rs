@@ -7,141 +7,116 @@ use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, js_string,
 };
 
-use super::types::ElementData;
+use super::helpers::with_element_data;
 
 // =============================================================================
 // Layout dimension getters (read-only properties)
 // =============================================================================
 
 /// `Element.prototype.offsetWidth` - returns layout width including borders
+#[allow(unused_variables)]
 pub(super) fn get_offset_width(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetWidth getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        // Try to get computed dimensions from stored data
-        let width = element.get_offset_width();
-        return Ok(JsValue::from(width as i32));
-    }
-
-    // Default value for elements without layout (like detached elements)
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_offset_width(), "offsetWidth called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.offsetHeight` - returns layout height including borders
+#[allow(unused_variables)]
 pub(super) fn get_offset_height(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetHeight getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let height = element.get_offset_height();
-        return Ok(JsValue::from(height as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_offset_height(), "offsetHeight called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.offsetTop` - returns top offset from offsetParent
+#[allow(unused_variables)]
 pub(super) fn get_offset_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetTop getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let top = element.get_offset_top();
-        return Ok(JsValue::from(top as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_offset_top(), "offsetTop called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.offsetLeft` - returns left offset from offsetParent
+#[allow(unused_variables)]
 pub(super) fn get_offset_left(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetLeft getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let left = element.get_offset_left();
-        return Ok(JsValue::from(left as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_offset_left(), "offsetLeft called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.offsetParent` - returns nearest positioned ancestor
+#[allow(unused_variables)]
 pub(super) fn get_offset_parent(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetParent getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        // For now return null - proper implementation would walk up DOM tree
-        // to find positioned ancestor
-        if let Some(parent) = element.get_parent_node() {
-            return Ok(JsValue::from(parent));
-        }
-    }
+    // For now return null - proper implementation would walk up DOM tree
+    // to find positioned ancestor
+    let parent = with_element_data(&this_obj, |el| el.get_parent_node(), "offsetParent called on non-Element")
+        .unwrap_or(None);
 
-    Ok(JsValue::null())
+    match parent {
+        Some(p) => Ok(JsValue::from(p)),
+        None => Ok(JsValue::null()),
+    }
 }
 
 /// `Element.prototype.clientWidth` - returns inner width (excluding borders, scrollbar)
+#[allow(unused_variables)]
 pub(super) fn get_client_width(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientWidth getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let width = element.get_client_width();
-        return Ok(JsValue::from(width as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_client_width(), "clientWidth called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.clientHeight` - returns inner height (excluding borders, scrollbar)
+#[allow(unused_variables)]
 pub(super) fn get_client_height(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientHeight getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let height = element.get_client_height();
-        return Ok(JsValue::from(height as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_client_height(), "clientHeight called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.clientTop` - returns top border width
+#[allow(unused_variables)]
 pub(super) fn get_client_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientTop getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let top = element.get_client_top();
-        return Ok(JsValue::from(top as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_client_top(), "clientTop called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.clientLeft` - returns left border width
+#[allow(unused_variables)]
 pub(super) fn get_client_left(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientLeft getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let left = element.get_client_left();
-        return Ok(JsValue::from(left as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_client_left(), "clientLeft called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 // =============================================================================
@@ -149,31 +124,25 @@ pub(super) fn get_client_left(this: &JsValue, _args: &[JsValue], context: &mut C
 // =============================================================================
 
 /// `Element.prototype.scrollWidth` - returns total width of content (including overflow)
+#[allow(unused_variables)]
 pub(super) fn get_scroll_width(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("scrollWidth getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let width = element.get_scroll_width();
-        return Ok(JsValue::from(width as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_scroll_width(), "scrollWidth called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 /// `Element.prototype.scrollHeight` - returns total height of content (including overflow)
+#[allow(unused_variables)]
 pub(super) fn get_scroll_height(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("scrollHeight getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let height = element.get_scroll_height();
-        return Ok(JsValue::from(height as i32));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_scroll_height(), "scrollHeight called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value as i32))
 }
 
 // =============================================================================
@@ -181,17 +150,14 @@ pub(super) fn get_scroll_height(this: &JsValue, _args: &[JsValue], context: &mut
 // =============================================================================
 
 /// `Element.prototype.scrollTop` getter - returns scroll position from top
+#[allow(unused_variables)]
 pub(super) fn get_scroll_top(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("scrollTop getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let top = element.get_scroll_top();
-        return Ok(JsValue::from(top));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_scroll_top(), "scrollTop called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value))
 }
 
 /// `Element.prototype.scrollTop` setter - sets scroll position from top
@@ -202,25 +168,20 @@ pub(super) fn set_scroll_top(this: &JsValue, args: &[JsValue], context: &mut Con
 
     let value = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_scroll_top(value);
-    }
+    let _ = with_element_data(&this_obj, |el| el.set_scroll_top(value), "scrollTop setter called on non-Element");
 
     Ok(JsValue::undefined())
 }
 
 /// `Element.prototype.scrollLeft` getter - returns scroll position from left
+#[allow(unused_variables)]
 pub(super) fn get_scroll_left(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("scrollLeft getter called on non-object")
     })?;
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        let left = element.get_scroll_left();
-        return Ok(JsValue::from(left));
-    }
-
-    Ok(JsValue::from(0))
+    let value = with_element_data(&this_obj, |el| el.get_scroll_left(), "scrollLeft called on non-Element").unwrap_or(0.0);
+    Ok(JsValue::from(value))
 }
 
 /// `Element.prototype.scrollLeft` setter - sets scroll position from left
@@ -231,9 +192,7 @@ pub(super) fn set_scroll_left(this: &JsValue, args: &[JsValue], context: &mut Co
 
     let value = args.get_or_undefined(0).to_number(context).unwrap_or(0.0);
 
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_scroll_left(value);
-    }
+    let _ = with_element_data(&this_obj, |el| el.set_scroll_left(value), "scrollLeft setter called on non-Element");
 
     Ok(JsValue::undefined())
 }
@@ -267,10 +226,10 @@ pub(super) fn scroll_to_element(this: &JsValue, args: &[JsValue], context: &mut 
     };
 
     // Update the element's scroll position
-    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-        element.set_scroll_left(x);
-        element.set_scroll_top(y);
-    }
+    let _ = with_element_data(&this_obj, |el| {
+        el.set_scroll_left(x);
+        el.set_scroll_top(y);
+    }, "Element.prototype.scrollTo called on non-Element");
 
     Ok(JsValue::undefined())
 }
@@ -281,12 +240,11 @@ pub(super) fn get_bounding_client_rect_js(this: &JsValue, _args: &[JsValue], con
         JsNativeError::typ().with_message("Element.prototype.getBoundingClientRect called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.getBoundingClientRect called on non-Element object")
-    })?;
-
-    let rect = element.get_bounding_client_rect();
+    let rect = with_element_data(
+        &this_obj,
+        |el| el.get_bounding_client_rect(),
+        "Element.prototype.getBoundingClientRect called on non-Element object",
+    )?;
 
     // Create DOMRect object
     let rect_obj = JsObject::default(context.intrinsics());
@@ -320,16 +278,18 @@ pub(super) fn get_bounding_client_rect_js(this: &JsValue, _args: &[JsValue], con
 }
 
 /// `Element.prototype.scrollIntoView(options)`
+#[allow(unused_variables)]
 pub(super) fn scroll_into_view(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.scrollIntoView called on non-object")
     })?;
 
-    // Verify it's an element
-    this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.scrollIntoView called on non-Element object")
-    })?;
+    // Verify it's an element - propagate the error if not
+    with_element_data(
+        &this_obj,
+        |_el| {},
+        "Element.prototype.scrollIntoView called on non-Element object",
+    )?;
 
     // In a headless browser, scrollIntoView is effectively a no-op
     // but we should still accept the call without error

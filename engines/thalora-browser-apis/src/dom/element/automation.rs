@@ -6,7 +6,7 @@ use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, js_string,
 };
 
-use super::types::ElementData;
+use super::helpers::{with_element_data, has_element_data};
 use super::query_and_events::dispatch_event_js;
 
 /// `Element.prototype.__dispatchTrustedMouseEvent(eventType, clientX, clientY, options?)`
@@ -40,7 +40,7 @@ pub(super) fn dispatch_trusted_mouse_event(this: &JsValue, args: &[JsValue], con
     })?;
 
     // Verify this is an element
-    if this_obj.downcast_ref::<ElementData>().is_none() {
+    if !has_element_data(&this_obj) {
         return Err(JsNativeError::typ()
             .with_message("__dispatchTrustedMouseEvent called on non-Element object")
             .into());
@@ -198,12 +198,7 @@ pub(super) fn check_visibility(this: &JsValue, args: &[JsValue], context: &mut C
         JsNativeError::typ().with_message("Element.prototype.checkVisibility called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.checkVisibility called on non-Element object")
-    })?;
-
-    // Parse options
+    // Parse options before entering the closure (requires `context`)
     let options = args.get_or_undefined(0);
     let (check_opacity, check_visibility_css) = if options.is_object() {
         let opts = options.as_object().unwrap();
@@ -229,70 +224,79 @@ pub(super) fn check_visibility(this: &JsValue, args: &[JsValue], context: &mut C
         (false, false)
     };
 
-    // Check 1: Element must be in the DOM (have non-zero dimensions or be a valid element)
-    let rect = element.get_bounding_client_rect();
+    with_element_data(
+        &this_obj,
+        |element| {
+            // Check 1: Element must be in the DOM (have non-zero dimensions or be a valid element)
+            let rect = element.get_bounding_client_rect();
 
-    // Get computed style properties
-    let style = element.style.lock().unwrap();
+            // Get computed style properties
+            let style = element.style.lock().unwrap();
 
-    // Check 2: display property - if 'none', element is not rendered
-    if let Some(display) = style.get_property("display") {
-        if display == "none" {
-            eprintln!("checkVisibility: false (display: none)");
-            return Ok(false.into());
-        }
-    }
-
-    // Check 3 (optional): visibility CSS property
-    if check_visibility_css {
-        if let Some(visibility) = style.get_property("visibility") {
-            if visibility == "hidden" || visibility == "collapse" {
-                eprintln!("checkVisibility: false (visibility: {})", visibility);
-                return Ok(false.into());
-            }
-        }
-    }
-
-    // Check 4 (optional): opacity
-    if check_opacity {
-        if let Some(opacity) = style.get_property("opacity") {
-            if let Ok(opacity_val) = opacity.parse::<f64>() {
-                if opacity_val == 0.0 {
-                    eprintln!("checkVisibility: false (opacity: 0)");
-                    return Ok(false.into());
+            // Check 2: display property - if 'none', element is not rendered
+            if let Some(display) = style.get_property("display") {
+                if display == "none" {
+                    eprintln!("checkVisibility: false (display: none)");
+                    return JsValue::from(false);
                 }
             }
-        }
-    }
 
-    // Check 5: Element must have non-zero content size (width and height)
-    // An element with 0x0 dimensions is not rendered and not visible
-    // However, we allow elements with zero width/height if they have explicit positioning
-    // (some elements are sized by their children or use overflow)
-    let has_size = rect.width > 0.0 || rect.height > 0.0;
+            // Check 3 (optional): visibility CSS property
+            if check_visibility_css {
+                if let Some(visibility) = style.get_property("visibility") {
+                    if visibility == "hidden" || visibility == "collapse" {
+                        eprintln!("checkVisibility: false (visibility: {})", visibility);
+                        return JsValue::from(false);
+                    }
+                }
+            }
 
-    // For visibility check, we consider an element visible if:
-    // 1. It has non-zero dimensions, OR
-    // 2. It's an element type that can be visible without explicit dimensions (like body, html)
-    let tag = element.get_tag_name().to_lowercase();
-    let is_structural = matches!(tag.as_str(), "html" | "body" | "head" | "script" | "style" | "meta" | "link");
+            // Check 4 (optional): opacity
+            if check_opacity {
+                if let Some(opacity) = style.get_property("opacity") {
+                    if let Ok(opacity_val) = opacity.parse::<f64>() {
+                        if opacity_val == 0.0 {
+                            eprintln!("checkVisibility: false (opacity: 0)");
+                            return JsValue::from(false);
+                        }
+                    }
+                }
+            }
 
-    if !has_size && !is_structural {
-        // Check if element is positioned with explicit layout
-        // Elements inside turnstile widgets often have dimensions from CSS
-        // For now, be permissive and assume elements are visible unless explicitly hidden
-        eprintln!("checkVisibility: element has zero size but may be visible (tag={})", tag);
-    }
+            // Drop the style guard before further element access
+            drop(style);
 
-    // Check 6: Element should be in viewport (optional, but useful for Turnstile)
-    let element_id = element.get_element_identifier();
-    let in_viewport = crate::layout_registry::is_element_in_viewport(&element_id, &tag);
+            // Check 5: Element must have non-zero content size (width and height)
+            // An element with 0x0 dimensions is not rendered and not visible
+            // However, we allow elements with zero width/height if they have explicit positioning
+            // (some elements are sized by their children or use overflow)
+            let has_size = rect.width > 0.0 || rect.height > 0.0;
 
-    eprintln!("checkVisibility: true (tag={}, size={:.1}x{:.1}, in_viewport={})",
-        tag, rect.width, rect.height, in_viewport);
+            // For visibility check, we consider an element visible if:
+            // 1. It has non-zero dimensions, OR
+            // 2. It's an element type that can be visible without explicit dimensions (like body, html)
+            let tag = element.get_tag_name().to_lowercase();
+            let is_structural = matches!(tag.as_str(), "html" | "body" | "head" | "script" | "style" | "meta" | "link");
 
-    // Return true - element is rendered and not hidden by CSS
-    // Note: We're being permissive here because Turnstile widgets
-    // often have complex CSS that may not be fully computed
-    Ok(true.into())
+            if !has_size && !is_structural {
+                // Check if element is positioned with explicit layout
+                // Elements inside turnstile widgets often have dimensions from CSS
+                // For now, be permissive and assume elements are visible unless explicitly hidden
+                eprintln!("checkVisibility: element has zero size but may be visible (tag={})", tag);
+            }
+
+            // Check 6: Element should be in viewport (optional, but useful for Turnstile)
+            let element_id = element.get_element_identifier();
+            let in_viewport = crate::layout_registry::is_element_in_viewport(&element_id, &tag);
+
+            eprintln!("checkVisibility: true (tag={}, size={:.1}x{:.1}, in_viewport={})",
+                tag, rect.width, rect.height, in_viewport);
+
+            // Return true - element is rendered and not hidden by CSS
+            // Note: We're being permissive here because Turnstile widgets
+            // often have complex CSS that may not be fully computed
+            JsValue::from(true)
+        },
+        "Element.prototype.checkVisibility called on non-Element object",
+    )
 }

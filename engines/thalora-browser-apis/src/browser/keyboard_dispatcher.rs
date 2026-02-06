@@ -8,7 +8,7 @@ use boa_engine::{
     Context, JsResult,
 };
 
-use crate::dom::element::ElementData;
+use crate::dom::element::with_element_data;
 use crate::events::event::EventData;
 use crate::events::propagation::dispatch_event_with_propagation;
 use crate::events::ui_events::{KeyboardEventData, UIEventData, InputEventData, key_location};
@@ -228,7 +228,7 @@ fn dispatch_input_event(
 
 /// Update the value property of an input element
 fn update_input_value(element: &JsObject, text_to_add: &str) -> JsResult<()> {
-    if let Some(element_data) = element.downcast_ref::<ElementData>() {
+    if let Ok(()) = with_element_data(element, |element_data| {
         let tag = element_data.get_tag_name().to_uppercase();
         if tag == "INPUT" || tag == "TEXTAREA" {
             // Append to current value
@@ -236,7 +236,7 @@ fn update_input_value(element: &JsObject, text_to_add: &str) -> JsResult<()> {
             let new_value = format!("{}{}", current_value, text_to_add);
             element_data.set_attribute("value".to_string(), new_value);
         }
-    }
+    }, "not element") {}
     Ok(())
 }
 

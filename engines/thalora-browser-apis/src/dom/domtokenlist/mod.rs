@@ -7,7 +7,7 @@ use boa_engine::{
     js_string, object::JsObject, property::Attribute, realm::Realm,
     string::JsString, Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
 };
-use crate::dom::element::ElementData;
+use crate::dom::element::{ElementData, with_element_data};
 use boa_gc::{Finalize, Trace};
 
 /// Internal data for DOMTokenList objects
@@ -23,8 +23,10 @@ impl DOMTokenListData {
     }
 
     fn class_name(&self, context: &mut Context) -> Option<String> {
-        if let Some(ed) = self.element.downcast_ref::<ElementData>() {
-            Some(ed.get_class_name())
+        if let Ok(result) = with_element_data(&self.element, |ed| {
+            ed.get_class_name()
+        }, "not element") {
+            Some(result)
         } else {
             None
         }

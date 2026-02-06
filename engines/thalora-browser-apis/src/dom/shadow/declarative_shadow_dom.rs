@@ -9,7 +9,7 @@ use boa_engine::{
     Context, JsResult, JsNativeError,
 };
 use crate::dom::{
-    element::ElementData,
+    element::{ElementData, with_element_data},
     shadow::{
         shadow_root::{ShadowRootData, ShadowRootMode},
         html_slot_element::HTMLSlotElementData,
@@ -235,9 +235,10 @@ impl DeclarativeShadowDOMParser {
             shadow_data.set_host(host_element.clone());
         }
 
-        if let Some(host_data) = host_element.downcast_ref::<ElementData>() {
-            host_data.attach_shadow_root(shadow_root.clone());
-        }
+        let _ = with_element_data(&host_element, |ed| {
+            ed.attach_shadow_root(shadow_root.clone());
+        }, "host element is not an Element");
+
 
         // Parse and set the shadow tree content
         Self::populate_shadow_tree_content(&shadow_root, &template_info.content, context)?;
@@ -495,16 +496,16 @@ impl DeclarativeShadowDOMParser {
         context: &mut Context,
     ) -> JsResult<bool> {
         // Check if element can have a shadow root (from element validation)
-        if let Some(element_data) = template_element.downcast_ref::<ElementData>() {
+        with_element_data(template_element, |element_data| {
             use crate::dom::element::can_have_shadow_root;
 
             if !can_have_shadow_root(&element_data) {
-                return Ok(false);
+                return false;
             }
 
             // Check if element already has a shadow root
             if element_data.get_shadow_root().is_some() {
-                return Ok(false);
+                return false;
             }
 
             // Additional declarative shadow DOM specific validations
@@ -512,10 +513,8 @@ impl DeclarativeShadowDOMParser {
             // - Only one template with shadowrootmode per element
             // - etc.
 
-            return Ok(true);
-        }
-
-        Ok(false)
+            true
+        }, "not element").or(Ok(false))
     }
 }
 

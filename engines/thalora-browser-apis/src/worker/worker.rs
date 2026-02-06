@@ -319,6 +319,14 @@ impl IntrinsicObject for WorkerConstructor {
                 Some(BuiltInBuilder::callable(realm, set_onerror).build()),
                 Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
             )
+            .accessor(
+                js_string!("scriptURL"),
+                Some(BuiltInBuilder::callable(realm, get_script_url)
+                    .name(js_string!("get scriptURL"))
+                    .build()),
+                None,
+                Attribute::READONLY | Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -418,6 +426,21 @@ fn set_onerror(
     }
 
     Ok(JsValue::undefined())
+}
+
+/// Getter for scriptURL
+fn get_script_url(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let worker_obj = this.as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Worker scriptURL getter called on non-object"))?;
+
+    let worker = worker_obj.downcast_ref::<Worker>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Worker object"))?;
+
+    Ok(JsValue::from(JsString::from(worker.script_url.as_str())))
 }
 
 /// Register the Worker constructor in a context

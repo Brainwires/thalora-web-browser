@@ -13,7 +13,7 @@ use boa_engine::{
 };
 use std::cell::RefCell;
 
-use crate::dom::element::ElementData;
+use crate::dom::element::with_element_data;
 use crate::events::event::EventData;
 use crate::events::propagation::dispatch_event_with_propagation;
 use crate::events::ui_events::FocusEventData;
@@ -169,7 +169,7 @@ fn dispatch_focus_event(
 /// - Elements with tabindex attribute
 /// - Elements with contenteditable attribute
 pub fn is_focusable(element: &JsObject) -> bool {
-    if let Some(element_data) = element.downcast_ref::<ElementData>() {
+    if let Ok(result) = with_element_data(element, |element_data| {
         let tag_name = element_data.get_tag_name().to_uppercase();
 
         // Check if element is disabled
@@ -198,6 +198,10 @@ pub fn is_focusable(element: &JsObject) -> bool {
                 return true;
             }
         }
+
+        false
+    }, "not element") {
+        return result;
     }
 
     false

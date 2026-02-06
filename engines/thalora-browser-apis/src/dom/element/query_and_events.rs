@@ -10,6 +10,7 @@ use boa_engine::{
 };
 
 use super::types::ElementData;
+use super::helpers::{with_element_data, has_element_data};
 use crate::events::propagation::dispatch_event_with_propagation;
 
 /// `Element.prototype.closest(selector)`
@@ -18,15 +19,14 @@ pub(super) fn closest_js(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Element.prototype.closest called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.closest called on non-Element object")
-    })?;
-
     let selector = args.get_or_undefined(0).to_string(context)?;
     let selector_str = selector.to_std_string_escaped();
 
-    if let Some(found) = element.find_closest(&selector_str, &this_obj) {
+    let result = with_element_data(&this_obj, |el| {
+        el.find_closest(&selector_str, &this_obj)
+    }, "Element.prototype.closest called on non-Element object")?;
+
+    if let Some(found) = result {
         Ok(found.into())
     } else {
         Ok(JsValue::null())
@@ -39,15 +39,14 @@ pub(super) fn matches_js(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Element.prototype.matches called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.matches called on non-Element object")
-    })?;
-
     let selector = args.get_or_undefined(0).to_string(context)?;
     let selector_str = selector.to_std_string_escaped();
 
-    Ok(element.matches_selector(&selector_str).into())
+    let matches = with_element_data(&this_obj, |el| {
+        el.matches_selector(&selector_str)
+    }, "Element.prototype.matches called on non-Element object")?;
+
+    Ok(matches.into())
 }
 
 /// `Element.prototype.querySelector(selector)` - find first matching descendant
@@ -56,17 +55,16 @@ pub(super) fn query_selector_js(this: &JsValue, args: &[JsValue], context: &mut 
         JsNativeError::typ().with_message("Element.prototype.querySelector called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.querySelector called on non-Element object")
-    })?;
-
     let selector = args.get_or_undefined(0).to_string(context)?;
     let selector_str = selector.to_std_string_escaped();
 
     // Use the element's query_selector method
-    if let Some(result) = element.query_selector(&selector_str) {
-        Ok(result.into())
+    let result = with_element_data(&this_obj, |el| {
+        el.query_selector(&selector_str)
+    }, "Element.prototype.querySelector called on non-Element object")?;
+
+    if let Some(found) = result {
+        Ok(found.into())
     } else {
         Ok(JsValue::null())
     }
@@ -78,16 +76,13 @@ pub(super) fn query_selector_all_js(this: &JsValue, args: &[JsValue], context: &
         JsNativeError::typ().with_message("Element.prototype.querySelectorAll called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.querySelectorAll called on non-Element object")
-    })?;
-
     let selector = args.get_or_undefined(0).to_string(context)?;
     let selector_str = selector.to_std_string_escaped();
 
     // Use the element's query_selector_all method
-    let results = element.query_selector_all(&selector_str);
+    let results = with_element_data(&this_obj, |el| {
+        el.query_selector_all(&selector_str)
+    }, "Element.prototype.querySelectorAll called on non-Element object")?;
 
     // Convert to JS array
     let array = Array::create_array_from_list(
@@ -104,15 +99,13 @@ pub(super) fn add_event_listener_js(this: &JsValue, args: &[JsValue], context: &
         JsNativeError::typ().with_message("Element.prototype.addEventListener called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.addEventListener called on non-Element object")
-    })?;
-
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1);
 
-    element.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
+    with_element_data(&this_obj, |el| {
+        el.add_event_listener(event_type.to_std_string_escaped(), listener.clone());
+    }, "Element.prototype.addEventListener called on non-Element object")?;
+
     Ok(JsValue::undefined())
 }
 
@@ -123,15 +116,13 @@ pub(super) fn remove_event_listener_js(this: &JsValue, args: &[JsValue], context
         JsNativeError::typ().with_message("Element.prototype.removeEventListener called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.removeEventListener called on non-Element object")
-    })?;
-
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1);
 
-    element.remove_event_listener(&event_type.to_std_string_escaped(), &listener);
+    with_element_data(&this_obj, |el| {
+        el.remove_event_listener(&event_type.to_std_string_escaped(), &listener);
+    }, "Element.prototype.removeEventListener called on non-Element object")?;
+
     Ok(JsValue::undefined())
 }
 
@@ -143,10 +134,11 @@ pub(super) fn dispatch_event_js(this: &JsValue, args: &[JsValue], context: &mut 
     })?;
 
     // Verify this is an Element
-    let _ = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.dispatchEvent called on non-Element object")
-    })?;
+            .into());
+    }
 
     let event = args.get_or_undefined(0);
 
@@ -186,10 +178,11 @@ pub(super) fn focus(this: &JsValue, _args: &[JsValue], context: &mut Context) ->
     })?;
 
     // Verify it's an element
-    let _ = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.focus called on non-Element object")
-    })?;
+            .into());
+    }
 
     // Use the focus manager to properly handle focus with events
     crate::browser::focus_manager::focus_element(&this_obj, context)?;
@@ -205,10 +198,11 @@ pub(super) fn blur(this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
     })?;
 
     // Verify it's an element
-    let _ = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
             .with_message("Element.prototype.blur called on non-Element object")
-    })?;
+            .into());
+    }
 
     // Use the focus manager to properly handle blur with events
     crate::browser::focus_manager::blur_element(&this_obj, context)?;
@@ -221,11 +215,6 @@ pub(super) fn blur(this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
 pub(super) fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.click called on non-object")
-    })?;
-
-    let element_data = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.click called on non-Element object")
     })?;
 
     // Create a proper MouseEvent using the MouseEventData structure
@@ -273,19 +262,24 @@ pub(super) fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) ->
     let default_not_prevented = dispatch_event_with_propagation(&click_event.upcast(), &this_obj, context)?;
 
     // Handle default action if not prevented
+    // Extract needed data from element inside with_element_data to avoid holding borrow
     if default_not_prevented {
-        let tag_name = element_data.get_tag_name().to_uppercase();
+        let (tag_name, href, button_type) = with_element_data(&this_obj, |el| {
+            let tag = el.get_tag_name().to_uppercase();
+            let href = el.get_attribute("href");
+            let btype = el.get_attribute("type").unwrap_or_default().to_lowercase();
+            (tag, href, btype)
+        }, "Element.prototype.click called on non-Element object")?;
 
         match tag_name.as_str() {
             "A" => {
                 // For anchor elements, queue navigation
-                if let Some(href) = element_data.get_attribute("href") {
+                if let Some(href) = href {
                     // Queue navigation through the browser bridge
                     crate::browser::navigation_bridge::queue_navigation(&href);
                 }
             }
             "BUTTON" | "INPUT" => {
-                let button_type = element_data.get_attribute("type").unwrap_or_default().to_lowercase();
                 if button_type == "submit" {
                     // Find and submit parent form
                     if let Some(form) = find_parent_form(&this_obj) {
@@ -302,38 +296,32 @@ pub(super) fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) ->
 
 /// Find the parent form element for a given element
 fn find_parent_form(element: &JsObject) -> Option<JsObject> {
-    if let Some(element_data) = element.downcast_ref::<ElementData>() {
-        let mut current = element_data.get_parent_node();
-        while let Some(parent) = current {
-            // Check if this parent is a FORM element
-            let is_form = if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
-                parent_data.get_tag_name().to_uppercase() == "FORM"
-            } else {
-                false
-            };
+    let mut current = with_element_data(element, |el| {
+        el.get_parent_node()
+    }, "").ok()?;
 
-            if is_form {
-                return Some(parent);
-            }
+    while let Some(parent) = current {
+        // Check if this parent is a FORM element
+        let is_form = with_element_data(&parent, |el| {
+            el.get_tag_name().to_uppercase() == "FORM"
+        }, "").unwrap_or(false);
 
-            // Get next parent
-            current = if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
-                parent_data.get_parent_node()
-            } else {
-                None
-            };
+        if is_form {
+            return Some(parent);
         }
+
+        // Get next parent
+        current = with_element_data(&parent, |el| {
+            el.get_parent_node()
+        }, "").ok()?;
     }
+
     None
 }
 
 /// Submit a form element
 fn submit_form(form: &JsObject, context: &mut Context) -> JsResult<()> {
     use crate::events::event::EventData;
-
-    let form_data = form.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("submit_form called on non-Element object")
-    })?;
 
     // Create submit event
     let submit_event_data = EventData::new("submit".to_string(), true, true);
@@ -349,9 +337,14 @@ fn submit_form(form: &JsObject, context: &mut Context) -> JsResult<()> {
 
     // If not prevented, queue form submission
     if default_not_prevented {
-        if let Some(action) = form_data.get_attribute("action") {
-            let method = form_data.get_attribute("method").unwrap_or_else(|| "GET".to_string());
-            crate::browser::navigation_bridge::queue_form_submission(&action, &method);
+        let form_info = with_element_data(form, |el| {
+            let action = el.get_attribute("action");
+            let method = el.get_attribute("method").unwrap_or_else(|| "GET".to_string());
+            (action, method)
+        }, "submit_form called on non-Element object")?;
+
+        if let Some(action) = form_info.0 {
+            crate::browser::navigation_bridge::queue_form_submission(&action, &form_info.1);
         }
     }
 
@@ -486,65 +479,59 @@ pub(super) fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Cont
 
     // First, check if this is an ElementData and perform validation
     let (shadow_init, has_shadow_root, can_have_shadow) = {
-        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Element.prototype.attachShadow called on non-Element object")
-        })?;
+        let options = args.get_or_undefined(0);
 
-        {
-            let options = args.get_or_undefined(0);
-
-            // Parse options object according to WHATWG spec
-            let shadow_init = if let Some(options_obj) = options.as_object() {
-                let mode = if let Ok(mode_value) = options_obj.get(js_string!("mode"), context) {
-                    let mode_str = mode_value.to_string(context)?.to_std_string_escaped();
-                    crate::dom::shadow::shadow_root::ShadowRootMode::from_string(&mode_str)
-                        .ok_or_else(|| JsNativeError::typ()
-                            .with_message("attachShadow mode must be 'open' or 'closed'"))?
-                } else {
-                    return Err(JsNativeError::typ()
-                        .with_message("attachShadow options must include a mode")
-                        .into());
-                };
-
-                let clonable = if let Ok(clonable_value) = options_obj.get(js_string!("clonable"), context) {
-                    clonable_value.to_boolean()
-                } else {
-                    false
-                };
-
-                let serializable = if let Ok(serializable_value) = options_obj.get(js_string!("serializable"), context) {
-                    serializable_value.to_boolean()
-                } else {
-                    false
-                };
-
-                let delegates_focus = if let Ok(delegates_focus_value) = options_obj.get(js_string!("delegatesFocus"), context) {
-                    delegates_focus_value.to_boolean()
-                } else {
-                    false
-                };
-
-                crate::dom::shadow::shadow_root::ShadowRootInit {
-                    mode,
-                    clonable,
-                    serializable,
-                    delegates_focus,
-                }
+        // Parse options object according to WHATWG spec
+        let shadow_init = if let Some(options_obj) = options.as_object() {
+            let mode = if let Ok(mode_value) = options_obj.get(js_string!("mode"), context) {
+                let mode_str = mode_value.to_string(context)?.to_std_string_escaped();
+                crate::dom::shadow::shadow_root::ShadowRootMode::from_string(&mode_str)
+                    .ok_or_else(|| JsNativeError::typ()
+                        .with_message("attachShadow mode must be 'open' or 'closed'"))?
             } else {
                 return Err(JsNativeError::typ()
-                    .with_message("attachShadow requires an options object")
+                    .with_message("attachShadow options must include a mode")
                     .into());
             };
 
-            // Check if element already has a shadow root
-            let has_shadow_root = element.get_shadow_root().is_some();
+            let clonable = if let Ok(clonable_value) = options_obj.get(js_string!("clonable"), context) {
+                clonable_value.to_boolean()
+            } else {
+                false
+            };
 
-            // Validate element according to WHATWG specification
-            let can_have_shadow = can_have_shadow_root(&element);
+            let serializable = if let Ok(serializable_value) = options_obj.get(js_string!("serializable"), context) {
+                serializable_value.to_boolean()
+            } else {
+                false
+            };
 
-            (shadow_init, has_shadow_root, can_have_shadow)
-        }
+            let delegates_focus = if let Ok(delegates_focus_value) = options_obj.get(js_string!("delegatesFocus"), context) {
+                delegates_focus_value.to_boolean()
+            } else {
+                false
+            };
+
+            crate::dom::shadow::shadow_root::ShadowRootInit {
+                mode,
+                clonable,
+                serializable,
+                delegates_focus,
+            }
+        } else {
+            return Err(JsNativeError::typ()
+                .with_message("attachShadow requires an options object")
+                .into());
+        };
+
+        // Check if element already has a shadow root and validate element
+        let (has_shadow_root, can_have_shadow) = with_element_data(&this_obj, |el| {
+            let has_sr = el.get_shadow_root().is_some();
+            let can_shadow = can_have_shadow_root(el);
+            (has_sr, can_shadow)
+        }, "Element.prototype.attachShadow called on non-Element object")?;
+
+        (shadow_init, has_shadow_root, can_have_shadow)
     }; // Release the borrow here
 
     // Now perform validation without holding any borrows
@@ -602,11 +589,9 @@ pub(super) fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Cont
     }
 
     // Store the shadow root internally in element data (get a fresh borrow)
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.attachShadow called on non-Element object")
-    })?;
-    element.attach_shadow_root(shadow_root.clone());
+    with_element_data(&this_obj, |el| {
+        el.attach_shadow_root(shadow_root.clone());
+    }, "Element.prototype.attachShadow called on non-Element object")?;
 
     Ok(shadow_root.into())
 }

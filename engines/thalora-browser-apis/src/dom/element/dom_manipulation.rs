@@ -11,6 +11,7 @@ use boa_engine::{
 
 use super::types::ElementData;
 use super::scripts::{is_script_element, execute_script_element};
+use super::helpers::{with_element_data, has_element_data};
 
 /// `Element.prototype.appendChild(child)`
 pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -21,20 +22,14 @@ pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Conte
     let child_value = args.get_or_undefined(0);
     if let Some(child_obj) = child_value.as_object() {
         // Set parent relationship
-        if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-            child_element.set_parent_node(Some(this_obj.clone()));
-        }
+        let _ = with_element_data(&child_obj, |el| {
+            el.set_parent_node(Some(this_obj.clone()));
+        }, "");
 
-        // Try ElementData first, then HTMLIFrameElementData
-        if let Some(element) = this_obj.downcast_ref::<ElementData>() {
-            element.append_child(child_obj.clone());
-        } else if let Some(iframe) = this_obj.downcast_ref::<crate::dom::html_iframe_element::HTMLIFrameElementData>() {
-            iframe.append_child(child_obj.clone());
-        } else {
-            return Err(JsNativeError::typ()
-                .with_message("Node.appendChild called on non-Node object")
-                .into());
-        }
+        // with_element_data handles ElementData, HTMLIFrameElementData, HTMLScriptElementData
+        with_element_data(&this_obj, |el| {
+            el.append_child(child_obj.clone());
+        }, "Node.appendChild called on non-Node object")?;
 
         // Check if the appended child is a script element and execute it
         if is_script_element(&child_obj, context)? {
@@ -55,18 +50,17 @@ pub(super) fn remove_child(this: &JsValue, args: &[JsValue], _context: &mut Cont
         JsNativeError::typ().with_message("Element.prototype.removeChild called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.removeChild called on non-Element object")
-    })?;
-
     let child_value = args.get_or_undefined(0);
     if let Some(child_obj) = child_value.as_object() {
         // Remove parent relationship
-        if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-            child_element.set_parent_node(None);
-        }
-        element.remove_child(&child_obj);
+        let _ = with_element_data(&child_obj, |el| {
+            el.set_parent_node(None);
+        }, "");
+
+        with_element_data(&this_obj, |el| {
+            el.remove_child(&child_obj);
+        }, "Element.prototype.removeChild called on non-Element object")?;
+
         Ok(child_value.clone())
     } else {
         Err(JsNativeError::typ()
@@ -83,19 +77,17 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
         JsNativeError::typ().with_message("Element.prototype.append called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.append called on non-Element object")
-    })?;
-
     // Process each argument and append
     for arg in args {
         if let Some(child_obj) = arg.as_object() {
             // It's a Node - append it
-            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                child_element.set_parent_node(Some(this_obj.clone()));
-            }
-            element.append_child(child_obj.clone());
+            let _ = with_element_data(&child_obj, |el| {
+                el.set_parent_node(Some(this_obj.clone()));
+            }, "");
+
+            with_element_data(&this_obj, |el| {
+                el.append_child(child_obj.clone());
+            }, "Element.prototype.append called on non-Element object")?;
 
             // Check if the appended child is a script element and execute it
             if is_script_element(&child_obj, context)? {
@@ -108,7 +100,10 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
             let text_obj = JsObject::with_null_proto();
             text_obj.set(js_string!("nodeType"), 3, false, context)?; // TEXT_NODE
             text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
-            element.append_child(text_obj);
+
+            with_element_data(&this_obj, |el| {
+                el.append_child(text_obj);
+            }, "Element.prototype.append called on non-Element object")?;
         }
     }
 
@@ -123,26 +118,27 @@ pub(super) fn prepend_method(this: &JsValue, args: &[JsValue], context: &mut Con
         JsNativeError::typ().with_message("Element.prototype.prepend called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.prepend called on non-Element object")
-    })?;
-
     // Process each argument in reverse order and insert at the beginning
     for arg in args.iter().rev() {
         if let Some(child_obj) = arg.as_object() {
             // It's a Node - prepend it
-            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                child_element.set_parent_node(Some(this_obj.clone()));
-            }
-            element.prepend_child(child_obj.clone());
+            let _ = with_element_data(&child_obj, |el| {
+                el.set_parent_node(Some(this_obj.clone()));
+            }, "");
+
+            with_element_data(&this_obj, |el| {
+                el.prepend_child(child_obj.clone());
+            }, "Element.prototype.prepend called on non-Element object")?;
         } else {
             // It's a string - create a Text node and prepend it
             let text_content = arg.to_string(context)?.to_std_string_escaped();
             let text_obj = JsObject::with_null_proto();
             text_obj.set(js_string!("nodeType"), 3, false, context)?;
             text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
-            element.prepend_child(text_obj);
+
+            with_element_data(&this_obj, |el| {
+                el.prepend_child(text_obj);
+            }, "Element.prototype.prepend called on non-Element object")?;
         }
     }
 
@@ -157,27 +153,32 @@ pub(super) fn after_method(this: &JsValue, args: &[JsValue], context: &mut Conte
         JsNativeError::typ().with_message("Element.prototype.after called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.after called on non-Element object")
-    })?;
+    // Get parent node via with_element_data
+    let parent_obj = with_element_data(&this_obj, |el| {
+        el.get_parent_node()
+    }, "Element.prototype.after called on non-Element object")?;
 
-    // Get parent node
-    if let Some(parent_obj) = element.get_parent_node() {
-        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
-            // Process each argument and insert after this element
+    // Process each argument and insert after this element
+    if let Some(parent_obj) = parent_obj {
+        if has_element_data(&parent_obj) {
             for arg in args.iter() {
                 if let Some(child_obj) = arg.as_object() {
-                    if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                        child_element.set_parent_node(Some(parent_obj.clone()));
-                    }
-                    parent_element.insert_after(child_obj.clone(), &this_obj);
+                    let _ = with_element_data(&child_obj, |el| {
+                        el.set_parent_node(Some(parent_obj.clone()));
+                    }, "");
+
+                    with_element_data(&parent_obj, |parent_el| {
+                        parent_el.insert_after(child_obj.clone(), &this_obj);
+                    }, "Element.prototype.after: parent is not an Element")?;
                 } else {
                     let text_content = arg.to_string(context)?.to_std_string_escaped();
                     let text_obj = JsObject::with_null_proto();
                     text_obj.set(js_string!("nodeType"), 3, false, context)?;
                     text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
-                    parent_element.insert_after(text_obj, &this_obj);
+
+                    with_element_data(&parent_obj, |parent_el| {
+                        parent_el.insert_after(text_obj, &this_obj);
+                    }, "Element.prototype.after: parent is not an Element")?;
                 }
             }
         }
@@ -194,27 +195,32 @@ pub(super) fn before_method(this: &JsValue, args: &[JsValue], context: &mut Cont
         JsNativeError::typ().with_message("Element.prototype.before called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.before called on non-Element object")
-    })?;
+    // Get parent node via with_element_data
+    let parent_obj = with_element_data(&this_obj, |el| {
+        el.get_parent_node()
+    }, "Element.prototype.before called on non-Element object")?;
 
-    // Get parent node
-    if let Some(parent_obj) = element.get_parent_node() {
-        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
-            // Process each argument in reverse and insert before this element
+    // Process each argument in reverse and insert before this element
+    if let Some(parent_obj) = parent_obj {
+        if has_element_data(&parent_obj) {
             for arg in args.iter().rev() {
                 if let Some(child_obj) = arg.as_object() {
-                    if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                        child_element.set_parent_node(Some(parent_obj.clone()));
-                    }
-                    parent_element.insert_before_elem(child_obj.clone(), &this_obj);
+                    let _ = with_element_data(&child_obj, |el| {
+                        el.set_parent_node(Some(parent_obj.clone()));
+                    }, "");
+
+                    with_element_data(&parent_obj, |parent_el| {
+                        parent_el.insert_before_elem(child_obj.clone(), &this_obj);
+                    }, "Element.prototype.before: parent is not an Element")?;
                 } else {
                     let text_content = arg.to_string(context)?.to_std_string_escaped();
                     let text_obj = JsObject::with_null_proto();
                     text_obj.set(js_string!("nodeType"), 3, false, context)?;
                     text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
-                    parent_element.insert_before_elem(text_obj, &this_obj);
+
+                    with_element_data(&parent_obj, |parent_el| {
+                        parent_el.insert_before_elem(text_obj, &this_obj);
+                    }, "Element.prototype.before: parent is not an Element")?;
                 }
             }
         }
@@ -231,16 +237,21 @@ pub(super) fn remove_method(this: &JsValue, _args: &[JsValue], _context: &mut Co
         JsNativeError::typ().with_message("Element.prototype.remove called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.remove called on non-Element object")
-    })?;
+    // Get parent node via with_element_data
+    let parent_obj = with_element_data(&this_obj, |el| {
+        el.get_parent_node()
+    }, "Element.prototype.remove called on non-Element object")?;
 
     // Get parent node and remove this element from it
-    if let Some(parent_obj) = element.get_parent_node() {
-        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
-            parent_element.remove_child(&this_obj);
-            element.set_parent_node(None);
+    if let Some(parent_obj) = parent_obj {
+        if has_element_data(&parent_obj) {
+            with_element_data(&parent_obj, |parent_el| {
+                parent_el.remove_child(&this_obj);
+            }, "Element.prototype.remove: parent is not an Element")?;
+
+            with_element_data(&this_obj, |el| {
+                el.set_parent_node(None);
+            }, "Element.prototype.remove called on non-Element object")?;
         }
     }
 
@@ -255,32 +266,43 @@ pub(super) fn replace_with_method(this: &JsValue, args: &[JsValue], context: &mu
         JsNativeError::typ().with_message("Element.prototype.replaceWith called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.replaceWith called on non-Element object")
-    })?;
+    // Get parent node via with_element_data
+    let parent_obj = with_element_data(&this_obj, |el| {
+        el.get_parent_node()
+    }, "Element.prototype.replaceWith called on non-Element object")?;
 
     // Get parent node
-    if let Some(parent_obj) = element.get_parent_node() {
-        if let Some(parent_element) = parent_obj.downcast_ref::<ElementData>() {
+    if let Some(parent_obj) = parent_obj {
+        if has_element_data(&parent_obj) {
             // Insert all new nodes before this element
             for arg in args.iter() {
                 if let Some(child_obj) = arg.as_object() {
-                    if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                        child_element.set_parent_node(Some(parent_obj.clone()));
-                    }
-                    parent_element.insert_before_elem(child_obj.clone(), &this_obj);
+                    let _ = with_element_data(&child_obj, |el| {
+                        el.set_parent_node(Some(parent_obj.clone()));
+                    }, "");
+
+                    with_element_data(&parent_obj, |parent_el| {
+                        parent_el.insert_before_elem(child_obj.clone(), &this_obj);
+                    }, "Element.prototype.replaceWith: parent is not an Element")?;
                 } else {
                     let text_content = arg.to_string(context)?.to_std_string_escaped();
                     let text_obj = JsObject::with_null_proto();
                     text_obj.set(js_string!("nodeType"), 3, false, context)?;
                     text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
-                    parent_element.insert_before_elem(text_obj, &this_obj);
+
+                    with_element_data(&parent_obj, |parent_el| {
+                        parent_el.insert_before_elem(text_obj, &this_obj);
+                    }, "Element.prototype.replaceWith: parent is not an Element")?;
                 }
             }
             // Remove this element
-            parent_element.remove_child(&this_obj);
-            element.set_parent_node(None);
+            with_element_data(&parent_obj, |parent_el| {
+                parent_el.remove_child(&this_obj);
+            }, "Element.prototype.replaceWith: parent is not an Element")?;
+
+            with_element_data(&this_obj, |el| {
+                el.set_parent_node(None);
+            }, "Element.prototype.replaceWith called on non-Element object")?;
         }
     }
 
@@ -295,27 +317,30 @@ pub(super) fn replace_children_method(this: &JsValue, args: &[JsValue], context:
         JsNativeError::typ().with_message("Element.prototype.replaceChildren called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.replaceChildren called on non-Element object")
-    })?;
-
     // Clear all existing children
-    element.clear_children();
+    with_element_data(&this_obj, |el| {
+        el.clear_children();
+    }, "Element.prototype.replaceChildren called on non-Element object")?;
 
     // Add all new nodes
     for arg in args {
         if let Some(child_obj) = arg.as_object() {
-            if let Some(child_element) = child_obj.downcast_ref::<ElementData>() {
-                child_element.set_parent_node(Some(this_obj.clone()));
-            }
-            element.append_child(child_obj.clone());
+            let _ = with_element_data(&child_obj, |el| {
+                el.set_parent_node(Some(this_obj.clone()));
+            }, "");
+
+            with_element_data(&this_obj, |el| {
+                el.append_child(child_obj.clone());
+            }, "Element.prototype.replaceChildren called on non-Element object")?;
         } else {
             let text_content = arg.to_string(context)?.to_std_string_escaped();
             let text_obj = JsObject::with_null_proto();
             text_obj.set(js_string!("nodeType"), 3, false, context)?;
             text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
-            element.append_child(text_obj);
+
+            with_element_data(&this_obj, |el| {
+                el.append_child(text_obj);
+            }, "Element.prototype.replaceChildren called on non-Element object")?;
         }
     }
 
@@ -337,12 +362,7 @@ pub(super) fn set_html(this: &JsValue, args: &[JsValue], context: &mut Context) 
     let parsed_elements = parse_html_elements_with_context(&html_string, context)?;
 
     // Update the ElementData
-    {
-        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Element.prototype.setHTML called on non-Element object")
-        })?;
-
+    with_element_data(&this_obj, |element| {
         *element.inner_html.lock().unwrap() = html_string;
         let mut children = element.children.lock().unwrap();
         children.clear();
@@ -350,7 +370,7 @@ pub(super) fn set_html(this: &JsValue, args: &[JsValue], context: &mut Context) 
         drop(children);
         element.recompute_text_content();
         element.update_document_html_content();
-    }
+    }, "Element.prototype.setHTML called on non-Element object")?;
 
     Ok(JsValue::undefined())
 }
@@ -369,12 +389,7 @@ pub(super) fn set_html_unsafe(this: &JsValue, args: &[JsValue], context: &mut Co
     let parsed_elements = parse_html_elements_with_context(&html_string, context)?;
 
     // Update the ElementData
-    {
-        let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Element.prototype.setHTMLUnsafe called on non-Element object")
-        })?;
-
+    with_element_data(&this_obj, |element| {
         *element.inner_html.lock().unwrap() = html_string;
         let mut children = element.children.lock().unwrap();
         children.clear();
@@ -382,7 +397,7 @@ pub(super) fn set_html_unsafe(this: &JsValue, args: &[JsValue], context: &mut Co
         drop(children);
         element.recompute_text_content();
         element.update_document_html_content();
-    }
+    }, "Element.prototype.setHTMLUnsafe called on non-Element object")?;
 
     Ok(JsValue::undefined())
 }
@@ -393,11 +408,6 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
         JsNativeError::typ().with_message("Element.prototype.insertBefore called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.insertBefore called on non-Element object")
-    })?;
-
     let new_node = args.get_or_undefined(0);
     let reference_node = args.get_or_undefined(1);
 
@@ -406,9 +416,9 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
     })?;
 
     // Set parent on new node
-    if let Some(new_data) = new_obj.downcast_ref::<ElementData>() {
-        new_data.set_parent_node(Some(this_obj.clone()));
-    }
+    let _ = with_element_data(&new_obj, |el| {
+        el.set_parent_node(Some(this_obj.clone()));
+    }, "");
 
     let ref_obj = if reference_node.is_null() || reference_node.is_undefined() {
         None
@@ -418,7 +428,9 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
         })?)
     };
 
-    element.insert_before(new_obj.clone(), ref_obj.as_ref());
+    with_element_data(&this_obj, |el| {
+        el.insert_before(new_obj.clone(), ref_obj.as_ref());
+    }, "Element.prototype.insertBefore called on non-Element object")?;
 
     // Check if the inserted node is a script element and execute it
     if is_script_element(&new_obj, context)? {
@@ -434,11 +446,6 @@ pub(super) fn replace_child_js(this: &JsValue, args: &[JsValue], context: &mut C
         JsNativeError::typ().with_message("Element.prototype.replaceChild called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.replaceChild called on non-Element object")
-    })?;
-
     let new_child = args.get_or_undefined(0);
     let old_child = args.get_or_undefined(1);
 
@@ -451,11 +458,15 @@ pub(super) fn replace_child_js(this: &JsValue, args: &[JsValue], context: &mut C
     })?;
 
     // Set parent on new node
-    if let Some(new_data) = new_obj.downcast_ref::<ElementData>() {
-        new_data.set_parent_node(Some(this_obj.clone()));
-    }
+    let _ = with_element_data(&new_obj, |el| {
+        el.set_parent_node(Some(this_obj.clone()));
+    }, "");
 
-    if let Some(replaced) = element.replace_child(new_obj.clone(), &old_obj) {
+    let replaced = with_element_data(&this_obj, |el| {
+        el.replace_child(new_obj.clone(), &old_obj)
+    }, "Element.prototype.replaceChild called on non-Element object")?;
+
+    if let Some(replaced) = replaced {
         Ok(replaced.into())
     } else {
         Err(JsNativeError::error()
@@ -470,13 +481,13 @@ pub(super) fn clone_node(this: &JsValue, args: &[JsValue], context: &mut Context
         JsNativeError::typ().with_message("Element.prototype.cloneNode called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.cloneNode called on non-Element object")
-    })?;
-
     let deep = args.get_or_undefined(0).to_boolean();
-    let cloned = element.clone_element(deep, context)?;
+
+    let cloned = with_element_data(&this_obj, |el| {
+        el.clone_element(deep, context)
+    }, "Element.prototype.cloneNode called on non-Element object")?;
+
+    let cloned = cloned?;
     Ok(cloned.into())
 }
 
@@ -484,11 +495,6 @@ pub(super) fn clone_node(this: &JsValue, args: &[JsValue], context: &mut Context
 pub(super) fn contains_js(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.contains called on non-object")
-    })?;
-
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.contains called on non-Element object")
     })?;
 
     let other = args.get_or_undefined(0);
@@ -502,7 +508,10 @@ pub(super) fn contains_js(this: &JsValue, args: &[JsValue], _context: &mut Conte
         if std::ptr::eq(this_obj.as_ref(), other_obj.as_ref()) {
             return Ok(true.into());
         }
-        Ok(element.contains_node(&other_obj).into())
+        let result = with_element_data(&this_obj, |el| {
+            el.contains_node(&other_obj)
+        }, "Element.prototype.contains called on non-Element object")?;
+        Ok(result.into())
     } else {
         Ok(false.into())
     }

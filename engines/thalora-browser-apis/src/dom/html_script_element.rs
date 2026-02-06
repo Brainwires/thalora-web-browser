@@ -16,6 +16,7 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use crate::dom::element::ElementData;
 
 /// JavaScript `HTMLScriptElement` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -103,10 +104,8 @@ impl IntrinsicObject for HTMLScriptElement {
                 Some(id_setter),
                 Attribute::CONFIGURABLE,
             )
-            .method(get_attribute, js_string!("getAttribute"), 1)
-            .method(set_attribute, js_string!("setAttribute"), 2)
-            .method(has_attribute, js_string!("hasAttribute"), 1)
-            .method(remove_attribute, js_string!("removeAttribute"), 1)
+            // getAttribute/setAttribute/hasAttribute/removeAttribute are inherited
+            // from Element.prototype via the dispatch helper
             .build();
     }
 
@@ -148,9 +147,7 @@ impl BuiltInConstructor for HTMLScriptElement {
 
         let script_generic = script_obj.upcast();
 
-        // Set Element interface properties
-        script_generic.set(js_string!("tagName"), js_string!("SCRIPT"), false, context)?;
-        script_generic.set(js_string!("nodeName"), js_string!("SCRIPT"), false, context)?;
+        // Set nodeType as own property (tagName/nodeName come from Element.prototype via dispatch)
         script_generic.set(js_string!("nodeType"), 1, false, context)?;
 
         Ok(script_generic.into())
@@ -160,6 +157,9 @@ impl BuiltInConstructor for HTMLScriptElement {
 /// Internal data for HTMLScriptElement instances
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct HTMLScriptElementData {
+    /// Base element data — provides tagName, id, className, attributes, children, etc.
+    #[unsafe_ignore_trace]
+    pub(crate) element: ElementData,
     #[unsafe_ignore_trace]
     src: Arc<Mutex<String>>,
     #[unsafe_ignore_trace]
@@ -170,23 +170,17 @@ pub struct HTMLScriptElementData {
     defer: Arc<Mutex<bool>>,
     #[unsafe_ignore_trace]
     text: Arc<Mutex<String>>,
-    #[unsafe_ignore_trace]
-    id: Arc<Mutex<String>>,
-    /// Storage for all attributes including custom ones (data-*, etc.)
-    #[unsafe_ignore_trace]
-    attributes: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl HTMLScriptElementData {
     pub fn new() -> Self {
         Self {
+            element: ElementData::with_tag_name("SCRIPT".to_string()),
             src: Arc::new(Mutex::new(String::new())),
             type_: Arc::new(Mutex::new(String::new())),
             async_: Arc::new(Mutex::new(false)),
             defer: Arc::new(Mutex::new(false)),
             text: Arc::new(Mutex::new(String::new())),
-            id: Arc::new(Mutex::new(String::new())),
-            attributes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -201,13 +195,21 @@ impl HTMLScriptElementData {
                 "type" => *data.type_.lock().unwrap() = value.clone(),
                 "async" => *data.async_.lock().unwrap() = true,
                 "defer" => *data.defer.lock().unwrap() = true,
-                "id" => *data.id.lock().unwrap() = value.clone(),
+                "id" => {
+                    data.element.set_id(value.clone());
+                }
                 _ => {}
             }
+            // Store all attributes in ElementData
+            data.element.set_attribute(key.clone(), value.clone());
         }
 
-        *data.attributes.lock().unwrap() = attrs;
         data
+    }
+
+    /// Access the embedded ElementData
+    pub fn element_data(&self) -> &ElementData {
+        &self.element
     }
 
     pub fn get_src(&self) -> String {
@@ -216,7 +218,7 @@ impl HTMLScriptElementData {
 
     pub fn set_src(&self, src: String) {
         *self.src.lock().unwrap() = src.clone();
-        self.attributes.lock().unwrap().insert("src".to_string(), src);
+        self.element.set_attribute("src".to_string(), src);
     }
 
     pub fn get_type(&self) -> String {
@@ -225,7 +227,7 @@ impl HTMLScriptElementData {
 
     pub fn set_type(&self, type_: String) {
         *self.type_.lock().unwrap() = type_.clone();
-        self.attributes.lock().unwrap().insert("type".to_string(), type_);
+        self.element.set_attribute("type".to_string(), type_);
     }
 
     pub fn get_async(&self) -> bool {
@@ -235,9 +237,9 @@ impl HTMLScriptElementData {
     pub fn set_async(&self, async_: bool) {
         *self.async_.lock().unwrap() = async_;
         if async_ {
-            self.attributes.lock().unwrap().insert("async".to_string(), "".to_string());
+            self.element.set_attribute("async".to_string(), "".to_string());
         } else {
-            self.attributes.lock().unwrap().remove("async");
+            self.element.remove_attribute("async");
         }
     }
 
@@ -248,9 +250,9 @@ impl HTMLScriptElementData {
     pub fn set_defer(&self, defer: bool) {
         *self.defer.lock().unwrap() = defer;
         if defer {
-            self.attributes.lock().unwrap().insert("defer".to_string(), "".to_string());
+            self.element.set_attribute("defer".to_string(), "".to_string());
         } else {
-            self.attributes.lock().unwrap().remove("defer");
+            self.element.remove_attribute("defer");
         }
     }
 
@@ -263,29 +265,28 @@ impl HTMLScriptElementData {
     }
 
     pub fn get_id(&self) -> String {
-        self.id.lock().unwrap().clone()
+        self.element.get_id()
     }
 
     pub fn set_id(&self, id: String) {
-        *self.id.lock().unwrap() = id.clone();
-        self.attributes.lock().unwrap().insert("id".to_string(), id);
+        self.element.set_id(id.clone());
+        self.element.set_attribute("id".to_string(), id);
     }
 
     pub fn get_attribute(&self, name: &str) -> Option<String> {
-        // First check known fields
+        // First check known script-specific fields
         match name {
             "src" => Some(self.get_src()),
             "type" => Some(self.get_type()),
             "async" => if self.get_async() { Some("".to_string()) } else { None },
             "defer" => if self.get_defer() { Some("".to_string()) } else { None },
-            "id" => Some(self.get_id()),
-            // Then check attributes map for custom attributes
-            _ => self.attributes.lock().unwrap().get(name).cloned()
+            // For everything else, delegate to ElementData
+            _ => self.element.get_attribute(name)
         }
     }
 
     pub fn set_attribute(&self, name: &str, value: String) {
-        // Update known fields if applicable
+        // Update known script-specific fields if applicable
         match name {
             "src" => self.set_src(value.clone()),
             "type" => self.set_type(value.clone()),
@@ -293,7 +294,7 @@ impl HTMLScriptElementData {
             "defer" => self.set_defer(true),
             "id" => self.set_id(value.clone()),
             _ => {
-                self.attributes.lock().unwrap().insert(name.to_string(), value);
+                self.element.set_attribute(name.to_string(), value);
             }
         }
     }
@@ -304,8 +305,8 @@ impl HTMLScriptElementData {
             "type" => !self.get_type().is_empty(),
             "async" => self.get_async(),
             "defer" => self.get_defer(),
-            "id" => !self.get_id().is_empty(),
-            _ => self.attributes.lock().unwrap().contains_key(name)
+            // For everything else, delegate to ElementData
+            _ => self.element.has_attribute(name)
         }
     }
 
@@ -315,10 +316,9 @@ impl HTMLScriptElementData {
             "type" => *self.type_.lock().unwrap() = String::new(),
             "async" => *self.async_.lock().unwrap() = false,
             "defer" => *self.defer.lock().unwrap() = false,
-            "id" => *self.id.lock().unwrap() = String::new(),
             _ => {}
         }
-        self.attributes.lock().unwrap().remove(name);
+        self.element.remove_attribute(name);
     }
 }
 

@@ -6,8 +6,6 @@ use boa_engine::{
     Context, JsResult, js_string,
 };
 
-use super::types::ElementData;
-
 /// Check if a JsObject is a script element (by tagName or by HTMLScriptElementData)
 pub(super) fn is_script_element(obj: &JsObject, context: &mut Context) -> JsResult<bool> {
     // First, try to check by HTMLScriptElementData
@@ -23,10 +21,11 @@ pub(super) fn is_script_element(obj: &JsObject, context: &mut Context) -> JsResu
         }
     }
 
-    // Also check ElementData's tagName
-    if let Some(element_data) = obj.downcast_ref::<ElementData>() {
-        let tag_name = element_data.get_tag_name();
-        return Ok(tag_name.eq_ignore_ascii_case("SCRIPT"));
+    // Also check ElementData's tagName (dispatches across all element types)
+    if let Ok(result) = super::with_element_data(obj, |element_data| {
+        element_data.get_tag_name().eq_ignore_ascii_case("SCRIPT")
+    }, "not element") {
+        return Ok(result);
     }
 
     Ok(false)
@@ -98,15 +97,20 @@ fn get_script_content(obj: &JsObject, context: &mut Context) -> JsResult<String>
         }
     }
 
-    // Try ElementData
-    if let Some(element_data) = obj.downcast_ref::<ElementData>() {
+    // Try ElementData (dispatches across all element types)
+    if let Ok(result) = super::with_element_data(obj, |element_data| {
         let text_content = element_data.get_text_content();
         if !text_content.is_empty() {
-            return Ok(text_content);
+            return Some(text_content);
         }
         let inner_html = element_data.get_inner_html();
         if !inner_html.is_empty() {
-            return Ok(inner_html);
+            return Some(inner_html);
+        }
+        None
+    }, "not element") {
+        if let Some(content) = result {
+            return Ok(content);
         }
     }
 

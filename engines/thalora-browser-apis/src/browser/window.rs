@@ -2705,7 +2705,7 @@ fn get_performance(_this: &JsValue, _args: &[JsValue], context: &mut Context) ->
 /// Returns a CSSStyleDeclaration object containing the computed styles for an element
 /// https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle
 fn get_computed_style(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    use crate::dom::element::ElementData;
+    use crate::dom::element::with_element_data;
 
     let element = args.get_or_undefined(0);
     let _pseudo_element = args.get_or_undefined(1); // Optional pseudo-element selector (::before, ::after)
@@ -2715,13 +2715,10 @@ fn get_computed_style(_this: &JsValue, args: &[JsValue], context: &mut Context) 
         JsNativeError::typ().with_message("getComputedStyle: argument is not an element")
     })?;
 
-    // Try to get ElementData from the object
-    let element_data = element_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("getComputedStyle: argument is not an element")
-    })?;
-
-    // Get the element's computed style
-    let css_style = element_data.get_style();
+    // Get the element's computed style via dispatch helper
+    let css_style = with_element_data(&element_obj, |element_data| {
+        element_data.get_style()
+    }, "getComputedStyle: argument is not an element")?;
 
     // Create a CSSStyleDeclaration-like object with the computed styles
     let style_obj = JsObject::default(context.intrinsics());

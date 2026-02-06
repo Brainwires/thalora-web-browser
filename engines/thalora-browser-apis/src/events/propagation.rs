@@ -10,13 +10,13 @@
 use boa_engine::{
     js_string,
     object::JsObject,
-    Context, JsNativeError, JsResult, JsValue,
+    Context, JsResult, JsValue,
 };
 
 use super::event::{EventData, EventPhase};
 use super::event_target::EventTargetData;
 use super::ui_events::{MouseEventData, KeyboardEventData, FocusEventData, InputEventData, UIEventData};
-use crate::dom::element::ElementData;
+use crate::dom::element::{with_element_data, has_element_data};
 
 /// Dispatch an event with proper DOM event propagation (capturing, at-target, bubbling phases)
 ///
@@ -136,9 +136,9 @@ fn build_propagation_path(target: &JsObject) -> Vec<JsObject> {
 
 /// Get parent node from element
 fn get_parent_node(element: &JsObject) -> Option<JsObject> {
-    // Try ElementData first
-    if let Some(element_data) = element.downcast_ref::<ElementData>() {
-        return element_data.get_parent_node();
+    // Try ElementData first (dispatches across all element types)
+    if let Ok(parent) = with_element_data(element, |el| el.get_parent_node(), "not an element") {
+        return parent;
     }
 
     // Could also check EventTargetData for document/window
@@ -396,8 +396,8 @@ fn get_capture_listeners(
         }
     }
 
-    // Try ElementData (for DOM elements)
-    if let Some(element_data) = target.downcast_ref::<ElementData>() {
+    // Try ElementData (for DOM elements - dispatches across all element types)
+    if has_element_data(target) {
         // ElementData currently doesn't track capture flag, so we return empty for capture phase
         // This will be updated when we add capture support to ElementData
         return Ok(None);
@@ -422,9 +422,9 @@ fn get_bubble_listeners(
         }
     }
 
-    // Try ElementData - these are bubble listeners by default
-    if let Some(element_data) = target.downcast_ref::<ElementData>() {
-        if let Some(listeners) = element_data.get_event_listeners(&event_type) {
+    // Try ElementData - these are bubble listeners by default (dispatches across all element types)
+    if let Ok(listeners) = with_element_data(target, |el| el.get_event_listeners(&event_type), "not an element") {
+        if let Some(listeners) = listeners {
             if !listeners.is_empty() {
                 return Ok(Some(listeners));
             }
@@ -452,9 +452,9 @@ fn get_all_listeners(
         all_listeners.extend(bubble_listeners);
     }
 
-    // Try ElementData
-    if let Some(element_data) = target.downcast_ref::<ElementData>() {
-        if let Some(listeners) = element_data.get_event_listeners(&event_type) {
+    // Try ElementData (dispatches across all element types)
+    if let Ok(listeners) = with_element_data(target, |el| el.get_event_listeners(&event_type), "not an element") {
+        if let Some(listeners) = listeners {
             all_listeners.extend(listeners);
         }
     }

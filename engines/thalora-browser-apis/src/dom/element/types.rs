@@ -304,6 +304,24 @@ impl ScrollState {
     }
 }
 
+/// Execute a closure with `&ElementData` from a JsObject, dispatching across all element types.
+/// Returns `None` if the object doesn't contain any known element data.
+/// This is used internally by ElementData methods that iterate children.
+fn try_with_element_data<T>(obj: &JsObject, f: impl FnOnce(&ElementData) -> T) -> Option<T> {
+    use crate::dom::html_iframe_element::HTMLIFrameElementData;
+    use crate::dom::html_script_element::HTMLScriptElementData;
+
+    if let Some(el) = obj.downcast_ref::<ElementData>() {
+        Some(f(&*el))
+    } else if let Some(iframe) = obj.downcast_ref::<HTMLIFrameElementData>() {
+        Some(f(iframe.element_data()))
+    } else if let Some(script) = obj.downcast_ref::<HTMLScriptElementData>() {
+        Some(f(script.element_data()))
+    } else {
+        None
+    }
+}
+
 impl ElementData {
     pub(crate) fn new() -> Self {
         let node_id = NODE_ID_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -491,14 +509,10 @@ impl ElementData {
         let mut text_parts = Vec::new();
 
         for child in children.iter() {
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                let child_tag = child_data.get_tag_name();
-                if child_tag == "#text" {
-                    text_parts.push(child_data.get_text_content());
-                } else {
-                    // Recursively get text from child elements
-                    text_parts.push(child_data.get_text_content());
-                }
+            if let Some(text) = try_with_element_data(child, |child_data| {
+                child_data.get_text_content()
+            }) {
+                text_parts.push(text);
             }
         }
 
@@ -668,20 +682,20 @@ impl ElementData {
             // Find the reference child index
             if let Some(index) = children.iter().position(|c| JsObject::equals(c, ref_child)) {
                 // Set up sibling relationships
-                if let Some(new_child_data) = new_child.downcast_ref::<ElementData>() {
+                try_with_element_data(&new_child, |new_child_data| {
                     // Set previous sibling
                     if index > 0 {
                         new_child_data.set_previous_sibling(Some(children[index - 1].clone()));
-                        if let Some(prev_data) = children[index - 1].downcast_ref::<ElementData>() {
+                        try_with_element_data(&children[index - 1], |prev_data| {
                             prev_data.set_next_sibling(Some(new_child.clone()));
-                        }
+                        });
                     }
                     // Set next sibling (the reference child)
                     new_child_data.set_next_sibling(Some(ref_child.clone()));
-                }
-                if let Some(ref_data) = ref_child.downcast_ref::<ElementData>() {
+                });
+                try_with_element_data(ref_child, |ref_data| {
                     ref_data.set_previous_sibling(Some(new_child.clone()));
-                }
+                });
 
                 children.insert(index, new_child.clone());
                 return Some(new_child);
@@ -699,27 +713,32 @@ impl ElementData {
 
         if let Some(index) = children.iter().position(|c| JsObject::equals(c, old_child)) {
             // Copy sibling relationships from old to new
-            if let Some(old_data) = old_child.downcast_ref::<ElementData>() {
-                if let Some(new_data) = new_child.downcast_ref::<ElementData>() {
-                    new_data.set_previous_sibling(old_data.get_previous_sibling());
-                    new_data.set_next_sibling(old_data.get_next_sibling());
-                }
+            let old_siblings = try_with_element_data(old_child, |old_data| {
+                let prev = old_data.get_previous_sibling();
+                let next = old_data.get_next_sibling();
                 // Clear old child's relationships
                 old_data.set_parent_node(None);
                 old_data.set_previous_sibling(None);
                 old_data.set_next_sibling(None);
+                (prev, next)
+            });
+            if let Some((prev, next)) = old_siblings {
+                try_with_element_data(&new_child, |new_data| {
+                    new_data.set_previous_sibling(prev);
+                    new_data.set_next_sibling(next);
+                });
             }
 
             // Update siblings to point to new child
             if index > 0 {
-                if let Some(prev_data) = children[index - 1].downcast_ref::<ElementData>() {
+                try_with_element_data(&children[index - 1], |prev_data| {
                     prev_data.set_next_sibling(Some(new_child.clone()));
-                }
+                });
             }
             if index < children.len() - 1 {
-                if let Some(next_data) = children[index + 1].downcast_ref::<ElementData>() {
+                try_with_element_data(&children[index + 1], |next_data| {
                     next_data.set_previous_sibling(Some(new_child.clone()));
-                }
+                });
             }
 
             children[index] = new_child;
@@ -731,17 +750,16 @@ impl ElementData {
 
     /// Check if this element contains another node
     pub fn contains_node(&self, other: &JsObject) -> bool {
-        // Check if it's the same node
         // Check children recursively
         let children = self.children.lock().unwrap();
         for child in children.iter() {
             if JsObject::equals(child, other) {
                 return true;
             }
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                if child_data.contains_node(other) {
-                    return true;
-                }
+            if let Some(true) = try_with_element_data(child, |child_data| {
+                child_data.contains_node(other)
+            }) {
+                return true;
             }
         }
         false
@@ -756,8 +774,10 @@ impl ElementData {
 
         // Check parent
         if let Some(parent) = self.get_parent_node() {
-            if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
-                return parent_data.find_closest(selector, &parent);
+            if let Some(result) = try_with_element_data(&parent, |parent_data| {
+                parent_data.find_closest(selector, &parent)
+            }) {
+                return result;
             }
         }
 
@@ -796,12 +816,28 @@ impl ElementData {
         );
 
         // Deep clone: recursively clone children
+        // Note: We collect children first to avoid holding locks across clone_element calls
+        // which need &mut Context.
         if deep {
-            let children = self.children.lock().unwrap();
-            for child in children.iter() {
-                if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                    let cloned_child = child_data.clone_element(true, context)?;
-                    // cloned is JsObject<ElementData>, so we can borrow its data directly
+            let child_list: Vec<JsObject> = self.children.lock().unwrap().clone();
+            for child in child_list.iter() {
+                // We need to dispatch across element types but can't use try_with_element_data
+                // here because clone_element requires &mut Context which can't be in the closure.
+                // Instead, extract ElementData reference, call clone_element, then release.
+                use crate::dom::html_iframe_element::HTMLIFrameElementData;
+                use crate::dom::html_script_element::HTMLScriptElementData;
+
+                let cloned_child = if let Some(child_data) = child.downcast_ref::<ElementData>() {
+                    Some(child_data.clone_element(true, context)?)
+                } else if let Some(iframe) = child.downcast_ref::<HTMLIFrameElementData>() {
+                    Some(iframe.element_data().clone_element(true, context)?)
+                } else if let Some(script) = child.downcast_ref::<HTMLScriptElementData>() {
+                    Some(script.element_data().clone_element(true, context)?)
+                } else {
+                    None
+                };
+
+                if let Some(cloned_child) = cloned_child {
                     if let Ok(cloned_data) = cloned.try_borrow() {
                         cloned_data.data().append_child(cloned_child);
                     }
@@ -1117,10 +1153,19 @@ impl ElementData {
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                if let Some(found) = child_data.find_element_by_id(id) {
-                    return Some(found);
+            // Check if child itself matches the ID
+            if let Some(child_id) = try_with_element_data(child, |child_data| {
+                child_data.get_id()
+            }) {
+                if child_id == id {
+                    return Some(child.clone());
                 }
+            }
+            // Recurse into child
+            if let Some(found) = try_with_element_data(child, |child_data| {
+                child_data.find_element_by_id(id)
+            }).flatten() {
+                return Some(found);
             }
         }
 
@@ -1155,14 +1200,17 @@ impl ElementData {
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                if child_data.matches_selector(selector) {
-                    return Some(child.clone());
-                }
-                // Search deeper
-                if let Some(found) = child_data.query_selector(selector) {
-                    return Some(found);
-                }
+            // Check if child matches
+            if let Some(true) = try_with_element_data(child, |child_data| {
+                child_data.matches_selector(selector)
+            }) {
+                return Some(child.clone());
+            }
+            // Search deeper
+            if let Some(found) = try_with_element_data(child, |child_data| {
+                child_data.query_selector(selector)
+            }).flatten() {
+                return Some(found);
             }
         }
 
@@ -1181,12 +1229,17 @@ impl ElementData {
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                if child_data.matches_selector(selector) {
-                    results.push(child.clone());
-                }
-                // Search deeper
-                results.extend(child_data.query_selector_all(selector));
+            // Check if child matches
+            if let Some(true) = try_with_element_data(child, |child_data| {
+                child_data.matches_selector(selector)
+            }) {
+                results.push(child.clone());
+            }
+            // Search deeper
+            if let Some(deeper) = try_with_element_data(child, |child_data| {
+                child_data.query_selector_all(selector)
+            }) {
+                results.extend(deeper);
             }
         }
 

@@ -537,7 +537,7 @@ mod tests {
 
         assert!(js.contains("cf_clearance"));
         assert!(js.contains("challenge-running"));
-        assert!(js.contains("Promise"));
+        assert!(js.contains("_asyncComplete"));
     }
 
     #[test]

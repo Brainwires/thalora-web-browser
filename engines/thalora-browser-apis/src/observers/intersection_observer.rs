@@ -254,10 +254,10 @@ impl IntersectionObserver {
 
     /// Helper to get element ID and tag name from a target object
     fn get_element_info(target: &JsObject, context: &mut Context) -> JsResult<(String, String, (f64, f64, f64, f64))> {
-        use crate::dom::element::ElementData;
+        use crate::dom::element::with_element_data;
 
-        // Try to get ElementData if it's an actual Element
-        if let Some(element_data) = target.downcast_ref::<ElementData>() {
+        // Try to get ElementData if it's an actual Element (dispatches across all element types)
+        if let Ok(result) = with_element_data(target, |element_data| {
             let id = element_data.get_id();
             let tag = element_data.get_tag_name().to_lowercase();
             let rect = element_data.get_bounding_client_rect();
@@ -269,7 +269,9 @@ impl IntersectionObserver {
                 tag.clone()
             };
 
-            return Ok((element_id, tag, (rect.x, rect.y, rect.width, rect.height)));
+            (element_id, tag, (rect.x, rect.y, rect.width, rect.height))
+        }, "not element") {
+            return Ok(result);
         }
 
         // Fallback: try to read properties from the object

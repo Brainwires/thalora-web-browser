@@ -265,6 +265,8 @@ impl IntrinsicObject for Document {
             .method(scroll_to_document, js_string!("scroll"), 2)  // alias for scrollTo
             // Internal trusted event dispatch (for Cloudflare etc.)
             .method(dispatch_trusted_mouse_event_document, js_string!("__dispatchTrustedMouseEvent"), 3)
+            // Static method: Document.parseHTMLUnsafe(html) - Chrome 124+
+            .static_method(super::document_parse::parse_html_unsafe, js_string!("parseHTMLUnsafe"), 1)
             .build();
     }
 
@@ -280,7 +282,7 @@ impl BuiltInObject for Document {
 impl BuiltInConstructor for Document {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
     const PROTOTYPE_STORAGE_SLOTS: usize = 68; // Accessors and methods on prototype (added scrollTo, scroll, __dispatchTrustedMouseEvent)
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 2;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::document;
