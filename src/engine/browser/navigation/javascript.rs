@@ -381,9 +381,6 @@ impl super::super::HeadlessWebBrowser {
         // Get the current URL to resolve relative script paths
         let base_url = self.current_url.clone().unwrap_or_else(|| "https://example.com".to_string());
 
-        // Check if this is a challenge page by content - if so, use trusted execution for all scripts
-        let is_challenge_by_content = Self::is_challenge_content(html);
-
         for script_element in document.select(&script_selector) {
             // Get the script type attribute
             let script_type = script_element.value().attr("type").unwrap_or("text/javascript");
@@ -422,9 +419,6 @@ impl super::super::HeadlessWebBrowser {
                     script_attrs.insert(key.to_string(), value.to_string());
                 }
 
-                // Check if this is a trusted challenge provider script or on a challenge page
-                let is_trusted = Self::is_trusted_challenge_script(&script_url) || is_challenge_by_content;
-
                 // Fetch the external script
                 match self.fetch_external_script(&script_url).await {
                     Ok(script_content) => {
@@ -445,12 +439,11 @@ impl super::super::HeadlessWebBrowser {
                             let _ = renderer.set_current_script(&script_entry);
                         }
 
-                        // Execute the fetched script
-                        let exec_result = if is_trusted {
-                            self.execute_javascript_trusted(&script_content).await
-                        } else {
-                            self.execute_javascript(&script_content).await
-                        };
+                        // Page scripts from <script> tags are the website's own code —
+                        // they must run without security validation for the page to
+                        // function correctly. Security validation only applies to
+                        // user-provided JS via MCP tools.
+                        let exec_result = self.execute_javascript_trusted(&script_content).await;
 
                         if let Some(ref mut renderer) = self.renderer {
                             let _ = renderer.clear_current_script();
@@ -498,14 +491,7 @@ impl super::super::HeadlessWebBrowser {
                     let _ = renderer.set_current_script(&script_entry);
                 }
 
-                // Use trusted execution for challenge page scripts
-                let is_challenge_page = Self::is_challenge_page(&base_url) || is_challenge_by_content;
-
-                let exec_result = if is_challenge_page {
-                    self.execute_javascript_trusted(&script_content).await
-                } else {
-                    self.execute_javascript(&script_content).await
-                };
+                let exec_result = self.execute_javascript_trusted(&script_content).await;
 
                 if let Some(ref mut renderer) = self.renderer {
                     let _ = renderer.clear_current_script();
@@ -773,6 +759,7 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Check if a script URL is from a trusted challenge provider.
+    #[allow(dead_code)]
     fn is_trusted_challenge_script(url: &str) -> bool {
         let trusted_domains = [
             "challenges.cloudflare.com",
@@ -794,6 +781,7 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Check if the current page URL indicates a challenge page.
+    #[allow(dead_code)]
     fn is_challenge_page(url: &str) -> bool {
         let challenge_indicators = [
             "challenges.cloudflare.com",

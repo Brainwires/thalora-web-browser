@@ -12,6 +12,8 @@ use boa_engine::{
 use super::types::ElementData;
 use super::scripts::{is_script_element, execute_script_element};
 use super::helpers::{with_element_data, has_element_data};
+use crate::dom::comment::CommentData;
+use crate::dom::text::TextData;
 
 /// `Element.prototype.appendChild(child)`
 pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -21,12 +23,14 @@ pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Conte
 
     let child_value = args.get_or_undefined(0);
     if let Some(child_obj) = child_value.as_object() {
-        // Set parent relationship
+        // Set parent relationship on the child
+        // with_element_data handles ElementData, HTMLIFrameElementData, HTMLScriptElementData
         let _ = with_element_data(&child_obj, |el| {
             el.set_parent_node(Some(this_obj.clone()));
         }, "");
+        // Also handle Comment/Text children that aren't ElementData
+        set_child_parent_node(&child_obj, Some(this_obj.clone()));
 
-        // with_element_data handles ElementData, HTMLIFrameElementData, HTMLScriptElementData
         with_element_data(&this_obj, |el| {
             el.append_child(child_obj.clone());
         }, "Node.appendChild called on non-Node object")?;
@@ -56,6 +60,8 @@ pub(super) fn remove_child(this: &JsValue, args: &[JsValue], _context: &mut Cont
         let _ = with_element_data(&child_obj, |el| {
             el.set_parent_node(None);
         }, "");
+        // Also handle Comment/Text children
+        set_child_parent_node(&child_obj, None);
 
         with_element_data(&this_obj, |el| {
             el.remove_child(&child_obj);
@@ -84,6 +90,7 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
             let _ = with_element_data(&child_obj, |el| {
                 el.set_parent_node(Some(this_obj.clone()));
             }, "");
+            set_child_parent_node(&child_obj, Some(this_obj.clone()));
 
             with_element_data(&this_obj, |el| {
                 el.append_child(child_obj.clone());
@@ -125,6 +132,7 @@ pub(super) fn prepend_method(this: &JsValue, args: &[JsValue], context: &mut Con
             let _ = with_element_data(&child_obj, |el| {
                 el.set_parent_node(Some(this_obj.clone()));
             }, "");
+            set_child_parent_node(&child_obj, Some(this_obj.clone()));
 
             with_element_data(&this_obj, |el| {
                 el.prepend_child(child_obj.clone());
@@ -419,6 +427,8 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
     let _ = with_element_data(&new_obj, |el| {
         el.set_parent_node(Some(this_obj.clone()));
     }, "");
+    // Also handle Comment/Text children
+    set_child_parent_node(&new_obj, Some(this_obj.clone()));
 
     let ref_obj = if reference_node.is_null() || reference_node.is_undefined() {
         None
@@ -461,6 +471,8 @@ pub(super) fn replace_child_js(this: &JsValue, args: &[JsValue], context: &mut C
     let _ = with_element_data(&new_obj, |el| {
         el.set_parent_node(Some(this_obj.clone()));
     }, "");
+    // Also handle Comment/Text children
+    set_child_parent_node(&new_obj, Some(this_obj.clone()));
 
     let replaced = with_element_data(&this_obj, |el| {
         el.replace_child(new_obj.clone(), &old_obj)
@@ -514,6 +526,16 @@ pub(super) fn contains_js(this: &JsValue, args: &[JsValue], _context: &mut Conte
         Ok(result.into())
     } else {
         Ok(false.into())
+    }
+}
+
+/// Helper: set parent node on Comment/Text children that aren't ElementData.
+/// This is a no-op if the child doesn't have CommentData or TextData.
+fn set_child_parent_node(child_obj: &JsObject, parent: Option<JsObject>) {
+    if let Some(comment) = child_obj.downcast_ref::<CommentData>() {
+        comment.node_data().set_parent_node(parent);
+    } else if let Some(text) = child_obj.downcast_ref::<TextData>() {
+        text.character_data().node_data().set_parent_node(parent);
     }
 }
 

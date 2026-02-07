@@ -503,68 +503,16 @@ pub(super) fn create_range(_this: &JsValue, _args: &[JsValue], context: &mut Con
 /// `Document.prototype.createComment(data)`
 pub(super) fn create_comment(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let data = args.get_or_undefined(0).to_string(context)?;
-    let data_str = data.to_std_string_escaped();
 
-    // Create a Comment node object
-    let comment = JsObject::default(context.intrinsics());
-
-    // nodeType = 8 for Comment
-    comment.define_property_or_throw(
-        js_string!("nodeType"),
-        PropertyDescriptorBuilder::new()
-            .value(JsValue::from(8))
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
+    // Create a Comment node using the Comment constructor
+    let comment_constructor = context.intrinsics().constructors().comment().constructor();
+    let comment = crate::dom::comment::Comment::constructor(
+        &comment_constructor.clone().into(),
+        &[data.into()],
         context,
     )?;
 
-    comment.define_property_or_throw(
-        js_string!("nodeName"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!("#comment"))
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    comment.define_property_or_throw(
-        js_string!("data"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!(data_str.clone()))
-            .writable(true)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    comment.define_property_or_throw(
-        js_string!("textContent"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!(data_str.clone()))
-            .writable(true)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    comment.define_property_or_throw(
-        js_string!("nodeValue"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!(data_str))
-            .writable(true)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    Ok(comment.into())
+    Ok(comment)
 }
 
 /// `Document.prototype.createAttribute(name)`

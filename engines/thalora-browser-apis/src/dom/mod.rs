@@ -2,6 +2,7 @@
 
 pub mod attr;
 pub mod character_data;
+pub mod comment;
 pub mod document;
 
 // Backward-compatible re-exports (document_fragment and document_parse now live inside document/)

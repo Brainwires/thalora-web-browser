@@ -140,6 +140,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::element::Element::init(&realm);
     dom::character_data::CharacterData::init(&realm);
     dom::text::Text::init(&realm);
+    dom::comment::Comment::init(&realm);
     dom::document_fragment::DocumentFragment::init(&realm);
     dom::range::Range::init(&realm);
     dom::selection::Selection::init(&realm);

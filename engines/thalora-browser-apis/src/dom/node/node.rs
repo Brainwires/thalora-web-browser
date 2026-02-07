@@ -19,6 +19,7 @@ use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use crate::dom::text::TextData;
+use crate::dom::comment::CommentData;
 
 /// Node types as defined by the DOM specification
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
@@ -461,6 +462,23 @@ impl NodeData {
     const DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC: u32 = 0x20;
 }
 
+/// Helper: dispatch to NodeData on any node type (NodeData, CommentData, TextData).
+/// Returns the result of the closure, or an error if the object has no recognizable node data.
+fn with_node_data<F, R>(obj: &JsObject, f: F, error_msg: &'static str) -> JsResult<R>
+where
+    F: FnOnce(&NodeData) -> R,
+{
+    if let Some(nd) = obj.downcast_ref::<NodeData>() {
+        Ok(f(&nd))
+    } else if let Some(cd) = obj.downcast_ref::<CommentData>() {
+        Ok(f(cd.node_data()))
+    } else if let Some(td) = obj.downcast_ref::<TextData>() {
+        Ok(f(td.character_data().node_data()))
+    } else {
+        Err(JsNativeError::typ().with_message(error_msg).into())
+    }
+}
+
 // Property accessors
 impl NodeData {
     fn get_node_type_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -468,23 +486,20 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nodeType called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.nodeType called on non-Node object")
-        })?;
-
-        let node_type_value = match node.get_node_type() {
-            NodeType::Node => 0,
-            NodeType::Element => 1,
-            NodeType::Attribute => 2,
-            NodeType::Text => 3,
-            NodeType::CDataSection => 4,
-            NodeType::ProcessingInstruction => 7,
-            NodeType::Comment => 8,
-            NodeType::Document => 9,
-            NodeType::DocumentType => 10,
-            NodeType::DocumentFragment => 11,
-        };
+        let node_type_value = with_node_data(&this_obj, |node| {
+            match node.get_node_type() {
+                NodeType::Node => 0,
+                NodeType::Element => 1,
+                NodeType::Attribute => 2,
+                NodeType::Text => 3,
+                NodeType::CDataSection => 4,
+                NodeType::ProcessingInstruction => 7,
+                NodeType::Comment => 8,
+                NodeType::Document => 9,
+                NodeType::DocumentType => 10,
+                NodeType::DocumentFragment => 11,
+            }
+        }, "Node.nodeType called on non-Node object")?;
         Ok(JsValue::from(node_type_value))
     }
 
@@ -493,25 +508,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nodeName called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.nodeName called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_node_name()
-
-
-        };
+        }, "Node.nodeName called on non-Node object")?;
         Ok(JsValue::from(js_string!(value)))
     }
 
@@ -520,13 +519,12 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nodeValue called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.nodeValue called on non-Node object")
-        })?;
+        let value = with_node_data(&this_obj, |node| {
+            node.get_node_value()
+        }, "Node.nodeValue called on non-Node object")?;
 
-        match node.get_node_value() {
-            Some(value) => Ok(JsValue::from(js_string!(value))),
+        match value {
+            Some(v) => Ok(JsValue::from(js_string!(v))),
             None => Ok(JsValue::null()),
         }
     }
@@ -536,18 +534,15 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nodeValue setter called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.nodeValue setter called on non-Node object")
-        })?;
-
         let value = args.get_or_undefined(0);
         let new_value = if value.is_null() {
             None
         } else {
             Some(value.to_string(context)?.to_std_string_escaped())
         };
-        node.set_node_value(new_value);
+        with_node_data(&this_obj, |node| {
+            node.set_node_value(new_value);
+        }, "Node.nodeValue setter called on non-Node object")?;
         Ok(JsValue::undefined())
     }
 
@@ -556,15 +551,13 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.baseURI called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.baseURI called on non-Node object")
-        })?;
+        let value = with_node_data(&this_obj, |node| {
+            node.get_base_uri()
+        }, "Node.baseURI called on non-Node object")?;
 
-        match node.get_base_uri() {
-                Some(uri) => Ok(JsValue::from(js_string!(uri))),
-                None => Ok(JsValue::null()),
-
+        match value {
+            Some(uri) => Ok(JsValue::from(js_string!(uri))),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -573,25 +566,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.isConnected called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.isConnected called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.is_connected()
-
-
-        };
+        }, "Node.isConnected called on non-Node object")?;
         Ok(JsValue::from(value))
     }
 
@@ -600,25 +577,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.ownerDocument called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.ownerDocument called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_owner_document()
-
-
-        };
+        }, "Node.ownerDocument called on non-Node object")?;
         match value {
             Some(doc) => Ok(doc.into()),
             None => Ok(JsValue::null()),
@@ -630,25 +591,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.parentNode called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.parentNode called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_parent_node()
-
-
-        };
+        }, "Node.parentNode called on non-Node object")?;
         match value {
             Some(parent) => Ok(parent.into()),
             None => Ok(JsValue::null()),
@@ -662,14 +607,13 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.childNodes called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.childNodes called on non-Node object")
-        })?;
+        // Get child_nodes_arc from any node type
+        let child_nodes_arc = with_node_data(&this_obj, |node| {
+            node.get_child_nodes_arc()
+        }, "Node.childNodes called on non-Node object")?;
 
         // Return a live NodeList that always reflects the current children
         // Per DOM spec, Node.childNodes returns a live NodeList
-        let child_nodes_arc = node.get_child_nodes_arc();
         let nodelist = NodeList::create_live_child_nodes(child_nodes_arc, context)?;
 
         Ok(nodelist.into())
@@ -680,25 +624,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.firstChild called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.firstChild called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_first_child()
-
-
-        };
+        }, "Node.firstChild called on non-Node object")?;
         match value {
             Some(child) => Ok(child.into()),
             None => Ok(JsValue::null()),
@@ -710,25 +638,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.lastChild called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.lastChild called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_last_child()
-
-
-        };
+        }, "Node.lastChild called on non-Node object")?;
         match value {
             Some(child) => Ok(child.into()),
             None => Ok(JsValue::null()),
@@ -740,25 +652,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.previousSibling called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.previousSibling called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_previous_sibling()
-
-
-        };
+        }, "Node.previousSibling called on non-Node object")?;
         match value {
             Some(sibling) => Ok(sibling.into()),
             None => Ok(JsValue::null()),
@@ -770,25 +666,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.nextSibling called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.nextSibling called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.get_next_sibling()
-
-
-        };
+        }, "Node.nextSibling called on non-Node object")?;
         match value {
             Some(sibling) => Ok(sibling.into()),
             None => Ok(JsValue::null()),
@@ -800,15 +680,13 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.textContent called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.textContent called on non-Node object")
-        })?;
+        let value = with_node_data(&this_obj, |node| {
+            node.get_text_content()
+        }, "Node.textContent called on non-Node object")?;
 
-        match node.get_text_content() {
-                Some(content) => Ok(JsValue::from(js_string!(content))),
-                None => Ok(JsValue::null()),
-
+        match value {
+            Some(content) => Ok(JsValue::from(js_string!(content))),
+            None => Ok(JsValue::null()),
         }
     }
 
@@ -817,22 +695,25 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.textContent setter called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.textContent setter called on non-Node object")
-        })?;
-
         let value = args.get_or_undefined(0);
 
+        let node_type = with_node_data(&this_obj, |node| {
+            node.get_node_type()
+        }, "Node.textContent setter called on non-Node object")?;
+
         // Handle the different node types per DOM spec
-        match node.get_node_type() {
+        match node_type {
             NodeType::Text | NodeType::Comment | NodeType::ProcessingInstruction => {
                 // For these node types, set the nodeValue directly
                 if value.is_null() {
-                    node.set_node_value(None);
+                    with_node_data(&this_obj, |node| {
+                        node.set_node_value(None);
+                    }, "Node.textContent setter called on non-Node object")?;
                 } else {
                     let content = value.to_string(context)?.to_std_string_escaped();
-                    node.set_node_value(Some(content));
+                    with_node_data(&this_obj, |node| {
+                        node.set_node_value(Some(content));
+                    }, "Node.textContent setter called on non-Node object")?;
                 }
             }
             NodeType::DocumentFragment | NodeType::Element => {
@@ -840,12 +721,16 @@ impl NodeData {
                 // 1. Remove all child nodes
                 // 2. If new value is not null/empty, create a Text node and append it
                 if value.is_null() {
-                    node.set_text_content_with_text_node(None);
+                    with_node_data(&this_obj, |node| {
+                        node.set_text_content_with_text_node(None);
+                    }, "Node.textContent setter called on non-Node object")?;
                 } else {
                     let content = value.to_string(context)?.to_std_string_escaped();
                     if content.is_empty() {
                         // Empty string means no text node child
-                        node.set_text_content_with_text_node(None);
+                        with_node_data(&this_obj, |node| {
+                            node.set_text_content_with_text_node(None);
+                        }, "Node.textContent setter called on non-Node object")?;
                     } else {
                         // Create a proper Text node
                         let text_data = TextData::new(content);
@@ -856,7 +741,9 @@ impl NodeData {
                         );
                         // Upcast to untyped JsObject and set as child
                         let text_obj_untyped = text_obj.upcast();
-                        node.set_text_content_with_text_node(Some(text_obj_untyped));
+                        with_node_data(&this_obj, |node| {
+                            node.set_text_content_with_text_node(Some(text_obj_untyped));
+                        }, "Node.textContent setter called on non-Node object")?;
                     }
                 }
             }
@@ -924,6 +811,26 @@ impl NodeData {
                         }
                     }
                 }
+            } else if let Some(child_comment) = child_clone.downcast_ref::<CommentData>() {
+                // Comment child — track parent/sibling via its embedded NodeData
+                let child_node_data = child_comment.node_data();
+                if let Some(old_parent) = child_node_data.get_parent_node() {
+                    if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
+                        old_parent_data.remove_child_node(&child_obj);
+                    }
+                }
+                parent_node.add_child_node(child_obj.clone());
+                child_node_data.set_parent_node(Some(this_obj.clone()));
+            } else if let Some(child_text) = child_clone.downcast_ref::<TextData>() {
+                // Text child — track parent via its embedded NodeData
+                let child_node_data = child_text.character_data().node_data();
+                if let Some(old_parent) = child_node_data.get_parent_node() {
+                    if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
+                        old_parent_data.remove_child_node(&child_obj);
+                    }
+                }
+                parent_node.add_child_node(child_obj.clone());
+                child_node_data.set_parent_node(Some(this_obj.clone()));
             } else {
                 // Child is not NodeData but could be ElementData
                 parent_node.add_child_node(child_obj.clone());
@@ -961,49 +868,49 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.removeChild: child must be a Node")
         })?;
 
-        let parent_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
+        // Try to get parent's NodeData
+        if let Some(parent_node) = this_obj.downcast_ref::<NodeData>() {
+            // Check if child is actually a child of this node
+            if !parent_node.get_child_nodes().iter().any(|c| JsObject::equals(c, &child_obj)) {
+                return Err(JsNativeError::typ()
+                    .with_message("Node.removeChild: child is not a child of this node")
+                    .into());
+            }
+
+            // Get sibling links from the child (using polymorphic dispatch)
+            let (prev_sibling, next_sibling) = with_node_data(&child_obj, |child_node| {
+                (child_node.get_previous_sibling(), child_node.get_next_sibling())
+            }, "").unwrap_or((None, None));
+
+            // Update sibling links
+            if let Some(prev) = &prev_sibling {
+                let _ = with_node_data(prev, |prev_data| {
+                    prev_data.set_next_sibling(next_sibling.clone());
+                }, "");
+            }
+
+            if let Some(next) = &next_sibling {
+                let _ = with_node_data(next, |next_data| {
+                    next_data.set_previous_sibling(prev_sibling);
+                }, "");
+            }
+
+            // Remove from parent's child list
+            parent_node.remove_child_node(&child_obj);
+
+            // Clear child's parent and sibling references
+            let _ = with_node_data(&child_obj, |child_node| {
+                child_node.set_parent_node(None);
+                child_node.set_previous_sibling(None);
+                child_node.set_next_sibling(None);
+            }, "");
+
+            Ok(child_obj.into())
+        } else {
+            Err(JsNativeError::typ()
                 .with_message("Node.removeChild called on non-Node object")
-        })?;
-
-        let child_clone = child_obj.clone();
-        let child_node = child_clone.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.removeChild: child must be a Node")
-        })?;
-
-        // Check if child is actually a child of this node
-        if !parent_node.get_child_nodes().iter().any(|c| JsObject::equals(c, &child_obj)) {
-            return Err(JsNativeError::typ()
-                .with_message("Node.removeChild: child is not a child of this node")
-                .into());
+                .into())
         }
-
-        // Update sibling links
-        let prev_sibling = child_node.get_previous_sibling();
-        let next_sibling = child_node.get_next_sibling();
-
-        if let Some(prev) = &prev_sibling {
-            if let Some(prev_data) = prev.downcast_ref::<NodeData>() {
-                prev_data.set_next_sibling(next_sibling.clone());
-            }
-        }
-
-        if let Some(next) = &next_sibling {
-            if let Some(next_data) = next.downcast_ref::<NodeData>() {
-                next_data.set_previous_sibling(prev_sibling);
-            }
-        }
-
-        // Remove from parent's child list
-        parent_node.remove_child_node(&child_obj);
-
-        // Clear child's parent and sibling references
-        child_node.set_parent_node(None);
-        child_node.set_previous_sibling(None);
-        child_node.set_next_sibling(None);
-
-        Ok(child_obj.into())
     }
 
     /// `Node.prototype.insertBefore(newNode, referenceNode)`
@@ -1024,12 +931,6 @@ impl NodeData {
                 .with_message("Node.insertBefore called on non-Node object")
         })?;
 
-        let new_node_clone = new_node_obj.clone();
-        let new_node_data = new_node_clone.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.insertBefore: newNode must be a Node")
-        })?;
-
         let children = parent_node.get_child_nodes();
 
         let insert_index = if reference_node_arg.is_null() {
@@ -1047,8 +948,11 @@ impl NodeData {
                 })?
         };
 
-        // Remove new node from its current parent if it has one
-        if let Some(old_parent) = new_node_data.get_parent_node() {
+        // Remove new node from its current parent if it has one (polymorphic dispatch)
+        let old_parent = with_node_data(&new_node_obj, |nd| {
+            nd.get_parent_node()
+        }, "").ok().flatten();
+        if let Some(old_parent) = old_parent {
             if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
                 old_parent_data.remove_child_node(&new_node_obj);
             }
@@ -1056,18 +960,22 @@ impl NodeData {
 
         // Insert the new node
         parent_node.insert_child_node(new_node_obj.clone(), insert_index);
-        new_node_data.set_parent_node(Some(this_obj.clone()));
 
-        // Update sibling links
+        // Set parent on the new node (polymorphic dispatch)
+        let _ = with_node_data(&new_node_obj, |nd| {
+            nd.set_parent_node(Some(this_obj.clone()));
+        }, "");
+
+        // Update sibling links for all children (polymorphic dispatch)
         let updated_children = parent_node.get_child_nodes();
         for (i, child) in updated_children.iter().enumerate() {
-            if let Some(child_data) = child.downcast_ref::<NodeData>() {
-                let prev = if i > 0 { Some(updated_children[i - 1].clone()) } else { None };
-                let next = if i < updated_children.len() - 1 { Some(updated_children[i + 1].clone()) } else { None };
+            let prev = if i > 0 { Some(updated_children[i - 1].clone()) } else { None };
+            let next = if i < updated_children.len() - 1 { Some(updated_children[i + 1].clone()) } else { None };
 
+            let _ = with_node_data(child, |child_data| {
                 child_data.set_previous_sibling(prev);
                 child_data.set_next_sibling(next);
-            }
+            }, "");
         }
 
         Ok(new_node_obj.into())
@@ -1482,26 +1390,20 @@ impl NodeData {
             return Ok(JsValue::from(true));
         }
 
-        let _this_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.contains called on non-Node object")
-        })?;
-
-        let other_node = other_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.contains: other is not a Node object")
-        })?;
+        // Get the other node's parent using polymorphic dispatch
+        let other_parent = with_node_data(&other_obj, |nd| {
+            nd.get_parent_node()
+        }, "Node.contains: other is not a Node object")?;
 
         // Walk up the ancestor chain of other_node to see if we find this_node
-        let mut current = other_node.get_parent_node();
+        let mut current = other_parent;
         while let Some(parent) = current {
             if JsObject::equals(&parent, &this_obj) {
                 return Ok(JsValue::from(true));
             }
-            if let Some(parent_data) = parent.downcast_ref::<NodeData>() {
-                current = parent_data.get_parent_node();
-            } else {
-                break;
+            match with_node_data(&parent, |nd| nd.get_parent_node(), "") {
+                Ok(p) => current = p,
+                Err(_) => break,
             }
         }
         Ok(JsValue::from(false))
@@ -1826,25 +1728,9 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.hasChildNodes called on non-object")
         })?;
 
-        let value = {
-
-
-            let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.hasChildNodes called on non-Node object")
-
-
-            })?;
-
-
+        let value = with_node_data(&this_obj, |node| {
             node.has_child_nodes()
-
-
-        };
+        }, "Node.hasChildNodes called on non-Node object")?;
         Ok(JsValue::from(value))
     }
 
@@ -1854,21 +1740,20 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.getRootNode called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.getRootNode called on non-Node object")
-        })?;
-
-        // Walk up to the root node
+        // Walk up to the root node using with_node_data for polymorphic dispatch
         let mut current = Some(this_obj.clone());
         let mut root = this_obj.clone();
 
         while let Some(node_obj) = current {
-            if let Some(node_data) = node_obj.clone().downcast_ref::<NodeData>() {
-                root = node_obj;
-                current = node_data.get_parent_node();
-            } else {
-                break;
+            let parent = with_node_data(&node_obj, |nd| {
+                nd.get_parent_node()
+            }, "");
+            match parent {
+                Ok(p) => {
+                    root = node_obj;
+                    current = p;
+                }
+                Err(_) => break,
             }
         }
 
