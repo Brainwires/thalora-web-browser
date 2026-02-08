@@ -206,19 +206,23 @@ impl Timers {
     }
 
     /// queueMicrotask(callback)
-    /// Queues a microtask to be executed
+    /// Queues a microtask to be executed at the next microtask checkpoint.
+    /// Per the HTML spec, microtasks run after the current synchronous code
+    /// completes, not inline. This is critical for SPA frameworks (Vue, React)
+    /// that rely on microtask ordering for reactivity and routing.
     fn queue_microtask(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        // In a headless environment without an event loop, we execute immediately
-        // This is a simplified implementation - a full implementation would queue for next microtask checkpoint
         if args.is_empty() {
             return Ok(JsValue::undefined());
         }
 
         let callback = args.get_or_undefined(0);
         if let Some(callable) = callback.as_callable() {
-            // Execute the callback immediately (simplified behavior)
-            // A full implementation would queue this for the microtask checkpoint
-            let _ = callable.call(&JsValue::undefined(), &[], context);
+            let callable = callable.clone();
+            context.enqueue_job(boa_engine::job::Job::from(
+                boa_engine::job::PromiseJob::new(move |context| {
+                    callable.call(&JsValue::undefined(), &[], context)
+                }),
+            ));
         }
 
         Ok(JsValue::undefined())

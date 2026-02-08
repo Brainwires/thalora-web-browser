@@ -19,15 +19,26 @@ impl RustRenderer {
             let mut consecutive_idle = 0;
 
             while start.elapsed() < max_duration {
-                // Run Promise microtasks (including fetch responses via block_on_compat)
-                let _ = ctx.run_jobs();
+                // Run Promise microtasks (including fetch responses via block_on_compat).
+                // Log errors instead of silently ignoring — a single bad job throwing
+                // clears ALL remaining jobs in Boa's queue. Retrying after an error
+                // processes any jobs that were enqueued after the failed one.
+                if let Err(e) = ctx.run_jobs() {
+                    eprintln!("DEBUG: run_jobs error (continuing): {:?}", e);
+                    // Try again — the error came from a single bad job; remaining
+                    // jobs may still be valid and should not be lost.
+                    let _ = ctx.run_jobs();
+                }
 
                 // Process timer callbacks
                 let timers_executed = Timers::process_timers(ctx);
 
                 // Run jobs again in case timer callbacks scheduled promises
                 if timers_executed > 0 {
-                    let _ = ctx.run_jobs();
+                    if let Err(e) = ctx.run_jobs() {
+                        eprintln!("DEBUG: run_jobs error after timers (continuing): {:?}", e);
+                        let _ = ctx.run_jobs();
+                    }
                     consecutive_idle = 0;
                 } else {
                     consecutive_idle += 1;

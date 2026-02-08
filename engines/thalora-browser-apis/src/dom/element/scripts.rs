@@ -179,6 +179,10 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
     // Execute the script content
     match context.eval(boa_engine::Source::from_bytes(&script_content)) {
         Ok(_result) => {
+            // Microtask checkpoint: process Promise.then callbacks per HTML spec.
+            // Scripts may enqueue microtasks (e.g., webpack chunk registration) that
+            // must resolve before the next script runs.
+            let _ = context.run_jobs();
             eprintln!("DEBUG: Script executed successfully");
             Ok(())
         }
@@ -287,6 +291,8 @@ fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
             // Execute the fetched script
             match context.eval(boa_engine::Source::from_bytes(&content)) {
                 Ok(_) => {
+                    // Microtask checkpoint: process Promise.then callbacks per HTML spec.
+                    let _ = context.run_jobs();
                     eprintln!("DEBUG: External script executed successfully");
                     Ok(())
                 }
