@@ -58,15 +58,20 @@ pub(super) fn create_element(this: &JsValue, args: &[JsValue], context: &mut Con
         element_data.set_tag_name(tag_name_upper.clone());
     }
 
-    // Add style property as empty object
-    let style_obj = JsObject::default(context.intrinsics());
+    // Add style property as a proper CSSStyleDeclaration
+    let style_constructor = context.intrinsics().constructors().css_style_declaration().constructor();
+    let style_val = crate::browser::cssom::CSSStyleDeclaration::constructor(
+        &style_constructor.clone().into(),
+        &[],
+        context,
+    )?;
     element_obj.define_property_or_throw(
         js_string!("style"),
         PropertyDescriptorBuilder::new()
             .configurable(true)
             .enumerable(true)
             .writable(true)
-            .value(style_obj)
+            .value(style_val)
             .build(),
         context,
     )?;
@@ -339,15 +344,20 @@ pub(super) fn create_element_ns(this: &JsValue, args: &[JsValue], context: &mut 
         element_data.set_namespace_uri(namespace_str.clone());
     }
 
-    // Add style property
-    let style_obj = JsObject::default(context.intrinsics());
+    // Add style property as a proper CSSStyleDeclaration
+    let style_constructor_ns = context.intrinsics().constructors().css_style_declaration().constructor();
+    let style_val_ns = crate::browser::cssom::CSSStyleDeclaration::constructor(
+        &style_constructor_ns.clone().into(),
+        &[],
+        context,
+    )?;
     element_obj.define_property_or_throw(
         js_string!("style"),
         PropertyDescriptorBuilder::new()
             .configurable(true)
             .enumerable(true)
             .writable(true)
-            .value(style_obj)
+            .value(style_val_ns)
             .build(),
         context,
     )?;

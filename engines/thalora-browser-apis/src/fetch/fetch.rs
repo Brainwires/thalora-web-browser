@@ -215,9 +215,13 @@ fn parse_fetch_init(
         JsNativeError::typ().with_message("fetch init must be an object")
     })?;
 
-    // Method
+    // Method — default to GET when missing or undefined/null
     let method = if let Ok(method_val) = init_obj.get(js_string!("method"), context) {
-        method_val.to_string(context)?.to_std_string_escaped().to_uppercase()
+        if method_val.is_undefined() || method_val.is_null() {
+            "GET".to_string()
+        } else {
+            method_val.to_string(context)?.to_std_string_escaped().to_uppercase()
+        }
     } else {
         "GET".to_string()
     };

@@ -128,6 +128,16 @@ impl RustRenderer {
             // SECURITY: Always clear the deadline after execution
             ctx.runtime_limits_mut().clear_execution_deadline();
 
+            // Microtask checkpoint: per the HTML spec, each script execution is
+            // followed by a microtask checkpoint. This flushes Promise.then
+            // callbacks, fetch() response handlers, and queueMicrotask callbacks.
+            // Without this, SPA frameworks (Vue, React) that rely on Promise
+            // chains during script initialization will never see their callbacks
+            // fire until much later (if at all).
+            if result.is_ok() {
+                let _ = ctx.run_jobs();
+            }
+
             match result {
                 Ok(value) => {
                     let result = self.js_value_to_string(value);
@@ -339,6 +349,11 @@ impl RustRenderer {
 
             // SECURITY: Always clear the deadline after execution
             ctx.runtime_limits_mut().clear_execution_deadline();
+
+            // Microtask checkpoint after eval
+            if result.is_ok() {
+                let _ = ctx.run_jobs();
+            }
 
             match result {
                 Ok(value) => {

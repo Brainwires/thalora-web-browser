@@ -342,9 +342,12 @@ impl super::super::HeadlessWebBrowser {
             let _ = self.execute_page_scripts(&content, true).await;
 
             // Process pending async jobs (fetch responses, promise callbacks).
-            // Frameworks like Vue load documentation data via fetch() — the responses
-            // are queued as async jobs and need to be flushed for rendering to complete.
-            let _ = self.run_pending_jobs(Duration::from_secs(5)).await;
+            // SPA frameworks (Vue, React) depend on async operations completing:
+            // - Fetch responses for data loading and navigation guards
+            // - Promise chains for router transitions
+            // - Timer callbacks for deferred rendering
+            // The polling loop gives async HTTP requests time to complete.
+            let _ = self.run_pending_jobs(Duration::from_secs(8)).await;
 
             // Capture the live DOM — all scripts have run, frameworks have rendered
             match self.execute_javascript("(function(){ try { return document.documentElement.outerHTML; } catch(e) { return ''; } })()").await {

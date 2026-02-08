@@ -1874,6 +1874,41 @@ impl Node {
 
 impl IntrinsicObject for Node {
     fn init(realm: &Realm) {
+        // Build getter functions for Node property accessors
+        let node_type_get = BuiltInBuilder::callable(realm, Self::get_node_type_accessor)
+            .name(js_string!("get nodeType"))
+            .build();
+        let node_name_get = BuiltInBuilder::callable(realm, Self::get_node_name_accessor)
+            .name(js_string!("get nodeName"))
+            .build();
+        let node_value_get = BuiltInBuilder::callable(realm, Self::get_node_value_accessor)
+            .name(js_string!("get nodeValue"))
+            .build();
+        let node_value_set = BuiltInBuilder::callable(realm, Self::set_node_value_accessor)
+            .name(js_string!("set nodeValue"))
+            .build();
+        let parent_node_get = BuiltInBuilder::callable(realm, Self::get_parent_node_accessor)
+            .name(js_string!("get parentNode"))
+            .build();
+        let child_nodes_get = BuiltInBuilder::callable(realm, Self::get_child_nodes_accessor)
+            .name(js_string!("get childNodes"))
+            .build();
+        let first_child_get = BuiltInBuilder::callable(realm, Self::get_first_child_accessor)
+            .name(js_string!("get firstChild"))
+            .build();
+        let last_child_get = BuiltInBuilder::callable(realm, Self::get_last_child_accessor)
+            .name(js_string!("get lastChild"))
+            .build();
+        let previous_sibling_get = BuiltInBuilder::callable(realm, Self::get_previous_sibling_accessor)
+            .name(js_string!("get previousSibling"))
+            .build();
+        let next_sibling_get = BuiltInBuilder::callable(realm, Self::get_next_sibling_accessor)
+            .name(js_string!("get nextSibling"))
+            .build();
+        let owner_document_get = BuiltInBuilder::callable(realm, Self::get_owner_document_accessor)
+            .name(js_string!("get ownerDocument"))
+            .build();
+
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Node -> EventTarget
             .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
@@ -1889,6 +1924,7 @@ impl IntrinsicObject for Node {
             .static_property(js_string!("DOCUMENT_TYPE_NODE"), 10, Attribute::READONLY)
             .static_property(js_string!("DOCUMENT_FRAGMENT_NODE"), 11, Attribute::READONLY)
             .static_property(js_string!("NOTATION_NODE"), 12, Attribute::READONLY)
+            // Methods (actual callable functions)
             .method(Self::append_child, js_string!("appendChild"), 1)
             .method(Self::insert_before, js_string!("insertBefore"), 2)
             .method(Self::remove_child, js_string!("removeChild"), 1)
@@ -1904,16 +1940,67 @@ impl IntrinsicObject for Node {
             .method(Self::is_default_namespace, js_string!("isDefaultNamespace"), 1)
             .method(Self::has_child_nodes_method, js_string!("hasChildNodes"), 0)
             .method(Self::get_root_node, js_string!("getRootNode"), 0)
-            .method(Self::get_node_type_accessor, js_string!("nodeType"), 0)
-            .method(Self::get_node_name_accessor, js_string!("nodeName"), 0)
-            .method(Self::get_node_value_accessor, js_string!("nodeValue"), 0)
-            .method(Self::get_parent_node_accessor, js_string!("parentNode"), 0)
-            .method(Self::get_child_nodes_accessor, js_string!("childNodes"), 0)
-            .method(Self::get_first_child_accessor, js_string!("firstChild"), 0)
-            .method(Self::get_last_child_accessor, js_string!("lastChild"), 0)
-            .method(Self::get_previous_sibling_accessor, js_string!("previousSibling"), 0)
-            .method(Self::get_next_sibling_accessor, js_string!("nextSibling"), 0)
-            .method(Self::get_owner_document_accessor, js_string!("ownerDocument"), 0)
+            // Property accessors (getters/setters, not callable methods)
+            .accessor(
+                js_string!("nodeType"),
+                Some(node_type_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nodeName"),
+                Some(node_name_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nodeValue"),
+                Some(node_value_get),
+                Some(node_value_set),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("parentNode"),
+                Some(parent_node_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("childNodes"),
+                Some(child_nodes_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("firstChild"),
+                Some(first_child_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("lastChild"),
+                Some(last_child_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("previousSibling"),
+                Some(previous_sibling_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nextSibling"),
+                Some(next_sibling_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("ownerDocument"),
+                Some(owner_document_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 

@@ -15,6 +15,56 @@ use super::helpers::{with_element_data, has_element_data};
 use crate::dom::comment::CommentData;
 use crate::dom::text::TextData;
 
+/// Check if an element is a `<link>` element with `rel="stylesheet"` (or similar
+/// resource-loading link) and fire a `load` event on it.  In a headless browser we
+/// don't actually fetch CSS, so we fire `load` immediately – this unblocks
+/// Webpack's MiniCssExtractPlugin chunk loading which waits on `link.onload`.
+fn maybe_fire_link_load_event(child_obj: &JsObject, context: &mut Context) {
+    // Check tagName
+    let is_link = with_element_data(child_obj, |el| {
+        el.get_tag_name().eq_ignore_ascii_case("LINK")
+    }, "")
+    .unwrap_or(false);
+
+    if !is_link {
+        return;
+    }
+
+    // Create a load Event
+    let event = match context
+        .intrinsics()
+        .constructors()
+        .event()
+        .constructor()
+        .construct(&[js_string!("load").into()], None, context)
+    {
+        Ok(ev) => ev,
+        Err(_) => return,
+    };
+
+    // 1. dispatchEvent for addEventListener listeners
+    if let Ok(dispatch_fn) = child_obj.get(js_string!("dispatchEvent"), context) {
+        if let Some(callable) = dispatch_fn.as_callable() {
+            let _ = callable.call(
+                &child_obj.clone().into(),
+                &[event.clone().into()],
+                context,
+            );
+        }
+    }
+
+    // 2. Call onload property handler (Webpack sets link.onload = fn)
+    if let Ok(onload) = child_obj.get(js_string!("onload"), context) {
+        if let Some(callable) = onload.as_callable() {
+            let _ = callable.call(
+                &child_obj.clone().into(),
+                &[event.into()],
+                context,
+            );
+        }
+    }
+}
+
 /// `Element.prototype.appendChild(child)`
 pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
@@ -40,6 +90,9 @@ pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Conte
         if is_script_element(&child_obj, context)? {
             execute_script_element(&child_obj, context)?;
         }
+
+        // Fire load event on <link> elements (CSS chunk loading)
+        maybe_fire_link_load_event(&child_obj, context);
 
         Ok(child_value.clone())
     } else {
@@ -103,6 +156,9 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
             if is_script_element(&child_obj, context)? {
                 execute_script_element(&child_obj, context)?;
             }
+
+            // Fire load event on <link> elements (CSS chunk loading)
+            maybe_fire_link_load_event(&child_obj, context);
         } else {
             // It's a string - create a Text node and append it
             let text_content = arg.to_string(context)?.to_std_string_escaped();
@@ -448,6 +504,9 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
     if is_script_element(&new_obj, context)? {
         execute_script_element(&new_obj, context)?;
     }
+
+    // Fire load event on <link> elements (CSS chunk loading)
+    maybe_fire_link_load_event(&new_obj, context);
 
     Ok(new_node.clone())
 }

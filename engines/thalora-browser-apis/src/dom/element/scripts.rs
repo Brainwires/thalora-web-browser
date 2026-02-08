@@ -6,6 +6,83 @@ use boa_engine::{
     Context, JsResult, js_string,
 };
 
+/// Fire a `load` event on a script element after successful execution.
+/// Handles both addEventListener listeners (via dispatchEvent) and
+/// property handlers (script.onload = fn) used by Webpack chunk loading.
+fn fire_script_load_event(script_obj: &JsObject, context: &mut Context) {
+    // Create a load Event
+    let event = match context
+        .intrinsics()
+        .constructors()
+        .event()
+        .constructor()
+        .construct(&[js_string!("load").into()], None, context)
+    {
+        Ok(ev) => ev,
+        Err(_) => return,
+    };
+
+    // 1. Dispatch via dispatchEvent (for addEventListener listeners)
+    if let Ok(dispatch_fn) = script_obj.get(js_string!("dispatchEvent"), context) {
+        if let Some(callable) = dispatch_fn.as_callable() {
+            let _ = callable.call(
+                &script_obj.clone().into(),
+                &[event.clone().into()],
+                context,
+            );
+        }
+    }
+
+    // 2. Call onload property handler (for Webpack-style: script.onload = fn)
+    if let Ok(onload) = script_obj.get(js_string!("onload"), context) {
+        if let Some(callable) = onload.as_callable() {
+            let _ = callable.call(
+                &script_obj.clone().into(),
+                &[event.into()],
+                context,
+            );
+        }
+    }
+}
+
+/// Fire an `error` event on a script element after failed execution or fetch.
+/// Handles both addEventListener listeners and property handlers (script.onerror).
+fn fire_script_error_event(script_obj: &JsObject, context: &mut Context) {
+    // Create an error Event
+    let event = match context
+        .intrinsics()
+        .constructors()
+        .event()
+        .constructor()
+        .construct(&[js_string!("error").into()], None, context)
+    {
+        Ok(ev) => ev,
+        Err(_) => return,
+    };
+
+    // 1. Dispatch via dispatchEvent (for addEventListener listeners)
+    if let Ok(dispatch_fn) = script_obj.get(js_string!("dispatchEvent"), context) {
+        if let Some(callable) = dispatch_fn.as_callable() {
+            let _ = callable.call(
+                &script_obj.clone().into(),
+                &[event.clone().into()],
+                context,
+            );
+        }
+    }
+
+    // 2. Call onerror property handler
+    if let Ok(onerror) = script_obj.get(js_string!("onerror"), context) {
+        if let Some(callable) = onerror.as_callable() {
+            let _ = callable.call(
+                &script_obj.clone().into(),
+                &[event.into()],
+                context,
+            );
+        }
+    }
+}
+
 /// Check if a JsObject is a script element (by tagName or by HTMLScriptElementData)
 pub(super) fn is_script_element(obj: &JsObject, context: &mut Context) -> JsResult<bool> {
     // First, try to check by HTMLScriptElementData
@@ -161,9 +238,14 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
 
     // Check for external script (src attribute)
     if let Some(src_url) = get_script_src(script_obj, context)? {
-        // External script - need to fetch and execute
         eprintln!("DEBUG: Executing external script from: {}", src_url);
-        return execute_external_script(&src_url, context);
+        let success = execute_external_script(&src_url, context);
+        if success {
+            fire_script_load_event(script_obj, context);
+        } else {
+            fire_script_error_event(script_obj, context);
+        }
+        return Ok(());
     }
 
     // Inline script - get content and execute
@@ -184,20 +266,22 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
             // must resolve before the next script runs.
             let _ = context.run_jobs();
             eprintln!("DEBUG: Script executed successfully");
+            fire_script_load_event(script_obj, context);
             Ok(())
         }
         Err(e) => {
             eprintln!("DEBUG: Script execution error: {:?}", e);
             // Don't propagate the error - scripts with errors shouldn't break DOM operations
-            // Instead, we should fire an error event on the script element (TODO)
+            fire_script_error_event(script_obj, context);
             Ok(())
         }
     }
 }
 
-/// Fetch and execute an external script
+/// Fetch and execute an external script.
+/// Returns `true` on success, `false` on fetch or execution failure.
 #[cfg(feature = "native")]
-fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
+fn execute_external_script(url: &str, context: &mut Context) -> bool {
     use crate::http_blocking::{get_shared_client, block_on_compat};
     use url::Url;
 
@@ -219,16 +303,16 @@ fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
                         }
                         Err(e) => {
                             eprintln!("DEBUG: Failed to resolve script URL '{}': {:?}", url, e);
-                            return Ok(());
+                            return false;
                         }
                     }
                 } else {
                     eprintln!("DEBUG: Invalid base URL for script resolution: {}", base);
-                    return Ok(());
+                    return false;
                 }
             } else {
                 eprintln!("DEBUG: No base URL available to resolve relative script URL: {}", url);
-                return Ok(());
+                return false;
             }
         }
     };
@@ -294,23 +378,23 @@ fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
                     // Microtask checkpoint: process Promise.then callbacks per HTML spec.
                     let _ = context.run_jobs();
                     eprintln!("DEBUG: External script executed successfully");
-                    Ok(())
+                    true
                 }
                 Err(e) => {
                     eprintln!("DEBUG: External script execution error: {:?}", e);
-                    Ok(()) // Don't propagate
+                    false
                 }
             }
         }
         None => {
             eprintln!("DEBUG: Failed to fetch script from: {}", resolved_url);
-            Ok(())
+            false
         }
     }
 }
 
 #[cfg(not(feature = "native"))]
-fn execute_external_script(_url: &str, _context: &mut Context) -> JsResult<()> {
+fn execute_external_script(_url: &str, _context: &mut Context) -> bool {
     eprintln!("DEBUG: External script execution not supported in WASM mode");
-    Ok(())
+    false
 }
