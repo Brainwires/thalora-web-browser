@@ -51,6 +51,11 @@ impl AttrData {
         self.name.borrow().clone()
     }
 
+    /// Set the name of the attribute
+    pub fn set_name(&self, name: String) {
+        *self.name.borrow_mut() = name;
+    }
+
     /// Get the value of the attribute
     pub fn value(&self) -> String {
         self.value.borrow().clone()

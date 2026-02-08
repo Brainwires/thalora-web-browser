@@ -9,6 +9,7 @@ pub mod document;
 pub use document::document_fragment;
 pub use document::document_parse;
 pub mod dom_parser;
+pub mod domstringmap;
 pub mod domtokenlist;
 pub mod element;
 pub mod html_element;

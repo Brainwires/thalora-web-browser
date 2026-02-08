@@ -2,7 +2,7 @@
 //! and context-aware HTML parsing for iframe support
 
 use boa_engine::{
-    builtins::BuiltInBuilder,
+    builtins::BuiltInConstructor,
     object::JsObject,
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string,
@@ -33,6 +33,7 @@ pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Conte
 
         with_element_data(&this_obj, |el| {
             el.append_child(child_obj.clone());
+            el.mark_modified_by_js();
         }, "Node.appendChild called on non-Node object")?;
 
         // Check if the appended child is a script element and execute it
@@ -65,6 +66,7 @@ pub(super) fn remove_child(this: &JsValue, args: &[JsValue], _context: &mut Cont
 
         with_element_data(&this_obj, |el| {
             el.remove_child(&child_obj);
+            el.mark_modified_by_js();
         }, "Element.prototype.removeChild called on non-Element object")?;
 
         Ok(child_value.clone())
@@ -94,6 +96,7 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
 
             with_element_data(&this_obj, |el| {
                 el.append_child(child_obj.clone());
+                el.mark_modified_by_js();
             }, "Element.prototype.append called on non-Element object")?;
 
             // Check if the appended child is a script element and execute it
@@ -103,13 +106,11 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
         } else {
             // It's a string - create a Text node and append it
             let text_content = arg.to_string(context)?.to_std_string_escaped();
-            // Create a simple text node representation
-            let text_obj = JsObject::with_null_proto();
-            text_obj.set(js_string!("nodeType"), 3, false, context)?; // TEXT_NODE
-            text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            let text_obj = create_text_node(text_content, context)?;
 
             with_element_data(&this_obj, |el| {
                 el.append_child(text_obj);
+                el.mark_modified_by_js();
             }, "Element.prototype.append called on non-Element object")?;
         }
     }
@@ -136,16 +137,16 @@ pub(super) fn prepend_method(this: &JsValue, args: &[JsValue], context: &mut Con
 
             with_element_data(&this_obj, |el| {
                 el.prepend_child(child_obj.clone());
+                el.mark_modified_by_js();
             }, "Element.prototype.prepend called on non-Element object")?;
         } else {
             // It's a string - create a Text node and prepend it
             let text_content = arg.to_string(context)?.to_std_string_escaped();
-            let text_obj = JsObject::with_null_proto();
-            text_obj.set(js_string!("nodeType"), 3, false, context)?;
-            text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            let text_obj = create_text_node(text_content, context)?;
 
             with_element_data(&this_obj, |el| {
                 el.prepend_child(text_obj);
+                el.mark_modified_by_js();
             }, "Element.prototype.prepend called on non-Element object")?;
         }
     }
@@ -177,15 +178,15 @@ pub(super) fn after_method(this: &JsValue, args: &[JsValue], context: &mut Conte
 
                     with_element_data(&parent_obj, |parent_el| {
                         parent_el.insert_after(child_obj.clone(), &this_obj);
+                        parent_el.mark_modified_by_js();
                     }, "Element.prototype.after: parent is not an Element")?;
                 } else {
                     let text_content = arg.to_string(context)?.to_std_string_escaped();
-                    let text_obj = JsObject::with_null_proto();
-                    text_obj.set(js_string!("nodeType"), 3, false, context)?;
-                    text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+                    let text_obj = create_text_node(text_content, context)?;
 
                     with_element_data(&parent_obj, |parent_el| {
                         parent_el.insert_after(text_obj, &this_obj);
+                        parent_el.mark_modified_by_js();
                     }, "Element.prototype.after: parent is not an Element")?;
                 }
             }
@@ -219,15 +220,15 @@ pub(super) fn before_method(this: &JsValue, args: &[JsValue], context: &mut Cont
 
                     with_element_data(&parent_obj, |parent_el| {
                         parent_el.insert_before_elem(child_obj.clone(), &this_obj);
+                        parent_el.mark_modified_by_js();
                     }, "Element.prototype.before: parent is not an Element")?;
                 } else {
                     let text_content = arg.to_string(context)?.to_std_string_escaped();
-                    let text_obj = JsObject::with_null_proto();
-                    text_obj.set(js_string!("nodeType"), 3, false, context)?;
-                    text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+                    let text_obj = create_text_node(text_content, context)?;
 
                     with_element_data(&parent_obj, |parent_el| {
                         parent_el.insert_before_elem(text_obj, &this_obj);
+                        parent_el.mark_modified_by_js();
                     }, "Element.prototype.before: parent is not an Element")?;
                 }
             }
@@ -255,6 +256,7 @@ pub(super) fn remove_method(this: &JsValue, _args: &[JsValue], _context: &mut Co
         if has_element_data(&parent_obj) {
             with_element_data(&parent_obj, |parent_el| {
                 parent_el.remove_child(&this_obj);
+                parent_el.mark_modified_by_js();
             }, "Element.prototype.remove: parent is not an Element")?;
 
             with_element_data(&this_obj, |el| {
@@ -291,15 +293,15 @@ pub(super) fn replace_with_method(this: &JsValue, args: &[JsValue], context: &mu
 
                     with_element_data(&parent_obj, |parent_el| {
                         parent_el.insert_before_elem(child_obj.clone(), &this_obj);
+                        parent_el.mark_modified_by_js();
                     }, "Element.prototype.replaceWith: parent is not an Element")?;
                 } else {
                     let text_content = arg.to_string(context)?.to_std_string_escaped();
-                    let text_obj = JsObject::with_null_proto();
-                    text_obj.set(js_string!("nodeType"), 3, false, context)?;
-                    text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+                    let text_obj = create_text_node(text_content, context)?;
 
                     with_element_data(&parent_obj, |parent_el| {
                         parent_el.insert_before_elem(text_obj, &this_obj);
+                        parent_el.mark_modified_by_js();
                     }, "Element.prototype.replaceWith: parent is not an Element")?;
                 }
             }
@@ -325,9 +327,10 @@ pub(super) fn replace_children_method(this: &JsValue, args: &[JsValue], context:
         JsNativeError::typ().with_message("Element.prototype.replaceChildren called on non-object")
     })?;
 
-    // Clear all existing children
+    // Clear all existing children and mark as modified
     with_element_data(&this_obj, |el| {
         el.clear_children();
+        el.mark_modified_by_js();
     }, "Element.prototype.replaceChildren called on non-Element object")?;
 
     // Add all new nodes
@@ -342,9 +345,7 @@ pub(super) fn replace_children_method(this: &JsValue, args: &[JsValue], context:
             }, "Element.prototype.replaceChildren called on non-Element object")?;
         } else {
             let text_content = arg.to_string(context)?.to_std_string_escaped();
-            let text_obj = JsObject::with_null_proto();
-            text_obj.set(js_string!("nodeType"), 3, false, context)?;
-            text_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            let text_obj = create_text_node(text_content, context)?;
 
             with_element_data(&this_obj, |el| {
                 el.append_child(text_obj);
@@ -440,6 +441,7 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
 
     with_element_data(&this_obj, |el| {
         el.insert_before(new_obj.clone(), ref_obj.as_ref());
+        el.mark_modified_by_js();
     }, "Element.prototype.insertBefore called on non-Element object")?;
 
     // Check if the inserted node is a script element and execute it
@@ -475,7 +477,9 @@ pub(super) fn replace_child_js(this: &JsValue, args: &[JsValue], context: &mut C
     set_child_parent_node(&new_obj, Some(this_obj.clone()));
 
     let replaced = with_element_data(&this_obj, |el| {
-        el.replace_child(new_obj.clone(), &old_obj)
+        let result = el.replace_child(new_obj.clone(), &old_obj);
+        el.mark_modified_by_js();
+        result
     }, "Element.prototype.replaceChild called on non-Element object")?;
 
     if let Some(replaced) = replaced {
@@ -527,6 +531,19 @@ pub(super) fn contains_js(this: &JsValue, args: &[JsValue], _context: &mut Conte
     } else {
         Ok(false.into())
     }
+}
+
+/// Helper: create a proper Text node using the Text constructor
+fn create_text_node(text_content: String, context: &mut Context) -> JsResult<JsObject> {
+    let text_constructor = context.intrinsics().constructors().text().constructor();
+    let text = crate::dom::text::Text::constructor(
+        &text_constructor.clone().into(),
+        &[JsValue::from(js_string!(text_content))],
+        context,
+    )?;
+    text.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Failed to create Text node").into()
+    })
 }
 
 /// Helper: set parent node on Comment/Text children that aren't ElementData.

@@ -131,6 +131,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::node::Node::init(&realm);
     dom::attr::Attr::init(&realm);
     dom::nodelist::NodeList::init(&realm);
+    dom::domstringmap::DOMStringMap::init(&realm);
     dom::domtokenlist::DOMTokenList::init(&realm);
     dom::htmlcollection::HTMLCollection::init(&realm);
     dom::namednodemap::NamedNodeMap::init(&realm);

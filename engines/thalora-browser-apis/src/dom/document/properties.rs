@@ -5,11 +5,9 @@
 //! currentScript, scrollingElement, body, head
 
 use boa_engine::{
-    builtins::BuiltInBuilder,
-    object::JsObject,
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string,
-    JsString, property::PropertyDescriptorBuilder
+    JsString,
 };
 
 use super::types::DocumentData;
@@ -98,6 +96,10 @@ pub(super) fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context)
         let element_constructor = context.intrinsics().constructors().element().constructor();
         let body_element = element_constructor.construct(&[], None, context)?;
 
+        if let Some(elem_data) = body_element.downcast_ref::<crate::dom::element::ElementData>() {
+            elem_data.set_tag_name("BODY".to_string());
+        }
+
         document.add_element("body".to_string(), body_element.clone());
         Ok(body_element.into())
     }
@@ -118,20 +120,13 @@ pub(super) fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context)
     if let Some(head) = document.get_element("head") {
         Ok(head.into())
     } else {
-        // Create a new head element
-        let head_element = JsObject::default(context.intrinsics());
+        // Create a new head element using the Element constructor
+        let element_constructor = context.intrinsics().constructors().element().constructor();
+        let head_element = element_constructor.construct(&[], None, context)?;
 
-        // Add tagName property
-        head_element.define_property_or_throw(
-            js_string!("tagName"),
-            PropertyDescriptorBuilder::new()
-                .configurable(false)
-                .enumerable(true)
-                .writable(false)
-                .value(JsString::from("HEAD"))
-                .build(),
-            context,
-        )?;
+        if let Some(elem_data) = head_element.downcast_ref::<crate::dom::element::ElementData>() {
+            elem_data.set_tag_name("HEAD".to_string());
+        }
 
         document.add_element("head".to_string(), head_element.clone());
         Ok(head_element.into())

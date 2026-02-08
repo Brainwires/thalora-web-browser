@@ -520,77 +520,22 @@ pub(super) fn create_attribute(_this: &JsValue, args: &[JsValue], context: &mut 
     let name = args.get_or_undefined(0).to_string(context)?;
     let name_str = name.to_std_string_escaped();
 
-    // Create an Attr node object
-    let attr = JsObject::default(context.intrinsics());
-
-    // nodeType = 2 for Attr
-    attr.define_property_or_throw(
-        js_string!("nodeType"),
-        PropertyDescriptorBuilder::new()
-            .value(JsValue::from(2))
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
+    // Create an Attr node using the Attr constructor
+    let attr_constructor = context.intrinsics().constructors().attr().constructor();
+    let attr = crate::dom::attr::Attr::constructor(
+        &attr_constructor.clone().into(),
+        &[],
         context,
     )?;
 
-    attr.define_property_or_throw(
-        js_string!("nodeName"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!(name_str.clone()))
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
+    // Set the attribute name
+    if let Some(attr_obj) = attr.as_object() {
+        if let Some(attr_data) = attr_obj.downcast_ref::<crate::dom::attr::AttrData>() {
+            attr_data.set_name(name_str);
+        }
+    }
 
-    attr.define_property_or_throw(
-        js_string!("name"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!(name_str))
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    attr.define_property_or_throw(
-        js_string!("value"),
-        PropertyDescriptorBuilder::new()
-            .value(js_string!(""))
-            .writable(true)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    attr.define_property_or_throw(
-        js_string!("specified"),
-        PropertyDescriptorBuilder::new()
-            .value(JsValue::from(true))
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    attr.define_property_or_throw(
-        js_string!("ownerElement"),
-        PropertyDescriptorBuilder::new()
-            .value(JsValue::null())
-            .writable(true)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    )?;
-
-    Ok(attr.into())
+    Ok(attr)
 }
 
 /// `Document.prototype.hasFocus()`

@@ -330,35 +330,91 @@ impl super::super::HeadlessWebBrowser {
         let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
-        // If wait_for_js is enabled, execute page scripts and wait for completion
+        // If wait_for_js is enabled, execute page scripts and capture the rendered DOM
         if wait_for_js {
-            // Execute non-deferred inline scripts from the page
+            // DEBUG: Save original HTML for analysis
+            let _ = std::fs::write("/tmp/thalora_original.html", &content);
+
+            // Execute non-deferred scripts (Cloudflare challenge, inline setup)
             self.execute_page_scripts(&content, false).await?;
 
-            // Fire DOMContentLoaded event
+            // Fire DOMContentLoaded — frameworks may start rendering
             self.fire_dom_content_loaded().await?;
 
-            // Execute deferred scripts AFTER DOMContentLoaded
-            self.execute_page_scripts(&content, true).await?;
+            // Execute deferred scripts — frameworks (Vue, React) typically load here
+            let _ = self.execute_page_scripts(&content, true).await;
 
-            // Wait for JavaScript execution to complete
-            match self.wait_for_js_execution(10000).await {
-                Ok(_) => {}
-                Err(_e) => {} // timeout is non-fatal
-            }
+            // DEBUG: Check Vue router and try manual navigation
+            let _ = self.execute_javascript(r#"(function(){
+                try {
+                    var app = document.querySelector('#app');
+                    if (app && app.__vue__) {
+                        var vm = app.__vue__;
+                        var router = vm.$router;
+                        console.error('VUE-DEBUG: route.path=' + vm.$route.path);
+                        console.error('VUE-DEBUG: location.href=' + window.location.href);
+                        console.error('VUE-DEBUG: location.pathname=' + window.location.pathname);
 
-            // After JS execution, serialize the live DOM back to HTML
-            // This captures any content rendered dynamically by JavaScript
+                        // Test route matching directly
+                        try {
+                            var matched = router.match('/documentation/clerk');
+                            console.error('VUE-DEBUG: match result path=' + (matched ? matched.path : 'null'));
+                            console.error('VUE-DEBUG: match result name=' + (matched ? matched.name : 'null'));
+                            console.error('VUE-DEBUG: match result matched=' + (matched && matched.matched ? matched.matched.length : 0));
+                        } catch(matchErr) {
+                            console.error('VUE-DEBUG: match ERROR: ' + matchErr.message);
+                            console.error('VUE-DEBUG: match stack: ' + (matchErr.stack || '').substring(0, 300));
+                        }
+
+                        // Try pushing with error handling
+                        console.error('VUE-DEBUG: Attempting router.push(/documentation/clerk)');
+                        var pushResult = router.push('/documentation/clerk');
+                        if (pushResult && typeof pushResult.then === 'function') {
+                            pushResult.then(function(route) {
+                                console.error('VUE-PUSH: SUCCESS path=' + (route ? route.path || route.fullPath : 'undefined'));
+                            }).catch(function(err) {
+                                console.error('VUE-PUSH: REJECTED: ' + (err ? err.message || err.type || String(err) : 'unknown'));
+                            });
+                            console.error('VUE-DEBUG: push returned a Promise');
+                        } else {
+                            console.error('VUE-DEBUG: push returned: ' + typeof pushResult);
+                        }
+                    }
+                } catch(e) { console.error('VUE-DEBUG: error: ' + e.message + '\n' + (e.stack || '').substring(0, 300)); }
+            })()"#).await;
+
+            // Process pending async jobs (fetch responses, promise callbacks).
+            // Frameworks like Vue load documentation data via fetch() — the responses
+            // are queued as async jobs and need to be flushed for rendering to complete.
+            let _ = self.run_pending_jobs(Duration::from_secs(5)).await;
+
+            // DEBUG: Check Vue router state AFTER pending jobs
+            let _ = self.execute_javascript(r#"(function(){
+                try {
+                    var app = document.querySelector('#app');
+                    if (app && app.__vue__) {
+                        var vm = app.__vue__;
+                        console.error('VUE-POST: $route.path=' + (vm.$route ? vm.$route.path : 'none'));
+                        console.error('VUE-POST: $route.name=' + (vm.$route ? vm.$route.name : 'none'));
+                        console.error('VUE-POST: location.href=' + window.location.href);
+                        console.error('VUE-POST: location.pathname=' + window.location.pathname);
+                        console.error('VUE-POST: children=' + app.children.length);
+                    }
+                } catch(e) { console.error('VUE-POST: error: ' + e.message); }
+            })()"#).await;
+
+            // Capture the live DOM — all scripts have run, frameworks have rendered
             match self.execute_javascript("(function(){ try { return document.documentElement.outerHTML; } catch(e) { return ''; } })()").await {
                 Ok(updated_html) => {
                     let trimmed = updated_html.trim();
                     if !trimmed.is_empty() && trimmed.len() > self.current_content.len() / 2 {
-                        // Wrap in doctype + html if needed
                         let full_html = if trimmed.starts_with("<!") || trimmed.starts_with("<html") {
                             trimmed.to_string()
                         } else {
                             format!("<!DOCTYPE html>{}", trimmed)
                         };
+                        // DEBUG: Save outerHTML for analysis
+                        let _ = std::fs::write("/tmp/thalora_outerhtml.html", &full_html);
                         self.current_content = full_html;
                     }
                 }
@@ -413,6 +469,7 @@ impl super::super::HeadlessWebBrowser {
             if let Some(src) = script_element.value().attr("src") {
                 // Resolve the URL (handle relative paths, protocol-relative URLs)
                 let script_url = self.resolve_script_url(&base_url, src)?;
+
                 // Collect ALL attributes from the HTML element for script registration
                 let mut script_attrs: HashMap<String, String> = HashMap::new();
                 for (key, value) in script_element.value().attrs() {
@@ -517,48 +574,57 @@ impl super::super::HeadlessWebBrowser {
     /// Fire DOMContentLoaded event
     /// This signals that the DOM is fully parsed and deferred scripts should execute
     pub(super) async fn fire_dom_content_loaded(&mut self) -> Result<()> {
-        let js_code = r#"
+        // Step 1: Set readyState to 'interactive' and dispatch DOMContentLoaded
+        let dcl_code = r#"
         (function() {
             try {
-                // Set document.readyState to 'interactive' first
                 Object.defineProperty(document, 'readyState', {
                     value: 'interactive',
                     writable: true,
                     configurable: true
                 });
 
-                // Create and dispatch DOMContentLoaded event
                 var event = new Event('DOMContentLoaded', {
                     bubbles: true,
                     cancelable: false
                 });
                 document.dispatchEvent(event);
 
-                // Then set readyState to 'complete'
-                Object.defineProperty(document, 'readyState', {
-                    value: 'complete',
-                    writable: true,
-                    configurable: true
-                });
-
-                // Fire load event on window
-                var loadEvent = new Event('load', {
-                    bubbles: false,
-                    cancelable: false
-                });
-                window.dispatchEvent(loadEvent);
-
-                return 'DOMContentLoaded and load events fired';
+                return 'DOMContentLoaded fired';
             } catch(e) {
                 return 'Error: ' + e.message;
             }
         })()
         "#;
 
-        match self.execute_javascript(js_code).await {
-            Ok(_) => Ok(()),
-            Err(_) => Ok(()) // Non-fatal
-        }
+        let _ = self.execute_javascript(dcl_code).await;
+
+        // Step 2: Set readyState to 'complete' and fire load event
+        let load_code = r#"
+        (function() {
+            try {
+                Object.defineProperty(document, 'readyState', {
+                    value: 'complete',
+                    writable: true,
+                    configurable: true
+                });
+
+                var loadEvent = new Event('load', {
+                    bubbles: false,
+                    cancelable: false
+                });
+                window.dispatchEvent(loadEvent);
+
+                return 'load event fired';
+            } catch(e) {
+                return 'Error: ' + e.message;
+            }
+        })()
+        "#;
+
+        let _ = self.execute_javascript(load_code).await;
+
+        Ok(())
     }
 
     /// Wait for JavaScript execution to complete and DOM to stabilize using events
@@ -738,24 +804,31 @@ impl super::super::HeadlessWebBrowser {
         Ok(resolved.to_string())
     }
 
-    /// Fetch an external script from a URL
+    /// Fetch an external script from a URL with a timeout to prevent hanging.
     ///
     /// # Security
     /// This function validates URLs to prevent SSRF attacks via script loading.
     pub(super) async fn fetch_external_script(&self, url: &str) -> Result<String> {
         SsrfProtection::new().is_safe_url(url)?;
 
-        let response = self.client.get(url).send().await
-            .map_err(|e| anyhow!("Failed to fetch script: {}", e))?;
+        let fetch_future = async {
+            let response = self.client.get(url).send().await
+                .map_err(|e| anyhow!("Failed to fetch script: {}", e))?;
 
-        if !response.status().is_success() {
-            return Err(anyhow!("Script fetch failed with status: {}", response.status()));
+            if !response.status().is_success() {
+                return Err(anyhow!("Script fetch failed with status: {}", response.status()));
+            }
+
+            let content = response.text().await
+                .map_err(|e| anyhow!("Failed to read script content: {}", e))?;
+
+            Ok(content)
+        };
+
+        match tokio::time::timeout(Duration::from_secs(15), fetch_future).await {
+            Ok(result) => result,
+            Err(_) => Err(anyhow!("Script fetch timed out after 15s: {}", url)),
         }
-
-        let content = response.text().await
-            .map_err(|e| anyhow!("Failed to read script content: {}", e))?;
-
-        Ok(content)
     }
 
     /// Check if a script URL is from a trusted challenge provider.

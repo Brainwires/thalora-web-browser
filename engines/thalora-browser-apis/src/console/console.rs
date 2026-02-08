@@ -55,43 +55,43 @@ impl Console {
     }
 
     /// console.log()
-    fn log(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn log(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("{}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.error()
-    fn error(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn error(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         eprintln!("ERROR: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.warn()
-    fn warn(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn warn(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         eprintln!("WARN: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.info()
-    fn info(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn info(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("INFO: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.debug()
-    fn debug(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn debug(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("DEBUG: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.trace()
-    fn trace(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn trace(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("TRACE: {}", message);
         Ok(JsValue::undefined())
     }
@@ -142,15 +142,15 @@ impl Console {
     }
 
     /// console.group()
-    fn group(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn group(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("▼ {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.groupCollapsed()
-    fn group_collapsed(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn group_collapsed(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("► {}", message);
         Ok(JsValue::undefined())
     }
@@ -210,27 +210,27 @@ impl Console {
     }
 
     /// console.table()
-    fn table(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn table(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("TABLE: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.dir()
-    fn dir(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn dir(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("DIR: {}", message);
         Ok(JsValue::undefined())
     }
 
     /// console.dirxml()
-    fn dirxml(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let message = Self::format_args(args);
+    fn dirxml(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let message = Self::format_args_with_context(args, context);
         println!("DIRXML: {}", message);
         Ok(JsValue::undefined())
     }
 
-    /// Format console arguments into a string
+    /// Format console arguments into a string (no context, used by assert)
     fn format_args(args: &[JsValue]) -> String {
         args.iter()
             .map(|arg| Self::value_to_string(arg))
@@ -238,7 +238,16 @@ impl Console {
             .join(" ")
     }
 
-    /// Convert a JsValue to a string for console output
+    /// Format console arguments into a string with context for proper object serialization
+    fn format_args_with_context(args: &[JsValue], context: &mut Context) -> String {
+        let mut parts = Vec::with_capacity(args.len());
+        for arg in args {
+            parts.push(Self::value_to_string_with_context(arg, context));
+        }
+        parts.join(" ")
+    }
+
+    /// Convert a JsValue to a string for console output (without context)
     fn value_to_string(value: &JsValue) -> String {
         if value.is_null() {
             "null".to_string()
@@ -255,5 +264,70 @@ impl Console {
         } else {
             format!("{:?}", value)
         }
+    }
+
+    /// Convert a JsValue to a string with context for proper object serialization.
+    /// For objects, tries .message property (Error objects), then .toString(),
+    /// then falls back to JSON.stringify for meaningful output.
+    fn value_to_string_with_context(value: &JsValue, context: &mut Context) -> String {
+        if value.is_null() {
+            return "null".to_string();
+        }
+        if value.is_undefined() {
+            return "undefined".to_string();
+        }
+        if value.is_boolean() {
+            return value.to_boolean().to_string();
+        }
+        if value.is_number() {
+            return format!("{}", value.as_number().unwrap());
+        }
+        if let Some(s) = value.as_string() {
+            return s.to_std_string_escaped();
+        }
+        if let Some(obj) = value.as_object() {
+            // Try .message property first (for Error objects)
+            if let Ok(msg) = obj.get(js_string!("message"), context) {
+                if let Some(s) = msg.as_string() {
+                    let msg_str = s.to_std_string_escaped();
+                    // Also try to get the error name for "TypeError: msg" format
+                    if let Ok(name_val) = obj.get(js_string!("name"), context) {
+                        if let Some(name_s) = name_val.as_string() {
+                            let name_str = name_s.to_std_string_escaped();
+                            if !name_str.is_empty() {
+                                return format!("{}: {}", name_str, msg_str);
+                            }
+                        }
+                    }
+                    return msg_str;
+                }
+            }
+            // Try .toString() — skip if it returns the generic "[object Object]"
+            if let Ok(s) = value.to_string(context) {
+                let result = s.to_std_string_escaped();
+                if result != "[object Object]" {
+                    return result;
+                }
+            }
+            // Try JSON.stringify for a meaningful representation
+            if let Ok(json_fn) = context.global_object().get(js_string!("JSON"), context) {
+                if let Some(json_obj) = json_fn.as_object() {
+                    if let Ok(stringify) = json_obj.get(js_string!("stringify"), context) {
+                        if let Some(stringify_obj) = stringify.as_object() {
+                            if let Ok(result) = stringify_obj.call(&json_fn, &[value.clone()], context) {
+                                if let Some(s) = result.as_string() {
+                                    let json_str = s.to_std_string_escaped();
+                                    if !json_str.is_empty() && json_str != "undefined" {
+                                        return json_str;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return "[object Object]".to_string();
+        }
+        format!("{:?}", value)
     }
 }

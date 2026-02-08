@@ -12,6 +12,7 @@ mod query;
 mod events;
 mod canvas;
 mod collections;
+pub mod dom_tree;
 
 pub mod document_fragment;
 pub mod document_parse;

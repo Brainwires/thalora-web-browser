@@ -581,6 +581,8 @@ fn get_location(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
 
 /// `Window.prototype.history` getter
 fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    use crate::browser::history::{History, HistoryData};
+
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Window.prototype.history called on non-object")
     })?;
@@ -592,136 +594,42 @@ fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
 
     let history = window.get_history();
 
-    // Initialize history object if empty
-    if !history.has_property(js_string!("length"), context)? {
-            // Add length property
-            history.define_property_or_throw(
-                js_string!("length"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(1)
-                    .build(),
-                context,
-            )?;
+    // Check if already initialized as a proper HistoryData instance
+    if history.downcast_ref::<HistoryData>().is_some() {
+        return Ok(history.into());
+    }
 
-            // Add state property
-            history.define_property_or_throw(
-                js_string!("state"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsValue::null())
-                    .build(),
-                context,
-            )?;
+    // First access: create a proper History instance with HistoryData
+    // This gives us real pushState/replaceState/state/length via the History prototype
+    let history_data = HistoryData::new();
 
-            // Add back method
-            let back_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                // Implementation would trigger pageswap event and navigate back
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("back"))
-            .build();
+    // Initialize history with the current page URL
+    let current_url = window.get_current_url();
+    if !current_url.is_empty() && current_url != "about:blank" {
+        history_data.set_current_url(current_url);
+    }
 
-            history.define_property_or_throw(
-                js_string!("back"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(back_function)
-                    .build(),
-                context,
-            )?;
+    // Get the History prototype (has length, state, back, forward, go, pushState, replaceState)
+    let prototype = History::get(context.intrinsics())
+        .get(js_string!("prototype"), context)?
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("History.prototype is not an object"))?
+        .clone();
 
-            // Add forward method
-            let forward_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                // Implementation would trigger pageswap event and navigate forward
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("forward"))
-            .build();
+    // Create history object with proper prototype and native data
+    let history_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        prototype,
+        history_data,
+    );
 
-            history.define_property_or_throw(
-                js_string!("forward"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(forward_function)
-                    .build(),
-                context,
-            )?;
+    // Upcast to untyped JsObject for storage and return
+    let history_untyped: JsObject = history_obj.upcast();
 
-            // Add go method
-            let go_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                let _delta = _args.get_or_undefined(0);
-                // Implementation would trigger pageswap event and navigate by delta
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("go"))
-            .build();
+    // Store back in WindowData for subsequent accesses
+    window.set_history(history_untyped.clone());
 
-            history.define_property_or_throw(
-                js_string!("go"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(go_function)
-                    .build(),
-                context,
-            )?;
-
-            // Add pushState method
-            let push_state_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                let _state = _args.get_or_undefined(0);
-                let _title = _args.get_or_undefined(1);
-                let _url = _args.get_or_undefined(2);
-                // Implementation would trigger pageswap event and push new state
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("pushState"))
-            .build();
-
-            history.define_property_or_throw(
-                js_string!("pushState"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(push_state_function)
-                    .build(),
-                context,
-            )?;
-
-            // Add replaceState method
-            let replace_state_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                let _state = _args.get_or_undefined(0);
-                let _title = _args.get_or_undefined(1);
-                let _url = _args.get_or_undefined(2);
-                // Implementation would trigger pageswap event and replace current state
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("replaceState"))
-            .build();
-
-            history.define_property_or_throw(
-                js_string!("replaceState"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(replace_state_function)
-                    .build(),
-                context,
-            )?;
-        }
-
-    Ok(history.into())
+    Ok(history_untyped.into())
 }
 
 /// `Window.prototype.document` getter

@@ -85,6 +85,10 @@ impl HeadlessWebBrowser {
             .build()
             .expect("Failed to create HTTP client with Chrome 131 emulation");
 
+        // Share the configured client for script fetching and other APIs
+        // so they reuse the Chrome131 TLS fingerprint, cookies, and compression
+        thalora_browser_apis::http_blocking::set_shared_client(client.clone());
+
     let renderer = RustRenderer::new_with_engine(engine_type);
 
         let auth_context = AuthContext {
@@ -246,6 +250,16 @@ impl HeadlessWebBrowser {
             renderer.evaluate_javascript_trusted(js_code, std::time::Duration::from_secs(10))
         } else {
             Err(anyhow::anyhow!("Renderer not available"))
+        }
+    }
+
+    /// Run pending async jobs (fetch responses, promise callbacks, timers).
+    /// Call after page scripts to process async data loading by frameworks.
+    pub async fn run_pending_jobs(&mut self, max_duration: std::time::Duration) -> Result<()> {
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.run_pending_jobs(max_duration)
+        } else {
+            Ok(())
         }
     }
 

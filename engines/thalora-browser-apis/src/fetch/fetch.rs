@@ -118,83 +118,82 @@ fn fetch(
     // Create a new pending Promise and return it immediately
     let (promise, resolvers) = JsPromise::new_pending(context);
 
-    // Enqueue an async job to perform the actual HTTP request
+    eprintln!("DEBUG: fetch() called: {} {} (enqueuing NativeAsyncJob)", method, url_string);
+
+    // Enqueue an async job to perform the actual HTTP request.
+    // IMPORTANT: Boa's SimpleJobExecutor uses futures_lite::block_on which does NOT
+    // provide a tokio runtime. Pure `.await` on HTTP clients returns Poll::Pending
+    // forever because there's no tokio executor to drive the I/O. We use
+    // block_on_compat() which spawns a thread with its own tokio runtime.
     context.enqueue_job(
         NativeAsyncJob::new(async move |ctx_ref| {
-            // Perform HTTP request in the background.
-            // IMPORTANT: We must NOT hold the RefCell borrow across .await points,
-            // otherwise other async jobs can't access the context and will panic
-            // with "RefCell already borrowed".
-            let client = rquest::Client::new();
-            let mut request_builder = client.request(
-                rquest::Method::from_bytes(method.as_bytes()).unwrap_or(rquest::Method::GET),
-                &url_string
-            );
+            // Save URL for the Response object (url_string is moved into block_on_compat)
+            let url_for_response = url_string.clone();
 
-            // Add headers
-            for (key, value) in headers {
-                request_builder = request_builder.header(&key, &value);
-            }
+            // Execute HTTP request synchronously via block_on_compat.
+            // This spawns a thread with its own tokio runtime so the .await
+            // on send()/text() actually executes instead of pending forever.
+            let http_result = crate::http_blocking::block_on_compat(async move {
+                let client = crate::http_blocking::get_shared_client();
+                let mut request_builder = client.request(
+                    rquest::Method::from_bytes(method.as_bytes()).unwrap_or(rquest::Method::GET),
+                    &url_string
+                );
 
-            // Add body if present
-            if let Some(body_content) = body {
-                request_builder = request_builder.body(body_content);
-            }
+                // Add headers
+                for (key, value) in headers {
+                    request_builder = request_builder.header(&key, &value);
+                }
 
-            // Phase 1: Async HTTP send (no borrow held)
-            let response_result = request_builder.send().await;
+                // Add body if present
+                if let Some(body_content) = body {
+                    request_builder = request_builder.body(body_content);
+                }
 
-            match response_result {
-                Ok(response) => {
-                    // Extract response metadata (no borrow needed)
-                    let status = response.status().as_u16();
-                    let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+                let response = request_builder.send().await
+                    .map_err(|e| format!("Fetch request failed: {}", e))?;
 
-                    let mut response_headers = HashMap::new();
-                    for (name, value) in response.headers() {
-                        if let Ok(value_str) = value.to_str() {
-                            response_headers.insert(name.to_string(), value_str.to_string());
-                        }
-                    }
+                let status = response.status().as_u16();
+                let status_text = response.status().canonical_reason().unwrap_or("").to_string();
 
-                    // Phase 2: Async body read (no borrow held)
-                    let body_result = response.text().await;
-
-                    // Phase 3: Brief borrow to resolve/reject promise
-                    let context = &mut ctx_ref.borrow_mut();
-                    match body_result {
-                        Ok(body_text) => {
-                            let response_data = ResponseData {
-                                body: Some(body_text),
-                                status,
-                                status_text: status_text.clone(),
-                                headers: response_headers,
-                                url: url_string.clone(),
-                            };
-
-                            // Use the proper Response prototype so .json(), .text() etc. are available
-                            let prototype = context.intrinsics().constructors().response().prototype();
-                            let response_obj = JsObject::from_proto_and_data(Some(prototype), response_data);
-
-                            drop(response_obj.set(js_string!("status"), JsValue::from(status), false, context));
-                            drop(response_obj.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context));
-                            drop(response_obj.set(js_string!("ok"), JsValue::from(status >= 200 && status < 300), false, context));
-                            drop(response_obj.set(js_string!("url"), JsValue::from(js_string!(url_string)), false, context));
-
-                            resolvers.resolve.call(&JsValue::undefined(), &[response_obj.into()], context)
-                        }
-                        Err(e) => {
-                            let error = JsNativeError::typ()
-                                .with_message(format!("Failed to read response body: {}", e))
-                                .into_opaque(context);
-                            resolvers.reject.call(&JsValue::undefined(), &[error.into()], context)
-                        }
+                let mut response_headers = HashMap::new();
+                for (name, value) in response.headers() {
+                    if let Ok(value_str) = value.to_str() {
+                        response_headers.insert(name.to_string(), value_str.to_string());
                     }
                 }
-                Err(e) => {
-                    let context = &mut ctx_ref.borrow_mut();
+
+                let body_text = response.text().await
+                    .map_err(|e| format!("Failed to read response body: {}", e))?;
+
+                Ok::<_, String>((status, status_text, response_headers, body_text))
+            });
+
+            // Resolve or reject the promise with the HTTP result
+            let context = &mut ctx_ref.borrow_mut();
+            match http_result {
+                Ok((status, status_text, response_headers, body_text)) => {
+                    let response_data = ResponseData {
+                        body: Some(body_text),
+                        status,
+                        status_text: status_text.clone(),
+                        headers: response_headers,
+                        url: url_for_response.clone(),
+                    };
+
+                    let prototype = context.intrinsics().constructors().response().prototype();
+                    let response_obj = JsObject::from_proto_and_data(Some(prototype), response_data);
+
+                    drop(response_obj.set(js_string!("status"), JsValue::from(status), false, context));
+                    drop(response_obj.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context));
+                    drop(response_obj.set(js_string!("ok"), JsValue::from(status >= 200 && status < 300), false, context));
+                    drop(response_obj.set(js_string!("url"), JsValue::from(js_string!(url_for_response)), false, context));
+
+                    resolvers.resolve.call(&JsValue::undefined(), &[response_obj.into()], context)
+                }
+                Err(error_msg) => {
                     let error = JsNativeError::typ()
-                        .with_message(format!("Fetch request failed: {}", e))
+                        .with_message(error_msg)
                         .into_opaque(context);
                     resolvers.reject.call(&JsValue::undefined(), &[error.into()], context)
                 }

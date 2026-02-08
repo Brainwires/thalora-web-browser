@@ -12,6 +12,7 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
     JsString, realm::Realm, property::Attribute
 };
+use crate::browser::location::LocationData;
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 
@@ -123,7 +124,7 @@ struct HistoryEntry {
 }
 
 impl HistoryData {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let initial_entry = HistoryEntry {
             url: "about:blank".to_string(),
             title: "".to_string(),
@@ -416,8 +417,13 @@ fn push_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         None
     };
 
-    history.push_state(state_json, title.to_std_string_escaped(), url_string);
-    // In a real implementation, this would trigger pageswap event and update URL
+    history.push_state(state_json, title.to_std_string_escaped(), url_string.clone());
+
+    // Update window.location to reflect the new URL (per WHATWG spec)
+    if let Some(ref new_url) = url_string {
+        update_window_location(new_url, context);
+    }
+
     Ok(JsValue::undefined())
 }
 
@@ -458,7 +464,56 @@ fn replace_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         None
     };
 
-    history.replace_state(state_json, title.to_std_string_escaped(), url_string);
-    // In a real implementation, this would trigger pageswap event and update URL
+    history.replace_state(state_json, title.to_std_string_escaped(), url_string.clone());
+
+    // Update window.location to reflect the new URL (per WHATWG spec)
+    if let Some(ref new_url) = url_string {
+        update_window_location(new_url, context);
+    }
+
     Ok(JsValue::undefined())
+}
+
+/// Resolve a URL passed to pushState/replaceState against the current location.
+/// Per WHATWG spec, the URL must be same-origin. Absolute paths are resolved
+/// against the current origin; relative paths against the current URL directory.
+fn resolve_pushstate_url(current_href: &str, new_url: &str) -> String {
+    // Already absolute URL
+    if new_url.starts_with("http://") || new_url.starts_with("https://") {
+        return new_url.to_string();
+    }
+
+    // Parse current URL to get origin
+    if let Some(protocol_end) = current_href.find("://") {
+        let rest = &current_href[protocol_end + 3..];
+        let host_end = rest.find('/').unwrap_or(rest.len());
+        let origin = &current_href[..protocol_end + 3 + host_end];
+
+        if new_url.starts_with('/') {
+            // Absolute path — prepend origin
+            format!("{}{}", origin, new_url)
+        } else {
+            // Relative path — resolve against current URL's directory
+            let current_path_end = current_href.rfind('/').unwrap_or(origin.len());
+            let base = &current_href[..current_path_end + 1];
+            format!("{}{}", base, new_url)
+        }
+    } else {
+        new_url.to_string()
+    }
+}
+
+/// Update window.location.href after pushState/replaceState changes the URL.
+/// Accesses the global object to find the location and update its href.
+fn update_window_location(new_url: &str, context: &mut Context) {
+    let global = context.global_object().clone();
+    if let Ok(location_val) = global.get(js_string!("location"), context) {
+        if let Some(location_obj) = location_val.as_object() {
+            if let Some(location_data) = location_obj.downcast_ref::<LocationData>() {
+                let current_href = location_data.get_href();
+                let resolved = resolve_pushstate_url(&current_href, new_url);
+                location_data.set_href(&resolved);
+            }
+        }
+    }
 }

@@ -79,7 +79,7 @@ impl LocationData {
                 pathname: pathname.to_string(),
                 search: search.to_string(),
                 hash: hash.to_string(),
-                origin: format!("{}//{}", protocol.trim_end_matches(':'), host),
+                origin: format!("{}://{}", protocol.trim_end_matches(':'), host),
             }
         } else {
             // Fallback for invalid URLs

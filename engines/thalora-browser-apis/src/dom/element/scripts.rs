@@ -194,7 +194,7 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
 /// Fetch and execute an external script
 #[cfg(feature = "native")]
 fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
-    use crate::http_blocking::BlockingClient;
+    use crate::http_blocking::{get_shared_client, block_on_compat};
     use url::Url;
 
     eprintln!("DEBUG: Fetching external script: {}", url);
@@ -230,37 +230,55 @@ fn execute_external_script(url: &str, context: &mut Context) -> JsResult<()> {
     };
 
     // Fetch the script in a separate thread to avoid "cannot start a runtime
-    // from within a runtime" panic when called from async navigation code
+    // from within a runtime" panic when called from async navigation code.
+    // Uses the shared browser client for Chrome131 TLS fingerprint, cookies,
+    // and compression support. Retries up to 2 times for transient IO errors
+    // (BrokenPipe, connection reset) that occur with HTTP/2 stream resets.
     let fetch_url = resolved_url.clone();
     let script_content = std::thread::spawn(move || -> Option<String> {
-        let client = match BlockingClient::new() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("DEBUG: [thread] Failed to create HTTP client: {:?}", e);
-                return None;
-            }
-        };
-        match client.get(&fetch_url).send() {
-            Ok(response) => {
-                if response.status().is_success() {
-                    match response.text() {
-                        Ok(text) => Some(text),
-                        Err(e) => {
-                            eprintln!("DEBUG: [thread] Failed to read response body: {:?}", e);
-                            None
-                        }
+        let client = get_shared_client();
+
+        for attempt in 0u32..3 {
+            let request = client.get(&fetch_url);
+            let result = block_on_compat(async move {
+                let response = request.send().await?.error_for_status()?;
+                response.text().await
+            });
+
+            match result {
+                Ok(text) => return Some(text),
+                Err(e) => {
+                    // Check if the error is transient (IO/connection/decode errors)
+                    let err_debug = format!("{:?}", e);
+                    let is_transient = err_debug.contains("BrokenPipe")
+                        || err_debug.contains("ConnectionReset")
+                        || err_debug.contains("Io(")
+                        || err_debug.contains("Decode")
+                        || err_debug.contains("hyper")
+                        || err_debug.contains("connection closed");
+
+                    if is_transient && attempt < 2 {
+                        eprintln!(
+                            "DEBUG: [thread] Retry {}/2 for {}: {:?}",
+                            attempt + 1,
+                            fetch_url,
+                            e
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            100 * (attempt as u64 + 1),
+                        ));
+                        continue;
                     }
-                } else {
-                    eprintln!("DEBUG: [thread] Script fetch returned status: {}", response.status());
-                    None
+                    eprintln!("DEBUG: [thread] Failed to fetch script: {:?}", e);
+                    return None;
                 }
             }
-            Err(e) => {
-                eprintln!("DEBUG: [thread] Script fetch network error: {:?}", e);
-                None
-            }
         }
-    }).join().ok().flatten();
+        None
+    })
+    .join()
+    .ok()
+    .flatten();
 
     match script_content {
         Some(content) => {

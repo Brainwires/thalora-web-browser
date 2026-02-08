@@ -3,8 +3,32 @@
 //! rquest doesn't have a blocking module like reqwest, so we provide a simple
 //! blocking wrapper that uses tokio's runtime to execute async HTTP requests.
 
+use std::sync::OnceLock;
 use std::time::Duration;
 use rquest::header::{HeaderMap, HeaderName, HeaderValue};
+
+/// Global shared HTTP client, initialized from the browser's configured client.
+/// This allows script fetching and other APIs to reuse the browser's Chrome131-emulated
+/// client instead of creating bare new clients that lack TLS fingerprinting, cookies,
+/// and compression support.
+static SHARED_CLIENT: OnceLock<rquest::Client> = OnceLock::new();
+
+/// Initialize the shared client (called once during browser setup).
+/// If already set, this is a no-op.
+pub fn set_shared_client(client: rquest::Client) {
+    let _ = SHARED_CLIENT.set(client);
+}
+
+/// Get the shared client, or create a basic fallback if not initialized.
+pub fn get_shared_client() -> rquest::Client {
+    SHARED_CLIENT.get().cloned().unwrap_or_else(|| {
+        rquest::Client::builder()
+            .redirect(rquest::redirect::Policy::limited(10))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("Failed to create fallback HTTP client")
+    })
+}
 
 /// Execute a future in a blocking context, handling nested runtime detection.
 /// If already inside a tokio runtime, spawns a separate OS thread with its own runtime

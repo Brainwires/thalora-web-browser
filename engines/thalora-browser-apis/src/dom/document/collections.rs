@@ -15,6 +15,10 @@ use std::collections::HashMap;
 use super::types::DocumentData;
 
 /// `Document.prototype.documentElement` getter
+///
+/// Returns the root `<html>` element. On first access, lazily builds a live DOM tree
+/// from the document's HTML content using scraper. This tree is persistent — querySelector
+/// returns references into it, and JS mutations (appendChild, etc.) modify it in place.
 pub(super) fn get_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
@@ -25,19 +29,40 @@ pub(super) fn get_document_element(this: &JsValue, _args: &[JsValue], context: &
             .with_message("Document.prototype.documentElement called on non-Document object")
     })?;
 
-    // Return existing html element or create one
+    // Return existing html element if already built
     if let Some(html) = document.get_element("html") {
-        Ok(html.into())
-    } else {
-        // Create a new html element
-        let element_constructor = context.intrinsics().constructors().element().constructor();
-        let html_element = element_constructor.construct(&[], None, context)?;
-        if let Some(elem_data) = html_element.downcast_ref::<crate::dom::element::ElementData>() {
-            elem_data.set_tag_name("HTML".to_string());
-        }
-        document.add_element("html".to_string(), html_element.clone());
-        Ok(html_element.into())
+        return Ok(html.into());
     }
+
+    // Build DOM tree from stored HTML content (lazy initialization)
+    let html_content = document.get_html_content();
+    if !html_content.is_empty() {
+        let elements_ref = document.elements.clone();
+        // Release the borrow on document before calling build_dom_tree (needs context)
+        drop(document);
+
+        let root = super::dom_tree::build_dom_tree(&html_content, context)?;
+
+        // Register all elements with IDs and special elements (html, head, body)
+        super::dom_tree::register_tree_elements(&root, &elements_ref);
+
+        return Ok(root.into());
+    }
+
+    // Fallback: create empty HTML element (no HTML content available)
+    let element_constructor = context.intrinsics().constructors().element().constructor();
+    let html_element = element_constructor.construct(&[], None, context)?;
+    if let Some(elem_data) = html_element.downcast_ref::<crate::dom::element::ElementData>() {
+        elem_data.set_tag_name("HTML".to_string());
+    }
+
+    // Re-borrow document to store the element
+    let document2 = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("Document.prototype.documentElement called on non-Document object")
+    })?;
+    document2.add_element("html".to_string(), html_element.clone());
+    Ok(html_element.into())
 }
 
 /// `Document.prototype.forms` getter - returns HTMLCollection of all form elements

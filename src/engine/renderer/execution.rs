@@ -4,6 +4,48 @@ use std::time::{Duration, Instant};
 use crate::engine::renderer::core::RustRenderer;
 
 impl RustRenderer {
+    /// Run pending async jobs (Promise microtasks, fetch responses, etc.)
+    /// and process timer callbacks. This is needed after page scripts execute
+    /// to process async operations like `fetch()` that frameworks use to load data.
+    ///
+    /// Polls repeatedly with small sleeps to give async HTTP requests time to
+    /// complete and their response handlers time to execute.
+    pub fn run_pending_jobs(&mut self, max_duration: Duration) -> Result<()> {
+        use thalora_browser_apis::timers::timers::Timers;
+
+        if let Some(ctx) = &mut self.js_context {
+            let start = Instant::now();
+            let poll_interval = Duration::from_millis(50);
+            let mut consecutive_idle = 0;
+
+            while start.elapsed() < max_duration {
+                // Run Promise microtasks (including fetch responses via block_on_compat)
+                let _ = ctx.run_jobs();
+
+                // Process timer callbacks
+                let timers_executed = Timers::process_timers(ctx);
+
+                // Run jobs again in case timer callbacks scheduled promises
+                if timers_executed > 0 {
+                    let _ = ctx.run_jobs();
+                    consecutive_idle = 0;
+                } else {
+                    consecutive_idle += 1;
+                }
+
+                // Stop after 10 consecutive idle polls (500ms of no activity)
+                if consecutive_idle >= 10 {
+                    break;
+                }
+
+                // Sleep to allow timer-based operations to progress
+                std::thread::sleep(poll_interval);
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn handle_google_challenge(&mut self, js_code: &str) -> Result<String> {
         // Security check for Google challenge JavaScript
         if !self.is_safe_javascript(js_code) {

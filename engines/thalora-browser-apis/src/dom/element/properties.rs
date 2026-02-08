@@ -118,6 +118,9 @@ pub(super) fn set_inner_html(this: &JsValue, args: &[JsValue], context: &mut Con
         children.clear();
         children.extend(parsed_elements);
 
+        // Mark as modified by JS
+        el.mark_modified_by_js();
+
         // Recompute text content
         drop(children); // Release children lock before calling method
         el.recompute_text_content();
@@ -150,6 +153,7 @@ pub(super) fn set_text_content(this: &JsValue, args: &[JsValue], context: &mut C
 
     with_element_data(&this_obj, |el| {
         el.set_text_content(content_string);
+        el.mark_modified_by_js();
     }, "Element.prototype.textContent setter called on non-Element object")?;
 
     Ok(JsValue::undefined())
@@ -200,6 +204,24 @@ pub(super) fn get_style(this: &JsValue, _args: &[JsValue], context: &mut Context
         &[],
         context,
     )
+}
+
+/// `Element.prototype.dataset` getter
+pub(super) fn get_dataset(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.dataset called on non-object")
+    })?;
+
+    // Verify it's an element
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.dataset called on non-Element object")
+            .into());
+    }
+
+    // Create a DOMStringMap populated with current data-* attributes
+    let map = crate::dom::domstringmap::DOMStringMap::create_for_element(this_obj.clone(), context)?;
+    Ok(map.into())
 }
 
 /// `Element.prototype.classList` getter

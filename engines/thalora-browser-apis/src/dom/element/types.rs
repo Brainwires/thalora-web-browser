@@ -103,6 +103,10 @@ pub struct ElementData {
     /// Scroll dimensions and position
     #[unsafe_ignore_trace]
     scroll_state: Arc<Mutex<ScrollState>>,
+    /// Whether this element's children have been modified by JavaScript (appendChild, etc.)
+    /// Used by serialize_to_html to decide whether to walk live children or use cached innerHTML
+    #[unsafe_ignore_trace]
+    pub(crate) modified_by_js: Arc<Mutex<bool>>,
 }
 
 /// CSS Style Declaration for real style computation
@@ -346,6 +350,7 @@ impl ElementData {
             offset_dimensions: Arc::new(Mutex::new(LayoutDimensions::new())),
             client_dimensions: Arc::new(Mutex::new(ClientDimensions::new())),
             scroll_state: Arc::new(Mutex::new(ScrollState::new())),
+            modified_by_js: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -353,6 +358,22 @@ impl ElementData {
         let mut data = Self::new();
         *data.tag_name.lock().unwrap() = tag_name;
         data
+    }
+
+    /// Check if this element or any descendant has been modified by JavaScript
+    pub fn has_modified_descendants(&self) -> bool {
+        if *self.modified_by_js.lock().unwrap() {
+            return true;
+        }
+        let children = self.children.lock().unwrap();
+        children.iter().any(|child| {
+            try_with_element_data(child, |cd| cd.has_modified_descendants()).unwrap_or(false)
+        })
+    }
+
+    /// Mark this element as modified by JavaScript
+    pub fn mark_modified_by_js(&self) {
+        *self.modified_by_js.lock().unwrap() = true;
     }
 
     pub fn get_tag_name(&self) -> String {
@@ -554,13 +575,21 @@ impl ElementData {
         }
         html.push('>');
 
-        // Serialize content: prefer walking live children, fall back to cached innerHTML
+        // Determine whether we need to walk children or can use cached innerHTML.
+        // Check modification flags BEFORE locking children to avoid deadlock
+        // (has_modified_descendants also locks children).
+        let is_modified = *self.modified_by_js.lock().unwrap();
+        let needs_walk = is_modified || self.has_modified_descendants();
+
+        // Now lock children for actual serialization
         let children = self.children.lock().unwrap();
+
         if children.is_empty() {
-            // No child elements — use cached innerHTML (text content, or set via innerHTML)
+            // Leaf node: use cached innerHTML (text content, or set via innerHTML)
             html.push_str(&self.get_inner_html());
-        } else {
-            // Walk live DOM children and serialize each one recursively
+        } else if needs_walk {
+            // This element or a descendant was modified by JS: walk live children
+            // to capture dynamically created/removed elements
             for child in children.iter() {
                 if let Some(child_html) = try_with_element_data(child, |child_data| {
                     child_data.serialize_to_html()
@@ -568,6 +597,9 @@ impl ElementData {
                     html.push_str(&child_html);
                 }
             }
+        } else {
+            // Unmodified subtree: use cached innerHTML (preserves text nodes, comments, etc.)
+            html.push_str(&self.get_inner_html());
         }
 
         // Void elements don't get closing tags
