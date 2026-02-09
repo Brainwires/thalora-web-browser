@@ -29,7 +29,7 @@ impl RustRenderer {
                 // processes any jobs that were enqueued after the failed one.
                 let before_jobs = Instant::now();
                 if let Err(e) = ctx.run_jobs() {
-                    eprintln!("DEBUG: run_jobs error (continuing): {:?}", e);
+                    eprintln!("DEBUG: run_jobs error (continuing): {}", e);
                     // Try again — the error came from a single bad job; remaining
                     // jobs may still be valid and should not be lost.
                     let _ = ctx.run_jobs();
@@ -42,7 +42,7 @@ impl RustRenderer {
                 // Run jobs again in case timer callbacks scheduled promises
                 if timers_executed > 0 {
                     if let Err(e) = ctx.run_jobs() {
-                        eprintln!("DEBUG: run_jobs error after timers (continuing): {:?}", e);
+                        eprintln!("DEBUG: run_jobs error after timers (continuing): {}", e);
                         let _ = ctx.run_jobs();
                     }
                     consecutive_idle = 0;
@@ -348,7 +348,7 @@ impl RustRenderer {
             let source = Source::from_bytes(js_code);
             match ctx.eval(source) {
                 Ok(_) => eprintln!("🔄 ASYNC WAIT: Initial JavaScript executed"),
-                Err(e) => eprintln!("🔄 ASYNC WAIT: Initial JavaScript error (may be ok): {:?}", e),
+                Err(e) => eprintln!("🔄 ASYNC WAIT: Initial JavaScript error (may be ok): {}", e),
             }
 
             // Poll for result while running jobs and processing timers
@@ -358,7 +358,7 @@ impl RustRenderer {
             while start.elapsed() < timeout_duration {
                 // Run pending Promise jobs (microtask queue)
                 if let Err(e) = ctx.run_jobs() {
-                    eprintln!("🔄 ASYNC WAIT: Job queue error: {:?}", e);
+                    eprintln!("🔄 ASYNC WAIT: Job queue error: {}", e);
                 }
 
                 // Process due timer callbacks (setTimeout/setInterval)
@@ -388,7 +388,7 @@ impl RustRenderer {
                         }
                     }
                     Err(e) => {
-                        eprintln!("🔄 ASYNC WAIT: Check error: {:?}", e);
+                        eprintln!("🔄 ASYNC WAIT: Check error: {}", e);
                     }
                 }
 

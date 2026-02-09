@@ -80,6 +80,10 @@ impl IntrinsicObject for Element {
             .name(js_string!("get dataset"))
             .build();
 
+        let attributes_func = BuiltInBuilder::callable(realm, get_attributes)
+            .name(js_string!("get attributes"))
+            .build();
+
         let first_child_func = BuiltInBuilder::callable(realm, get_first_child)
             .name(js_string!("get firstChild"))
             .build();
@@ -264,6 +268,12 @@ impl IntrinsicObject for Element {
             .accessor(
                 js_string!("dataset"),
                 Some(dataset_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("attributes"),
+                Some(attributes_func),
                 None,
                 Attribute::CONFIGURABLE,
             )

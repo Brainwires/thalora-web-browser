@@ -270,7 +270,7 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
             Ok(())
         }
         Err(e) => {
-            eprintln!("DEBUG: Script execution error: {:?}", e);
+            eprintln!("DEBUG: Script execution error: {}", e);
             // Don't propagate the error - scripts with errors shouldn't break DOM operations
             fire_script_error_event(script_obj, context);
             Ok(())
@@ -381,7 +381,7 @@ fn execute_external_script(url: &str, context: &mut Context) -> bool {
                     true
                 }
                 Err(e) => {
-                    eprintln!("DEBUG: External script execution error: {:?}", e);
+                    eprintln!("DEBUG: External script execution error: {}", e);
                     false
                 }
             }

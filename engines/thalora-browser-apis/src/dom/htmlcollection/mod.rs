@@ -12,6 +12,7 @@ use boa_engine::{
     realm::Realm,
     string::{JsString},
     Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
+    JsSymbol,
 };
 use boa_gc::{Finalize, Trace, GcRefCell};
 use std::collections::HashMap;
@@ -78,6 +79,7 @@ pub struct HTMLCollection;
 impl HTMLCollection {
     /// Create a new HTMLCollection from a vector of elements
     pub fn create_from_elements(elements: Vec<JsObject>, context: &mut Context) -> JsResult<JsObject> {
+        let elements_for_indexing = elements.clone();
         let collection_data = HTMLCollectionData::new(elements);
 
         let collection_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -86,7 +88,13 @@ impl HTMLCollection {
             collection_data,
         );
 
-        Ok(collection_obj.upcast())
+        let result = collection_obj.upcast();
+        // Set indexed properties so el.children[0], el.children[1] etc. work
+        for (i, element) in elements_for_indexing.iter().enumerate() {
+            result.set(i as u64, element.clone(), false, context)?;
+        }
+
+        Ok(result)
     }
 
     /// `HTMLCollection.prototype.length` getter
@@ -120,6 +128,27 @@ impl HTMLCollection {
             Some(element) => Ok(element.into()),
             None => Ok(JsValue::null()),
         }
+    }
+
+    /// `HTMLCollection.prototype.values()` - returns an array of elements (iterator-like)
+    fn values(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("HTMLCollection.values called on non-object")
+        })?;
+
+        let collection_data = this_obj.downcast_ref::<HTMLCollectionData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("HTMLCollection.values called on non-HTMLCollection object")
+        })?;
+
+        let elements = collection_data.elements();
+        let array = boa_engine::builtins::array::Array::array_create(elements.len() as u64, None, context)?;
+
+        for (i, element) in elements.iter().enumerate() {
+            array.create_data_property_or_throw(i, element.clone(), context)?;
+        }
+
+        Ok(array.into())
     }
 
     /// `HTMLCollection.prototype.namedItem(name)`
@@ -175,6 +204,8 @@ impl IntrinsicObject for HTMLCollection {
             // Methods
             .method(Self::item, js_string!("item"), 1)
             .method(Self::named_item, js_string!("namedItem"), 1)
+            .method(Self::values, js_string!("values"), 0)
+            .method(Self::values, JsSymbol::iterator(), 0)
             // Properties
             .accessor(
                 js_string!("length"),

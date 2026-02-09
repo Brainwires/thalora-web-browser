@@ -58,8 +58,9 @@ pub(super) fn query_selector_js(this: &JsValue, args: &[JsValue], context: &mut 
     let selector_str = selector.to_std_string_escaped();
 
     // Use the element's query_selector method
+    let this_clone = this_obj.clone();
     let result = with_element_data(&this_obj, |el| {
-        el.query_selector(&selector_str)
+        el.query_selector(&this_clone, &selector_str)
     }, "Element.prototype.querySelector called on non-Element object")?;
 
     if let Some(found) = result {
@@ -79,8 +80,9 @@ pub(super) fn query_selector_all_js(this: &JsValue, args: &[JsValue], context: &
     let selector_str = selector.to_std_string_escaped();
 
     // Use the element's query_selector_all method
+    let this_clone = this_obj.clone();
     let results = with_element_data(&this_obj, |el| {
-        el.query_selector_all(&selector_str)
+        el.query_selector_all(&this_clone, &selector_str)
     }, "Element.prototype.querySelectorAll called on non-Element object")?;
 
     // Return static NodeList per spec

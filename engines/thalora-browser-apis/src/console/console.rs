@@ -65,6 +65,19 @@ impl Console {
     fn error(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let message = Self::format_args_with_context(args, context);
         eprintln!("ERROR: {}", message);
+        // Print stack traces for Error objects to aid debugging
+        for arg in args {
+            if let Some(obj) = arg.as_object() {
+                if let Ok(stack_val) = obj.get(js_string!("stack"), context) {
+                    if let Some(stack_str) = stack_val.as_string() {
+                        let stack = stack_str.to_std_string_escaped();
+                        if !stack.is_empty() {
+                            eprintln!("ERROR STACK: {}", stack);
+                        }
+                    }
+                }
+            }
+        }
         Ok(JsValue::undefined())
     }
 

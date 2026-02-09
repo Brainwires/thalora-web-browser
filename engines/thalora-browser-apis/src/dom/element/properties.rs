@@ -416,6 +416,43 @@ pub(super) fn get_attribute_names(this: &JsValue, _args: &[JsValue], context: &m
     Ok(Array::create_array_from_list(values, context).into())
 }
 
+/// `Element.prototype.attributes` getter — returns NamedNodeMap of attributes
+pub(super) fn get_attributes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.attributes called on non-object")
+    })?;
+
+    // Get the attribute HashMap from ElementData
+    let attrs = with_element_data(&this_obj, |el| {
+        el.attributes.lock().unwrap().clone()
+    }, "Element.prototype.attributes called on non-Element object")?;
+
+    // Build a NamedNodeMap from the attributes
+    let named_node_map_data = crate::dom::namednodemap::NamedNodeMapData::from_attributes(attrs, context)?;
+
+    let len = named_node_map_data.length();
+
+    let named_node_map_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        context.intrinsics().constructors().namednodemap().prototype(),
+        named_node_map_data,
+    );
+
+    let result = named_node_map_obj.upcast();
+
+    // Set indexed properties for el.attributes[0], el.attributes[1] etc.
+    // Also needed for Array.from(el.attributes) and [].slice.call(el.attributes)
+    for i in 0..len {
+        if let Some(attr) = result.downcast_ref::<crate::dom::namednodemap::NamedNodeMapData>()
+            .and_then(|d| d.get_item(i))
+        {
+            result.set(i as u64, attr.clone(), false, context)?;
+        }
+    }
+
+    Ok(result.into())
+}
+
 /// `Element.prototype.toggleAttribute(name, force?)`
 pub(super) fn toggle_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {

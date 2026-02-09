@@ -60,8 +60,9 @@ pub(super) fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut 
     // The element registry can hold stale references if the tree was rebuilt.
     if let Some(root) = document.get_element("html") {
         let selector = format!("#{}", id_str);
+        let root_clone = root.clone();
         let found = crate::dom::element::with_element_data(&root, |ed| {
-            ed.query_selector(&selector)
+            ed.query_selector(&root_clone, &selector)
         }, "not element");
 
         if let Ok(Some(found)) = found {
@@ -119,8 +120,9 @@ pub(super) fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Con
     if let Some(root) = document.get_element("html") {
         // For simple selectors (#id, .class, tag), use ElementData::query_selector
         // which walks the live tree and returns references (not copies)
+        let root_clone = root.clone();
         let found = crate::dom::element::with_element_data(&root, |ed| {
-            ed.query_selector(&selector_str)
+            ed.query_selector(&root_clone, &selector_str)
         }, "not element");
 
         if let Ok(Some(found)) = found {
@@ -313,18 +315,51 @@ pub(super) fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut
         JsNativeError::typ().with_message("Document.prototype.querySelectorAll called on non-object")
     })?;
 
+    let selector = args.get_or_undefined(0).to_string(context)?;
+    let selector_str = selector.to_std_string_escaped();
+
+    // Ensure DOM tree is built (same lazy build as querySelector)
+    {
+        let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Document.prototype.querySelectorAll called on non-Document object")
+        })?;
+
+        if document.get_element("html").is_none() {
+            let html_content = document.get_html_content();
+            if !html_content.is_empty() {
+                let elements_ref = document.elements.clone();
+                drop(document);
+
+                let root = super::dom_tree::build_dom_tree(&html_content, context)?;
+                super::dom_tree::register_tree_elements(&root, &elements_ref);
+            }
+        }
+    }
+
+    // Re-borrow after potential tree build
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Document.prototype.querySelectorAll called on non-Document object")
     })?;
 
-    let selector = args.get_or_undefined(0).to_string(context)?;
-    let selector_str = selector.to_std_string_escaped();
+    // Try live DOM tree first (returns persistent references)
+    if let Some(root) = document.get_element("html") {
+        let root_clone = root.clone();
+        let results = crate::dom::element::with_element_data(&root, |ed| {
+            ed.query_selector_all(&root_clone, &selector_str)
+        }, "not element");
 
-    // Get the HTML content from the document
+        if let Ok(results) = results {
+            if !results.is_empty() {
+                let nodelist = crate::dom::nodelist::NodeList::create_from_nodes(results, false, context)?;
+                return Ok(nodelist.into());
+            }
+        }
+    }
+
+    // Fallback: parse HTML for complex selectors not handled by matches_selector
     let html_content = document.get_html_content();
-
-    // Use real DOM implementation with scraper library to find all matching elements
     let elements = create_all_real_elements_from_html(context, &selector_str, &html_content)?;
 
     // Convert JsValue elements to JsObject for NodeList

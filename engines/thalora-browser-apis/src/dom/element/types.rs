@@ -1249,27 +1249,18 @@ impl ElementData {
     }
 
     /// Real DOM tree traversal - get element by ID
-    pub fn find_element_by_id(&self, id: &str) -> Option<JsObject> {
+    pub fn find_element_by_id(&self, self_obj: &JsObject, id: &str) -> Option<JsObject> {
         // Check this element
         if self.get_id() == id {
-            // Return self as JsObject - would need proper conversion
-            return None; // Placeholder
+            return Some(self_obj.clone());
         }
 
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            // Check if child itself matches the ID
-            if let Some(child_id) = try_with_element_data(child, |child_data| {
-                child_data.get_id()
-            }) {
-                if child_id == id {
-                    return Some(child.clone());
-                }
-            }
-            // Recurse into child
+            // Recurse into child (child checks itself first)
             if let Some(found) = try_with_element_data(child, |child_data| {
-                child_data.find_element_by_id(id)
+                child_data.find_element_by_id(child, id)
             }).flatten() {
                 return Some(found);
             }
@@ -1296,25 +1287,18 @@ impl ElementData {
     }
 
     /// Query selector implementation
-    pub fn query_selector(&self, selector: &str) -> Option<JsObject> {
+    pub fn query_selector(&self, self_obj: &JsObject, selector: &str) -> Option<JsObject> {
         // Check this element
         if self.matches_selector(selector) {
-            // Return self - would need proper conversion
-            return None; // Placeholder
+            return Some(self_obj.clone());
         }
 
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            // Check if child matches
-            if let Some(true) = try_with_element_data(child, |child_data| {
-                child_data.matches_selector(selector)
-            }) {
-                return Some(child.clone());
-            }
-            // Search deeper
+            // Recurse into child (child checks itself first)
             if let Some(found) = try_with_element_data(child, |child_data| {
-                child_data.query_selector(selector)
+                child_data.query_selector(child, selector)
             }).flatten() {
                 return Some(found);
             }
@@ -1324,26 +1308,20 @@ impl ElementData {
     }
 
     /// Query all elements matching selector
-    pub fn query_selector_all(&self, selector: &str) -> Vec<JsObject> {
+    pub fn query_selector_all(&self, self_obj: &JsObject, selector: &str) -> Vec<JsObject> {
         let mut results = Vec::new();
 
         // Check this element
         if self.matches_selector(selector) {
-            // Would add self to results
+            results.push(self_obj.clone());
         }
 
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            // Check if child matches
-            if let Some(true) = try_with_element_data(child, |child_data| {
-                child_data.matches_selector(selector)
-            }) {
-                results.push(child.clone());
-            }
-            // Search deeper
+            // Recurse into child (child checks itself first)
             if let Some(deeper) = try_with_element_data(child, |child_data| {
-                child_data.query_selector_all(selector)
+                child_data.query_selector_all(child, selector)
             }) {
                 results.extend(deeper);
             }
