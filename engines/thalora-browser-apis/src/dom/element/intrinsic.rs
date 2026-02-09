@@ -96,6 +96,26 @@ impl IntrinsicObject for Element {
             .name(js_string!("get baseURI"))
             .build();
 
+        let owner_document_func = BuiltInBuilder::callable(realm, get_owner_document_element)
+            .name(js_string!("get ownerDocument"))
+            .build();
+
+        let node_value_get_func = BuiltInBuilder::callable(realm, get_node_value_element)
+            .name(js_string!("get nodeValue"))
+            .build();
+
+        let node_value_set_func = BuiltInBuilder::callable(realm, set_node_value_element)
+            .name(js_string!("set nodeValue"))
+            .build();
+
+        let local_name_func = BuiltInBuilder::callable(realm, get_local_name)
+            .name(js_string!("get localName"))
+            .build();
+
+        let prefix_func = BuiltInBuilder::callable(realm, get_prefix)
+            .name(js_string!("get prefix"))
+            .build();
+
         let first_child_func = BuiltInBuilder::callable(realm, get_first_child)
             .name(js_string!("get firstChild"))
             .build();
@@ -308,6 +328,30 @@ impl IntrinsicObject for Element {
                 Attribute::CONFIGURABLE,
             )
             .accessor(
+                js_string!("ownerDocument"),
+                Some(owner_document_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nodeValue"),
+                Some(node_value_get_func),
+                Some(node_value_set_func),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("localName"),
+                Some(local_name_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("prefix"),
+                Some(prefix_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
                 js_string!("firstChild"),
                 Some(first_child_func),
                 None,
@@ -492,6 +536,16 @@ impl IntrinsicObject for Element {
             .method(replace_child_js, js_string!("replaceChild"), 2)
             .method(clone_node, js_string!("cloneNode"), 1)
             .method(contains_js, js_string!("contains"), 1)
+            // Node.prototype method shadows (dispatch gap workaround)
+            .method(has_child_nodes_element, js_string!("hasChildNodes"), 0)
+            .method(normalize_element, js_string!("normalize"), 0)
+            .method(is_equal_node_element, js_string!("isEqualNode"), 1)
+            .method(is_same_node_element, js_string!("isSameNode"), 1)
+            .method(compare_document_position_element, js_string!("compareDocumentPosition"), 1)
+            .method(lookup_prefix_element, js_string!("lookupPrefix"), 1)
+            .method(lookup_namespace_uri_element, js_string!("lookupNamespaceURI"), 1)
+            .method(is_default_namespace_element, js_string!("isDefaultNamespace"), 1)
+            .method(get_root_node_element, js_string!("getRootNode"), 0)
             .method(closest_js, js_string!("closest"), 1)
             .method(matches_js, js_string!("matches"), 1)
             .method(get_bounding_client_rect_js, js_string!("getBoundingClientRect"), 0)

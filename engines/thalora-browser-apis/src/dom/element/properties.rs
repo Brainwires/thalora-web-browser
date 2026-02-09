@@ -560,6 +560,177 @@ pub(super) fn remove_attribute_ns(this: &JsValue, args: &[JsValue], context: &mu
     Ok(JsValue::undefined())
 }
 
+/// `Element.prototype.ownerDocument` getter
+/// Returns window.document from context globals — in a single-document browser,
+/// ownerDocument is always the same document object.
+pub(super) fn get_owner_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.ownerDocument called on non-object")
+    })?;
+
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.ownerDocument called on non-Element object")
+            .into());
+    }
+
+    let global = context.global_object();
+    global.get(js_string!("document"), context)
+}
+
+/// `Element.prototype.nodeValue` getter — per DOM spec, always null for Element nodes
+pub(super) fn get_node_value_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.nodeValue called on non-object")
+    })?;
+
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.nodeValue called on non-Element object")
+            .into());
+    }
+
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.nodeValue` setter — per DOM spec, no-op for Element nodes
+pub(super) fn set_node_value_element(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.localName` getter — lowercase tag name (part after ':' for namespaced)
+pub(super) fn get_local_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.localName called on non-object")
+    })?;
+
+    let tag = with_element_data(&this_obj, |el| el.get_tag_name(), "Element.prototype.localName called on non-Element object")?;
+    // localName is the part after ':' (or the whole name), always lowercase
+    let local = tag.rsplit_once(':').map(|(_, l)| l).unwrap_or(&tag);
+    Ok(JsString::from(local.to_lowercase()).into())
+}
+
+/// `Element.prototype.prefix` getter — null for HTML elements, prefix part for namespaced
+pub(super) fn get_prefix(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.prefix called on non-object")
+    })?;
+
+    let tag = with_element_data(&this_obj, |el| el.get_tag_name(), "Element.prototype.prefix called on non-Element object")?;
+    match tag.split_once(':') {
+        Some((prefix, _)) => Ok(JsString::from(prefix.to_lowercase()).into()),
+        None => Ok(JsValue::null()),
+    }
+}
+
+/// `Element.prototype.hasChildNodes()` — shadow of Node.prototype.hasChildNodes
+pub(super) fn has_child_nodes_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.hasChildNodes called on non-object")
+    })?;
+
+    let has = with_element_data(&this_obj, |el| {
+        !el.children.lock().unwrap().is_empty()
+    }, "Element.prototype.hasChildNodes called on non-Element object")?;
+    Ok(has.into())
+}
+
+/// `Element.prototype.normalize()` — shadow of Node.prototype.normalize (no-op for elements)
+pub(super) fn normalize_element(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.isEqualNode(other)` — shadow of Node.prototype.isEqualNode
+pub(super) fn is_equal_node_element(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("isEqualNode called on non-object")
+    })?;
+
+    let other = args.get_or_undefined(0);
+    if other.is_null() || other.is_undefined() {
+        return Ok(false.into());
+    }
+
+    if let Some(other_obj) = other.as_object() {
+        Ok(JsObject::equals(&this_obj, &other_obj).into())
+    } else {
+        Ok(false.into())
+    }
+}
+
+/// `Element.prototype.isSameNode(other)` — shadow of Node.prototype.isSameNode
+pub(super) fn is_same_node_element(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("isSameNode called on non-object")
+    })?;
+
+    let other = args.get_or_undefined(0);
+    if other.is_null() || other.is_undefined() {
+        return Ok(false.into());
+    }
+
+    if let Some(other_obj) = other.as_object() {
+        Ok(JsObject::equals(&this_obj, &other_obj).into())
+    } else {
+        Ok(false.into())
+    }
+}
+
+/// `Element.prototype.compareDocumentPosition(other)` — shadow of Node.prototype
+pub(super) fn compare_document_position_element(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    // Return DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC (32)
+    // A proper implementation would compute the actual tree relationship
+    Ok(32.into())
+}
+
+/// `Element.prototype.lookupPrefix(namespace)` — shadow of Node.prototype
+pub(super) fn lookup_prefix_element(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.lookupNamespaceURI(prefix)` — shadow of Node.prototype
+pub(super) fn lookup_namespace_uri_element(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let prefix = args.get_or_undefined(0);
+    if prefix.is_null() || prefix.is_undefined() {
+        // null prefix means default namespace — HTML elements are in XHTML namespace
+        return Ok(JsString::from("http://www.w3.org/1999/xhtml").into());
+    }
+    let prefix_str = prefix.to_string(context)?.to_std_string_escaped();
+    if prefix_str.is_empty() {
+        return Ok(JsString::from("http://www.w3.org/1999/xhtml").into());
+    }
+    // Non-null prefix on a standard HTML element — no match
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.isDefaultNamespace(namespace)` — shadow of Node.prototype
+pub(super) fn is_default_namespace_element(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let namespace = args.get_or_undefined(0);
+    if namespace.is_null() || namespace.is_undefined() {
+        return Ok(false.into());
+    }
+    let ns_str = namespace.to_string(context)?.to_std_string_escaped();
+    Ok((ns_str == "http://www.w3.org/1999/xhtml").into())
+}
+
+/// `Element.prototype.getRootNode(options?)` — walk parent chain to root
+pub(super) fn get_root_node_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("getRootNode called on non-object")
+    })?;
+
+    // Walk up parent chain to find root
+    let mut current = this_obj.clone();
+    loop {
+        let parent = with_element_data(&current, |el| el.get_parent_node(), "");
+        match parent {
+            Ok(Some(p)) => current = p,
+            _ => break,
+        }
+    }
+    Ok(current.into())
+}
+
 /// `Element.prototype.toggleAttribute(name, force?)`
 pub(super) fn toggle_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
