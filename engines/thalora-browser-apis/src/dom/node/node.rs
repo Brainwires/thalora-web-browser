@@ -1870,6 +1870,14 @@ impl Node {
     fn get_owner_document_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         NodeData::get_owner_document_accessor(this, args, context)
     }
+
+    fn get_base_uri_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        NodeData::get_base_uri_accessor(this, args, context)
+    }
+
+    fn get_is_connected_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        NodeData::get_is_connected_accessor(this, args, context)
+    }
 }
 
 impl IntrinsicObject for Node {
@@ -1907,6 +1915,12 @@ impl IntrinsicObject for Node {
             .build();
         let owner_document_get = BuiltInBuilder::callable(realm, Self::get_owner_document_accessor)
             .name(js_string!("get ownerDocument"))
+            .build();
+        let base_uri_get = BuiltInBuilder::callable(realm, Self::get_base_uri_accessor)
+            .name(js_string!("get baseURI"))
+            .build();
+        let is_connected_get = BuiltInBuilder::callable(realm, Self::get_is_connected_accessor)
+            .name(js_string!("get isConnected"))
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
@@ -1998,6 +2012,18 @@ impl IntrinsicObject for Node {
             .accessor(
                 js_string!("ownerDocument"),
                 Some(owner_document_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("baseURI"),
+                Some(base_uri_get),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("isConnected"),
+                Some(is_connected_get),
                 None,
                 Attribute::CONFIGURABLE,
             )

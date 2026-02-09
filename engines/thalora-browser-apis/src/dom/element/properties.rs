@@ -453,6 +453,113 @@ pub(super) fn get_attributes(this: &JsValue, _args: &[JsValue], context: &mut Co
     Ok(result.into())
 }
 
+/// `Element.prototype.namespaceURI` getter
+pub(super) fn get_namespace_uri_js(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.namespaceURI called on non-object")
+    })?;
+
+    let value = with_element_data(&this_obj, |el| el.get_namespace_uri(), "Element.prototype.namespaceURI called on non-Element object")?;
+    // Per spec, HTML elements default to "http://www.w3.org/1999/xhtml"
+    let uri = value.unwrap_or_else(|| "http://www.w3.org/1999/xhtml".to_string());
+    Ok(JsString::from(uri).into())
+}
+
+/// `Element.prototype.isConnected` getter (element-level override)
+pub(super) fn get_is_connected_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.isConnected called on non-object")
+    })?;
+
+    // Elements in the live DOM tree are always connected
+    let _connected = with_element_data(&this_obj, |_el| true, "Element.prototype.isConnected called on non-Element object")?;
+    Ok(JsValue::from(true))
+}
+
+/// `Element.prototype.baseURI` getter (element-level override)
+pub(super) fn get_base_uri_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.baseURI called on non-object")
+    })?;
+
+    if !has_element_data(&this_obj) {
+        return Err(JsNativeError::typ()
+            .with_message("Element.prototype.baseURI called on non-Element object")
+            .into());
+    }
+
+    // Return empty string — prevents crash without incorrect URL resolution
+    Ok(JsString::from("").into())
+}
+
+/// `Element.prototype.hasAttributes()`
+pub(super) fn has_attributes_js(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.hasAttributes called on non-object")
+    })?;
+
+    let result = with_element_data(&this_obj, |el| {
+        !el.attributes.lock().unwrap().is_empty()
+    }, "Element.prototype.hasAttributes called on non-Element object")?;
+    Ok(result.into())
+}
+
+/// `Element.prototype.getAttributeNS(namespace, localName)`
+pub(super) fn get_attribute_ns(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.getAttributeNS called on non-object")
+    })?;
+
+    // args[0] = namespace (ignored — no namespace support yet)
+    let local_name = args.get_or_undefined(1).to_string(context)?;
+    let local_name_str = local_name.to_std_string_escaped();
+
+    let value = with_element_data(&this_obj, |el| {
+        el.get_attribute(&local_name_str)
+    }, "Element.prototype.getAttributeNS called on non-Element object")?;
+
+    match value {
+        Some(v) => Ok(JsString::from(v).into()),
+        None => Ok(JsValue::null()),
+    }
+}
+
+/// `Element.prototype.setAttributeNS(namespace, qualifiedName, value)`
+pub(super) fn set_attribute_ns(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.setAttributeNS called on non-object")
+    })?;
+
+    // args[0] = namespace (ignored — no namespace support yet)
+    let qualified_name = args.get_or_undefined(1).to_string(context)?;
+    let value = args.get_or_undefined(2).to_string(context)?;
+    let name_str = qualified_name.to_std_string_escaped();
+    let value_str = value.to_std_string_escaped();
+
+    with_element_data(&this_obj, |el| {
+        el.set_attribute(name_str, value_str);
+    }, "Element.prototype.setAttributeNS called on non-Element object")?;
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.removeAttributeNS(namespace, localName)`
+pub(super) fn remove_attribute_ns(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.removeAttributeNS called on non-object")
+    })?;
+
+    // args[0] = namespace (ignored — no namespace support yet)
+    let local_name = args.get_or_undefined(1).to_string(context)?;
+    let local_name_str = local_name.to_std_string_escaped();
+
+    with_element_data(&this_obj, |el| {
+        el.remove_attribute(&local_name_str);
+    }, "Element.prototype.removeAttributeNS called on non-Element object")?;
+
+    Ok(JsValue::undefined())
+}
+
 /// `Element.prototype.toggleAttribute(name, force?)`
 pub(super) fn toggle_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {

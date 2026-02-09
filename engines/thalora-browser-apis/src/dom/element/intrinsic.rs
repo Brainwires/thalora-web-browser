@@ -84,6 +84,18 @@ impl IntrinsicObject for Element {
             .name(js_string!("get attributes"))
             .build();
 
+        let namespace_uri_func = BuiltInBuilder::callable(realm, get_namespace_uri_js)
+            .name(js_string!("get namespaceURI"))
+            .build();
+
+        let is_connected_func = BuiltInBuilder::callable(realm, get_is_connected_element)
+            .name(js_string!("get isConnected"))
+            .build();
+
+        let base_uri_func = BuiltInBuilder::callable(realm, get_base_uri_element)
+            .name(js_string!("get baseURI"))
+            .build();
+
         let first_child_func = BuiltInBuilder::callable(realm, get_first_child)
             .name(js_string!("get firstChild"))
             .build();
@@ -278,6 +290,24 @@ impl IntrinsicObject for Element {
                 Attribute::CONFIGURABLE,
             )
             .accessor(
+                js_string!("namespaceURI"),
+                Some(namespace_uri_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("isConnected"),
+                Some(is_connected_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("baseURI"),
+                Some(base_uri_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
                 js_string!("firstChild"),
                 Some(first_child_func),
                 None,
@@ -448,6 +478,10 @@ impl IntrinsicObject for Element {
             .method(remove_attribute_js, js_string!("removeAttribute"), 1)
             .method(get_attribute_names, js_string!("getAttributeNames"), 0)
             .method(toggle_attribute, js_string!("toggleAttribute"), 1)
+            .method(has_attributes_js, js_string!("hasAttributes"), 0)
+            .method(get_attribute_ns, js_string!("getAttributeNS"), 2)
+            .method(set_attribute_ns, js_string!("setAttributeNS"), 3)
+            .method(remove_attribute_ns, js_string!("removeAttributeNS"), 2)
             .method(insert_adjacent_html, js_string!("insertAdjacentHTML"), 2)
             .method(insert_adjacent_element, js_string!("insertAdjacentElement"), 2)
             .method(get_elements_by_class_name, js_string!("getElementsByClassName"), 1)
