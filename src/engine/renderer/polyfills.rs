@@ -6,7 +6,7 @@ pub fn setup_extended_polyfills(context: &mut Context) -> JsResult<()> {
         // Extended polyfills that are renderer-specific
 
         if (typeof window !== 'undefined') {
-            // V8-compatible URL constructor
+            // Chrome-compatible URL constructor
             if (typeof window.URL === 'undefined') {
                 window.URL = URL;
             }

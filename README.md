@@ -1,7 +1,5 @@
 # 🧠 Thalora - Full-Featured Pure Rust Web Browser
 
-**🚀 The most advanced headless web browser designed for AI agents**
-
 A cutting-edge **full-featured web browser** built entirely in Rust, designed specifically for AI model integration via the Model Context Protocol (MCP). Thalora provides complete Chrome 131 compatibility with real JavaScript execution, modern web APIs, and AI memory persistence - all without any Chrome or Chromium dependencies.
 
 ## 🌟 **What Makes Thalora Special?**

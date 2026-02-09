@@ -206,7 +206,7 @@ pedantic = { level = "warn", priority = -1 }
 name = "thalora"
 version = "0.1.0"
 edition = "2024"
-description = "Pure Rust headless browser for AI models - fast, secure web content extraction with MCP integration"
+description = "Headless web browser written entirely in Rust - fast, secure web content extraction with MCP integration"
 authors = ["Brainwires Team"]
 license = "MIT"
 repository = "https://github.com/brainwires/thalora"

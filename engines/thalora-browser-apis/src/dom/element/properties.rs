@@ -82,7 +82,7 @@ pub(super) fn get_inner_html(this: &JsValue, _args: &[JsValue], _context: &mut C
         JsNativeError::typ().with_message("Element.prototype.innerHTML called on non-object")
     })?;
 
-    let value = with_element_data(&this_obj, |el| el.get_inner_html(), "Element.prototype.innerHTML called on non-Element object")?;
+    let value = with_element_data(&this_obj, |el| el.serialize_inner_html(), "Element.prototype.innerHTML called on non-Element object")?;
     Ok(JsString::from(value).into())
 }
 

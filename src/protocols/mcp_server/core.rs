@@ -40,7 +40,7 @@ pub struct McpServer {
 impl McpServer {
     pub fn new() -> Self {
         // Default to Boa engine for backward compatibility
-        Self::new_with_engine(EngineConfig::new(false).unwrap_or(EngineConfig { engine_type: crate::engine::EngineType::Boa }))
+        Self::new_with_engine(EngineConfig::new())
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {

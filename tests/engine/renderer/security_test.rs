@@ -1,10 +1,9 @@
 use thalora::{HeadlessWebBrowser, RustRenderer};
-use thalora::engine::EngineType;
 
 /// Test safe JavaScript passes validation
 #[test]
 fn test_safe_javascript_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let safe_code = "const x = 5; console.log(x);";
     assert!(renderer.is_safe_javascript(safe_code));
@@ -13,7 +12,7 @@ fn test_safe_javascript_allowed() {
 /// Test basic arithmetic is allowed
 #[test]
 fn test_arithmetic_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "2 + 2";
     assert!(renderer.is_safe_javascript(code));
@@ -22,25 +21,25 @@ fn test_arithmetic_allowed() {
 /// Test DOM manipulation is allowed
 #[test]
 fn test_dom_manipulation_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "document.getElementById('test').textContent = 'Hello';";
     assert!(renderer.is_safe_javascript(code));
 }
 
-/// Test eval is allowed (V8 compliant)
+/// Test eval is allowed (standard compliant)
 #[test]
 fn test_eval_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "eval('2 + 2')";
     assert!(renderer.is_safe_javascript(code));
 }
 
-/// Test Function constructor is allowed (V8 compliant)
+/// Test Function constructor is allowed (standard compliant)
 #[test]
 fn test_function_constructor_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "new Function('return 2 + 2')()";
     assert!(renderer.is_safe_javascript(code));
@@ -49,7 +48,7 @@ fn test_function_constructor_allowed() {
 /// Test process.exit is blocked
 #[test]
 fn test_process_exit_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "process.exit(1);";
     assert!(!renderer.is_safe_javascript(code));
@@ -58,7 +57,7 @@ fn test_process_exit_blocked() {
 /// Test process.abort is blocked
 #[test]
 fn test_process_abort_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "process.abort();";
     assert!(!renderer.is_safe_javascript(code));
@@ -67,7 +66,7 @@ fn test_process_abort_blocked() {
 /// Test process.kill is blocked
 #[test]
 fn test_process_kill_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "process.kill(process.pid);";
     assert!(!renderer.is_safe_javascript(code));
@@ -76,7 +75,7 @@ fn test_process_kill_blocked() {
 /// Test fs module require is blocked
 #[test]
 fn test_fs_require_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "require('fs')";
     assert!(!renderer.is_safe_javascript(code));
@@ -88,7 +87,7 @@ fn test_fs_require_blocked() {
 /// Test child_process module require is blocked
 #[test]
 fn test_child_process_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "require('child_process')";
     assert!(!renderer.is_safe_javascript(code));
@@ -100,7 +99,7 @@ fn test_child_process_blocked() {
 /// Test os module require is blocked
 #[test]
 fn test_os_module_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "require('os')";
     assert!(!renderer.is_safe_javascript(code));
@@ -112,7 +111,7 @@ fn test_os_module_blocked() {
 /// Test __dirname is blocked
 #[test]
 fn test_dirname_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "console.log(__dirname);";
     assert!(!renderer.is_safe_javascript(code));
@@ -121,7 +120,7 @@ fn test_dirname_blocked() {
 /// Test __filename is blocked
 #[test]
 fn test_filename_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "console.log(__filename);";
     assert!(!renderer.is_safe_javascript(code));
@@ -130,7 +129,7 @@ fn test_filename_blocked() {
 /// Test global.process is blocked
 #[test]
 fn test_global_process_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "global.process.exit();";
     assert!(!renderer.is_safe_javascript(code));
@@ -139,7 +138,7 @@ fn test_global_process_blocked() {
 /// Test Buffer.allocUnsafe is blocked
 #[test]
 fn test_buffer_alloc_unsafe_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "Buffer.allocUnsafe(1000);";
     assert!(!renderer.is_safe_javascript(code));
@@ -148,7 +147,7 @@ fn test_buffer_alloc_unsafe_blocked() {
 /// Test constructor.constructor is blocked
 #[test]
 fn test_constructor_constructor_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "({}).constructor.constructor('return process')();";
     assert!(!renderer.is_safe_javascript(code));
@@ -157,7 +156,7 @@ fn test_constructor_constructor_blocked() {
 /// Test very large code is blocked (>10MB)
 #[test]
 fn test_large_code_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let large_code = "x".repeat(10_000_001);
     assert!(!renderer.is_safe_javascript(&large_code));
@@ -166,7 +165,7 @@ fn test_large_code_blocked() {
 /// Test code at size limit is allowed (exactly 10MB)
 #[test]
 fn test_code_at_size_limit_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code_at_limit = "x".repeat(10_000_000);
     assert!(renderer.is_safe_javascript(&code_at_limit));
@@ -175,7 +174,7 @@ fn test_code_at_size_limit_allowed() {
 /// Test empty code is allowed
 #[test]
 fn test_empty_code_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "";
     assert!(renderer.is_safe_javascript(code));
@@ -184,7 +183,7 @@ fn test_empty_code_allowed() {
 /// Test whitespace-only code is allowed
 #[test]
 fn test_whitespace_code_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "   \n\t  ";
     assert!(renderer.is_safe_javascript(code));
@@ -193,7 +192,7 @@ fn test_whitespace_code_allowed() {
 /// Test comments-only code is allowed
 #[test]
 fn test_comments_only_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "// This is a comment\n/* Block comment */";
     assert!(renderer.is_safe_javascript(code));
@@ -202,7 +201,7 @@ fn test_comments_only_allowed() {
 /// Test async/await is allowed
 #[test]
 fn test_async_await_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "async function test() { await Promise.resolve(42); }";
     assert!(renderer.is_safe_javascript(code));
@@ -211,7 +210,7 @@ fn test_async_await_allowed() {
 /// Test fetch API is allowed
 #[test]
 fn test_fetch_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "fetch('https://api.example.com/data')";
     assert!(renderer.is_safe_javascript(code));
@@ -220,7 +219,7 @@ fn test_fetch_allowed() {
 /// Test localStorage is allowed
 #[test]
 fn test_localstorage_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "localStorage.setItem('key', 'value');";
     assert!(renderer.is_safe_javascript(code));
@@ -229,7 +228,7 @@ fn test_localstorage_allowed() {
 /// Test WebSocket is allowed
 #[test]
 fn test_websocket_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "new WebSocket('ws://localhost:8080');";
     assert!(renderer.is_safe_javascript(code));
@@ -238,7 +237,7 @@ fn test_websocket_allowed() {
 /// Test setTimeout is allowed
 #[test]
 fn test_settimeout_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "setTimeout(() => console.log('test'), 1000);";
     assert!(renderer.is_safe_javascript(code));
@@ -247,7 +246,7 @@ fn test_settimeout_allowed() {
 /// Test setInterval is allowed
 #[test]
 fn test_setinterval_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "setInterval(() => console.log('test'), 1000);";
     assert!(renderer.is_safe_javascript(code));
@@ -256,7 +255,7 @@ fn test_setinterval_allowed() {
 /// Test XMLHttpRequest is allowed
 #[test]
 fn test_xmlhttprequest_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "const xhr = new XMLHttpRequest();";
     assert!(renderer.is_safe_javascript(code));
@@ -265,7 +264,7 @@ fn test_xmlhttprequest_allowed() {
 /// Test complex nested code is allowed
 #[test]
 fn test_complex_nested_code_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         function complexFunction() {
@@ -285,7 +284,7 @@ fn test_complex_nested_code_allowed() {
 /// Test ES6 features are allowed
 #[test]
 fn test_es6_features_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const arrow = () => {};
@@ -300,7 +299,7 @@ fn test_es6_features_allowed() {
 /// Test dangerous code embedded in strings is blocked
 #[test]
 fn test_dangerous_in_string_blocked() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"const cmd = "process.exit(1)";"#;
     assert!(!renderer.is_safe_javascript(code));
@@ -309,7 +308,7 @@ fn test_dangerous_in_string_blocked() {
 /// Test multiple dangerous patterns
 #[test]
 fn test_multiple_dangerous_patterns() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "require('fs'); process.exit(1);";
     assert!(!renderer.is_safe_javascript(code));
@@ -318,7 +317,7 @@ fn test_multiple_dangerous_patterns() {
 /// Test case sensitivity in dangerous patterns
 #[test]
 fn test_case_sensitivity() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     // Exact match required
     let code = "Process.Exit(1);"; // Capital P and E
@@ -328,7 +327,7 @@ fn test_case_sensitivity() {
 /// Test dangerous pattern at start of code
 #[test]
 fn test_dangerous_pattern_at_start() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "process.exit(0);";
     assert!(!renderer.is_safe_javascript(code));
@@ -337,7 +336,7 @@ fn test_dangerous_pattern_at_start() {
 /// Test dangerous pattern at end of code
 #[test]
 fn test_dangerous_pattern_at_end() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "const x = 5; process.exit(x);";
     assert!(!renderer.is_safe_javascript(code));
@@ -346,7 +345,7 @@ fn test_dangerous_pattern_at_end() {
 /// Test dangerous pattern in middle of code
 #[test]
 fn test_dangerous_pattern_in_middle() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "const x = 5; process.exit(x); const y = 10;";
     assert!(!renderer.is_safe_javascript(code));
@@ -355,7 +354,7 @@ fn test_dangerous_pattern_in_middle() {
 /// Test regex patterns are allowed
 #[test]
 fn test_regex_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "const pattern = /test/gi;";
     assert!(renderer.is_safe_javascript(code));
@@ -364,7 +363,7 @@ fn test_regex_allowed() {
 /// Test JSON operations are allowed
 #[test]
 fn test_json_operations_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const obj = {key: "value"};
@@ -377,7 +376,7 @@ fn test_json_operations_allowed() {
 /// Test array operations are allowed
 #[test]
 fn test_array_operations_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const arr = [1, 2, 3];
@@ -391,7 +390,7 @@ fn test_array_operations_allowed() {
 /// Test Promise operations are allowed
 #[test]
 fn test_promise_operations_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const promise = new Promise((resolve, reject) => {
@@ -405,7 +404,7 @@ fn test_promise_operations_allowed() {
 /// Test Symbol is allowed
 #[test]
 fn test_symbol_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "const sym = Symbol('test');";
     assert!(renderer.is_safe_javascript(code));
@@ -414,7 +413,7 @@ fn test_symbol_allowed() {
 /// Test Proxy is allowed
 #[test]
 fn test_proxy_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const handler = {
@@ -428,7 +427,7 @@ fn test_proxy_allowed() {
 /// Test Reflect is allowed
 #[test]
 fn test_reflect_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = "Reflect.get({x: 1}, 'x');";
     assert!(renderer.is_safe_javascript(code));
@@ -437,7 +436,7 @@ fn test_reflect_allowed() {
 /// Test Generator functions are allowed
 #[test]
 fn test_generator_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         function* generator() {
@@ -452,7 +451,7 @@ fn test_generator_allowed() {
 /// Test try-catch is allowed
 #[test]
 fn test_try_catch_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         try {
@@ -469,7 +468,7 @@ fn test_try_catch_allowed() {
 /// Test weak collections are allowed
 #[test]
 fn test_weak_collections_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const weakMap = new WeakMap();
@@ -481,7 +480,7 @@ fn test_weak_collections_allowed() {
 /// Test typed arrays are allowed
 #[test]
 fn test_typed_arrays_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const buffer = new ArrayBuffer(16);
@@ -494,7 +493,7 @@ fn test_typed_arrays_allowed() {
 /// Test Map and Set are allowed
 #[test]
 fn test_map_set_allowed() {
-    let renderer = RustRenderer::new_with_engine(EngineType::Boa);
+    let renderer = RustRenderer::new();
 
     let code = r#"
         const map = new Map();

@@ -347,7 +347,10 @@ impl super::super::HeadlessWebBrowser {
             // - Promise chains for router transitions
             // - Timer callbacks for deferred rendering
             // The polling loop gives async HTTP requests time to complete.
-            let _ = self.run_pending_jobs(Duration::from_secs(8)).await;
+            let pending_timeout = self.pending_jobs_timeout_ms
+                .map(|ms| Duration::from_millis(ms))
+                .unwrap_or_else(|| Duration::from_secs(8));
+            let _ = self.run_pending_jobs(pending_timeout).await;
 
             // Capture the live DOM — all scripts have run, frameworks have rendered
             match self.execute_javascript("(function(){ try { return document.documentElement.outerHTML; } catch(e) { return ''; } })()").await {
@@ -400,12 +403,16 @@ impl super::super::HeadlessWebBrowser {
             // Check for async/defer attributes
             let is_async = script_element.value().attr("async").is_some();
             let is_defer = script_element.value().attr("defer").is_some();
+            let is_module = script_type == "module";
+
+            // Per HTML spec: module scripts are implicitly deferred (unless async)
+            let effectively_deferred = is_defer || (is_module && !is_async);
 
             // Filter based on what we're executing in this pass
-            if only_deferred && !is_defer {
+            if only_deferred && !effectively_deferred {
                 continue;
             }
-            if !only_deferred && is_defer {
+            if !only_deferred && effectively_deferred {
                 continue;
             }
 
@@ -437,17 +444,24 @@ impl super::super::HeadlessWebBrowser {
 
                         if let Some(ref mut renderer) = self.renderer {
                             let _ = renderer.register_script(script_entry.clone());
-                            let _ = renderer.set_current_script(&script_entry);
+                            // Per HTML spec, document.currentScript is null during module execution
+                            if !is_module {
+                                let _ = renderer.set_current_script(&script_entry);
+                            }
                         }
 
-                        // Page scripts from <script> tags are the website's own code —
-                        // they must run without security validation for the page to
-                        // function correctly. Security validation only applies to
-                        // user-provided JS via MCP tools.
-                        let exec_result = self.execute_javascript_trusted(&script_content).await;
+                        // Route module scripts through the module evaluator (Module::parse + load_link_evaluate)
+                        // and classic scripts through the trusted evaluator (ctx.eval)
+                        let exec_result = if is_module {
+                            self.execute_module_script(&script_content, Some(&script_url)).await
+                        } else {
+                            self.execute_javascript_trusted(&script_content).await
+                        };
 
                         if let Some(ref mut renderer) = self.renderer {
-                            let _ = renderer.clear_current_script();
+                            if !is_module {
+                                let _ = renderer.clear_current_script();
+                            }
                         }
 
                         match exec_result {
@@ -489,13 +503,24 @@ impl super::super::HeadlessWebBrowser {
 
                 if let Some(ref mut renderer) = self.renderer {
                     let _ = renderer.register_script(script_entry.clone());
-                    let _ = renderer.set_current_script(&script_entry);
+                    // Per HTML spec, document.currentScript is null during module execution
+                    if !is_module {
+                        let _ = renderer.set_current_script(&script_entry);
+                    }
                 }
 
-                let exec_result = self.execute_javascript_trusted(&script_content).await;
+                // Route module scripts through the module evaluator
+                let exec_result = if is_module {
+                    // Inline modules use the page URL as their module URL
+                    self.execute_module_script(&script_content, Some(&base_url)).await
+                } else {
+                    self.execute_javascript_trusted(&script_content).await
+                };
 
                 if let Some(ref mut renderer) = self.renderer {
-                    let _ = renderer.clear_current_script();
+                    if !is_module {
+                        let _ = renderer.clear_current_script();
+                    }
                 }
 
                 match exec_result {

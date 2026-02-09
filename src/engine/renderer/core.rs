@@ -1,10 +1,9 @@
 use anyhow::Result;
-use thalora_browser_apis::boa_engine::{Context, module::IdleModuleLoader};
+use thalora_browser_apis::boa_engine::Context;
 use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use std::collections::HashMap;
 use crate::apis::WebApis;
-use crate::engine::engine_trait::EngineType;
 use super::layout_integration::{LayoutIntegration, ElementLayoutInfo};
 // events API is now natively implemented in Boa engine
 // WebAssembly is now natively implemented in Boa engine
@@ -12,8 +11,6 @@ use super::layout_integration::{LayoutIntegration, ElementLayoutInfo};
 #[allow(dead_code)]
 pub struct RustRenderer {
     pub(super) js_context: Option<Context>,
-    pub(super) v8_engine: Option<Box<dyn crate::engine::engine_trait::ThaloraBrowserEngine>>,
-    pub(super) engine_type: EngineType,
     pub(super) web_apis: WebApis,
     pub(super) history_initialized: bool,
     // event manager is now handled by Boa engine
@@ -31,67 +28,43 @@ pub struct RustRenderer {
 
 impl RustRenderer {
     pub fn new() -> Self {
-        Self::new_with_engine(EngineType::Boa)
-    }
+        let module_loader = Rc::new(
+            thalora_browser_apis::http_module_loader::HttpModuleLoader::new("about:blank")
+        );
+        let mut context = Context::builder()
+            .module_loader(module_loader)
+            .build()
+            .expect("failed to build JS context");
 
-    pub fn new_with_engine(engine_type: EngineType) -> Self {
-        match engine_type {
-            EngineType::Boa => {
-                let mut context = Context::builder()
-                    .module_loader(Rc::new(IdleModuleLoader))
-                    .build()
-                    .expect("failed to build JS context");
+        let web_apis = WebApis::new();
 
-                let web_apis = WebApis::new();
+        // CRITICAL: Initialize browser APIs from Boa engine FIRST
+        // This registers all the intrinsics (Document, Window, Navigator, etc.)
+        // and creates global instances. This replaces setup_native_dom_globals()
+        // which was causing duplicate registrations.
+        thalora_browser_apis::initialize_browser_apis(&mut context).unwrap();
 
-                // CRITICAL: Initialize browser APIs from Boa engine FIRST
-                // This registers all the intrinsics (Document, Window, Navigator, etc.)
-                // and creates global instances. This replaces setup_native_dom_globals()
-                // which was causing duplicate registrations.
-                thalora_browser_apis::initialize_browser_apis(&mut context).unwrap();
+        // Setup polyfills (now excludes DOM globals which are native)
+        crate::apis::polyfills::setup_all_polyfills(&mut context).unwrap();
 
-                // Setup polyfills (now excludes DOM globals which are native)
-                crate::apis::polyfills::setup_all_polyfills(&mut context).unwrap();
+        // Setup dynamic script execution hooks
+        // This must be called AFTER DOM is initialized so Node/Element prototypes exist
+        crate::apis::polyfills::setup_dynamic_script_hooks(&mut context).unwrap();
 
-                // Setup dynamic script execution hooks
-                // This must be called AFTER DOM is initialized so Node/Element prototypes exist
-                crate::apis::polyfills::setup_dynamic_script_hooks(&mut context).unwrap();
+        // Setup Web APIs polyfills (requires window and console to be defined)
+        web_apis.setup_all_apis(&mut context).unwrap();
 
-                // Setup Web APIs polyfills (requires window and console to be defined)
-                web_apis.setup_all_apis(&mut context).unwrap();
+        // NOTE: setup_native_dom_globals() is NOT called here anymore because
+        // initialize_browser_apis() already creates all the global instances.
+        // Calling both would cause duplicate property registrations and assertion failures.
 
-                // NOTE: setup_native_dom_globals() is NOT called here anymore because
-                // initialize_browser_apis() already creates all the global instances.
-                // Calling both would cause duplicate property registrations and assertion failures.
-
-                Self {
-                    js_context: Some(context),
-                    v8_engine: None,
-                    engine_type: EngineType::Boa,
-                    web_apis,
-                    history_initialized: false,
-                    in_update: false,
-                    layout_integration: LayoutIntegration::new(),
-                    layout_cache: HashMap::new(),
-                }
-            }
-            EngineType::V8 => {
-                let v8_engine = crate::engine::engine_trait::EngineFactory::create_engine(EngineType::V8)
-                    .expect("Failed to create V8 engine");
-
-                let web_apis = WebApis::new();
-
-                Self {
-                    js_context: None,
-                    v8_engine: Some(v8_engine),
-                    engine_type: EngineType::V8,
-                    web_apis,
-                    history_initialized: false,
-                    in_update: false,
-                    layout_integration: LayoutIntegration::new(),
-                    layout_cache: HashMap::new(),
-                }
-            }
+        Self {
+            js_context: Some(context),
+            web_apis,
+            history_initialized: false,
+            in_update: false,
+            layout_integration: LayoutIntegration::new(),
+            layout_cache: HashMap::new(),
         }
     }
 
@@ -123,25 +96,14 @@ impl RustRenderer {
 
     /// Evaluate JavaScript code and return the result as JSON Value
     pub fn eval_js_json(&mut self, source: &str) -> Result<serde_json::Value> {
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    let result = ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(source))
-                        .map_err(|e| anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e)))?;
+        if let Some(ctx) = &mut self.js_context {
+            let result = ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(source))
+                .map_err(|e| anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e)))?;
 
-                    // Convert Boa JsValue to JSON
-                    self.boa_value_to_json(result)
-                } else {
-                    Err(anyhow::Error::msg("Boa context not available"))
-                }
-            }
-            EngineType::V8 => {
-                if let Some(engine) = &mut self.v8_engine {
-                    engine.execute(source)
-                } else {
-                    Err(anyhow::Error::msg("V8 engine not available"))
-                }
-            }
+            // Convert Boa JsValue to JSON
+            self.boa_value_to_json(result)
+        } else {
+            Err(anyhow::Error::msg("Boa context not available"))
         }
     }
 
@@ -220,25 +182,17 @@ impl RustRenderer {
             }
         }
 
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    // Get the global document object
-                    let global = ctx.global_object().clone();
-                    if let Ok(document_value) = global.get(js_string!("document"), ctx) {
-                        if let Some(document_obj) = document_value.as_object() {
-                            // Check if this is a Document object with our DocumentData
-                            if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
-                                document_data.set_html_content(html_content);
-                                document_data.set_ready_state("complete");
-                            }
-                        }
+        if let Some(ctx) = &mut self.js_context {
+            // Get the global document object
+            let global = ctx.global_object().clone();
+            if let Ok(document_value) = global.get(js_string!("document"), ctx) {
+                if let Some(document_obj) = document_value.as_object() {
+                    // Check if this is a Document object with our DocumentData
+                    if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
+                        document_data.set_html_content(html_content);
+                        document_data.set_ready_state("complete");
                     }
                 }
-            }
-            EngineType::V8 => {
-                // V8 DOM handling - for now, just acknowledge the HTML content
-                // TODO: Implement V8 DOM manipulation
             }
         }
 
@@ -247,33 +201,41 @@ impl RustRenderer {
         Ok(())
     }
 
+    /// Update the module loader's base URL so relative import specifiers
+    /// resolve against the current page URL.
+    fn set_module_loader_base_url(&mut self, url: &str) {
+        if let Some(ctx) = &self.js_context {
+            if let Some(loader) = ctx.downcast_module_loader::<thalora_browser_apis::http_module_loader::HttpModuleLoader>() {
+                loader.set_base_url(url);
+            }
+        }
+    }
+
     /// Set the current page URL on the window object so window.location.href
     /// returns the correct URL. Must be called before executing any page scripts.
     pub fn set_page_url(&mut self, url: &str) -> Result<()> {
         use thalora_browser_apis::boa_engine::js_string;
 
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    let global = ctx.global_object().clone();
+        // Update the module loader's base URL for import resolution
+        self.set_module_loader_base_url(url);
 
-                    // Update WindowData.current_url if available
-                    if let Some(window_data) = global.downcast_ref::<thalora_browser_apis::browser::window::WindowData>() {
-                        window_data.set_current_url(url.to_string());
-                    }
+        if let Some(ctx) = &mut self.js_context {
+            let global = ctx.global_object().clone();
 
-                    // Update LocationData.href directly via the native data
-                    // This ensures location.href getter returns the correct URL
-                    if let Ok(location_val) = global.get(js_string!("location"), ctx) {
-                        if let Some(location_obj) = location_val.as_object() {
-                            if let Some(location_data) = location_obj.downcast_ref::<thalora_browser_apis::browser::location::LocationData>() {
-                                location_data.set_href(url);
-                            }
-                        }
+            // Update WindowData.current_url if available
+            if let Some(window_data) = global.downcast_ref::<thalora_browser_apis::browser::window::WindowData>() {
+                window_data.set_current_url(url.to_string());
+            }
+
+            // Update LocationData.href directly via the native data
+            // This ensures location.href getter returns the correct URL
+            if let Ok(location_val) = global.get(js_string!("location"), ctx) {
+                if let Some(location_obj) = location_val.as_object() {
+                    if let Some(location_data) = location_obj.downcast_ref::<thalora_browser_apis::browser::location::LocationData>() {
+                        location_data.set_href(url);
                     }
                 }
             }
-            EngineType::V8 => {}
         }
 
         Ok(())
@@ -284,21 +246,14 @@ impl RustRenderer {
     pub fn register_script(&mut self, entry: thalora_browser_apis::dom::document::ScriptEntry) -> Result<()> {
         use thalora_browser_apis::boa_engine::js_string;
 
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    let global = ctx.global_object().clone();
-                    if let Ok(document_value) = global.get(js_string!("document"), ctx) {
-                        if let Some(document_obj) = document_value.as_object() {
-                            if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
-                                document_data.register_script(entry);
-                            }
-                        }
+        if let Some(ctx) = &mut self.js_context {
+            let global = ctx.global_object().clone();
+            if let Ok(document_value) = global.get(js_string!("document"), ctx) {
+                if let Some(document_obj) = document_value.as_object() {
+                    if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
+                        document_data.register_script(entry);
                     }
                 }
-            }
-            EngineType::V8 => {
-                // TODO: Implement V8 script registration
             }
         }
 
@@ -310,42 +265,35 @@ impl RustRenderer {
     pub fn set_current_script(&mut self, entry: &thalora_browser_apis::dom::document::ScriptEntry) -> Result<()> {
         use thalora_browser_apis::boa_engine::js_string;
 
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    // Create an HTMLScriptElement for the current script
-                    let script_constructor = ctx.intrinsics().constructors().html_script_element().constructor();
-                    if let Ok(script_obj) = script_constructor.construct(&[], None, ctx) {
-                        // Set all the script attributes
-                        if let Some(script_data) = script_obj.downcast_ref::<thalora_browser_apis::dom::html_script_element::HTMLScriptElementData>() {
-                            if let Some(ref src) = entry.src {
-                                script_data.set_src(src.clone());
-                            }
-                            if let Some(ref type_) = entry.script_type {
-                                script_data.set_type(type_.clone());
-                            }
-                            script_data.set_async(entry.async_);
-                            script_data.set_defer(entry.defer);
-                            script_data.set_text(entry.text.clone());
+        if let Some(ctx) = &mut self.js_context {
+            // Create an HTMLScriptElement for the current script
+            let script_constructor = ctx.intrinsics().constructors().html_script_element().constructor();
+            if let Ok(script_obj) = script_constructor.construct(&[], None, ctx) {
+                // Set all the script attributes
+                if let Some(script_data) = script_obj.downcast_ref::<thalora_browser_apis::dom::html_script_element::HTMLScriptElementData>() {
+                    if let Some(ref src) = entry.src {
+                        script_data.set_src(src.clone());
+                    }
+                    if let Some(ref type_) = entry.script_type {
+                        script_data.set_type(type_.clone());
+                    }
+                    script_data.set_async(entry.async_);
+                    script_data.set_defer(entry.defer);
+                    script_data.set_text(entry.text.clone());
 
-                            // Set all custom attributes (including data-* attributes)
-                            for (key, value) in &entry.attributes {
-                                script_data.set_attribute(key, value.clone());
-                            }
-                        }
-
-                        // Set __currentScript__ on global object
-                        let global = ctx.global_object().clone();
-                        let script_value: thalora_browser_apis::boa_engine::JsValue = script_obj.into();
-                        if let Err(e) = global.set(js_string!("__currentScript__"), script_value, false, ctx) {
-                            return Err(anyhow::anyhow!("Failed to set __currentScript__: {:?}", e));
-                        }
-                        eprintln!("🔍 DEBUG: Set __currentScript__ for src={:?}", entry.src);
+                    // Set all custom attributes (including data-* attributes)
+                    for (key, value) in &entry.attributes {
+                        script_data.set_attribute(key, value.clone());
                     }
                 }
-            }
-            EngineType::V8 => {
-                // TODO: Implement V8 currentScript
+
+                // Set __currentScript__ on global object
+                let global = ctx.global_object().clone();
+                let script_value: thalora_browser_apis::boa_engine::JsValue = script_obj.into();
+                if let Err(e) = global.set(js_string!("__currentScript__"), script_value, false, ctx) {
+                    return Err(anyhow::anyhow!("Failed to set __currentScript__: {:?}", e));
+                }
+                eprintln!("🔍 DEBUG: Set __currentScript__ for src={:?}", entry.src);
             }
         }
 
@@ -356,17 +304,10 @@ impl RustRenderer {
     pub fn clear_current_script(&mut self) -> Result<()> {
         use thalora_browser_apis::boa_engine::{js_string, JsValue};
 
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    let global = ctx.global_object().clone();
-                    if let Err(e) = global.set(js_string!("__currentScript__"), JsValue::null(), false, ctx) {
-                        return Err(anyhow::anyhow!("Failed to clear __currentScript__: {:?}", e));
-                    }
-                }
-            }
-            EngineType::V8 => {
-                // TODO: Implement V8 currentScript
+        if let Some(ctx) = &mut self.js_context {
+            let global = ctx.global_object().clone();
+            if let Err(e) = global.set(js_string!("__currentScript__"), JsValue::null(), false, ctx) {
+                return Err(anyhow::anyhow!("Failed to clear __currentScript__: {:?}", e));
             }
         }
 

@@ -1,0 +1,95 @@
+[2m2026-02-09T02:04:20.244144Z[0m [32m INFO[0m [2mthalora[0m[2m:[0m Using boa JavaScript engine
+🚀 Starting Thalora MCP Server in 'minimal' mode
+[2m2026-02-09T02:04:20.244259Z[0m [32m INFO[0m [2mthalora::protocols::mcp_server::core[0m[2m:[0m AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage
+[2m2026-02-09T02:04:20.245182Z[0m [32m INFO[0m [2mthalora::protocols::mcp_server::core[0m[2m:[0m Handling request: CallTool { params: ToolCall { name: "scrape", arguments: Object {"extract_readable": Bool(true), "extract_structured": Bool(true), "url": String("https://swiftpackageindex.com/clerk/clerk-ios/main/documentation/clerk"), "wait_for_js": Bool(true)} } }
+🔍 DEBUG: call_tool - Tool: scrape, Arguments: {"extract_readable":true,"extract_structured":true,"url":"https://swiftpackageindex.com/clerk/clerk-ios/main/documentation/clerk","wait_for_js":true}
+🔧 Starting tool execution: scrape
+🔍 SCRAPE: Starting navigation to URL: https://swiftpackageindex.com/clerk/clerk-ios/main/documentation/clerk
+🔍 SCRAPE: Creating temporary browser
+📋 WINDOW_REGISTRY: Registered top-level window with ID 1
+📋 BROWSER_INIT: Registered top-level window with ID 1
+DEBUG: Setting lock_manager on Navigator data structure
+DEBUG: After setting navigator.storage, get('storage') = JsValue(Object(("boa_engine::object::jsobject::ErasedObjectData") 0x6123F0603978))
+🔍 SCRAPE: Browser created
+🔍 SCRAPE: Acquiring browser lock for navigation
+🔍 SCRAPE: Browser lock acquired
+🔍 SCRAPE: Calling navigate_to_with_timeout (wait_timeout=5000ms)
+🔍 DEBUG: PageSwap event dispatch result: function() {
+                    try {
+                        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+                            // Create pageswap event
+                            var event = new PageSwapEvent('pageswap', {
+                                bubbles: false,
+                                cancelable: false,
+                                activation: arguments[0] || null,
+                                viewTransition: null
+                            });
+
+                            // Dispatch event on window
+                            window.dispatchEvent(event);
+                            return 'success';
+                        } else {
+                            return 'window.dispatchEvent not available';
+                        }
+                    } catch(e) {
+                        return 'error: ' + e.message;
+                    }
+                }
+🔍 DEBUG: Computed layout for 27 elements
+🔍 DEBUG: process_forms_in_html called with 5560 characters of HTML
+🔍 DEBUG: Found 0 forms in HTML
+🔍 DEBUG: Set __currentScript__ for src=None
+🔍 DEBUG: Set __currentScript__ for src=None
+🔍 DEBUG: Set __currentScript__ for src=None
+DEBUG: Element constructor called!
+DEBUG: dispatchEvent found on element: "function"
+DEBUG: Element constructor called!
+DEBUG: dispatchEvent found on element: "function"
+🔲 IFRAME: Initializing iframe context...
+🔲 IFRAME: Parent window ID: Some(1)
+🔲 IFRAME: Iframe origin: about:blank
+🔲 IFRAME: Created iframe document
+🔍 DEBUG: process_forms_in_html called with 54 characters of HTML
+🔍 DEBUG: Found 0 forms in HTML
+🔲 IFRAME: Initialized iframe document with basic HTML structure
+🔲 IFRAME: iframe document.createElement = Object
+🔲 IFRAME: Created iframe window
+📋 WINDOW_REGISTRY: Registered iframe window with ID 2 (parent: 1)
+🔲 IFRAME: Registered iframe in window registry with ID 2
+🔲 IFRAME: Set window_id 2, parent_window, and frame_element in WindowData
+🔲 IFRAME: Linked window.document to iframe document
+🔲 IFRAME: Context stored in iframe data
+DEBUG: Element constructor called!
+DEBUG: dispatchEvent found on element: "function"
+DEBUG: Executing inline script (217 chars)
+DEBUG: Element constructor called!
+DEBUG: dispatchEvent found on element: "function"
+DEBUG: Executing external script from: /cdn-cgi/challenge-platform/scripts/jsd/main.js
+DEBUG: Fetching external script: /cdn-cgi/challenge-platform/scripts/jsd/main.js
+DEBUG: Resolved relative script URL '/cdn-cgi/challenge-platform/scripts/jsd/main.js' -> 'https://swiftpackageindex.com/cdn-cgi/challenge-platform/scripts/jsd/main.js'
+DEBUG: Fetched 22176 bytes of script content
+DEBUG: Element constructor called!
+DEBUG: dispatchEvent found on element: "function"
+🔲 IFRAME: Initializing iframe context...
+🔲 IFRAME: Parent window ID: Some(1)
+🔲 IFRAME: Iframe origin: about:blank
+🔲 IFRAME: Created iframe document
+🔍 DEBUG: process_forms_in_html called with 54 characters of HTML
+🔍 DEBUG: Found 0 forms in HTML
+🔲 IFRAME: Initialized iframe document with basic HTML structure
+🔲 IFRAME: iframe document.createElement = Object
+🔲 IFRAME: Created iframe window
+📋 WINDOW_REGISTRY: Registered iframe window with ID 3 (parent: 1)
+🔲 IFRAME: Registered iframe in window registry with ID 3
+🔲 IFRAME: Set window_id 3, parent_window, and frame_element in WindowData
+🔲 IFRAME: Linked window.document to iframe document
+🔲 IFRAME: Context stored in iframe data
+╔══════════════════════════════════════════════════════════════╗
+║                    🚨 PANIC CAUGHT 🚨                        ║
+╠══════════════════════════════════════════════════════════════╣
+║ Location: library/std/src/io/stdio.rs:1165:9
+║ Message: failed printing to stdout: Broken pipe (os error 32)
+╚══════════════════════════════════════════════════════════════╝
+🧹 Cleaning up browser for URL: https://swiftpackageindex.com/clerk/clerk-ios/main/documentation/clerk
+🧹 BrowserTools shutting down, closing all sessions
+🧹 Closing 0 active session(s)

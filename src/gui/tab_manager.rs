@@ -551,10 +551,7 @@ impl TabManager {
 
 impl Default for TabManager {
     fn default() -> Self {
-        // Create with a default engine config
-        let engine_config = EngineConfig {
-            engine_type: crate::engine::EngineType::Boa,
-        };
+        let engine_config = EngineConfig::new();
         
         Self {
             tabs: HashMap::new(),

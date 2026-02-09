@@ -15,6 +15,15 @@ impl super::super::HeadlessWebBrowser {
         self.navigate_to_with_js_option(url, wait_for_js, wait_for_js).await
     }
 
+    /// Navigate to URL with explicit timeout for pending async jobs
+    pub async fn navigate_to_with_timeout(&mut self, url: &str, wait_for_js: bool, wait_timeout_ms: u64) -> Result<String> {
+        // Store the timeout so navigate_to_with_js_option can use it
+        self.pending_jobs_timeout_ms = Some(wait_timeout_ms);
+        let result = self.navigate_to_with_js_option(url, wait_for_js, wait_for_js).await;
+        self.pending_jobs_timeout_ms = None;
+        result
+    }
+
     /// Extract page title from HTML
     pub(super) fn extract_title(&self, html: &str) -> Option<String> {
         if let Ok(selector) = scraper::Selector::parse("title") {

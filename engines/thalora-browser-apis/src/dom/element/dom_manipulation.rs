@@ -86,9 +86,14 @@ pub(super) fn append_child(this: &JsValue, args: &[JsValue], context: &mut Conte
             el.mark_modified_by_js();
         }, "Node.appendChild called on non-Node object")?;
 
-        // Check if the appended child is a script element and execute it
-        if is_script_element(&child_obj, context)? {
-            execute_script_element(&child_obj, context)?;
+        // Check if the appended child is a script element and execute it.
+        // Per HTML spec, dynamically inserted scripts execute asynchronously and
+        // errors must NOT propagate to the caller — otherwise SPA frameworks
+        // (Vue, React) abort their render cycle on script errors.
+        if is_script_element(&child_obj, context).unwrap_or(false) {
+            if let Err(e) = execute_script_element(&child_obj, context) {
+                eprintln!("WARNING: Dynamic script execution error (non-fatal): {}", e.to_string());
+            }
         }
 
         // Fire load event on <link> elements (CSS chunk loading)
@@ -153,8 +158,10 @@ pub(super) fn append_method(this: &JsValue, args: &[JsValue], context: &mut Cont
             }, "Element.prototype.append called on non-Element object")?;
 
             // Check if the appended child is a script element and execute it
-            if is_script_element(&child_obj, context)? {
-                execute_script_element(&child_obj, context)?;
+            if is_script_element(&child_obj, context).unwrap_or(false) {
+                if let Err(e) = execute_script_element(&child_obj, context) {
+                    eprintln!("WARNING: Dynamic script execution error (non-fatal): {}", e.to_string());
+                }
             }
 
             // Fire load event on <link> elements (CSS chunk loading)
@@ -501,8 +508,10 @@ pub(super) fn insert_before_js(this: &JsValue, args: &[JsValue], context: &mut C
     }, "Element.prototype.insertBefore called on non-Element object")?;
 
     // Check if the inserted node is a script element and execute it
-    if is_script_element(&new_obj, context)? {
-        execute_script_element(&new_obj, context)?;
+    if is_script_element(&new_obj, context).unwrap_or(false) {
+        if let Err(e) = execute_script_element(&new_obj, context) {
+            eprintln!("WARNING: Dynamic script execution error (non-fatal): {}", e.to_string());
+        }
     }
 
     // Fire load event on <link> elements (CSS chunk loading)

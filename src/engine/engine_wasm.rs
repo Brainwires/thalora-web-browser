@@ -87,11 +87,6 @@ impl JavaScriptEngine {
         Ok(())
     }
 
-    /// Execute JavaScript code with V8-compatible error handling
-    pub async fn execute_v8_compatible(&mut self, code: &str) -> Result<JsValue> {
-        self.execute_enhanced(code).await
-    }
-
     /// Get engine version information
     pub fn version_info(&self) -> String {
         "Enhanced JavaScript Engine v3.0 (ES2025+ Compatible) - WASM Build".to_string()

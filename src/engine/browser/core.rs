@@ -54,6 +54,8 @@ pub struct HeadlessWebBrowser {
     pub(super) scraper: WebScraper,
     pub(super) form_analyzer: FormAnalyzer,
     pub(super) analyzed_forms: Vec<FormInfo>,
+    /// Optional override for the pending jobs timeout (set by navigate_to_with_timeout)
+    pub(super) pending_jobs_timeout_ms: Option<u64>,
 }
 
 impl HeadlessWebBrowser {
@@ -89,7 +91,7 @@ impl HeadlessWebBrowser {
         // so they reuse the Chrome131 TLS fingerprint, cookies, and compression
         thalora_browser_apis::http_blocking::set_shared_client(client.clone());
 
-    let renderer = RustRenderer::new_with_engine(engine_type);
+    let renderer = RustRenderer::new();
 
         let auth_context = AuthContext {
             cookies: HashMap::new(),
@@ -119,6 +121,7 @@ impl HeadlessWebBrowser {
             scraper,
             form_analyzer,
             analyzed_forms: Vec::new(),
+            pending_jobs_timeout_ms: None,
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));
@@ -248,6 +251,16 @@ impl HeadlessWebBrowser {
         if let Some(ref mut renderer) = self.renderer {
             // Use trusted execution with 10 second timeout for complex challenge scripts
             renderer.evaluate_javascript_trusted(js_code, std::time::Duration::from_secs(10))
+        } else {
+            Err(anyhow::anyhow!("Renderer not available"))
+        }
+    }
+
+    /// Execute an ES module script (from `<script type="module">`).
+    /// Uses Module::parse() and load_link_evaluate() for proper ES module support.
+    pub async fn execute_module_script(&mut self, source_code: &str, module_url: Option<&str>) -> Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.evaluate_module_script(source_code, module_url)
         } else {
             Err(anyhow::anyhow!("Renderer not available"))
         }

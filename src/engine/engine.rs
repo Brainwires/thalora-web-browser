@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string, module::IdleModuleLoader};
+use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string};
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,8 +29,11 @@ struct TimerHandle {
 
 impl JavaScriptEngine {
     pub fn new() -> Result<Self> {
+        let module_loader = Rc::new(
+            thalora_browser_apis::http_module_loader::HttpModuleLoader::new("about:blank")
+        );
         let mut context = Context::builder()
-            .module_loader(Rc::new(IdleModuleLoader))
+            .module_loader(module_loader)
             .build()
             .map_err(|e| anyhow!("failed to build JS context: {}", e))?;
         let timers = Arc::new(Mutex::new(HashMap::new()));
@@ -85,12 +88,6 @@ impl JavaScriptEngine {
             .set(js_string!(name), value, true, &mut self.context)
             .map_err(|e| anyhow!("Failed to set global object: {}", e))?;
         Ok(())
-    }
-
-    /// Execute JavaScript code with V8-compatible error handling
-    pub async fn execute_v8_compatible(&mut self, code: &str) -> Result<JsValue> {
-        // Use the enhanced ES2022 transformation pipeline
-        self.execute_enhanced(code).await
     }
 
     /// Get engine version information

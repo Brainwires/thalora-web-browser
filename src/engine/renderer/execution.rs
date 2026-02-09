@@ -1,5 +1,8 @@
 use anyhow::{anyhow, Result};
 use thalora_browser_apis::boa_engine::{Context, Source};
+use thalora_browser_apis::boa_engine::module::Module;
+use thalora_browser_apis::boa_engine::builtins::promise::PromiseState;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use crate::engine::renderer::core::RustRenderer;
 
@@ -17,18 +20,21 @@ impl RustRenderer {
             let start = Instant::now();
             let poll_interval = Duration::from_millis(50);
             let mut consecutive_idle = 0;
+            eprintln!("DEBUG: run_pending_jobs START (max_duration={}ms)", max_duration.as_millis());
 
             while start.elapsed() < max_duration {
                 // Run Promise microtasks (including fetch responses via block_on_compat).
                 // Log errors instead of silently ignoring — a single bad job throwing
                 // clears ALL remaining jobs in Boa's queue. Retrying after an error
                 // processes any jobs that were enqueued after the failed one.
+                let before_jobs = Instant::now();
                 if let Err(e) = ctx.run_jobs() {
                     eprintln!("DEBUG: run_jobs error (continuing): {:?}", e);
                     // Try again — the error came from a single bad job; remaining
                     // jobs may still be valid and should not be lost.
                     let _ = ctx.run_jobs();
                 }
+                let jobs_took = before_jobs.elapsed();
 
                 // Process timer callbacks
                 let timers_executed = Timers::process_timers(ctx);
@@ -40,21 +46,118 @@ impl RustRenderer {
                         let _ = ctx.run_jobs();
                     }
                     consecutive_idle = 0;
+                } else if jobs_took > Duration::from_millis(10) {
+                    // run_jobs() blocked for a while — likely processed async jobs
+                    // (fetch responses, promise chains). Reset idle counter to keep
+                    // polling for follow-up work.
+                    consecutive_idle = 0;
                 } else {
                     consecutive_idle += 1;
                 }
 
                 // Stop after 10 consecutive idle polls (500ms of no activity)
                 if consecutive_idle >= 10 {
+                    eprintln!("DEBUG: run_pending_jobs EXIT idle after {}ms", start.elapsed().as_millis());
                     break;
                 }
 
                 // Sleep to allow timer-based operations to progress
                 std::thread::sleep(poll_interval);
             }
+
         }
 
         Ok(())
+    }
+
+    /// Evaluate an ES module script (from `<script type="module">`).
+    ///
+    /// Uses `Module::parse()` and `load_link_evaluate()` instead of `ctx.eval()`.
+    /// Module scripts use the Module grammar which supports `import`/`export`.
+    /// The module URL is used as the path so nested imports resolve relative to it.
+    pub fn evaluate_module_script(&mut self, source_code: &str, module_url: Option<&str>) -> Result<String> {
+        use thalora_browser_apis::timers::timers::Timers;
+
+        if let Some(ctx) = &mut self.js_context {
+            let timeout_duration = Duration::from_secs(30);
+
+            // Set execution deadline
+            let deadline = Instant::now() + timeout_duration;
+            ctx.runtime_limits_mut().set_execution_deadline(deadline);
+
+            // Increase limits for module scripts (same as evaluate_javascript_trusted)
+            let original_recursion_limit = ctx.runtime_limits().recursion_limit();
+            let original_stack_limit = ctx.runtime_limits().stack_size_limit();
+            ctx.runtime_limits_mut().set_recursion_limit(8192);
+            ctx.runtime_limits_mut().set_stack_size_limit(1024 * 100);
+
+            // Parse the module source — use URL as path for referrer resolution
+            let path = module_url.map(PathBuf::from);
+            let source = if let Some(ref p) = path {
+                Source::from_bytes(source_code).with_path(p)
+            } else {
+                Source::from_bytes(source_code)
+            };
+
+            let module = match Module::parse(source, None, ctx) {
+                Ok(m) => m,
+                Err(e) => {
+                    // Restore limits and clear deadline
+                    ctx.runtime_limits_mut().set_recursion_limit(original_recursion_limit);
+                    ctx.runtime_limits_mut().set_stack_size_limit(original_stack_limit);
+                    ctx.runtime_limits_mut().clear_execution_deadline();
+                    eprintln!("MODULE: Parse error for {:?}: {:?}", module_url, e);
+                    return Ok("undefined".to_string());
+                }
+            };
+
+            // Load, link, and evaluate the module — returns a JsPromise
+            let promise = module.load_link_evaluate(ctx);
+
+            // Run jobs to process the promise chain (imports load synchronously
+            // via block_on_compat inside HttpModuleLoader)
+            let _ = ctx.run_jobs();
+
+            // If still pending, poll with run_jobs + process_timers in a loop
+            let poll_start = Instant::now();
+            let max_poll = Duration::from_secs(15);
+            let poll_interval = Duration::from_millis(50);
+
+            loop {
+                match promise.state() {
+                    PromiseState::Pending => {
+                        if poll_start.elapsed() >= max_poll {
+                            eprintln!("MODULE: Evaluation timed out (promise still pending) for {:?}", module_url);
+                            break;
+                        }
+                        // Process timers and retry jobs
+                        let _ = Timers::process_timers(ctx);
+                        let _ = ctx.run_jobs();
+                        std::thread::sleep(poll_interval);
+                    }
+                    PromiseState::Fulfilled(_) => {
+                        eprintln!("MODULE: Successfully evaluated {:?}", module_url);
+                        break;
+                    }
+                    PromiseState::Rejected(err) => {
+                        eprintln!("MODULE: Evaluation rejected for {:?}: {:?}", module_url, err);
+                        break;
+                    }
+                }
+            }
+
+            // Restore limits and clear deadline
+            ctx.runtime_limits_mut().set_recursion_limit(original_recursion_limit);
+            ctx.runtime_limits_mut().set_stack_size_limit(original_stack_limit);
+            ctx.runtime_limits_mut().clear_execution_deadline();
+
+            // Microtask checkpoint after module evaluation
+            let _ = ctx.run_jobs();
+
+            Ok("undefined".to_string())
+        } else {
+            Ok("undefined".to_string())
+        }
     }
 
     pub fn handle_google_challenge(&mut self, js_code: &str) -> Result<String> {

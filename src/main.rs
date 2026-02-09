@@ -19,7 +19,7 @@ pub mod protocols;
 pub mod gui;
 
 use protocols::mcp_server::McpServer;
-use engine::{EngineType, EngineFactory, EngineConfig};
+use engine::EngineConfig;
 
 /// Global flag to signal shutdown
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -68,14 +68,10 @@ fn install_panic_hook() {
 
 #[derive(Parser)]
 #[command(name = "thalora")]
-#[command(about = "Pure Rust headless browser for AI models with MCP integration")]
+#[command(about = "Headless web browser written entirely in Rust")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
-
-    /// Use V8 JavaScript engine instead of the default Boa engine
-    #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
-    use_v8_engine: bool,
 }
 
 #[derive(Subcommand)]
@@ -134,16 +130,8 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Determine which engine to use based on CLI flags or default
-    let use_v8 = if cli.use_v8_engine {
-        true  // Override to use V8
-    } else {
-        // No flags specified, use the default from EngineFactory
-        EngineFactory::default_engine() == EngineType::V8
-    };
-
     // Create engine configuration
-    let engine_config = EngineConfig::new(use_v8)?;
+    let engine_config = EngineConfig::new();
 
     // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {
@@ -152,11 +140,6 @@ async fn main() -> Result<()> {
             .init();
 
         tracing::info!("Using {} JavaScript engine", engine_config.engine_type);
-
-        // Display available engines for info
-        let available = EngineFactory::available_engines();
-        let available_names: Vec<String> = available.iter().map(|e| e.to_string()).collect();
-        tracing::debug!("Available engines: {}", available_names.join(", "));
     } else {
         // Still configure tracing but silent
         tracing_subscriber::fmt()

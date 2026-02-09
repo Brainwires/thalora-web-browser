@@ -412,6 +412,64 @@ impl ElementData {
         self.inner_html.lock().unwrap().clone()
     }
 
+    /// Serialize the element's inner content to HTML.
+    /// When the element or any descendant has been modified by JS, walks live
+    /// children to capture dynamically created nodes. Otherwise returns the
+    /// cached `inner_html` string.
+    pub fn serialize_inner_html(&self) -> String {
+        let is_modified = *self.modified_by_js.lock().unwrap();
+        let needs_walk = is_modified || self.has_modified_descendants();
+
+        let children = self.children.lock().unwrap();
+        let tag = self.get_tag_name();
+
+        // Debug: log key elements during serialization
+        let id_str = self.get_id();
+        let is_key_element = matches!(tag.to_lowercase().as_str(), "html" | "body" | "main" | "div" | "section")
+            && (!id_str.is_empty() || tag.eq_ignore_ascii_case("html") || tag.eq_ignore_ascii_case("body"));
+        let id_suffix = if id_str.is_empty() { String::new() } else { format!(" id=\"{}\"", id_str) };
+        if is_key_element {
+            eprintln!("DEBUG SERIALIZE: <{}{}> children={}, modified={}, needs_walk={}, inner_html_len={}",
+                tag, id_suffix, children.len(), is_modified, needs_walk, self.get_inner_html().len(),
+            );
+        }
+
+        if children.is_empty() {
+            // Leaf node: use cached innerHTML (text content, or set via innerHTML)
+            let inner = self.get_inner_html();
+            if inner.is_empty() {
+                self.get_text_content()
+            } else {
+                inner
+            }
+        } else if needs_walk {
+            let mut html = String::new();
+            for child in children.iter() {
+                if let Some(child_html) = try_with_element_data(child, |child_data| {
+                    child_data.serialize_to_html()
+                }) {
+                    html.push_str(&child_html);
+                } else if let Some(text_data) = child.downcast_ref::<crate::dom::text::TextData>() {
+                    html.push_str(&text_data.character_data().get_data());
+                } else if let Some(comment_data) = child.downcast_ref::<crate::dom::comment::CommentData>() {
+                    html.push_str(&format!("<!--{}-->", comment_data.character_data().get_data()));
+                }
+            }
+            if is_key_element {
+                eprintln!("DEBUG SERIALIZE: <{}{}> walked {} children, produced {} bytes",
+                    tag, id_suffix, children.len(), html.len());
+            }
+            html
+        } else {
+            // Unmodified subtree: use cached innerHTML
+            if is_key_element {
+                eprintln!("DEBUG SERIALIZE: <{}{}> using CACHED innerHTML ({} bytes)",
+                    tag, id_suffix, self.get_inner_html().len());
+            }
+            self.get_inner_html()
+        }
+    }
+
     pub fn set_inner_html(&self, html: String) {
         *self.inner_html.lock().unwrap() = html.clone();
 
@@ -575,32 +633,7 @@ impl ElementData {
         }
         html.push('>');
 
-        // Determine whether we need to walk children or can use cached innerHTML.
-        // Check modification flags BEFORE locking children to avoid deadlock
-        // (has_modified_descendants also locks children).
-        let is_modified = *self.modified_by_js.lock().unwrap();
-        let needs_walk = is_modified || self.has_modified_descendants();
-
-        // Now lock children for actual serialization
-        let children = self.children.lock().unwrap();
-
-        if children.is_empty() {
-            // Leaf node: use cached innerHTML (text content, or set via innerHTML)
-            html.push_str(&self.get_inner_html());
-        } else if needs_walk {
-            // This element or a descendant was modified by JS: walk live children
-            // to capture dynamically created/removed elements
-            for child in children.iter() {
-                if let Some(child_html) = try_with_element_data(child, |child_data| {
-                    child_data.serialize_to_html()
-                }) {
-                    html.push_str(&child_html);
-                }
-            }
-        } else {
-            // Unmodified subtree: use cached innerHTML (preserves text nodes, comments, etc.)
-            html.push_str(&self.get_inner_html());
-        }
+        html.push_str(&self.serialize_inner_html());
 
         // Void elements don't get closing tags
         let tag_lower = tag_name.to_lowercase();
@@ -618,7 +651,11 @@ impl ElementData {
     }
 
     pub fn set_text_content(&self, content: String) {
+        // Per WHATWG spec: setting textContent must remove all child nodes first
+        self.children.lock().unwrap().clear();
+        *self.inner_html.lock().unwrap() = String::new();
         *self.text_content.lock().unwrap() = content;
+        self.mark_modified_by_js();
     }
 
     pub fn get_attribute(&self, name: &str) -> Option<String> {
@@ -884,6 +921,24 @@ impl ElementData {
                     Some(iframe.element_data().clone_element(true, context)?)
                 } else if let Some(script) = child.downcast_ref::<HTMLScriptElementData>() {
                     Some(script.element_data().clone_element(true, context)?)
+                } else if let Some(text_data) = child.downcast_ref::<crate::dom::text::TextData>() {
+                    // Clone text node
+                    let cloned_text = crate::dom::text::TextData::new(text_data.character_data().get_data());
+                    let text_obj = JsObject::from_proto_and_data_with_shared_shape(
+                        context.root_shape(),
+                        context.intrinsics().constructors().text().prototype(),
+                        cloned_text,
+                    );
+                    Some(text_obj.upcast())
+                } else if let Some(comment_data) = child.downcast_ref::<crate::dom::comment::CommentData>() {
+                    // Clone comment node
+                    let cloned_comment = crate::dom::comment::CommentData::new(comment_data.character_data().get_data());
+                    let comment_obj = JsObject::from_proto_and_data_with_shared_shape(
+                        context.root_shape(),
+                        context.intrinsics().constructors().comment().prototype(),
+                        cloned_comment,
+                    );
+                    Some(comment_obj.upcast())
                 } else {
                     None
                 };

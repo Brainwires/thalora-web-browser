@@ -20,6 +20,10 @@ pub mod fetch;
 #[cfg(feature = "native")]
 pub mod http_blocking;
 
+// HTTP-based ES Module Loader (enables <script type="module"> support)
+#[cfg(feature = "native")]
+pub mod http_module_loader;
+
 // Storage APIs
 pub mod storage;
 
