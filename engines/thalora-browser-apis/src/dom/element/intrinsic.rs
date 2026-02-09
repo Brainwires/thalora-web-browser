@@ -116,6 +116,31 @@ impl IntrinsicObject for Element {
             .name(js_string!("get childNodes"))
             .build();
 
+        // Element-only traversal accessors
+        let next_element_sibling_func = BuiltInBuilder::callable(realm, get_next_element_sibling)
+            .name(js_string!("get nextElementSibling"))
+            .build();
+
+        let previous_element_sibling_func = BuiltInBuilder::callable(realm, get_previous_element_sibling)
+            .name(js_string!("get previousElementSibling"))
+            .build();
+
+        let first_element_child_func = BuiltInBuilder::callable(realm, get_first_element_child)
+            .name(js_string!("get firstElementChild"))
+            .build();
+
+        let last_element_child_func = BuiltInBuilder::callable(realm, get_last_element_child)
+            .name(js_string!("get lastElementChild"))
+            .build();
+
+        let child_element_count_func = BuiltInBuilder::callable(realm, get_child_element_count)
+            .name(js_string!("get childElementCount"))
+            .build();
+
+        let parent_element_func = BuiltInBuilder::callable(realm, get_parent_element)
+            .name(js_string!("get parentElement"))
+            .build();
+
         // Layout dimension accessors (read-only)
         let offset_width_func = BuiltInBuilder::callable(realm, get_offset_width)
             .name(js_string!("get offsetWidth"))
@@ -290,6 +315,43 @@ impl IntrinsicObject for Element {
                 None,
                 Attribute::CONFIGURABLE,
             )
+            // Element-only traversal accessors
+            .accessor(
+                js_string!("nextElementSibling"),
+                Some(next_element_sibling_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("previousElementSibling"),
+                Some(previous_element_sibling_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("firstElementChild"),
+                Some(first_element_child_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("lastElementChild"),
+                Some(last_element_child_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("childElementCount"),
+                Some(child_element_count_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("parentElement"),
+                Some(parent_element_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             // Layout dimension accessors
             .accessor(
                 js_string!("offsetWidth"),
@@ -374,6 +436,12 @@ impl IntrinsicObject for Element {
             .method(get_attribute_js, js_string!("getAttribute"), 1)
             .method(has_attribute_js, js_string!("hasAttribute"), 1)
             .method(remove_attribute_js, js_string!("removeAttribute"), 1)
+            .method(get_attribute_names, js_string!("getAttributeNames"), 0)
+            .method(toggle_attribute, js_string!("toggleAttribute"), 1)
+            .method(insert_adjacent_html, js_string!("insertAdjacentHTML"), 2)
+            .method(insert_adjacent_element, js_string!("insertAdjacentElement"), 2)
+            .method(get_elements_by_class_name, js_string!("getElementsByClassName"), 1)
+            .method(get_elements_by_tag_name, js_string!("getElementsByTagName"), 1)
             .method(append_child, js_string!("appendChild"), 1)
             .method(remove_child, js_string!("removeChild"), 1)
             .method(insert_before_js, js_string!("insertBefore"), 2)
@@ -426,7 +494,7 @@ impl BuiltInObject for Element {
 
 impl BuiltInConstructor for Element {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 150;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -437,8 +505,6 @@ impl BuiltInConstructor for Element {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        eprintln!("DEBUG: Element constructor called!");
-
         let prototype = get_prototype_from_constructor(
             new_target,
             StandardConstructors::element,
@@ -453,16 +519,6 @@ impl BuiltInConstructor for Element {
             element_data,
         );
 
-        // Upcast to generic JsObject for method access
-        let element = element.upcast();
-
-        // Check if dispatchEvent method exists on the created element
-        if let Ok(dispatch_event) = element.get(js_string!("dispatchEvent"), context) {
-            eprintln!("DEBUG: dispatchEvent found on element: {:?}", dispatch_event.type_of());
-        } else {
-            eprintln!("DEBUG: dispatchEvent NOT found on element!");
-        }
-
-        Ok(element.into())
+        Ok(element.upcast().into())
     }
 }

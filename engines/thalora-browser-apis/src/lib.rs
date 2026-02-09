@@ -1743,6 +1743,21 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // Register structuredClone as global function
+    let structured_clone_fn = boa_engine::builtins::BuiltInBuilder::callable(
+        context.realm(),
+        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+            use boa_engine::JsArgs;
+            let value = args.get_or_undefined(0);
+            let cloned = misc::structured_clone::structured_clone(value, context, None)?;
+            misc::structured_clone::structured_deserialize(&cloned, context)
+        }
+    )
+    .name(boa_engine::js_string!("structuredClone"))
+    .length(1)
+    .build();
+    global_object.set(boa_engine::js_string!("structuredClone"), structured_clone_fn, false, context)?;
+
     // Add 'self' reference to global scope (Worker/browser compatibility)
     global_object.set(js_string!("self"), global_object.clone(), false, context)?;
 

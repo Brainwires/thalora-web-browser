@@ -118,30 +118,7 @@ pub(super) fn create_element(this: &JsValue, args: &[JsValue], context: &mut Con
             context,
         )?;
 
-        // Add getAttribute method that Google's code uses
-        let get_attribute_func = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
-            let attr_name = args.get_or_undefined(0).to_string(ctx)?;
-            let attr_name_str = attr_name.to_std_string_escaped();
-
-            // Return common attributes that Google checks
-            match attr_name_str.as_str() {
-                "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                _ => Ok(JsValue::null())
-            }
-        })
-        .name(js_string!("getAttribute"))
-        .build();
-
-        element_obj.define_property_or_throw(
-            js_string!("getAttribute"),
-            PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(get_attribute_func)
-                .build(),
-            context,
-        )?;
+        // getAttribute is inherited from Element.prototype — no override needed
     }
 
     // Add Button-specific functionality for <button> elements

@@ -72,7 +72,7 @@ impl EventTargetData {
         }
     }
 
-    /// Add an event listener
+    /// Add an event listener (prevents duplicates per spec)
     pub fn add_event_listener(
         &self,
         event_type: String,
@@ -85,12 +85,15 @@ impl EventTargetData {
             return;
         }
 
-        let listener = EventListener::new(callback, capture, once, passive);
-        self.listeners
-            .borrow_mut()
-            .entry(event_type)
-            .or_insert_with(Vec::new)
-            .push(listener);
+        let mut listeners = self.listeners.borrow_mut();
+        let list = listeners.entry(event_type).or_insert_with(Vec::new);
+
+        // Per spec: if an identical listener (same callback + capture) exists, don't add
+        if list.iter().any(|l| l.matches(&callback, capture)) {
+            return;
+        }
+
+        list.push(EventListener::new(callback, capture, once, passive));
     }
 
     /// Remove an event listener
@@ -127,7 +130,72 @@ impl EventTargetData {
         }
     }
 
-    /// Dispatch an event to all matching listeners
+    /// Dispatch an event to all matching listeners.
+    /// `this_obj` is the EventTarget object (used to set target/currentTarget).
+    pub fn dispatch_event_with_target(&self, event: &JsObject, this_obj: &JsObject, context: &mut Context) -> JsResult<bool> {
+        // Get event type
+        let event_type = if let Ok(type_prop) = event.get(js_string!("type"), context) {
+            if let Ok(type_str) = type_prop.to_string(context) {
+                type_str.to_std_string_escaped()
+            } else {
+                return Ok(true);
+            }
+        } else {
+            return Ok(true);
+        };
+
+        // Set event.target and event.currentTarget to this EventTarget
+        let _ = event.set(js_string!("target"), this_obj.clone(), false, context);
+        let _ = event.set(js_string!("currentTarget"), this_obj.clone(), false, context);
+
+        // Also set on native event data if applicable
+        if let Some(mut event_data) = event.downcast_mut::<super::event::EventData>() {
+            event_data.set_target(Some(this_obj.clone()));
+            event_data.set_current_target(Some(this_obj.clone()));
+            event_data.set_phase(super::event::EventPhase::AtTarget);
+        }
+
+        let mut prevent_default_called = false;
+        let mut indices_to_remove = Vec::new();
+
+        if let Some(listeners) = self.listeners.borrow().get(&event_type) {
+            let listeners_copy = listeners.clone();
+
+            for (index, listener) in listeners_copy.iter().enumerate() {
+                if !listener.is_active() {
+                    continue;
+                }
+
+                if let Some(func) = listener.callback.as_callable() {
+                    let _ = func.call(&this_obj.clone().into(), &[event.clone().into()], context);
+
+                    if let Ok(default_prevented) = event.get(js_string!("defaultPrevented"), context) {
+                        if default_prevented.to_boolean() {
+                            prevent_default_called = true;
+                        }
+                    }
+                }
+
+                if listener.once {
+                    indices_to_remove.push(index);
+                }
+            }
+        }
+
+        // Remove "once" listeners in reverse order
+        indices_to_remove.reverse();
+        for index in indices_to_remove {
+            if let Some(listeners) = self.listeners.borrow_mut().get_mut(&event_type) {
+                if index < listeners.len() {
+                    listeners.remove(index);
+                }
+            }
+        }
+
+        Ok(!prevent_default_called)
+    }
+
+    /// Dispatch an event to all matching listeners (legacy API without target)
     pub fn dispatch_event(&self, event: &JsObject, context: &mut Context) -> JsResult<bool> {
         // Get event type
         let event_type = if let Ok(type_prop) = event.get(js_string!("type"), context) {
@@ -140,12 +208,7 @@ impl EventTargetData {
             return Ok(true);
         };
 
-        // Check if event has dispatch flag set (should throw error)
-        // For now, we'll skip this check as it requires Event internal state
-
         let mut prevent_default_called = false;
-
-        // Get listeners for this event type
         let mut indices_to_remove = Vec::new();
 
         if let Some(listeners) = self.listeners.borrow().get(&event_type) {
@@ -156,33 +219,22 @@ impl EventTargetData {
                     continue;
                 }
 
-                // Call the listener
-                // Use public API - get callable and call it
                 if let Some(func) = listener.callback.as_callable() {
-                    let result = func.call(&JsValue::undefined(), &[event.clone().into()], context);
+                    let _ = func.call(&JsValue::undefined(), &[event.clone().into()], context);
 
-                    // Check if preventDefault was called on the event
                     if let Ok(default_prevented) = event.get(js_string!("defaultPrevented"), context) {
                         if default_prevented.to_boolean() {
                             prevent_default_called = true;
                         }
                     }
-
-                    // Handle errors in event handlers
-                    if result.is_err() {
-                        // In browsers, errors in event handlers are typically logged but don't stop other handlers
-                        // For now, we'll continue processing
-                    }
                 }
 
-                // Mark listener for removal if it was marked as "once"
                 if listener.once {
                     indices_to_remove.push(index);
                 }
             }
         }
 
-        // Remove "once" listeners in reverse order to maintain correct indices
         indices_to_remove.reverse();
         for index in indices_to_remove {
             if let Some(listeners) = self.listeners.borrow_mut().get_mut(&event_type) {
@@ -192,7 +244,6 @@ impl EventTargetData {
             }
         }
 
-        // Return true if no listener called preventDefault
         Ok(!prevent_default_called)
     }
 
@@ -306,7 +357,7 @@ impl EventTarget {
         let event_arg = args.get_or_undefined(0);
 
         if let Some(event_obj) = event_arg.as_object() {
-            let result = target_data.dispatch_event(&event_obj, context)?;
+            let result = target_data.dispatch_event_with_target(&event_obj, &this_obj, context)?;
             Ok(JsValue::new(result))
         } else {
             Err(JsNativeError::typ()

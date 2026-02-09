@@ -7,7 +7,7 @@ use boa_engine::{
     js_string, object::JsObject, property::Attribute, realm::Realm,
     string::JsString, Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
 };
-use crate::dom::element::{ElementData, with_element_data};
+use crate::dom::element::with_element_data;
 use boa_gc::{Finalize, Trace};
 
 /// Internal data for DOMTokenList objects
@@ -33,9 +33,10 @@ impl DOMTokenListData {
     }
 
     fn set_class_name(&self, value: String) {
-        if let Some(mut ed) = self.element.downcast_mut::<ElementData>() {
-            ed.set_class_name(value);
-        }
+        let _ = with_element_data(&self.element, |ed| {
+            ed.set_class_name(value.clone());
+            ed.set_attribute("class".to_string(), value);
+        }, "not element");
     }
 }
 
@@ -147,19 +148,96 @@ impl DOMTokenList {
         let token = args.get_or_undefined(0).to_string(context)?;
         let token_std = token.to_std_string_escaped();
         Self::validate_token(&token_std)?;
-        let mut class = data.class_name(context).unwrap_or_default();
-        let mut tokens = Self::split_tokens(&class);
-        if tokens.contains(&token_std) {
-            tokens.retain(|x| x != &token_std);
-            class = Self::join_tokens(&tokens);
-            data.set_class_name(class);
-            return Ok(JsValue::new(false));
+
+        // Support optional 'force' parameter
+        let force = if args.len() > 1 && !args[1].is_undefined() {
+            Some(args[1].to_boolean())
         } else {
-            tokens.push(token_std);
-            class = Self::join_tokens(&tokens);
-            data.set_class_name(class);
-            return Ok(JsValue::new(true));
+            None
+        };
+
+        let class = data.class_name(context).unwrap_or_default();
+        let mut tokens = Self::split_tokens(&class);
+        let has = tokens.contains(&token_std);
+
+        let result = match force {
+            Some(true) => {
+                if !has { tokens.push(token_std); }
+                true
+            }
+            Some(false) => {
+                tokens.retain(|x| x != &token_std);
+                false
+            }
+            None => {
+                if has {
+                    tokens.retain(|x| x != &token_std);
+                    false
+                } else {
+                    tokens.push(token_std);
+                    true
+                }
+            }
+        };
+
+        data.set_class_name(Self::join_tokens(&tokens));
+        Ok(JsValue::new(result))
+    }
+
+    fn replace(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.replace called on non-object"))?;
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.replace called on non-DOMTokenList object")
+        })?;
+
+        let old_token = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let new_token = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+        Self::validate_token(&old_token)?;
+        Self::validate_token(&new_token)?;
+
+        let class = data.class_name(context).unwrap_or_default();
+        let mut tokens = Self::split_tokens(&class);
+        let mut replaced = false;
+
+        if let Some(pos) = tokens.iter().position(|t| t == &old_token) {
+            if !tokens.contains(&new_token) {
+                tokens[pos] = new_token;
+            } else {
+                tokens.remove(pos);
+            }
+            replaced = true;
         }
+
+        data.set_class_name(Self::join_tokens(&tokens));
+        Ok(JsValue::new(replaced))
+    }
+
+    fn get_value(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.value called on non-object"))?;
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.value called on non-DOMTokenList object")
+        })?;
+
+        let class = data.class_name(context).unwrap_or_default();
+        Ok(JsValue::from(JsString::from(class)))
+    }
+
+    fn set_value(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.value setter called on non-object"))?;
+
+        let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.value setter called on non-DOMTokenList object")
+        })?;
+
+        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        data.set_class_name(value);
+        Ok(JsValue::undefined())
+    }
+
+    fn to_string_method(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+        Self::get_value(this, _args, context)
     }
 
     fn item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -225,13 +303,24 @@ impl IntrinsicObject for DOMTokenList {
             .name(js_string!("get length"))
             .build();
 
+        let value_getter = BuiltInBuilder::callable(realm, Self::get_value)
+            .name(js_string!("get value"))
+            .build();
+
+        let value_setter = BuiltInBuilder::callable(realm, Self::set_value)
+            .name(js_string!("set value"))
+            .build();
+
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::contains, js_string!("contains"), 1)
             .method(Self::add, js_string!("add"), 1)
             .method(Self::remove, js_string!("remove"), 1)
             .method(Self::toggle, js_string!("toggle"), 1)
+            .method(Self::replace, js_string!("replace"), 2)
             .method(Self::item, js_string!("item"), 1)
+            .method(Self::to_string_method, js_string!("toString"), 0)
             .accessor(js_string!("length"), Some(length_getter), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("value"), Some(value_getter), Some(value_setter), Attribute::CONFIGURABLE)
             .build();
     }
 

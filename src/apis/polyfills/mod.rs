@@ -89,45 +89,6 @@ pub fn setup_all_polyfills(context: &mut Context) -> Result<()> {
     })();
     "#)).map_err(|e| anyhow::Error::msg(format!("Object null-safety polyfill failed: {:?}", e)))?;
 
-    // DEBUG: Intercept Vue component creation to check inject/store
-    context.eval(Source::from_bytes(r#"
-    (function() {
-        // Intercept Object.defineProperty to trace computed `references` setup
-        var _origDefProp = Object.defineProperty;
-        Object.defineProperty = function(target, key, descriptor) {
-            if (key === 'references' && descriptor && descriptor.get) {
-                console.warn('DEF_PROP references on ' + (target.constructor ? target.constructor.name : 'unknown') +
-                    ' configurable=' + descriptor.configurable + ' enumerable=' + descriptor.enumerable);
-                // Wrap the getter to log what it returns
-                var origGetter = descriptor.get;
-                descriptor.get = function() {
-                    var val;
-                    try {
-                        val = origGetter.call(this);
-                    } catch(ex) {
-                        console.warn('REFERENCES GETTER THREW: ' + ex.message +
-                            ' this.$options.name=' + (this.$options ? this.$options.name : 'N/A') +
-                            ' store type=' + (typeof this.store) +
-                            ' store.state type=' + (this.store ? typeof this.store.state : 'N/A') +
-                            ' store.state.references type=' + (this.store && this.store.state ? typeof this.store.state.references : 'N/A'));
-                        return {};
-                    }
-                    if (typeof val === 'undefined') {
-                        console.warn('REFERENCES GETTER returned undefined! this.$options.name=' +
-                            (this.$options ? this.$options.name : 'N/A') +
-                            ' store type=' + (typeof this.store) +
-                            ' store.state type=' + (this.store ? typeof this.store.state : 'N/A') +
-                            ' store.state.references type=' + (this.store && this.store.state ? typeof this.store.state.references : 'N/A'));
-                        return {};
-                    }
-                    return val;
-                };
-            }
-            return _origDefProp.call(this, target, key, descriptor);
-        };
-    })();
-    "#)).map_err(|e| anyhow::Error::msg(format!("References debug patch failed: {:?}", e)))?;
-
     Ok(())
 }
 

@@ -225,7 +225,7 @@ impl DocumentFragmentData {
     }
 
     /// `DocumentFragment.prototype.append(...nodes)`
-    fn append(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn append(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("DocumentFragment.append called on non-object")
         })?;
@@ -243,8 +243,23 @@ impl DocumentFragmentData {
                         .with_message(err)
                         .into()),
                 }
+            } else if arg.is_string() || arg.is_number() || arg.is_boolean() {
+                // Per spec: string arguments are converted to Text nodes
+                let text = arg.to_string(context)?;
+                let text_str = text.to_std_string_escaped();
+                let text_data = crate::dom::text::TextData::new(text_str);
+                let text_obj = JsObject::from_proto_and_data_with_shared_shape(
+                    context.root_shape(),
+                    context.intrinsics().constructors().text().prototype(),
+                    text_data,
+                );
+                match fragment_data.append_impl(text_obj.upcast()) {
+                    Ok(_) => {},
+                    Err(err) => return Err(JsNativeError::error()
+                        .with_message(err)
+                        .into()),
+                }
             }
-            // Note: In full implementation, would also handle string arguments
         }
         Ok(JsValue::undefined())
     }
@@ -260,14 +275,25 @@ impl DocumentFragmentData {
                 .with_message("DocumentFragment.prepend called on non-DocumentFragment object")
         })?;
 
-        // Process arguments in normal order, inserting each at position 0
-        // This results in final order: [last_arg, second_last_arg, first_arg, existing_children]
+        // Collect nodes first, then insert at beginning to preserve order
+        let mut new_nodes = Vec::new();
         for arg in args.iter() {
             if let Some(node_obj) = arg.as_object() {
-                fragment_data.children.borrow_mut().insert(0, node_obj.clone());
-                fragment_data.element_children.borrow_mut().insert(0, node_obj.clone());
+                new_nodes.push(node_obj.clone());
             }
         }
+
+        // Splice new nodes at the beginning
+        let mut children = fragment_data.children.borrow_mut();
+        let existing: Vec<_> = children.drain(..).collect();
+        children.extend(new_nodes.iter().cloned());
+        children.extend(existing);
+        drop(children);
+
+        let mut element_children = fragment_data.element_children.borrow_mut();
+        let existing_elements: Vec<_> = element_children.drain(..).collect();
+        element_children.extend(new_nodes);
+        element_children.extend(existing_elements);
 
         Ok(JsValue::undefined())
     }

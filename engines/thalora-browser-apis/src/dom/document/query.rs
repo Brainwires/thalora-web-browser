@@ -327,9 +327,12 @@ pub(super) fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut
     // Use real DOM implementation with scraper library to find all matching elements
     let elements = create_all_real_elements_from_html(context, &selector_str, &html_content)?;
 
-    use boa_engine::builtins::array::Array;
-    let array = Array::create_array_from_list(elements, context);
-    Ok(array.into())
+    // Convert JsValue elements to JsObject for NodeList
+    let nodes: Vec<JsObject> = elements.into_iter()
+        .filter_map(|v| v.as_object())
+        .collect();
+    let nodelist = crate::dom::nodelist::NodeList::create_from_nodes(nodes, false, context)?;
+    Ok(nodelist.into())
 }
 
 // ============================================================================

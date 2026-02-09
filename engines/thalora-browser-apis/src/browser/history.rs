@@ -4,7 +4,7 @@
 //! https://html.spec.whatwg.org/#the-history-interface
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, json::Json},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
     string::StaticJsStrings,
@@ -12,6 +12,21 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
     JsString, realm::Realm, property::Attribute
 };
+
+/// Safe JSON.stringify via the global JSON object (no eval injection risk)
+fn stringify_json_safe(value: &JsValue, context: &mut Context) -> JsResult<String> {
+    let global = context.global_object();
+    let json_obj = global.get(js_string!("JSON"), context)?;
+    let json_obj = json_obj.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("JSON is not an object")
+    })?;
+    let stringify_fn = json_obj.get(js_string!("stringify"), context)?;
+    let stringify_fn = stringify_fn.as_callable().ok_or_else(|| {
+        JsNativeError::typ().with_message("JSON.stringify is not callable")
+    })?;
+    let result = stringify_fn.call(&JsValue::undefined(), &[value.clone()], context)?;
+    Ok(result.to_string(context)?.to_std_string_escaped())
+}
 use crate::browser::location::LocationData;
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -288,9 +303,8 @@ fn get_state(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     })?;
 
     if let Some(state_json) = history.get_current_state() {
-        // Parse JSON state
-        let parse_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.parse('{}')", state_json)));
-        match parse_result {
+        // Parse JSON state using Boa's JSON intrinsic directly (no eval injection risk)
+        match Json::parse(&JsValue::undefined(), &[JsValue::from(js_string!(state_json))], context) {
             Ok(value) => Ok(value),
             Err(_) => Ok(JsValue::null()),
         }
@@ -399,10 +413,9 @@ fn push_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
     let state_json = if state.is_null() || state.is_undefined() {
         None
     } else {
-        // Use JSON.stringify to serialize state
-        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
-        match stringify_result {
-            Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
+        // Serialize via JSON.stringify intrinsic (no eval injection risk)
+        match stringify_json_safe(state, context) {
+            Ok(s) => Some(s),
             Err(_) => None,
         }
     };
@@ -446,10 +459,9 @@ fn replace_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     let state_json = if state.is_null() || state.is_undefined() {
         None
     } else {
-        // Use JSON.stringify to serialize state
-        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
-        match stringify_result {
-            Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
+        // Serialize via JSON.stringify intrinsic (no eval injection risk)
+        match stringify_json_safe(state, context) {
+            Ok(s) => Some(s),
             Err(_) => None,
         }
     };

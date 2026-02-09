@@ -16,6 +16,13 @@ use boa_engine::{
 use super::event::{EventData, EventPhase};
 use super::event_target::EventTargetData;
 use super::ui_events::{MouseEventData, KeyboardEventData, FocusEventData, InputEventData, UIEventData};
+use super::custom_event::CustomEventData;
+use super::message_event::MessageEventData;
+use super::error_event::ErrorEventData;
+use super::progress_event::ProgressEventData;
+use super::hash_change_event::HashChangeEventData;
+use super::pop_state_event::PopStateEventData;
+use super::close_event::CloseEventData;
 use crate::dom::element::{with_element_data, has_element_data};
 
 /// Dispatch an event with proper DOM event propagation (capturing, at-target, bubbling phases)
@@ -171,6 +178,34 @@ fn set_event_target(event: &JsObject, target: JsObject) -> JsResult<()> {
         ui_data.event.set_target(Some(target));
         return Ok(());
     }
+    if let Some(mut custom_data) = event.downcast_mut::<CustomEventData>() {
+        custom_data.event.set_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut msg_data) = event.downcast_mut::<MessageEventData>() {
+        msg_data.event.set_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut err_data) = event.downcast_mut::<ErrorEventData>() {
+        err_data.event.set_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut progress_data) = event.downcast_mut::<ProgressEventData>() {
+        progress_data.event.set_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut hash_data) = event.downcast_mut::<HashChangeEventData>() {
+        hash_data.event.set_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut pop_data) = event.downcast_mut::<PopStateEventData>() {
+        pop_data.event.set_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut close_data) = event.downcast_mut::<CloseEventData>() {
+        close_data.event.set_target(Some(target));
+        return Ok(());
+    }
 
     Ok(())
 }
@@ -199,6 +234,34 @@ fn set_event_current_target(event: &JsObject, target: JsObject) -> JsResult<()> 
     }
     if let Some(mut ui_data) = event.downcast_mut::<UIEventData>() {
         ui_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut custom_data) = event.downcast_mut::<CustomEventData>() {
+        custom_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut msg_data) = event.downcast_mut::<MessageEventData>() {
+        msg_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut err_data) = event.downcast_mut::<ErrorEventData>() {
+        err_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut progress_data) = event.downcast_mut::<ProgressEventData>() {
+        progress_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut hash_data) = event.downcast_mut::<HashChangeEventData>() {
+        hash_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut pop_data) = event.downcast_mut::<PopStateEventData>() {
+        pop_data.event.set_current_target(Some(target));
+        return Ok(());
+    }
+    if let Some(mut close_data) = event.downcast_mut::<CloseEventData>() {
+        close_data.event.set_current_target(Some(target));
         return Ok(());
     }
 
@@ -231,13 +294,40 @@ fn set_event_phase(event: &JsObject, phase: EventPhase) -> JsResult<()> {
         ui_data.event.set_phase(phase);
         return Ok(());
     }
+    if let Some(mut custom_data) = event.downcast_mut::<CustomEventData>() {
+        custom_data.event.set_phase(phase);
+        return Ok(());
+    }
+    if let Some(mut msg_data) = event.downcast_mut::<MessageEventData>() {
+        msg_data.event.set_phase(phase);
+        return Ok(());
+    }
+    if let Some(mut err_data) = event.downcast_mut::<ErrorEventData>() {
+        err_data.event.set_phase(phase);
+        return Ok(());
+    }
+    if let Some(mut progress_data) = event.downcast_mut::<ProgressEventData>() {
+        progress_data.event.set_phase(phase);
+        return Ok(());
+    }
+    if let Some(mut hash_data) = event.downcast_mut::<HashChangeEventData>() {
+        hash_data.event.set_phase(phase);
+        return Ok(());
+    }
+    if let Some(mut pop_data) = event.downcast_mut::<PopStateEventData>() {
+        pop_data.event.set_phase(phase);
+        return Ok(());
+    }
+    if let Some(mut close_data) = event.downcast_mut::<CloseEventData>() {
+        close_data.event.set_phase(phase);
+        return Ok(());
+    }
 
     Ok(())
 }
 
 /// Get whether event bubbles
 fn get_event_bubbles(event: &JsObject, context: &mut Context) -> JsResult<bool> {
-    // Try getting from EventData types
     if let Some(event_data) = event.downcast_ref::<EventData>() {
         return Ok(event_data.get_bubbles());
     }
@@ -255,6 +345,27 @@ fn get_event_bubbles(event: &JsObject, context: &mut Context) -> JsResult<bool> 
     }
     if let Some(ui_data) = event.downcast_ref::<UIEventData>() {
         return Ok(ui_data.event.get_bubbles());
+    }
+    if let Some(custom_data) = event.downcast_ref::<CustomEventData>() {
+        return Ok(custom_data.event.get_bubbles());
+    }
+    if let Some(msg_data) = event.downcast_ref::<MessageEventData>() {
+        return Ok(msg_data.event.get_bubbles());
+    }
+    if let Some(err_data) = event.downcast_ref::<ErrorEventData>() {
+        return Ok(err_data.event.get_bubbles());
+    }
+    if let Some(progress_data) = event.downcast_ref::<ProgressEventData>() {
+        return Ok(progress_data.event.get_bubbles());
+    }
+    if let Some(hash_data) = event.downcast_ref::<HashChangeEventData>() {
+        return Ok(hash_data.event.get_bubbles());
+    }
+    if let Some(pop_data) = event.downcast_ref::<PopStateEventData>() {
+        return Ok(pop_data.event.get_bubbles());
+    }
+    if let Some(close_data) = event.downcast_ref::<CloseEventData>() {
+        return Ok(close_data.event.get_bubbles());
     }
 
     // Fallback: try reading bubbles property from object
@@ -285,6 +396,27 @@ fn should_stop_propagation(event: &JsObject) -> JsResult<bool> {
     if let Some(ui_data) = event.downcast_ref::<UIEventData>() {
         return Ok(ui_data.event.should_stop_propagation());
     }
+    if let Some(custom_data) = event.downcast_ref::<CustomEventData>() {
+        return Ok(custom_data.event.should_stop_propagation());
+    }
+    if let Some(msg_data) = event.downcast_ref::<MessageEventData>() {
+        return Ok(msg_data.event.should_stop_propagation());
+    }
+    if let Some(err_data) = event.downcast_ref::<ErrorEventData>() {
+        return Ok(err_data.event.should_stop_propagation());
+    }
+    if let Some(progress_data) = event.downcast_ref::<ProgressEventData>() {
+        return Ok(progress_data.event.should_stop_propagation());
+    }
+    if let Some(hash_data) = event.downcast_ref::<HashChangeEventData>() {
+        return Ok(hash_data.event.should_stop_propagation());
+    }
+    if let Some(pop_data) = event.downcast_ref::<PopStateEventData>() {
+        return Ok(pop_data.event.should_stop_propagation());
+    }
+    if let Some(close_data) = event.downcast_ref::<CloseEventData>() {
+        return Ok(close_data.event.should_stop_propagation());
+    }
 
     Ok(false)
 }
@@ -309,6 +441,27 @@ fn should_stop_immediate_propagation(event: &JsObject) -> JsResult<bool> {
     if let Some(ui_data) = event.downcast_ref::<UIEventData>() {
         return Ok(ui_data.event.should_stop_immediate_propagation());
     }
+    if let Some(custom_data) = event.downcast_ref::<CustomEventData>() {
+        return Ok(custom_data.event.should_stop_immediate_propagation());
+    }
+    if let Some(msg_data) = event.downcast_ref::<MessageEventData>() {
+        return Ok(msg_data.event.should_stop_immediate_propagation());
+    }
+    if let Some(err_data) = event.downcast_ref::<ErrorEventData>() {
+        return Ok(err_data.event.should_stop_immediate_propagation());
+    }
+    if let Some(progress_data) = event.downcast_ref::<ProgressEventData>() {
+        return Ok(progress_data.event.should_stop_immediate_propagation());
+    }
+    if let Some(hash_data) = event.downcast_ref::<HashChangeEventData>() {
+        return Ok(hash_data.event.should_stop_immediate_propagation());
+    }
+    if let Some(pop_data) = event.downcast_ref::<PopStateEventData>() {
+        return Ok(pop_data.event.should_stop_immediate_propagation());
+    }
+    if let Some(close_data) = event.downcast_ref::<CloseEventData>() {
+        return Ok(close_data.event.should_stop_immediate_propagation());
+    }
 
     Ok(false)
 }
@@ -332,6 +485,27 @@ fn is_default_prevented(event: &JsObject, context: &mut Context) -> JsResult<boo
     }
     if let Some(ui_data) = event.downcast_ref::<UIEventData>() {
         return Ok(ui_data.event.get_default_prevented());
+    }
+    if let Some(custom_data) = event.downcast_ref::<CustomEventData>() {
+        return Ok(custom_data.event.get_default_prevented());
+    }
+    if let Some(msg_data) = event.downcast_ref::<MessageEventData>() {
+        return Ok(msg_data.event.get_default_prevented());
+    }
+    if let Some(err_data) = event.downcast_ref::<ErrorEventData>() {
+        return Ok(err_data.event.get_default_prevented());
+    }
+    if let Some(progress_data) = event.downcast_ref::<ProgressEventData>() {
+        return Ok(progress_data.event.get_default_prevented());
+    }
+    if let Some(hash_data) = event.downcast_ref::<HashChangeEventData>() {
+        return Ok(hash_data.event.get_default_prevented());
+    }
+    if let Some(pop_data) = event.downcast_ref::<PopStateEventData>() {
+        return Ok(pop_data.event.get_default_prevented());
+    }
+    if let Some(close_data) = event.downcast_ref::<CloseEventData>() {
+        return Ok(close_data.event.get_default_prevented());
     }
 
     // Fallback: try reading defaultPrevented property
@@ -361,6 +535,27 @@ fn get_event_type(event: &JsObject, context: &mut Context) -> JsResult<String> {
     }
     if let Some(ui_data) = event.downcast_ref::<UIEventData>() {
         return Ok(ui_data.event.get_type().to_string());
+    }
+    if let Some(custom_data) = event.downcast_ref::<CustomEventData>() {
+        return Ok(custom_data.event.get_type().to_string());
+    }
+    if let Some(msg_data) = event.downcast_ref::<MessageEventData>() {
+        return Ok(msg_data.event.get_type().to_string());
+    }
+    if let Some(err_data) = event.downcast_ref::<ErrorEventData>() {
+        return Ok(err_data.event.get_type().to_string());
+    }
+    if let Some(progress_data) = event.downcast_ref::<ProgressEventData>() {
+        return Ok(progress_data.event.get_type().to_string());
+    }
+    if let Some(hash_data) = event.downcast_ref::<HashChangeEventData>() {
+        return Ok(hash_data.event.get_type().to_string());
+    }
+    if let Some(pop_data) = event.downcast_ref::<PopStateEventData>() {
+        return Ok(pop_data.event.get_type().to_string());
+    }
+    if let Some(close_data) = event.downcast_ref::<CloseEventData>() {
+        return Ok(close_data.event.get_type().to_string());
     }
 
     // Fallback: try reading type property

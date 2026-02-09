@@ -1,7 +1,7 @@
 //! Element property getters and setters (tagName, id, className, innerHTML, textContent, etc.)
 
 use boa_engine::{
-    builtins::{BuiltInBuilder, array::Array},
+    builtins::array::Array,
     object::JsObject,
     value::JsValue,
     Context, JsArgs, JsNativeError, JsResult, js_string,
@@ -159,7 +159,7 @@ pub(super) fn set_text_content(this: &JsValue, args: &[JsValue], context: &mut C
     Ok(JsValue::undefined())
 }
 
-/// `Element.prototype.children` getter
+/// `Element.prototype.children` getter — returns HTMLCollection (element children only)
 pub(super) fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.children called on non-object")
@@ -167,9 +167,10 @@ pub(super) fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Cont
 
     let children = with_element_data(&this_obj, |el| el.get_children(), "Element.prototype.children called on non-Element object")?;
 
-    let children_values: Vec<JsValue> = children.into_iter().map(|child| child.into()).collect();
-    let array = Array::create_array_from_list(children_values, context);
-    Ok(array.into())
+    // Per spec, children returns only Element nodes (not text/comment nodes)
+    let element_children: Vec<JsObject> = children.into_iter().filter(|c| has_element_data(c)).collect();
+    let collection = crate::dom::htmlcollection::HTMLCollection::create_from_elements(element_children, context)?;
+    Ok(collection.into())
 }
 
 /// `Element.prototype.parentNode` getter
@@ -183,27 +184,46 @@ pub(super) fn get_parent_node(this: &JsValue, _args: &[JsValue], _context: &mut 
     Ok(parent_node.map(|parent| parent.into()).unwrap_or(JsValue::null()))
 }
 
-/// `Element.prototype.style` getter
+/// `Element.prototype.style` getter — returns cached CSSStyleDeclaration (same object identity)
 pub(super) fn get_style(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.style called on non-object")
     })?;
 
-    // Verify it's an element
     if !has_element_data(&this_obj) {
         return Err(JsNativeError::typ()
             .with_message("Element.prototype.style called on non-Element object")
             .into());
     }
 
-    // Create a proper CSSStyleDeclaration object with the correct prototype
+    // Return cached style object if it exists
+    let cached = this_obj.get(js_string!("__style__"), context)?;
+    if cached.is_object() {
+        return Ok(cached);
+    }
+
+    // Create and cache a new CSSStyleDeclaration
     use boa_engine::builtins::BuiltInConstructor;
     let css_style_constructor = context.intrinsics().constructors().css_style_declaration().constructor();
-    crate::browser::cssom::CSSStyleDeclaration::constructor(
+    let style = crate::browser::cssom::CSSStyleDeclaration::constructor(
         &css_style_constructor.into(),
         &[],
         context,
-    )
+    )?;
+
+    // Cache as non-enumerable internal property
+    use boa_engine::property::PropertyDescriptor;
+    this_obj.define_property_or_throw(
+        js_string!("__style__"),
+        PropertyDescriptor::builder()
+            .value(style.clone())
+            .writable(false)
+            .enumerable(false)
+            .configurable(false),
+        context,
+    )?;
+
+    Ok(style)
 }
 
 /// `Element.prototype.dataset` getter
@@ -224,22 +244,425 @@ pub(super) fn get_dataset(this: &JsValue, _args: &[JsValue], context: &mut Conte
     Ok(map.into())
 }
 
-/// `Element.prototype.classList` getter
+/// `Element.prototype.classList` getter — returns cached DOMTokenList (same object identity)
 pub(super) fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.classList called on non-object")
     })?;
 
-    // Verify it's an element
     if !has_element_data(&this_obj) {
         return Err(JsNativeError::typ()
             .with_message("Element.prototype.classList called on non-Element object")
             .into());
     }
 
-    // Create or return a DOMTokenList bound to this element
+    // Return cached classList object if it exists
+    let cached = this_obj.get(js_string!("__classList__"), context)?;
+    if cached.is_object() {
+        return Ok(cached);
+    }
+
+    // Create and cache a new DOMTokenList
     let list = crate::dom::domtokenlist::DOMTokenList::create_for_element(this_obj.clone(), context)?;
-    Ok(list.into())
+    let list_value: JsValue = list.into();
+
+    // Cache as non-enumerable internal property
+    use boa_engine::property::PropertyDescriptor;
+    this_obj.define_property_or_throw(
+        js_string!("__classList__"),
+        PropertyDescriptor::builder()
+            .value(list_value.clone())
+            .writable(false)
+            .enumerable(false)
+            .configurable(false),
+        context,
+    )?;
+
+    Ok(list_value)
+}
+
+/// `Element.prototype.nextElementSibling` getter
+pub(super) fn get_next_element_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.nextElementSibling called on non-object")
+    })?;
+
+    let sibling = with_element_data(&this_obj, |el| el.get_next_sibling(), "Element.prototype.nextElementSibling called on non-Element object")?;
+
+    // Filter to only element nodes (nodeType == 1) by checking if it has ElementData
+    if let Some(sib) = sibling {
+        if has_element_data(&sib) {
+            return Ok(sib.into());
+        }
+        // Walk forward to find the next element sibling
+        let mut current = sib;
+        loop {
+            let next = with_element_data(&current, |el| el.get_next_sibling(), "");
+            match next {
+                Ok(Some(next_sib)) => {
+                    if has_element_data(&next_sib) {
+                        return Ok(next_sib.into());
+                    }
+                    current = next_sib;
+                }
+                _ => break,
+            }
+        }
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.previousElementSibling` getter
+pub(super) fn get_previous_element_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.previousElementSibling called on non-object")
+    })?;
+
+    let sibling = with_element_data(&this_obj, |el| el.get_previous_sibling(), "Element.prototype.previousElementSibling called on non-Element object")?;
+
+    if let Some(sib) = sibling {
+        if has_element_data(&sib) {
+            return Ok(sib.into());
+        }
+        let mut current = sib;
+        loop {
+            let prev = with_element_data(&current, |el| el.get_previous_sibling(), "");
+            match prev {
+                Ok(Some(prev_sib)) => {
+                    if has_element_data(&prev_sib) {
+                        return Ok(prev_sib.into());
+                    }
+                    current = prev_sib;
+                }
+                _ => break,
+            }
+        }
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.firstElementChild` getter
+pub(super) fn get_first_element_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.firstElementChild called on non-object")
+    })?;
+
+    let children = with_element_data(&this_obj, |el| el.get_children(), "Element.prototype.firstElementChild called on non-Element object")?;
+
+    for child in children {
+        if has_element_data(&child) {
+            return Ok(child.into());
+        }
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.lastElementChild` getter
+pub(super) fn get_last_element_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.lastElementChild called on non-object")
+    })?;
+
+    let children = with_element_data(&this_obj, |el| el.get_children(), "Element.prototype.lastElementChild called on non-Element object")?;
+
+    for child in children.into_iter().rev() {
+        if has_element_data(&child) {
+            return Ok(child.into());
+        }
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.childElementCount` getter
+pub(super) fn get_child_element_count(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.childElementCount called on non-object")
+    })?;
+
+    let children = with_element_data(&this_obj, |el| el.get_children(), "Element.prototype.childElementCount called on non-Element object")?;
+
+    let count = children.iter().filter(|c| has_element_data(c)).count();
+    Ok((count as u32).into())
+}
+
+/// `Element.prototype.parentElement` getter
+pub(super) fn get_parent_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.parentElement called on non-object")
+    })?;
+
+    let parent = with_element_data(&this_obj, |el| el.get_parent_node(), "Element.prototype.parentElement called on non-Element object")?;
+
+    // parentElement returns null if the parent is not an Element (e.g., Document)
+    if let Some(p) = parent {
+        if has_element_data(&p) {
+            return Ok(p.into());
+        }
+    }
+    Ok(JsValue::null())
+}
+
+/// `Element.prototype.getAttributeNames()`
+pub(super) fn get_attribute_names(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.getAttributeNames called on non-object")
+    })?;
+
+    let names = with_element_data(&this_obj, |el| {
+        el.attributes.lock().unwrap().keys().cloned().collect::<Vec<_>>()
+    }, "Element.prototype.getAttributeNames called on non-Element object")?;
+
+    let values: Vec<JsValue> = names.into_iter().map(|n| JsString::from(n).into()).collect();
+    Ok(Array::create_array_from_list(values, context).into())
+}
+
+/// `Element.prototype.toggleAttribute(name, force?)`
+pub(super) fn toggle_attribute(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Element.prototype.toggleAttribute called on non-object")
+    })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+    let force = if args.len() > 1 && !args[1].is_undefined() {
+        Some(args[1].to_boolean())
+    } else {
+        None
+    };
+
+    let result = with_element_data(&this_obj, |el| {
+        let has = el.has_attribute(&name_str);
+        match force {
+            Some(true) => {
+                if !has {
+                    el.set_attribute(name_str.clone(), String::new());
+                }
+                true
+            }
+            Some(false) => {
+                if has {
+                    el.remove_attribute(&name_str);
+                }
+                false
+            }
+            None => {
+                if has {
+                    el.remove_attribute(&name_str);
+                    false
+                } else {
+                    el.set_attribute(name_str.clone(), String::new());
+                    true
+                }
+            }
+        }
+    }, "Element.prototype.toggleAttribute called on non-Element object")?;
+
+    Ok(result.into())
+}
+
+/// `Element.prototype.insertAdjacentHTML(position, html)`
+pub(super) fn insert_adjacent_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("insertAdjacentHTML called on non-object")
+    })?;
+
+    let position = args.get_or_undefined(0).to_string(context)?;
+    let html = args.get_or_undefined(1).to_string(context)?;
+    let position_str = position.to_std_string_escaped().to_lowercase();
+    let html_str = html.to_std_string_escaped();
+
+    let parsed = parse_html_elements_with_context(&html_str, context)?;
+
+    match position_str.as_str() {
+        "beforebegin" => {
+            // Insert before this element in its parent
+            let parent = with_element_data(&this_obj, |el| el.get_parent_node(), "insertAdjacentHTML")?;
+            if let Some(parent_obj) = parent {
+                with_element_data(&parent_obj, |parent_el| {
+                    let mut children = parent_el.children.lock().unwrap();
+                    if let Some(idx) = children.iter().position(|c| JsObject::equals(c, &this_obj)) {
+                        for (i, el) in parsed.into_iter().enumerate() {
+                            children.insert(idx + i, el);
+                        }
+                    }
+                    parent_el.mark_modified_by_js();
+                }, "insertAdjacentHTML parent")?;
+            }
+        }
+        "afterbegin" => {
+            with_element_data(&this_obj, |el| {
+                let mut children = el.children.lock().unwrap();
+                for (i, child) in parsed.into_iter().enumerate() {
+                    children.insert(i, child);
+                }
+                el.mark_modified_by_js();
+            }, "insertAdjacentHTML")?;
+        }
+        "beforeend" => {
+            with_element_data(&this_obj, |el| {
+                let mut children = el.children.lock().unwrap();
+                children.extend(parsed);
+                el.mark_modified_by_js();
+            }, "insertAdjacentHTML")?;
+        }
+        "afterend" => {
+            let parent = with_element_data(&this_obj, |el| el.get_parent_node(), "insertAdjacentHTML")?;
+            if let Some(parent_obj) = parent {
+                with_element_data(&parent_obj, |parent_el| {
+                    let mut children = parent_el.children.lock().unwrap();
+                    if let Some(idx) = children.iter().position(|c| JsObject::equals(c, &this_obj)) {
+                        for (i, el) in parsed.into_iter().enumerate() {
+                            children.insert(idx + 1 + i, el);
+                        }
+                    }
+                    parent_el.mark_modified_by_js();
+                }, "insertAdjacentHTML parent")?;
+            }
+        }
+        _ => {
+            return Err(JsNativeError::syntax()
+                .with_message(format!("Invalid position: {}", position_str))
+                .into());
+        }
+    }
+
+    Ok(JsValue::undefined())
+}
+
+/// `Element.prototype.insertAdjacentElement(position, element)`
+pub(super) fn insert_adjacent_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("insertAdjacentElement called on non-object")
+    })?;
+
+    let position = args.get_or_undefined(0).to_string(context)?;
+    let position_str = position.to_std_string_escaped().to_lowercase();
+    let element = args.get_or_undefined(1);
+    let element_obj = element.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("insertAdjacentElement: second argument must be an element")
+    })?;
+
+    match position_str.as_str() {
+        "beforebegin" => {
+            let parent = with_element_data(&this_obj, |el| el.get_parent_node(), "insertAdjacentElement")?;
+            if let Some(parent_obj) = parent {
+                with_element_data(&parent_obj, |parent_el| {
+                    let mut children = parent_el.children.lock().unwrap();
+                    if let Some(idx) = children.iter().position(|c| JsObject::equals(c, &this_obj)) {
+                        children.insert(idx, element_obj.clone());
+                    }
+                    parent_el.mark_modified_by_js();
+                }, "insertAdjacentElement parent")?;
+                Ok(element.clone())
+            } else {
+                Ok(JsValue::null())
+            }
+        }
+        "afterbegin" => {
+            with_element_data(&this_obj, |el| {
+                let mut children = el.children.lock().unwrap();
+                children.insert(0, element_obj.clone());
+                el.mark_modified_by_js();
+            }, "insertAdjacentElement")?;
+            Ok(element.clone())
+        }
+        "beforeend" => {
+            with_element_data(&this_obj, |el| {
+                let mut children = el.children.lock().unwrap();
+                children.push(element_obj.clone());
+                el.mark_modified_by_js();
+            }, "insertAdjacentElement")?;
+            Ok(element.clone())
+        }
+        "afterend" => {
+            let parent = with_element_data(&this_obj, |el| el.get_parent_node(), "insertAdjacentElement")?;
+            if let Some(parent_obj) = parent {
+                with_element_data(&parent_obj, |parent_el| {
+                    let mut children = parent_el.children.lock().unwrap();
+                    if let Some(idx) = children.iter().position(|c| JsObject::equals(c, &this_obj)) {
+                        children.insert(idx + 1, element_obj.clone());
+                    }
+                    parent_el.mark_modified_by_js();
+                }, "insertAdjacentElement parent")?;
+                Ok(element.clone())
+            } else {
+                Ok(JsValue::null())
+            }
+        }
+        _ => {
+            Err(JsNativeError::syntax()
+                .with_message(format!("Invalid position: {}", position_str))
+                .into())
+        }
+    }
+}
+
+/// `Element.prototype.getElementsByClassName(classNames)`
+pub(super) fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("getElementsByClassName called on non-object")
+    })?;
+
+    let class_names = args.get_or_undefined(0).to_string(context)?;
+    let class_names_str = class_names.to_std_string_escaped();
+    let target_classes: Vec<&str> = class_names_str.split_whitespace().collect();
+
+    if target_classes.is_empty() {
+        return Ok(Array::create_array_from_list(vec![], context).into());
+    }
+
+    let mut results = Vec::new();
+    fn collect_by_class(obj: &JsObject, target_classes: &[&str], results: &mut Vec<JsValue>) {
+        if let Ok(children) = with_element_data(obj, |el| el.get_children(), "") {
+            for child in &children {
+                if has_element_data(child) {
+                    let matches = with_element_data(child, |el| {
+                        let class_name = el.get_class_name();
+                        let el_classes: Vec<&str> = class_name.split_whitespace().collect();
+                        target_classes.iter().all(|tc| el_classes.contains(tc))
+                    }, "");
+                    if matches.unwrap_or(false) {
+                        results.push(child.clone().into());
+                    }
+                    collect_by_class(child, target_classes, results);
+                }
+            }
+        }
+    }
+    collect_by_class(&this_obj, &target_classes, &mut results);
+    Ok(Array::create_array_from_list(results, context).into())
+}
+
+/// `Element.prototype.getElementsByTagName(tagName)`
+pub(super) fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("getElementsByTagName called on non-object")
+    })?;
+
+    let tag_name = args.get_or_undefined(0).to_string(context)?;
+    let tag_str = tag_name.to_std_string_escaped().to_uppercase();
+    let match_all = tag_str == "*";
+
+    let mut results = Vec::new();
+    fn collect_by_tag(obj: &JsObject, tag: &str, match_all: bool, results: &mut Vec<JsValue>) {
+        if let Ok(children) = with_element_data(obj, |el| el.get_children(), "") {
+            for child in &children {
+                if has_element_data(child) {
+                    let matches = if match_all {
+                        true
+                    } else {
+                        with_element_data(child, |el| el.get_tag_name().to_uppercase() == tag, "").unwrap_or(false)
+                    };
+                    if matches {
+                        results.push(child.clone().into());
+                    }
+                    collect_by_tag(child, tag, match_all, results);
+                }
+            }
+        }
+    }
+    collect_by_tag(&this_obj, &tag_str, match_all, &mut results);
+    Ok(Array::create_array_from_list(results, context).into())
 }
 
 /// `Element.prototype.setAttribute(name, value)`
@@ -437,7 +860,7 @@ pub(super) fn set_outer_html(this: &JsValue, args: &[JsValue], context: &mut Con
     Ok(JsValue::undefined())
 }
 
-/// `Element.prototype.childNodes` getter
+/// `Element.prototype.childNodes` getter — returns NodeList
 pub(super) fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.childNodes called on non-object")
@@ -445,25 +868,6 @@ pub(super) fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut C
 
     let children = with_element_data(&this_obj, |el| el.get_children(), "Element.prototype.childNodes called on non-Element object")?;
 
-    // Create a NodeList-like array
-    let children_values: Vec<JsValue> = children.into_iter().map(|child| child.into()).collect();
-    let array = Array::create_array_from_list(children_values, context);
-
-    // Add item() method for NodeList compatibility
-    let item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
-        let index = args.get_or_undefined(0).to_u32(ctx)?;
-        if let Some(arr) = this.as_object() {
-            if let Ok(val) = arr.get(index, ctx) {
-                if !val.is_undefined() {
-                    return Ok(val);
-                }
-            }
-        }
-        Ok(JsValue::null())
-    })
-    .name(js_string!("item"))
-    .build();
-    array.set(js_string!("item"), item_fn, false, context)?;
-
-    Ok(array.into())
+    let nodelist = crate::dom::nodelist::NodeList::create_from_nodes(children, false, context)?;
+    Ok(nodelist.into())
 }

@@ -251,6 +251,8 @@ impl IntrinsicObject for Event {
             .method(stop_propagation, js_string!("stopPropagation"), 0)
             .method(stop_immediate_propagation, js_string!("stopImmediatePropagation"), 0)
             .method(init_event, js_string!("initEvent"), 3)
+            .method(composed_path, js_string!("composedPath"), 0)
+            // Phase constants on constructor (static)
             .static_property(
                 js_string!("NONE"),
                 0,
@@ -267,6 +269,27 @@ impl IntrinsicObject for Event {
                 Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
             )
             .static_property(
+                js_string!("BUBBLING_PHASE"),
+                3,
+                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
+            )
+            // Phase constants on prototype (per spec, these must also be on prototype)
+            .property(
+                js_string!("NONE"),
+                0,
+                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
+            )
+            .property(
+                js_string!("CAPTURING_PHASE"),
+                1,
+                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
+            )
+            .property(
+                js_string!("AT_TARGET"),
+                2,
+                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
+            )
+            .property(
                 js_string!("BUBBLING_PHASE"),
                 3,
                 Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
@@ -684,4 +707,38 @@ fn init_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
     });
 
     Ok(JsValue::undefined())
+}
+
+/// `Event.prototype.composedPath()` — returns the event's path (target + ancestors)
+fn composed_path(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Event method called on non-object")
+    })?;
+
+    // Get the target from event data
+    let target = get_event_data_from_obj(&this_obj)
+        .and_then(|event_data| event_data.get_target());
+
+    let mut path = Vec::new();
+    if let Some(target_obj) = target {
+        path.push(JsValue::from(target_obj.clone()));
+
+        // Walk up the parent chain
+        let mut current = target_obj;
+        loop {
+            let parent = crate::dom::element::with_element_data(&current, |el| {
+                el.get_parent_node()
+            }, "");
+            match parent {
+                Ok(Some(parent_obj)) => {
+                    path.push(JsValue::from(parent_obj.clone()));
+                    current = parent_obj;
+                }
+                _ => break,
+            }
+        }
+    }
+
+    use boa_engine::builtins::array::Array;
+    Ok(Array::create_array_from_list(path, context).into())
 }
