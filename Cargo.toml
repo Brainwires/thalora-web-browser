@@ -322,6 +322,10 @@ tokio-util = { version = "0.7", features = ["codec"], optional = true }
 # Command line argument parsing (native only)
 clap = { version = "4.0", features = ["derive"], optional = true }
 
+# HTTP transport for MCP server (native only)
+axum = { version = "0.8", features = ["json"], optional = true }
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+
 # Regex for JavaScript processing
 regex = "1.10"
 
@@ -432,6 +436,9 @@ native = [
     "dep:wat",
     "dep:wasmparser",
     "dep:wasm-encoder",
+    # HTTP transport for MCP server
+    "dep:axum",
+    "dep:tower-http",
     # Enable native features in sub-crates
     "thalora-browser-apis/native",
     "boa_engine/native",
