@@ -117,7 +117,6 @@ pub struct MessagePort;
 impl IntrinsicObject for MessagePort {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Instance methods
             .property(
                 js_string!("postMessage"),

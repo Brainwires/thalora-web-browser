@@ -18,7 +18,7 @@ pub mod credentials;
 // Full-featured browser APIs
 // webassembly API is now natively implemented in Boa engine
 
-// Native-only: Geolocation uses rquest for IP-based geolocation
+// Native-only: Geolocation uses sysinfo and ipgeolocate
 #[cfg(feature = "native")]
 pub mod geolocation;
 

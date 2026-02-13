@@ -16,65 +16,37 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
-use super::event::EventData;
-
 /// JavaScript `MessageEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct MessageEvent;
 
 impl IntrinsicObject for MessageEvent {
     fn init(realm: &Realm) {
-        let data_getter = BuiltInBuilder::callable(realm, get_data)
-            .name(js_string!("get data"))
-            .build();
-
-        let origin_getter = BuiltInBuilder::callable(realm, get_origin)
-            .name(js_string!("get origin"))
-            .build();
-
-        let last_event_id_getter = BuiltInBuilder::callable(realm, get_last_event_id)
-            .name(js_string!("get lastEventId"))
-            .build();
-
-        let source_getter = BuiltInBuilder::callable(realm, get_source)
-            .name(js_string!("get source"))
-            .build();
-
-        let ports_getter = BuiltInBuilder::callable(realm, get_ports)
-            .name(js_string!("get ports"))
-            .build();
-
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
-            .accessor(
+            .property(
                 js_string!("data"),
-                Some(data_getter),
-                None,
-                Attribute::CONFIGURABLE,
+                js_string!(""),
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::CONFIGURABLE,
             )
-            .accessor(
+            .property(
                 js_string!("origin"),
-                Some(origin_getter),
-                None,
-                Attribute::CONFIGURABLE,
+                js_string!(""),
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::CONFIGURABLE,
             )
-            .accessor(
+            .property(
                 js_string!("lastEventId"),
-                Some(last_event_id_getter),
-                None,
-                Attribute::CONFIGURABLE,
+                js_string!(""),
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::CONFIGURABLE,
             )
-            .accessor(
+            .property(
                 js_string!("source"),
-                Some(source_getter),
-                None,
-                Attribute::CONFIGURABLE,
+                JsValue::null(),
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::CONFIGURABLE,
             )
-            .accessor(
+            .property(
                 js_string!("ports"),
-                Some(ports_getter),
-                None,
-                Attribute::CONFIGURABLE,
+                JsValue::undefined(),
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::CONFIGURABLE,
             )
             .build();
     }
@@ -90,8 +62,8 @@ impl BuiltInObject for MessageEvent {
 
 impl BuiltInConstructor for MessageEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 10;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::message_event;
@@ -117,143 +89,88 @@ impl BuiltInConstructor for MessageEvent {
 
         // Create the MessageEvent object
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::message_event, context)?;
-
-        // Parse eventInitDict
-        let mut bubbles = false;
-        let mut cancelable = false;
-        let mut data = JsValue::undefined();
-        let mut origin = String::new();
-        let mut last_event_id = String::new();
-        let mut source: Option<JsObject> = None;
-        let mut ports: Option<JsObject> = None;
-
-        if let Some(init_obj) = event_init_dict.as_object() {
-            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
-                bubbles = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
-                cancelable = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("data"), context) {
-                data = v;
-            }
-            if let Ok(v) = init_obj.get(js_string!("origin"), context) {
-                origin = v.to_string(context)?.to_std_string_escaped();
-            }
-            if let Ok(v) = init_obj.get(js_string!("lastEventId"), context) {
-                last_event_id = v.to_string(context)?.to_std_string_escaped();
-            }
-            if let Ok(v) = init_obj.get(js_string!("source"), context) {
-                source = v.as_object();
-            }
-            if let Ok(v) = init_obj.get(js_string!("ports"), context) {
-                ports = v.as_object();
-            }
-        }
-
-        let event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
-        let message_event_data = MessageEventData::new(event_data, data, origin, last_event_id, source, ports);
-
+        let message_event_data = MessageEventData::new(event_type.to_std_string_escaped());
         let message_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             message_event_data,
         );
 
-        Ok(message_event_obj.into())
+        let message_event_generic = message_event_obj.upcast();
+
+        // Parse eventInitDict if provided
+        if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                // Set data property
+                if let Ok(data_val) = init_obj.get(js_string!("data"), context) {
+                    message_event_generic.set(js_string!("data"), data_val, false, context)?;
+                }
+
+                // Set origin property
+                if let Ok(origin_val) = init_obj.get(js_string!("origin"), context) {
+                    let origin_str = origin_val.to_string(context)?;
+                    message_event_generic.set(js_string!("origin"), origin_str, false, context)?;
+                }
+
+                // Set lastEventId property
+                if let Ok(last_event_id_val) = init_obj.get(js_string!("lastEventId"), context) {
+                    let last_event_id_str = last_event_id_val.to_string(context)?;
+                    message_event_generic.set(js_string!("lastEventId"), last_event_id_str, false, context)?;
+                }
+
+                // Set source property
+                if let Ok(source_val) = init_obj.get(js_string!("source"), context) {
+                    message_event_generic.set(js_string!("source"), source_val, false, context)?;
+                }
+
+                // Set ports property
+                if let Ok(ports_val) = init_obj.get(js_string!("ports"), context) {
+                    message_event_generic.set(js_string!("ports"), ports_val, false, context)?;
+                }
+
+                // Set bubbles property (inherited from Event)
+                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                    let bubbles = bubbles_val.to_boolean();
+                    message_event_generic.set(js_string!("bubbles"), bubbles, false, context)?;
+                }
+
+                // Set cancelable property (inherited from Event)
+                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                    let cancelable = cancelable_val.to_boolean();
+                    message_event_generic.set(js_string!("cancelable"), cancelable, false, context)?;
+                }
+            }
+        }
+
+        // Set the type property
+        message_event_generic.set(js_string!("type"), event_type, false, context)?;
+
+        // Set default values for Event interface properties
+        message_event_generic.set(js_string!("bubbles"), false, false, context)?;
+        message_event_generic.set(js_string!("cancelable"), false, false, context)?;
+        message_event_generic.set(js_string!("composed"), false, false, context)?;
+        message_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
+        message_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
+        message_event_generic.set(js_string!("isTrusted"), false, false, context)?;
+        message_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
+        message_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
+        message_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+
+        Ok(message_event_generic.into())
     }
 }
 
-/// Internal data for MessageEvent instances - embeds EventData for proper inheritance
+/// Internal data for MessageEvent instances
 #[derive(Debug, Trace, Finalize, JsData)]
-pub struct MessageEventData {
-    /// Base event data
-    pub event: EventData,
-    /// The data sent with the message
-    data: JsValue,
-    /// The origin of the message
+struct MessageEventData {
     #[unsafe_ignore_trace]
-    origin: String,
-    /// The last event ID
-    #[unsafe_ignore_trace]
-    last_event_id: String,
-    /// The source of the message
-    source: Option<JsObject>,
-    /// The ports array
-    ports: Option<JsObject>,
+    event_type: String,
 }
 
 impl MessageEventData {
-    pub fn new(
-        event: EventData,
-        data: JsValue,
-        origin: String,
-        last_event_id: String,
-        source: Option<JsObject>,
-        ports: Option<JsObject>,
-    ) -> Self {
-        Self { event, data, origin, last_event_id, source, ports }
+    fn new(event_type: String) -> Self {
+        Self { event_type }
     }
-}
-
-fn get_data(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.data called on non-object")
-    })?;
-
-    let message_event = this_obj.downcast_ref::<MessageEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.data called on non-MessageEvent object")
-    })?;
-
-    Ok(message_event.data.clone())
-}
-
-fn get_origin(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.origin called on non-object")
-    })?;
-
-    let message_event = this_obj.downcast_ref::<MessageEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.origin called on non-MessageEvent object")
-    })?;
-
-    Ok(js_string!(message_event.origin.clone()).into())
-}
-
-fn get_last_event_id(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.lastEventId called on non-object")
-    })?;
-
-    let message_event = this_obj.downcast_ref::<MessageEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.lastEventId called on non-MessageEvent object")
-    })?;
-
-    Ok(js_string!(message_event.last_event_id.clone()).into())
-}
-
-fn get_source(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.source called on non-object")
-    })?;
-
-    let message_event = this_obj.downcast_ref::<MessageEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.source called on non-MessageEvent object")
-    })?;
-
-    Ok(message_event.source.clone().map(|s| s.into()).unwrap_or(JsValue::null()))
-}
-
-fn get_ports(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.ports called on non-object")
-    })?;
-
-    let message_event = this_obj.downcast_ref::<MessageEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("MessageEvent.prototype.ports called on non-MessageEvent object")
-    })?;
-
-    Ok(message_event.ports.clone().map(|p| p.into()).unwrap_or(JsValue::undefined()))
 }
 
 /// Create a MessageEvent from structured clone data
@@ -264,22 +181,32 @@ pub fn create_message_event(
     ports: Option<JsValue>,
     context: &mut Context,
 ) -> JsResult<JsObject> {
-    let event_data = EventData::new("message".to_string(), false, false);
-    let message_event_data = MessageEventData::new(
-        event_data,
-        data,
-        origin.unwrap_or("").to_string(),
-        String::new(),
-        source.and_then(|s| s.as_object()),
-        ports.and_then(|p| p.as_object()),
-    );
+    let message_event_constructor = context.intrinsics().constructors().message_event().constructor();
 
-    let proto = context.intrinsics().constructors().message_event().prototype();
-    let message_event = JsObject::from_proto_and_data_with_shared_shape(
-        context.root_shape(),
-        proto,
-        message_event_data,
-    );
+    // Create the event
+    let message_event = message_event_constructor.construct(
+        &[js_string!("message").into()],
+        Some(&message_event_constructor),
+        context,
+    )?;
 
-    Ok(message_event.upcast())
+    // Set the data
+    message_event.set(js_string!("data"), data, false, context)?;
+
+    // Set origin if provided
+    if let Some(origin_str) = origin {
+        message_event.set(js_string!("origin"), js_string!(origin_str), false, context)?;
+    }
+
+    // Set source if provided
+    if let Some(source_val) = source {
+        message_event.set(js_string!("source"), source_val, false, context)?;
+    }
+
+    // Set ports if provided
+    if let Some(ports_val) = ports {
+        message_event.set(js_string!("ports"), ports_val, false, context)?;
+    }
+
+    Ok(message_event)
 }

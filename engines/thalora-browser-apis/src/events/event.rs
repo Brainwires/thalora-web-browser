@@ -71,20 +71,6 @@ impl EventData {
         }
     }
 
-    /// Create a new trusted event (for browser-initiated events like mouse clicks)
-    /// Trusted events have is_trusted set to true, indicating they were created
-    /// by the user agent rather than by JavaScript code.
-    pub fn new_trusted(event_type: String, bubbles: bool, cancelable: bool) -> Self {
-        let mut event = Self::new(event_type, bubbles, cancelable);
-        event.is_trusted = true;
-        // Trusted events get a proper timestamp
-        event.timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as f64)
-            .unwrap_or(0.0);
-        event
-    }
-
     pub fn prevent_default(&mut self) {
         if self.cancelable {
             self.default_prevented = true;
@@ -251,8 +237,6 @@ impl IntrinsicObject for Event {
             .method(stop_propagation, js_string!("stopPropagation"), 0)
             .method(stop_immediate_propagation, js_string!("stopImmediatePropagation"), 0)
             .method(init_event, js_string!("initEvent"), 3)
-            .method(composed_path, js_string!("composedPath"), 0)
-            // Phase constants on constructor (static)
             .static_property(
                 js_string!("NONE"),
                 0,
@@ -269,27 +253,6 @@ impl IntrinsicObject for Event {
                 Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
             )
             .static_property(
-                js_string!("BUBBLING_PHASE"),
-                3,
-                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
-            )
-            // Phase constants on prototype (per spec, these must also be on prototype)
-            .property(
-                js_string!("NONE"),
-                0,
-                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
-            )
-            .property(
-                js_string!("CAPTURING_PHASE"),
-                1,
-                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
-            )
-            .property(
-                js_string!("AT_TARGET"),
-                2,
-                Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
-            )
-            .property(
                 js_string!("BUBBLING_PHASE"),
                 3,
                 Attribute::READONLY.union(Attribute::NON_ENUMERABLE),
@@ -358,173 +321,17 @@ impl BuiltInConstructor for Event {
 // Accessor functions
 
 /// Get the event type.
-/// Handles EventData, UIEventData, MouseEventData, and all Event subclasses.
 fn get_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
     })?;
 
-    Ok(JsValue::from(js_string!(event_data.get_type())))
-}
-
-/// Helper function to get EventData from any event type (EventData, UIEventData, MouseEventData, etc.)
-fn get_event_data_from_obj(this_obj: &JsObject) -> Option<EventData> {
-    use super::ui_events::{UIEventData, MouseEventData, KeyboardEventData, FocusEventData, InputEventData};
-    use super::custom_event::CustomEventData;
-    use super::message_event::MessageEventData;
-    use super::error_event::ErrorEventData;
-    use super::progress_event::ProgressEventData;
-    use super::hash_change_event::HashChangeEventData;
-    use super::pop_state_event::PopStateEventData;
-    use super::close_event::CloseEventData;
-    use super::pageswap_event::PageSwapEventData;
-    use crate::storage::storage_event::StorageEvent;
-
-    // Try EventData directly
-    if let Some(data) = this_obj.downcast_ref::<EventData>() {
-        return Some(data.clone());
-    }
-    // Try MouseEventData (MouseEventData.ui_event.event)
-    if let Some(data) = this_obj.downcast_ref::<MouseEventData>() {
-        return Some(data.ui_event.event.clone());
-    }
-    // Try KeyboardEventData (KeyboardEventData.ui_event.event)
-    if let Some(data) = this_obj.downcast_ref::<KeyboardEventData>() {
-        return Some(data.ui_event.event.clone());
-    }
-    // Try FocusEventData (FocusEventData.ui_event.event)
-    if let Some(data) = this_obj.downcast_ref::<FocusEventData>() {
-        return Some(data.ui_event.event.clone());
-    }
-    // Try InputEventData (InputEventData.ui_event.event)
-    if let Some(data) = this_obj.downcast_ref::<InputEventData>() {
-        return Some(data.ui_event.event.clone());
-    }
-    // Try UIEventData (UIEventData.event)
-    if let Some(data) = this_obj.downcast_ref::<UIEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try CustomEventData
-    if let Some(data) = this_obj.downcast_ref::<CustomEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try MessageEventData
-    if let Some(data) = this_obj.downcast_ref::<MessageEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try ErrorEventData
-    if let Some(data) = this_obj.downcast_ref::<ErrorEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try ProgressEventData
-    if let Some(data) = this_obj.downcast_ref::<ProgressEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try HashChangeEventData
-    if let Some(data) = this_obj.downcast_ref::<HashChangeEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try PopStateEventData
-    if let Some(data) = this_obj.downcast_ref::<PopStateEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try CloseEventData
-    if let Some(data) = this_obj.downcast_ref::<CloseEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try PageSwapEventData
-    if let Some(data) = this_obj.downcast_ref::<PageSwapEventData>() {
-        return Some(data.event.clone());
-    }
-    // Try StorageEvent
-    if let Some(data) = this_obj.downcast_ref::<StorageEvent>() {
-        return Some(data.event.clone());
-    }
-    None
-}
-
-/// Helper function to mutably access EventData from any event type (EventData, UIEventData, MouseEventData, etc.)
-/// This is needed for methods like preventDefault, stopPropagation that modify the event.
-fn with_event_data_mut<F, R>(this_obj: &JsObject, f: F) -> Option<R>
-where
-    F: FnOnce(&mut EventData) -> R,
-{
-    use super::ui_events::{UIEventData, MouseEventData, KeyboardEventData, FocusEventData, InputEventData};
-    use super::custom_event::CustomEventData;
-    use super::message_event::MessageEventData;
-    use super::error_event::ErrorEventData;
-    use super::progress_event::ProgressEventData;
-    use super::hash_change_event::HashChangeEventData;
-    use super::pop_state_event::PopStateEventData;
-    use super::close_event::CloseEventData;
-    use super::pageswap_event::PageSwapEventData;
-    use crate::storage::storage_event::StorageEvent;
-
-    // Try EventData directly
-    if let Some(mut data) = this_obj.downcast_mut::<EventData>() {
-        return Some(f(&mut data));
-    }
-    // Try MouseEventData
-    if let Some(mut data) = this_obj.downcast_mut::<MouseEventData>() {
-        return Some(f(&mut data.ui_event.event));
-    }
-    // Try KeyboardEventData
-    if let Some(mut data) = this_obj.downcast_mut::<KeyboardEventData>() {
-        return Some(f(&mut data.ui_event.event));
-    }
-    // Try FocusEventData
-    if let Some(mut data) = this_obj.downcast_mut::<FocusEventData>() {
-        return Some(f(&mut data.ui_event.event));
-    }
-    // Try InputEventData
-    if let Some(mut data) = this_obj.downcast_mut::<InputEventData>() {
-        return Some(f(&mut data.ui_event.event));
-    }
-    // Try UIEventData
-    if let Some(mut data) = this_obj.downcast_mut::<UIEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try CustomEventData
-    if let Some(mut data) = this_obj.downcast_mut::<CustomEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try MessageEventData
-    if let Some(mut data) = this_obj.downcast_mut::<MessageEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try ErrorEventData
-    if let Some(mut data) = this_obj.downcast_mut::<ErrorEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try ProgressEventData
-    if let Some(mut data) = this_obj.downcast_mut::<ProgressEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try HashChangeEventData
-    if let Some(mut data) = this_obj.downcast_mut::<HashChangeEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try PopStateEventData
-    if let Some(mut data) = this_obj.downcast_mut::<PopStateEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try CloseEventData
-    if let Some(mut data) = this_obj.downcast_mut::<CloseEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try PageSwapEventData
-    if let Some(mut data) = this_obj.downcast_mut::<PageSwapEventData>() {
-        return Some(f(&mut data.event));
-    }
-    // Try StorageEvent
-    if let Some(mut data) = this_obj.downcast_mut::<StorageEvent>() {
-        return Some(f(&mut data.event));
-    }
-    None
+    let value = event_data.get_type();
+    Ok(JsValue::from(js_string!(value)))
 }
 
 /// Get whether the event bubbles.
@@ -533,11 +340,12 @@ fn get_bubbles(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVal
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-Event object")
-    })?;
-
-    Ok(JsValue::from(event_data.get_bubbles()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_bubbles()
+    } else {
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the event is cancelable.
@@ -546,11 +354,12 @@ fn get_cancelable(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-Event object")
-    })?;
-
-    Ok(JsValue::from(event_data.get_cancelable()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_cancelable()
+    } else {
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether preventDefault() has been called.
@@ -559,11 +368,12 @@ fn get_default_prevented(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-Event object")
-    })?;
-
-    Ok(JsValue::from(event_data.get_default_prevented()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_default_prevented()
+    } else {
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get the current event phase.
@@ -572,7 +382,7 @@ fn get_event_phase(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
     })?;
 
@@ -591,7 +401,7 @@ fn get_current_target(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResul
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
     })?;
 
@@ -604,7 +414,7 @@ fn get_target(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValu
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
+    let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
     })?;
 
@@ -617,11 +427,12 @@ fn get_timestamp(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-Event object")
-    })?;
-
-    Ok(JsValue::from(event_data.get_timestamp()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_timestamp()
+    } else {
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the event is trusted.
@@ -630,11 +441,12 @@ fn get_is_trusted(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-Event object")
-    })?;
-
-    Ok(JsValue::from(event_data.get_is_trusted()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_is_trusted()
+    } else {
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 /// Get whether the event is composed.
@@ -643,11 +455,12 @@ fn get_composed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_data = get_event_data_from_obj(&this_obj).ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-Event object")
-    })?;
-
-    Ok(JsValue::from(event_data.get_composed()))
+    let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
+        event_data.get_composed()
+    } else {
+        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+    };
+    Ok(JsValue::from(value))
 }
 
 // Event methods
@@ -658,9 +471,9 @@ fn prevent_default(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    with_event_data_mut(&this_obj, |event_data| {
+    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         event_data.prevent_default();
-    });
+    }
 
     Ok(JsValue::undefined())
 }
@@ -671,9 +484,9 @@ fn stop_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    with_event_data_mut(&this_obj, |event_data| {
+    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         event_data.stop_propagation();
-    });
+    }
 
     Ok(JsValue::undefined())
 }
@@ -684,9 +497,9 @@ fn stop_immediate_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) ->
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    with_event_data_mut(&this_obj, |event_data| {
+    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         event_data.stop_immediate_propagation();
-    });
+    }
 
     Ok(JsValue::undefined())
 }
@@ -697,48 +510,13 @@ fn init_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         JsNativeError::typ().with_message("Event method called on non-object")
     })?;
 
-    let event_type = args.get_or_undefined(0).to_string(context)?;
-    let bubbles = args.get_or_undefined(1).to_boolean();
-    let cancelable = args.get_or_undefined(2).to_boolean();
-    let event_type_str = event_type.to_std_string_escaped();
+    if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
+        let event_type = args.get_or_undefined(0).to_string(context)?;
+        let bubbles = args.get_or_undefined(1).to_boolean();
+        let cancelable = args.get_or_undefined(2).to_boolean();
 
-    with_event_data_mut(&this_obj, |event_data| {
-        event_data.init_event(event_type_str.clone(), bubbles, cancelable);
-    });
-
-    Ok(JsValue::undefined())
-}
-
-/// `Event.prototype.composedPath()` — returns the event's path (target + ancestors)
-fn composed_path(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
-
-    // Get the target from event data
-    let target = get_event_data_from_obj(&this_obj)
-        .and_then(|event_data| event_data.get_target());
-
-    let mut path = Vec::new();
-    if let Some(target_obj) = target {
-        path.push(JsValue::from(target_obj.clone()));
-
-        // Walk up the parent chain
-        let mut current = target_obj;
-        loop {
-            let parent = crate::dom::element::with_element_data(&current, |el| {
-                el.get_parent_node()
-            }, "");
-            match parent {
-                Ok(Some(parent_obj)) => {
-                    path.push(JsValue::from(parent_obj.clone()));
-                    current = parent_obj;
-                }
-                _ => break,
-            }
-        }
+        event_data.init_event(event_type.to_std_string_escaped(), bubbles, cancelable);
     }
 
-    use boa_engine::builtins::array::Array;
-    Ok(Array::create_array_from_list(path, context).into())
+    Ok(JsValue::undefined())
 }

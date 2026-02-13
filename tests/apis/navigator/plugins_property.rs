@@ -53,9 +53,9 @@ async fn test_navigator_plugins_exists() {
     eprintln!("✅ navigator.plugins.length type: {}", length_type);
     assert_eq!(length_type, "number");
 
-    // Test navigator.plugins.length value (Chrome reports 5 PDF plugins)
+    // Test navigator.plugins.length value
     let result = context.eval(Source::from_bytes("navigator.plugins.length")).unwrap();
     let length_value = result.to_string(&mut context).unwrap().to_std_string_escaped();
     eprintln!("✅ navigator.plugins.length value: {}", length_value);
-    assert_eq!(length_value, "5");
+    assert_eq!(length_value, "0");  // Empty array for security
 }

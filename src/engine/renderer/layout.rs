@@ -150,30 +150,17 @@ impl LayoutEngine {
             .map(|child| self.build_node(child))
             .collect::<Result<Vec<_>>>()?;
 
-        // Create node data
-        let node_data = LayoutNodeData {
+        // Create node with children
+        let node = self.tree.new_with_children(
+            style,
+            &children,
+        ).context("Failed to create taffy node")?;
+
+        // Store node data
+        *self.tree.get_node_context_mut(node).unwrap() = LayoutNodeData {
             id: element.id.clone(),
             tag: element.tag.clone(),
             styles: element.styles.clone(),
-        };
-
-        // Create node with children and context
-        let node = if children.is_empty() {
-            // For leaf nodes, use new_leaf_with_context
-            self.tree.new_leaf_with_context(style, node_data)
-                .context("Failed to create taffy leaf node")?
-        } else {
-            // For parent nodes, create node then set context
-            let node = self.tree.new_with_children(
-                style,
-                &children,
-            ).context("Failed to create taffy node")?;
-
-            // Set the context for parent nodes
-            self.tree.set_node_context(node, Some(node_data))
-                .context("Failed to set node context")?;
-
-            node
         };
 
         self.node_map.insert(element.id.clone(), node);

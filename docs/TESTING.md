@@ -216,7 +216,7 @@ The test suite validates all 17+ MCP tools:
    ```bash
    # Test manual server startup
    cargo run
-   # Should show: "🧠 Thalora v0.1.0 - Headless web browser written entirely in Rust"
+   # Should show: "🧠 Thalora v0.1.0 - Pure Rust headless browser for AI models"
    ```
 
 3. **Network-Dependent Test Failures**

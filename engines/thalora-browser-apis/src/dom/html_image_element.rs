@@ -263,7 +263,6 @@ impl IntrinsicObject for HTMLImageElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             // Properties with accessors
             .accessor(
                 js_string!("src"),
@@ -444,28 +443,26 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
                 // Synchronous loading for now (async will be added with proper event loop integration)
                 // In a real browser, this would use fetch() asynchronously
                 if let Ok(url) = url::Url::parse(&value) {
-                    use crate::http_blocking::block_on_compat;
-
-                    let url_clone = url.to_string();
-                    let result = block_on_compat(async move {
-                        let client = rquest::Client::builder()
-                            .timeout(std::time::Duration::from_secs(30))
-                            .build()?;
-                        let response = client.get(&url_clone).send().await?;
-                        let status = response.status();
-                        let bytes = response.bytes().await?;
-                        Ok::<(rquest::StatusCode, bytes::Bytes), rquest::Error>((status, bytes))
-                    });
-
-                    match result {
-                        Ok((status, bytes)) => {
-                            if status.is_success() {
-                                if let Err(e) = data.load_from_bytes(&bytes) {
-                                    eprintln!("Image decode error: {}", e);
+                    // Use blocking HTTP client for simplicity
+                    // TODO: Integrate with async event loop for proper onload/onerror events
+                    let client = reqwest::blocking::Client::new();
+                    match client.get(url).send() {
+                        Ok(response) => {
+                            if response.status().is_success() {
+                                match response.bytes() {
+                                    Ok(bytes) => {
+                                        if let Err(e) = data.load_from_bytes(&bytes) {
+                                            eprintln!("Image decode error: {}", e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        *data.load_state.lock().unwrap() = ImageLoadState::Broken;
+                                        *data.error_message.lock().unwrap() = Some(format!("Failed to read response: {}", e));
+                                    }
                                 }
                             } else {
                                 *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                *data.error_message.lock().unwrap() = Some(format!("HTTP error: {}", status));
+                                *data.error_message.lock().unwrap() = Some(format!("HTTP error: {}", response.status()));
                             }
                         }
                         Err(e) => {

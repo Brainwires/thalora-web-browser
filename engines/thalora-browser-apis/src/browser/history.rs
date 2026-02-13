@@ -4,7 +4,7 @@
 //! https://html.spec.whatwg.org/#the-history-interface
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, json::Json},
+    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     object::{internal_methods::get_prototype_from_constructor, JsObject},
     string::StaticJsStrings,
@@ -12,22 +12,6 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
     JsString, realm::Realm, property::Attribute
 };
-
-/// Safe JSON.stringify via the global JSON object (no eval injection risk)
-fn stringify_json_safe(value: &JsValue, context: &mut Context) -> JsResult<String> {
-    let global = context.global_object();
-    let json_obj = global.get(js_string!("JSON"), context)?;
-    let json_obj = json_obj.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("JSON is not an object")
-    })?;
-    let stringify_fn = json_obj.get(js_string!("stringify"), context)?;
-    let stringify_fn = stringify_fn.as_callable().ok_or_else(|| {
-        JsNativeError::typ().with_message("JSON.stringify is not callable")
-    })?;
-    let result = stringify_fn.call(&JsValue::undefined(), &[value.clone()], context)?;
-    Ok(result.to_string(context)?.to_std_string_escaped())
-}
-use crate::browser::location::LocationData;
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 
@@ -139,7 +123,7 @@ struct HistoryEntry {
 }
 
 impl HistoryData {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let initial_entry = HistoryEntry {
             url: "about:blank".to_string(),
             title: "".to_string(),
@@ -303,8 +287,9 @@ fn get_state(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     })?;
 
     if let Some(state_json) = history.get_current_state() {
-        // Parse JSON state using Boa's JSON intrinsic directly (no eval injection risk)
-        match Json::parse(&JsValue::undefined(), &[JsValue::from(js_string!(state_json))], context) {
+        // Parse JSON state
+        let parse_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.parse('{}')", state_json)));
+        match parse_result {
             Ok(value) => Ok(value),
             Err(_) => Ok(JsValue::null()),
         }
@@ -413,9 +398,10 @@ fn push_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
     let state_json = if state.is_null() || state.is_undefined() {
         None
     } else {
-        // Serialize via JSON.stringify intrinsic (no eval injection risk)
-        match stringify_json_safe(state, context) {
-            Ok(s) => Some(s),
+        // Use JSON.stringify to serialize state
+        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
+        match stringify_result {
+            Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
             Err(_) => None,
         }
     };
@@ -430,13 +416,8 @@ fn push_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         None
     };
 
-    history.push_state(state_json, title.to_std_string_escaped(), url_string.clone());
-
-    // Update window.location to reflect the new URL (per WHATWG spec)
-    if let Some(ref new_url) = url_string {
-        update_window_location(new_url, context);
-    }
-
+    history.push_state(state_json, title.to_std_string_escaped(), url_string);
+    // In a real implementation, this would trigger pageswap event and update URL
     Ok(JsValue::undefined())
 }
 
@@ -459,9 +440,10 @@ fn replace_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     let state_json = if state.is_null() || state.is_undefined() {
         None
     } else {
-        // Serialize via JSON.stringify intrinsic (no eval injection risk)
-        match stringify_json_safe(state, context) {
-            Ok(s) => Some(s),
+        // Use JSON.stringify to serialize state
+        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
+        match stringify_result {
+            Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
             Err(_) => None,
         }
     };
@@ -476,56 +458,7 @@ fn replace_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         None
     };
 
-    history.replace_state(state_json, title.to_std_string_escaped(), url_string.clone());
-
-    // Update window.location to reflect the new URL (per WHATWG spec)
-    if let Some(ref new_url) = url_string {
-        update_window_location(new_url, context);
-    }
-
+    history.replace_state(state_json, title.to_std_string_escaped(), url_string);
+    // In a real implementation, this would trigger pageswap event and update URL
     Ok(JsValue::undefined())
-}
-
-/// Resolve a URL passed to pushState/replaceState against the current location.
-/// Per WHATWG spec, the URL must be same-origin. Absolute paths are resolved
-/// against the current origin; relative paths against the current URL directory.
-fn resolve_pushstate_url(current_href: &str, new_url: &str) -> String {
-    // Already absolute URL
-    if new_url.starts_with("http://") || new_url.starts_with("https://") {
-        return new_url.to_string();
-    }
-
-    // Parse current URL to get origin
-    if let Some(protocol_end) = current_href.find("://") {
-        let rest = &current_href[protocol_end + 3..];
-        let host_end = rest.find('/').unwrap_or(rest.len());
-        let origin = &current_href[..protocol_end + 3 + host_end];
-
-        if new_url.starts_with('/') {
-            // Absolute path — prepend origin
-            format!("{}{}", origin, new_url)
-        } else {
-            // Relative path — resolve against current URL's directory
-            let current_path_end = current_href.rfind('/').unwrap_or(origin.len());
-            let base = &current_href[..current_path_end + 1];
-            format!("{}{}", base, new_url)
-        }
-    } else {
-        new_url.to_string()
-    }
-}
-
-/// Update window.location.href after pushState/replaceState changes the URL.
-/// Accesses the global object to find the location and update its href.
-fn update_window_location(new_url: &str, context: &mut Context) {
-    let global = context.global_object().clone();
-    if let Ok(location_val) = global.get(js_string!("location"), context) {
-        if let Some(location_obj) = location_val.as_object() {
-            if let Some(location_data) = location_obj.downcast_ref::<LocationData>() {
-                let current_href = location_data.get_href();
-                let resolved = resolve_pushstate_url(&current_href, new_url);
-                location_data.set_href(&resolved);
-            }
-        }
-    }
 }

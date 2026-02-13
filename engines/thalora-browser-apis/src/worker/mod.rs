@@ -1,25 +1,25 @@
 //! Web Workers APIs
 
-// Native implementations using tokio/rquest
-#[cfg(feature = "_native-core")]
+// Native implementations using tokio/reqwest
+#[cfg(feature = "native")]
 pub mod import_scripts;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod service_worker;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod service_worker_container;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker_error;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker_events;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker_global_scope;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker_navigator;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker_script_loader;
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 pub mod worker_thread;
 
 // WASM stubs - browser's native Worker API is used directly

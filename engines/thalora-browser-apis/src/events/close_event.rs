@@ -15,8 +15,6 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
-use super::event::EventData;
-
 /// JavaScript `CloseEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct CloseEvent;
@@ -36,7 +34,6 @@ impl IntrinsicObject for CloseEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("wasClean"),
                 Some(was_clean_getter),
@@ -69,8 +66,8 @@ impl BuiltInObject for CloseEvent {
 
 impl BuiltInConstructor for CloseEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 6;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::close_event;
@@ -93,49 +90,75 @@ impl BuiltInConstructor for CloseEvent {
 
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::close_event, context)?;
 
-        // Parse eventInitDict
-        let mut bubbles = false;
-        let mut cancelable = false;
-        let mut was_clean = false;
-        let mut code = 0u16;
-        let mut reason = String::new();
+        let (was_clean, code, reason) = if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                let was_clean = init_obj.get(js_string!("wasClean"), context)
+                    .ok()
+                    .map(|v| v.to_boolean())
+                    .unwrap_or(false);
+                let code = init_obj.get(js_string!("code"), context)
+                    .ok()
+                    .and_then(|v| v.to_u32(context).ok())
+                    .unwrap_or(0) as u16;
+                let reason = init_obj.get(js_string!("reason"), context)
+                    .ok()
+                    .map(|v| v.to_string(context).ok())
+                    .flatten()
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_default();
+                (was_clean, code, reason)
+            } else {
+                (false, 0, String::new())
+            }
+        } else {
+            (false, 0, String::new())
+        };
 
-        if let Some(init_obj) = event_init_dict.as_object() {
-            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
-                bubbles = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
-                cancelable = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("wasClean"), context) {
-                was_clean = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("code"), context) {
-                code = v.to_u32(context)? as u16;
-            }
-            if let Ok(v) = init_obj.get(js_string!("reason"), context) {
-                reason = v.to_string(context)?.to_std_string_escaped();
-            }
-        }
-
-        let event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
-        let close_event_data = CloseEventData::new(event_data, was_clean, code, reason);
-
+        let close_event_data = CloseEventData::new(
+            event_type.to_std_string_escaped(),
+            was_clean,
+            code,
+            reason,
+        );
         let close_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             close_event_data,
         );
 
-        Ok(close_event_obj.into())
+        let close_event_generic = close_event_obj.upcast();
+
+        // Set Event interface properties
+        close_event_generic.set(js_string!("type"), event_type, false, context)?;
+        close_event_generic.set(js_string!("bubbles"), false, false, context)?;
+        close_event_generic.set(js_string!("cancelable"), false, false, context)?;
+        close_event_generic.set(js_string!("composed"), false, false, context)?;
+        close_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
+        close_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
+        close_event_generic.set(js_string!("isTrusted"), false, false, context)?;
+        close_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
+        close_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
+        close_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+
+        if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                    close_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                }
+                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                    close_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                }
+            }
+        }
+
+        Ok(close_event_generic.into())
     }
 }
 
-/// Internal data for CloseEvent instances - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
-pub struct CloseEventData {
-    /// Base event data
-    pub event: EventData,
+struct CloseEventData {
+    #[unsafe_ignore_trace]
+    event_type: String,
     #[unsafe_ignore_trace]
     was_clean: bool,
     #[unsafe_ignore_trace]
@@ -145,8 +168,8 @@ pub struct CloseEventData {
 }
 
 impl CloseEventData {
-    pub fn new(event: EventData, was_clean: bool, code: u16, reason: String) -> Self {
-        Self { event, was_clean, code, reason }
+    fn new(event_type: String, was_clean: bool, code: u16, reason: String) -> Self {
+        Self { event_type, was_clean, code, reason }
     }
 }
 

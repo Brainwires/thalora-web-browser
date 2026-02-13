@@ -251,7 +251,6 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .property(
                 js_string!("label"),
                 get_label,

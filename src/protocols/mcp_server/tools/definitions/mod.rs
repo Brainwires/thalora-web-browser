@@ -5,6 +5,8 @@ mod scraping;
 mod session;
 mod browser;
 mod advanced;
+#[cfg(feature = "wasm-debug")]
+mod wasm_debug;
 
 // Re-export all tool definition functions
 pub(crate) use memory::get_memory_tool_definitions;
@@ -18,3 +20,5 @@ pub(crate) use scraping::{
 pub(crate) use session::get_session_tool_definitions;
 pub(crate) use browser::get_browser_automation_tool_definitions;
 pub(crate) use advanced::get_advanced_tool_definitions;
+#[cfg(feature = "wasm-debug")]
+pub(crate) use wasm_debug::get_wasm_debug_tool_definitions;

@@ -19,7 +19,7 @@ pub mod protocols;
 pub mod gui;
 
 use protocols::mcp_server::McpServer;
-use engine::EngineConfig;
+use engine::{EngineType, EngineFactory, EngineConfig};
 
 /// Global flag to signal shutdown
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -68,10 +68,14 @@ fn install_panic_hook() {
 
 #[derive(Parser)]
 #[command(name = "thalora")]
-#[command(about = "Headless web browser written entirely in Rust")]
+#[command(about = "Pure Rust headless browser for AI models with MCP integration")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Use V8 JavaScript engine instead of the default Boa engine
+    #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
+    use_v8_engine: bool,
 }
 
 #[derive(Subcommand)]
@@ -81,15 +85,6 @@ enum Commands {
         /// MCP mode: 'minimal' for basic scraping (default), 'full' for all features
         #[arg(long, default_value = "minimal")]
         mcp_mode: String,
-        /// Transport: 'stdio' (default) or 'http'
-        #[arg(long, default_value = "stdio")]
-        transport: String,
-        /// Port for HTTP transport (ignored for stdio)
-        #[arg(long, default_value = "8080")]
-        port: u16,
-        /// Host to bind for HTTP transport (ignored for stdio)
-        #[arg(long, default_value = "0.0.0.0")]
-        host: String,
     },
     /// Run as browser session process
     Session {
@@ -139,8 +134,16 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Determine which engine to use based on CLI flags or default
+    let use_v8 = if cli.use_v8_engine {
+        true  // Override to use V8
+    } else {
+        // No flags specified, use the default from EngineFactory
+        EngineFactory::default_engine() == EngineType::V8
+    };
+
     // Create engine configuration
-    let engine_config = EngineConfig::new();
+    let engine_config = EngineConfig::new(use_v8)?;
 
     // Log the selected engine
     if std::env::var("THALORA_SILENT").is_err() {
@@ -149,6 +152,11 @@ async fn main() -> Result<()> {
             .init();
 
         tracing::info!("Using {} JavaScript engine", engine_config.engine_type);
+
+        // Display available engines for info
+        let available = EngineFactory::available_engines();
+        let available_names: Vec<String> = available.iter().map(|e| e.to_string()).collect();
+        tracing::debug!("Available engines: {}", available_names.join(", "));
     } else {
         // Still configure tracing but silent
         tracing_subscriber::fmt()
@@ -178,52 +186,42 @@ async fn main() -> Result<()> {
             // Run as display server
             run_display_server(host, port).await
         }
-        Some(Commands::Server { mcp_mode, transport, port, host }) => {
+        Some(Commands::Server { mcp_mode }) => {
             // Run as MCP server with specified mode
             // SAFETY: This is called at program startup before any threads are spawned
             unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
-
-            match transport.as_str() {
-                "http" => {
-                    eprintln!("Starting Thalora MCP Server in '{}' mode (HTTP transport on {}:{})", mcp_mode, host, port);
-                    let server = McpServer::new_with_engine(engine_config);
-                    // HTTP transport handles its own graceful shutdown internally
-                    server.run_http(&host, port).await
-                }
-                _ => {
-                    // Default to stdio
-                    eprintln!("Starting Thalora MCP Server in '{}' mode (stdio transport)", mcp_mode);
-                    let mut server = McpServer::new_with_engine(engine_config);
-                    // Run server with signal handling
-                    tokio::select! {
-                        result = server.run_stdio() => result,
-                        _ = shutdown_signal => {
-                            eprintln!("MCP Server received shutdown signal, cleaning up...");
-                            request_shutdown();
-                            server.cleanup().await;
-                            eprintln!("MCP Server shutdown complete");
-                            Ok(())
-                        }
-                    }
-                }
-            }
-        }
-        None => {
-            // Run as MCP server (default mode, stdio transport)
-            // SAFETY: This is called at program startup before any threads are spawned
-            unsafe { std::env::set_var("THALORA_MCP_MODE", "minimal") };
-            eprintln!("Starting Thalora MCP Server in 'minimal' mode (stdio transport)");
+            eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
 
             let mut server = McpServer::new_with_engine(engine_config);
 
             // Run server with signal handling
             tokio::select! {
-                result = server.run_stdio() => result,
+                result = server.run() => result,
                 _ = shutdown_signal => {
-                    eprintln!("MCP Server received shutdown signal, cleaning up...");
+                    eprintln!("🛑 MCP Server received shutdown signal, cleaning up...");
                     request_shutdown();
                     server.cleanup().await;
-                    eprintln!("MCP Server shutdown complete");
+                    eprintln!("✅ MCP Server shutdown complete");
+                    Ok(())
+                }
+            }
+        }
+        None => {
+            // Run as MCP server (default mode)
+            // SAFETY: This is called at program startup before any threads are spawned
+            unsafe { std::env::set_var("THALORA_MCP_MODE", "minimal") };
+            eprintln!("🚀 Starting Thalora MCP Server in 'minimal' mode");
+
+            let mut server = McpServer::new_with_engine(engine_config);
+
+            // Run server with signal handling
+            tokio::select! {
+                result = server.run() => result,
+                _ = shutdown_signal => {
+                    eprintln!("🛑 MCP Server received shutdown signal, cleaning up...");
+                    request_shutdown();
+                    server.cleanup().await;
+                    eprintln!("✅ MCP Server shutdown complete");
                     Ok(())
                 }
             }

@@ -11,17 +11,8 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Navigate to URL with options for JavaScript execution
-    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
-        self.navigate_to_with_js_option(url, wait_for_js, wait_for_js).await
-    }
-
-    /// Navigate to URL with explicit timeout for pending async jobs
-    pub async fn navigate_to_with_timeout(&mut self, url: &str, wait_for_js: bool, wait_timeout_ms: u64) -> Result<String> {
-        // Store the timeout so navigate_to_with_js_option can use it
-        self.pending_jobs_timeout_ms = Some(wait_timeout_ms);
-        let result = self.navigate_to_with_js_option(url, wait_for_js, wait_for_js).await;
-        self.pending_jobs_timeout_ms = None;
-        result
+    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_load: bool) -> Result<String> {
+        self.navigate_to_with_js_option(url, wait_for_load, false).await
     }
 
     /// Extract page title from HTML

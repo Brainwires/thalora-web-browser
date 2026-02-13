@@ -246,13 +246,26 @@ async fn test_tab_ids_sequential() {
     assert!(tab_id3 > tab_id2);
 }
 
-/// Test tab with engine configuration
+/// Test tab with different engine configurations
 #[tokio::test]
-async fn test_tab_with_engine_config() {
-    let config = EngineConfig::new();
-    let mut tab_manager = TabManager::new(config).await.unwrap();
-    let tab_id = tab_manager.create_tab("about:blank".to_string()).await.unwrap();
-    assert!(tab_id > 0);
+async fn test_tab_with_different_engines() {
+    use thalora::engine::EngineType;
+
+    // Test with Boa engine
+    let config_boa = EngineConfig {
+        engine_type: EngineType::Boa,
+    };
+    let mut tab_manager_boa = TabManager::new(config_boa).await.unwrap();
+    let tab_id_boa = tab_manager_boa.create_tab("about:blank".to_string()).await.unwrap();
+    assert!(tab_id_boa > 0);
+
+    // Test with V8 engine
+    let config_v8 = EngineConfig {
+        engine_type: EngineType::V8,
+    };
+    let mut tab_manager_v8 = TabManager::new(config_v8).await.unwrap();
+    let tab_id_v8 = tab_manager_v8.create_tab("about:blank".to_string()).await.unwrap();
+    assert!(tab_id_v8 > 0);
 }
 
 /// Test maximum reasonable number of tabs

@@ -9,7 +9,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 * We will not be mocking code. If we are missing a huge library, and a crate is not available... Writing the new code becomes the next task (REGARDLESS OF HOW LONG IT COULD TAKE!); so the main project can progress!
 * This statement scares the shit out of me... Every time you say it, something breaks... "Actually, let me try a simpler approach." Let's ALWAYS take the proper approach... Prioritize doing tasks properly rather than quickly. When you have the desire to "simplify", instead use thinking to resolve the problem.
 * Don't ever worry if the work is taking too long!!! Take your time and do it right.
-* DONT FUCKING USE THE --release FLAG ON BUILDS! Use `cargo build` or `cargo check` for development.
 
 ## Development Commands
 
@@ -18,11 +17,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the project (development) - 10 HOUR TIMEOUTS!!!!!!!!!
 cargo build
 
+# Build optimized release - 10 HOUR TIMEOUTS!!!!!!!!!
+cargo build --release
+
 # Check code without building - 10 HOUR TIMEOUTS!!!!!!!!
 cargo check
 
 # Run the MCP server
-./target/debug/thalora
+./target/release/thalora
 # or during development:
 cargo run
 ```
@@ -33,6 +35,9 @@ cargo run
 ```bash
 # Run all tests (default: Boa engine)
 cargo test
+
+# Run all tests with V8 engine
+THALORA_TEST_ENGINE=v8 cargo test
 
 # Run tests with output
 cargo test -- --nocapture
@@ -50,6 +55,30 @@ RUST_BACKTRACE=1 cargo test
 
 # Run tests quietly (less output)
 cargo test --quiet
+
+# Engine-specific testing
+THALORA_TEST_ENGINE=boa cargo test   # Force Boa engine
+THALORA_TEST_ENGINE=v8 cargo test    # Force V8 engine
+```
+
+### Test Engine Selection
+
+Tests can be run with different JavaScript engines using the `THALORA_TEST_ENGINE` environment variable:
+
+- **Boa** (default): Pure Rust engine, good for development
+- **V8**: Google's V8 engine via rusty_v8, for production parity
+
+The test helper functions in `src/engine/test_helpers.rs` provide a unified way to create engines in tests:
+
+```rust
+use thalora::engine::create_test_engine;
+
+#[test]
+fn my_test() {
+    // Automatically uses the engine specified by THALORA_TEST_ENGINE
+    let mut engine = create_test_engine().unwrap();
+    // ... test code
+}
 ```
 
 ### Debugging and Analysis
@@ -120,7 +149,7 @@ The project serves as an MCP server providing 17+ tools for AI models:
 **Chrome DevTools Protocol**: Complete CDP implementation for debugging and inspection
 **Web Automation**: Full browser automation with JavaScript execution, form handling, stealth browsing
 
-Start the MCP server: `./target/debug/thalora`
+Start the MCP server: `./target/release/thalora`
 
 ### Testing MCP Tools
 **IMPORTANT**: This is a stdio-based MCP server. Do NOT write test files - use stdin/stdout piping instead.
@@ -128,13 +157,13 @@ Start the MCP server: `./target/debug/thalora`
 Test MCP tools by piping JSON requests directly to the executable:
 ```bash
 # Test tools list
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/debug/thalora
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./target/release/thalora
 
 # Test Google search
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "google_search", "arguments": {"query": "test", "num_results": 1}}}' | ./target/debug/thalora
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "google_search", "arguments": {"query": "test", "num_results": 1}}}' | ./target/release/thalora
 
 # Test URL scraping
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/debug/thalora
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/release/thalora
 ```
 
 ## Development Patterns

@@ -10,7 +10,7 @@ use std::env;
 mod definitions;
 
 // Feature flag and routing modules
-mod features;
+pub(crate) mod features;
 mod routing;
 
 // Re-export for internal use
@@ -88,6 +88,12 @@ impl McpServer {
         // Available when scraping or sessions are enabled
         if is_scraping_enabled() || is_sessions_enabled() {
             tools.extend(get_advanced_tool_definitions());
+        }
+
+        // WASM Debug Tools - Load, inspect, disassemble, execute, and profile WASM modules
+        #[cfg(feature = "wasm-debug")]
+        if is_wasm_debug_enabled() {
+            tools.extend(get_wasm_debug_tool_definitions());
         }
 
         tools

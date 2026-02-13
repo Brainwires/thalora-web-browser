@@ -7,7 +7,6 @@ async fn test_geolocation_get_current_position() {
     let result = context.eval(Source::from_bytes("typeof navigator.geolocation.getCurrentPosition")).unwrap();
     assert_eq!(result.to_string(&mut context).unwrap().to_std_string_escaped(), "function");
     // Test getCurrentPosition with callback
-    // (exact values depend on whether IP geolocation succeeds or falls back to San Francisco)
     let result = context.eval(Source::from_bytes(r#"
         let positionReceived = false;
         let latitude = null;
@@ -17,10 +16,8 @@ async fn test_geolocation_get_current_position() {
             latitude = position.coords.latitude;
             longitude = position.coords.longitude;
         });
-        // Check if position data is set correctly (valid coordinate range)
-        positionReceived &&
-        typeof latitude === 'number' && latitude >= -90 && latitude <= 90 &&
-        typeof longitude === 'number' && longitude >= -180 && longitude <= 180;
+        // Check if position data is set correctly
+        positionReceived && latitude === 37.7749 && longitude === -122.4194;
     "#)).unwrap();
     assert_eq!(result.to_string(&mut context).unwrap().to_std_string_escaped(), "true");
 }

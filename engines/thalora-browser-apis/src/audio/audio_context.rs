@@ -166,7 +166,6 @@ impl IntrinsicObject for AudioContext {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .property(
                 js_string!("HAVE_NOTHING"),
                 0,

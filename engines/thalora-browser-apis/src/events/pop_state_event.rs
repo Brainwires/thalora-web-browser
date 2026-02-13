@@ -15,8 +15,6 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
-use super::event::EventData;
-
 /// JavaScript `PopStateEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct PopStateEvent;
@@ -28,7 +26,6 @@ impl IntrinsicObject for PopStateEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("state"),
                 Some(state_getter),
@@ -49,8 +46,8 @@ impl BuiltInObject for PopStateEvent {
 
 impl BuiltInConstructor for PopStateEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 2;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::pop_state_event;
@@ -73,47 +70,65 @@ impl BuiltInConstructor for PopStateEvent {
 
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::pop_state_event, context)?;
 
-        // Parse eventInitDict
-        let mut bubbles = false;
-        let mut cancelable = false;
-        let mut state = JsValue::null();
-
-        if let Some(init_obj) = event_init_dict.as_object() {
-            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
-                bubbles = v.to_boolean();
+        let state = if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                init_obj.get(js_string!("state"), context).unwrap_or(JsValue::null())
+            } else {
+                JsValue::null()
             }
-            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
-                cancelable = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("state"), context) {
-                state = v;
-            }
-        }
+        } else {
+            JsValue::null()
+        };
 
-        let event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
-        let pop_state_event_data = PopStateEventData::new(event_data, state);
-
+        let pop_state_event_data = PopStateEventData::new(
+            event_type.to_std_string_escaped(),
+            state,
+        );
         let pop_state_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             pop_state_event_data,
         );
 
-        Ok(pop_state_event_obj.into())
+        let pop_state_event_generic = pop_state_event_obj.upcast();
+
+        // Set Event interface properties
+        pop_state_event_generic.set(js_string!("type"), event_type, false, context)?;
+        pop_state_event_generic.set(js_string!("bubbles"), false, false, context)?;
+        pop_state_event_generic.set(js_string!("cancelable"), false, false, context)?;
+        pop_state_event_generic.set(js_string!("composed"), false, false, context)?;
+        pop_state_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
+        pop_state_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
+        pop_state_event_generic.set(js_string!("isTrusted"), false, false, context)?;
+        pop_state_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
+        pop_state_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
+        pop_state_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+
+        if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                    pop_state_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                }
+                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                    pop_state_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                }
+            }
+        }
+
+        Ok(pop_state_event_generic.into())
     }
 }
 
-/// Internal data for PopStateEvent instances - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
-pub struct PopStateEventData {
-    /// Base event data
-    pub event: EventData,
+struct PopStateEventData {
+    #[unsafe_ignore_trace]
+    event_type: String,
     state: JsValue,
 }
 
 impl PopStateEventData {
-    pub fn new(event: EventData, state: JsValue) -> Self {
-        Self { event, state }
+    fn new(event_type: String, state: JsValue) -> Self {
+        Self { event_type, state }
     }
 }
 

@@ -49,15 +49,13 @@ impl JavaScriptSecurityValidator {
         // CRITICAL: Check for bypass vectors in original code
         self.check_eval_bracket(js_code)?;
         self.check_proto_bracket(js_code)?;
+        self.check_global_bracket_access(js_code)?; // CRITICAL FIX #1
         self.check_escape_sequences(js_code)?; // CRITICAL FIX #2
+        self.check_reflect_api(js_code)?; // HIGH PRIORITY FIX
+        self.check_symbol_api(js_code)?; // MEDIUM PRIORITY FIX
 
         // Remove comments and strings to prevent false positives for other checks
         let code_without_comments = self.remove_comments_and_strings(js_code);
-
-        // Check bypass vectors on sanitized code (so string literals don't trigger false positives)
-        self.check_global_bracket_access(&code_without_comments)?; // CRITICAL FIX #1
-        self.check_reflect_api(&code_without_comments)?; // HIGH PRIORITY FIX
-        self.check_symbol_api(&code_without_comments)?; // MEDIUM PRIORITY FIX
 
         // Check for dangerous patterns in sanitized code
         self.check_eval(&code_without_comments)?;
@@ -381,8 +379,8 @@ impl JavaScriptSecurityValidator {
     fn check_global_bracket_access(&self, code: &str) -> Result<()> {
         static GLOBAL_BRACKET_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = GLOBAL_BRACKET_REGEX.get_or_init(|| {
-            // Match: window[, globalThis[ (self is excluded — common JS variable name in webpack/classes)
-            Regex::new(r"(?:window|globalThis)\s*\[").unwrap()
+            // Match: window[, globalThis[, self[
+            Regex::new(r"(?:window|globalThis|self)\s*\[").unwrap()
         });
 
         if regex.is_match(code) {
@@ -679,7 +677,7 @@ mod tests {
         // CRITICAL FIX #1: Block ANY bracket access to globals
         assert!(validator.is_safe_javascript("window[x]").is_err());
         assert!(validator.is_safe_javascript("globalThis[key]").is_err());
-        assert!(validator.is_safe_javascript("window['property']").is_err());
+        assert!(validator.is_safe_javascript("self['property']").is_err());
 
         // Should block even with computed properties
         let computed = r#"

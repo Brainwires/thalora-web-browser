@@ -56,22 +56,4 @@ impl WebGL2RenderingContext {
 
         Ok(constructor_obj)
     }
-
-    /// Create a new WebGL2 context for a canvas (WASM stub)
-    ///
-    /// In WASM builds, this returns a stub object. The actual WebGL2 context
-    /// is obtained via web-sys in JavaScript land.
-    pub fn create_context(_width: u32, _height: u32, context: &mut Context) -> JsResult<JsObject> {
-        // Create a stub object with WebGL and WebGL2 constants for API compatibility
-        let obj = JsObject::with_null_proto();
-        add_webgl_constants(&obj, context);
-        add_webgl2_constants(&obj, context);
-
-        // Add drawing buffer properties
-        obj.set(js_string!("drawingBufferWidth"), JsValue::from(_width), false, context)?;
-        obj.set(js_string!("drawingBufferHeight"), JsValue::from(_height), false, context)?;
-        obj.set(js_string!("canvas"), JsValue::null(), false, context)?;
-
-        Ok(obj)
-    }
 }

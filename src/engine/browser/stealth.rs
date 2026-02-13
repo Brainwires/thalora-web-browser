@@ -1,5 +1,4 @@
-use rand::prelude::*;
-use rquest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, CONNECTION, UPGRADE_INSECURE_REQUESTS};
 use crate::engine::browser::types::StealthConfig;
 use thalora_constants::USER_AGENT as SHARED_USER_AGENT;
 
@@ -38,10 +37,10 @@ impl StealthManager {
             headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
             headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
 
-            // Client hints - must match thalora_constants (Chrome 131, Windows)
-            headers.insert("sec-ch-ua", HeaderValue::from_static(thalora_constants::SEC_CH_UA));
+            // Additional headers to look more like a real browser
+            headers.insert("sec-ch-ua", HeaderValue::from_static(r#""Not_A Brand";v="8", "Chromium";v="140", "Chrome";v="140""#));
             headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
-            headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Windows""#));
+            headers.insert("sec-ch-ua-platform", HeaderValue::from_static(r#""Linux""#));
 
             // DNT header (Do Not Track)
             headers.insert("dnt", HeaderValue::from_static("1"));

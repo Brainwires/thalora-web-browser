@@ -77,8 +77,62 @@ impl McpServer {
             "browser_navigate_back" => self.browser_tools.handle_navigate_back(arguments).await,
             "browser_navigate_to" => self.browser_tools.handle_navigate_to(arguments).await,
 
+            // WASM Debug tools
+            #[cfg(feature = "wasm-debug")]
+            "wasm_debug_load_module" | "wasm_debug_unload_module" | "wasm_debug_list_modules"
+            | "wasm_debug_validate" | "wasm_debug_inspect" | "wasm_debug_disassemble"
+            | "wasm_debug_read_memory" | "wasm_debug_write_memory"
+            | "wasm_debug_call_function" | "wasm_debug_profile_function" => {
+                self.route_wasm_debug_tool(name, arguments).await
+            }
+
             // Unknown/Unhandled tool
             _ => McpResponse::error(-32601, format!("Tool not found: {}", name))
+        }
+    }
+
+    /// Route WASM debug tool calls to the WasmDebugTools handler
+    #[cfg(feature = "wasm-debug")]
+    async fn route_wasm_debug_tool(&mut self, name: &str, arguments: Value) -> McpResponse {
+        let tools = match self.wasm_debug_tools.as_mut() {
+            Some(t) => t,
+            None => {
+                return McpResponse::error(
+                    -32603,
+                    "WASM debug tools are not initialized. Set THALORA_ENABLE_WASM_DEBUG=true".to_string(),
+                );
+            }
+        };
+
+        let result = match name {
+            "wasm_debug_load_module" => tools.load_module(arguments),
+            "wasm_debug_unload_module" => tools.unload_module(arguments),
+            "wasm_debug_list_modules" => Ok(tools.list_modules()),
+            "wasm_debug_validate" => tools.validate(arguments),
+            "wasm_debug_inspect" => tools.inspect(arguments),
+            "wasm_debug_disassemble" => tools.disassemble(arguments),
+            "wasm_debug_read_memory" => tools.read_memory(arguments),
+            "wasm_debug_write_memory" => tools.write_memory(arguments),
+            "wasm_debug_call_function" => tools.call_function(arguments).await,
+            "wasm_debug_profile_function" => tools.profile_function(arguments).await,
+            _ => return McpResponse::error(-32601, format!("Unknown wasm debug tool: {}", name)),
+        };
+
+        match result {
+            Ok(value) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| format!("{}", value))
+                })],
+                is_error: false,
+            },
+            Err(e) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("Error: {}", e)
+                })],
+                is_error: true,
+            },
         }
     }
 }

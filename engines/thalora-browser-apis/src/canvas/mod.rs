@@ -8,7 +8,6 @@ pub mod canvas_state;
 pub mod path;
 pub mod html_canvas_element;
 pub mod offscreen_canvas;
-pub mod text_renderer;
 
 #[cfg(test)]
 mod tests;
@@ -19,4 +18,3 @@ pub use canvas_state::CanvasState;
 pub use path::Path2D;
 pub use html_canvas_element::HTMLCanvasElement;
 pub use offscreen_canvas::OffscreenCanvas;
-pub use text_renderer::TextRenderer;

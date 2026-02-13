@@ -215,13 +215,6 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
         .to_string(context)?
         .to_std_string_escaped();
 
-    // Validate URL format
-    if url::Url::parse(&script_url_str).is_err() {
-        return Err(JsNativeError::typ()
-            .with_message(format!("Failed to construct 'Worker': Invalid Worker script URL: {}", script_url_str))
-            .into());
-    }
-
     // Parse options (optional second argument)
     let options = if let Some(opts) = args.get(1) {
         Worker::parse_options(opts, context)?
@@ -297,7 +290,6 @@ impl IntrinsicObject for WorkerConstructor {
     fn init(realm: &Realm) {
         // Build the Worker constructor
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .property(
                 js_string!("postMessage"),
                 BuiltInBuilder::callable(realm, post_message)
@@ -326,14 +318,6 @@ impl IntrinsicObject for WorkerConstructor {
                 Some(BuiltInBuilder::callable(realm, set_onerror).build()),
                 Attribute::ENUMERABLE | Attribute::CONFIGURABLE,
             )
-            .accessor(
-                js_string!("scriptURL"),
-                Some(BuiltInBuilder::callable(realm, get_script_url)
-                    .name(js_string!("get scriptURL"))
-                    .build()),
-                None,
-                Attribute::READONLY | Attribute::CONFIGURABLE,
-            )
             .build();
     }
 
@@ -351,15 +335,10 @@ impl BuiltInConstructor for WorkerConstructor {
         StandardConstructors::worker;
 
     fn constructor(
-        new_target: &JsValue,
+        _new_target: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        if new_target.is_undefined() {
-            return Err(JsNativeError::typ()
-                .with_message("Failed to construct 'Worker': This constructor requires 'new' operator.")
-                .into());
-        }
         worker_constructor(args, context)
     }
 }
@@ -438,21 +417,6 @@ fn set_onerror(
     }
 
     Ok(JsValue::undefined())
-}
-
-/// Getter for scriptURL
-fn get_script_url(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
-        .ok_or_else(|| JsNativeError::typ().with_message("Worker scriptURL getter called on non-object"))?;
-
-    let worker = worker_obj.downcast_ref::<Worker>()
-        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Worker object"))?;
-
-    Ok(JsValue::from(JsString::from(worker.script_url.as_str())))
 }
 
 /// Register the Worker constructor in a context

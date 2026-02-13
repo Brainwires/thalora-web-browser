@@ -57,107 +57,34 @@ struct PerformanceNavigationTiming {
 
 impl Default for PerformanceNavigationTiming {
     fn default() -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-
         // Use UNIX epoch time in milliseconds to ensure positive values
         let epoch_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as f64;
 
-        // Generate realistic timing values with variance
-        // Total page load time: 800-2500ms (typical for modern websites)
-        let total_load_time = rng.gen_range(800.0..2500.0);
-
-        // Navigation start is our reference point
-        let navigation_start = epoch_ms - total_load_time;
-
-        // Unload timing (0-50ms after navigation start, or 0 if no previous page)
-        // 70% chance of no unload (direct navigation)
-        let (unload_event_start, unload_event_end) = if rng.gen_bool(0.3) {
-            let unload_start = navigation_start + rng.gen_range(1.0..10.0);
-            let unload_duration = rng.gen_range(1.0..15.0);
-            (unload_start, unload_start + unload_duration)
-        } else {
-            (0.0, 0.0)
-        };
-
-        // Fetch start (usually very close to navigation start, 0-5ms)
-        let fetch_start = navigation_start + rng.gen_range(0.5..5.0);
-
-        // DNS lookup (often 0 due to caching, but 5-80ms when needed)
-        // 70% chance of cached DNS
-        let (domain_lookup_start, domain_lookup_end) = if rng.gen_bool(0.3) {
-            let dns_start = fetch_start + rng.gen_range(0.5..3.0);
-            let dns_duration = rng.gen_range(5.0..80.0);
-            (dns_start, dns_start + dns_duration)
-        } else {
-            (fetch_start, fetch_start) // Cached - same time
-        };
-
-        // TCP connection (10-120ms for new connections, 0 for keep-alive)
-        let connect_start = domain_lookup_end + rng.gen_range(0.5..3.0);
-        let connect_duration = if rng.gen_bool(0.4) {
-            rng.gen_range(10.0..120.0) // New connection
-        } else {
-            rng.gen_range(0.5..5.0) // Keep-alive
-        };
-        let connect_end = connect_start + connect_duration;
-
-        // TLS handshake (part of connection, 20-100ms for HTTPS)
-        let secure_connection_start = connect_start + rng.gen_range(1.0..5.0);
-
-        // Request/response timing
-        let request_start = connect_end + rng.gen_range(0.5..5.0);
-
-        // Time to first byte (TTFB): 50-400ms is typical
-        let ttfb = rng.gen_range(50.0..400.0);
-        let response_start = request_start + ttfb;
-
-        // Response download time (depends on content size, 20-300ms)
-        let response_duration = rng.gen_range(20.0..300.0);
-        let response_end = response_start + response_duration;
-
-        // DOM processing phases
-        let dom_loading = response_end + rng.gen_range(1.0..10.0);
-
-        // DOM interactive (parsing complete, 50-500ms after dom_loading)
-        let dom_interactive = dom_loading + rng.gen_range(50.0..500.0);
-
-        // DOMContentLoaded event (usually very close to dom_interactive)
-        let dom_content_loaded_event_start = dom_interactive + rng.gen_range(0.5..20.0);
-        let dom_content_loaded_event_end = dom_content_loaded_event_start + rng.gen_range(1.0..30.0);
-
-        // DOM complete (after all resources loaded, 100-800ms after DOMContentLoaded)
-        let dom_complete = dom_content_loaded_event_end + rng.gen_range(100.0..800.0);
-
-        // Load event
-        let load_event_start = dom_complete + rng.gen_range(0.5..10.0);
-        let load_event_end = load_event_start + rng.gen_range(1.0..20.0);
-
         Self {
-            navigation_start,
-            unload_event_start,
-            unload_event_end,
-            redirect_start: 0.0, // No redirect by default
+            navigation_start: epoch_ms - 1000.0,
+            unload_event_start: epoch_ms - 950.0,
+            unload_event_end: epoch_ms - 945.0,
+            redirect_start: 0.0,
             redirect_end: 0.0,
-            fetch_start,
-            domain_lookup_start,
-            domain_lookup_end,
-            connect_start,
-            connect_end,
-            secure_connection_start,
-            request_start,
-            response_start,
-            response_end,
-            dom_loading,
-            dom_interactive,
-            dom_content_loaded_event_start,
-            dom_content_loaded_event_end,
-            dom_complete,
-            load_event_start,
-            load_event_end,
+            fetch_start: epoch_ms - 940.0,
+            domain_lookup_start: epoch_ms - 935.0,
+            domain_lookup_end: epoch_ms - 930.0,
+            connect_start: epoch_ms - 925.0,
+            connect_end: epoch_ms - 920.0,
+            secure_connection_start: epoch_ms - 915.0,
+            request_start: epoch_ms - 910.0,
+            response_start: epoch_ms - 905.0,
+            response_end: epoch_ms - 900.0,
+            dom_loading: epoch_ms - 895.0,
+            dom_interactive: epoch_ms - 890.0,
+            dom_content_loaded_event_start: epoch_ms - 885.0,
+            dom_content_loaded_event_end: epoch_ms - 880.0,
+            dom_complete: epoch_ms - 875.0,
+            load_event_start: epoch_ms - 870.0,
+            load_event_end: epoch_ms - 865.0,
         }
     }
 }
@@ -388,19 +315,6 @@ pub fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
             .value(Performance::create_timing_object(context.intrinsics()))
             .writable(false)
             .enumerable(false)
-            .configurable(false)
-            .build(),
-        context,
-    )?;
-
-    // interactionCount - counts user interactions for INP (Interaction to Next Paint)
-    // https://developer.mozilla.org/en-US/docs/Web/API/Performance/interactionCount
-    performance_obj.define_property_or_throw(
-        js_string!("interactionCount"),
-        PropertyDescriptor::builder()
-            .value(0) // Start at 0, would increment on user interactions
-            .writable(false)
-            .enumerable(true)
             .configurable(false)
             .build(),
         context,

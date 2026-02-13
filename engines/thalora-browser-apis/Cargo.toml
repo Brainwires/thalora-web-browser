@@ -9,16 +9,11 @@ license = "MIT"
 [features]
 default = ["native"]
 
-# Internal: core native platform flag — used in cfg checks, no deps of its own
-_native-core = []
-
-# Native build - includes tokio, rquest, wasmtime, etc.
+# Native build - includes tokio, reqwest, wasmtime, etc.
 native = [
-    "_native-core",
     "dep:tokio",
     "dep:tokio-tungstenite",
-    "dep:rquest",
-    "dep:rquest-util",
+    "dep:reqwest",
     "dep:webrtc",
     "dep:wasmtime",
     "dep:sled",
@@ -27,18 +22,6 @@ native = [
     "dep:symphonia",
     "dep:wgpu",
     "dep:naga",
-    "boa_engine/native",
-]
-
-# Lean native build for MCP server — no audio, video, WebRTC, wasmtime, wgpu
-native-lean = [
-    "_native-core",
-    "dep:tokio",
-    "dep:tokio-tungstenite",
-    "dep:rquest",
-    "dep:rquest-util",
-    "dep:sled",
-    "dep:dirs",
     "boa_engine/native",
 ]
 
@@ -52,9 +35,7 @@ wasm = [
 thalora-constants = { path = "../../shared/thalora-constants" }
 
 # Boa engine - required for JavaScript integration
-# annex-b enables legacy ECMAScript features like String.prototype.substr that are widely used
-# temporal enables TC39 Temporal API (required for proper feature unification in workspace builds)
-boa_engine = { path = "../boa/core/engine", features = ["intl_bundled", "annex-b", "temporal"], default-features = false }
+boa_engine = { path = "../boa/core/engine", features = ["intl_bundled"], default-features = false }
 boa_gc = { path = "../boa/core/gc" }
 
 # Async runtime and utilities (native only)
@@ -63,14 +44,12 @@ futures-util = "0.3"
 futures-channel = "0.3"
 crossbeam-channel = "0.5"
 
-# HTTP client for Fetch API with Chrome TLS fingerprint (native only)
-rquest = { version = "5", features = ["json", "stream", "cookies"], optional = true }
-rquest-util = { version = "2", optional = true }
+# HTTP client for Fetch API (native only)
+reqwest = { version = "0.11", features = ["json", "stream", "blocking"], optional = true }
 bytes = "1.5"
 
 # WebSocket support (native only)
-# Using rustls-tls-webpki-roots instead of native-tls to avoid OpenSSL/BoringSSL conflict with rquest
-tokio-tungstenite = { version = "0.20", default-features = false, features = ["connect", "rustls-tls-webpki-roots"], optional = true }
+tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
 
 # URL handling (matching Boa)
 url = "2.4"
@@ -150,7 +129,6 @@ image = { version = "0.25", features = ["png", "jpeg", "gif", "webp", "bmp", "ic
 tiny-skia = "0.11"
 fontdb = "0.16"
 rustybuzz = "0.12"
-ttf-parser = "0.21"
 
 # Audio playback (Phase 3: Audio) - native only
 rodio = { version = "0.19", default-features = false, features = ["symphonia-all"], optional = true }

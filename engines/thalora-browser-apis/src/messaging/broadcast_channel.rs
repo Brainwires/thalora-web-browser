@@ -104,7 +104,6 @@ impl IntrinsicObject for BroadcastChannel {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Instance properties
             .accessor(
                 js_string!("name"),

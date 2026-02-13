@@ -35,7 +35,7 @@ mod encryption {
 
     /// Get the path for the secret file.
     fn get_secret_path() -> PathBuf {
-        #[cfg(feature = "_native-core")]
+        #[cfg(feature = "native")]
         {
             if let Some(data_dir) = dirs::data_local_dir() {
                 return data_dir.join("thalora").join(".session_secret");

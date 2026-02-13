@@ -483,7 +483,6 @@ impl IDBDatabase {
 impl IntrinsicObject for IDBDatabase {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Properties
             .accessor(
                 js_string!("name"),

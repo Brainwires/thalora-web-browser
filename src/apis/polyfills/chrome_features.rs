@@ -334,7 +334,39 @@ pub fn setup_chrome_features(context: &mut Context) -> JsResult<()> {
             });
         }
 
-        // Chrome Client Hints (User-Agent Hints) - defined in web_apis.rs, no duplicate here
+        // Chrome 124: Client Hints (User-Agent Hints)
+        if (typeof navigator !== 'undefined' && !navigator.userAgentData) {
+            navigator.userAgentData = {
+                brands: [
+                    { brand: 'Thalora', version: '1.0' },
+                    { brand: 'Chromium', version: '124' }
+                ],
+                mobile: false,
+                platform: 'Linux',
+
+                getHighEntropyValues: function(hints) {
+                    console.log('Client Hints requested:', hints);
+                    return Promise.resolve({
+                        brands: this.brands,
+                        mobile: this.mobile,
+                        platform: this.platform,
+                        architecture: 'x86',
+                        model: '',
+                        platformVersion: '6.8.0',
+                        uaFullVersion: '124.0.0.0',
+                        fullVersionList: this.brands.map(b => ({ brand: b.brand, version: b.version + '.0.0.0' }))
+                    });
+                },
+
+                toJSON: function() {
+                    return {
+                        brands: this.brands,
+                        mobile: this.mobile,
+                        platform: this.platform
+                    };
+                }
+            };
+        }
 
         // Error.stack and Error.captureStackTrace - CRITICAL for Google 2025 bot detection
         if (typeof Error !== 'undefined') {

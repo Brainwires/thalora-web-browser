@@ -225,21 +225,15 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
 mod tests {
     use super::*;
     use std::env;
-    use std::sync::Mutex;
-
-    /// Mutex to serialize tests that read/write the THALORA_MASTER_PASSWORD env var.
-    /// Without this, parallel test execution causes race conditions.
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     fn setup_test_password() {
         // Set a test master password (minimum 32 characters)
-        // SAFETY: All tests that touch THALORA_MASTER_PASSWORD hold ENV_MUTEX
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
         unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure") };
     }
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         let original = "test_password_123!@#";
@@ -251,7 +245,6 @@ mod tests {
 
     #[test]
     fn test_encrypt_produces_v2_format() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         let password = "mypassword";
@@ -267,7 +260,6 @@ mod tests {
 
     #[test]
     fn test_encrypt_different_each_time() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         let password = "same_password";
@@ -284,7 +276,6 @@ mod tests {
 
     #[test]
     fn test_tampered_ciphertext_rejected() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         let password = "test_password";
@@ -302,28 +293,23 @@ mod tests {
 
     #[test]
     fn test_wrong_master_password_rejected() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         let password = "test_password";
         let encrypted = encrypt_password(password).unwrap();
 
         // Change master password
-        // SAFETY: All tests that touch THALORA_MASTER_PASSWORD hold ENV_MUTEX
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
         unsafe { env::set_var("THALORA_MASTER_PASSWORD", "wrong_password_min_32chars_wrong!") };
 
         // Should fail to decrypt
         let result = decrypt_password(&encrypted);
         assert!(result.is_err());
-
-        // Restore valid password for other tests
-        setup_test_password();
     }
 
     #[test]
     fn test_weak_master_password_rejected() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // SAFETY: All tests that touch THALORA_MASTER_PASSWORD hold ENV_MUTEX
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
         unsafe { env::set_var("THALORA_MASTER_PASSWORD", "weak") }; // Less than 32 chars
 
         let password = "test";
@@ -331,14 +317,10 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("too weak"));
-
-        // Restore valid password for other tests
-        setup_test_password();
     }
 
     #[test]
     fn test_legacy_xor_format_rejected() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         // Simulate legacy XOR encrypted data (base64 encoded)
@@ -351,8 +333,7 @@ mod tests {
 
     #[test]
     fn test_master_password_required() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // SAFETY: All tests that touch THALORA_MASTER_PASSWORD hold ENV_MUTEX
+        // SAFETY: Tests run sequentially with --test-threads=1 or isolated
         unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
 
         let password = "test";
@@ -360,14 +341,10 @@ mod tests {
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("THALORA_MASTER_PASSWORD"));
-
-        // Restore valid password for other tests
-        setup_test_password();
     }
 
     #[test]
     fn test_decrypt_invalid_format() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         // Invalid format - not enough parts
@@ -396,7 +373,6 @@ mod tests {
 
     #[test]
     fn test_unicode_password_support() {
-        let _guard = ENV_MUTEX.lock().unwrap();
         setup_test_password();
 
         let password = "пароль🔒日本語";

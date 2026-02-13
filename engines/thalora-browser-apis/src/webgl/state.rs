@@ -487,10 +487,6 @@ impl WebGLConstants {
     pub const RENDERER: u32 = 0x1F01;
     pub const VERSION: u32 = 0x1F02;
 
-    // WEBGL_debug_renderer_info extension constants
-    pub const UNMASKED_VENDOR_WEBGL: u32 = 0x9245; // 37445
-    pub const UNMASKED_RENDERER_WEBGL: u32 = 0x9246; // 37446
-
     // High/low precision
     pub const LOW_FLOAT: u32 = 0x8DF0;
     pub const MEDIUM_FLOAT: u32 = 0x8DF1;

@@ -15,7 +15,7 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
     JsString, realm::Realm, property::Attribute
 };
-#[cfg(feature = "_native-core")]
+#[cfg(feature = "native")]
 use crate::worker::worker_events;
 use boa_gc::{Finalize, Trace};
 use super::message_port::MessagePortData;
@@ -197,7 +197,7 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
     )?;
 
     // Add event handler properties to MessagePort (native only)
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     worker_events::add_worker_event_handlers(&port_obj_generic, context)?;
 
     Ok(port_obj_generic)

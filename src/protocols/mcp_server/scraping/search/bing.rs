@@ -26,11 +26,9 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     // Explicitly drop browser to ensure cleanup
     drop(temp_browser);
 
-    // Check if we got a Cloudflare challenge that wasn't resolved
-    // The navigation layer should have handled this, but check just in case
+    // Check for actual Cloudflare challenge (not just JS that mentions cloudflare)
     if html.contains("challenges.cloudflare.com") && html.contains("cf-browser-verification") {
-        eprintln!("⚠️ WARNING: Cloudflare challenge still present after navigation - this may indicate a bypass failure");
-        // Continue anyway - the parse_results will return empty results if needed
+        return Err(anyhow::anyhow!("Bing returned Cloudflare challenge - need enhanced stealth"));
     }
 
     parse_results(&html, query, num_results)

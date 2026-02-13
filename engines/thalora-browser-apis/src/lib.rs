@@ -16,14 +16,6 @@ pub mod dom;
 // Fetch & Networking APIs
 pub mod fetch;
 
-// Blocking HTTP client (rquest doesn't have a blocking module)
-#[cfg(feature = "_native-core")]
-pub mod http_blocking;
-
-// HTTP-based ES Module Loader (enables <script type="module"> support)
-#[cfg(feature = "_native-core")]
-pub mod http_module_loader;
-
 // Storage APIs
 pub mod storage;
 
@@ -87,17 +79,6 @@ pub mod intl;
 // Audit module for Web API coverage testing
 pub mod audit;
 
-// Layout registry for getBoundingClientRect() support
-// Allows the layout engine to populate computed element positions
-pub mod layout_registry;
-
-// CSS Transform module for 3D transform parsing and coordinate transformation
-// Used for accurate click handling on transformed elements (e.g., Cloudflare Turnstile)
-pub mod css_transform;
-
-// Debug utilities for file-based logging during development
-pub mod debug_utils;
-
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
@@ -110,9 +91,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Initialize Timer APIs (foundational for async operations)
     timers::timers::Timers::init(context);
-
-    // Initialize Window global functions (browser automation APIs)
-    browser::window::Window::init_globals(context);
 
     // Initialize Event APIs (foundational for DOM)
     events::event::Event::init(&realm);
@@ -135,7 +113,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::node::Node::init(&realm);
     dom::attr::Attr::init(&realm);
     dom::nodelist::NodeList::init(&realm);
-    dom::domstringmap::DOMStringMap::init(&realm);
     dom::domtokenlist::DOMTokenList::init(&realm);
     dom::htmlcollection::HTMLCollection::init(&realm);
     dom::namednodemap::NamedNodeMap::init(&realm);
@@ -145,7 +122,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::element::Element::init(&realm);
     dom::character_data::CharacterData::init(&realm);
     dom::text::Text::init(&realm);
-    dom::comment::Comment::init(&realm);
     dom::document_fragment::DocumentFragment::init(&realm);
     dom::range::Range::init(&realm);
     dom::selection::Selection::init(&realm);
@@ -153,7 +129,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::image_bitmap::ImageBitmap::init(&realm);
     dom::html_element::HTMLElement::init(&realm);
     dom::html_script_element::HTMLScriptElement::init(&realm);
-    dom::html_iframe_element::HTMLIFrameElement::init(&realm);
     dom::dom_parser::DOMParser::init(&realm);
 
     // Initialize Canvas APIs
@@ -162,23 +137,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     canvas::rendering_context_2d::CanvasRenderingContext2D::init(&realm);
     canvas::offscreen_canvas::OffscreenCanvas::init(&realm);
 
-    // Initialize Audio APIs (native only — requires rodio)
-    #[cfg(feature = "native")]
-    {
-        audio::html_audio_element::HTMLAudioElement::init(&realm);
-        audio::audio_context::AudioContext::init(&realm);
-    }
+    // Initialize Audio APIs
+    audio::html_audio_element::HTMLAudioElement::init(&realm);
+    audio::audio_context::AudioContext::init(&realm);
 
-    // Initialize Video APIs (native only)
-    #[cfg(feature = "native")]
+    // Initialize Video APIs
     video::html_video_element::HTMLVideoElement::init(&realm);
 
-    // Initialize WebGL APIs (native only — requires wgpu)
-    #[cfg(feature = "native")]
-    {
-        webgl::context::WebGLRenderingContext::init(&realm);
-        webgl::context2::WebGL2RenderingContext::init(&realm);
-    }
+    // Initialize WebGL APIs
+    webgl::context::WebGLRenderingContext::init(&realm);
+    webgl::context2::WebGL2RenderingContext::init(&realm);
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -262,11 +230,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     web_components::html_template_element::HTMLTemplateElement::init(context);
 
     // Initialize Worker APIs
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     worker::worker::WorkerConstructor::init(&realm);
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     worker::service_worker::ServiceWorker::init(&realm);
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     worker::service_worker_container::ServiceWorkerContainer::init(&realm);
 
     // Initialize Fetch APIs
@@ -275,7 +243,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     fetch::fetch::Response::init(&realm);
     fetch::fetch::Headers::init(&realm);
     fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     fetch::websocket::WebSocket::init(&realm);
 
     // Register browser APIs as global properties
@@ -497,7 +465,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     )?;
 
     // WebSocket constructor
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     global_object.define_property_or_throw(
         fetch::websocket::WebSocket::NAME,
         PropertyDescriptor::builder()
@@ -988,17 +956,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // HTMLIFrameElement constructor
-    global_object.define_property_or_throw(
-        dom::html_iframe_element::HTMLIFrameElement::NAME,
-        PropertyDescriptor::builder()
-            .value(dom::html_iframe_element::HTMLIFrameElement::get(context.intrinsics()))
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
-
     // DOMParser constructor
     global_object.define_property_or_throw(
         dom::dom_parser::DOMParser::NAME,
@@ -1035,10 +992,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     // getComputedStyle global function
     let get_computed_style_fn = browser::cssom::create_get_computed_style_function(context)?;
     global_object.set(js_string!("getComputedStyle"), get_computed_style_fn, false, context)?;
-
-    // matchMedia global function
-    let match_media_fn = browser::window::create_match_media_function(context)?;
-    global_object.set(js_string!("matchMedia"), match_media_fn, false, context)?;
 
     // Canvas APIs
     global_object.define_property_or_throw(
@@ -1081,44 +1034,40 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // Audio APIs (native only — requires rodio)
-    #[cfg(feature = "native")]
-    {
-        global_object.define_property_or_throw(
-            audio::html_audio_element::HTMLAudioElement::NAME,
-            PropertyDescriptor::builder()
-                .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
-                .writable(true)
-                .enumerable(false)
-                .configurable(true),
-            context,
-        )?;
+    // Audio APIs
+    global_object.define_property_or_throw(
+        audio::html_audio_element::HTMLAudioElement::NAME,
+        PropertyDescriptor::builder()
+            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
 
-        // Also expose as "Audio" constructor for compatibility with `new Audio()`
-        global_object.define_property_or_throw(
-            js_string!("Audio"),
-            PropertyDescriptor::builder()
-                .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
-                .writable(true)
-                .enumerable(false)
-                .configurable(true),
-            context,
-        )?;
+    // Also expose as "Audio" constructor for compatibility with `new Audio()`
+    global_object.define_property_or_throw(
+        js_string!("Audio"),
+        PropertyDescriptor::builder()
+            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
 
-        // AudioContext - Web Audio API
-        global_object.define_property_or_throw(
-            audio::audio_context::AudioContext::NAME,
-            PropertyDescriptor::builder()
-                .value(audio::audio_context::AudioContext::get(context.intrinsics()))
-                .writable(true)
-                .enumerable(false)
-                .configurable(true),
-            context,
-        )?;
-    }
+    // AudioContext - Web Audio API
+    global_object.define_property_or_throw(
+        audio::audio_context::AudioContext::NAME,
+        PropertyDescriptor::builder()
+            .value(audio::audio_context::AudioContext::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
 
-    // Video APIs (native only)
-    #[cfg(feature = "native")]
+    // Video APIs
     global_object.define_property_or_throw(
         video::html_video_element::HTMLVideoElement::NAME,
         PropertyDescriptor::builder()
@@ -1130,7 +1079,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     )?;
 
     // Worker APIs (native only)
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     global_object.define_property_or_throw(
         worker::worker::WorkerConstructor::NAME,
         PropertyDescriptor::builder()
@@ -1141,7 +1090,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    #[cfg(feature = "_native-core")]
+    #[cfg(feature = "native")]
     global_object.define_property_or_throw(
         worker::service_worker::ServiceWorker::NAME,
         PropertyDescriptor::builder()
@@ -1179,31 +1128,28 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // WebGL constructors (native only — requires wgpu)
-    #[cfg(feature = "native")]
-    {
-        let webgl_constructor = webgl::WebGLRenderingContext::create_global_constructor(context)?;
-        global_object.define_property_or_throw(
-            js_string!("WebGLRenderingContext"),
-            PropertyDescriptor::builder()
-                .value(webgl_constructor)
-                .writable(true)
-                .enumerable(false)
-                .configurable(true),
-            context,
-        )?;
+    // WebGL constructors (with static constants per Web spec)
+    let webgl_constructor = webgl::WebGLRenderingContext::create_global_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("WebGLRenderingContext"),
+        PropertyDescriptor::builder()
+            .value(webgl_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
 
-        let webgl2_constructor = webgl::WebGL2RenderingContext::create_global_constructor(context)?;
-        global_object.define_property_or_throw(
-            js_string!("WebGL2RenderingContext"),
-            PropertyDescriptor::builder()
-                .value(webgl2_constructor)
-                .writable(true)
-                .enumerable(false)
-                .configurable(true),
-            context,
-        )?;
-    }
+    let webgl2_constructor = webgl::WebGL2RenderingContext::create_global_constructor(context)?;
+    global_object.define_property_or_throw(
+        js_string!("WebGL2RenderingContext"),
+        PropertyDescriptor::builder()
+            .value(webgl2_constructor)
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
 
     global_object.define_property_or_throw(
         storage::storage::Storage::NAME,
@@ -1350,37 +1296,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.set(boa_engine::js_string!("document"), document_instance, false, context)
         .expect("failed to set global document");
 
-    // IMPORTANT: In browsers, window === globalThis === self === this (at global scope)
-    // The global object IS the window object. Scripts expect 'this' at global scope to equal 'window'.
-    // So we make 'window' point to the global object itself, not a separate Window instance.
-    //
-    // We still create Window instance properties and methods, but attach them to globalThis.
-    // This ensures that:
-    // - window === globalThis (true)
-    // - this === window at global scope (true, since 'this' is the global object)
-    // - typeof window === 'object' (true)
+    // Create a global window instance
+    let window_constructor = browser::window::Window::get(context.intrinsics());
+    let window_args = [];
+    let window_instance = browser::window::Window::constructor(
+        &window_constructor.clone().into(),
+        &window_args,
+        context,
+    ).expect("failed to create window instance");
 
-    // Create Window instance to get its data/methods, but don't use it directly
-    let _window_constructor = browser::window::Window::get(context.intrinsics());
-
-    // Set 'window' to be the global object itself (circular reference, as in browsers)
-    // This ensures window === globalThis === self === this (at global scope)
-    global_object.set(boa_engine::js_string!("window"), global_object.clone(), false, context)
+    global_object.set(boa_engine::js_string!("window"), window_instance.clone(), false, context)
         .expect("failed to set global window");
-
-    // Register the top-level window in the window registry for iframe hierarchy support
-    // This allows iframes to find their parent window and enables proper
-    // window.parent, window.top, window.frameElement, and postMessage routing
-    let registry = browser::window_registry::get_registry();
-    let top_window_id = registry.register_top_window("about:blank".to_string()); // Origin will be updated when page loads
-    eprintln!("📋 BROWSER_INIT: Registered top-level window with ID {}", top_window_id);
-
-    // Store the window ID in the global window's WindowData if available
-    // Note: The global object acts as window, so we try to get WindowData from it
-    if let Some(window_data) = global_object.downcast_ref::<browser::window::WindowData>() {
-        window_data.set_window_id(top_window_id);
-        eprintln!("📋 BROWSER_INIT: Set window_id {} in top-level WindowData", top_window_id);
-    }
 
     // Create navigator instance manually with proper prototype and data
     let navigator_proto = global_object.get(browser::navigator::Navigator::NAME, context)?
@@ -1457,8 +1383,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     let navigator_instance: boa_engine::JsValue = navigator_generic.into();
 
-    // Set navigator on the global object
-    // Note: With window === globalThis, window.navigator === navigator
+    // Now set navigator on the window object (after setting storage and locks)
+    if let Some(window_obj) = window_instance.as_object() {
+        if let Some(window_data) = window_obj.downcast_ref::<browser::window::WindowData>() {
+            if let Some(nav_obj) = navigator_instance.as_object() {
+                window_data.set_navigator(nav_obj.clone());
+            }
+        }
+    }
+
+    // Also set as global navigator
     global_object.set(boa_engine::js_string!("navigator"), navigator_instance.clone(), false, context)
         .expect("failed to set global navigator");
 
@@ -1572,84 +1506,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.set(boa_engine::js_string!("postMessage"), post_message_fn, false, context)
         .expect("failed to set global postMessage");
 
-    // Add window hierarchy accessors (parent, top, frameElement, self, frames)
-    // These are needed for iframe communication support
-
-    // window.parent - returns parent window or self for top-level
-    let parent_getter = boa_engine::builtins::BuiltInBuilder::callable(
-        context.realm(),
-        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
-            // Top-level window: parent === window
-            context.global_object().get(boa_engine::js_string!("window"), context)
-        }
-    )
-    .name(boa_engine::js_string!("get parent"))
-    .build();
-    global_object.define_property_or_throw(
-        boa_engine::js_string!("parent"),
-        PropertyDescriptor::builder()
-            .get(parent_getter)
-            .enumerable(true)
-            .configurable(true),
-        context,
-    )?;
-
-    // window.top - returns topmost window or self for top-level
-    let top_getter = boa_engine::builtins::BuiltInBuilder::callable(
-        context.realm(),
-        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
-            // Top-level window: top === window
-            context.global_object().get(boa_engine::js_string!("window"), context)
-        }
-    )
-    .name(boa_engine::js_string!("get top"))
-    .build();
-    global_object.define_property_or_throw(
-        boa_engine::js_string!("top"),
-        PropertyDescriptor::builder()
-            .get(top_getter)
-            .enumerable(true)
-            .configurable(true),
-        context,
-    )?;
-
-    // window.frameElement - returns null for top-level window
-    let frame_element_getter = boa_engine::builtins::BuiltInBuilder::callable(
-        context.realm(),
-        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], _context: &mut boa_engine::Context| {
-            // Top-level window: frameElement === null
-            Ok(boa_engine::JsValue::null())
-        }
-    )
-    .name(boa_engine::js_string!("get frameElement"))
-    .build();
-    global_object.define_property_or_throw(
-        boa_engine::js_string!("frameElement"),
-        PropertyDescriptor::builder()
-            .get(frame_element_getter)
-            .enumerable(true)
-            .configurable(true),
-        context,
-    )?;
-
-    // window.frames - returns window (same as self)
-    let frames_getter = boa_engine::builtins::BuiltInBuilder::callable(
-        context.realm(),
-        |_this: &boa_engine::JsValue, _args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
-            context.global_object().get(boa_engine::js_string!("window"), context)
-        }
-    )
-    .name(boa_engine::js_string!("get frames"))
-    .build();
-    global_object.define_property_or_throw(
-        boa_engine::js_string!("frames"),
-        PropertyDescriptor::builder()
-            .get(frames_getter)
-            .enumerable(true)
-            .configurable(true),
-        context,
-    )?;
-
     // Create localStorage and sessionStorage instances
     // Storage constructor cannot be called directly, so we create instances manually
     let storage_proto = global_object.get(storage::storage::Storage::NAME, context)?
@@ -1693,7 +1549,17 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
     let indexed_db: boa_engine::JsValue = indexed_db_obj.into();
 
-    // Set storage APIs on global object (window === globalThis, so window.localStorage works)
+    // Set on window object (must be done BEFORE window is finalized)
+    if let Some(window_obj) = window_instance.as_object() {
+        window_obj.set(boa_engine::js_string!("localStorage"), local_storage.clone(), false, context)
+            .expect("failed to set window.localStorage");
+        window_obj.set(boa_engine::js_string!("sessionStorage"), session_storage.clone(), false, context)
+            .expect("failed to set window.sessionStorage");
+        window_obj.set(boa_engine::js_string!("indexedDB"), indexed_db.clone(), false, context)
+            .expect("failed to set window.indexedDB");
+    }
+
+    // Set as globals
     global_object.set(boa_engine::js_string!("localStorage"), local_storage, false, context)
         .expect("failed to set global localStorage");
     global_object.set(boa_engine::js_string!("sessionStorage"), session_storage, false, context)
@@ -1756,21 +1622,6 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
             .configurable(true),
         context,
     )?;
-
-    // Register structuredClone as global function
-    let structured_clone_fn = boa_engine::builtins::BuiltInBuilder::callable(
-        context.realm(),
-        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
-            use boa_engine::JsArgs;
-            let value = args.get_or_undefined(0);
-            let cloned = misc::structured_clone::structured_clone(value, context, None)?;
-            misc::structured_clone::structured_deserialize(&cloned, context)
-        }
-    )
-    .name(boa_engine::js_string!("structuredClone"))
-    .length(1)
-    .build();
-    global_object.set(boa_engine::js_string!("structuredClone"), structured_clone_fn, false, context)?;
 
     // Add 'self' reference to global scope (Worker/browser compatibility)
     global_object.set(js_string!("self"), global_object.clone(), false, context)?;

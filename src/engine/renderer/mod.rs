@@ -4,11 +4,9 @@ pub mod js_security;
 pub mod execution;
 pub mod css;
 pub mod layout;
-pub mod layout_integration;
 pub mod polyfills;
 
 // Re-export the main types
 pub use core::RustRenderer;
 pub use css::CssProcessor;
 pub use layout::{LayoutEngine, LayoutResult, ElementLayout};
-pub use layout_integration::{LayoutIntegration, ElementLayoutInfo};

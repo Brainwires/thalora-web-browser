@@ -17,7 +17,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
-use rquest;
+use reqwest;
 use url::Url;
 
 /// JavaScript `XMLHttpRequest` constructor implementation.
@@ -27,7 +27,6 @@ pub struct XmlHttpRequest;
 impl IntrinsicObject for XmlHttpRequest {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .method(Self::open, js_string!("open"), 2)
             .method(Self::send, js_string!("send"), 0)
             .method(Self::set_request_header, js_string!("setRequestHeader"), 2)
@@ -134,32 +133,10 @@ impl XmlHttpRequest {
         let async_val = args.get_or_undefined(2);
         let is_async = if async_val.is_undefined() { true } else { async_val.to_boolean() };
 
-        // Resolve URL — support relative URLs by resolving against page origin
-        let url = match Url::parse(&url) {
-            Ok(parsed) => parsed.to_string(),
-            Err(_) => {
-                let base_url = super::fetch::get_base_url_from_context(context);
-                if let Some(base) = base_url {
-                    if let Ok(base_parsed) = Url::parse(&base) {
-                        if let Ok(resolved) = base_parsed.join(&url) {
-                            resolved.to_string()
-                        } else {
-                            return Err(JsNativeError::syntax()
-                                .with_message(format!("Invalid URL: {}", url))
-                                .into());
-                        }
-                    } else {
-                        return Err(JsNativeError::syntax()
-                            .with_message(format!("Invalid URL: {}", url))
-                            .into());
-                    }
-                } else {
-                    return Err(JsNativeError::syntax()
-                        .with_message(format!("Invalid URL: {}", url))
-                        .into());
-                }
-            }
-        };
+        // Validate URL
+        Url::parse(&url).map_err(|_| {
+            JsNativeError::syntax().with_message(format!("Invalid URL: {}", url))
+        })?;
 
         // Validate method
         match method.as_str() {
@@ -216,92 +193,17 @@ impl XmlHttpRequest {
         let headers = xhr_data.request_headers.clone();
         let xhr_obj_clone = xhr_obj.clone();
 
-        // Enqueue async job to perform HTTP request.
-        // IMPORTANT: We must NOT hold the RefCell borrow across .await points,
-        // otherwise other async jobs can't access the context and will panic with
-        // "RefCell already borrowed". We borrow briefly for synchronous DOM updates
-        // and release before any async HTTP operations.
+        // Enqueue async job to perform HTTP request
         context.enqueue_job(
-            NativeAsyncJob::new(async move |ctx_ref| {
-                // Phase 1: Update ready state to HEADERS_RECEIVED (brief borrow)
-                {
-                    let context = &mut ctx_ref.borrow_mut();
-                    Self::update_ready_state(&xhr_obj_clone, 2, context)?;
-                } // borrow dropped before async HTTP fetch
-
-                // Phase 2: Perform HTTP request (no context borrow needed)
-                let client = rquest::Client::new();
-                let mut request_builder = client.request(
-                    rquest::Method::from_bytes(method.as_bytes()).unwrap_or(rquest::Method::GET),
-                    &url
-                );
-
-                for (key, value) in &headers {
-                    request_builder = request_builder.header(key.as_str(), value.as_str());
-                }
-
-                if let Some(body_content) = body_text {
-                    request_builder = request_builder.body(body_content);
-                }
-
-                let http_result = request_builder.send().await;
-
-                // Phase 3: Process response (brief borrow for DOM updates)
-                match http_result {
-                    Ok(response) => {
-                        // Brief borrow to update state to LOADING
-                        {
-                            let context = &mut ctx_ref.borrow_mut();
-                            Self::update_ready_state(&xhr_obj_clone, 3, context)?;
-                        } // borrow dropped before async body read
-
-                        let status = response.status().as_u16();
-                        let status_text = response.status().canonical_reason().unwrap_or("").to_string();
-
-                        let mut response_headers = HashMap::new();
-                        for (name, value) in response.headers() {
-                            if let Ok(value_str) = value.to_str() {
-                                response_headers.insert(name.to_string().to_lowercase(), value_str.to_string());
-                            }
-                        }
-
-                        // Async body read (no borrow held)
-                        let body_result = response.text().await;
-
-                        // Brief borrow to update final state
-                        {
-                            let context = &mut ctx_ref.borrow_mut();
-                            match body_result {
-                                Ok(body_text) => {
-                                    if let Some(mut xhr_data) = xhr_obj_clone.downcast_mut::<XmlHttpRequestData>() {
-                                        xhr_data.status = status;
-                                        xhr_data.status_text = status_text.clone();
-                                        xhr_data.response_text = body_text.clone();
-                                        xhr_data.response_headers = response_headers;
-                                        xhr_data.response_url = url.clone();
-                                    }
-
-                                    xhr_obj_clone.set(js_string!("status"), JsValue::from(status), false, context)?;
-                                    xhr_obj_clone.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context)?;
-                                    xhr_obj_clone.set(js_string!("responseText"), JsValue::from(js_string!(body_text)), false, context)?;
-                                    xhr_obj_clone.set(js_string!("responseURL"), JsValue::from(js_string!(url)), false, context)?;
-
-                                    Self::update_ready_state(&xhr_obj_clone, 4, context)?;
-                                    Self::call_event_handler(&xhr_obj_clone, "onload", context)?;
-                                }
-                                Err(e) => {
-                                    Self::handle_error(&xhr_obj_clone, &format!("Failed to read response body: {}", e), context)?;
-                                }
-                            }
-                        }
-                    }
+            NativeAsyncJob::new(async move |context| {
+                let context = &mut context.borrow_mut();
+                match Self::perform_request(xhr_obj_clone, method, url, headers, body_text, context).await {
+                    Ok(_) => Ok(JsValue::undefined()),
                     Err(e) => {
-                        let context = &mut ctx_ref.borrow_mut();
-                        Self::handle_error(&xhr_obj_clone, &format!("Network error: {}", e), context)?;
+                        eprintln!("XMLHttpRequest error: {}", e);
+                        Ok(JsValue::undefined())
                     }
                 }
-
-                Ok(JsValue::undefined())
             })
             .into(),
         );
@@ -397,6 +299,92 @@ impl XmlHttpRequest {
         Self::call_event_handler(&xhr_obj, "onabort", context)?;
 
         Ok(JsValue::undefined())
+    }
+
+    /// Perform the actual HTTP request
+    async fn perform_request(
+        xhr_obj: JsObject,
+        method: String,
+        url: String,
+        headers: HashMap<String, String>,
+        body: Option<String>,
+        context: &mut Context,
+    ) -> JsResult<()> {
+        // Update state to HEADERS_RECEIVED
+        Self::update_ready_state(&xhr_obj, 2, context)?;
+
+        // Perform HTTP request
+        let client = reqwest::Client::new();
+        let mut request_builder = client.request(
+            reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
+            &url
+        );
+
+        // Add headers
+        for (key, value) in headers {
+            request_builder = request_builder.header(&key, &value);
+        }
+
+        // Add body if present
+        if let Some(body_content) = body {
+            request_builder = request_builder.body(body_content);
+        }
+
+        // Execute the request
+        match request_builder.send().await {
+            Ok(response) => {
+                // Update state to LOADING
+                Self::update_ready_state(&xhr_obj, 3, context)?;
+
+                // Extract response data
+                let status = response.status().as_u16();
+                let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+
+                // Convert headers
+                let mut response_headers = HashMap::new();
+                for (name, value) in response.headers() {
+                    if let Ok(value_str) = value.to_str() {
+                        response_headers.insert(name.to_string().to_lowercase(), value_str.to_string());
+                    }
+                }
+
+                // Get response body
+                match response.text().await {
+                    Ok(body_text) => {
+                        // Update XMLHttpRequest data
+                        if let Some(mut xhr_data) = xhr_obj.downcast_mut::<XmlHttpRequestData>() {
+                            xhr_data.status = status;
+                            xhr_data.status_text = status_text.clone();
+                            xhr_data.response_text = body_text.clone();
+                            xhr_data.response_headers = response_headers;
+                            xhr_data.response_url = url.clone();
+                        }
+
+                        // Update properties
+                        xhr_obj.set(js_string!("status"), JsValue::from(status), false, context)?;
+                        xhr_obj.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context)?;
+                        xhr_obj.set(js_string!("responseText"), JsValue::from(js_string!(body_text)), false, context)?;
+                        xhr_obj.set(js_string!("responseURL"), JsValue::from(js_string!(url)), false, context)?;
+
+                        // Update state to DONE
+                        Self::update_ready_state(&xhr_obj, 4, context)?;
+
+                        // Call onload handler
+                        Self::call_event_handler(&xhr_obj, "onload", context)?;
+                    }
+                    Err(e) => {
+                        // Handle body read error
+                        Self::handle_error(&xhr_obj, &format!("Failed to read response body: {}", e), context)?;
+                    }
+                }
+            }
+            Err(e) => {
+                // Handle network error
+                Self::handle_error(&xhr_obj, &format!("Network error: {}", e), context)?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Update ready state and call onreadystatechange

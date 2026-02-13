@@ -12,6 +12,10 @@ pub mod cdp_debugging_tests;
 pub mod session_management_tests;
 pub mod cdp_session_integration_tests;
 
+// WASM debug tools tests (requires wasm-debug feature)
+#[cfg(feature = "wasm-debug")]
+pub mod wasm_debug_tools_test;
+
 // Re-export common testing utilities
 #[allow(unused_imports)]
 pub use mcp_harness::{McpTestHarness, McpTestConfig, McpToolResponse, create_initialized_harness, create_release_harness,

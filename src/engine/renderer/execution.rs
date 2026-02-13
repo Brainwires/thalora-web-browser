@@ -1,165 +1,10 @@
 use anyhow::{anyhow, Result};
-use thalora_browser_apis::boa_engine::{Context, Source};
-use thalora_browser_apis::boa_engine::module::Module;
-use thalora_browser_apis::boa_engine::builtins::promise::PromiseState;
-use std::path::PathBuf;
+use thalora_browser_apis::boa_engine::Source;
 use std::time::{Duration, Instant};
+use std::error::Error;
 use crate::engine::renderer::core::RustRenderer;
 
 impl RustRenderer {
-    /// Run pending async jobs (Promise microtasks, fetch responses, etc.)
-    /// and process timer callbacks. This is needed after page scripts execute
-    /// to process async operations like `fetch()` that frameworks use to load data.
-    ///
-    /// Polls repeatedly with small sleeps to give async HTTP requests time to
-    /// complete and their response handlers time to execute.
-    pub fn run_pending_jobs(&mut self, max_duration: Duration) -> Result<()> {
-        use thalora_browser_apis::timers::timers::Timers;
-
-        if let Some(ctx) = &mut self.js_context {
-            let start = Instant::now();
-            let poll_interval = Duration::from_millis(50);
-            let mut consecutive_idle = 0;
-            eprintln!("DEBUG: run_pending_jobs START (max_duration={}ms)", max_duration.as_millis());
-
-            while start.elapsed() < max_duration {
-                // Run Promise microtasks (including fetch responses via block_on_compat).
-                // Log errors instead of silently ignoring — a single bad job throwing
-                // clears ALL remaining jobs in Boa's queue. Retrying after an error
-                // processes any jobs that were enqueued after the failed one.
-                let before_jobs = Instant::now();
-                if let Err(e) = ctx.run_jobs() {
-                    eprintln!("DEBUG: run_jobs error (continuing): {}", e);
-                    // Try again — the error came from a single bad job; remaining
-                    // jobs may still be valid and should not be lost.
-                    let _ = ctx.run_jobs();
-                }
-                let jobs_took = before_jobs.elapsed();
-
-                // Process timer callbacks
-                let timers_executed = Timers::process_timers(ctx);
-
-                // Run jobs again in case timer callbacks scheduled promises
-                if timers_executed > 0 {
-                    if let Err(e) = ctx.run_jobs() {
-                        eprintln!("DEBUG: run_jobs error after timers (continuing): {}", e);
-                        let _ = ctx.run_jobs();
-                    }
-                    consecutive_idle = 0;
-                } else if jobs_took > Duration::from_millis(10) {
-                    // run_jobs() blocked for a while — likely processed async jobs
-                    // (fetch responses, promise chains). Reset idle counter to keep
-                    // polling for follow-up work.
-                    consecutive_idle = 0;
-                } else {
-                    consecutive_idle += 1;
-                }
-
-                // Stop after 10 consecutive idle polls (500ms of no activity)
-                if consecutive_idle >= 10 {
-                    eprintln!("DEBUG: run_pending_jobs EXIT idle after {}ms", start.elapsed().as_millis());
-                    break;
-                }
-
-                // Sleep to allow timer-based operations to progress
-                std::thread::sleep(poll_interval);
-            }
-
-        }
-
-        Ok(())
-    }
-
-    /// Evaluate an ES module script (from `<script type="module">`).
-    ///
-    /// Uses `Module::parse()` and `load_link_evaluate()` instead of `ctx.eval()`.
-    /// Module scripts use the Module grammar which supports `import`/`export`.
-    /// The module URL is used as the path so nested imports resolve relative to it.
-    pub fn evaluate_module_script(&mut self, source_code: &str, module_url: Option<&str>) -> Result<String> {
-        use thalora_browser_apis::timers::timers::Timers;
-
-        if let Some(ctx) = &mut self.js_context {
-            let timeout_duration = Duration::from_secs(30);
-
-            // Set execution deadline
-            let deadline = Instant::now() + timeout_duration;
-            ctx.runtime_limits_mut().set_execution_deadline(deadline);
-
-            // Increase limits for module scripts (same as evaluate_javascript_trusted)
-            let original_recursion_limit = ctx.runtime_limits().recursion_limit();
-            let original_stack_limit = ctx.runtime_limits().stack_size_limit();
-            ctx.runtime_limits_mut().set_recursion_limit(8192);
-            ctx.runtime_limits_mut().set_stack_size_limit(1024 * 100);
-
-            // Parse the module source — use URL as path for referrer resolution
-            let path = module_url.map(PathBuf::from);
-            let source = if let Some(ref p) = path {
-                Source::from_bytes(source_code).with_path(p)
-            } else {
-                Source::from_bytes(source_code)
-            };
-
-            let module = match Module::parse(source, None, ctx) {
-                Ok(m) => m,
-                Err(e) => {
-                    // Restore limits and clear deadline
-                    ctx.runtime_limits_mut().set_recursion_limit(original_recursion_limit);
-                    ctx.runtime_limits_mut().set_stack_size_limit(original_stack_limit);
-                    ctx.runtime_limits_mut().clear_execution_deadline();
-                    eprintln!("MODULE: Parse error for {:?}: {:?}", module_url, e);
-                    return Ok("undefined".to_string());
-                }
-            };
-
-            // Load, link, and evaluate the module — returns a JsPromise
-            let promise = module.load_link_evaluate(ctx);
-
-            // Run jobs to process the promise chain (imports load synchronously
-            // via block_on_compat inside HttpModuleLoader)
-            let _ = ctx.run_jobs();
-
-            // If still pending, poll with run_jobs + process_timers in a loop
-            let poll_start = Instant::now();
-            let max_poll = Duration::from_secs(15);
-            let poll_interval = Duration::from_millis(50);
-
-            loop {
-                match promise.state() {
-                    PromiseState::Pending => {
-                        if poll_start.elapsed() >= max_poll {
-                            eprintln!("MODULE: Evaluation timed out (promise still pending) for {:?}", module_url);
-                            break;
-                        }
-                        // Process timers and retry jobs
-                        let _ = Timers::process_timers(ctx);
-                        let _ = ctx.run_jobs();
-                        std::thread::sleep(poll_interval);
-                    }
-                    PromiseState::Fulfilled(_) => {
-                        eprintln!("MODULE: Successfully evaluated {:?}", module_url);
-                        break;
-                    }
-                    PromiseState::Rejected(err) => {
-                        eprintln!("MODULE: Evaluation rejected for {:?}: {:?}", module_url, err);
-                        break;
-                    }
-                }
-            }
-
-            // Restore limits and clear deadline
-            ctx.runtime_limits_mut().set_recursion_limit(original_recursion_limit);
-            ctx.runtime_limits_mut().set_stack_size_limit(original_stack_limit);
-            ctx.runtime_limits_mut().clear_execution_deadline();
-
-            // Microtask checkpoint after module evaluation
-            let _ = ctx.run_jobs();
-
-            Ok("undefined".to_string())
-        } else {
-            Ok("undefined".to_string())
-        }
-    }
-
     pub fn handle_google_challenge(&mut self, js_code: &str) -> Result<String> {
         // Security check for Google challenge JavaScript
         if !self.is_safe_javascript(js_code) {
@@ -187,78 +32,24 @@ impl RustRenderer {
 
         // Execute JavaScript directly without wrapper for form interactions
         let source = Source::from_bytes(js_code);
+        eprintln!("🔍 DEBUG: About to eval direct JavaScript: {}", if js_code.len() > 200 { &js_code[..200] } else { js_code });
 
         if let Some(ctx) = &mut self.js_context {
             match ctx.eval(source) {
                 Ok(value) => {
+                    eprintln!("🔍 DEBUG: Direct JavaScript eval succeeded, value type: {:?}", value.get_type());
+                    // Convert JS value to string - this should preserve JSON strings
                     let result = self.js_value_to_string(value);
+                    eprintln!("🔍 DEBUG: Direct conversion to string: {}", result);
                     Ok(result)
                 },
                 Err(e) => {
+                    eprintln!("🔍 DEBUG: Direct JavaScript execution error: {:?}", e);
                     Err(anyhow!("JavaScript execution failed: {}", e))
                 }
             }
         } else {
             Err(anyhow!("JavaScript context not available"))
-        }
-    }
-
-    /// Execute JavaScript without security validation checks.
-    /// Used for page scripts from `<script>` tags (the website's own code) and
-    /// challenge provider scripts. Security validation only applies to
-    /// user-provided JS via MCP tools (execute_javascript).
-    pub fn evaluate_javascript_trusted(&mut self, js_code: &str, timeout_duration: Duration) -> Result<String> {
-        let source = Source::from_bytes(js_code);
-
-        if let Some(ctx) = &mut self.js_context {
-            // SECURITY: Set execution deadline to enforce timeout
-            let deadline = Instant::now() + timeout_duration;
-            ctx.runtime_limits_mut().set_execution_deadline(deadline);
-
-            // Increase limits for page scripts — minified vendor bundles can have
-            // deeply nested function calls and large stacks
-            let original_recursion_limit = ctx.runtime_limits().recursion_limit();
-            let original_stack_limit = ctx.runtime_limits().stack_size_limit();
-            ctx.runtime_limits_mut().set_recursion_limit(8192);
-            ctx.runtime_limits_mut().set_stack_size_limit(1024 * 100); // 100K stack slots
-
-            let result = ctx.eval(source);
-
-            // Restore original limits
-            ctx.runtime_limits_mut().set_recursion_limit(original_recursion_limit);
-            ctx.runtime_limits_mut().set_stack_size_limit(original_stack_limit);
-
-            // SECURITY: Always clear the deadline after execution
-            ctx.runtime_limits_mut().clear_execution_deadline();
-
-            // Microtask checkpoint: per the HTML spec, each script execution is
-            // followed by a microtask checkpoint. This flushes Promise.then
-            // callbacks, fetch() response handlers, and queueMicrotask callbacks.
-            // Without this, SPA frameworks (Vue, React) that rely on Promise
-            // chains during script initialization will never see their callbacks
-            // fire until much later (if at all).
-            if result.is_ok() {
-                let _ = ctx.run_jobs();
-            }
-
-            match result {
-                Ok(value) => {
-                    let result = self.js_value_to_string(value);
-                    Ok(result)
-                },
-                Err(e) => {
-                    // Page scripts may throw non-fatal errors — return undefined
-                    // instead of propagating to avoid blocking page rendering.
-                    // Only log at debug level to avoid noise from minified bundles.
-                    let error_str = format!("{}", e);
-                    if error_str.contains("timeout") || error_str.contains("ExecutionTimeout") {
-                        eprintln!("WARNING: Page script execution timeout after {:?}", timeout_duration);
-                    }
-                    Ok("undefined".to_string())
-                }
-            }
-        } else {
-            Ok("undefined".to_string())
         }
     }
 
@@ -309,7 +100,8 @@ impl RustRenderer {
             }
         "#;
 
-        let _result = self.evaluate_javascript_with_timeout(form_injection_code, Duration::from_secs(2))?;
+        let result = self.evaluate_javascript_with_timeout(form_injection_code, Duration::from_secs(2))?;
+        eprintln!("🔍 DEBUG: Form injection result: {}", result);
         Ok(())
     }
 
@@ -319,92 +111,9 @@ impl RustRenderer {
         // This is documented in engines/boa/core/engine/src/builtins/element/tests.rs:286
 
         let result = "Shadow DOM APIs: SKIPPED (BorrowMutError fix pending), Element.prototype.attachShadow: true";
+        eprintln!("🔍 DEBUG: Shadow DOM test skipped to prevent BorrowMutError crash");
         Ok(result.to_string())
     }
-
-    /// Execute JavaScript that uses setTimeout/Promise and wait for results.
-    /// This properly runs the job queue and timer callbacks to allow async operations to complete.
-    ///
-    /// The JavaScript should store its result in `window._asyncResult` when done.
-    /// This method polls that variable while running jobs and timers until timeout.
-    pub fn evaluate_javascript_with_async_wait(
-        &mut self,
-        js_code: &str,
-        timeout_duration: Duration,
-        poll_interval_ms: u64,
-    ) -> Result<String> {
-        use std::time::Instant;
-        use thalora_browser_apis::boa_engine::{Source, js_string};
-        use thalora_browser_apis::timers::timers::Timers;
-
-        eprintln!("🔄 ASYNC WAIT: Starting async JavaScript execution with {}ms timeout", timeout_duration.as_millis());
-
-        if let Some(ctx) = &mut self.js_context {
-            // Clear any previous result
-            let clear_js = "window._asyncResult = undefined; window._asyncComplete = false;";
-            let _ = ctx.eval(Source::from_bytes(clear_js));
-
-            // Execute the async JavaScript
-            let source = Source::from_bytes(js_code);
-            match ctx.eval(source) {
-                Ok(_) => eprintln!("🔄 ASYNC WAIT: Initial JavaScript executed"),
-                Err(e) => eprintln!("🔄 ASYNC WAIT: Initial JavaScript error (may be ok): {}", e),
-            }
-
-            // Poll for result while running jobs and processing timers
-            let start = Instant::now();
-            let poll_duration = Duration::from_millis(poll_interval_ms);
-
-            while start.elapsed() < timeout_duration {
-                // Run pending Promise jobs (microtask queue)
-                if let Err(e) = ctx.run_jobs() {
-                    eprintln!("🔄 ASYNC WAIT: Job queue error: {}", e);
-                }
-
-                // Process due timer callbacks (setTimeout/setInterval)
-                let timers_executed = Timers::process_timers(ctx);
-                if timers_executed > 0 {
-                    eprintln!("🔄 ASYNC WAIT: Executed {} timer callback(s)", timers_executed);
-                    // Run jobs again in case timer callbacks scheduled promises
-                    let _ = ctx.run_jobs();
-                }
-
-                // Check if result is available
-                let check_js = "window._asyncComplete === true ? JSON.stringify(window._asyncResult) : null";
-                match ctx.eval(Source::from_bytes(check_js)) {
-                    Ok(value) => {
-                        if !value.is_null() && !value.is_undefined() {
-                            // Convert value to string directly using ctx
-                            let result = if let Some(s) = value.as_string() {
-                                s.to_std_string_escaped()
-                            } else {
-                                match value.to_string(ctx) {
-                                    Ok(s) => s.to_std_string_escaped(),
-                                    Err(_) => "[object]".to_string(),
-                                }
-                            };
-                            eprintln!("🔄 ASYNC WAIT: Got result after {}ms: {}", start.elapsed().as_millis(), &result[..result.len().min(200)]);
-                            return Ok(result);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("🔄 ASYNC WAIT: Check error: {}", e);
-                    }
-                }
-
-                // Small sleep to avoid busy-waiting
-                std::thread::sleep(poll_duration);
-            }
-
-            eprintln!("🔄 ASYNC WAIT: Timeout after {}ms (pending timers: {})",
-                timeout_duration.as_millis(),
-                Timers::pending_timers_count());
-            Ok(r#"{"success":false,"reason":"timeout"}"#.to_string())
-        } else {
-            Err(anyhow::anyhow!("JavaScript context not available"))
-        }
-    }
-
 
     fn evaluate_javascript_with_timeout(&mut self, js_code: &str, timeout_duration: Duration) -> Result<String> {
         // Security check
@@ -412,29 +121,19 @@ impl RustRenderer {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));
         }
 
-        // Simple error-safe wrapper that prevents page JavaScript from crashing the engine.
-        // Code that is already wrapped in an IIFE (starts with "(function") bypasses the
-        // wrapper entirely — this preserves return values from internal callers like
-        // fire_dom_content_loaded, wait_for_js_execution, DOM serialization, etc.
-        // Raw page scripts from <script> tags get a safety wrapper WITHOUT `return`,
-        // which prevents `return var x = ...` SyntaxErrors.
-        let safe_wrapper = if js_code.trim().starts_with("(function")
-            || js_code.trim().starts_with("(async function")
-            || js_code.contains("typeof window")
-            || js_code.contains("Worker")
-            || js_code.contains("ServiceWorker")
-            || js_code.contains("Worklet")
-            || js_code.contains("MessageChannel") {
-            // Already wrapped in IIFE or uses advanced patterns — execute directly
+        // TEMPORARY: Disable safe wrapper to test context isolation
+        // Simple error-safe wrapper that prevents Google's JavaScript from crashing
+        let safe_wrapper = if js_code.contains("typeof window") || js_code.contains("Worker") || js_code.contains("ServiceWorker") || js_code.contains("Worklet") || js_code.contains("MessageChannel") {
+            // For DOM and Worker ecosystem tests, execute directly without wrapper to avoid context isolation
             js_code.to_string()
         } else {
-            // Raw page script — wrap in try/catch for safety, NO return
             format!(r#"
 (function() {{
     try {{
-        {};
+        {}
     }} catch(e) {{
-        console.log("Script error:", e.message);
+        console.log("🔍 DOM DEBUG: JavaScript error handled safely:", e.message);
+        return undefined;
     }}
 }})()
             "#, js_code)
@@ -442,6 +141,27 @@ impl RustRenderer {
 
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);
+        eprintln!("🔍 DEBUG: About to eval JavaScript: {}", if safe_wrapper.len() > 200 { &safe_wrapper[..200] } else { &safe_wrapper });
+
+        // Run bot detection test BEFORE executing page scripts
+        if safe_wrapper.contains("window.google") {
+            eprintln!("🤖 RUNNING BOT DETECTION TEST ON GOOGLE PAGE");
+            if let Some(ctx) = &mut self.js_context {
+                let test_script = r#"
+                console.log("=== BOT DETECTION ===");
+                console.log("navigator:", typeof navigator);
+                console.log("navigator.webdriver:", typeof navigator.webdriver, navigator.webdriver);
+                console.log("navigator.plugins:", typeof navigator.plugins, navigator.plugins);
+                console.log("navigator.plugins.length:", navigator.plugins ? navigator.plugins.length : "plugins is undefined/null");
+                console.log("window.chrome:", typeof window.chrome);
+                console.log("window.outerWidth:", typeof window.outerWidth, window.outerWidth);
+                console.log("Image constructor:", typeof Image);
+                console.log("screen:", typeof screen);
+                console.log("=== END TEST ===");
+                "#;
+                let _ = ctx.eval(Source::from_bytes(test_script));
+            }
+        }
 
         if let Some(ctx) = &mut self.js_context {
             // SECURITY: Set execution deadline to enforce timeout
@@ -453,14 +173,12 @@ impl RustRenderer {
             // SECURITY: Always clear the deadline after execution
             ctx.runtime_limits_mut().clear_execution_deadline();
 
-            // Microtask checkpoint after eval
-            if result.is_ok() {
-                let _ = ctx.run_jobs();
-            }
-
             match result {
                 Ok(value) => {
+                    eprintln!("🔍 DEBUG: JavaScript eval succeeded, value type: {:?}", value.get_type());
+                    // Convert JS value to string
                     let result = self.js_value_to_string(value);
+                    eprintln!("🔍 DEBUG: Converted to string: {}", result);
                     Ok(result)
                 },
                 Err(e) => {
@@ -469,8 +187,16 @@ impl RustRenderer {
                     if error_str.contains("timeout") || error_str.contains("ExecutionTimeout") {
                         return Err(anyhow!("JavaScript execution timeout after {:?}", timeout_duration));
                     }
-                    // Non-timeout errors are recoverable — return undefined
-                    Ok("undefined".to_string())
+                    // For Google's JavaScript, we'll be more forgiving of errors
+                    eprintln!("🔍 DEBUG: JavaScript execution had recoverable error: {:?}", e);
+                    eprintln!("🔴 JS ERROR DETAILS:");
+                    eprintln!("   Error type: {}", e);
+                    if let Some(cause) = e.cause() {
+                        eprintln!("   Caused by: {:?}", cause);
+                    }
+                    // Try to get more info from the JsError
+                    eprintln!("   Full error: {:#?}", e);
+                    Ok("undefined".to_string()) // Return success with undefined result
                 }
             }
         } else {

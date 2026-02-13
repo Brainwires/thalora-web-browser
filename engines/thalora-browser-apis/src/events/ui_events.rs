@@ -58,7 +58,6 @@ impl IntrinsicObject for UIEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("view"),
                 Some(view_func),
@@ -306,8 +305,14 @@ impl IntrinsicObject for KeyboardEvent {
         let which_func = BuiltInBuilder::callable(realm, get_keyboard_which)
             .name(js_string!("get which"))
             .build();
+        let view_func = BuiltInBuilder::callable(realm, get_ui_view)
+            .name(js_string!("get view"))
+            .build();
+        let detail_func = BuiltInBuilder::callable(realm, get_ui_detail)
+            .name(js_string!("get detail"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().ui_event().prototype()))
             .accessor(js_string!("key"), Some(key_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("code"), Some(code_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("location"), Some(location_func), None, Attribute::CONFIGURABLE)
@@ -320,6 +325,8 @@ impl IntrinsicObject for KeyboardEvent {
             .accessor(js_string!("keyCode"), Some(key_code_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("charCode"), Some(char_code_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("which"), Some(which_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
             .method(get_modifier_state, js_string!("getModifierState"), 1)
             .static_property(
                 js_string!("DOM_KEY_LOCATION_STANDARD"),
@@ -355,7 +362,7 @@ impl BuiltInObject for KeyboardEvent {
 
 impl BuiltInConstructor for KeyboardEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 25; // 12 accessors * 2 + 1 method (view/detail inherited from UIEvent)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 29; // 14 accessors * 2 + 1 method
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 4; // 4 static properties
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -659,46 +666,6 @@ impl MouseEventData {
         }
     }
 
-    /// Create a new trusted mouse event (for browser-initiated events)
-    /// This sets is_trusted to true and includes a proper timestamp.
-    pub fn new_trusted(event_type: String, bubbles: bool, cancelable: bool) -> Self {
-        let mut event = Self::new(event_type, bubbles, cancelable);
-        event.ui_event.event.set_is_trusted(true);
-        event
-    }
-
-    /// Create a trusted mouse event with all coordinates specified
-    pub fn new_trusted_with_coords(
-        event_type: String,
-        bubbles: bool,
-        cancelable: bool,
-        client_x: f64,
-        client_y: f64,
-        screen_x: f64,
-        screen_y: f64,
-        page_x: f64,
-        page_y: f64,
-        movement_x: f64,
-        movement_y: f64,
-        button: i16,
-        buttons: u16,
-    ) -> Self {
-        let mut event = Self::new_trusted(event_type, bubbles, cancelable);
-        event.client_x = client_x;
-        event.client_y = client_y;
-        event.screen_x = screen_x;
-        event.screen_y = screen_y;
-        event.page_x = page_x;
-        event.page_y = page_y;
-        event.offset_x = client_x; // Offset is typically same as client for viewport
-        event.offset_y = client_y;
-        event.movement_x = movement_x;
-        event.movement_y = movement_y;
-        event.button = button;
-        event.buttons = buttons;
-        event
-    }
-
     /// Check if any modifier key is pressed
     pub fn get_modifier_state(&self, key: &str) -> bool {
         match key {
@@ -717,7 +684,6 @@ pub(crate) struct MouseEvent;
 
 impl IntrinsicObject for MouseEvent {
     fn init(realm: &Realm) {
-        // MouseEvent-specific accessors
         let client_x_func = BuiltInBuilder::callable(realm, get_client_x)
             .name(js_string!("get clientX"))
             .build();
@@ -769,6 +735,13 @@ impl IntrinsicObject for MouseEvent {
         let related_target_func = BuiltInBuilder::callable(realm, get_mouse_related_target)
             .name(js_string!("get relatedTarget"))
             .build();
+        let view_func = BuiltInBuilder::callable(realm, get_ui_view)
+            .name(js_string!("get view"))
+            .build();
+        let detail_func = BuiltInBuilder::callable(realm, get_ui_detail)
+            .name(js_string!("get detail"))
+            .build();
+
         // Aliases for x/y (same as clientX/clientY)
         let x_func = BuiltInBuilder::callable(realm, get_client_x)
             .name(js_string!("get x"))
@@ -778,7 +751,6 @@ impl IntrinsicObject for MouseEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().ui_event().prototype()))
             .accessor(js_string!("clientX"), Some(client_x_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("clientY"), Some(client_y_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("screenX"), Some(screen_x_func), None, Attribute::CONFIGURABLE)
@@ -798,6 +770,8 @@ impl IntrinsicObject for MouseEvent {
             .accessor(js_string!("relatedTarget"), Some(related_target_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("x"), Some(x_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("y"), Some(y_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
             .method(get_modifier_state, js_string!("getModifierState"), 1)
             .build();
     }
@@ -813,7 +787,7 @@ impl BuiltInObject for MouseEvent {
 
 impl BuiltInConstructor for MouseEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 39; // 19 accessors * 2 + 1 method (Event/UIEvent props inherited)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 43; // 21 accessors * 2 + 1 method
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1116,15 +1090,22 @@ impl IntrinsicObject for FocusEvent {
         let related_target_func = BuiltInBuilder::callable(realm, get_focus_related_target)
             .name(js_string!("get relatedTarget"))
             .build();
+        let view_func = BuiltInBuilder::callable(realm, get_ui_view)
+            .name(js_string!("get view"))
+            .build();
+        let detail_func = BuiltInBuilder::callable(realm, get_ui_detail)
+            .name(js_string!("get detail"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().ui_event().prototype()))
             .accessor(
                 js_string!("relatedTarget"),
                 Some(related_target_func),
                 None,
                 Attribute::CONFIGURABLE,
             )
+            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
             .build();
     }
 
@@ -1139,7 +1120,7 @@ impl BuiltInObject for FocusEvent {
 
 impl BuiltInConstructor for FocusEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 2; // 1 accessor * 2 (view/detail inherited from UIEvent)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 6; // 3 accessors * 2
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1254,13 +1235,20 @@ impl IntrinsicObject for InputEvent {
         let data_transfer_func = BuiltInBuilder::callable(realm, get_input_data_transfer)
             .name(js_string!("get dataTransfer"))
             .build();
+        let view_func = BuiltInBuilder::callable(realm, get_ui_view)
+            .name(js_string!("get view"))
+            .build();
+        let detail_func = BuiltInBuilder::callable(realm, get_ui_detail)
+            .name(js_string!("get detail"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().ui_event().prototype()))
             .accessor(js_string!("data"), Some(data_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("inputType"), Some(input_type_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("isComposing"), Some(is_composing_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("dataTransfer"), Some(data_transfer_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
+            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
             .method(get_target_ranges, js_string!("getTargetRanges"), 0)
             .build();
     }
@@ -1276,7 +1264,7 @@ impl BuiltInObject for InputEvent {
 
 impl BuiltInConstructor for InputEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 1;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 9; // 4 accessors * 2 + 1 method (view/detail inherited from UIEvent)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 13; // 6 accessors * 2 + 1 method
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -1392,4 +1380,3 @@ fn get_target_ranges(this: &JsValue, _: &[JsValue], context: &mut Context) -> Js
     let array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
     Ok(array.into())
 }
-

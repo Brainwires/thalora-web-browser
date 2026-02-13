@@ -16,7 +16,6 @@ use boa_engine::{
     realm::Realm,
     string::{StaticJsStrings, JsString},
     Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
-    JsSymbol,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex, Weak};
@@ -322,7 +321,6 @@ pub struct NodeList;
 impl NodeList {
     /// Create a new static NodeList from a vector of nodes
     pub fn create_from_nodes(nodes: Vec<JsObject>, live: bool, context: &mut Context) -> JsResult<JsObject> {
-        let nodes_for_indexing = nodes.clone();
         let nodelist_data = NodeListData::new(nodes, live);
 
         let nodelist_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -331,21 +329,13 @@ impl NodeList {
             nodelist_data,
         );
 
-        let result = nodelist_obj.upcast();
-        // Set indexed properties so el.childNodes[0], el.childNodes[1] etc. work
-        for (i, node) in nodes_for_indexing.iter().enumerate() {
-            result.set(i as u64, node.clone(), false, context)?;
-        }
-
-        Ok(result)
+        Ok(nodelist_obj.upcast())
     }
 
     /// Create a live NodeList that references a parent's child_nodes Arc.
     /// This is the proper implementation for Node.childNodes per DOM spec.
     /// The returned NodeList will always reflect the current state of the parent's children.
     pub fn create_live_child_nodes(child_nodes_arc: Arc<Mutex<Vec<JsObject>>>, context: &mut Context) -> JsResult<JsObject> {
-        // Snapshot current children for indexed property access
-        let current_children: Vec<JsObject> = child_nodes_arc.lock().unwrap().clone();
         let nodelist_data = NodeListData::new_live(child_nodes_arc);
 
         let nodelist_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -354,13 +344,7 @@ impl NodeList {
             nodelist_data,
         );
 
-        let result = nodelist_obj.upcast();
-        // Set indexed properties so el.childNodes[0], el.childNodes[1] etc. work
-        for (i, node) in current_children.iter().enumerate() {
-            result.set(i as u64, node.clone(), false, context)?;
-        }
-
-        Ok(result)
+        Ok(nodelist_obj.upcast())
     }
 
     /// Static method implementations for BuiltInBuilder
@@ -493,7 +477,6 @@ impl IntrinsicObject for NodeList {
             .method(Self::for_each, js_string!("forEach"), 1)
             .method(Self::keys, js_string!("keys"), 0)
             .method(Self::values, js_string!("values"), 0)
-            .method(Self::values, JsSymbol::iterator(), 0)
             .method(Self::entries, js_string!("entries"), 0)
             // Properties
             .accessor(

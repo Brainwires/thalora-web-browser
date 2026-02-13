@@ -118,6 +118,12 @@ impl RateLimiter {
             burst_size: 5,
         });
 
+        // WASM debug tools - moderate usage
+        configs.insert("wasm_debug".to_string(), RateLimitConfig {
+            requests_per_minute: 30,
+            burst_size: 5,
+        });
+
         // Default fallback
         configs.insert("default".to_string(), RateLimitConfig::default());
 
@@ -178,6 +184,12 @@ impl RateLimiter {
             // Browser automation - treated as navigation (HTTP requests)
             "browser_click_element" | "browser_type_text" | "browser_fill_form"
             | "browser_wait_for_element" | "browser_prepare_form_submission" => "navigation",
+
+            // WASM debug tools
+            "wasm_debug_load_module" | "wasm_debug_unload_module" | "wasm_debug_list_modules"
+            | "wasm_debug_validate" | "wasm_debug_inspect" | "wasm_debug_disassemble"
+            | "wasm_debug_read_memory" | "wasm_debug_write_memory"
+            | "wasm_debug_call_function" | "wasm_debug_profile_function" => "wasm_debug",
 
             // Default for unknown tools
             _ => "default",

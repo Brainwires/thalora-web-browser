@@ -209,32 +209,27 @@ impl HTMLVideoElementData {
     }
 
     fn fetch_video_metadata(url: &str) -> Result<VideoMetadata, String> {
-        use crate::http_blocking::block_on_compat;
+        // Fetch video headers to determine type
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-        let url = url.to_string();
-        let content_type = block_on_compat(async move {
-            let client = rquest::Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
-                .build()
-                .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+        let response = client
+            .head(url)
+            .send()
+            .map_err(|e| format!("Failed to fetch video: {}", e))?;
 
-            let response = client
-                .head(&url)
-                .send()
-                .await
-                .map_err(|e| format!("Failed to fetch video: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("HTTP error: {}", response.status()));
+        }
 
-            if !response.status().is_success() {
-                return Err(format!("HTTP error: {}", response.status()));
-            }
-
-            Ok(response
-                .headers()
-                .get("content-type")
-                .and_then(|v| v.to_str().ok())
-                .map(String::from)
-                .unwrap_or_else(|| Self::guess_mime_type(&url)))
-        })?;
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from)
+            .unwrap_or_else(|| Self::guess_mime_type(url));
 
         // For remote videos, we can't easily determine dimensions without downloading
         // Return placeholder dimensions; real implementation would need partial download
@@ -434,7 +429,6 @@ impl IntrinsicObject for HTMLVideoElement {
         let seeking_getter = BuiltInBuilder::callable(realm, get_seeking).name(js_string!("get seeking")).build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             // Static constants on constructor (HTMLVideoElement.HAVE_NOTHING, etc.)
             .static_property(js_string!("HAVE_NOTHING"), ready_state::HAVE_NOTHING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
             .static_property(js_string!("HAVE_METADATA"), ready_state::HAVE_METADATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)

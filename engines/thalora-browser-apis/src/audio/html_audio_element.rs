@@ -251,31 +251,24 @@ impl HTMLAudioElementData {
     }
 
     fn load_from_url(url: &str) -> Result<(Vec<u8>, f64), String> {
-        use crate::http_blocking::block_on_compat;
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
-        let url = url.to_string();
-        let data = block_on_compat(async move {
-            let client = rquest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+        let response = client
+            .get(url)
+            .send()
+            .map_err(|e| format!("Failed to fetch audio: {}", e))?;
 
-            let response = client
-                .get(&url)
-                .send()
-                .await
-                .map_err(|e| format!("Failed to fetch audio: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("HTTP error: {}", response.status()));
+        }
 
-            if !response.status().is_success() {
-                return Err(format!("HTTP error: {}", response.status()));
-            }
-
-            response
-                .bytes()
-                .await
-                .map_err(|e| format!("Failed to read audio data: {}", e))
-                .map(|b| b.to_vec())
-        })?;
+        let data = response
+            .bytes()
+            .map_err(|e| format!("Failed to read audio data: {}", e))?
+            .to_vec();
 
         // Try to get duration from the audio data
         let duration = Self::get_audio_duration(&data).unwrap_or(0.0);
@@ -534,7 +527,6 @@ impl IntrinsicObject for HTMLAudioElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             .accessor(
                 js_string!("src"),
                 Some(src_getter),

@@ -2,11 +2,10 @@
 //!
 //! This module exposes search capabilities for use by external crates
 //! without pulling in the full browser infrastructure.
-//! Uses rquest with Chrome TLS fingerprint impersonation to bypass bot detection.
+//! Uses reqwest with proper browser headers to avoid bot detection.
 
 use anyhow::Result;
-use rquest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
-use rquest_util::Emulation;
+use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
 use serde::{Deserialize, Serialize};
 
 /// Search result item
@@ -27,20 +26,18 @@ pub struct SearchResults {
     pub search_time: Option<String>,
 }
 
-/// Create a configured HTTP client with Chrome TLS/HTTP2 fingerprint impersonation
-/// This matches what a real Chrome 131 browser sends including TLS cipher order,
-/// HTTP/2 settings, and header ordering to bypass Cloudflare and other bot detection
-fn create_client() -> Result<rquest::Client> {
-    rquest::Client::builder()
-        .emulation(Emulation::Chrome131)
+/// Create a configured HTTP client with proper browser-like settings
+/// This matches what a real Chrome browser sends to avoid TLS/HTTP fingerprinting
+fn create_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
         .cookie_store(true)  // Important for session tracking
         .timeout(std::time::Duration::from_secs(30))
-        .redirect(rquest::redirect::Policy::limited(10))
+        .redirect(reqwest::redirect::Policy::limited(10))
         .gzip(true)
         .brotli(true)
         .deflate(true)
         .build()
-        .map_err(|e| anyhow::anyhow!("Failed to create HTTP client with Chrome 131 emulation: {}", e))
+        .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))
 }
 
 /// Create standard browser headers that match a real Chrome browser
@@ -105,7 +102,7 @@ pub async fn perform_search(query: &str, num_results: usize, search_engine: &str
     }
 }
 
-async fn search_duckduckgo(client: &rquest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_duckduckgo(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
 
     let response = client.get(&search_url).headers(headers.clone()).send().await?;
@@ -119,7 +116,7 @@ async fn search_duckduckgo(client: &rquest::Client, headers: &HeaderMap, query: 
     parse_duckduckgo_results(&html, query, num_results)
 }
 
-async fn search_bing(client: &rquest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_bing(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!(
         "https://www.bing.com/search?q={}&count={}&FORM=QBLH",
         urlencoding::encode(query),
@@ -132,7 +129,7 @@ async fn search_bing(client: &rquest::Client, headers: &HeaderMap, query: &str, 
     parse_bing_results(&html, query, num_results)
 }
 
-async fn search_google(client: &rquest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_google(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!(
         "https://www.google.com/search?q={}&num={}&hl=en&gl=us",
         urlencoding::encode(query),
@@ -145,7 +142,7 @@ async fn search_google(client: &rquest::Client, headers: &HeaderMap, query: &str
     parse_google_results(&html, query, num_results)
 }
 
-async fn search_startpage(client: &rquest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
+async fn search_startpage(client: &reqwest::Client, headers: &HeaderMap, query: &str, num_results: usize) -> Result<SearchResults> {
     let search_url = format!("https://www.startpage.com/do/search?query={}", urlencoding::encode(query));
 
     let response = client.get(&search_url).headers(headers.clone()).send().await?;

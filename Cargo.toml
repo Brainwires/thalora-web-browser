@@ -1,212 +1,8 @@
-[workspace]
-resolver = "2"
-members = [
-    ".",
-    "engines/thalora-browser-apis",
-    "shared/thalora-constants",
-    # Boa engine crates
-    "engines/boa/core/*",
-    "engines/boa/ffi/*",
-    "engines/boa/cli",
-    "engines/boa/utils/*",
-]
-exclude = [
-    "engines/boa/tests/*",
-    "engines/boa/tools/*",
-    "engines/boa/benches",
-]
-
-# Settings inherited by boa crates
-[workspace.package]
-edition = "2024"
-version = "1.0.0-dev"
-rust-version = "1.91.0"
-authors = ["boa-dev"]
-repository = "https://github.com/boa-dev/boa"
-license = "Unlicense OR MIT"
-description = "Boa is a Javascript lexer, parser and compiler written in Rust."
-
-# Dependencies used by boa crates (paths adjusted for root workspace)
-[workspace.dependencies]
-# Boa Repo Crates
-boa_ast = { version = "~1.0.0-dev", path = "engines/boa/core/ast" }
-boa_engine = { version = "~1.0.0-dev", path = "engines/boa/core/engine" }
-boa_gc = { version = "~1.0.0-dev", path = "engines/boa/core/gc" }
-boa_icu_provider = { version = "~1.0.0-dev", path = "engines/boa/core/icu_provider" }
-boa_interner = { version = "~1.0.0-dev", path = "engines/boa/core/interner" }
-boa_macros = { version = "~1.0.0-dev", path = "engines/boa/core/macros" }
-boa_parser = { version = "~1.0.0-dev", path = "engines/boa/core/parser" }
-boa_runtime = { version = "~1.0.0-dev", path = "engines/boa/core/runtime" }
-boa_string = { version = "~1.0.0-dev", path = "engines/boa/core/string" }
-
-# Utility Repo Crates
-tag_ptr = { version = "~0.1.0", path = "engines/boa/utils/tag_ptr" }
-small_btree = { version = "~0.1.0", path = "engines/boa/utils/small_btree" }
-
-# Shared deps (from boa)
-arbitrary = "1"
-bitflags = "2.10.0"
-clap = "4.5.54"
-colored = "3.1.1"
-cow-utils = "0.1.3"
-fast-float2 = "0.2.3"
-hashbrown = "0.16.1"
-http = { version = "1.4.0" }
-indexmap = { version = "2.13.0", default-features = false }
-indoc = "2.0.7"
-itoa = "1.0.17"
-jemallocator = "0.5.4"
-mimalloc-safe = "0.1.56"
-lz4_flex = "0.12.0"
-num-bigint = "0.4.6"
-num-traits = "0.2.19"
-once_cell = { version = "1.21.3", default-features = false }
-phf = { version = "0.13.1", default-features = false }
-pollster = "0.4.0"
-regex = "1.12.2"
-regress = { version = "0.10.5", features = ["utf16"] }
-reqwest = { version = "0.13.1" }
-rustc-hash = { version = "2.1.1", default-features = false }
-serde_json = "1.0.149"
-serde = "1.0.219"
-static_assertions = "1.1.0"
-textwrap = "0.16.2"
-thin-vec = "0.2.14"
-time = { version = "0.3.46", default-features = false, features = ["local-offset", "large-dates", "parsing", "formatting", "macros"] }
-log = "0.4.29"
-simple_logger = "5.1.0"
-cargo_metadata = "0.23.1"
-trybuild = "1.0.114"
-rayon = "1.10.0"
-toml = "0.9.11"
-color-eyre = "0.6.3"
-comfy-table = "7.2.2"
-serde_repr = "0.1.20"
-bus = "2.4.1"
-wasm-bindgen = { version = "0.2.97", default-features = false }
-getrandom = { version = "0.3.4", default-features = false }
-console_error_panic_hook = "0.1.7"
-wasm-bindgen-test = "0.3.58"
-smol = "2.0.2"
-isahc = "1.7.2"
-rustyline = { version = "17.0.2", default-features = false }
-dhat = "0.3.3"
-quote = "1.0.44"
-syn = { version = "2.0.114", default-features = false }
-proc-macro2 = "1.0"
-synstructure = "0.13"
-measureme = "12.0.3"
-paste = "1.0"
-rand = "0.9.2"
-num-integer = "0.1.46"
-ryu-js = "1.0.2"
-tap = "1.0.1"
-thiserror = { version = "2.0.18", default-features = false }
-dashmap = "6.1.0"
-num_enum = "0.7.5"
-itertools = { version = "0.14.0", default-features = false }
-portable-atomic = "1.13.0"
-bytemuck = { version = "1.24.0", default-features = false }
-arrayvec = "0.7.6"
-intrusive-collections = "0.10.0"
-cfg-if = "1.0.4"
-either = "1.15.0"
-sys-locale = "0.3.2"
-timezone_provider = { version = "0.1.2" }
-temporal_rs = { version = "0.1.2", default-features = false, features = ["float64_representable_durations"] }
-web-time = "1.1.0"
-criterion = "0.8.1"
-float-cmp = "0.10.0"
-futures-lite = "2.6.1"
-test-case = "3.3.1"
-rstest = "0.26.1"
-url = "2.5.8"
-tokio = { version = "1.49.0", default-features = false }
-futures-concurrency = "7.7.1"
-dynify = "0.1.2"
-futures-channel = "0.3.31"
-aligned-vec = "0.6.4"
-
-# ICU4X
-icu_provider = { version = "~2.1.1", default-features = false }
-icu_locale = { version = "~2.1.1", default-features = false }
-icu_locale_core = { version = "~2.1.1", default-features = false }
-icu_datetime = { version = "~2.1.1", default-features = false }
-icu_time = { version = "~2.1.1", default-features = false }
-icu_calendar = { version = "~2.1.1", default-features = false }
-icu_collator = { version = "~2.1.1", default-features = false }
-icu_plurals = { version = "~2.1.1", default-features = false }
-icu_list = { version = "~2.1.1", default-features = false }
-icu_casemap = { version = "~2.1.1", default-features = false }
-icu_segmenter = { version = "~2.1.2", default-features = false }
-icu_provider_export = { version = "~2.1.1", default-features = false }
-icu_provider_source = { version = "~2.1.2", default-features = false }
-icu_provider_adapters = { version = "~2.1.1", default-features = false }
-icu_provider_blob = { version = "~2.1.1", default-features = false }
-icu_properties = { version = "~2.1.2", default-features = true }
-icu_normalizer = { version = "~2.1.1", default-features = false }
-icu_decimal = { version = "~2.1.1", default-features = false }
-writeable = "~0.6.2"
-tinystr = "~0.8.2"
-yoke = "~0.8.1"
-zerofrom = "~0.1.6"
-fixed_decimal = "~0.7.1"
-
-# Lints inherited by boa crates
-[workspace.lints.rust]
-warnings = "warn"
-future_incompatible = { level = "warn", priority = -1 }
-let_underscore = { level = "warn", priority = -1 }
-nonstandard_style = { level = "warn", priority = -1 }
-rust_2018_compatibility = { level = "warn", priority = -1 }
-rust_2018_idioms = { level = "warn", priority = -1 }
-rust_2021_compatibility = { level = "warn", priority = -1 }
-unused = { level = "warn", priority = -1 }
-missing_docs = "warn"
-macro_use_extern_crate = "warn"
-meta_variable_misuse = "warn"
-missing_abi = "warn"
-missing_copy_implementations = "warn"
-missing_debug_implementations = "warn"
-non_ascii_idents = "warn"
-noop_method_call = "warn"
-single_use_lifetimes = "warn"
-trivial_casts = "warn"
-trivial_numeric_casts = "warn"
-unreachable_pub = "warn"
-unsafe_op_in_unsafe_fn = "warn"
-unused_crate_dependencies = "warn"
-unused_import_braces = "warn"
-unused_lifetimes = "warn"
-unused_qualifications = "warn"
-variant_size_differences = "warn"
-
-[workspace.lints.rustdoc]
-broken_intra_doc_links = "warn"
-private_intra_doc_links = "warn"
-missing_crate_level_docs = "warn"
-private_doc_tests = "warn"
-invalid_codeblock_attributes = "warn"
-invalid_rust_codeblocks = "warn"
-bare_urls = "warn"
-
-[workspace.lints.clippy]
-dbg_macro = "warn"
-print_stdout = "warn"
-print_stderr = "warn"
-all = { level = "warn", priority = -1 }
-correctness = { level = "warn", priority = -1 }
-suspicious = { level = "warn", priority = -1 }
-style = { level = "warn", priority = -1 }
-complexity = { level = "warn", priority = -1 }
-perf = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
-
 [package]
 name = "thalora"
 version = "0.1.0"
 edition = "2024"
-description = "Headless web browser written entirely in Rust - fast, secure web content extraction with MCP integration"
+description = "Pure Rust headless browser for AI models - fast, secure web content extraction with MCP integration"
 authors = ["Brainwires Team"]
 license = "MIT"
 repository = "https://github.com/brainwires/thalora"
@@ -232,10 +28,8 @@ serde_json = "1.0"
 # Async runtime (native only)
 tokio = { version = "1", features = ["full"], optional = true }
 
-# HTTP client with browser impersonation for TLS/JA3 fingerprint matching (native only)
-# Uses BoringSSL internally for Chrome TLS fingerprint emulation
-rquest = { version = "5", features = ["json", "gzip", "brotli", "deflate", "zstd", "cookies", "stream", "multipart"], default-features = true, optional = true }
-rquest-util = { version = "2", optional = true }
+# HTTP client (native only)
+reqwest = { version = "0.12", features = ["json", "native-tls", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart", "blocking"], default-features = false, optional = true }
 
 # HTML parsing
 scraper = "0.24"
@@ -262,11 +56,11 @@ wasmtime-wast = { version = "21.0", optional = true }
 wat = { version = "1.0", optional = true }
 wasmparser = { version = "0.121", optional = true }
 wasm-encoder = { version = "0.38", optional = true }
+wasmprinter = { version = "0.2", optional = true }
 
 # Geolocation services (native only)
 sysinfo = { version = "0.31", optional = true }
-# NOTE: ipgeolocate removed - pulls in reqwest with OpenSSL which conflicts with rquest's BoringSSL
-# Geolocation will be implemented directly using rquest if needed
+ipgeolocate = { version = "0.3", optional = true }
 
 # WebRTC implementation (native only)
 webrtc = { version = "0.11", optional = true }
@@ -282,7 +76,7 @@ hound = { version = "3.5", optional = true }
 symphonia = { version = "0.5", features = ["all"], optional = true }
 rodio = { version = "0.19", optional = true }
 
-# Image processing (Phase 3: Media & Graphics)
+# Image processing
 image = { version = "0.25", features = ["png", "jpeg", "gif", "webp", "bmp", "ico", "tiff"] }
 
 # 2D Graphics rendering (Phase 3: Canvas)
@@ -290,7 +84,7 @@ tiny-skia = "0.11"
 fontdb = "0.16"
 rustybuzz = "0.12"
 
-# Video processing (Phase 3: Video) - native only
+# Video processing
 ffmpeg-next = { version = "7.0", optional = true }
 
 # Error handling
@@ -322,10 +116,6 @@ tokio-util = { version = "0.7", features = ["codec"], optional = true }
 # Command line argument parsing (native only)
 clap = { version = "4.0", features = ["derive"], optional = true }
 
-# HTTP transport for MCP server (native only)
-axum = { version = "0.8", features = ["json"], optional = true }
-tower-http = { version = "0.6", features = ["cors"], optional = true }
-
 # Regex for JavaScript processing
 regex = "1.10"
 
@@ -336,9 +126,8 @@ html-escape = "0.2"
 uuid = { version = "1.0", features = ["v4", "js"] }
 
 # WebSocket implementation (native only)
-# Using rustls-tls-webpki-roots instead of native-tls to avoid OpenSSL/BoringSSL conflict with rquest
-tokio-tungstenite = { version = "0.20", default-features = false, features = ["connect", "rustls-tls-webpki-roots"], optional = true }
-tungstenite = { version = "0.20", default-features = false, features = ["handshake", "__rustls-tls"], optional = true }
+tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
+tungstenite = { version = "0.20", optional = true }
 futures-util = "0.3"
 
 # Service Worker implementation (extends existing tokio features)
@@ -352,9 +141,8 @@ argon2 = { version = "0.5", features = ["std"] }
 sha2 = "0.10"
 zeroize = { version = "1.7", features = ["zeroize_derive"] }
 
-# Cookie management - shared cookie store compatible with rquest (native only)
-cookie_store = { version = "0.21", optional = true }
-cookie = { version = "0.18", optional = true }
+# Cookie management - shared cookie store for reqwest (native only)
+reqwest_cookie_store = { version = "0.9", optional = true }
 
 # IP address parsing and validation for SSRF prevention
 ipnetwork = "0.20"
@@ -401,25 +189,20 @@ web-sys = { version = "0.3", features = [
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
-required-features = ["_bin"]
+required-features = ["native"]
 
 [features]
 default = ["native"]
 
-# Internal feature: allows the binary target to build (activated by native or mcp-server)
-_bin = ["dep:clap"]
-
 # Native build - includes all platform-specific dependencies
 native = [
-    "_bin",
     "dep:tokio",
-    "dep:rquest",
-    "dep:rquest-util",
-    "dep:cookie_store",
-    "dep:cookie",
+    "dep:reqwest",
+    "dep:reqwest_cookie_store",
     "dep:tokio-tungstenite",
     "dep:tungstenite",
     "dep:tokio-util",
+    "dep:clap",
     "dep:cpal",
     "dep:hound",
     "dep:symphonia",
@@ -432,6 +215,7 @@ native = [
     "dep:webrtc-ice",
     "dep:webrtc-dtls",
     "dep:sysinfo",
+    "dep:ipgeolocate",
     "dep:dirs",
     "dep:wasmtime",
     "dep:wasmtime-wasi",
@@ -439,13 +223,9 @@ native = [
     "dep:wat",
     "dep:wasmparser",
     "dep:wasm-encoder",
-    # HTTP transport for MCP server
-    "dep:axum",
-    "dep:tower-http",
     # Enable native features in sub-crates
     "thalora-browser-apis/native",
     "boa_engine/native",
-    "boa_engine/temporal",
 ]
 
 # WASM build - uses web-sys for browser API delegation
@@ -461,46 +241,22 @@ wasm = [
     "boa_engine/wasm",
 ]
 
-# Challenge solver - behavioral simulation for Cloudflare/Turnstile (disabled by default)
-# When disabled, challenges are handled through correct browser behavior alone
-solver = []
-
 # GUI mode with winit and wgpu for graphical browser interface (native only)
 gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
+
+# WASM debugging MCP tools (native only - uses wasmtime, wasmparser, wasmprinter)
+wasm-debug = ["native", "dep:wasmprinter"]
 
 # Minimal build for web search/scraping only (no audio, video, WebRTC, wasmtime)
 web-search = [
     "dep:tokio",
-    "dep:rquest",
-    "dep:rquest-util",
-    "dep:cookie_store",
-    "dep:cookie",
+    "dep:reqwest",
+    "dep:reqwest_cookie_store",
     "dep:tokio-util",
     "dep:dirs",
     # Enable native features in sub-crates
     "thalora-browser-apis/native",
     "boa_engine/native",
-]
-
-# Lean MCP server build for Docker — web scraping + JS engine + HTTP transport
-# No FFmpeg, audio, video, WebRTC, wasmtime, or wgpu
-mcp-server = [
-    "_bin",
-    "dep:tokio",
-    "dep:rquest",
-    "dep:rquest-util",
-    "dep:cookie_store",
-    "dep:cookie",
-    "dep:tokio-util",
-    "dep:tokio-tungstenite",
-    "dep:tungstenite",
-    "dep:dirs",
-    "dep:axum",
-    "dep:tower-http",
-    # Lean sub-crate: no audio/video/WebRTC/wasmtime/wgpu
-    "thalora-browser-apis/native-lean",
-    "boa_engine/native",
-    "boa_engine/temporal",
 ]
 
 [dev-dependencies]

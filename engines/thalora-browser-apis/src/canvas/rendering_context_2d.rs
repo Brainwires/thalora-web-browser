@@ -1550,85 +1550,59 @@ fn create_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 // ============== Text Methods ==============
 
 fn fill_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
+    let _this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("'this' is not an object")
     })?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    // Text rendering is complex and requires font shaping
+    // For now, just consume the arguments
+    let _text = args.get_or_undefined(0).to_string(context)?;
+    let _x = args.get_or_undefined(1).to_number(context)?;
+    let _y = args.get_or_undefined(2).to_number(context)?;
+    let _max_width = args.get(3).map(|v| v.to_number(context)).transpose()?;
 
-    let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    let x = args.get_or_undefined(1).to_number(context)? as f32;
-    let y = args.get_or_undefined(2).to_number(context)? as f32;
-    let max_width = args.get(3)
-        .filter(|v| !v.is_undefined())
-        .map(|v| v.to_number(context))
-        .transpose()?
-        .map(|v| v as f32);
-
-    ctx_data.with_state(|state| {
-        state.fill_text(&text, x, y, max_width);
-    });
-
+    // TODO: Implement text rendering with fontdb/rustybuzz
     Ok(JsValue::undefined())
 }
 
 fn stroke_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
+    let _this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("'this' is not an object")
     })?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let _text = args.get_or_undefined(0).to_string(context)?;
+    let _x = args.get_or_undefined(1).to_number(context)?;
+    let _y = args.get_or_undefined(2).to_number(context)?;
+    let _max_width = args.get(3).map(|v| v.to_number(context)).transpose()?;
 
-    let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    let x = args.get_or_undefined(1).to_number(context)? as f32;
-    let y = args.get_or_undefined(2).to_number(context)? as f32;
-    let max_width = args.get(3)
-        .filter(|v| !v.is_undefined())
-        .map(|v| v.to_number(context))
-        .transpose()?
-        .map(|v| v as f32);
-
-    ctx_data.with_state(|state| {
-        state.stroke_text(&text, x, y, max_width);
-    });
-
+    // TODO: Implement text stroke rendering
     Ok(JsValue::undefined())
 }
 
 fn measure_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
+    let _this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("'this' is not an object")
-    })?;
-
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
     })?;
 
     let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
 
-    // Get real text metrics from the text renderer
-    let text_metrics = ctx_data.with_state(|state| {
-        state.measure_text(&text)
-    }).unwrap_or_default();
+    // Very rough approximation - proper implementation needs font metrics
+    let width = text.len() as f64 * 8.0; // ~8px per character
 
-    // Create TextMetrics object with real values
+    // Create TextMetrics object using Boa APIs instead of eval
     let metrics = JsObject::with_null_proto();
-    metrics.set(js_string!("width"), JsValue::from(text_metrics.width), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxLeft"), JsValue::from(text_metrics.actual_bounding_box_left), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxRight"), JsValue::from(text_metrics.actual_bounding_box_right), false, context)?;
-    metrics.set(js_string!("fontBoundingBoxAscent"), JsValue::from(text_metrics.font_bounding_box_ascent), false, context)?;
-    metrics.set(js_string!("fontBoundingBoxDescent"), JsValue::from(text_metrics.font_bounding_box_descent), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxAscent"), JsValue::from(text_metrics.actual_bounding_box_ascent), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxDescent"), JsValue::from(text_metrics.actual_bounding_box_descent), false, context)?;
-    metrics.set(js_string!("emHeightAscent"), JsValue::from(text_metrics.em_height_ascent), false, context)?;
-    metrics.set(js_string!("emHeightDescent"), JsValue::from(text_metrics.em_height_descent), false, context)?;
-    metrics.set(js_string!("hangingBaseline"), JsValue::from(text_metrics.hanging_baseline), false, context)?;
-    metrics.set(js_string!("alphabeticBaseline"), JsValue::from(text_metrics.alphabetic_baseline), false, context)?;
-    metrics.set(js_string!("ideographicBaseline"), JsValue::from(text_metrics.ideographic_baseline), false, context)?;
+    metrics.set(js_string!("width"), JsValue::from(width), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxLeft"), JsValue::from(0.0), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxRight"), JsValue::from(width), false, context)?;
+    metrics.set(js_string!("fontBoundingBoxAscent"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("fontBoundingBoxDescent"), JsValue::from(2.0), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxAscent"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("actualBoundingBoxDescent"), JsValue::from(2.0), false, context)?;
+    metrics.set(js_string!("emHeightAscent"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("emHeightDescent"), JsValue::from(2.0), false, context)?;
+    metrics.set(js_string!("hangingBaseline"), JsValue::from(10.0), false, context)?;
+    metrics.set(js_string!("alphabeticBaseline"), JsValue::from(0.0), false, context)?;
+    metrics.set(js_string!("ideographicBaseline"), JsValue::from(-2.0), false, context)?;
 
     Ok(JsValue::from(metrics))
 }

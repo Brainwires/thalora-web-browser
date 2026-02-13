@@ -2,22 +2,17 @@
 
 pub mod attr;
 pub mod character_data;
-pub mod comment;
 pub mod document;
-
-// Backward-compatible re-exports (document_fragment and document_parse now live inside document/)
-pub use document::document_fragment;
-pub use document::document_parse;
+pub mod document_fragment;
+pub mod document_parse;
 pub mod dom_parser;
-pub mod domstringmap;
 pub mod domtokenlist;
 pub mod element;
 pub mod html_element;
 pub mod html_script_element;
-pub mod html_iframe_element;
 
-// Native-only implementations using rquest
-#[cfg(feature = "_native-core")]
+// Native-only implementations using reqwest
+#[cfg(feature = "native")]
 pub mod html_image_element;
 
 // WASM stubs - browser's native APIs are used directly
@@ -37,6 +32,9 @@ pub mod range;
 pub mod selection;
 pub mod shadow;
 pub mod text;
+
+#[cfg(test)]
+mod document_tests;
 
 #[cfg(test)]
 mod element_tests;

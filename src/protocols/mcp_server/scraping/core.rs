@@ -35,7 +35,7 @@ impl McpServer {
 
         // Session & Navigation options
         let wait_for_js = arguments.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
-        let wait_timeout = arguments.get("wait_timeout").and_then(|v| v.as_u64()).unwrap_or(5000);
+        let _wait_timeout = arguments.get("wait_timeout").and_then(|v| v.as_u64()).unwrap_or(5000);
 
         // What to extract (all default to true for comprehensive extraction)
         let extract_basic = arguments.get("extract_basic").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -98,8 +98,8 @@ impl McpServer {
                     }
                 };
 
-                eprintln!("🔍 SCRAPE: Calling navigate_to_with_timeout (wait_timeout={}ms)", wait_timeout);
-                match browser.navigate_to_with_timeout(url_str, wait_for_js, wait_timeout).await {
+                eprintln!("🔍 SCRAPE: Calling navigate_to_with_options");
+                match browser.navigate_to_with_options(url_str, wait_for_js).await {
                     Ok(_) => {
                         eprintln!("🔍 SCRAPE: Navigation successful");
                     },

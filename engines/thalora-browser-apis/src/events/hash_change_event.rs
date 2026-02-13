@@ -15,8 +15,6 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 
-use super::event::EventData;
-
 /// JavaScript `HashChangeEvent` builtin implementation.
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct HashChangeEvent;
@@ -32,7 +30,6 @@ impl IntrinsicObject for HashChangeEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event().prototype()))
             .accessor(
                 js_string!("oldURL"),
                 Some(old_url_getter),
@@ -59,8 +56,8 @@ impl BuiltInObject for HashChangeEvent {
 
 impl BuiltInConstructor for HashChangeEvent {
     const CONSTRUCTOR_ARGUMENTS: usize = 2;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 4;
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100;
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::hash_change_event;
@@ -83,45 +80,72 @@ impl BuiltInConstructor for HashChangeEvent {
 
         let proto = get_prototype_from_constructor(new_target, StandardConstructors::hash_change_event, context)?;
 
-        // Parse eventInitDict
-        let mut bubbles = false;
-        let mut cancelable = false;
-        let mut old_url = String::new();
-        let mut new_url = String::new();
+        let (old_url, new_url) = if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                let old_url = init_obj.get(js_string!("oldURL"), context)
+                    .ok()
+                    .map(|v| v.to_string(context).ok())
+                    .flatten()
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_default();
+                let new_url = init_obj.get(js_string!("newURL"), context)
+                    .ok()
+                    .map(|v| v.to_string(context).ok())
+                    .flatten()
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_default();
+                (old_url, new_url)
+            } else {
+                (String::new(), String::new())
+            }
+        } else {
+            (String::new(), String::new())
+        };
 
-        if let Some(init_obj) = event_init_dict.as_object() {
-            if let Ok(v) = init_obj.get(js_string!("bubbles"), context) {
-                bubbles = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("cancelable"), context) {
-                cancelable = v.to_boolean();
-            }
-            if let Ok(v) = init_obj.get(js_string!("oldURL"), context) {
-                old_url = v.to_string(context)?.to_std_string_escaped();
-            }
-            if let Ok(v) = init_obj.get(js_string!("newURL"), context) {
-                new_url = v.to_string(context)?.to_std_string_escaped();
-            }
-        }
-
-        let event_data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
-        let hash_change_event_data = HashChangeEventData::new(event_data, old_url, new_url);
-
+        let hash_change_event_data = HashChangeEventData::new(
+            event_type.to_std_string_escaped(),
+            old_url,
+            new_url,
+        );
         let hash_change_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
             hash_change_event_data,
         );
 
-        Ok(hash_change_event_obj.into())
+        let hash_change_event_generic = hash_change_event_obj.upcast();
+
+        // Set Event interface properties
+        hash_change_event_generic.set(js_string!("type"), event_type, false, context)?;
+        hash_change_event_generic.set(js_string!("bubbles"), false, false, context)?;
+        hash_change_event_generic.set(js_string!("cancelable"), false, false, context)?;
+        hash_change_event_generic.set(js_string!("composed"), false, false, context)?;
+        hash_change_event_generic.set(js_string!("defaultPrevented"), false, false, context)?;
+        hash_change_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
+        hash_change_event_generic.set(js_string!("isTrusted"), false, false, context)?;
+        hash_change_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
+        hash_change_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
+        hash_change_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+
+        if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                    hash_change_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                }
+                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                    hash_change_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                }
+            }
+        }
+
+        Ok(hash_change_event_generic.into())
     }
 }
 
-/// Internal data for HashChangeEvent instances - embeds EventData for proper inheritance
 #[derive(Debug, Trace, Finalize, JsData)]
-pub struct HashChangeEventData {
-    /// Base event data
-    pub event: EventData,
+struct HashChangeEventData {
+    #[unsafe_ignore_trace]
+    event_type: String,
     #[unsafe_ignore_trace]
     old_url: String,
     #[unsafe_ignore_trace]
@@ -129,8 +153,8 @@ pub struct HashChangeEventData {
 }
 
 impl HashChangeEventData {
-    pub fn new(event: EventData, old_url: String, new_url: String) -> Self {
-        Self { event, old_url, new_url }
+    fn new(event_type: String, old_url: String, new_url: String) -> Self {
+        Self { event_type, old_url, new_url }
     }
 }
 

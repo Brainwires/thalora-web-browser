@@ -9,7 +9,7 @@ use boa_engine::{
     Context, JsResult, JsNativeError,
 };
 use crate::dom::{
-    element::with_element_data,
+    element::ElementData,
     shadow::shadow_root::ShadowRootData,
     node::NodeData,
 };
@@ -201,13 +201,13 @@ impl ShadowCSSScoping {
         rule: &ScopedCSSRule,
         context: &mut Context,
     ) -> JsResult<()> {
-        let _ = with_element_data(element, |ed| {
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
             let properties = rule.get_properties();
 
             for (property, value) in properties {
-                ed.set_style_property(&property, &value);
+                element_data.set_style_property(&property, &value);
             }
-        }, "not element");
+        }
 
         Ok(())
     }
@@ -217,8 +217,8 @@ impl ShadowCSSScoping {
         // Simplified selector matching
         // In production, this would use a full CSS selector engine
 
-        with_element_data(element, |ed| {
-            let tag_name = ed.get_tag_name().to_lowercase();
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            let tag_name = element_data.get_tag_name().to_lowercase();
 
             // Tag selector
             if selector == tag_name {
@@ -228,23 +228,23 @@ impl ShadowCSSScoping {
             // Class selector
             if selector.starts_with('.') {
                 let class_name = &selector[1..];
-                let element_class = ed.get_class_name();
+                let element_class = element_data.get_class_name();
                 return element_class.split_whitespace().any(|c| c == class_name);
             }
 
             // ID selector
             if selector.starts_with('#') {
                 let id_selector = &selector[1..];
-                return ed.get_id() == id_selector;
+                return element_data.get_id() == id_selector;
             }
 
             // Universal selector
             if selector == "*" {
                 return true;
             }
+        }
 
-            false
-        }, "not element").unwrap_or(false)
+        false
     }
 
     /// Check if host or any ancestor matches selector
@@ -255,17 +255,19 @@ impl ShadowCSSScoping {
         }
 
         // Check ancestors
-        if let Ok(parent_node) = with_element_data(host, |ed| ed.get_parent_node(), "not element") {
-            let mut current = parent_node;
+        if let Some(element_data) = host.downcast_ref::<ElementData>() {
+            let mut current = element_data.get_parent_node();
 
             while let Some(parent) = current {
                 if Self::element_matches_selector(&parent, selector) {
                     return true;
                 }
 
-                current = with_element_data(&parent, |ed| ed.get_parent_node(), "not element")
-                    .ok()
-                    .flatten();
+                if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
+                    current = parent_data.get_parent_node();
+                } else {
+                    break;
+                }
             }
         }
 
@@ -333,8 +335,8 @@ impl ShadowCSSScoping {
 
     /// Helper to get child nodes
     fn get_child_nodes(node: &JsObject) -> Vec<JsObject> {
-        if let Ok(children) = with_element_data(node, |ed| ed.get_children(), "not element") {
-            children
+        if let Some(element_data) = node.downcast_ref::<ElementData>() {
+            element_data.get_children()
         } else if let Some(shadow_data) = node.downcast_ref::<ShadowRootData>() {
             shadow_data.fragment_data().get_children()
         } else {
@@ -397,8 +399,11 @@ impl ShadowCSSScoping {
 
     /// Get unique identifier for element
     fn get_element_id(element: &JsObject) -> String {
-        with_element_data(element, |ed| ed.get_id(), "not element")
-            .unwrap_or_else(|_| format!("element-{:p}", element))
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            element_data.get_id()
+        } else {
+            format!("element-{:p}", element)
+        }
     }
 
     /// Validate and sanitize CSS for shadow DOM
@@ -466,10 +471,10 @@ impl ShadowCSSCustomProperties {
 
             // Check host styles
             if let Some(host) = shadow_data.get_host() {
-                if let Ok(Some(value)) = with_element_data(&host, |ed| {
-                    ed.get_style_property(property_name)
-                }, "not element") {
-                    return Ok(Some(value));
+                if let Some(host_data) = host.downcast_ref::<ElementData>() {
+                    if let Some(value) = host_data.get_style_property(property_name) {
+                        return Ok(Some(value));
+                    }
                 }
             }
         }

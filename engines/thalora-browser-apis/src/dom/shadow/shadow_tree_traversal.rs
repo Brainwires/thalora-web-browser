@@ -9,7 +9,7 @@ use boa_engine::{
     Context, JsResult,
 };
 use crate::dom::{
-    element::with_element_data,
+    element::ElementData,
     shadow::{
         shadow_root::ShadowRootData,
         html_slot_element::HTMLSlotElementData,
@@ -326,14 +326,16 @@ impl ShadowTreeTraversal {
     /// Helper methods for node introspection
 
     fn get_parent_node(node: &JsObject) -> Option<JsObject> {
-        with_element_data(node, |ed| ed.get_parent_node(), "not element")
-            .ok()
-            .flatten()
+        if let Some(element_data) = node.downcast_ref::<ElementData>() {
+            element_data.get_parent_node()
+        } else {
+            None
+        }
     }
 
     fn get_child_nodes(node: &JsObject) -> Vec<JsObject> {
-        if let Ok(children) = with_element_data(node, |ed| ed.get_children(), "not element") {
-            children
+        if let Some(element_data) = node.downcast_ref::<ElementData>() {
+            element_data.get_children()
         } else if let Some(shadow_data) = node.downcast_ref::<ShadowRootData>() {
             shadow_data.fragment_data().get_children()
         } else {
@@ -342,9 +344,11 @@ impl ShadowTreeTraversal {
     }
 
     fn get_shadow_root(element: &JsObject) -> Option<JsObject> {
-        with_element_data(element, |ed| ed.get_shadow_root(), "not element")
-            .ok()
-            .flatten()
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            element_data.get_shadow_root()
+        } else {
+            None
+        }
     }
 
     fn get_shadow_host(shadow_root: &JsObject) -> Option<JsObject> {
@@ -363,7 +367,7 @@ impl ShadowTreeTraversal {
         // Simplified selector matching
         // In a full implementation, this would use a CSS selector parser
 
-        with_element_data(node, |element_data| {
+        if let Some(element_data) = node.downcast_ref::<ElementData>() {
             let tag_name = element_data.get_tag_name().to_lowercase();
 
             // Simple tag selector
@@ -383,9 +387,9 @@ impl ShadowTreeTraversal {
                 let id_selector = &selector[1..];
                 return element_data.get_id() == id_selector;
             }
+        }
 
-            false
-        }, "not element").unwrap_or(false)
+        false
     }
 
     /// Parse CSS selector into structured format
@@ -640,29 +644,36 @@ impl ShadowTreeTraversal {
 
     /// Match element tag name
     fn matches_element_selector(element: &JsObject, tag: &str) -> bool {
-        with_element_data(element, |ed| {
-            ed.get_tag_name().to_lowercase() == tag.to_lowercase()
-        }, "not element").unwrap_or(false)
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            element_data.get_tag_name().to_lowercase() == tag.to_lowercase()
+        } else {
+            false
+        }
     }
 
     /// Match element ID
     fn matches_id_selector(element: &JsObject, id: &str) -> bool {
-        with_element_data(element, |ed| ed.get_id() == id, "not element")
-            .unwrap_or(false)
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            element_data.get_id() == id
+        } else {
+            false
+        }
     }
 
     /// Match element class
     fn matches_class_selector(element: &JsObject, class: &str) -> bool {
-        with_element_data(element, |ed| {
-            let class_name = ed.get_class_name();
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            let class_name = element_data.get_class_name();
             class_name.split_whitespace().any(|c| c == class)
-        }, "not element").unwrap_or(false)
+        } else {
+            false
+        }
     }
 
     /// Match attribute condition
     fn matches_attribute_condition(element: &JsObject, condition: &AttributeCondition) -> bool {
-        with_element_data(element, |ed| {
-            let attr_value = ed.get_attribute(&condition.name);
+        if let Some(element_data) = element.downcast_ref::<ElementData>() {
+            let attr_value = element_data.get_attribute(&condition.name);
 
             match (&condition.operator, &condition.value) {
                 (None, None) => attr_value.is_some(), // Just existence
@@ -675,7 +686,9 @@ impl ShadowTreeTraversal {
                 }
                 _ => false,
             }
-        }, "not element").unwrap_or(false)
+        } else {
+            false
+        }
     }
 
     /// Match attribute operator

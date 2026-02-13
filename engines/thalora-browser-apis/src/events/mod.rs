@@ -4,7 +4,6 @@ pub mod event;
 pub mod event_target;
 pub mod message_event;
 pub mod pageswap_event;
-pub mod propagation;
 pub mod ui_events;
 pub mod custom_event;
 pub mod error_event;

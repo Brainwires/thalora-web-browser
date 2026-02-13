@@ -10,7 +10,7 @@ use boa_engine::{
     js_string,
 };
 use crate::dom::{
-    element::with_element_data,
+    element::ElementData,
     shadow::{
         html_slot_element::HTMLSlotElementData,
         shadow_root::ShadowRootData,
@@ -82,11 +82,9 @@ impl SlotChangeEventSystem {
         // Event target and current target will be set during dispatch
 
         // Dispatch event on slot element
-        let event_value = JsValue::from(event);
-        if let Ok(dispatch_result) = with_element_data(slot, |ed| {
-            ed.dispatch_event("slotchange", &event_value, context)
-        }, "not element") {
-            dispatch_result?;
+        if let Some(element_data) = slot.downcast_ref::<ElementData>() {
+            let event_value = JsValue::from(event);
+            element_data.dispatch_event("slotchange", &event_value, context)?;
         }
 
         Ok(())
@@ -125,11 +123,9 @@ impl SlotChangeEventSystem {
     fn is_slot_connected(slot: &JsObject) -> bool {
         // In a full implementation, this would check if the slot has a root
         // For now, assume slots in shadow roots are connected
-        if let Ok(has_parent) = with_element_data(slot, |ed| {
+        if let Some(element_data) = slot.downcast_ref::<ElementData>() {
             // Check if slot has a parent (simplified check)
-            ed.get_parent_node().is_some()
-        }, "not element") {
-            has_parent
+            element_data.get_parent_node().is_some()
         } else {
             false
         }
@@ -226,9 +222,9 @@ impl SlotChangeEventSystem {
 
     /// Find appropriate slot for a slottable element
     fn find_slot_for_slottable(slottable: &JsObject, slots: &[JsObject]) -> Option<JsObject> {
-        if let Ok(slot_attribute) = with_element_data(slottable, |ed| {
-            ed.get_attribute("slot").unwrap_or_default()
-        }, "not element") {
+        if let Some(element_data) = slottable.downcast_ref::<ElementData>() {
+            let slot_attribute = element_data.get_attribute("slot").unwrap_or_default();
+
             // Look for slot with matching name
             for slot in slots {
                 if let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>() {
@@ -375,8 +371,8 @@ impl SlotChangeEventSystem {
 
             if assigned.is_empty() {
                 // Return fallback content (children of slot)
-                if let Ok(children) = with_element_data(slot, |ed| ed.get_children(), "not element") {
-                    children
+                if let Some(element_data) = slot.downcast_ref::<ElementData>() {
+                    element_data.get_children()
                 } else {
                     Vec::new()
                 }

@@ -8,7 +8,7 @@ async fn test_javascript_safety_filtering() {
     let safe_js = "var x = 1; x + 2;";
     assert!(renderer.is_safe_javascript(safe_js));
 
-    // Modern JavaScript features should now be allowed (standard-compliant)
+    // Modern JavaScript features should now be allowed (V8-compliant)
     let modern_js_patterns = vec![
         "eval('1 + 1')",  // Now allowed - standard JS
         "Function('return 42')()",  // Now allowed - standard JS

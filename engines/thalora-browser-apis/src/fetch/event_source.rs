@@ -20,7 +20,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use futures_util::{Stream, StreamExt};
-use rquest::Client;
+use reqwest::Client;
 use std::{
     collections::HashMap,
     sync::{
@@ -156,7 +156,6 @@ impl IntrinsicObject for EventSource {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .static_property(
                 js_string!("CONNECTING"),
                 ReadyState::Connecting,
@@ -399,7 +398,7 @@ impl EventSource {
 
     /// Process the Server-Sent Events stream
     async fn process_stream(
-        mut stream: impl Stream<Item = Result<Bytes, rquest::Error>> + Unpin,
+        mut stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin,
         data: &EventSourceData,
         control_rx: &mut mpsc::UnboundedReceiver<EventSourceControl>,
     ) -> Result<(), ()> {

@@ -482,17 +482,11 @@ fn get_search_params(this: &JsValue, _args: &[JsValue], context: &mut Context) -
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.searchParams called on non-object")
     })?;
-
-    // Return cached searchParams for object identity: url.searchParams === url.searchParams
-    let cached = this_obj.get(js_string!("__searchParams__"), context)?;
-    if cached.is_object() {
-        return Ok(cached);
-    }
-
     let url_data = this_obj.downcast_ref::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.searchParams called on non-URL object")
     })?;
 
+    // Create a new URLSearchParams object from the query string
     let query = url_data.inner.query().unwrap_or("");
     let params = UrlSearchParamsData::from_query_string(query);
 
@@ -508,20 +502,7 @@ fn get_search_params(this: &JsValue, _args: &[JsValue], context: &mut Context) -
         params,
     );
 
-    let params_val: JsValue = params_obj.into();
-
-    // Cache as non-enumerable property for identity
-    this_obj.define_property_or_throw(
-        js_string!("__searchParams__"),
-        PropertyDescriptorBuilder::new()
-            .value(params_val.clone())
-            .writable(false)
-            .enumerable(false)
-            .configurable(false),
-        context,
-    )?;
-
-    Ok(params_val)
+    Ok(params_obj.into())
 }
 
 fn get_hash(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
@@ -642,48 +623,16 @@ impl BuiltInConstructor for UrlSearchParams {
         )?;
 
         let params = if let Some(init) = args.first() {
-            if init.is_undefined() || init.is_null() {
-                UrlSearchParamsData::new()
-            } else if let Some(init_obj) = init.as_object() {
-                // Check if it's an array of [name, value] pairs
-                if init_obj.is_array() {
-                    let mut data = UrlSearchParamsData::new();
-                    let length_val = init_obj.get(js_string!("length"), context)?;
-                    let len = length_val.to_u32(context)?;
-                    for i in 0..len {
-                        let pair = init_obj.get(i, context)?;
-                        if let Some(pair_obj) = pair.as_object() {
-                            let pair_len = pair_obj.get(js_string!("length"), context)?.to_u32(context)?;
-                            if pair_len >= 2 {
-                                let name = pair_obj.get(0, context)?.to_string(context)?.to_std_string_escaped();
-                                let value = pair_obj.get(1, context)?.to_string(context)?.to_std_string_escaped();
-                                data.params.push((name, value));
-                            }
-                        }
-                    }
-                    data
-                } else {
-                    // Plain object — iterate own properties
-                    let mut data = UrlSearchParamsData::new();
-                    let keys = init_obj.own_property_keys(context)?;
-                    for key in keys {
-                        let value = init_obj.get(key.clone(), context)?;
-                        if !value.is_undefined() {
-                            let name = key.to_string();
-                            let val = value.to_string(context)?.to_std_string_escaped();
-                            data.params.push((name, val));
-                        }
-                    }
-                    data
-                }
-            } else {
-                // String init
+            if !init.is_undefined() {
                 let init_str = init.to_string(context)?;
                 let mut query = init_str.to_std_string_escaped();
+                // Remove leading ? if present
                 if query.starts_with('?') {
                     query.remove(0);
                 }
                 UrlSearchParamsData::from_query_string(&query)
+            } else {
+                UrlSearchParamsData::new()
             }
         } else {
             UrlSearchParamsData::new()

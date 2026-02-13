@@ -10,9 +10,10 @@ use boa_engine::{
     string::StaticJsStrings,
     value::JsValue,
     Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
+    JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder}
 };
 use boa_gc::{Finalize, Trace};
+use std::sync::Arc;
 
 /// JavaScript `AbortController` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -71,111 +72,96 @@ impl BuiltInConstructor for AbortController {
             abort_controller_data,
         );
 
-        // Create the AbortSignal once and store it on the controller
-        let signal = crate::events::abort_signal::create_abort_signal(context)?;
-        let signal_value: JsValue = signal.into();
-        let controller_obj = abort_controller.upcast();
-        controller_obj.set(js_string!("__signal__"), signal_value, false, context)?;
-
-        Ok(controller_obj.into())
+        Ok(abort_controller.into())
     }
 }
 
 /// Internal data for AbortController objects
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct AbortControllerData {
-    // Marker type — state is tracked on the AbortSignal object itself
-    _private: (),
+    #[unsafe_ignore_trace]
+    signal: Arc<std::sync::Mutex<AbortSignalState>>,
+}
+
+#[derive(Debug)]
+struct AbortSignalState {
+    aborted: bool,
+    reason: Option<JsValue>,
 }
 
 impl AbortControllerData {
     fn new() -> Self {
-        Self { _private: () }
+        Self {
+            signal: Arc::new(std::sync::Mutex::new(AbortSignalState {
+                aborted: false,
+                reason: None,
+            })),
+        }
+    }
+
+    fn abort(&self, reason: Option<JsValue>) {
+        let mut signal = self.signal.lock().unwrap();
+        if !signal.aborted {
+            signal.aborted = true;
+            signal.reason = reason;
+            // In a full implementation, this would trigger abort events
+        }
+    }
+
+    fn is_aborted(&self) -> bool {
+        self.signal.lock().unwrap().aborted
     }
 }
 
-/// `AbortController.prototype.signal` getter — returns the cached signal
+/// `AbortController.prototype.signal` getter
 fn get_signal(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("AbortController.prototype.signal called on non-object")
     })?;
 
-    // Verify this is an AbortController
-    let _ = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
+    let abort_controller = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("AbortController.prototype.signal called on non-AbortController object")
     })?;
 
-    // Return the cached signal created in the constructor
-    this_obj.get(js_string!("__signal__"), context)
+    // Create AbortSignal as an EventTarget so it has addEventListener
+    let event_target_constructor = context.intrinsics().constructors().event_target().constructor();
+    let signal_obj = crate::events::event_target::EventTarget::constructor(
+        &event_target_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    let signal_obj = signal_obj.as_object().unwrap().clone();
+
+    // Add aborted property
+    let aborted = abort_controller.is_aborted();
+    signal_obj.define_property_or_throw(
+        js_string!("aborted"),
+        PropertyDescriptorBuilder::new()
+            .configurable(true)
+            .enumerable(true)
+            .writable(false)
+            .value(aborted)
+            .build(),
+        context,
+    )?;
+
+    Ok(signal_obj.into())
 }
 
 /// `AbortController.prototype.abort(reason)`
-fn abort(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn abort(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("AbortController.prototype.abort called on non-object")
     })?;
 
-    // Verify this is an AbortController
-    let _ = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
+    let abort_controller = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("AbortController.prototype.abort called on non-AbortController object")
     })?;
 
-    let reason = if args.is_empty() || args.get_or_undefined(0).is_undefined() {
-        // Default reason per spec: DOMException with name "AbortError"
-        // Create an Error object as a stand-in
-        match context
-            .intrinsics()
-            .constructors()
-            .error()
-            .constructor()
-            .construct(
-                &[js_string!("The operation was aborted.").into()],
-                None,
-                context,
-            ) {
-            Ok(err_obj) => err_obj.into(),
-            Err(_) => JsValue::undefined(),
-        }
-    } else {
-        args.get_or_undefined(0).clone()
-    };
-
-    // Get the cached signal
-    let signal_val = this_obj.get(js_string!("__signal__"), context)?;
-    if let Some(signal_obj) = signal_val.as_object() {
-        // Update AbortSignalData
-        if let Some(mut signal_data) = signal_obj.downcast_mut::<crate::events::abort_signal::AbortSignalData>() {
-            signal_data.abort(reason.clone());
-        }
-
-        // Dispatch 'abort' event on the signal
-        if let Ok(event) = context
-            .intrinsics()
-            .constructors()
-            .event()
-            .constructor()
-            .construct(&[js_string!("abort").into()], None, context)
-        {
-            if let Ok(dispatch_fn) = signal_obj.get(js_string!("dispatchEvent"), context) {
-                if let Some(callable) = dispatch_fn.as_callable() {
-                    let _ = callable.call(
-                        &signal_obj.clone().into(),
-                        &[event.into()],
-                        context,
-                    );
-                }
-            }
-
-            // Also call onabort property handler
-            if let Ok(onabort) = signal_obj.get(js_string!("onabort"), context) {
-                if let Some(callable) = onabort.as_callable() {
-                    let _ = callable.call(&signal_obj.clone().into(), &[], context);
-                }
-            }
-        }
-    }
-
+    let reason = args.get_or_undefined(0).clone();
+    abort_controller.abort(Some(reason));
     Ok(JsValue::undefined())
 }

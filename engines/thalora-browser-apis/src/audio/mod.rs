@@ -28,7 +28,5 @@ pub use audio_context_wasm as audio_context;
 mod tests;
 
 // Re-exports at module level
-#[cfg(any(feature = "native", feature = "wasm"))]
 pub use html_audio_element::HTMLAudioElement;
-#[cfg(any(feature = "native", feature = "wasm"))]
 pub use audio_context::AudioContext;

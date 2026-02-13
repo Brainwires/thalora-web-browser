@@ -88,11 +88,11 @@ impl Navigator {
         use thalora_constants::USER_AGENT;
 
         Self {
-            // NavigatorID - Chrome 131.0 on Windows 10 (WHATWG compliant)
+            // NavigatorID - Chrome 120.0 on Windows 10 (WHATWG compliant)
             user_agent: USER_AGENT.to_string(),
             app_code_name: "Mozilla".to_string(),
             app_name: "Netscape".to_string(),
-            app_version: "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".to_string(),
+            app_version: "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36".to_string(),
             platform: "Win32".to_string(),
             product: "Gecko".to_string(),
             product_sub: "20030107".to_string(),
@@ -161,21 +161,16 @@ impl IntrinsicObject for Navigator {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            // NavigatorID properties - use shared constants for consistency
-            .property(js_string!("userAgent"), js_string!(thalora_constants::USER_AGENT), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            // NavigatorID properties
+            .property(js_string!("userAgent"), js_string!("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("appCodeName"), js_string!("Mozilla"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("appName"), js_string!("Netscape"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
-            .property(js_string!("appVersion"), js_string!("5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
-            .property(js_string!("platform"), js_string!("Win32"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            .property(js_string!("appVersion"), js_string!("5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
+            .property(js_string!("platform"), js_string!("MacIntel"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("product"), js_string!("Gecko"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("productSub"), js_string!("20030107"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("vendor"), js_string!("Google Inc."), Attribute::READONLY | Attribute::NON_ENUMERABLE)
             .property(js_string!("vendorSub"), js_string!(""), Attribute::READONLY | Attribute::NON_ENUMERABLE)
-
-            // Additional properties Cloudflare checks
-            .property(js_string!("deviceMemory"), JsValue::from(8), Attribute::CONFIGURABLE)
-            .property(js_string!("maxTouchPoints"), JsValue::from(0), Attribute::READONLY | Attribute::NON_ENUMERABLE)
-            .property(js_string!("webdriver"), JsValue::from(false), Attribute::CONFIGURABLE)
 
             // NavigatorLanguage properties
             .property(js_string!("language"), js_string!("en-US"), Attribute::READONLY | Attribute::NON_ENUMERABLE)
@@ -224,9 +219,6 @@ impl IntrinsicObject for Navigator {
             // Vibration API
             .method(Self::vibrate, js_string!("vibrate"), 1)
 
-            // Beacon API
-            .method(Self::send_beacon, js_string!("sendBeacon"), 2)
-
             // Web Locks and Service Workers
             // Note: locks is set as an instance property, not a prototype accessor
             .accessor(
@@ -272,16 +264,10 @@ impl BuiltInConstructor for Navigator {
     fn constructor(
         _new_target: &JsValue,
         _args: &[JsValue],
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let navigator_data = Navigator::new();
-        let prototype = context.intrinsics().constructors().navigator().prototype();
-        let navigator_obj = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            prototype,
-            navigator_data,
-        );
-        Ok(navigator_obj.upcast().into())
+        // Navigator constructor is not meant to be called directly
+        Ok(JsValue::undefined())
     }
 }
 
@@ -343,48 +329,19 @@ impl Navigator {
         Ok(JsValue::from(array))
     }
 
-    /// `navigator.plugins` getter - returns Chrome-like PluginArray
-    /// Cloudflare checks navigator.plugins.length > 0
+    /// `navigator.plugins` getter - returns empty PluginArray for security
     fn plugins_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        // Chrome reports 5 plugins (PDF Viewer, Chrome PDF Viewer, etc.)
-        let plugin_array = boa_engine::builtins::array::Array::array_create(5, None, context)?;
-
-        let plugin_names = [
-            "PDF Viewer",
-            "Chrome PDF Viewer",
-            "Chromium PDF Viewer",
-            "Microsoft Edge PDF Viewer",
-            "WebKit built-in PDF",
-        ];
-        for (i, name) in plugin_names.iter().enumerate() {
-            let plugin = JsObject::default(context.intrinsics());
-            plugin.set(js_string!("name"), js_string!(*name), false, context)?;
-            plugin.set(js_string!("description"), js_string!("Portable Document Format"), false, context)?;
-            plugin.set(js_string!("filename"), js_string!("internal-pdf-viewer"), false, context)?;
-            plugin.set(js_string!("length"), JsValue::from(1), false, context)?;
-            plugin_array.create_data_property_or_throw(i, plugin, context)?;
-        }
-
+        // Return empty plugin array for security/privacy
+        // Arrays already have a length property set to 0
+        let plugin_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
         Ok(JsValue::from(plugin_array))
     }
 
-    /// `navigator.mimeTypes` getter - returns Chrome-like MimeTypeArray
+    /// `navigator.mimeTypes` getter - returns empty MimeTypeArray for security
     fn mime_types_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        // Chrome reports 2 mime types for PDF
-        let mime_array = boa_engine::builtins::array::Array::array_create(2, None, context)?;
-
-        let mime_types = [
-            ("application/pdf", "Portable Document Format", "pdf"),
-            ("text/pdf", "Portable Document Format", "pdf"),
-        ];
-        for (i, (type_str, desc, suffixes)) in mime_types.iter().enumerate() {
-            let mime = JsObject::default(context.intrinsics());
-            mime.set(js_string!("type"), js_string!(*type_str), false, context)?;
-            mime.set(js_string!("description"), js_string!(*desc), false, context)?;
-            mime.set(js_string!("suffixes"), js_string!(*suffixes), false, context)?;
-            mime_array.create_data_property_or_throw(i, mime, context)?;
-        }
-
+        // Return empty mime types array for security/privacy
+        // Arrays already have a length property set to 0
+        let mime_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
         Ok(JsValue::from(mime_array))
     }
 
@@ -440,144 +397,6 @@ impl Navigator {
         eprintln!("Protocol handler unregistered: {} -> {}", scheme, url);
 
         Ok(JsValue::undefined())
-    }
-
-    /// `navigator.sendBeacon(url, data?)` method - sends a small amount of data asynchronously
-    ///
-    /// The Beacon API is used to send analytics and diagnostics to a web server.
-    /// It returns true if the user agent successfully queued the data for transfer.
-    /// https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon
-    /// https://w3c.github.io/beacon/
-    fn send_beacon(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let url = args.get_or_undefined(0);
-
-        // URL is required
-        if url.is_undefined() || url.is_null() {
-            return Err(boa_engine::JsNativeError::typ()
-                .with_message("Failed to execute 'sendBeacon' on 'Navigator': 1 argument required, but only 0 present.")
-                .into());
-        }
-
-        let url_str = url.to_string(context)?.to_std_string_escaped();
-
-        // Validate URL - must be valid and use http/https
-        let parsed_url = match url::Url::parse(&url_str) {
-            Ok(u) => u,
-            Err(_) => {
-                return Err(boa_engine::JsNativeError::typ()
-                    .with_message("Failed to execute 'sendBeacon' on 'Navigator': The URL provided is invalid.")
-                    .into());
-            }
-        };
-
-        // Per spec, only http and https are allowed
-        if parsed_url.scheme() != "http" && parsed_url.scheme() != "https" {
-            return Err(boa_engine::JsNativeError::typ()
-                .with_message("Failed to execute 'sendBeacon' on 'Navigator': Beacons are only supported over HTTP(S).")
-                .into());
-        }
-
-        // Get optional data and determine content type
-        let data = args.get_or_undefined(1);
-        let (body_data, content_type): (Vec<u8>, &str) = if data.is_undefined() || data.is_null() {
-            (Vec::new(), "text/plain;charset=UTF-8")
-        } else if let Some(data_string) = data.as_string() {
-            // String data
-            (data_string.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-        } else if let Some(obj) = data.as_object() {
-            // Check for Blob
-            if let Ok(blob_type) = obj.get(js_string!("type"), context) {
-                if let Some(type_str) = blob_type.as_string() {
-                    let mime = type_str.to_std_string_escaped();
-                    // Try to get arrayBuffer or text from Blob
-                    if let Ok(text_val) = obj.get(js_string!("_data"), context) {
-                        if let Some(text) = text_val.as_string() {
-                            (text.to_std_string_escaped().into_bytes(),
-                             if mime.is_empty() { "application/octet-stream" } else { Box::leak(mime.into_boxed_str()) })
-                        } else {
-                            (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-                        }
-                    } else {
-                        (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-                    }
-                } else {
-                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-                }
-            }
-            // Check for FormData
-            else if let Ok(entries) = obj.get(js_string!("_entries"), context) {
-                if !entries.is_undefined() {
-                    // FormData - serialize as URL-encoded
-                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "application/x-www-form-urlencoded")
-                } else {
-                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-                }
-            }
-            // Check for URLSearchParams
-            else if let Ok(to_string) = obj.get(js_string!("toString"), context) {
-                if to_string.is_callable() {
-                    if let Ok(result) = to_string.as_callable().unwrap().call(&data, &[], context) {
-                        (result.to_string(context)?.to_std_string_escaped().into_bytes(), "application/x-www-form-urlencoded")
-                    } else {
-                        (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-                    }
-                } else {
-                    (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-                }
-            } else {
-                (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-            }
-        } else {
-            (data.to_string(context)?.to_std_string_escaped().into_bytes(), "text/plain;charset=UTF-8")
-        };
-
-        // Per spec: payload must be <= 64KB
-        if body_data.len() > 65536 {
-            // Return false if payload too large (per spec)
-            return Ok(JsValue::from(false));
-        }
-
-        // Spawn async task to send the beacon
-        // The key behavior of sendBeacon is that it returns immediately and sends in the background
-        #[cfg(feature = "_native-core")]
-        {
-            let url_clone = url_str.clone();
-            let content_type_owned = content_type.to_string();
-
-            std::thread::spawn(move || {
-                // Use a blocking runtime for the HTTP request
-                let rt = match tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                {
-                    Ok(rt) => rt,
-                    Err(_) => return,
-                };
-
-                rt.block_on(async {
-                    // Build and send the POST request
-                    let client = match rquest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(30))
-                        .build()
-                    {
-                        Ok(c) => c,
-                        Err(_) => return,
-                    };
-
-                    let _ = client
-                        .post(&url_clone)
-                        .header("Content-Type", content_type_owned)
-                        .body(body_data)
-                        .send()
-                        .await;
-
-                    // We don't care about the response - beacon is fire-and-forget
-                });
-            });
-        }
-
-        // Return true - the beacon was successfully queued
-        Ok(JsValue::from(true))
     }
 
     /// Create a Navigator instance for the global object

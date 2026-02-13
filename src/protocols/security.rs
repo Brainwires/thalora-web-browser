@@ -30,6 +30,12 @@ pub const MAX_KEY_LENGTH: usize = 256;
 /// Maximum title/note content length (1MB)
 pub const MAX_CONTENT_LENGTH: usize = 1_048_576;
 
+/// Maximum WASM binary size for debug tools (10MB)
+pub const MAX_WASM_BINARY_SIZE: usize = 10 * 1024 * 1024;
+
+/// Maximum WASM module ID length
+pub const MAX_WASM_MODULE_ID_LENGTH: usize = 64;
+
 /// Sanitize session ID to prevent path traversal attacks (CWE-22)
 ///
 /// Only allows alphanumeric characters, hyphens, and underscores.

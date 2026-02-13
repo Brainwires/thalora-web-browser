@@ -15,7 +15,7 @@ use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult,
 };
 use crate::dom::{
-    element::{ElementData, with_element_data, has_element_data},
+    element::ElementData,
     shadow::shadow_root::ShadowRootData,
     text::TextData,
 };
@@ -114,7 +114,9 @@ impl HTMLSlotElementData {
 
         if let Some(host) = shadow_root.get_host() {
             // Get all children of the shadow host
-            if let Ok(children) = with_element_data(&host, |ed| ed.get_children(), "not element") {
+            if let Some(element_data) = host.downcast_ref::<ElementData>() {
+                let children = element_data.get_children();
+
                 for child in children {
                     if self.is_slottable(&child) {
                         let child_slot_name = self.get_slottable_name(&child);
@@ -141,8 +143,8 @@ impl HTMLSlotElementData {
 
     /// Get the slot attribute value of a slottable
     fn get_slottable_name(&self, node: &JsObject) -> String {
-        if let Ok(attr) = with_element_data(node, |ed| ed.get_attribute("slot").unwrap_or_default(), "not element") {
-            attr
+        if let Some(element_data) = node.downcast_ref::<ElementData>() {
+            element_data.get_attribute("slot").unwrap_or_default()
         } else {
             // Text nodes don't have slot attribute
             String::new()
@@ -308,7 +310,7 @@ impl HTMLSlotElementData {
             let flattened_nodes = SlotAssignmentAlgorithms::find_flattened_assigned_nodes(&this_obj);
             // Filter to elements only
             flattened_nodes.into_iter()
-                .filter(|node| has_element_data(node))
+                .filter(|node| node.downcast_ref::<ElementData>().is_some())
                 .collect()
         } else {
             slot_data.get_assigned_elements()
@@ -398,7 +400,6 @@ impl IntrinsicObject for HTMLSlotElement {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().html_element().prototype()))
             // Properties
             .accessor(
                 js_string!("name"),

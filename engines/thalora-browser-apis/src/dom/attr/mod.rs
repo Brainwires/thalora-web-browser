@@ -51,11 +51,6 @@ impl AttrData {
         self.name.borrow().clone()
     }
 
-    /// Set the name of the attribute
-    pub fn set_name(&self, name: String) {
-        *self.name.borrow_mut() = name;
-    }
-
     /// Get the value of the attribute
     pub fn value(&self) -> String {
         self.value.borrow().clone()
@@ -312,7 +307,6 @@ impl IntrinsicObject for Attr {
             .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             .accessor(
                 js_string!("name"),
                 Some(name_getter),

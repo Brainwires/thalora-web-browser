@@ -14,7 +14,7 @@ use boa_engine::{
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    Context, JsData, JsNativeError, JsResult, JsString,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -25,42 +25,28 @@ pub struct Location;
 /// Internal data for Location objects
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
 pub struct LocationData {
-    #[unsafe_ignore_trace]
-    href: std::sync::Arc<std::sync::Mutex<String>>,
+    href: String,
 }
 
 impl LocationData {
     /// Create a new LocationData with default values
     pub fn new() -> Self {
         Self {
-            href: std::sync::Arc::new(std::sync::Mutex::new("about:blank".to_string())),
+            href: "about:blank".to_string(),
         }
     }
 
     /// Create LocationData with specific href
     pub fn with_href(href: String) -> Self {
-        Self {
-            href: std::sync::Arc::new(std::sync::Mutex::new(href)),
-        }
-    }
-
-    /// Set the href (for navigation URL updates)
-    pub fn set_href(&self, href: &str) {
-        *self.href.lock().unwrap() = href.to_string();
-    }
-
-    /// Get the current href
-    pub fn get_href(&self) -> String {
-        self.href.lock().unwrap().clone()
+        Self { href }
     }
 
     /// Parse URL components from href
     fn parse_url(&self) -> ParsedUrl {
-        let href = self.get_href();
         // Simple URL parsing - in production would use url crate
-        if let Some(protocol_end) = href.find("://") {
-            let protocol = &href[..protocol_end + 1];
-            let rest = &href[protocol_end + 3..];
+        if let Some(protocol_end) = self.href.find("://") {
+            let protocol = &self.href[..protocol_end + 1];
+            let rest = &self.href[protocol_end + 3..];
 
             let (host, path_search_hash) = if let Some(slash_pos) = rest.find('/') {
                 (&rest[..slash_pos], &rest[slash_pos..])
@@ -71,7 +57,7 @@ impl LocationData {
             let (pathname, search, hash) = Self::split_path(path_search_hash);
 
             ParsedUrl {
-                href: href.clone(),
+                href: self.href.clone(),
                 protocol: protocol.to_string(),
                 host: host.to_string(),
                 hostname: host.split(':').next().unwrap_or(host).to_string(),
@@ -79,17 +65,17 @@ impl LocationData {
                 pathname: pathname.to_string(),
                 search: search.to_string(),
                 hash: hash.to_string(),
-                origin: format!("{}://{}", protocol.trim_end_matches(':'), host),
+                origin: format!("{}//{}", protocol.trim_end_matches(':'), host),
             }
         } else {
             // Fallback for invalid URLs
             ParsedUrl {
-                href: href.clone(),
+                href: self.href.clone(),
                 protocol: "".to_string(),
                 host: "".to_string(),
                 hostname: "".to_string(),
                 port: "".to_string(),
-                pathname: href.clone(),
+                pathname: self.href.clone(),
                 search: "".to_string(),
                 hash: "".to_string(),
                 origin: "null".to_string(),
@@ -133,7 +119,7 @@ impl IntrinsicObject for Location {
             .accessor(
                 js_string!("href"),
                 Some(BuiltInBuilder::callable(realm, Self::get_href).name(js_string!("get href")).build()),
-                Some(BuiltInBuilder::callable(realm, Self::set_href).name(js_string!("set href")).build()),
+                None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
@@ -163,19 +149,19 @@ impl IntrinsicObject for Location {
             .accessor(
                 js_string!("pathname"),
                 Some(BuiltInBuilder::callable(realm, Self::get_pathname).name(js_string!("get pathname")).build()),
-                Some(BuiltInBuilder::callable(realm, Self::set_pathname).name(js_string!("set pathname")).build()),
+                None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("search"),
                 Some(BuiltInBuilder::callable(realm, Self::get_search).name(js_string!("get search")).build()),
-                Some(BuiltInBuilder::callable(realm, Self::set_search).name(js_string!("set search")).build()),
+                None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("hash"),
                 Some(BuiltInBuilder::callable(realm, Self::get_hash).name(js_string!("get hash")).build()),
-                Some(BuiltInBuilder::callable(realm, Self::set_hash).name(js_string!("set hash")).build()),
+                None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
@@ -184,10 +170,6 @@ impl IntrinsicObject for Location {
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
-            .method(Self::assign, js_string!("assign"), 1)
-            .method(Self::replace_method, js_string!("replace"), 1)
-            .method(Self::reload, js_string!("reload"), 0)
-            .method(Self::to_string_method, js_string!("toString"), 0)
             .build();
     }
 
@@ -248,7 +230,7 @@ impl Location {
             JsNativeError::typ().with_message("'this' is not a Location object")
         })?;
 
-        Ok(JsValue::from(js_string!(data.get_href())))
+        Ok(JsValue::from(js_string!(data.href.clone())))
     }
 
     /// `location.protocol` getter
@@ -361,97 +343,5 @@ impl Location {
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.origin)))
-    }
-
-    /// `location.href` setter — navigates to the given URL
-    fn set_href(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Location.href setter called on non-object")
-        })?;
-
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
-
-        let url = args.get_or_undefined(0).to_string(context)?;
-        data.set_href(&url.to_std_string_escaped());
-        Ok(JsValue::undefined())
-    }
-
-    /// `location.hash` setter
-    fn set_hash(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Location.hash setter called on non-object")
-        })?;
-
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
-
-        let hash = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let parsed = data.parse_url();
-        let new_hash = if hash.starts_with('#') { hash } else { format!("#{}", hash) };
-        let new_href = format!("{}://{}{}{}{}",
-            parsed.protocol.trim_end_matches(':'), parsed.host, parsed.pathname, parsed.search, new_hash);
-        data.set_href(&new_href);
-        Ok(JsValue::undefined())
-    }
-
-    /// `location.search` setter
-    fn set_search(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Location.search setter called on non-object")
-        })?;
-
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
-
-        let search = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let parsed = data.parse_url();
-        let new_search = if search.starts_with('?') { search } else { format!("?{}", search) };
-        let new_href = format!("{}://{}{}{}{}",
-            parsed.protocol.trim_end_matches(':'), parsed.host, parsed.pathname, new_search, parsed.hash);
-        data.set_href(&new_href);
-        Ok(JsValue::undefined())
-    }
-
-    /// `location.pathname` setter
-    fn set_pathname(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Location.pathname setter called on non-object")
-        })?;
-
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
-
-        let pathname = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let parsed = data.parse_url();
-        let new_href = format!("{}://{}{}{}{}",
-            parsed.protocol.trim_end_matches(':'), parsed.host, pathname, parsed.search, parsed.hash);
-        data.set_href(&new_href);
-        Ok(JsValue::undefined())
-    }
-
-    /// `location.assign(url)` — navigate to URL (adds to history)
-    fn assign(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        Self::set_href(this, args, context)
-    }
-
-    /// `location.replace(url)` — navigate to URL (replaces current entry in history)
-    fn replace_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        Self::set_href(this, args, context)
-    }
-
-    /// `location.reload()` — reloads the current document
-    fn reload(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        // In a headless browser, reload is a no-op
-        Ok(JsValue::undefined())
-    }
-
-    /// `location.toString()` — returns the href
-    fn to_string_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        Self::get_href(this, args, context)
     }
 }

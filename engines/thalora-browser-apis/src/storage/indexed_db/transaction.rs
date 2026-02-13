@@ -452,7 +452,6 @@ impl IDBTransaction {
 impl IntrinsicObject for IDBTransaction {
     fn init(realm: &Realm) {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Properties
             .accessor(
                 js_string!("objectStoreNames"),

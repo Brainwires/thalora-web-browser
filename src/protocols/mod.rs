@@ -9,6 +9,8 @@ pub mod session_manager;
 pub mod display_server;
 pub mod security;
 pub mod rate_limiter;
+#[cfg(feature = "wasm-debug")]
+pub mod wasm_debug_tools;
 
 // Re-exports for clean API
 pub use mcp::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};

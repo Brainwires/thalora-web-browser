@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
-use rquest::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use vfs::fs;

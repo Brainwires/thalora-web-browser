@@ -3,9 +3,9 @@ use url::Url;
 
 impl super::super::HeadlessWebBrowser {
     /// Parse cookies from HTTP response headers
-    /// Note: The shared CookieStoreWrapper handles Set-Cookie headers automatically
+    /// Note: The shared CookieStoreMutex handles Set-Cookie headers automatically
     /// This method is available for manual cookie parsing if needed
-    pub(super) fn parse_cookies(&self, _headers: &rquest::header::HeaderMap) -> Result<()> {
+    pub(super) fn parse_cookies(&self, _headers: &reqwest::header::HeaderMap) -> Result<()> {
         // The cookie_store automatically handles Set-Cookie headers from responses
         // This function exists for backward compatibility and future manual parsing needs
         Ok(())
@@ -27,7 +27,7 @@ impl super::super::HeadlessWebBrowser {
         };
 
         // Lock the cookie store and get matching cookies
-        match self.cookie_store.0.read() {
+        match self.cookie_store.lock() {
             Ok(store) => {
                 store
                     .matches(&url)
@@ -44,7 +44,7 @@ impl super::super::HeadlessWebBrowser {
 
     /// Get all cookies as "name=value" pairs, optionally filtered by domain
     pub fn get_all_cookies(&self) -> Vec<(String, String, String)> {
-        match self.cookie_store.0.read() {
+        match self.cookie_store.lock() {
             Ok(store) => {
                 store
                     .iter_any()
@@ -72,7 +72,7 @@ impl super::super::HeadlessWebBrowser {
             .map_err(|e| anyhow::anyhow!("Invalid domain '{}': {}", domain, e))?;
 
         // Lock the store and parse+insert the cookie
-        let mut store = self.cookie_store.0.write()
+        let mut store = self.cookie_store.lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         store.parse(cookie_str, &url)
@@ -86,7 +86,7 @@ impl super::super::HeadlessWebBrowser {
         let url = Url::parse(&format!("https://{}/", domain))
             .map_err(|e| anyhow::anyhow!("Invalid domain '{}': {}", domain, e))?;
 
-        let mut store = self.cookie_store.0.write()
+        let mut store = self.cookie_store.lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         // Parse each cookie in the header
@@ -101,7 +101,7 @@ impl super::super::HeadlessWebBrowser {
 
     /// Clear all cookies
     pub fn clear_cookies(&mut self) -> Result<()> {
-        let mut store = self.cookie_store.0.write()
+        let mut store = self.cookie_store.lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         store.clear();
@@ -113,7 +113,7 @@ impl super::super::HeadlessWebBrowser {
         let url = Url::parse(&format!("https://{}/", domain))
             .map_err(|e| anyhow::anyhow!("Invalid domain '{}': {}", domain, e))?;
 
-        let mut store = self.cookie_store.0.write()
+        let mut store = self.cookie_store.lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         // Get cookies matching the domain and remove them
@@ -140,7 +140,7 @@ impl super::super::HeadlessWebBrowser {
     pub fn get_cookie_header(&self, url_str: &str) -> Option<String> {
         let url = Url::parse(url_str).ok()?;
 
-        let store = self.cookie_store.0.read().ok()?;
+        let store = self.cookie_store.lock().ok()?;
         let cookies: Vec<_> = store
             .matches(&url)
             .iter()

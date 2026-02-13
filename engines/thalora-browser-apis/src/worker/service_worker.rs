@@ -97,7 +97,6 @@ impl IntrinsicObject for ServiceWorker {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             // Instance methods
             .method(Self::post_message, js_string!("postMessage"), 1)
             // Instance properties

@@ -30,7 +30,6 @@ impl IntrinsicObject for AbortSignal {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
             .accessor(
                 js_string!("aborted"),
                 Some(aborted_getter),

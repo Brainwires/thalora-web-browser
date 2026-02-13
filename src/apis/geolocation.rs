@@ -206,43 +206,38 @@ impl GeolocationManager {
 
     /// Real IP geolocation lookup using free ip-api.com service
     fn ip_geolocation() -> Result<(f64, f64)> {
-        use thalora_browser_apis::http_blocking::block_on_compat;
-
+        // Use blocking HTTP client for synchronous geolocation lookup
         // ip-api.com is free for non-commercial use, no API key required
-        block_on_compat(async {
-            let client = rquest::Client::builder()
-                .timeout(std::time::Duration::from_secs(5))
-                .build()
-                .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))?;
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))?;
 
-            let response = client
-                .get("http://ip-api.com/json/?fields=status,lat,lon")
-                .send()
-                .await
-                .map_err(|e| anyhow::anyhow!("IP geolocation request failed: {}", e))?;
+        let response = client
+            .get("http://ip-api.com/json/?fields=status,lat,lon")
+            .send()
+            .map_err(|e| anyhow::anyhow!("IP geolocation request failed: {}", e))?;
 
-            if !response.status().is_success() {
-                return Err(anyhow::anyhow!("IP geolocation service returned error: {}", response.status()));
-            }
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!("IP geolocation service returned error: {}", response.status()));
+        }
 
-            let json: serde_json::Value = response.json()
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to parse geolocation response: {}", e))?;
+        let json: serde_json::Value = response.json()
+            .map_err(|e| anyhow::anyhow!("Failed to parse geolocation response: {}", e))?;
 
-            // Check status
-            if json.get("status").and_then(|s: &serde_json::Value| s.as_str()) != Some("success") {
-                return Err(anyhow::anyhow!("IP geolocation failed: status not success"));
-            }
+        // Check status
+        if json.get("status").and_then(|s: &serde_json::Value| s.as_str()) != Some("success") {
+            return Err(anyhow::anyhow!("IP geolocation failed: status not success"));
+        }
 
-            let lat = json.get("lat")
-                .and_then(|v: &serde_json::Value| v.as_f64())
-                .ok_or_else(|| anyhow::anyhow!("Missing latitude in response"))?;
+        let lat = json.get("lat")
+            .and_then(|v: &serde_json::Value| v.as_f64())
+            .ok_or_else(|| anyhow::anyhow!("Missing latitude in response"))?;
 
-            let lon = json.get("lon")
-                .and_then(|v: &serde_json::Value| v.as_f64())
-                .ok_or_else(|| anyhow::anyhow!("Missing longitude in response"))?;
+        let lon = json.get("lon")
+            .and_then(|v: &serde_json::Value| v.as_f64())
+            .ok_or_else(|| anyhow::anyhow!("Missing longitude in response"))?;
 
-            Ok((lat, lon))
-        })
+        Ok((lat, lon))
     }
 }
