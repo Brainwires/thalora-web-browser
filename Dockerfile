@@ -1,27 +1,24 @@
-# Stage 1: Build
-FROM rust:1.84-bookworm AS builder
+# Stage 1: Build with lean mcp-server feature (no FFmpeg/audio/video/WebRTC/wasmtime)
+FROM rust:1.91.0-bookworm AS builder
 
-RUN apt-get update && apt-get install -y \
-    cmake pkg-config libclang-dev clang nasm perl \
-    libavcodec-dev libavformat-dev libavutil-dev \
-    libswscale-dev libavdevice-dev libasound2-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake pkg-config clang nasm perl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 COPY . .
-RUN cargo build
+RUN cargo build --release --no-default-features --features mcp-server \
+    && strip target/release/thalora
 
-# Stage 2: Runtime (binary only, no source code)
+# Stage 2: Minimal runtime (binary only, no source code)
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
-    libavcodec59 libavformat59 libavutil57 \
-    libswscale6 libavdevice59 libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m thalora
-COPY --from=builder /build/target/debug/thalora /usr/local/bin/thalora
+COPY --from=builder /build/target/release/thalora /usr/local/bin/thalora
 
 USER thalora
 EXPOSE 8080

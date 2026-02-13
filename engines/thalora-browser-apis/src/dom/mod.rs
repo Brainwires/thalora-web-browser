@@ -17,7 +17,7 @@ pub mod html_script_element;
 pub mod html_iframe_element;
 
 // Native-only implementations using rquest
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod html_image_element;
 
 // WASM stubs - browser's native APIs are used directly

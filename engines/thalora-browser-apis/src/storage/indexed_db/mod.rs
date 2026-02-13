@@ -12,7 +12,7 @@ pub mod cursor;
 pub mod database;
 
 // Native factory uses Sled backend
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod factory;
 
 // WASM factory stub - browser's native IndexedDB is used directly

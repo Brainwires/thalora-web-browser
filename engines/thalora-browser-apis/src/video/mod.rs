@@ -17,4 +17,5 @@ pub use html_video_element_wasm as html_video_element;
 mod tests;
 
 // Re-exports
+#[cfg(any(feature = "native", feature = "wasm"))]
 pub use html_video_element::HTMLVideoElement;

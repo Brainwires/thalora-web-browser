@@ -12,13 +12,13 @@ use std::collections::HashMap;
 pub mod memory;
 
 // Sled backend only for native builds
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod sled_backend;
 
 // Re-export backend implementations
 pub use memory::MemoryBackend;
 
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub use sled_backend::SledBackend;
 
 /// Transaction mode

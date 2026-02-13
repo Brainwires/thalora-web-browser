@@ -54,7 +54,9 @@ pub use context2_wasm as context2;
 mod tests;
 
 // Re-exports at module level
+#[cfg(any(feature = "native", feature = "wasm"))]
 pub use context::WebGLRenderingContext;
+#[cfg(any(feature = "native", feature = "wasm"))]
 pub use context2::WebGL2RenderingContext;
 #[cfg(feature = "native")]
 pub use context::{WebGLFingerprint, set_webgl_fingerprint, get_webgl_fingerprint};

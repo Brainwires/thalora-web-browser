@@ -1,7 +1,7 @@
 pub mod types;
 
 // Browser core is only available for native builds (requires reqwest, tokio, etc.)
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(any(feature = "native", feature = "web-search", feature = "mcp-server"))]
 pub mod core;
 
 pub mod scraper;
@@ -15,7 +15,7 @@ pub use thalora_constants::USER_AGENT;
 pub use types::*;
 
 // Re-export browser for native builds only
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(any(feature = "native", feature = "web-search", feature = "mcp-server"))]
 pub use core::HeadlessWebBrowser;
 
 pub use form_analyzer::{FormAnalyzer, FormInfo};

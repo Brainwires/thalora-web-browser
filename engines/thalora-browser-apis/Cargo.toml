@@ -9,8 +9,12 @@ license = "MIT"
 [features]
 default = ["native"]
 
+# Internal: core native platform flag — used in cfg checks, no deps of its own
+_native-core = []
+
 # Native build - includes tokio, rquest, wasmtime, etc.
 native = [
+    "_native-core",
     "dep:tokio",
     "dep:tokio-tungstenite",
     "dep:rquest",
@@ -23,6 +27,18 @@ native = [
     "dep:symphonia",
     "dep:wgpu",
     "dep:naga",
+    "boa_engine/native",
+]
+
+# Lean native build for MCP server — no audio, video, WebRTC, wasmtime, wgpu
+native-lean = [
+    "_native-core",
+    "dep:tokio",
+    "dep:tokio-tungstenite",
+    "dep:rquest",
+    "dep:rquest-util",
+    "dep:sled",
+    "dep:dirs",
     "boa_engine/native",
 ]
 

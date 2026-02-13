@@ -2556,7 +2556,7 @@ fn get_session_storage(_this: &JsValue, _args: &[JsValue], context: &mut Context
 }
 
 /// `window.indexedDB` getter
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     use crate::storage::indexed_db::factory::IDBFactory;
 
@@ -2576,7 +2576,7 @@ fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
 }
 
 /// `window.indexedDB` getter (WASM version - stub)
-#[cfg(not(feature = "native"))]
+#[cfg(not(feature = "_native-core"))]
 fn get_indexed_db(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     // In WASM, we use the browser's native IndexedDB
     Ok(JsValue::undefined())

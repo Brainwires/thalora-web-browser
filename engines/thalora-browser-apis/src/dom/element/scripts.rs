@@ -280,7 +280,7 @@ pub fn execute_script_element(script_obj: &JsObject, context: &mut Context) -> J
 
 /// Fetch and execute an external script.
 /// Returns `true` on success, `false` on fetch or execution failure.
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 fn execute_external_script(url: &str, context: &mut Context) -> bool {
     use crate::http_blocking::{get_shared_client, block_on_compat};
     use url::Url;
@@ -393,7 +393,7 @@ fn execute_external_script(url: &str, context: &mut Context) -> bool {
     }
 }
 
-#[cfg(not(feature = "native"))]
+#[cfg(not(feature = "_native-core"))]
 fn execute_external_script(_url: &str, _context: &mut Context) -> bool {
     eprintln!("DEBUG: External script execution not supported in WASM mode");
     false

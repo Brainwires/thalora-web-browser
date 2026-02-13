@@ -539,7 +539,7 @@ impl Navigator {
 
         // Spawn async task to send the beacon
         // The key behavior of sendBeacon is that it returns immediately and sends in the background
-        #[cfg(feature = "native")]
+        #[cfg(feature = "_native-core")]
         {
             let url_clone = url_str.clone();
             let content_type_owned = content_type.to_string();

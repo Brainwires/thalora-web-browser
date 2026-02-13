@@ -1,7 +1,7 @@
 // Advanced browser features
 
 // Native-only: fingerprinting uses reqwest
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(any(feature = "native", feature = "web-search", feature = "mcp-server"))]
 pub mod fingerprinting;
 #[cfg(feature = "wasm")]
 pub mod fingerprinting_wasm;
@@ -19,7 +19,7 @@ pub mod event_dispatcher;
 pub mod solver;
 
 // Native-only: ai_memory uses dirs crate for filesystem paths
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(any(feature = "native", feature = "web-search", feature = "mcp-server"))]
 pub mod ai_memory;
 #[cfg(feature = "wasm")]
 pub mod ai_memory_wasm;
@@ -30,11 +30,11 @@ pub use ai_memory_wasm as ai_memory;
 pub mod readability;
 
 // Re-exports for clean API
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(any(feature = "native", feature = "web-search", feature = "mcp-server"))]
 pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use webgl::WebGLManager;
 // webassembly types are now handled by Boa engine
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(any(feature = "native", feature = "web-search", feature = "mcp-server"))]
 pub use ai_memory::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 pub use readability::{ReadabilityEngine, ReadabilityConfig, QualityMetrics, ExtractionResult, ExtractionOptions, OutputFormat};
 

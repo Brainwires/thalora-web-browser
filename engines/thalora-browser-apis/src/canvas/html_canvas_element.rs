@@ -338,26 +338,36 @@ fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
             Ok(ctx_generic.into())
         }
         "webgl" | "experimental-webgl" => {
-            // Create WebGL 1.0 context using the existing implementation
-            let width = canvas_data.get_width();
-            let height = canvas_data.get_height();
-            let webgl_ctx = crate::webgl::WebGLRenderingContext::create_context(width, height, context)?;
+            #[cfg(feature = "native")]
+            {
+                // Create WebGL 1.0 context using the existing implementation
+                let width = canvas_data.get_width();
+                let height = canvas_data.get_height();
+                let webgl_ctx = crate::webgl::WebGLRenderingContext::create_context(width, height, context)?;
 
-            // Set the canvas back-reference on the context
-            webgl_ctx.set(js_string!("canvas"), this.clone(), false, context)?;
+                // Set the canvas back-reference on the context
+                webgl_ctx.set(js_string!("canvas"), this.clone(), false, context)?;
 
-            Ok(webgl_ctx.into())
+                Ok(webgl_ctx.into())
+            }
+            #[cfg(not(feature = "native"))]
+            Ok(JsValue::null())
         }
         "webgl2" | "experimental-webgl2" => {
-            // Create WebGL 2.0 context using the existing implementation
-            let width = canvas_data.get_width();
-            let height = canvas_data.get_height();
-            let webgl2_ctx = crate::webgl::WebGL2RenderingContext::create_context(width, height, context)?;
+            #[cfg(feature = "native")]
+            {
+                // Create WebGL 2.0 context using the existing implementation
+                let width = canvas_data.get_width();
+                let height = canvas_data.get_height();
+                let webgl2_ctx = crate::webgl::WebGL2RenderingContext::create_context(width, height, context)?;
 
-            // Set the canvas back-reference on the context
-            webgl2_ctx.set(js_string!("canvas"), this.clone(), false, context)?;
+                // Set the canvas back-reference on the context
+                webgl2_ctx.set(js_string!("canvas"), this.clone(), false, context)?;
 
-            Ok(webgl2_ctx.into())
+                Ok(webgl2_ctx.into())
+            }
+            #[cfg(not(feature = "native"))]
+            Ok(JsValue::null())
         }
         "bitmaprenderer" => {
             // ImageBitmapRenderingContext - return null for now

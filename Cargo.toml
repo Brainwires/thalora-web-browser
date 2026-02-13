@@ -401,13 +401,17 @@ web-sys = { version = "0.3", features = [
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
-required-features = ["native"]
+required-features = ["_bin"]
 
 [features]
 default = ["native"]
 
+# Internal feature: allows the binary target to build (activated by native or mcp-server)
+_bin = ["dep:clap"]
+
 # Native build - includes all platform-specific dependencies
 native = [
+    "_bin",
     "dep:tokio",
     "dep:rquest",
     "dep:rquest-util",
@@ -416,7 +420,6 @@ native = [
     "dep:tokio-tungstenite",
     "dep:tungstenite",
     "dep:tokio-util",
-    "dep:clap",
     "dep:cpal",
     "dep:hound",
     "dep:symphonia",
@@ -477,6 +480,27 @@ web-search = [
     # Enable native features in sub-crates
     "thalora-browser-apis/native",
     "boa_engine/native",
+]
+
+# Lean MCP server build for Docker — web scraping + JS engine + HTTP transport
+# No FFmpeg, audio, video, WebRTC, wasmtime, or wgpu
+mcp-server = [
+    "_bin",
+    "dep:tokio",
+    "dep:rquest",
+    "dep:rquest-util",
+    "dep:cookie_store",
+    "dep:cookie",
+    "dep:tokio-util",
+    "dep:tokio-tungstenite",
+    "dep:tungstenite",
+    "dep:dirs",
+    "dep:axum",
+    "dep:tower-http",
+    # Lean sub-crate: no audio/video/WebRTC/wasmtime/wgpu
+    "thalora-browser-apis/native-lean",
+    "boa_engine/native",
+    "boa_engine/temporal",
 ]
 
 [dev-dependencies]

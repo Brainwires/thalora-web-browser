@@ -17,11 +17,11 @@ pub mod dom;
 pub mod fetch;
 
 // Blocking HTTP client (rquest doesn't have a blocking module)
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod http_blocking;
 
 // HTTP-based ES Module Loader (enables <script type="module"> support)
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod http_module_loader;
 
 // Storage APIs
@@ -162,16 +162,23 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     canvas::rendering_context_2d::CanvasRenderingContext2D::init(&realm);
     canvas::offscreen_canvas::OffscreenCanvas::init(&realm);
 
-    // Initialize Audio APIs
-    audio::html_audio_element::HTMLAudioElement::init(&realm);
-    audio::audio_context::AudioContext::init(&realm);
+    // Initialize Audio APIs (native only — requires rodio)
+    #[cfg(feature = "native")]
+    {
+        audio::html_audio_element::HTMLAudioElement::init(&realm);
+        audio::audio_context::AudioContext::init(&realm);
+    }
 
-    // Initialize Video APIs
+    // Initialize Video APIs (native only)
+    #[cfg(feature = "native")]
     video::html_video_element::HTMLVideoElement::init(&realm);
 
-    // Initialize WebGL APIs
-    webgl::context::WebGLRenderingContext::init(&realm);
-    webgl::context2::WebGL2RenderingContext::init(&realm);
+    // Initialize WebGL APIs (native only — requires wgpu)
+    #[cfg(feature = "native")]
+    {
+        webgl::context::WebGLRenderingContext::init(&realm);
+        webgl::context2::WebGL2RenderingContext::init(&realm);
+    }
 
     // Initialize Browser APIs
     browser::navigator::Navigator::init(&realm);
@@ -255,11 +262,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     web_components::html_template_element::HTMLTemplateElement::init(context);
 
     // Initialize Worker APIs
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     worker::worker::WorkerConstructor::init(&realm);
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     worker::service_worker::ServiceWorker::init(&realm);
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     worker::service_worker_container::ServiceWorkerContainer::init(&realm);
 
     // Initialize Fetch APIs
@@ -268,7 +275,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     fetch::fetch::Response::init(&realm);
     fetch::fetch::Headers::init(&realm);
     fetch::xmlhttprequest::XmlHttpRequest::init(&realm);
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     fetch::websocket::WebSocket::init(&realm);
 
     // Register browser APIs as global properties
@@ -490,7 +497,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     )?;
 
     // WebSocket constructor
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     global_object.define_property_or_throw(
         fetch::websocket::WebSocket::NAME,
         PropertyDescriptor::builder()
@@ -1074,40 +1081,44 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // Audio APIs
-    global_object.define_property_or_throw(
-        audio::html_audio_element::HTMLAudioElement::NAME,
-        PropertyDescriptor::builder()
-            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
+    // Audio APIs (native only — requires rodio)
+    #[cfg(feature = "native")]
+    {
+        global_object.define_property_or_throw(
+            audio::html_audio_element::HTMLAudioElement::NAME,
+            PropertyDescriptor::builder()
+                .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+                .writable(true)
+                .enumerable(false)
+                .configurable(true),
+            context,
+        )?;
 
-    // Also expose as "Audio" constructor for compatibility with `new Audio()`
-    global_object.define_property_or_throw(
-        js_string!("Audio"),
-        PropertyDescriptor::builder()
-            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
+        // Also expose as "Audio" constructor for compatibility with `new Audio()`
+        global_object.define_property_or_throw(
+            js_string!("Audio"),
+            PropertyDescriptor::builder()
+                .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+                .writable(true)
+                .enumerable(false)
+                .configurable(true),
+            context,
+        )?;
 
-    // AudioContext - Web Audio API
-    global_object.define_property_or_throw(
-        audio::audio_context::AudioContext::NAME,
-        PropertyDescriptor::builder()
-            .value(audio::audio_context::AudioContext::get(context.intrinsics()))
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
+        // AudioContext - Web Audio API
+        global_object.define_property_or_throw(
+            audio::audio_context::AudioContext::NAME,
+            PropertyDescriptor::builder()
+                .value(audio::audio_context::AudioContext::get(context.intrinsics()))
+                .writable(true)
+                .enumerable(false)
+                .configurable(true),
+            context,
+        )?;
+    }
 
-    // Video APIs
+    // Video APIs (native only)
+    #[cfg(feature = "native")]
     global_object.define_property_or_throw(
         video::html_video_element::HTMLVideoElement::NAME,
         PropertyDescriptor::builder()
@@ -1119,7 +1130,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     )?;
 
     // Worker APIs (native only)
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     global_object.define_property_or_throw(
         worker::worker::WorkerConstructor::NAME,
         PropertyDescriptor::builder()
@@ -1130,7 +1141,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    #[cfg(feature = "native")]
+    #[cfg(feature = "_native-core")]
     global_object.define_property_or_throw(
         worker::service_worker::ServiceWorker::NAME,
         PropertyDescriptor::builder()
@@ -1168,28 +1179,31 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // WebGL constructors (with static constants per Web spec)
-    let webgl_constructor = webgl::WebGLRenderingContext::create_global_constructor(context)?;
-    global_object.define_property_or_throw(
-        js_string!("WebGLRenderingContext"),
-        PropertyDescriptor::builder()
-            .value(webgl_constructor)
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
+    // WebGL constructors (native only — requires wgpu)
+    #[cfg(feature = "native")]
+    {
+        let webgl_constructor = webgl::WebGLRenderingContext::create_global_constructor(context)?;
+        global_object.define_property_or_throw(
+            js_string!("WebGLRenderingContext"),
+            PropertyDescriptor::builder()
+                .value(webgl_constructor)
+                .writable(true)
+                .enumerable(false)
+                .configurable(true),
+            context,
+        )?;
 
-    let webgl2_constructor = webgl::WebGL2RenderingContext::create_global_constructor(context)?;
-    global_object.define_property_or_throw(
-        js_string!("WebGL2RenderingContext"),
-        PropertyDescriptor::builder()
-            .value(webgl2_constructor)
-            .writable(true)
-            .enumerable(false)
-            .configurable(true),
-        context,
-    )?;
+        let webgl2_constructor = webgl::WebGL2RenderingContext::create_global_constructor(context)?;
+        global_object.define_property_or_throw(
+            js_string!("WebGL2RenderingContext"),
+            PropertyDescriptor::builder()
+                .value(webgl2_constructor)
+                .writable(true)
+                .enumerable(false)
+                .configurable(true),
+            context,
+        )?;
+    }
 
     global_object.define_property_or_throw(
         storage::storage::Storage::NAME,

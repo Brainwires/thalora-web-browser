@@ -47,7 +47,7 @@ mod encryption {
     /// Uses platform-appropriate secure location.
     fn get_secret_path() -> PathBuf {
         // Try to use a secure location (native builds only)
-        #[cfg(feature = "native")]
+        #[cfg(feature = "_native-core")]
         {
             if let Some(data_dir) = dirs::data_local_dir() {
                 return data_dir.join("thalora").join(".session_secret");

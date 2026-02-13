@@ -876,7 +876,7 @@ pub fn load_iframe_content(
 }
 
 /// Fetch URL content using blocking HTTP client
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 fn fetch_iframe_url(url: &str) -> Result<String, String> {
     use crate::http_blocking::BlockingClient;
     use std::time::Duration;
@@ -896,7 +896,7 @@ fn fetch_iframe_url(url: &str) -> Result<String, String> {
         .map_err(|e| format!("Failed to read response body: {}", e))
 }
 
-#[cfg(not(feature = "native"))]
+#[cfg(not(feature = "_native-core"))]
 fn fetch_iframe_url(_url: &str) -> Result<String, String> {
     // In WASM, we can't make blocking HTTP requests
     Err("Iframe src loading not available in WASM mode".to_string())

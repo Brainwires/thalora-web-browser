@@ -1,11 +1,11 @@
 //! Fetch & Networking APIs
 
 // Native implementations using rquest/tokio
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod event_source;
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod fetch;
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod xmlhttprequest;
 
 // WASM stubs - browser's native APIs are used directly
@@ -25,9 +25,9 @@ pub use fetch_wasm as fetch;
 pub use xmlhttprequest_wasm as xmlhttprequest;
 
 // WebSocket implementations - native uses tokio-tungstenite, WASM uses web-sys
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod websocket;
-#[cfg(feature = "native")]
+#[cfg(feature = "_native-core")]
 pub mod websocket_stream;
 
 // WASM WebSocket stubs (web-sys WebSocket is used directly in JavaScript)
