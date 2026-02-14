@@ -189,20 +189,22 @@ web-sys = { version = "0.3", features = [
 [[bin]]
 name = "thalora"
 path = "src/main.rs"
-required-features = ["native"]
+required-features = ["_bin"]
 
 [features]
 default = ["native"]
 
+# Internal feature for binary builds (gates clap + tokio-util)
+_bin = ["dep:clap", "dep:tokio-util"]
+
 # Native build - includes all platform-specific dependencies
 native = [
+    "_bin",
     "dep:tokio",
     "dep:reqwest",
     "dep:reqwest_cookie_store",
     "dep:tokio-tungstenite",
     "dep:tungstenite",
-    "dep:tokio-util",
-    "dep:clap",
     "dep:cpal",
     "dep:hound",
     "dep:symphonia",
@@ -249,10 +251,10 @@ wasm-debug = ["native", "dep:wasmprinter"]
 
 # Minimal build for web search/scraping only (no audio, video, WebRTC, wasmtime)
 web-search = [
+    "_bin",
     "dep:tokio",
     "dep:reqwest",
     "dep:reqwest_cookie_store",
-    "dep:tokio-util",
     "dep:dirs",
     # Enable native features in sub-crates
     "thalora-browser-apis/native",

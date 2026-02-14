@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 COPY . .
-RUN cargo build --release --no-default-features --features mcp-server \
+RUN cargo build --release --no-default-features --features web-search \
     && strip target/release/thalora
 
 # Stage 2: Minimal runtime (binary only, no source code)
