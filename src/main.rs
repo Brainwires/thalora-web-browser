@@ -207,10 +207,11 @@ async fn main() -> Result<()> {
             }
         }
         None => {
-            // Run as MCP server (default mode)
+            // Run as MCP server (default mode - minimal unless THALORA_MCP_MODE is set)
+            let mcp_mode = std::env::var("THALORA_MCP_MODE").unwrap_or_else(|_| "minimal".to_string());
             // SAFETY: This is called at program startup before any threads are spawned
-            unsafe { std::env::set_var("THALORA_MCP_MODE", "minimal") };
-            eprintln!("🚀 Starting Thalora MCP Server in 'minimal' mode");
+            unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
+            eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
 
             let mut server = McpServer::new_with_engine(engine_config);
 

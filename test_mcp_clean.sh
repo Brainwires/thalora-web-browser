@@ -9,7 +9,7 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | env T
 
 echo
 echo "🎯 Test 2: Scrape form test page"
-echo '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "scrape", "arguments": {"url": "https://www.twologs.com/en/resources/formtest.asp"}}}' | env THALORA_SILENT=1 ./target/release/thalora 2>/dev/null | jq -r '.content[0].title // "No title found"'
+echo '{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "snapshot_url", "arguments": {"url": "https://www.twologs.com/en/resources/formtest.asp"}}}' | env THALORA_SILENT=1 ./target/release/thalora 2>/dev/null | jq -r '.content[0].title // "No title found"'
 
 echo
 echo "🎯 Test 3: Extract form fields using selector"

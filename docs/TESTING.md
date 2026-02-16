@@ -123,7 +123,7 @@ harness.initialize()?;
 let tools = harness.list_tools()?;
 
 // Call a tool
-let response = harness.call_tool("scrape_url", json!({
+let response = harness.call_tool("snapshot_url", json!({
     "url": "https://example.com",
     "wait_for_js": false
 }))?;
@@ -172,7 +172,7 @@ The test suite validates all 17+ MCP tools:
 - `ai_memory_search_research` - Search research by query and tags
 
 ### Web Scraping Tools
-- `scrape_url` - Extract content from web pages
+- `snapshot_url` - Capture point-in-time page snapshot
 - `google_search` - Search Google and return results
 
 ### Browser Automation Tools
@@ -222,7 +222,7 @@ The test suite validates all 17+ MCP tools:
 3. **Network-Dependent Test Failures**
    ```bash
    # Test with increased timeouts
-   cargo test test_scrape_url -- --nocapture
+   cargo test test_snapshot_url -- --nocapture
    ```
 
 4. **Permission Issues**

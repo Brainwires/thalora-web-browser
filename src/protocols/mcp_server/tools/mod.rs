@@ -141,11 +141,20 @@ impl McpServer {
         // Clone `arguments` for the call so we can still inspect the original after the call (lifecycle checks).
         let args_for_call = arguments.clone();
 
-        // Execute the tool with proper error handling and logging
+        // Execute the tool with proper error handling, logging, and timeout
         let start_time = std::time::Instant::now();
         eprintln!("🔧 Starting tool execution: {}", name);
 
-        let resp = self.route_tool_call(&name, args_for_call).await;
+        let resp = match tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            self.route_tool_call(&name, args_for_call),
+        ).await {
+            Ok(response) => response,
+            Err(_) => {
+                eprintln!("⚠️ Tool {} timed out after 60 seconds", name);
+                McpResponse::error(-32000, format!("Tool '{}' timed out after 60 seconds", name))
+            }
+        };
 
         let elapsed = start_time.elapsed();
         eprintln!("🔧 Tool execution completed: {} (took {:?})", name, elapsed);

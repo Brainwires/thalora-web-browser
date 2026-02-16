@@ -29,7 +29,7 @@ serde_json = "1.0"
 tokio = { version = "1", features = ["full"], optional = true }
 
 # HTTP client (native only)
-reqwest = { version = "0.12", features = ["json", "native-tls", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart", "blocking"], default-features = false, optional = true }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "brotli", "deflate", "cookies", "http2", "stream", "multipart", "blocking"], default-features = false, optional = true }
 
 # HTML parsing
 scraper = "0.24"
@@ -60,7 +60,7 @@ wasmprinter = { version = "0.2", optional = true }
 
 # Geolocation services (native only)
 sysinfo = { version = "0.31", optional = true }
-ipgeolocate = { version = "0.3", optional = true }
+# ipgeolocate removed - was unused and its reqwest 0.11 default-tls conflicted with BoringSSL from rquest
 
 # WebRTC implementation (native only)
 webrtc = { version = "0.11", optional = true }
@@ -126,7 +126,7 @@ html-escape = "0.2"
 uuid = { version = "1.0", features = ["v4", "js"] }
 
 # WebSocket implementation (native only)
-tokio-tungstenite = { version = "0.20", features = ["native-tls"], optional = true }
+tokio-tungstenite = { version = "0.20", features = ["rustls-tls-native-roots"], optional = true }
 tungstenite = { version = "0.20", optional = true }
 futures-util = "0.3"
 
@@ -217,7 +217,6 @@ native = [
     "dep:webrtc-ice",
     "dep:webrtc-dtls",
     "dep:sysinfo",
-    "dep:ipgeolocate",
     "dep:dirs",
     "dep:wasmtime",
     "dep:wasmtime-wasi",

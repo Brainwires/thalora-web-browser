@@ -84,7 +84,7 @@ main() {
     echo ""
 
     # Test 3: Core Tool Functionality
-    if ! run_test_category "test_ai_memory\|test_scrape_url\|test_cdp_runtime" "Core Tool Functionality Tests"; then
+    if ! run_test_category "test_ai_memory\|test_snapshot_url\|test_cdp_runtime" "Core Tool Functionality Tests"; then
         ((failed_tests++))
     fi
     echo ""

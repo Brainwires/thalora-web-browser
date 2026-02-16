@@ -23,6 +23,8 @@ pub struct McpTestConfig {
 impl Default for McpTestConfig {
     fn default() -> Self {
         let mut env_vars = std::collections::HashMap::new();
+        // Use full mode for testing (default is minimal which only exposes 2 tools)
+        env_vars.insert("THALORA_MCP_MODE".to_string(), "full".to_string());
         // Enable all tool categories by default for testing (since they default to disabled in production)
         env_vars.insert("THALORA_ENABLE_AI_MEMORY".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_CDP".to_string(), "true".to_string());

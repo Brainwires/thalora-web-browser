@@ -11,8 +11,8 @@ use crate::protocols::security::{
 use super::extraction;
 
 impl McpServer {
-    /// Unified scraping function that combines all scraping capabilities
-    pub(in crate::protocols::mcp_server) async fn scrape_unified(&mut self, arguments: Value) -> McpResponse {
+    /// Capture a point-in-time snapshot of a web page with all extraction capabilities
+    pub(in crate::protocols::mcp_server) async fn handle_snapshot_url(&mut self, arguments: Value) -> McpResponse {
         let url = arguments["url"].as_str();
         let session_id = arguments.get("session_id").and_then(|v| v.as_str());
 
@@ -55,6 +55,11 @@ impl McpServer {
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_else(|| vec!["tables", "lists", "code_blocks", "metadata"]);
 
+        // Output size limit
+        let max_output_size = arguments.get("max_output_size")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(50_000) as usize;
+
         // Pagination options (for future implementation)
         let _follow_pagination = arguments.get("follow_pagination").and_then(|v| v.as_bool()).unwrap_or(false);
         let _max_pages = arguments.get("max_pages").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
@@ -66,73 +71,73 @@ impl McpServer {
                 return McpResponse::error(-32602, format!("URL blocked for security: {}", e));
             }
 
-            eprintln!("🔍 SCRAPE: Starting navigation to URL: {}", url_str);
+            eprintln!("🔍 SNAPSHOT: Starting navigation to URL: {}", url_str);
             // Create temporary browser or use session
             let temp_browser = if let Some(sid) = session_id {
                 // Try to get existing session browser
                 if let Some(session_browser) = self.browser_tools.get_session_browser(sid) {
-                    eprintln!("🔍 SCRAPE: Using existing session browser for session: {}", sid);
+                    eprintln!("🔍 SNAPSHOT: Using existing session browser for session: {}", sid);
                     session_browser
                 } else {
-                    eprintln!("🔍 SCRAPE: Session {} not found, creating new browser", sid);
+                    eprintln!("🔍 SNAPSHOT: Session {} not found, creating new browser", sid);
                     crate::engine::browser::HeadlessWebBrowser::new()
                 }
             } else {
-                eprintln!("🔍 SCRAPE: Creating temporary browser");
+                eprintln!("🔍 SNAPSHOT: Creating temporary browser");
                 crate::engine::browser::HeadlessWebBrowser::new()
             };
 
-            eprintln!("🔍 SCRAPE: Browser created");
+            eprintln!("🔍 SNAPSHOT: Browser created");
 
             // Navigate to URL
             {
-                eprintln!("🔍 SCRAPE: Acquiring browser lock for navigation");
+                eprintln!("🔍 SNAPSHOT: Acquiring browser lock for navigation");
                 let mut browser = match temp_browser.lock() {
                     Ok(b) => {
-                        eprintln!("🔍 SCRAPE: Browser lock acquired");
+                        eprintln!("🔍 SNAPSHOT: Browser lock acquired");
                         b
                     }
                     Err(_) => {
-                        eprintln!("🔍 SCRAPE: Failed to acquire browser lock");
+                        eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock");
                         return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
                     }
                 };
 
-                eprintln!("🔍 SCRAPE: Calling navigate_to_with_options");
+                eprintln!("🔍 SNAPSHOT: Calling navigate_to_with_options");
                 match browser.navigate_to_with_options(url_str, wait_for_js).await {
                     Ok(_) => {
-                        eprintln!("🔍 SCRAPE: Navigation successful");
+                        eprintln!("🔍 SNAPSHOT: Navigation successful");
                     },
                     Err(e) => {
-                        eprintln!("🔍 SCRAPE: Navigation failed: {}", e);
+                        eprintln!("🔍 SNAPSHOT: Navigation failed: {}", e);
                         return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e));
                     }
                 }
             }
 
-            eprintln!("🔍 SCRAPE: Getting HTML content");
+            eprintln!("🔍 SNAPSHOT: Getting HTML content");
             // Get HTML content
             let html = {
                 let browser = match temp_browser.lock() {
                     Ok(b) => b,
                     Err(_) => {
-                        eprintln!("🔍 SCRAPE: Failed to acquire browser lock for content");
+                        eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock for content");
                         return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
                     }
                 };
                 browser.get_current_content()
             };
 
-            eprintln!("🔍 SCRAPE: HTML content retrieved, dropping browser");
+            eprintln!("🔍 SNAPSHOT: HTML content retrieved, dropping browser");
             // Explicitly drop browser after getting content (Drop impl will handle cleanup)
             drop(temp_browser);
-            eprintln!("🔍 SCRAPE: Browser dropped");
+            eprintln!("🔍 SNAPSHOT: Browser dropped");
 
             html
         } else {
             // Get content from existing session
             let session_id_str = session_id.unwrap(); // We know it exists from earlier check
-            eprintln!("🔍 SCRAPE: Getting content from session: {}", session_id_str);
+            eprintln!("🔍 SNAPSHOT: Getting content from session: {}", session_id_str);
 
             match self.browser_tools.get_session_browser(session_id_str) {
                 Some(browser) => {
@@ -145,7 +150,7 @@ impl McpServer {
                                     format!("Session '{}' has no content. Navigate to a URL first.", session_id_str)
                                 );
                             }
-                            eprintln!("🔍 SCRAPE: Got {} chars from session", content.len());
+                            eprintln!("🔍 SNAPSHOT: Got {} chars from session", content.len());
                             content
                         }
                         Err(_) => {
@@ -249,7 +254,76 @@ impl McpServer {
             result["by_selector"] = Value::Object(selector_results);
         }
 
-        // 3. Extract readable content using readability algorithms
+        // 3. Extract structured content (tables, lists, code blocks)
+        //    Done BEFORE readable extraction so structured data is available as fallback
+        let mut structured_data: Option<Value> = None;
+
+        if extract_structured || extract_readable {
+            // When extract_readable is requested, we auto-extract tables + lists
+            // for fallback purposes even if extract_structured wasn't explicitly requested
+            let mut structured = serde_json::json!({});
+
+            let types_to_extract = if extract_structured {
+                content_types.clone()
+            } else {
+                // For fallback only: extract tables and lists
+                vec!["tables", "lists"]
+            };
+
+            for content_type in &types_to_extract {
+                match content_type.as_ref() {
+                    "tables" => {
+                        let tables = extraction::extract_tables(&html_content);
+                        structured["tables"] = Value::Array(tables);
+                    },
+                    "lists" => {
+                        let lists = extraction::extract_lists(&html_content);
+                        structured["lists"] = Value::Array(lists);
+                    },
+                    "code_blocks" => {
+                        let code_blocks = extraction::extract_code_blocks(&html_content);
+                        structured["code_blocks"] = Value::Array(code_blocks);
+                    },
+                    "metadata" => {
+                        let metadata = extraction::extract_metadata(&html_content);
+                        structured["metadata"] = metadata;
+                    },
+                    _ => {}
+                }
+            }
+
+            // Store for potential fallback use
+            structured_data = Some(structured.clone());
+
+            // Only include structured in output if explicitly requested
+            if extract_structured {
+                // Add summary
+                let mut summary = serde_json::json!({
+                    "total_tables": 0,
+                    "total_lists": 0,
+                    "total_code_blocks": 0,
+                    "has_metadata": false
+                });
+
+                if let Some(tables) = structured["tables"].as_array() {
+                    summary["total_tables"] = Value::Number(serde_json::Number::from(tables.len()));
+                }
+                if let Some(lists) = structured["lists"].as_array() {
+                    summary["total_lists"] = Value::Number(serde_json::Number::from(lists.len()));
+                }
+                if let Some(code_blocks) = structured["code_blocks"].as_array() {
+                    summary["total_code_blocks"] = Value::Number(serde_json::Number::from(code_blocks.len()));
+                }
+                if let Some(metadata) = structured["metadata"].as_object() {
+                    summary["has_metadata"] = Value::Bool(!metadata.is_empty());
+                }
+
+                structured["summary"] = summary;
+                result["structured"] = structured;
+            }
+        }
+
+        // 4. Extract readable content using readability algorithms
         if extract_readable {
             let output_format = match readability_format {
                 "markdown" => crate::features::readability::OutputFormat::Markdown,
@@ -274,6 +348,8 @@ impl McpServer {
             // Check if content is likely plain text/code (minimal HTML structure)
             let is_plain_text_content = Self::is_plain_text_content(&html_content);
 
+            let mut readability_succeeded = false;
+
             match extractor.extract(&document, &options) {
                 Ok(extraction_result) => {
                     if extraction_result.success {
@@ -284,6 +360,7 @@ impl McpServer {
                             "quality": extraction_result.quality,
                             "processing_time_ms": extraction_result.processing_time_ms
                         });
+                        readability_succeeded = true;
                     } else if is_plain_text_content {
                         // Fallback: for plain text/code content, return raw text
                         result["readable"] = serde_json::json!({
@@ -292,13 +369,10 @@ impl McpServer {
                             "is_plain_text_fallback": true,
                             "note": "Content detected as plain text/code - HTML readability extraction not applicable"
                         });
-                    } else {
-                        result["readable"] = serde_json::json!({
-                            "error": extraction_result.error.unwrap_or("Extraction failed".to_string())
-                        });
+                        readability_succeeded = true;
                     }
                 },
-                Err(e) => {
+                Err(_) => {
                     if is_plain_text_content {
                         // Fallback: for plain text/code content, return raw text
                         result["readable"] = serde_json::json!({
@@ -307,70 +381,62 @@ impl McpServer {
                             "is_plain_text_fallback": true,
                             "note": "Content detected as plain text/code - HTML readability extraction not applicable"
                         });
-                    } else {
-                        result["readable"] = serde_json::json!({
-                            "error": format!("Readability extraction failed: {}", e)
-                        });
+                        readability_succeeded = true;
                     }
                 }
             }
-        }
 
-        // 4. Extract structured content (tables, lists, code blocks)
-        if extract_structured {
-            let mut structured = serde_json::json!({});
-
-            for content_type in &content_types {
-                match content_type.as_ref() {
-                    "tables" => {
-                        let tables = extraction::extract_tables(&html_content);
-                        structured["tables"] = Value::Array(tables);
-                    },
-                    "lists" => {
-                        let lists = extraction::extract_lists(&html_content);
-                        structured["lists"] = Value::Array(lists);
-                    },
-                    "code_blocks" => {
-                        let code_blocks = extraction::extract_code_blocks(&html_content);
-                        structured["code_blocks"] = Value::Array(code_blocks);
-                    },
-                    "metadata" => {
-                        let metadata = extraction::extract_metadata(&html_content);
-                        structured["metadata"] = metadata;
-                    },
-                    _ => {}
+            // Fallback: synthesize readable content from structured data if readability failed
+            if !readability_succeeded {
+                if let Some(ref structured) = structured_data {
+                    let metadata_val = result.get("basic")
+                        .and_then(|b| b.get("metadata"));
+                    let synthesized = Self::synthesize_readable_from_structured(
+                        structured,
+                        metadata_val,
+                        readability_format,
+                    );
+                    if !synthesized.is_empty() {
+                        result["readable"] = serde_json::json!({
+                            "content": synthesized,
+                            "format": readability_format,
+                            "is_structured_fallback": true,
+                            "note": "Readable content synthesized from structured data (tables/lists)"
+                        });
+                    } else {
+                        result["readable"] = serde_json::json!({
+                            "error": "Readability extraction failed and no structured data available for fallback"
+                        });
+                    }
+                } else {
+                    result["readable"] = serde_json::json!({
+                        "error": "Readability extraction failed"
+                    });
                 }
             }
-
-            // Add summary
-            let mut summary = serde_json::json!({
-                "total_tables": 0,
-                "total_lists": 0,
-                "total_code_blocks": 0,
-                "has_metadata": false
-            });
-
-            if let Some(tables) = structured["tables"].as_array() {
-                summary["total_tables"] = Value::Number(serde_json::Number::from(tables.len()));
-            }
-            if let Some(lists) = structured["lists"].as_array() {
-                summary["total_lists"] = Value::Number(serde_json::Number::from(lists.len()));
-            }
-            if let Some(code_blocks) = structured["code_blocks"].as_array() {
-                summary["total_code_blocks"] = Value::Number(serde_json::Number::from(code_blocks.len()));
-            }
-            if let Some(metadata) = structured["metadata"].as_object() {
-                summary["has_metadata"] = Value::Bool(!metadata.is_empty());
-            }
-
-            structured["summary"] = summary;
-            result["structured"] = structured;
         }
+
+        // Enforce output size limit with tiered truncation
+        if max_output_size > 0 {
+            Self::enforce_output_limit(&mut result, max_output_size);
+        }
+
+        // Use compact JSON when output is large, pretty JSON when small
+        let result_text = if max_output_size > 0 {
+            let compact = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
+            if compact.len() > 20_000 {
+                compact
+            } else {
+                serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
+            }
+        } else {
+            serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
+        };
 
         // Wrap result in MCP text content format
         let mcp_content = serde_json::json!({
             "type": "text",
-            "text": serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
+            "text": result_text
         });
         McpResponse::success(mcp_content)
     }
@@ -428,6 +494,243 @@ impl McpServer {
         // If less than 1 HTML tag per 500 chars on average, likely plain text
         // Or if we found no structural HTML tags
         html_tag_count == 0 && angle_bracket_ratio < 0.02
+    }
+
+    /// Synthesize readable content from structured data (tables/lists)
+    /// when readability extraction fails.
+    fn synthesize_readable_from_structured(
+        structured: &Value,
+        metadata: Option<&Value>,
+        format: &str,
+    ) -> String {
+        let mut parts: Vec<String> = Vec::new();
+
+        // Include page title/description from metadata if available
+        if let Some(meta) = metadata {
+            if let Some(title) = meta.get("title").and_then(|v| v.as_str()) {
+                if !title.is_empty() {
+                    match format {
+                        "markdown" => parts.push(format!("# {}\n", title)),
+                        _ => parts.push(format!("{}\n", title)),
+                    }
+                }
+            }
+            if let Some(desc) = meta.get("description").and_then(|v| v.as_str()) {
+                if !desc.is_empty() {
+                    parts.push(format!("{}\n", desc));
+                }
+            }
+        }
+
+        // Convert tables to markdown/text
+        if let Some(tables) = structured.get("tables").and_then(|v| v.as_array()) {
+            for table in tables {
+                let mut table_lines: Vec<String> = Vec::new();
+
+                // Headers
+                if let Some(headers) = table.get("headers").and_then(|v| v.as_array()) {
+                    let header_strs: Vec<&str> = headers.iter()
+                        .filter_map(|h| h.as_str())
+                        .collect();
+                    if !header_strs.is_empty() {
+                        match format {
+                            "markdown" => {
+                                table_lines.push(format!("| {} |", header_strs.join(" | ")));
+                                let separator: Vec<&str> = header_strs.iter().map(|_| "---").collect();
+                                table_lines.push(format!("| {} |", separator.join(" | ")));
+                            },
+                            _ => {
+                                table_lines.push(header_strs.join("\t"));
+                            }
+                        }
+                    }
+                }
+
+                // Rows
+                if let Some(rows) = table.get("rows").and_then(|v| v.as_array()) {
+                    for row in rows {
+                        if let Some(cells) = row.as_array() {
+                            let cell_strs: Vec<&str> = cells.iter()
+                                .filter_map(|c| c.as_str())
+                                .collect();
+                            match format {
+                                "markdown" => {
+                                    table_lines.push(format!("| {} |", cell_strs.join(" | ")));
+                                },
+                                _ => {
+                                    table_lines.push(cell_strs.join("\t"));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !table_lines.is_empty() {
+                    // Add caption if present
+                    if let Some(caption) = table.get("caption").and_then(|v| v.as_str()) {
+                        if !caption.is_empty() {
+                            match format {
+                                "markdown" => parts.push(format!("**{}**\n", caption)),
+                                _ => parts.push(format!("{}\n", caption)),
+                            }
+                        }
+                    }
+                    parts.push(table_lines.join("\n"));
+                    parts.push(String::new()); // blank line separator
+                }
+            }
+        }
+
+        // Convert lists to bullet points
+        if let Some(lists) = structured.get("lists").and_then(|v| v.as_array()) {
+            for list in lists {
+                if let Some(items) = list.get("items").and_then(|v| v.as_array()) {
+                    let mut list_lines: Vec<String> = Vec::new();
+                    for item in items {
+                        if let Some(text) = item.as_str() {
+                            if !text.is_empty() {
+                                match format {
+                                    "markdown" => list_lines.push(format!("- {}", text)),
+                                    _ => list_lines.push(format!("  * {}", text)),
+                                }
+                            }
+                        } else if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                            if !text.is_empty() {
+                                match format {
+                                    "markdown" => list_lines.push(format!("- {}", text)),
+                                    _ => list_lines.push(format!("  * {}", text)),
+                                }
+                            }
+                        }
+                    }
+                    if !list_lines.is_empty() {
+                        parts.push(list_lines.join("\n"));
+                        parts.push(String::new()); // blank line separator
+                    }
+                }
+            }
+        }
+
+        parts.join("\n").trim().to_string()
+    }
+
+    /// Enforce output size limit with tiered truncation.
+    ///
+    /// Progressively removes content in this order:
+    /// - Tier 1: Truncate links to 20 and images to 10
+    /// - Tier 2: Truncate tables to 10, rows per table to 50
+    /// - Tier 3: Truncate readable content at paragraph/sentence boundary
+    /// - Tier 4: Add truncation warning
+    fn enforce_output_limit(result: &mut Value, max_size: usize) {
+        let original_size = serde_json::to_string(result).map(|s| s.len()).unwrap_or(0);
+
+        if original_size <= max_size {
+            return;
+        }
+
+        // Tier 1: Truncate links and images
+        if let Some(basic) = result.get_mut("basic") {
+            if let Some(links) = basic.get_mut("links").and_then(|v| v.as_array_mut()) {
+                if links.len() > 20 {
+                    links.truncate(20);
+                }
+            }
+            if let Some(images) = basic.get_mut("images").and_then(|v| v.as_array_mut()) {
+                if images.len() > 10 {
+                    images.truncate(10);
+                }
+            }
+        }
+
+        let current_size = serde_json::to_string(result).map(|s| s.len()).unwrap_or(0);
+        if current_size <= max_size {
+            result["_truncation_warning"] = serde_json::json!({
+                "original_size": original_size,
+                "final_size": current_size,
+                "tiers_applied": ["links_images"]
+            });
+            return;
+        }
+
+        // Tier 2: Truncate tables
+        if let Some(structured) = result.get_mut("structured") {
+            if let Some(tables) = structured.get_mut("tables").and_then(|v| v.as_array_mut()) {
+                if tables.len() > 10 {
+                    tables.truncate(10);
+                }
+                for table in tables.iter_mut() {
+                    if let Some(rows) = table.get_mut("rows").and_then(|v| v.as_array_mut()) {
+                        if rows.len() > 50 {
+                            rows.truncate(50);
+                        }
+                    }
+                }
+            }
+        }
+
+        let current_size = serde_json::to_string(result).map(|s| s.len()).unwrap_or(0);
+        if current_size <= max_size {
+            result["_truncation_warning"] = serde_json::json!({
+                "original_size": original_size,
+                "final_size": current_size,
+                "tiers_applied": ["links_images", "tables"]
+            });
+            return;
+        }
+
+        // Tier 3: Truncate readable content at paragraph/sentence boundary
+        if let Some(readable) = result.get_mut("readable") {
+            if let Some(content) = readable.get_mut("content").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                let target_len = max_size / 2; // Use roughly half the budget for readable content
+                if content.len() > target_len {
+                    let truncated = Self::truncate_at_boundary(&content, target_len);
+                    readable["content"] = Value::String(truncated);
+                    readable["content_truncated"] = Value::Bool(true);
+                }
+            }
+        }
+
+        let final_size = serde_json::to_string(result).map(|s| s.len()).unwrap_or(0);
+        result["_truncation_warning"] = serde_json::json!({
+            "original_size": original_size,
+            "final_size": final_size,
+            "tiers_applied": ["links_images", "tables", "readable_content"]
+        });
+    }
+
+    /// Truncate text at the nearest paragraph or sentence boundary
+    fn truncate_at_boundary(text: &str, max_len: usize) -> String {
+        if text.len() <= max_len {
+            return text.to_string();
+        }
+
+        let search_region = &text[..max_len];
+
+        // Try to find a paragraph break (double newline)
+        if let Some(pos) = search_region.rfind("\n\n") {
+            if pos > max_len / 2 {
+                return format!("{}...", &text[..pos]);
+            }
+        }
+
+        // Try to find a sentence break
+        for delimiter in &[". ", ".\n", "! ", "? "] {
+            if let Some(pos) = search_region.rfind(delimiter) {
+                if pos > max_len / 2 {
+                    return format!("{}...", &text[..pos + delimiter.len() - 1]);
+                }
+            }
+        }
+
+        // Fall back to a newline
+        if let Some(pos) = search_region.rfind('\n') {
+            if pos > max_len / 3 {
+                return format!("{}...", &text[..pos]);
+            }
+        }
+
+        // Last resort: truncate at max_len
+        format!("{}...", &text[..max_len])
     }
 
     /// Extract plain text from content, handling both HTML and raw text

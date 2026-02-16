@@ -64,7 +64,7 @@ async fn test_web_search_with_different_engines() {
 }
 
 #[tokio::test]
-async fn test_scrape_url_with_javascript_execution() {
+async fn test_snapshot_url_with_javascript_execution() {
     let browser = HeadlessWebBrowser::new();
     let mut handler = McpToolHandler::new(browser);
 
@@ -74,7 +74,7 @@ async fn test_scrape_url_with_javascript_execution() {
         "wait_for_js": false
     });
 
-    let result_no_js = handler.scrape_url(scrape_args_no_js).await;
+    let result_no_js = handler.snapshot_url(scrape_args_no_js).await;
     assert!(result_no_js.is_ok(), "Scraping without JS should succeed: {:?}", result_no_js);
 
     // Test scraping the same page with JavaScript execution enabled
@@ -83,7 +83,7 @@ async fn test_scrape_url_with_javascript_execution() {
         "wait_for_js": true
     });
 
-    let result_with_js = handler.scrape_url(scrape_args_with_js).await;
+    let result_with_js = handler.snapshot_url(scrape_args_with_js).await;
     assert!(result_with_js.is_ok(), "Scraping with JS should succeed: {:?}", result_with_js);
 
     // Both results should be arrays with content
@@ -115,7 +115,7 @@ async fn test_scrape_url_with_javascript_execution() {
 }
 
 #[tokio::test]
-async fn test_scrape_url_javascript_heavy_site() {
+async fn test_snapshot_url_javascript_heavy_site() {
     let browser = HeadlessWebBrowser::new();
     let mut handler = McpToolHandler::new(browser);
 
@@ -125,7 +125,7 @@ async fn test_scrape_url_javascript_heavy_site() {
         "wait_for_js": true
     });
 
-    let result = handler.scrape_url(scrape_args).await;
+    let result = handler.snapshot_url(scrape_args).await;
     assert!(result.is_ok(), "Scraping JavaScript site should succeed: {:?}", result);
 
     let response = result.unwrap();
@@ -161,23 +161,23 @@ async fn test_mcp_tools_error_handling() {
     // Should handle gracefully and return empty results or error
     assert!(result.is_ok(), "Should handle invalid search gracefully");
 
-    // Test scrape_url with invalid URL
+    // Test snapshot_url with invalid URL
     let invalid_scrape_args = json!({
         "url": "not-a-valid-url",
         "wait_for_js": false
     });
 
-    let result = handler.scrape_url(invalid_scrape_args).await;
+    let result = handler.snapshot_url(invalid_scrape_args).await;
     // Should return an error or handle gracefully
     assert!(result.is_ok() || result.is_err(), "Should handle invalid URL");
 
-    // Test scrape_url with unreachable URL
+    // Test snapshot_url with unreachable URL
     let unreachable_args = json!({
         "url": "https://this-domain-does-not-exist-123456789.com",
         "wait_for_js": false
     });
 
-    let result = handler.scrape_url(unreachable_args).await;
+    let result = handler.snapshot_url(unreachable_args).await;
     // Should handle network errors gracefully
     assert!(result.is_ok() || result.is_err(), "Should handle unreachable URL");
 }

@@ -162,8 +162,8 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}' | ./tar
 # Test Google search
 echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "google_search", "arguments": {"query": "test", "num_results": 1}}}' | ./target/release/thalora
 
-# Test URL scraping
-echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "scrape_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/release/thalora
+# Test URL snapshot
+echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "snapshot_url", "arguments": {"url": "https://httpbin.org/html", "wait_for_js": false}}}' | ./target/release/thalora
 ```
 
 ## Development Patterns

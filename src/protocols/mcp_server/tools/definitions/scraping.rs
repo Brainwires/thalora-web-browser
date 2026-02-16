@@ -4,8 +4,8 @@ use serde_json::Value;
 pub(crate) fn get_scraping_tool_definitions() -> Vec<Value> {
     vec![
         serde_json::json!({
-            "name": "scrape",
-            "description": "Unified scraping tool that combines all scraping capabilities: basic content extraction (links, images, metadata), CSS selectors, readability algorithms, and structured content (tables, lists, code blocks). Enable specific extraction types as needed with extract_* parameters.",
+            "name": "snapshot_url",
+            "description": "Capture a point-in-time snapshot of a web page. Combines all extraction capabilities: basic content (links, images, metadata), CSS selectors, readability algorithms, and structured content (tables, lists, code blocks). The returned data is a non-interactive snapshot. Enable specific extraction types as needed with extract_* parameters.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -66,6 +66,10 @@ pub(crate) fn get_scraping_tool_definitions() -> Vec<Value> {
                             "enum": ["tables", "lists", "code_blocks", "metadata"]
                         },
                         "description": "Types of structured content to extract (default: all types, only used if extract_structured=true)"
+                    },
+                    "max_output_size": {
+                        "type": "number",
+                        "description": "Maximum output size in characters (default: 50000, 0 = unlimited). When exceeded, content is progressively truncated: links/images first, then tables, then readable content."
                     }
                 }
             }
@@ -143,8 +147,8 @@ pub(crate) fn get_search_tool_definitions() -> Vec<Value> {
 pub(crate) fn get_minimal_scraping_tool_definitions() -> Vec<Value> {
     vec![
         serde_json::json!({
-            "name": "scrape",
-            "description": "Unified web scraping tool with multiple extraction methods (basic content, custom selectors, readable content, structured data). Stateless - browser closes after each use.",
+            "name": "snapshot_url",
+            "description": "Capture a point-in-time snapshot of a web page with multiple extraction methods (basic content, custom selectors, readable content, structured data). Stateless - browser closes after each use.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -171,6 +175,10 @@ pub(crate) fn get_minimal_scraping_tool_definitions() -> Vec<Value> {
                     "selectors": {
                         "type": "object",
                         "description": "Custom CSS selectors mapped to names (e.g., {\"title\": \"h1\", \"price\": \".price\"})"
+                    },
+                    "max_output_size": {
+                        "type": "number",
+                        "description": "Maximum output size in characters (default: 50000, 0 = unlimited)"
                     }
                 },
                 "required": ["url"]

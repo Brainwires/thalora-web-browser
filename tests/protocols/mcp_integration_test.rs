@@ -26,7 +26,7 @@ fn test_research_workflow() {
     assert_tool_success(&search_response, Duration::from_secs(30)).expect("Search should complete timely");
 
     // Step 2: Scrape a reliable test URL (since we can't depend on Google results)
-    let scrape_response = harness.call_tool("scrape", json!({
+    let scrape_response = harness.call_tool("snapshot_url", json!({
         "url": "https://httpbin.org/html",
         "wait_for_js": false
     })).expect("Scraping should succeed");
@@ -240,7 +240,7 @@ fn test_error_recovery_workflow() {
 
     // Step 1: Attempt potentially failing operations
     let error_prone_operations = vec![
-        ("scrape_invalid_url", "scrape", json!({"url": "http://invalid-domain-12345.com"})),
+        ("scrape_invalid_url", "snapshot_url", json!({"url": "http://invalid-domain-12345.com"})),
         ("eval_syntax_error", "cdp_runtime_evaluate", json!({"expression": "invalid javascript syntax !!!"})),
         ("get_nonexistent_key", "ai_memory_get_research", json!({"key": "nonexistent_key_12345"})),
         ("click_missing_element", "browser_click_element", json!({"selector": "#nonexistent-element-12345"})),
@@ -390,7 +390,7 @@ fn test_end_to_end_ai_simulation() {
     assert!(!search_response.is_error, "AI search should not error");
 
     // Step 2: "AI scrapes a reference page"
-    let scrape_response = harness.call_tool("scrape", json!({
+    let scrape_response = harness.call_tool("snapshot_url", json!({
         "url": "https://httpbin.org/html",
         "wait_for_js": false
     })).expect("AI scraping should succeed");

@@ -1,4 +1,6 @@
 use anyhow::Result;
+use futures::FutureExt;
+use std::panic::AssertUnwindSafe;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tracing::{error, info, trace};
 use std::sync::{Arc, Mutex};
@@ -252,7 +254,20 @@ impl McpServer {
                         match serde_json::from_value::<McpRequest>(parsed.clone()) {
                             Ok(request) => {
                                 trace!("Request parsed, calling handler");
-                                let response = self.handle_request(request).await;
+                                let response = AssertUnwindSafe(self.handle_request(request))
+                                    .catch_unwind()
+                                    .await
+                                    .unwrap_or_else(|payload| {
+                                        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                                            s.to_string()
+                                        } else if let Some(s) = payload.downcast_ref::<String>() {
+                                            s.clone()
+                                        } else {
+                                            "unknown panic".to_string()
+                                        };
+                                        eprintln!("PANIC caught in request handler: {}", msg);
+                                        McpResponse::error(-32603, format!("Internal server error: {}", msg))
+                                    });
                                 trace!("Handler returned, preparing response");
 
                                 // Wrap response in proper JSON-RPC 2.0 format

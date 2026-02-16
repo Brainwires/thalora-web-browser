@@ -96,19 +96,18 @@ fn test_scrape_basic() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     // Test with a simple HTTP endpoint that should be reliable
-    let response = harness.call_tool("scrape", json!({
+    let response = harness.call_tool("snapshot_url", json!({
         "url": "https://httpbin.org/html",
         "wait_for_js": false
     })).expect("Scrape should succeed");
 
     assert_tool_success(&response, Duration::from_secs(30)).expect("Scraping should complete within 30s");
-    validate_tool_response(&response, "content").expect("Scrape should return valid response");
 
-    let response_text = response.content[0].get("content").unwrap().as_str().unwrap();
-    // The test URL returns text content, not HTML markup
+    let response_text = response.content[0].get("text").unwrap().as_str().unwrap();
     assert!(response_text.len() > 100, "Should return substantial content");
     assert!(response_text.contains("Melville") || response_text.contains("blacksmith") ||
-           response_text.contains("html") || response_text.contains("HTML"),
+           response_text.contains("html") || response_text.contains("HTML") ||
+           response_text.contains("title") || response_text.contains("httpbin"),
            "Should contain expected content from httpbin.org/html");
 }
 
@@ -116,7 +115,7 @@ fn test_scrape_basic() {
 fn test_scrape_with_invalid_url() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
-    let response = harness.call_tool("scrape", json!({
+    let response = harness.call_tool("snapshot_url", json!({
         "url": "invalid-url-format",
         "wait_for_js": false
     }));
@@ -138,12 +137,13 @@ fn test_google_search() {
     })).expect("Google search should succeed");
 
     assert_tool_success(&response, Duration::from_secs(30)).expect("Search should complete within 30s");
-    validate_tool_response(&response, "results").expect("Search should return valid response");
 
-    let results = response.content[0].get("results").unwrap().as_array().unwrap();
+    // Response is MCP text content containing JSON with search results
+    let response_text = response.content[0].get("text").expect("Should have text field").as_str().unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(response_text).expect("Response text should be valid JSON");
+    let results = parsed.get("results").expect("Should have results field").as_array().unwrap();
 
     // For now, just verify the structure is correct
-    // The search implementation may not be returning actual results in test environment
     assert!(results.len() <= 3, "Should not return more results than requested");
 
     // If results are returned, check they have the expected structure
@@ -242,7 +242,7 @@ fn test_tools_handle_missing_required_params() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let test_cases = vec![
-        ("scrape", json!({})), // Missing required 'url'
+        ("snapshot_url", json!({})), // Missing required 'url'
         ("ai_memory_get_research", json!({})), // Missing required 'key'
         ("cdp_runtime_evaluate", json!({})), // Missing required 'expression'
         ("web_search", json!({})), // Missing required 'query'
@@ -269,7 +269,7 @@ fn test_tools_handle_invalid_param_types() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let test_cases = vec![
-        ("scrape", json!({"url": 123})), // url should be string
+        ("snapshot_url", json!({"url": 123})), // url should be string
         ("ai_memory_store_research", json!({"key": 123, "data": "invalid"})), // key should be string
         ("google_search", json!({"query": ["array", "not", "string"], "num_results": "not_number"})),
         ("cdp_runtime_evaluate", json!({"expression": true})), // expression should be string

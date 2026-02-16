@@ -202,7 +202,7 @@ cargo check --lib --features wasm --no-default-features
 ### 🌐 **Web Automation Tools**
 | Tool | Description | Use Case |
 |------|-------------|----------|
-| `scrape_url` | Full page scraping with JS | Dynamic content extraction |
+| `snapshot_url` | Point-in-time page snapshot with JS | Dynamic content extraction |
 | `google_search` | Real Google search | Information gathering |
 | `navigate_page` | Interactive navigation | Multi-step workflows |
 | `fill_form` | Automatic form handling | Data submission |
@@ -269,7 +269,7 @@ cargo check --lib --features wasm --no-default-features
 {
   "method": "tools/call",
   "params": {
-    "name": "scrape_url",
+    "name": "snapshot_url",
     "arguments": {
       "url": "https://news.ycombinator.com",
       "wait_for_js": true,

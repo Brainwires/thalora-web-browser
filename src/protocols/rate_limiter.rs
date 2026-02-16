@@ -100,8 +100,8 @@ impl RateLimiter {
             burst_size: 10,
         });
 
-        // Scraping tools - HTTP + processing
-        configs.insert("scrape".to_string(), RateLimitConfig {
+        // Snapshot tools - HTTP + processing
+        configs.insert("snapshot_url".to_string(), RateLimitConfig {
             requests_per_minute: 20,
             burst_size: 5,
         });
@@ -169,9 +169,9 @@ impl RateLimiter {
             | "ai_memory_store_bookmark" | "ai_memory_get_bookmarks"
             | "ai_memory_store_note" | "ai_memory_get_notes" => "memory",
 
-            // Scraping tools
-            "scrape" | "scrape_url" | "browse_readable_content"
-            | "browser_get_page_content" => "scrape",
+            // Snapshot/scraping tools
+            "snapshot_url" | "browse_readable_content"
+            | "browser_get_page_content" => "snapshot_url",
 
             // Session management
             "browser_session_management" | "browser_validate_session" => "session",

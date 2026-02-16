@@ -51,8 +51,8 @@ impl McpServer {
             "cdp_page_screenshot" => self.cdp_tools.take_screenshot(arguments, &mut self.cdp_server).await,
             "cdp_page_reload" => self.cdp_tools.reload_page(arguments, &mut self.cdp_server).await,
 
-            // Unified scraping tool
-            "scrape" => self.scrape_unified(arguments).await,
+            // Unified snapshot tool (captures point-in-time page snapshot)
+            "snapshot_url" => self.handle_snapshot_url(arguments).await,
 
             // Web search tools
             "web_search" => self.web_search(arguments).await,
