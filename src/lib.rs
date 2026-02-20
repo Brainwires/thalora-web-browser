@@ -27,6 +27,10 @@ pub mod features;
 #[cfg(any(feature = "native", feature = "web-search"))]
 pub mod web_search;
 
+// FFI layer for C-compatible bindings (native only — requires tokio runtime)
+#[cfg(feature = "native")]
+pub mod ffi;
+
 // Communication protocols (only for native builds - requires tokio/networking)
 #[cfg(feature = "native")]
 pub mod protocols;

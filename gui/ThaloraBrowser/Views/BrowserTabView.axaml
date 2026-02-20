@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ThaloraBrowser.ViewModels"
+             xmlns:controls="using:ThaloraBrowser.Controls"
+             x:Class="ThaloraBrowser.Views.BrowserTabView"
+             x:DataType="vm:BrowserTabViewModel">
+
+    <controls:WebContentControl HtmlContent="{Binding HtmlContent}"
+                                BaseUrl="{Binding Url}"/>
+</UserControl>
