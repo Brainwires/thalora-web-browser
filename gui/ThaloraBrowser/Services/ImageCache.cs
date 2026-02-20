@@ -83,7 +83,7 @@ public sealed class ImageCache : IDisposable
         _cache.Clear();
     }
 
-    private static string? ResolveUrl(string url, string? baseUrl)
+    internal static string? ResolveUrl(string url, string? baseUrl)
     {
         if (Uri.TryCreate(url, UriKind.Absolute, out var absolute))
             return absolute.ToString();

@@ -283,7 +283,7 @@ public class StyleResolver
 
     // --- Parsing helpers ---
 
-    private static DisplayMode ParseDisplay(string value) => value.Trim().ToLowerInvariant() switch
+    internal static DisplayMode ParseDisplay(string value) => value.Trim().ToLowerInvariant() switch
     {
         "block" => DisplayMode.Block,
         "inline" => DisplayMode.Inline,
@@ -297,7 +297,7 @@ public class StyleResolver
         _ => DisplayMode.Block,
     };
 
-    private static FontWeight ParseFontWeight(string value) => value.Trim().ToLowerInvariant() switch
+    internal static FontWeight ParseFontWeight(string value) => value.Trim().ToLowerInvariant() switch
     {
         "bold" => FontWeight.Bold,
         "bolder" => FontWeight.Bold,
@@ -315,7 +315,7 @@ public class StyleResolver
         _ => FontWeight.Normal,
     };
 
-    private static TextAlignment ParseTextAlign(string value) => value.Trim().ToLowerInvariant() switch
+    internal static TextAlignment ParseTextAlign(string value) => value.Trim().ToLowerInvariant() switch
     {
         "left" => TextAlignment.Left,
         "right" => TextAlignment.Right,
@@ -324,7 +324,7 @@ public class StyleResolver
         _ => TextAlignment.Left,
     };
 
-    private static WhiteSpaceMode ParseWhiteSpace(string value) => value.Trim().ToLowerInvariant() switch
+    internal static WhiteSpaceMode ParseWhiteSpace(string value) => value.Trim().ToLowerInvariant() switch
     {
         "normal" => WhiteSpaceMode.Normal,
         "nowrap" => WhiteSpaceMode.NoWrap,
@@ -334,7 +334,7 @@ public class StyleResolver
         _ => WhiteSpaceMode.Normal,
     };
 
-    private static OverflowMode ParseOverflow(string value) => value.Trim().ToLowerInvariant() switch
+    internal static OverflowMode ParseOverflow(string value) => value.Trim().ToLowerInvariant() switch
     {
         "visible" => OverflowMode.Visible,
         "hidden" => OverflowMode.Hidden,
@@ -356,17 +356,17 @@ public class StyleResolver
                 System.Globalization.CultureInfo.InvariantCulture, out var px))
                 return px;
         }
-        else if (value.EndsWith("em"))
-        {
-            if (double.TryParse(value[..^2], System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var em))
-                return em * parentFontSize;
-        }
         else if (value.EndsWith("rem"))
         {
             if (double.TryParse(value[..^3], System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out var rem))
                 return rem * 16; // root font size is 16px
+        }
+        else if (value.EndsWith("em"))
+        {
+            if (double.TryParse(value[..^2], System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var em))
+                return em * parentFontSize;
         }
         else if (value.EndsWith('%'))
         {

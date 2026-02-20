@@ -6,7 +6,7 @@ namespace ThaloraBrowser.Services;
 /// Safe managed wrapper around the Thalora native browser engine.
 /// All methods run P/Invoke calls on the thread pool to avoid blocking the UI thread.
 /// </summary>
-public sealed class ThaloraBrowserEngine : IDisposable
+public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
 {
     private IntPtr _instance;
     private bool _disposed;

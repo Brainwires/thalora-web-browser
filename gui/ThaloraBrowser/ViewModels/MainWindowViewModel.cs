@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ThaloraBrowser.Services;
 
 namespace ThaloraBrowser.ViewModels;
 
@@ -9,6 +10,7 @@ namespace ThaloraBrowser.ViewModels;
 /// </summary>
 public partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
+    private readonly Func<IThaloraBrowserEngine>? _engineFactory;
     private bool _disposed;
 
     public ObservableCollection<BrowserTabViewModel> Tabs { get; } = new();
@@ -34,6 +36,12 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public MainWindowViewModel()
     {
         // Start with one new tab
+        NewTab();
+    }
+
+    public MainWindowViewModel(Func<IThaloraBrowserEngine> engineFactory)
+    {
+        _engineFactory = engineFactory;
         NewTab();
     }
 
@@ -66,7 +74,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void NewTab()
     {
-        var tab = new BrowserTabViewModel();
+        var tab = _engineFactory != null
+            ? new BrowserTabViewModel(_engineFactory())
+            : new BrowserTabViewModel();
         tab.PropertyChanged += (_, e) =>
         {
             if (tab == ActiveTab)

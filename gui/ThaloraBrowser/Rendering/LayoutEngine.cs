@@ -430,7 +430,7 @@ public class LayoutEngine
         table.ContentRect = new Rect(contentX, contentY, contentWidth, currentY - contentY);
     }
 
-    private static BoxType MapDisplayToBoxType(DisplayMode display) => display switch
+    internal static BoxType MapDisplayToBoxType(DisplayMode display) => display switch
     {
         DisplayMode.Block => BoxType.Block,
         DisplayMode.Inline => BoxType.Inline,

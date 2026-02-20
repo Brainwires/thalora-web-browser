@@ -1,3 +1,7 @@
 .DS_Store
 target/
 .fastembed_cache
+
+# .NET build artifacts
+gui/**/bin/
+gui/**/obj/

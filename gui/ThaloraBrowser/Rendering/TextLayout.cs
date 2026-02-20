@@ -134,7 +134,7 @@ public class TextLayoutEngine
     /// <summary>
     /// Wrap a single line of text to fit within available width.
     /// </summary>
-    private static List<string> WrapLine(string text, CssComputedStyle style, double availableWidth)
+    internal static List<string> WrapLine(string text, CssComputedStyle style, double availableWidth)
     {
         var lines = new List<string>();
         if (string.IsNullOrEmpty(text))
@@ -171,7 +171,7 @@ public class TextLayoutEngine
     /// <summary>
     /// Collapse sequences of whitespace into single spaces (CSS white-space: normal behavior).
     /// </summary>
-    private static string CollapseWhitespace(string text)
+    internal static string CollapseWhitespace(string text)
     {
         if (string.IsNullOrEmpty(text))
             return text;

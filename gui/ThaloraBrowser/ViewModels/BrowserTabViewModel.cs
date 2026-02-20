@@ -9,7 +9,7 @@ namespace ThaloraBrowser.ViewModels;
 /// </summary>
 public partial class BrowserTabViewModel : ViewModelBase, IDisposable
 {
-    private readonly ThaloraBrowserEngine _engine;
+    private readonly IThaloraBrowserEngine _engine;
     private bool _disposed;
 
     [ObservableProperty]
@@ -29,11 +29,16 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
 
     public Guid Id { get; } = Guid.NewGuid();
 
-    public ThaloraBrowserEngine Engine => _engine;
+    public IThaloraBrowserEngine Engine => _engine;
 
     public BrowserTabViewModel()
     {
         _engine = new ThaloraBrowserEngine();
+    }
+
+    public BrowserTabViewModel(IThaloraBrowserEngine engine)
+    {
+        _engine = engine;
     }
 
     /// <summary>
@@ -167,7 +172,7 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
         StatusText = Url;
     }
 
-    private static string TruncateUrl(string url)
+    internal static string TruncateUrl(string url)
     {
         if (url.Length <= 40) return url;
         return url[..37] + "...";
