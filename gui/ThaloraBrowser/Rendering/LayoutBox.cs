@@ -1,17 +1,14 @@
-using AngleSharp.Dom;
 using Avalonia;
 
 namespace ThaloraBrowser.Rendering;
 
 /// <summary>
-/// A node in the layout tree. Each LayoutBox corresponds to a DOM element
+/// A node in the layout tree. Each LayoutBox corresponds to a positioned element
 /// (or an anonymous box for text runs) with computed position and dimensions.
+/// Layout data comes from the Rust engine via JSON.
 /// </summary>
 public class LayoutBox
 {
-    /// <summary>The DOM element this box represents (null for anonymous text boxes).</summary>
-    public IElement? Element { get; set; }
-
     /// <summary>The type of this box in the formatting context.</summary>
     public BoxType Type { get; set; }
 

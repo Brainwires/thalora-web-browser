@@ -48,7 +48,7 @@ pub struct LayoutResult {
     pub elements: Vec<ElementLayout>,
 }
 
-/// Layout information for a single element
+/// Layout information for a single element, including visual properties for painting
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementLayout {
     /// Element ID
@@ -67,6 +67,101 @@ pub struct ElementLayout {
     pub content_box: Option<ContentBox>,
     /// Children elements
     pub children: Vec<ElementLayout>,
+
+    // --- Visual properties for painting ---
+
+    /// Text content of this element (direct text nodes combined)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_content: Option<String>,
+    /// Link href (for <a> elements)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_href: Option<String>,
+    /// Image source URL (for <img> elements)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub img_src: Option<String>,
+    /// Background color (CSS color string)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_color: Option<String>,
+    /// Text color (CSS color string)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    /// Font size in px
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_size: Option<f64>,
+    /// Font family name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_family: Option<String>,
+    /// Font weight (normal, bold, 100-900)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_weight: Option<String>,
+    /// Font style (normal, italic, oblique)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_style: Option<String>,
+    /// Text alignment (left, center, right, justify)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_align: Option<String>,
+    /// Text decoration (none, underline, line-through)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_decoration: Option<String>,
+    /// Line height multiplier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_height: Option<f64>,
+    /// White-space mode (normal, nowrap, pre, pre-wrap, pre-line)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub white_space: Option<String>,
+    /// Border radius in px
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_radius: Option<f64>,
+    /// Border width in px (uniform)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_width: Option<f64>,
+    /// Border color (CSS color string)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_color: Option<String>,
+    /// Opacity (0.0 - 1.0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f32>,
+    /// Overflow mode (visible, hidden, scroll, auto)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overflow: Option<String>,
+    /// List style type (disc, decimal, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list_style_type: Option<String>,
+    /// Whether margin-left is auto (for centering)
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub margin_left_auto: bool,
+    /// Whether margin-right is auto (for centering)
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub margin_right_auto: bool,
+    /// Padding box model (top, right, bottom, left as CSS strings)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub padding: Option<BoxModelSides>,
+    /// Margin box model (top, right, bottom, left as CSS strings)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub margin: Option<BoxModelSides>,
+    /// Border width per side
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_sides: Option<BoxModelSides>,
+    /// CSS display value
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
+    /// Visibility
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub is_visible: bool,
+}
+
+/// Helper for serde skip
+fn is_false(v: &bool) -> bool { !v }
+fn is_true(v: &bool) -> bool { *v }
+fn default_true() -> bool { true }
+
+/// Box model sides (padding/margin/border) with values in px
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoxModelSides {
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+    pub left: f64,
 }
 
 /// Content box dimensions
@@ -406,6 +501,9 @@ impl LayoutEngine {
             height: height - (layout.padding.top + layout.padding.bottom) as f64,
         });
 
+        // Extract visual properties from computed styles
+        let styles = &node_data.styles;
+
         Ok(vec![ElementLayout {
             id: node_data.id.clone(),
             tag: node_data.tag.clone(),
@@ -415,6 +513,48 @@ impl LayoutEngine {
             height,
             content_box,
             children,
+            // Visual properties — populated from ComputedStyles
+            text_content: None, // filled by page_layout
+            link_href: None,
+            img_src: None,
+            background_color: styles.background_color.clone(),
+            color: styles.color.clone(),
+            font_size: styles.font_size.as_ref().and_then(|s| parse_px_value(s)),
+            font_family: styles.font_family.clone(),
+            font_weight: styles.font_weight.clone(),
+            font_style: styles.other.get("font-style").cloned(),
+            text_align: styles.other.get("text-align").cloned(),
+            text_decoration: styles.other.get("text-decoration").cloned(),
+            line_height: styles.other.get("line-height").and_then(|s| parse_px_value(s).or_else(|| s.parse::<f64>().ok())),
+            white_space: styles.other.get("white-space").cloned(),
+            border_radius: styles.other.get("border-radius").and_then(|s| parse_px_value(s)),
+            border_width: styles.border.as_ref().and_then(|b| parse_px_value(&b.width)),
+            border_color: styles.border.as_ref().map(|b| b.color.clone()),
+            opacity: styles.opacity,
+            overflow: styles.overflow.clone(),
+            list_style_type: styles.other.get("list-style-type").cloned(),
+            margin_left_auto: styles.margin.as_ref().map(|m| m.left == "auto").unwrap_or(false),
+            margin_right_auto: styles.margin.as_ref().map(|m| m.right == "auto").unwrap_or(false),
+            padding: styles.padding.as_ref().map(|p| BoxModelSides {
+                top: parse_px_value(&p.top).unwrap_or(0.0),
+                right: parse_px_value(&p.right).unwrap_or(0.0),
+                bottom: parse_px_value(&p.bottom).unwrap_or(0.0),
+                left: parse_px_value(&p.left).unwrap_or(0.0),
+            }),
+            margin: styles.margin.as_ref().map(|m| BoxModelSides {
+                top: parse_px_value(&m.top).unwrap_or(0.0),
+                right: parse_px_value(&m.right).unwrap_or(0.0),
+                bottom: parse_px_value(&m.bottom).unwrap_or(0.0),
+                left: parse_px_value(&m.left).unwrap_or(0.0),
+            }),
+            border_sides: styles.border.as_ref().and_then(|b| {
+                parse_px_value(&b.width).map(|w| BoxModelSides {
+                    top: w, right: w, bottom: w, left: w,
+                })
+            }),
+            display: styles.display.clone(),
+            is_visible: styles.visibility.as_ref().map(|v| v != "hidden" && v != "collapse").unwrap_or(true)
+                && styles.display.as_ref().map(|d| d != "none").unwrap_or(true),
         }])
     }
 
@@ -427,32 +567,19 @@ impl LayoutEngine {
         // 3. Convert to LayoutElement tree
         // 4. Call calculate_layout_from_elements
 
+        let mut root = ElementLayout::new_empty("root".to_string(), "html".to_string());
+        root.width = self.viewport_width as f64;
+        root.height = self.viewport_height as f64;
+
+        let mut body = ElementLayout::new_empty("body".to_string(), "body".to_string());
+        body.width = self.viewport_width as f64;
+        body.height = self.viewport_height as f64;
+        root.children.push(body);
+
         Ok(LayoutResult {
             width: self.viewport_width as f64,
             height: self.viewport_height as f64,
-            elements: vec![
-                ElementLayout {
-                    id: "root".to_string(),
-                    tag: "html".to_string(),
-                    x: 0.0,
-                    y: 0.0,
-                    width: self.viewport_width as f64,
-                    height: self.viewport_height as f64,
-                    content_box: None,
-                    children: vec![
-                        ElementLayout {
-                            id: "body".to_string(),
-                            tag: "body".to_string(),
-                            x: 0.0,
-                            y: 0.0,
-                            width: self.viewport_width as f64,
-                            height: self.viewport_height as f64,
-                            content_box: None,
-                            children: vec![],
-                        }
-                    ],
-                }
-            ],
+            elements: vec![root],
         })
     }
 
@@ -466,6 +593,62 @@ impl LayoutEngine {
 impl Default for LayoutEngine {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Parse a CSS value to a pixel number.
+/// Handles "Npx", bare numbers. Returns None for non-px units or "auto".
+pub fn parse_px_value(value: &str) -> Option<f64> {
+    let v = value.trim();
+    if v.is_empty() || v == "auto" || v == "none" {
+        return None;
+    }
+    if v.ends_with("px") {
+        return v.trim_end_matches("px").parse::<f64>().ok();
+    }
+    // Try bare number
+    v.parse::<f64>().ok()
+}
+
+impl ElementLayout {
+    /// Create a default/empty ElementLayout for constructing trees
+    pub fn new_empty(id: String, tag: String) -> Self {
+        Self {
+            id,
+            tag,
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+            content_box: None,
+            children: Vec::new(),
+            text_content: None,
+            link_href: None,
+            img_src: None,
+            background_color: None,
+            color: None,
+            font_size: None,
+            font_family: None,
+            font_weight: None,
+            font_style: None,
+            text_align: None,
+            text_decoration: None,
+            line_height: None,
+            white_space: None,
+            border_radius: None,
+            border_width: None,
+            border_color: None,
+            opacity: None,
+            overflow: None,
+            list_style_type: None,
+            margin_left_auto: false,
+            margin_right_auto: false,
+            padding: None,
+            margin: None,
+            border_sides: None,
+            display: None,
+            is_visible: true,
+        }
     }
 }
 

@@ -6,5 +6,6 @@
              x:DataType="vm:BrowserTabViewModel">
 
     <controls:WebContentControl HtmlContent="{Binding HtmlContent}"
-                                BaseUrl="{Binding Url}"/>
+                                BaseUrl="{Binding Url}"
+                                Engine="{Binding Engine}"/>
 </UserControl>

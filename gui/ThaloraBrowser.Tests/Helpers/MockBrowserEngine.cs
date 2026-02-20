@@ -63,6 +63,7 @@ public class MockBrowserEngine : IThaloraBrowserEngine
     public Task<bool> TypeTextAsync(string selector, string text, bool clearFirst = true) => Task.FromResult(true);
     public Task<bool> SubmitFormAsync(string formSelector, string? jsonData = null) => Task.FromResult(true);
     public Task<string?> GetPageTitleAsync() => Task.FromResult(PageTitle);
+    public Task<string?> ComputeLayoutAsync(float viewportW, float viewportH) => Task.FromResult<string?>(null);
     public string? GetLastError() => LastError;
 
     public void Dispose()

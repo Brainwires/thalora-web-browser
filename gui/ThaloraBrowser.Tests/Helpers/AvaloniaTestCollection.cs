@@ -2,7 +2,7 @@ namespace ThaloraBrowser.Tests.Helpers;
 
 /// <summary>
 /// Collection definition to prevent parallel execution of tests that
-/// share Avalonia headless and AngleSharp browsing contexts.
+/// share the Avalonia headless platform context.
 /// </summary>
 [CollectionDefinition("Avalonia")]
 public class AvaloniaTestCollection : ICollectionFixture<AvaloniaTestFixture>;

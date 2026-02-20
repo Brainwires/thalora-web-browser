@@ -67,4 +67,9 @@ internal static partial class ThaloraNative
 
     [LibraryImport(LibName)]
     internal static partial IntPtr thalora_get_page_title(IntPtr inst);
+
+    // --- Layout ---
+
+    [LibraryImport(LibName)]
+    internal static partial IntPtr thalora_compute_layout(IntPtr inst, float viewportW, float viewportH);
 }

@@ -10,6 +10,8 @@ public class CssComputedStyle
 {
     // Box model
     public Thickness Margin { get; set; }
+    public bool HasAutoMarginLeft { get; set; }
+    public bool HasAutoMarginRight { get; set; }
     public Thickness Padding { get; set; }
     public Thickness BorderWidth { get; set; }
     public IBrush? BorderBrush { get; set; }

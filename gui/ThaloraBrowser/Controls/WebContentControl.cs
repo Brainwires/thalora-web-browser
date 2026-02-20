@@ -8,7 +8,7 @@ using ThaloraBrowser.Services;
 namespace ThaloraBrowser.Controls;
 
 /// <summary>
-/// Custom Avalonia control that renders HTML content using our layout engine.
+/// Custom Avalonia control that renders HTML content using layout computed by the Rust engine.
 /// Handles scrolling, link clicks, hover cursor changes, and viewport resizing.
 /// </summary>
 public class WebContentControl : Control
@@ -35,6 +35,9 @@ public class WebContentControl : Control
     public static readonly StyledProperty<string?> BaseUrlProperty =
         AvaloniaProperty.Register<WebContentControl, string?>(nameof(BaseUrl));
 
+    public static readonly StyledProperty<IThaloraBrowserEngine?> EngineProperty =
+        AvaloniaProperty.Register<WebContentControl, IThaloraBrowserEngine?>(nameof(Engine));
+
     public string? HtmlContent
     {
         get => GetValue(HtmlContentProperty);
@@ -45,6 +48,12 @@ public class WebContentControl : Control
     {
         get => GetValue(BaseUrlProperty);
         set => SetValue(BaseUrlProperty, value);
+    }
+
+    public IThaloraBrowserEngine? Engine
+    {
+        get => GetValue(EngineProperty);
+        set => SetValue(EngineProperty, value);
     }
 
     static WebContentControl()
@@ -66,12 +75,10 @@ public class WebContentControl : Control
     {
         base.OnSizeChanged(e);
 
-        // Re-layout for new viewport size
+        // On viewport resize, recompute layout from Rust
         if (_renderer?.CurrentLayout != null && !_isRendering)
         {
-            _renderer.RelayoutForViewport(new Size(e.NewSize.Width, e.NewSize.Height));
-            UpdateScrollBounds();
-            InvalidateVisual();
+            OnHtmlContentChanged(); // Re-trigger layout with new size
         }
     }
 
@@ -231,15 +238,30 @@ public class WebContentControl : Control
                 return;
             }
 
+            var engine = Engine;
+            if (engine == null)
+            {
+                // No engine available — can't compute layout
+                // Fall back to showing raw content indicator
+                _renderer?.Dispose();
+                _renderer = new HtmlRenderer();
+                InvalidateVisual();
+                return;
+            }
+
             _renderer?.Dispose();
             _renderer = new HtmlRenderer();
             _scrollOffsetY = 0;
 
-            await _renderer.RenderPageAsync(
-                HtmlContent,
-                BaseUrl ?? "",
-                new Size(Math.Max(100, Bounds.Width), Math.Max(100, Bounds.Height))
-            );
+            // Compute layout on the Rust side
+            var viewportW = (float)Math.Max(100, Bounds.Width);
+            var viewportH = (float)Math.Max(100, Bounds.Height);
+            var layoutJson = await engine.ComputeLayoutAsync(viewportW, viewportH);
+
+            if (!string.IsNullOrEmpty(layoutJson))
+            {
+                _renderer.RenderFromLayoutJson(layoutJson, BaseUrl);
+            }
 
             UpdateScrollBounds();
             InvalidateVisual();

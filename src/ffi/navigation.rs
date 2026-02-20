@@ -202,3 +202,55 @@ pub extern "C" fn thalora_can_go_forward(instance: *const ThalorInstance) -> i32
         Err(_) => 0,
     }
 }
+
+/// Compute the layout for the current page content.
+///
+/// Takes viewport dimensions and returns a JSON string containing the full
+/// layout tree with positions, sizes, and visual properties.
+/// Returns null if no page is loaded or on error.
+/// The caller must free the returned string with `thalora_free_string`.
+#[unsafe(no_mangle)]
+pub extern "C" fn thalora_compute_layout(
+    instance: *mut ThalorInstance,
+    viewport_w: f32,
+    viewport_h: f32,
+) -> *mut c_char {
+    if instance.is_null() {
+        return ptr::null_mut();
+    }
+    let inst = unsafe { &*instance };
+    inst.clear_error();
+
+    let browser = match inst.browser.lock() {
+        Ok(b) => b,
+        Err(e) => {
+            inst.set_error(format!("Lock poisoned: {}", e));
+            return ptr::null_mut();
+        }
+    };
+
+    let content = browser.get_current_content();
+    if content.is_empty() {
+        inst.set_error("No page content loaded".into());
+        return ptr::null_mut();
+    }
+
+    // Drop the lock before computing layout (which can take time)
+    drop(browser);
+
+    match crate::engine::renderer::compute_page_layout(&content, viewport_w, viewport_h) {
+        Ok(layout_result) => {
+            match serde_json::to_string(&layout_result) {
+                Ok(json) => rust_string_to_c(json),
+                Err(e) => {
+                    inst.set_error(format!("Failed to serialize layout: {}", e));
+                    ptr::null_mut()
+                }
+            }
+        }
+        Err(e) => {
+            inst.set_error(format!("Layout computation failed: {}", e));
+            ptr::null_mut()
+        }
+    }
+}

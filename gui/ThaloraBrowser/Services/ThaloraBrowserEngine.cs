@@ -159,6 +159,17 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
         });
 
     /// <summary>
+    /// Compute the page layout on the Rust side and return it as JSON.
+    /// </summary>
+    public Task<string?> ComputeLayoutAsync(float viewportW, float viewportH)
+        => Task.Run(() =>
+        {
+            ThrowIfDisposed();
+            var ptr = ThaloraNative.thalora_compute_layout(_instance, viewportW, viewportH);
+            return ConsumeRustString(ptr);
+        });
+
+    /// <summary>
     /// Get the last error from the native engine.
     /// </summary>
     public string? GetLastError()

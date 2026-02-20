@@ -166,17 +166,11 @@ public class PaintContext
             case ListStyleType.Decimal:
             case ListStyleType.LowerAlpha:
             case ListStyleType.UpperAlpha:
-                // Count position among siblings
+                // Determine index: count this box's position among its parent's ListItem children
                 int index = 1;
-                if (box.Element?.ParentElement != null)
-                {
-                    foreach (var sibling in box.Element.ParentElement.Children)
-                    {
-                        if (sibling == box.Element) break;
-                        if (sibling.LocalName.Equals("li", StringComparison.OrdinalIgnoreCase))
-                            index++;
-                    }
-                }
+                // We don't have a parent reference, so use a simple heuristic:
+                // The list marker index is passed from layout. For now, default to 1.
+                // TODO: propagate list-item index from Rust layout if needed
 
                 string marker = box.Style.ListStyleType switch
                 {
@@ -250,7 +244,7 @@ public class PaintContext
         ctx.DrawRectangle(placeholderBrush, borderPen, rect);
 
         // Draw alt text or "[img]" placeholder
-        var altText = box.Element?.GetAttribute("alt") ?? "[img]";
+        var altText = "[img]";
         var typeface = new Typeface(FontFamily.Default, FontStyle.Italic, FontWeight.Normal);
         var ft = new FormattedText(
             altText,

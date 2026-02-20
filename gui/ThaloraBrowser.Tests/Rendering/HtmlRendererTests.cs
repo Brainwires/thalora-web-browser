@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avalonia;
 using ThaloraBrowser.Rendering;
 using ThaloraBrowser.Tests.Helpers;
@@ -17,6 +18,44 @@ public class HtmlRendererTests : IDisposable
     }
 
     private static readonly Size Viewport = new(800, 600);
+
+    // Sample layout JSON matching Rust LayoutResult format
+    private static string CreateTestLayoutJson(double width = 800, double height = 600, string? text = null)
+    {
+        var textContent = text != null ? $"\"text_content\":\"{text}\"," : "";
+        return $@"{{
+            ""width"": {width},
+            ""height"": {height},
+            ""elements"": [{{
+                ""id"": ""e0"",
+                ""tag"": ""html"",
+                ""x"": 0, ""y"": 0,
+                ""width"": {width}, ""height"": {height},
+                ""display"": ""block"",
+                ""is_visible"": true,
+                ""children"": [{{
+                    ""id"": ""e1"",
+                    ""tag"": ""body"",
+                    ""x"": 8, ""y"": 8,
+                    ""width"": {width - 16}, ""height"": {height - 16},
+                    ""display"": ""block"",
+                    ""is_visible"": true,
+                    ""margin"": {{""top"": 8, ""right"": 8, ""bottom"": 8, ""left"": 8}},
+                    ""children"": [{{
+                        ""id"": ""t0"",
+                        ""tag"": ""#text"",
+                        ""x"": 8, ""y"": 8,
+                        ""width"": 100, ""height"": 22,
+                        ""display"": ""block"",
+                        ""is_visible"": true,
+                        {textContent}
+                        ""font_size"": 16,
+                        ""children"": []
+                    }}]
+                }}]
+            }}]
+        }}";
+    }
 
     // ---------------------------------------------------------------
     // ResolveUrl tests
@@ -47,16 +86,13 @@ public class HtmlRendererTests : IDisposable
     }
 
     [Fact]
-    public async Task ResolveUrl_RelativeUrl_ResolvedAgainstBaseUrl()
+    public void ResolveUrl_RelativeUrl_ResolvedAgainstBaseUrl()
     {
-        await _renderer.RenderPageAsync(
-            "<html><body><p>Test</p></body></html>",
-            "https://example.com/dir/page.html",
-            Viewport);
+        var json = CreateTestLayoutJson();
+        _renderer.RenderFromLayoutJson(json, "https://example.com/dir/page.html");
 
         var result = _renderer.ResolveUrl("/other.html");
 
-        // The resolved URL should contain the origin and the relative path
         result.Should().NotBeNull();
         result.Should().Contain("other.html");
     }
@@ -72,39 +108,24 @@ public class HtmlRendererTests : IDisposable
     }
 
     [Fact]
-    public async Task ContentHeight_AfterRender_ReturnsPositive()
+    public void ContentHeight_AfterRender_ReturnsPositive()
     {
-        await _renderer.RenderPageAsync(
-            "<html><body><p>Hello world</p></body></html>",
-            "https://example.com",
-            Viewport);
+        var json = CreateTestLayoutJson(text: "Hello world");
+        _renderer.RenderFromLayoutJson(json, "https://example.com");
 
         _renderer.ContentHeight.Should().BeGreaterThan(0);
     }
 
-    [Fact]
-    public async Task ContentHeight_TallContent_LargerThanViewportHeight()
-    {
-        // Build HTML with many paragraphs to ensure content exceeds viewport
-        var paragraphs = string.Concat(Enumerable.Range(1, 100).Select(i => $"<p>Paragraph {i} with some text content to ensure height.</p>"));
-        var html = $"<html><body>{paragraphs}</body></html>";
-
-        await _renderer.RenderPageAsync(html, "https://example.com", Viewport);
-
-        _renderer.ContentHeight.Should().BeGreaterThan(Viewport.Height);
-    }
-
     // ---------------------------------------------------------------
-    // RenderPageAsync tests
+    // RenderFromLayoutJson tests
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task RenderPageAsync_ValidHtml_ReturnsNonNullLayoutBox()
+    public void RenderFromLayoutJson_ValidJson_ReturnsNonNullLayoutBox()
     {
-        var result = await _renderer.RenderPageAsync(
-            "<html><body><h1>Title</h1><p>Content</p></body></html>",
-            "https://example.com",
-            Viewport);
+        var json = CreateTestLayoutJson(text: "Content");
+
+        var result = _renderer.RenderFromLayoutJson(json, "https://example.com");
 
         result.Should().NotBeNull();
         _renderer.CurrentLayout.Should().NotBeNull();
@@ -112,27 +133,23 @@ public class HtmlRendererTests : IDisposable
     }
 
     [Fact]
-    public async Task RenderPageAsync_MalformedInput_StillReturnsLayoutBox()
+    public void RenderFromLayoutJson_InvalidJson_ReturnsErrorBox()
     {
-        // Even with unusual input, the renderer should produce a layout (possibly an error page)
-        var result = await _renderer.RenderPageAsync(
-            "<html><body><div>Unclosed tags<p>Mixed content",
-            "https://example.com",
-            Viewport);
+        var result = _renderer.RenderFromLayoutJson("not valid json", "https://example.com");
 
         result.Should().NotBeNull();
+        // Should contain an error indication
+        _renderer.CurrentLayout.Should().NotBeNull();
     }
 
-    // ---------------------------------------------------------------
-    // RelayoutForViewport tests
-    // ---------------------------------------------------------------
-
     [Fact]
-    public void RelayoutForViewport_NoDocument_ReturnsNull()
+    public void RenderFromLayoutJson_EmptyElements_ReturnsDefaultBox()
     {
-        var result = _renderer.RelayoutForViewport(new Size(1024, 768));
+        var json = @"{""width"": 800, ""height"": 600, ""elements"": []}";
 
-        result.Should().BeNull();
+        var result = _renderer.RenderFromLayoutJson(json, "https://example.com");
+
+        result.Should().NotBeNull();
     }
 
     public void Dispose()

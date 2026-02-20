@@ -18,5 +18,6 @@ public interface IThaloraBrowserEngine : IDisposable
     Task<bool> TypeTextAsync(string selector, string text, bool clearFirst = true);
     Task<bool> SubmitFormAsync(string formSelector, string? jsonData = null);
     Task<string?> GetPageTitleAsync();
+    Task<string?> ComputeLayoutAsync(float viewportW, float viewportH);
     string? GetLastError();
 }

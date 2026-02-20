@@ -1,10 +1,9 @@
-using AngleSharp.Dom;
 using Avalonia;
 
 namespace ThaloraBrowser.Rendering;
 
 /// <summary>
-/// Maps screen coordinates back to DOM elements and link targets
+/// Maps screen coordinates back to layout boxes and link targets
 /// by traversing the layout tree.
 /// </summary>
 public class HitTester
@@ -13,7 +12,6 @@ public class HitTester
     /// Result of a hit test.
     /// </summary>
     public record HitTestResult(
-        IElement? Element,
         string? LinkHref,
         LayoutBox? Box,
         TextRun? TextRun
@@ -49,7 +47,6 @@ public class HitTester
                 if (run.Bounds.Contains(point))
                 {
                     return new HitTestResult(
-                        box.Element ?? FindParentElement(box),
                         run.LinkHref ?? box.LinkHref,
                         box,
                         run
@@ -63,7 +60,6 @@ public class HitTester
         if (hitRect.Width > 0 && hitRect.Height > 0 && hitRect.Contains(point))
         {
             return new HitTestResult(
-                box.Element,
                 box.LinkHref,
                 box,
                 null
@@ -71,15 +67,6 @@ public class HitTester
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Find the nearest parent element for anonymous boxes.
-    /// </summary>
-    private static IElement? FindParentElement(LayoutBox box)
-    {
-        // Anonymous boxes don't have elements — try to find one from context
-        return box.Element;
     }
 
     /// <summary>

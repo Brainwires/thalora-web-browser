@@ -147,7 +147,6 @@ public class StyleResolver_ParseColorTests
         result!.Value.R.Should().Be(100);
         result.Value.G.Should().Be(200);
         result.Value.B.Should().Be(50);
-        // Avalonia's Color.TryParse handles rgba() and may round alpha differently
         result.Value.A.Should().BeInRange((byte)127, (byte)128);
     }
 
@@ -194,7 +193,6 @@ public class StyleResolver_ParseColorTests
     {
         var result = StyleResolver.ParseColor("rgba(100, 100, 100, 2.0)");
         result.Should().NotBeNull();
-        // Avalonia's Color.TryParse may handle clamping; verify alpha is near max
         result!.Value.A.Should().BeGreaterOrEqualTo(254);
     }
 
@@ -203,7 +201,6 @@ public class StyleResolver_ParseColorTests
     {
         var result = StyleResolver.ParseColor("rgba(100, 100, 100, -1.0)");
         result.Should().NotBeNull();
-        // Avalonia's Color.TryParse may handle clamping; verify alpha is near min
         result!.Value.A.Should().BeLessOrEqualTo(1);
     }
 }
@@ -493,217 +490,6 @@ public class StyleResolver_ParseOverflowTests
     {
         StyleResolver.ParseOverflow("clip").Should().Be(OverflowMode.Visible);
         StyleResolver.ParseOverflow("nonsense").Should().Be(OverflowMode.Visible);
-    }
-}
-
-#endregion
-
-#region CreateRootStyle Tests
-
-[Collection("Avalonia")]
-public class StyleResolver_CreateRootStyleTests
-{
-    public StyleResolver_CreateRootStyleTests()
-    {
-        AvaloniaTestApp.EnsureInitialized();
-    }
-
-    [Fact]
-    public void CreateRootStyle_ReturnsCorrectDefaults()
-    {
-        var resolver = new StyleResolver();
-        var root = resolver.CreateRootStyle();
-
-        root.FontSize.Should().Be(16);
-        root.FontWeight.Should().Be(FontWeight.Normal);
-        root.FontFamily.Should().NotBeNull();
-        root.Display.Should().Be(DisplayMode.Block);
-        root.LineHeight.Should().Be(1.4);
-
-        // Color should be rgb(220, 220, 220)
-        var colorBrush = root.Color.Should().BeOfType<SolidColorBrush>().Subject;
-        colorBrush.Color.R.Should().Be(220);
-        colorBrush.Color.G.Should().Be(220);
-        colorBrush.Color.B.Should().Be(220);
-
-        // BackgroundColor should be rgb(30, 30, 30)
-        var bgBrush = root.BackgroundColor.Should().BeOfType<SolidColorBrush>().Subject;
-        bgBrush.Color.R.Should().Be(30);
-        bgBrush.Color.G.Should().Be(30);
-        bgBrush.Color.B.Should().Be(30);
-    }
-}
-
-#endregion
-
-#region ComputeStyle Tests (require AngleSharp DOM)
-
-[Trait("Category", "Integration")]
-[Collection("Avalonia")]
-public class StyleResolver_ComputeStyleTests
-{
-    private readonly StyleResolver _resolver = new();
-
-    private async Task<AngleSharp.Dom.IElement> GetElementAsync(string html, string selector)
-    {
-        AvaloniaTestApp.EnsureInitialized();
-        var doc = await LayoutTestHelper.ParseHtmlAsync(html);
-        return doc.QuerySelector(selector)!;
-    }
-
-    [Fact]
-    public async Task ComputeStyle_H1_HasCorrectFontSizeAndWeight()
-    {
-        var element = await GetElementAsync("<html><body><h1>Title</h1></body></html>", "h1");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.FontSize.Should().Be(32);
-        style.FontWeight.Should().Be(FontWeight.Bold);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_H2_HasCorrectFontSize()
-    {
-        var element = await GetElementAsync("<html><body><h2>Subtitle</h2></body></html>", "h2");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.FontSize.Should().Be(24);
-        style.FontWeight.Should().Be(FontWeight.Bold);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_P_HasCorrectMargin()
-    {
-        var element = await GetElementAsync("<html><body><p>Text</p></body></html>", "p");
-        var style = _resolver.ComputeStyle(element, null);
-
-        // AngleSharp CSS may apply UA stylesheet margins (e.g. 1em = 16px or 1.12em ≈ 17.92px)
-        style.Margin.Top.Should().BeGreaterOrEqualTo(16);
-        style.Margin.Bottom.Should().BeGreaterOrEqualTo(16);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_A_HasUnderlineAndCornflowerBlueColor()
-    {
-        var element = await GetElementAsync("<html><body><a href=\"#\">Link</a></body></html>", "a");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.TextDecorations.Should().NotBeNull();
-        style.TextDecorations.Should().BeSameAs(Avalonia.Media.TextDecorations.Underline);
-
-        var colorBrush = style.Color.Should().BeOfType<SolidColorBrush>().Subject;
-        colorBrush.Color.R.Should().Be(100);
-        colorBrush.Color.G.Should().Be(149);
-        colorBrush.Color.B.Should().Be(237);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_InheritsFromParent_FontSize()
-    {
-        var element = await GetElementAsync("<html><body><div><span>Text</span></div></body></html>", "span");
-        var parentStyle = new CssComputedStyle { FontSize = 24 };
-        var style = _resolver.ComputeStyle(element, parentStyle);
-
-        style.FontSize.Should().Be(24);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_InheritsFromParent_Color()
-    {
-        var element = await GetElementAsync("<html><body><div><span>Text</span></div></body></html>", "span");
-        var parentColor = new SolidColorBrush(Color.FromRgb(255, 0, 0));
-        var parentStyle = new CssComputedStyle { Color = parentColor };
-        var style = _resolver.ComputeStyle(element, parentStyle);
-
-        var colorBrush = style.Color.Should().BeOfType<SolidColorBrush>().Subject;
-        colorBrush.Color.R.Should().Be(255);
-        colorBrush.Color.G.Should().Be(0);
-        colorBrush.Color.B.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_InheritsFromParent_FontWeight()
-    {
-        var element = await GetElementAsync("<html><body><div><span>Text</span></div></body></html>", "span");
-        var parentStyle = new CssComputedStyle { FontWeight = FontWeight.Bold };
-        var style = _resolver.ComputeStyle(element, parentStyle);
-
-        style.FontWeight.Should().Be(FontWeight.Bold);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_InheritsFromParent_TextAlign()
-    {
-        var element = await GetElementAsync("<html><body><div><p>Text</p></div></body></html>", "p");
-        var parentStyle = new CssComputedStyle { TextAlign = TextAlignment.Center };
-        var style = _resolver.ComputeStyle(element, parentStyle);
-
-        style.TextAlign.Should().Be(TextAlignment.Center);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_DisplayNone_SetsIsVisibleFalse()
-    {
-        var element = await GetElementAsync(
-            "<html><body><div style=\"display:none\">Hidden</div></body></html>", "div");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.Display.Should().Be(DisplayMode.None);
-        style.IsVisible.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task ComputeStyle_Div_IsBlock()
-    {
-        var element = await GetElementAsync("<html><body><div>Content</div></body></html>", "div");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.Display.Should().Be(DisplayMode.Block);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_Span_IsInline()
-    {
-        var element = await GetElementAsync("<html><body><span>Text</span></body></html>", "span");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.Display.Should().Be(DisplayMode.Inline);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_Strong_IsBold()
-    {
-        var element = await GetElementAsync("<html><body><strong>Bold</strong></body></html>", "strong");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.FontWeight.Should().Be(FontWeight.Bold);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_Em_IsItalic()
-    {
-        var element = await GetElementAsync("<html><body><em>Italic</em></body></html>", "em");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.FontStyle.Should().Be(FontStyle.Italic);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_Li_IsListItem()
-    {
-        var element = await GetElementAsync("<html><body><ul><li>Item</li></ul></body></html>", "li");
-        var style = _resolver.ComputeStyle(element, null);
-
-        style.Display.Should().Be(DisplayMode.ListItem);
-    }
-
-    [Fact]
-    public async Task ComputeStyle_NullParent_DoesNotThrow()
-    {
-        var element = await GetElementAsync("<html><body><div>Root</div></body></html>", "div");
-
-        var act = () => _resolver.ComputeStyle(element, null);
-        act.Should().NotThrow();
     }
 }
 

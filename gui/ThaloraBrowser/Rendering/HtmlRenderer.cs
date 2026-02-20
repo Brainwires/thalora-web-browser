@@ -1,37 +1,32 @@
-using AngleSharp;
-using AngleSharp.Css;
-using AngleSharp.Dom;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalonia;
+using Avalonia.Media;
 using ThaloraBrowser.Services;
 
 namespace ThaloraBrowser.Rendering;
 
 /// <summary>
-/// Orchestrates the HTML/CSS rendering pipeline:
-/// Parse (AngleSharp) -> Style (CSS computation) -> Layout (box positioning) -> Paint (Avalonia drawing)
+/// Orchestrates the rendering pipeline using layout data computed on the Rust side:
+/// Rust (HTML → CSS → Layout) → JSON → Deserialize → LayoutBox tree → Paint (Avalonia)
 /// </summary>
 public class HtmlRenderer : IDisposable
 {
-    private readonly IBrowsingContext _browsingContext;
-    private readonly StyleResolver _styleResolver;
-    private readonly LayoutEngine _layoutEngine;
     private readonly PaintContext _paintContext;
     private readonly HitTester _hitTester;
     private readonly ImageCache _imageCache;
 
-    private IDocument? _currentDocument;
     private LayoutBox? _currentLayout;
+    private string? _baseUrl;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 
     public HtmlRenderer()
     {
-        // Configure AngleSharp with CSS support
-        var config = Configuration.Default
-            .WithDefaultLoader()
-            .WithCss();
-
-        _browsingContext = BrowsingContext.New(config);
-        _styleResolver = new StyleResolver();
-        _layoutEngine = new LayoutEngine(_styleResolver);
         _hitTester = new HitTester();
         _imageCache = new ImageCache();
         _paintContext = new PaintContext(_imageCache);
@@ -70,53 +65,32 @@ public class HtmlRenderer : IDisposable
     }
 
     /// <summary>
-    /// Parse HTML and perform layout for the given viewport.
-    /// This is the main entry point — call this when page content changes.
+    /// Render from JSON layout data computed by the Rust engine.
+    /// This replaces the old RenderPageAsync that used AngleSharp.
     /// </summary>
-    public async Task<LayoutBox?> RenderPageAsync(string html, string baseUrl, Size viewport)
+    public LayoutBox? RenderFromLayoutJson(string json, string? baseUrl)
     {
+        _baseUrl = baseUrl;
+
         try
         {
-            // Parse HTML with AngleSharp
-            _currentDocument = await _browsingContext.OpenAsync(req =>
-            {
-                req.Content(html);
-                if (!string.IsNullOrEmpty(baseUrl))
-                    req.Address(baseUrl);
-            });
-
-            if (_currentDocument == null)
+            var rustLayout = JsonSerializer.Deserialize<RustLayoutResult>(json, JsonOptions);
+            if (rustLayout == null)
                 return null;
 
-            // Build the layout tree
-            _currentLayout = _layoutEngine.BuildLayoutTree(_currentDocument, viewport);
+            _currentLayout = ConvertToLayoutBox(rustLayout);
             return _currentLayout;
         }
         catch (Exception ex)
         {
-            // On parse/layout failure, render an error page
-            var errorHtml = $"<html><body><h1>Rendering Error</h1><pre>{System.Net.WebUtility.HtmlEncode(ex.Message)}</pre></body></html>";
-            _currentDocument = await _browsingContext.OpenAsync(req => req.Content(errorHtml));
-            _currentLayout = _layoutEngine.BuildLayoutTree(_currentDocument!, viewport);
+            // On deserialization failure, render an error box
+            _currentLayout = CreateErrorBox(ex.Message);
             return _currentLayout;
         }
     }
 
     /// <summary>
-    /// Re-layout the current document for a new viewport size.
-    /// Faster than a full re-render since we skip HTML parsing.
-    /// </summary>
-    public LayoutBox? RelayoutForViewport(Size viewport)
-    {
-        if (_currentDocument == null)
-            return null;
-
-        _currentLayout = _layoutEngine.BuildLayoutTree(_currentDocument, viewport);
-        return _currentLayout;
-    }
-
-    /// <summary>
-    /// Resolve a potentially relative URL against the current document's base URL.
+    /// Resolve a potentially relative URL against the current base URL.
     /// </summary>
     public string? ResolveUrl(string? href)
     {
@@ -127,14 +101,288 @@ public class HtmlRenderer : IDisposable
         if (Uri.TryCreate(href, UriKind.Absolute, out var absolute))
             return absolute.ToString();
 
-        // Resolve relative to document base
-        if (_currentDocument?.BaseUri != null && Uri.TryCreate(_currentDocument.BaseUri, UriKind.Absolute, out var baseUri))
+        // Resolve relative to base URL
+        if (!string.IsNullOrEmpty(_baseUrl) && Uri.TryCreate(_baseUrl, UriKind.Absolute, out var baseUri))
         {
             if (Uri.TryCreate(baseUri, href, out var resolved))
                 return resolved.ToString();
         }
 
         return href;
+    }
+
+    /// <summary>
+    /// Convert the Rust LayoutResult JSON structure into our LayoutBox tree for painting.
+    /// </summary>
+    private static LayoutBox ConvertToLayoutBox(RustLayoutResult rustResult)
+    {
+        if (rustResult.Elements == null || rustResult.Elements.Count == 0)
+        {
+            return new LayoutBox
+            {
+                Type = BoxType.Block,
+                Style = CreateDefaultRootStyle(),
+                ContentRect = new Rect(0, 0, rustResult.Width, rustResult.Height),
+            };
+        }
+
+        // The root element is usually <html>
+        return ConvertElement(rustResult.Elements[0], null);
+    }
+
+    /// <summary>
+    /// Recursively convert a Rust ElementLayout to a C# LayoutBox.
+    /// </summary>
+    private static LayoutBox ConvertElement(RustElementLayout el, CssComputedStyle? parentStyle)
+    {
+        var style = BuildComputedStyle(el, parentStyle);
+
+        var box = new LayoutBox
+        {
+            Type = MapDisplayToBoxType(el.Display, el.Tag),
+            Style = style,
+            ContentRect = new Rect(el.X, el.Y, el.Width, el.Height),
+            Margin = el.Margin != null
+                ? new Thickness(el.Margin.Left, el.Margin.Top, el.Margin.Right, el.Margin.Bottom)
+                : style.Margin,
+            Padding = el.Padding != null
+                ? new Thickness(el.Padding.Left, el.Padding.Top, el.Padding.Right, el.Padding.Bottom)
+                : style.Padding,
+            Border = el.BorderSides != null
+                ? new Thickness(el.BorderSides.Left, el.BorderSides.Top, el.BorderSides.Right, el.BorderSides.Bottom)
+                : style.BorderWidth,
+            LinkHref = el.LinkHref,
+            ImageSource = el.ImgSrc,
+        };
+
+        // Handle text content — create TextRuns
+        if (!string.IsNullOrEmpty(el.TextContent))
+        {
+            box.TextRuns = new List<TextRun>
+            {
+                new TextRun
+                {
+                    Text = el.TextContent,
+                    Style = style,
+                    LinkHref = el.LinkHref,
+                    Bounds = new Rect(el.X, el.Y, el.Width, el.Height),
+                }
+            };
+
+            // Text nodes are anonymous boxes
+            if (el.Tag == "#text")
+                box.Type = BoxType.Anonymous;
+        }
+
+        // Convert children recursively
+        if (el.Children != null)
+        {
+            foreach (var child in el.Children)
+            {
+                var childBox = ConvertElement(child, style);
+                box.Children.Add(childBox);
+            }
+        }
+
+        return box;
+    }
+
+    /// <summary>
+    /// Build a CssComputedStyle from the Rust element's visual properties.
+    /// </summary>
+    private static CssComputedStyle BuildComputedStyle(RustElementLayout el, CssComputedStyle? parentStyle)
+    {
+        var style = new CssComputedStyle();
+
+        // Inherit from parent
+        if (parentStyle != null)
+        {
+            style.FontSize = parentStyle.FontSize;
+            style.FontWeight = parentStyle.FontWeight;
+            style.FontFamily = parentStyle.FontFamily;
+            style.FontStyle = parentStyle.FontStyle;
+            style.Color = parentStyle.Color;
+            style.TextAlign = parentStyle.TextAlign;
+            style.LineHeight = parentStyle.LineHeight;
+            style.WhiteSpace = parentStyle.WhiteSpace;
+        }
+
+        // Display
+        if (!string.IsNullOrEmpty(el.Display))
+            style.Display = StyleResolver.ParseDisplay(el.Display);
+
+        // Visibility
+        style.IsVisible = el.IsVisible;
+        if (style.Display == DisplayMode.None)
+            style.IsVisible = false;
+
+        // Font size
+        if (el.FontSize.HasValue)
+            style.FontSize = el.FontSize.Value;
+
+        // Font weight
+        if (!string.IsNullOrEmpty(el.FontWeight))
+            style.FontWeight = StyleResolver.ParseFontWeight(el.FontWeight);
+
+        // Font style
+        if (!string.IsNullOrEmpty(el.FontStyle))
+        {
+            if (el.FontStyle == "italic" || el.FontStyle == "oblique")
+                style.FontStyle = Avalonia.Media.FontStyle.Italic;
+        }
+
+        // Font family
+        if (!string.IsNullOrEmpty(el.FontFamily))
+            style.FontFamily = new FontFamily(el.FontFamily.Split(',')[0].Trim().Trim('"', '\''));
+
+        // Color
+        if (!string.IsNullOrEmpty(el.Color))
+        {
+            var parsed = StyleResolver.ParseColor(el.Color);
+            if (parsed.HasValue)
+                style.Color = new SolidColorBrush(parsed.Value);
+        }
+
+        // Background color
+        if (!string.IsNullOrEmpty(el.BackgroundColor) && el.BackgroundColor != "transparent")
+        {
+            var parsed = StyleResolver.ParseColor(el.BackgroundColor);
+            if (parsed.HasValue)
+                style.BackgroundColor = new SolidColorBrush(parsed.Value);
+        }
+
+        // Text alignment
+        if (!string.IsNullOrEmpty(el.TextAlign))
+            style.TextAlign = StyleResolver.ParseTextAlign(el.TextAlign);
+
+        // Text decoration
+        if (!string.IsNullOrEmpty(el.TextDecoration))
+        {
+            if (el.TextDecoration.Contains("underline"))
+                style.TextDecorations = Avalonia.Media.TextDecorations.Underline;
+            else if (el.TextDecoration.Contains("line-through"))
+                style.TextDecorations = Avalonia.Media.TextDecorations.Strikethrough;
+            else if (el.TextDecoration == "none")
+                style.TextDecorations = null;
+        }
+
+        // Line height
+        if (el.LineHeight.HasValue)
+            style.LineHeight = el.LineHeight.Value;
+
+        // White space
+        if (!string.IsNullOrEmpty(el.WhiteSpace))
+            style.WhiteSpace = StyleResolver.ParseWhiteSpace(el.WhiteSpace);
+
+        // Opacity
+        if (el.Opacity.HasValue)
+            style.Opacity = Math.Clamp(el.Opacity.Value, 0, 1);
+
+        // Margin
+        if (el.Margin != null)
+            style.Margin = new Thickness(el.Margin.Left, el.Margin.Top, el.Margin.Right, el.Margin.Bottom);
+        style.HasAutoMarginLeft = el.MarginLeftAuto;
+        style.HasAutoMarginRight = el.MarginRightAuto;
+
+        // Padding
+        if (el.Padding != null)
+            style.Padding = new Thickness(el.Padding.Left, el.Padding.Top, el.Padding.Right, el.Padding.Bottom);
+
+        // Border
+        if (el.BorderSides != null)
+            style.BorderWidth = new Thickness(el.BorderSides.Left, el.BorderSides.Top, el.BorderSides.Right, el.BorderSides.Bottom);
+        else if (el.BorderWidth.HasValue)
+            style.BorderWidth = new Thickness(el.BorderWidth.Value);
+
+        if (!string.IsNullOrEmpty(el.BorderColor))
+        {
+            var parsed = StyleResolver.ParseColor(el.BorderColor);
+            if (parsed.HasValue)
+                style.BorderBrush = new SolidColorBrush(parsed.Value);
+        }
+
+        // Border radius
+        if (el.BorderRadius.HasValue)
+            style.BorderRadius = new CornerRadius(el.BorderRadius.Value);
+
+        // Sizing — width/height come from taffy layout, not CSS
+        // But we store explicit CSS values if the Rust side passed them
+        if (el.Width > 0)
+            style.Width = el.Width;
+        if (el.Height > 0)
+            style.Height = el.Height;
+
+        // Overflow
+        if (!string.IsNullOrEmpty(el.Overflow))
+            style.Overflow = StyleResolver.ParseOverflow(el.Overflow);
+
+        // List style
+        if (!string.IsNullOrEmpty(el.ListStyleType))
+            style.ListStyleType = ParseListStyleType(el.ListStyleType);
+
+        return style;
+    }
+
+    private static ListStyleType ParseListStyleType(string value) => value.ToLowerInvariant() switch
+    {
+        "disc" => ListStyleType.Disc,
+        "circle" => ListStyleType.Circle,
+        "square" => ListStyleType.Square,
+        "decimal" => ListStyleType.Decimal,
+        "lower-alpha" => ListStyleType.LowerAlpha,
+        "upper-alpha" => ListStyleType.UpperAlpha,
+        "lower-roman" => ListStyleType.LowerRoman,
+        "upper-roman" => ListStyleType.UpperRoman,
+        _ => ListStyleType.None,
+    };
+
+    private static BoxType MapDisplayToBoxType(string? display, string? tag) => display?.ToLowerInvariant() switch
+    {
+        "block" => BoxType.Block,
+        "inline" => BoxType.Inline,
+        "inline-block" => BoxType.InlineBlock,
+        "flex" => BoxType.Block,
+        "list-item" => BoxType.ListItem,
+        "table" => BoxType.TableBox,
+        "table-row" => BoxType.TableRowBox,
+        "table-cell" => BoxType.TableCellBox,
+        _ => tag == "#text" ? BoxType.Anonymous : BoxType.Block,
+    };
+
+    private static CssComputedStyle CreateDefaultRootStyle()
+    {
+        return new CssComputedStyle
+        {
+            FontSize = 16,
+            FontWeight = Avalonia.Media.FontWeight.Normal,
+            FontFamily = FontFamily.Default,
+            Color = new SolidColorBrush(Color.FromRgb(220, 220, 220)),
+            BackgroundColor = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+            Display = DisplayMode.Block,
+            LineHeight = 1.4,
+        };
+    }
+
+    private static LayoutBox CreateErrorBox(string message)
+    {
+        var style = CreateDefaultRootStyle();
+        style.Color = new SolidColorBrush(Colors.Red);
+
+        return new LayoutBox
+        {
+            Type = BoxType.Block,
+            Style = style,
+            ContentRect = new Rect(16, 16, 800, 40),
+            TextRuns = new List<TextRun>
+            {
+                new TextRun
+                {
+                    Text = $"Layout Error: {message}",
+                    Style = style,
+                    Bounds = new Rect(16, 16, 800, 40),
+                }
+            },
+        };
     }
 
     /// <summary>
@@ -162,7 +410,162 @@ public class HtmlRenderer : IDisposable
 
     public void Dispose()
     {
-        _currentDocument?.Dispose();
         _imageCache.Dispose();
     }
+}
+
+// --- JSON deserialization models matching Rust LayoutResult/ElementLayout ---
+
+/// <summary>
+/// Mirrors Rust LayoutResult struct.
+/// </summary>
+internal class RustLayoutResult
+{
+    [JsonPropertyName("width")]
+    public double Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public double Height { get; set; }
+
+    [JsonPropertyName("elements")]
+    public List<RustElementLayout>? Elements { get; set; }
+}
+
+/// <summary>
+/// Mirrors Rust ElementLayout struct with all visual properties.
+/// </summary>
+internal class RustElementLayout
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("tag")]
+    public string Tag { get; set; } = "";
+
+    [JsonPropertyName("x")]
+    public double X { get; set; }
+
+    [JsonPropertyName("y")]
+    public double Y { get; set; }
+
+    [JsonPropertyName("width")]
+    public double Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public double Height { get; set; }
+
+    [JsonPropertyName("content_box")]
+    public RustContentBox? ContentBox { get; set; }
+
+    [JsonPropertyName("children")]
+    public List<RustElementLayout>? Children { get; set; }
+
+    // Visual properties
+    [JsonPropertyName("text_content")]
+    public string? TextContent { get; set; }
+
+    [JsonPropertyName("link_href")]
+    public string? LinkHref { get; set; }
+
+    [JsonPropertyName("img_src")]
+    public string? ImgSrc { get; set; }
+
+    [JsonPropertyName("background_color")]
+    public string? BackgroundColor { get; set; }
+
+    [JsonPropertyName("color")]
+    public string? Color { get; set; }
+
+    [JsonPropertyName("font_size")]
+    public double? FontSize { get; set; }
+
+    [JsonPropertyName("font_family")]
+    public string? FontFamily { get; set; }
+
+    [JsonPropertyName("font_weight")]
+    public string? FontWeight { get; set; }
+
+    [JsonPropertyName("font_style")]
+    public string? FontStyle { get; set; }
+
+    [JsonPropertyName("text_align")]
+    public string? TextAlign { get; set; }
+
+    [JsonPropertyName("text_decoration")]
+    public string? TextDecoration { get; set; }
+
+    [JsonPropertyName("line_height")]
+    public double? LineHeight { get; set; }
+
+    [JsonPropertyName("white_space")]
+    public string? WhiteSpace { get; set; }
+
+    [JsonPropertyName("border_radius")]
+    public double? BorderRadius { get; set; }
+
+    [JsonPropertyName("border_width")]
+    public double? BorderWidth { get; set; }
+
+    [JsonPropertyName("border_color")]
+    public string? BorderColor { get; set; }
+
+    [JsonPropertyName("opacity")]
+    public double? Opacity { get; set; }
+
+    [JsonPropertyName("overflow")]
+    public string? Overflow { get; set; }
+
+    [JsonPropertyName("list_style_type")]
+    public string? ListStyleType { get; set; }
+
+    [JsonPropertyName("margin_left_auto")]
+    public bool MarginLeftAuto { get; set; }
+
+    [JsonPropertyName("margin_right_auto")]
+    public bool MarginRightAuto { get; set; }
+
+    [JsonPropertyName("padding")]
+    public RustBoxModelSides? Padding { get; set; }
+
+    [JsonPropertyName("margin")]
+    public RustBoxModelSides? Margin { get; set; }
+
+    [JsonPropertyName("border_sides")]
+    public RustBoxModelSides? BorderSides { get; set; }
+
+    [JsonPropertyName("display")]
+    public string? Display { get; set; }
+
+    [JsonPropertyName("is_visible")]
+    public bool IsVisible { get; set; } = true;
+}
+
+internal class RustContentBox
+{
+    [JsonPropertyName("x")]
+    public double X { get; set; }
+
+    [JsonPropertyName("y")]
+    public double Y { get; set; }
+
+    [JsonPropertyName("width")]
+    public double Width { get; set; }
+
+    [JsonPropertyName("height")]
+    public double Height { get; set; }
+}
+
+internal class RustBoxModelSides
+{
+    [JsonPropertyName("top")]
+    public double Top { get; set; }
+
+    [JsonPropertyName("right")]
+    public double Right { get; set; }
+
+    [JsonPropertyName("bottom")]
+    public double Bottom { get; set; }
+
+    [JsonPropertyName("left")]
+    public double Left { get; set; }
 }
