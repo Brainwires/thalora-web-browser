@@ -185,6 +185,7 @@
         <!-- Content Area -->
         <controls:WebContentControl x:Name="WebContent"
                                     HtmlContent="{Binding ActiveTab.HtmlContent}"
-                                    BaseUrl="{Binding ActiveTab.Url}"/>
+                                    BaseUrl="{Binding ActiveTab.Url}"
+                                    Engine="{Binding ActiveTab.Engine}"/>
     </DockPanel>
 </Window>

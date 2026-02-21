@@ -1,7 +1,7 @@
 // Core browser engine components
 
-// Browser module - native only (uses reqwest HTTP client)
-#[cfg(any(feature = "native", feature = "web-search"))]
+// Browser module - requires core networking (uses reqwest HTTP client)
+#[cfg(feature = "core")]
 pub mod browser;
 
 // WASM browser stub - placeholder types for API compatibility
@@ -12,8 +12,8 @@ pub use browser_wasm as browser;
 
 pub mod renderer;
 
-// Engine module - native only (uses tokio::sync::Mutex)
-#[cfg(any(feature = "native", feature = "web-search"))]
+// Engine module - requires core (uses tokio::sync::Mutex)
+#[cfg(feature = "core")]
 pub mod engine;
 
 // WASM engine stub
@@ -28,10 +28,10 @@ pub mod security;
 // DOM module removed - now natively implemented in Boa engine
 
 // Re-exports for clean API
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use browser::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use renderer::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
-#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
+#[cfg(any(feature = "core", feature = "wasm"))]
 pub use engine::JavaScriptEngine;
 pub use engine_trait::{ThaloraBrowserEngine, EngineType, EngineFactory, BoaEngineWrapper, EngineConfig};
 // V8EngineWrapper removed - V8 engine was removed

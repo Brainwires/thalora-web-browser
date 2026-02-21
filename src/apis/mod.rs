@@ -3,8 +3,8 @@
 // fetch API is now natively implemented in Boa engine
 pub mod url_api;
 
-// Native-only modules (use reqwest, tokio, cpal, etc.)
-#[cfg(feature = "native")]
+// Service workers require core networking (tokio, reqwest)
+#[cfg(feature = "core")]
 pub mod service_worker;
 
 // websocket API is now natively implemented in Boa engine
@@ -60,8 +60,8 @@ impl WebApis {
 
         // timers (setTimeout/setInterval) are now natively handled by Boa engine
 
-        // Native-only: Service Worker setup
-        #[cfg(feature = "native")]
+        // Service Worker setup (requires core networking)
+        #[cfg(feature = "core")]
         {
             let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e)))?;
             sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;

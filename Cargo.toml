@@ -192,19 +192,30 @@ path = "src/main.rs"
 required-features = ["_bin"]
 
 [features]
-default = ["native"]
+default = ["desktop"]
 
 # Internal feature for binary builds (gates clap + tokio-util)
 _bin = ["dep:clap", "dep:tokio-util"]
 
-# Native build - includes all platform-specific dependencies
-native = [
-    "_bin",
+# Core networking and browser engine — enables FFI, protocols, web search
+core = [
     "dep:tokio",
     "dep:reqwest",
     "dep:reqwest_cookie_store",
     "dep:tokio-tungstenite",
     "dep:tungstenite",
+    "dep:dirs",
+    # Enable native features in sub-crates
+    "thalora-browser-apis/native",
+    "boa_engine/native",
+]
+
+# Desktop build — MCP server binary + FFI library for .NET GUI
+desktop = ["core", "_bin"]
+
+# Full native build — all platform-specific dependencies (may require ffmpeg)
+native = [
+    "desktop",
     "dep:cpal",
     "dep:hound",
     "dep:symphonia",
@@ -217,16 +228,12 @@ native = [
     "dep:webrtc-ice",
     "dep:webrtc-dtls",
     "dep:sysinfo",
-    "dep:dirs",
     "dep:wasmtime",
     "dep:wasmtime-wasi",
     "dep:wasmtime-wast",
     "dep:wat",
     "dep:wasmparser",
     "dep:wasm-encoder",
-    # Enable native features in sub-crates
-    "thalora-browser-apis/native",
-    "boa_engine/native",
 ]
 
 # WASM build - uses web-sys for browser API delegation
@@ -245,20 +252,8 @@ wasm = [
 # GUI mode with winit and wgpu for graphical browser interface (native only)
 gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
 
-# WASM debugging MCP tools (native only - uses wasmtime, wasmparser, wasmprinter)
-wasm-debug = ["native", "dep:wasmprinter"]
-
-# Minimal build for web search/scraping only (no audio, video, WebRTC, wasmtime)
-web-search = [
-    "_bin",
-    "dep:tokio",
-    "dep:reqwest",
-    "dep:reqwest_cookie_store",
-    "dep:dirs",
-    # Enable native features in sub-crates
-    "thalora-browser-apis/native",
-    "boa_engine/native",
-]
+# WASM debugging MCP tools (extends desktop — no ffmpeg needed)
+wasm-debug = ["desktop", "dep:wasmprinter"]
 
 [dev-dependencies]
 serial_test = "3.2.0"

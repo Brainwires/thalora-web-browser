@@ -23,16 +23,16 @@ pub mod apis;
 // Advanced browser features
 pub mod features;
 
-// Standalone web search module (available for web-search feature without full MCP)
-#[cfg(any(feature = "native", feature = "web-search"))]
+// Standalone web search module (requires core networking)
+#[cfg(feature = "core")]
 pub mod web_search;
 
-// FFI layer for C-compatible bindings (native only — requires tokio runtime)
-#[cfg(feature = "native")]
+// FFI layer for C-compatible bindings (requires tokio runtime from core)
+#[cfg(feature = "core")]
 pub mod ffi;
 
-// Communication protocols (only for native builds - requires tokio/networking)
-#[cfg(feature = "native")]
+// Communication protocols (requires tokio/networking from core)
+#[cfg(feature = "core")]
 pub mod protocols;
 
 // GUI module (requires gui feature - includes windowing, egui, wgpu)
@@ -43,10 +43,10 @@ pub mod gui;
 pub mod debug_utils;
 
 // Re-export main components for clean public API
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
 pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
-#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
+#[cfg(any(feature = "core", feature = "wasm"))]
 pub use engine::JavaScriptEngine;
 pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 // EventListener is now natively implemented in Boa engine
@@ -55,21 +55,21 @@ pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 // WebStorage is now natively implemented in Boa engine
 // events API is now natively implemented in Boa engine
 
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 
 // Web search re-exports for convenient access
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use web_search::{perform_search, SearchResult, SearchResults};
 
-// Protocol exports (only for native builds)
-#[cfg(feature = "native")]
+// Protocol exports (requires core networking)
+#[cfg(feature = "core")]
 pub use protocols::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};
-#[cfg(feature = "native")]
+#[cfg(feature = "core")]
 pub use protocols::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
-#[cfg(feature = "native")]
+#[cfg(feature = "core")]
 pub use protocols::{McpServer, MemoryTools};
 #[cfg(feature = "wasm-debug")]
 pub use protocols::wasm_debug_tools::WasmDebugTools;

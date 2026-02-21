@@ -238,11 +238,9 @@ public class WebContentControl : Control
                 return;
             }
 
-            var engine = Engine;
+            var engine = Engine ?? (DataContext as ThaloraBrowser.ViewModels.BrowserTabViewModel)?.Engine;
             if (engine == null)
             {
-                // No engine available — can't compute layout
-                // Fall back to showing raw content indicator
                 _renderer?.Dispose();
                 _renderer = new HtmlRenderer();
                 InvalidateVisual();
@@ -266,9 +264,8 @@ public class WebContentControl : Control
             UpdateScrollBounds();
             InvalidateVisual();
         }
-        catch
+        catch (Exception)
         {
-            // Rendering failures shouldn't crash the app
             InvalidateVisual();
         }
         finally

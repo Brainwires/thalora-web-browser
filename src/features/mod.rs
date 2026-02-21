@@ -1,7 +1,7 @@
 // Advanced browser features
 
 // Native-only: fingerprinting uses reqwest
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub mod fingerprinting;
 #[cfg(feature = "wasm")]
 pub mod fingerprinting_wasm;
@@ -11,7 +11,7 @@ pub use fingerprinting_wasm as fingerprinting;
 pub mod webgl;
 
 // Native-only: ai_memory uses dirs crate for filesystem paths
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub mod ai_memory;
 #[cfg(feature = "wasm")]
 pub mod ai_memory_wasm;
@@ -22,10 +22,10 @@ pub use ai_memory_wasm as ai_memory;
 pub mod readability;
 
 // Re-exports for clean API
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
 pub use webgl::WebGLManager;
 // webassembly types are now handled by Boa engine
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use ai_memory::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
 pub use readability::{ReadabilityEngine, ReadabilityConfig, QualityMetrics, ExtractionResult, ExtractionOptions, OutputFormat};

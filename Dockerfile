@@ -1,4 +1,4 @@
-# Stage 1: Build with lean mcp-server feature (no FFmpeg/audio/video/WebRTC/wasmtime)
+# Stage 1: Build with desktop features (no FFmpeg/audio/video/WebRTC/wasmtime)
 FROM rust:1.91.0-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 COPY . .
-RUN cargo build --release --no-default-features --features web-search \
+RUN cargo build --release \
     && strip target/release/thalora
 
 # Stage 2: Minimal runtime (binary only, no source code)

@@ -9,7 +9,7 @@
 //! The abstraction allows the same high-level code to work on both platforms.
 
 // Native platform implementation
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub mod native;
 
 // WASM platform implementation
@@ -17,7 +17,7 @@ pub mod native;
 pub mod wasm;
 
 // Re-export the appropriate platform module
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub use native as platform;
 
 #[cfg(feature = "wasm")]
@@ -157,7 +157,7 @@ impl std::error::Error for HttpError {}
 ///
 /// On native platforms, this requires Send + Sync for thread safety.
 /// On WASM, these bounds are relaxed since WASM is single-threaded.
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub trait HttpClient: Send + Sync {
     fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>>;
 }
@@ -178,13 +178,13 @@ pub enum WsMessage {
 }
 
 /// WebSocket event callback type
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub type WsCallback = Box<dyn Fn(WsMessage) + Send + Sync>;
 #[cfg(feature = "wasm")]
 pub type WsCallback = Box<dyn Fn(WsMessage)>;
 
 /// Platform WebSocket trait
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub trait WebSocketClient: Send + Sync {
     fn connect(&mut self, url: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
     fn send(&mut self, message: WsMessage) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
@@ -201,7 +201,7 @@ pub trait WebSocketClient {
 }
 
 /// Storage key-value operations
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub trait Storage: Send + Sync {
     fn get(&self, key: &str) -> Option<Vec<u8>>;
     fn set(&mut self, key: &str, value: &[u8]) -> Result<(), String>;
@@ -220,7 +220,7 @@ pub trait Storage {
 }
 
 /// Timer operations
-#[cfg(any(feature = "native", feature = "web-search"))]
+#[cfg(feature = "core")]
 pub trait Timer {
     fn set_timeout<F>(callback: F, delay_ms: u32) -> u32
     where
@@ -262,7 +262,7 @@ pub struct PlatformInfo {
 
 /// Get current platform info
 pub fn get_platform_info() -> PlatformInfo {
-    #[cfg(feature = "native")]
+    #[cfg(feature = "core")]
     {
         PlatformInfo {
             name: "native",
@@ -284,7 +284,7 @@ pub fn get_platform_info() -> PlatformInfo {
         }
     }
 
-    #[cfg(not(any(feature = "native", feature = "wasm")))]
+    #[cfg(not(any(feature = "core", feature = "wasm")))]
     {
         PlatformInfo {
             name: "unknown",
@@ -297,9 +297,9 @@ pub fn get_platform_info() -> PlatformInfo {
 }
 
 /// Create the default HTTP client for the current platform
-#[cfg(any(feature = "native", feature = "web-search", feature = "wasm"))]
+#[cfg(any(feature = "core", feature = "wasm"))]
 pub fn create_http_client() -> Box<dyn HttpClient> {
-    #[cfg(any(feature = "native", feature = "web-search"))]
+    #[cfg(feature = "core")]
     {
         Box::new(native::NativeHttpClient::new())
     }
