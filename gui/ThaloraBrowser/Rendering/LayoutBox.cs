@@ -35,6 +35,9 @@ public class LayoutBox
     /// <summary>Link href (for clickable elements).</summary>
     public string? LinkHref { get; set; }
 
+    /// <summary>1-based index for list items within their parent list.</summary>
+    public int ListItemIndex { get; set; } = 1;
+
     /// <summary>The full border box rectangle including margin.</summary>
     public Rect MarginBox => new(
         ContentRect.X - Padding.Left - Border.Left - Margin.Left,
@@ -81,4 +84,6 @@ public class TextRun
     public CssComputedStyle Style { get; set; } = new();
     public Rect Bounds { get; set; }
     public string? LinkHref { get; set; }
+    /// <summary>Whether this text was pre-split by Rust — skip Avalonia re-wrapping.</summary>
+    public bool IsPreSplitLine { get; set; }
 }

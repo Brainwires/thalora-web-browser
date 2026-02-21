@@ -5,6 +5,7 @@ pub mod execution;
 pub mod css;
 pub mod layout;
 pub mod page_layout;
+pub mod text_measure;
 pub mod polyfills;
 
 // Re-export the main types

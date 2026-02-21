@@ -25,14 +25,30 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
   </ItemGroup>
 
-  <!-- Native library references for Thalora Rust engine (only copy if built) -->
-  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux')) And Exists('../../target/release/libthalora.so')">
+  <!-- Bundled fonts matching the Rust engine's cosmic-text fonts for width agreement.
+       Automatically picks up all .ttf/.otf files from the shared fonts directory. -->
+  <ItemGroup>
+    <AvaloniaResource Include="../../src/gui/fonts/*.ttf" Link="Fonts/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../src/gui/fonts/*.otf" Link="Fonts/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Native library references for Thalora Rust engine — prefer debug, fall back to release -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux')) And Exists('../../target/debug/libthalora.so')">
+    <None Include="../../target/debug/libthalora.so" CopyToOutputDirectory="PreserveNewest" Link="libthalora.so" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux')) And !Exists('../../target/debug/libthalora.so') And Exists('../../target/release/libthalora.so')">
     <None Include="../../target/release/libthalora.so" CopyToOutputDirectory="PreserveNewest" Link="libthalora.so" />
   </ItemGroup>
-  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows')) And Exists('../../target/release/thalora.dll')">
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows')) And Exists('../../target/debug/thalora.dll')">
+    <None Include="../../target/debug/thalora.dll" CopyToOutputDirectory="PreserveNewest" Link="thalora.dll" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows')) And !Exists('../../target/debug/thalora.dll') And Exists('../../target/release/thalora.dll')">
     <None Include="../../target/release/thalora.dll" CopyToOutputDirectory="PreserveNewest" Link="thalora.dll" />
   </ItemGroup>
-  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And Exists('../../target/release/libthalora.dylib')">
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And Exists('../../target/debug/libthalora.dylib')">
+    <None Include="../../target/debug/libthalora.dylib" CopyToOutputDirectory="PreserveNewest" Link="libthalora.dylib" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX')) And !Exists('../../target/debug/libthalora.dylib') And Exists('../../target/release/libthalora.dylib')">
     <None Include="../../target/release/libthalora.dylib" CopyToOutputDirectory="PreserveNewest" Link="libthalora.dylib" />
   </ItemGroup>
 </Project>

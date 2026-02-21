@@ -271,11 +271,33 @@ pub fn compute_page_layout(html: &str, viewport_w: f32, viewport_h: f32) -> Resu
 
     // Step 2: Walk the DOM tree and build LayoutElement tree
     let root_node = document.root_element();
-    let layout_tree = build_layout_tree_from_dom(
+    let mut layout_tree = build_layout_tree_from_dom(
         &root_node,
         &css_processor,
         &mut 0,
+        viewport_w,
+        viewport_w as f64,
     );
+
+    // Step 2.5: Ensure html and body span the full viewport (CSS spec behavior)
+    // The root element should have min-height of 100% of viewport.
+    // Body inherits this stretching so backgrounds cover the full viewport.
+    let vh = format!("{}px", viewport_h);
+    if layout_tree.tag == "html" {
+        layout_tree.styles.other
+            .entry("min-height".to_string())
+            .or_insert_with(|| vh.clone());
+
+        // Find body child and set its min-height too
+        for child in &mut layout_tree.children {
+            if child.tag == "body" {
+                child.styles.other
+                    .entry("min-height".to_string())
+                    .or_insert_with(|| vh.clone());
+                break;
+            }
+        }
+    }
 
     // Step 3: Run taffy layout
     let mut engine = LayoutEngine::with_viewport(viewport_w, viewport_h);
@@ -293,10 +315,14 @@ pub fn compute_page_layout(html: &str, viewport_w: f32, viewport_h: f32) -> Resu
 }
 
 /// Build a LayoutElement tree from the scraper DOM.
+/// `available_width` tracks the estimated content width of the current container
+/// for text wrapping height estimates.
 fn build_layout_tree_from_dom(
     element_ref: &ElementRef,
     css_processor: &CssProcessor,
     id_counter: &mut u32,
+    viewport_w: f32,
+    available_width: f64,
 ) -> LayoutElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
@@ -327,6 +353,43 @@ fn build_layout_tree_from_dom(
         styles.display = Some(if is_block_element(&tag) { "block" } else { "inline" }.to_string());
     }
 
+    // Compute available width for children based on this element's styles
+    let vw = viewport_w as f64;
+    let vh = viewport_w as f64 * 0.5625; // approximate viewport height
+    let child_available_width = {
+        let mut w = available_width;
+        let mut has_explicit_width = false;
+        // If this element has an explicit width, use that instead
+        if let Some(ref width_str) = styles.width {
+            let font_size = styles.font_size.as_ref()
+                .and_then(|s| super::layout::resolve_css_length(s, 16.0))
+                .unwrap_or(16.0);
+            if width_str.ends_with('%') {
+                if let Ok(pct) = width_str.trim_end_matches('%').parse::<f64>() {
+                    w = available_width * pct / 100.0;
+                }
+                has_explicit_width = true;
+            } else if let Some(px) = super::layout::resolve_css_length_vp(width_str, font_size, viewport_w, viewport_w * 9.0 / 16.0) {
+                w = px;
+                has_explicit_width = true;
+            }
+        }
+        // Only subtract padding when width is auto (filling parent).
+        // Explicit widths are content-box (taffy default) — they already
+        // represent the content area, so padding is NOT subtracted.
+        if !has_explicit_width {
+            if let Some(ref padding) = styles.padding {
+                let fs = styles.font_size.as_ref()
+                    .and_then(|s| super::layout::resolve_css_length(s, 16.0))
+                    .unwrap_or(16.0);
+                let pl = super::layout::resolve_css_length_vp(&padding.left, fs, viewport_w, viewport_w * 9.0 / 16.0).unwrap_or(0.0);
+                let pr = super::layout::resolve_css_length_vp(&padding.right, fs, viewport_w, viewport_w * 9.0 / 16.0).unwrap_or(0.0);
+                w -= pl + pr;
+            }
+        }
+        w.max(50.0)
+    };
+
     // Build children
     let mut children = Vec::new();
     for child in element_ref.children() {
@@ -342,6 +405,8 @@ fn build_layout_tree_from_dom(
                         &child_el_ref,
                         css_processor,
                         id_counter,
+                        viewport_w,
+                        child_available_width,
                     );
 
                     // Skip display:none
@@ -356,64 +421,146 @@ fn build_layout_tree_from_dom(
                 }
             }
             Node::Text(text) => {
-                let text_str = text.text.as_ref();
+                let raw_text = text.text.as_ref();
                 // Skip whitespace-only text nodes (unless parent preserves whitespace)
                 let ws = styles.other.get("white-space").map(|s| s.as_str()).unwrap_or("normal");
-                if ws == "normal" && text_str.trim().is_empty() {
+                if ws == "normal" && raw_text.trim().is_empty() {
                     continue;
                 }
+                // Collapse whitespace like browsers do: newlines, tabs, and runs of
+                // spaces all become a single space in normal white-space mode.
+                let text_str: String = if ws == "normal" || ws == "nowrap" {
+                    raw_text.split_whitespace().collect::<Vec<_>>().join(" ")
+                } else {
+                    raw_text.to_string()
+                };
 
-                // Create an anonymous text node element
-                let text_id = format!("t{}", *id_counter);
-                *id_counter += 1;
-
-                let mut text_styles = ComputedStyles::default();
-                // Inherit key properties from parent
-                text_styles.font_size = styles.font_size.clone();
-                text_styles.font_family = styles.font_family.clone();
-                text_styles.font_weight = styles.font_weight.clone();
-                text_styles.color = styles.color.clone();
-                if let Some(fs) = styles.other.get("font-style") {
-                    text_styles.other.insert("font-style".to_string(), fs.clone());
-                }
-                if let Some(lh) = styles.other.get("line-height") {
-                    text_styles.other.insert("line-height".to_string(), lh.clone());
-                }
-                if let Some(ws_val) = styles.other.get("white-space") {
-                    text_styles.other.insert("white-space".to_string(), ws_val.clone());
-                }
-                // Text nodes need a size hint for taffy — estimate based on char count
+                // Text nodes — measure with real font shaping using per-line data
                 let font_size = styles.font_size.as_ref()
-                    .and_then(|s| parse_px_value(s))
+                    .and_then(|s| super::layout::resolve_css_length(s, 16.0))
                     .unwrap_or(16.0);
-                let approx_width = text_str.len() as f64 * font_size * 0.6;
                 let line_height = styles.other.get("line-height")
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(1.4);
-                let approx_height = font_size * line_height;
+                let font_family = styles.font_family.as_deref().unwrap_or("sans-serif");
+                let font_weight = styles.font_weight.as_deref();
+                let container_w = child_available_width.max(50.0);
 
-                // Don't set fixed width — let it fill container
-                text_styles.height = Some(format!("{}px", approx_height));
-                text_styles.display = Some("block".to_string());
+                let lines_result = super::text_measure::measure_text_lines(
+                    &text_str,
+                    font_family,
+                    font_size as f32,
+                    font_weight,
+                    Some(container_w as f32),
+                    line_height as f32,
+                );
 
-                let mut text_layout = LayoutElement {
-                    id: text_id,
-                    tag: "#text".to_string(),
-                    styles: text_styles,
-                    children: Vec::new(),
+                // Helper: build inherited text styles from parent
+                let make_text_styles = |text_content: &str, line_h: f64| -> ComputedStyles {
+                    let mut ts = ComputedStyles::default();
+                    ts.font_size = styles.font_size.clone();
+                    ts.font_family = styles.font_family.clone();
+                    ts.font_weight = styles.font_weight.clone();
+                    ts.color = styles.color.clone();
+                    if let Some(fs) = styles.other.get("font-style") {
+                        ts.other.insert("font-style".to_string(), fs.clone());
+                    }
+                    if let Some(lh) = styles.other.get("line-height") {
+                        ts.other.insert("line-height".to_string(), lh.clone());
+                    }
+                    if let Some(ws_val) = styles.other.get("white-space") {
+                        ts.other.insert("white-space".to_string(), ws_val.clone());
+                    }
+                    ts.other.insert("min-height".to_string(), format!("{}px", line_h));
+                    ts.display = Some("block".to_string());
+                    ts.other.insert("__text_content".to_string(), text_content.to_string());
+                    ts.other.insert("__pre_split_line".to_string(), "true".to_string());
+                    ts
                 };
 
-                // Store text content and link info in the 'other' map for later retrieval
-                text_layout.styles.other.insert("__text_content".to_string(), text_str.to_string());
+                // Link href for <a> elements
+                let link_href = if tag == "a" {
+                    el.attr("href").map(|h| h.to_string())
+                } else {
+                    None
+                };
 
-                // Check if ancestor is <a>
-                if tag == "a" {
-                    if let Some(href) = el.attr("href") {
-                        text_layout.styles.other.insert("__link_href".to_string(), href.to_string());
+                if lines_result.lines.len() <= 1 {
+                    // Single line: keep current behavior with pre_split_line marker
+                    let text_id = format!("t{}", *id_counter);
+                    *id_counter += 1;
+
+                    let line = lines_result.lines.first();
+                    let line_h = line.map(|l| l.height as f64).unwrap_or(font_size * line_height);
+
+                    let mut text_styles = make_text_styles(&text_str, line_h);
+
+                    if let Some(ref href) = link_href {
+                        text_styles.other.insert("__link_href".to_string(), href.clone());
                     }
-                }
 
-                children.push(text_layout);
+                    let text_layout = LayoutElement {
+                        id: text_id,
+                        tag: "#text".to_string(),
+                        styles: text_styles,
+                        children: Vec::new(),
+                    };
+
+                    children.push(text_layout);
+                } else {
+                    // Multiple lines: create a #text parent container with N #text-line children
+                    let parent_id = format!("t{}", *id_counter);
+                    *id_counter += 1;
+
+                    let mut parent_styles = ComputedStyles::default();
+                    parent_styles.font_size = styles.font_size.clone();
+                    parent_styles.font_family = styles.font_family.clone();
+                    parent_styles.font_weight = styles.font_weight.clone();
+                    parent_styles.color = styles.color.clone();
+                    if let Some(fs) = styles.other.get("font-style") {
+                        parent_styles.other.insert("font-style".to_string(), fs.clone());
+                    }
+                    if let Some(lh) = styles.other.get("line-height") {
+                        parent_styles.other.insert("line-height".to_string(), lh.clone());
+                    }
+                    if let Some(ws_val) = styles.other.get("white-space") {
+                        parent_styles.other.insert("white-space".to_string(), ws_val.clone());
+                    }
+                    parent_styles.display = Some("block".to_string());
+                    parent_styles.other.insert("min-height".to_string(), format!("{}px", lines_result.total_height));
+
+                    if let Some(ref href) = link_href {
+                        parent_styles.other.insert("__link_href".to_string(), href.clone());
+                    }
+
+                    let mut line_children = Vec::new();
+                    for line in &lines_result.lines {
+                        let line_id = format!("t{}", *id_counter);
+                        *id_counter += 1;
+
+                        let mut line_styles = make_text_styles(&line.text, line.height as f64);
+
+                        if let Some(ref href) = link_href {
+                            line_styles.other.insert("__link_href".to_string(), href.clone());
+                        }
+
+                        line_children.push(LayoutElement {
+                            id: line_id,
+                            tag: "#text-line".to_string(),
+                            styles: line_styles,
+                            children: Vec::new(),
+                        });
+                    }
+
+                    let text_layout = LayoutElement {
+                        id: parent_id,
+                        tag: "#text".to_string(),
+                        styles: parent_styles,
+                        children: line_children,
+                    };
+
+                    children.push(text_layout);
+                }
             }
             _ => {}
         }
@@ -491,6 +638,7 @@ struct VisualData {
     link_href: Option<String>,
     img_src: Option<String>,
     tag: String,
+    pre_split_line: bool,
 }
 
 /// Build a map from element ID -> visual data
@@ -508,12 +656,16 @@ fn collect_visual_data(element: &LayoutElement, map: &mut HashMap<String, Visual
     } else {
         None
     };
+    let pre_split_line = element.styles.other.get("__pre_split_line")
+        .map(|v| v == "true")
+        .unwrap_or(false);
 
     map.insert(element.id.clone(), VisualData {
         text_content,
         link_href,
         img_src,
         tag: element.tag.clone(),
+        pre_split_line,
     });
 
     for child in &element.children {
@@ -527,6 +679,7 @@ fn apply_visual_properties(layout: &mut ElementLayout, visual_map: &HashMap<Stri
         layout.text_content = visual.text_content.clone();
         layout.link_href = visual.link_href.clone();
         layout.img_src = visual.img_src.clone();
+        layout.pre_split_line = visual.pre_split_line;
     }
 
     for child in &mut layout.children {
@@ -591,5 +744,76 @@ mod tests {
 
         let result = compute_page_layout(html, 800.0, 600.0).unwrap();
         assert!(!result.elements.is_empty());
+    }
+
+    #[test]
+    fn test_example_com_layout() {
+        let html = r#"<!doctype html>
+<html>
+<head>
+    <title>Example Domain</title>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type="text/css">
+    body {
+        background-color: #f0f0f2;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
+            "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    div {
+        width: 600px;
+        margin: 5em auto;
+        padding: 2em;
+        background-color: #fdfdff;
+        border-radius: 0.5em;
+        box-shadow: 2px 3px 7px 2px rgba(0,0,0,0.02);
+    }
+    a:link, a:visited {
+        color: #38488f;
+        text-decoration: none;
+    }
+    @media (max-width: 700px) {
+        div {
+            margin: 0 auto;
+            width: auto;
+        }
+    }
+    </style>
+</head>
+<body>
+<div>
+    <h1>Example Domain</h1>
+    <p>This domain is for use in illustrative examples in documents. You may use this
+    domain in literature without prior coordination or asking for permission.</p>
+    <p><a href="https://www.iana.org/domains/examples">More information...</a></p>
+</div>
+</body>
+</html>"#;
+
+        let result = compute_page_layout(html, 1024.0, 768.0).unwrap();
+        let json = serde_json::to_string_pretty(&result).unwrap();
+
+        assert!(result.width > 0.0);
+        assert!(!result.elements.is_empty());
+
+        // Check that text content is present
+        fn find_text(el: &super::ElementLayout, texts: &mut Vec<String>) {
+            if let Some(ref t) = el.text_content {
+                texts.push(t.clone());
+            }
+            for child in &el.children {
+                find_text(child, texts);
+            }
+        }
+        let mut texts = Vec::new();
+        for el in &result.elements {
+            find_text(el, &mut texts);
+        }
+
+        assert!(!texts.is_empty(), "Should find text content in layout");
+        assert!(texts.iter().any(|t| t.contains("Example Domain")), "Should contain 'Example Domain'");
     }
 }

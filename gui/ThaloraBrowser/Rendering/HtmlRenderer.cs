@@ -137,11 +137,19 @@ public class HtmlRenderer : IDisposable
     {
         var style = BuildComputedStyle(el, parentStyle);
 
+        // Use content_box (content area excluding border+padding) when available.
+        // The Rust side returns x/y/width/height as border-box coords, but LayoutBox
+        // computed properties (PaddingBox, BorderBox, MarginBox) expand outward from
+        // ContentRect — so ContentRect must be the innermost content-box.
+        var contentRect = el.ContentBox != null
+            ? new Rect(el.ContentBox.X, el.ContentBox.Y, Math.Max(0, el.ContentBox.Width), Math.Max(0, el.ContentBox.Height))
+            : new Rect(el.X, el.Y, el.Width, el.Height);
+
         var box = new LayoutBox
         {
             Type = MapDisplayToBoxType(el.Display, el.Tag),
             Style = style,
-            ContentRect = new Rect(el.X, el.Y, el.Width, el.Height),
+            ContentRect = contentRect,
             Margin = el.Margin != null
                 ? new Thickness(el.Margin.Left, el.Margin.Top, el.Margin.Right, el.Margin.Bottom)
                 : style.Margin,
@@ -165,7 +173,8 @@ public class HtmlRenderer : IDisposable
                     Text = el.TextContent,
                     Style = style,
                     LinkHref = el.LinkHref,
-                    Bounds = new Rect(el.X, el.Y, el.Width, el.Height),
+                    Bounds = contentRect,
+                    IsPreSplitLine = el.PreSplitLine,
                 }
             };
 
@@ -181,6 +190,16 @@ public class HtmlRenderer : IDisposable
             {
                 var childBox = ConvertElement(child, style);
                 box.Children.Add(childBox);
+            }
+
+            // Assign sequential 1-based indices to ListItem children
+            int listIndex = 1;
+            foreach (var child in box.Children)
+            {
+                if (child.Type == BoxType.ListItem)
+                {
+                    child.ListItemIndex = listIndex++;
+                }
             }
         }
 
@@ -231,9 +250,9 @@ public class HtmlRenderer : IDisposable
                 style.FontStyle = Avalonia.Media.FontStyle.Italic;
         }
 
-        // Font family
+        // Font family — map to bundled fonts for width agreement with Rust engine
         if (!string.IsNullOrEmpty(el.FontFamily))
-            style.FontFamily = new FontFamily(el.FontFamily.Split(',')[0].Trim().Trim('"', '\''));
+            style.FontFamily = MapToBundledFontFamily(el.FontFamily);
 
         // Color
         if (!string.IsNullOrEmpty(el.Color))
@@ -346,7 +365,7 @@ public class HtmlRenderer : IDisposable
         "table" => BoxType.TableBox,
         "table-row" => BoxType.TableRowBox,
         "table-cell" => BoxType.TableCellBox,
-        _ => tag == "#text" ? BoxType.Anonymous : BoxType.Block,
+        _ => (tag == "#text" || tag == "#text-line") ? BoxType.Anonymous : BoxType.Block,
     };
 
     private static CssComputedStyle CreateDefaultRootStyle()
@@ -355,12 +374,45 @@ public class HtmlRenderer : IDisposable
         {
             FontSize = 16,
             FontWeight = Avalonia.Media.FontWeight.Normal,
-            FontFamily = FontFamily.Default,
-            Color = new SolidColorBrush(Color.FromRgb(220, 220, 220)),
+            FontFamily = new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans"),
+            Color = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
             BackgroundColor = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
             Display = DisplayMode.Block,
             LineHeight = 1.4,
         };
+    }
+
+    /// <summary>
+    /// Map a CSS font-family string to a bundled font for width agreement with Rust.
+    /// </summary>
+    private static FontFamily MapToBundledFontFamily(string cssFontFamily)
+    {
+        foreach (var name in cssFontFamily.Split(','))
+        {
+            var trimmed = name.Trim().Trim('"', '\'').ToLowerInvariant();
+            switch (trimmed)
+            {
+                case "monospace":
+                case "fira mono":
+                case "courier new":
+                case "courier":
+                case "consolas":
+                    return new FontFamily("avares://ThaloraBrowser/Fonts#Fira Mono");
+                case "sans-serif":
+                case "noto sans":
+                case "arial":
+                case "helvetica":
+                case "helvetica neue":
+                case "segoe ui":
+                case "open sans":
+                case "-apple-system":
+                case "system-ui":
+                case "blinkmacsystemfont":
+                    return new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans");
+            }
+        }
+        // Default to Noto Sans for any unrecognized font
+        return new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans");
     }
 
     private static LayoutBox CreateErrorBox(string message)
@@ -538,6 +590,9 @@ internal class RustElementLayout
 
     [JsonPropertyName("is_visible")]
     public bool IsVisible { get; set; } = true;
+
+    [JsonPropertyName("pre_split_line")]
+    public bool PreSplitLine { get; set; }
 }
 
 internal class RustContentBox

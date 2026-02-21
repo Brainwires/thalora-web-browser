@@ -1,3 +1,5 @@
+https://blog.cloudflare.com/markdown-for-agents/
+
 # Web API Implementation Status
 
 This document provides a comprehensive overview of Web API implementation status in the Thalora headless web browser and its Boa JavaScript engine. The status levels are:

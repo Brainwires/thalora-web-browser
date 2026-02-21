@@ -11,10 +11,22 @@ namespace ThaloraBrowser.Rendering;
 public class PaintContext
 {
     private readonly ImageCache _imageCache;
+    private string? _baseUrl;
+    private Action? _requestRepaint;
 
     public PaintContext(ImageCache imageCache)
     {
         _imageCache = imageCache;
+    }
+
+    /// <summary>
+    /// Configure the paint context with the current page's base URL and a repaint callback
+    /// for triggering redraws when async resources (images) finish loading.
+    /// </summary>
+    public void SetPaintContext(string? baseUrl, Action? requestRepaint)
+    {
+        _baseUrl = baseUrl;
+        _requestRepaint = requestRepaint;
     }
 
     /// <summary>
@@ -113,37 +125,66 @@ public class PaintContext
     private void PaintBorders(DrawingContext ctx, LayoutBox box, Rect borderBox)
     {
         var borderBrush = box.Style.BorderBrush ?? Brushes.Transparent;
+        bool hasBorder = box.Border.Top > 0 || box.Border.Bottom > 0 || box.Border.Left > 0 || box.Border.Right > 0;
+        if (!hasBorder)
+            return;
 
-        // Top border
-        if (box.Border.Top > 0)
+        if (box.Style.BorderRadius != default)
         {
-            var pen = new Pen(borderBrush, box.Border.Top);
-            var y = borderBox.Top + box.Border.Top / 2;
-            ctx.DrawLine(pen, new Point(borderBox.Left, y), new Point(borderBox.Right, y));
+            // Rounded borders: stroke a rounded rect with average border width, inset by half pen width
+            double avgWidth = (box.Border.Top + box.Border.Bottom + box.Border.Left + box.Border.Right) / 4.0;
+            if (avgWidth <= 0) return;
+            var pen = new Pen(borderBrush, avgWidth);
+            var half = avgWidth / 2;
+            var insetRect = new Rect(
+                borderBox.X + half,
+                borderBox.Y + half,
+                Math.Max(0, borderBox.Width - avgWidth),
+                Math.Max(0, borderBox.Height - avgWidth)
+            );
+            // Adjust border radius to account for inset
+            var br = box.Style.BorderRadius;
+            var rr = new RoundedRect(
+                insetRect,
+                Math.Max(0, br.TopLeft - half),
+                Math.Max(0, br.TopRight - half),
+                Math.Max(0, br.BottomRight - half),
+                Math.Max(0, br.BottomLeft - half)
+            );
+            ctx.DrawRectangle(null, pen, rr);
         }
-
-        // Bottom border
-        if (box.Border.Bottom > 0)
+        else
         {
-            var pen = new Pen(borderBrush, box.Border.Bottom);
-            var y = borderBox.Bottom - box.Border.Bottom / 2;
-            ctx.DrawLine(pen, new Point(borderBox.Left, y), new Point(borderBox.Right, y));
-        }
+            // Square borders: draw 4 filled rectangles to avoid corner overlap
+            // Top border (full width)
+            if (box.Border.Top > 0)
+            {
+                ctx.DrawRectangle(borderBrush, null,
+                    new Rect(borderBox.Left, borderBox.Top, borderBox.Width, box.Border.Top));
+            }
 
-        // Left border
-        if (box.Border.Left > 0)
-        {
-            var pen = new Pen(borderBrush, box.Border.Left);
-            var x = borderBox.Left + box.Border.Left / 2;
-            ctx.DrawLine(pen, new Point(x, borderBox.Top), new Point(x, borderBox.Bottom));
-        }
+            // Bottom border (full width)
+            if (box.Border.Bottom > 0)
+            {
+                ctx.DrawRectangle(borderBrush, null,
+                    new Rect(borderBox.Left, borderBox.Bottom - box.Border.Bottom, borderBox.Width, box.Border.Bottom));
+            }
 
-        // Right border
-        if (box.Border.Right > 0)
-        {
-            var pen = new Pen(borderBrush, box.Border.Right);
-            var x = borderBox.Right - box.Border.Right / 2;
-            ctx.DrawLine(pen, new Point(x, borderBox.Top), new Point(x, borderBox.Bottom));
+            // Left border (inset between top and bottom borders)
+            if (box.Border.Left > 0)
+            {
+                ctx.DrawRectangle(borderBrush, null,
+                    new Rect(borderBox.Left, borderBox.Top + box.Border.Top,
+                        box.Border.Left, Math.Max(0, borderBox.Height - box.Border.Top - box.Border.Bottom)));
+            }
+
+            // Right border (inset between top and bottom borders)
+            if (box.Border.Right > 0)
+            {
+                ctx.DrawRectangle(borderBrush, null,
+                    new Rect(borderBox.Right - box.Border.Right, borderBox.Top + box.Border.Top,
+                        box.Border.Right, Math.Max(0, borderBox.Height - box.Border.Top - box.Border.Bottom)));
+            }
         }
     }
 
@@ -166,11 +207,7 @@ public class PaintContext
             case ListStyleType.Decimal:
             case ListStyleType.LowerAlpha:
             case ListStyleType.UpperAlpha:
-                // Determine index: count this box's position among its parent's ListItem children
-                int index = 1;
-                // We don't have a parent reference, so use a simple heuristic:
-                // The list marker index is passed from layout. For now, default to 1.
-                // TODO: propagate list-item index from Rust layout if needed
+                int index = box.ListItemIndex;
 
                 string marker = box.Style.ListStyleType switch
                 {
@@ -209,9 +246,18 @@ public class PaintContext
             run.Style.Color
         );
 
+        // Only re-wrap text that was NOT pre-split by Rust.
+        // Pre-split lines already contain exactly the text for one visual line,
+        // so setting MaxTextWidth would cause unwanted re-wrapping.
+        if (!run.IsPreSplitLine && run.Bounds.Width > 0)
+            formatted.MaxTextWidth = run.Bounds.Width;
+
+        // Apply text alignment
+        formatted.TextAlignment = run.Style.TextAlign;
+
         ctx.DrawText(formatted, run.Bounds.TopLeft);
 
-        // Draw text decorations
+        // Draw text decorations using actual formatted text height for multi-line
         if (run.Style.TextDecorations != null)
         {
             foreach (var decoration in run.Style.TextDecorations)
@@ -219,9 +265,9 @@ public class PaintContext
                 var pen = new Pen(run.Style.Color, 1);
                 double lineY;
                 if (decoration.Location == TextDecorationLocation.Underline)
-                    lineY = run.Bounds.Bottom - 2;
+                    lineY = run.Bounds.Top + formatted.Height - 2;
                 else // Strikethrough
-                    lineY = run.Bounds.Top + run.Bounds.Height / 2;
+                    lineY = run.Bounds.Top + formatted.Height / 2;
 
                 ctx.DrawLine(pen, new Point(run.Bounds.Left, lineY), new Point(run.Bounds.Left + formatted.Width, lineY));
             }
@@ -230,8 +276,6 @@ public class PaintContext
 
     private void PaintImage(DrawingContext ctx, LayoutBox box)
     {
-        // For now, draw a placeholder rectangle for images
-        // Actual image loading happens asynchronously via ImageCache
         var rect = box.ContentRect;
         if (rect.Width <= 0 || rect.Height <= 0)
         {
@@ -239,11 +283,24 @@ public class PaintContext
             rect = new Rect(rect.X, rect.Y, 200, 150);
         }
 
+        var imageUrl = box.ImageSource!;
+
+        // Try to get cached bitmap
+        if (_imageCache.IsCached(imageUrl, _baseUrl))
+        {
+            var bitmap = _imageCache.GetCachedBitmap(imageUrl, _baseUrl);
+            if (bitmap != null)
+            {
+                ctx.DrawImage(bitmap, new Rect(0, 0, bitmap.PixelSize.Width, bitmap.PixelSize.Height), rect);
+                return;
+            }
+        }
+
+        // Draw placeholder while loading
         var placeholderBrush = new SolidColorBrush(Color.FromArgb(30, 128, 128, 128));
         var borderPen = new Pen(new SolidColorBrush(Color.FromArgb(60, 128, 128, 128)), 1);
         ctx.DrawRectangle(placeholderBrush, borderPen, rect);
 
-        // Draw alt text or "[img]" placeholder
         var altText = "[img]";
         var typeface = new Typeface(FontFamily.Default, FontStyle.Italic, FontWeight.Normal);
         var ft = new FormattedText(
@@ -255,5 +312,23 @@ public class PaintContext
             new SolidColorBrush(Color.FromRgb(150, 150, 150))
         );
         ctx.DrawText(ft, new Point(rect.X + 4, rect.Y + 4));
+
+        // Fire off async image load and request repaint when done
+        var repaint = _requestRepaint;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var bitmap = await _imageCache.GetImageAsync(imageUrl, _baseUrl);
+                if (bitmap != null)
+                {
+                    repaint?.Invoke();
+                }
+            }
+            catch
+            {
+                // Image load failed — placeholder remains
+            }
+        });
     }
 }

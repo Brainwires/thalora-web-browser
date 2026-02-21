@@ -316,10 +316,27 @@ impl CssProcessor {
         rule_selector == target_selector
     }
 
+    /// Strip pseudo-classes and pseudo-elements from a selector for matching.
+    /// e.g. "a:link" → "a", "a:hover::after" → "a"
+    fn strip_pseudos(selector: &str) -> &str {
+        // Find the first ':' that isn't escaped
+        if let Some(idx) = selector.find(':') {
+            &selector[..idx]
+        } else {
+            selector
+        }
+    }
+
     /// Check if a rule selector applies to a target element
     fn selector_applies(&self, rule_selector: &str, target: &str) -> bool {
         // Split rule selector by comma for multiple selectors
-        for selector in rule_selector.split(',').map(|s| s.trim()) {
+        for raw_selector in rule_selector.split(',').map(|s| s.trim()) {
+            // Strip pseudo-classes (:link, :visited, :hover, ::before, etc.)
+            let selector = Self::strip_pseudos(raw_selector);
+            if selector.is_empty() {
+                continue;
+            }
+
             // Check element type match
             if selector == target {
                 return true;
@@ -356,7 +373,24 @@ impl CssProcessor {
                 "position" => styles.position = Some(clean_value),
                 "width" => styles.width = Some(clean_value),
                 "height" => styles.height = Some(clean_value),
-                "background-color" | "background" => styles.background_color = Some(clean_value),
+                "background-color" => styles.background_color = Some(clean_value),
+                "background" => {
+                    // The background shorthand can include color, image, position, etc.
+                    // Extract just the color if it's a simple color value.
+                    // lightningcss often splits background into component properties,
+                    // but when it outputs the shorthand, the color is usually the first value.
+                    let v = clean_value.trim();
+                    // If it looks like a color value (hex, rgb, named color), use it
+                    if v.starts_with('#') || v.starts_with("rgb") || v.starts_with("hsl")
+                        || v == "transparent" || v == "inherit"
+                        || (!v.contains(' ') && !v.starts_with("url"))
+                    {
+                        styles.background_color = Some(clean_value);
+                    } else {
+                        // Store full background in other for potential future use
+                        styles.other.insert("background".to_string(), clean_value);
+                    }
+                },
                 "color" => styles.color = Some(clean_value),
                 "font-size" => styles.font_size = Some(clean_value),
                 "font-family" => styles.font_family = Some(clean_value),

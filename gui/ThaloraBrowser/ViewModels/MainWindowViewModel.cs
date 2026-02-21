@@ -33,16 +33,25 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isLoading;
 
-    public MainWindowViewModel()
-    {
-        // Start with one new tab
-        NewTab();
-    }
+    public MainWindowViewModel() : this(initialUrl: null) { }
 
-    public MainWindowViewModel(Func<IThaloraBrowserEngine> engineFactory)
+    public MainWindowViewModel(string? initialUrl) : this(initialUrl, engineFactory: null) { }
+
+    public MainWindowViewModel(Func<IThaloraBrowserEngine> engineFactory) : this(initialUrl: null, engineFactory) { }
+
+    public MainWindowViewModel(string? initialUrl, Func<IThaloraBrowserEngine>? engineFactory)
     {
         _engineFactory = engineFactory;
+
+        // Start with one new tab
         NewTab();
+
+        // If an initial URL was provided, navigate to it after the tab is ready
+        if (!string.IsNullOrWhiteSpace(initialUrl))
+        {
+            AddressBarText = initialUrl;
+            _ = Navigate();
+        }
     }
 
     partial void OnActiveTabChanged(BrowserTabViewModel? value)
@@ -129,7 +138,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (ActiveTab == null || string.IsNullOrWhiteSpace(AddressBarText))
             return;
 
-        await ActiveTab.NavigateAsync(AddressBarText);
+        try
+        {
+            await ActiveTab.NavigateAsync(AddressBarText);
+        }
+        catch (Exception ex)
+        {
+            System.Console.Error.WriteLine($"[Navigate] Error: {ex.Message}");
+        }
         UpdateNavigationState();
     }
 
@@ -137,7 +153,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private async Task GoBack()
     {
         if (ActiveTab == null) return;
-        await ActiveTab.GoBackAsync();
+        try
+        {
+            await ActiveTab.GoBackAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Console.Error.WriteLine($"[GoBack] Error: {ex.Message}");
+        }
         UpdateNavigationState();
     }
 
@@ -145,7 +168,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private async Task GoForward()
     {
         if (ActiveTab == null) return;
-        await ActiveTab.GoForwardAsync();
+        try
+        {
+            await ActiveTab.GoForwardAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Console.Error.WriteLine($"[GoForward] Error: {ex.Message}");
+        }
         UpdateNavigationState();
     }
 
@@ -153,7 +183,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private async Task Reload()
     {
         if (ActiveTab == null) return;
-        await ActiveTab.ReloadAsync();
+        try
+        {
+            await ActiveTab.ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Console.Error.WriteLine($"[Reload] Error: {ex.Message}");
+        }
         UpdateNavigationState();
     }
 

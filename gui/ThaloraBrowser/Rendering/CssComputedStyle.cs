@@ -25,9 +25,9 @@ public class CssComputedStyle
     // Typography
     public double FontSize { get; set; } = 16;
     public FontWeight FontWeight { get; set; } = FontWeight.Normal;
-    public FontFamily FontFamily { get; set; } = FontFamily.Default;
+    public FontFamily FontFamily { get; set; } = new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans");
     public FontStyle FontStyle { get; set; } = FontStyle.Normal;
-    public IBrush Color { get; set; } = Brushes.White;
+    public IBrush Color { get; set; } = Brushes.Black;
     public TextAlignment TextAlign { get; set; } = TextAlignment.Left;
     public TextDecorationCollection? TextDecorations { get; set; }
     public double LineHeight { get; set; } = 1.4;

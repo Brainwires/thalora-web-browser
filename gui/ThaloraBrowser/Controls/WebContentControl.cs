@@ -18,6 +18,7 @@ public class WebContentControl : Control
     private double _maxScrollY;
     private string? _hoveredLink;
     private bool _isRendering;
+    private bool _renderPending;
 
     /// <summary>
     /// Fired when a link is clicked in the rendered content.
@@ -86,14 +87,23 @@ public class WebContentControl : Control
     {
         base.Render(context);
 
-        // Draw background
-        context.DrawRectangle(
-            new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-            null,
-            new Rect(Bounds.Size));
+        // Draw default background
+        IBrush canvasBg = new SolidColorBrush(Color.FromRgb(30, 30, 30));
 
         if (_renderer?.CurrentLayout != null)
         {
+            // CSS canvas background propagation: use the root element's or body's
+            // background color to fill the entire viewport.
+            var rootBg = GetCanvasBackground(_renderer.CurrentLayout);
+            if (rootBg != null)
+                canvasBg = rootBg;
+        }
+
+        context.DrawRectangle(canvasBg, null, new Rect(Bounds.Size));
+
+        if (_renderer?.CurrentLayout != null)
+        {
+            _renderer.PaintContext.SetPaintContext(BaseUrl, () => Avalonia.Threading.Dispatcher.UIThread.Post(InvalidateVisual));
             _renderer.PaintContext.Paint(context, _renderer.CurrentLayout, _scrollOffsetY);
         }
         else
@@ -223,7 +233,11 @@ public class WebContentControl : Control
 
     private async void OnHtmlContentChanged()
     {
-        if (_isRendering) return;
+        if (_isRendering)
+        {
+            _renderPending = true;
+            return;
+        }
         _isRendering = true;
 
         try
@@ -241,36 +255,63 @@ public class WebContentControl : Control
             var engine = Engine ?? (DataContext as ThaloraBrowser.ViewModels.BrowserTabViewModel)?.Engine;
             if (engine == null)
             {
+                Console.Error.WriteLine("[WebContentControl] No engine available for layout computation");
                 _renderer?.Dispose();
                 _renderer = new HtmlRenderer();
                 InvalidateVisual();
                 return;
             }
 
-            _renderer?.Dispose();
-            _renderer = new HtmlRenderer();
-            _scrollOffsetY = 0;
-
-            // Compute layout on the Rust side
+            // Compute layout on the Rust side — keep the old renderer visible
+            // until the new layout is ready to avoid flicker during resize.
             var viewportW = (float)Math.Max(100, Bounds.Width);
             var viewportH = (float)Math.Max(100, Bounds.Height);
+
+            Console.Error.WriteLine($"[WebContentControl] Computing layout: {viewportW}x{viewportH}, HTML length: {HtmlContent?.Length ?? 0}");
+
             var layoutJson = await engine.ComputeLayoutAsync(viewportW, viewportH);
+
+            // Now that we have the new layout, swap out the renderer
+            var oldRenderer = _renderer;
+            _renderer = new HtmlRenderer();
 
             if (!string.IsNullOrEmpty(layoutJson))
             {
+                Console.Error.WriteLine($"[WebContentControl] Layout JSON received: {layoutJson.Length} chars");
                 _renderer.RenderFromLayoutJson(layoutJson, BaseUrl);
+
+                if (_renderer.CurrentLayout == null)
+                    Console.Error.WriteLine("[WebContentControl] WARNING: RenderFromLayoutJson produced null layout");
+            }
+            else
+            {
+                var lastError = engine.GetLastError();
+                Console.Error.WriteLine($"[WebContentControl] Layout returned null. Rust error: {lastError ?? "(none)"}");
             }
 
+            // Only reset scroll on actual navigation, not resize
+            if (oldRenderer?.CurrentLayout == null)
+                _scrollOffsetY = 0;
+
+            oldRenderer?.Dispose();
             UpdateScrollBounds();
             InvalidateVisual();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.Error.WriteLine($"[WebContentControl] Error in OnHtmlContentChanged: {ex}");
             InvalidateVisual();
         }
         finally
         {
             _isRendering = false;
+
+            // If a render was requested while we were busy, process it now
+            if (_renderPending)
+            {
+                _renderPending = false;
+                OnHtmlContentChanged();
+            }
         }
     }
 
@@ -285,6 +326,27 @@ public class WebContentControl : Control
             _maxScrollY = 0;
         }
         _scrollOffsetY = Math.Clamp(_scrollOffsetY, 0, _maxScrollY);
+    }
+
+    /// <summary>
+    /// CSS canvas background propagation: if the root element (html) has a background,
+    /// use it. Otherwise, check the body element. This matches browser behavior where
+    /// the body/html background fills the entire viewport.
+    /// </summary>
+    private static IBrush? GetCanvasBackground(Rendering.LayoutBox root)
+    {
+        // Check root element (html)
+        if (root.Style.BackgroundColor != null)
+            return root.Style.BackgroundColor;
+
+        // Check body (first block child of root)
+        foreach (var child in root.Children)
+        {
+            if (child.Style.BackgroundColor != null)
+                return child.Style.BackgroundColor;
+        }
+
+        return null;
     }
 }
 

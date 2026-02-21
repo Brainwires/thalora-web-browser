@@ -74,6 +74,20 @@ public sealed class ImageCache : IDisposable
     }
 
     /// <summary>
+    /// Get a cached bitmap synchronously. Returns null if not cached.
+    /// </summary>
+    public Bitmap? GetCachedBitmap(string url, string? baseUrl = null)
+    {
+        var absoluteUrl = ResolveUrl(url, baseUrl);
+        if (absoluteUrl != null && _cache.TryGetValue(absoluteUrl, out var entry))
+        {
+            _cache[absoluteUrl] = entry with { LastAccessed = DateTime.UtcNow };
+            return entry.Image;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Clear the entire cache.
     /// </summary>
     public void Clear()

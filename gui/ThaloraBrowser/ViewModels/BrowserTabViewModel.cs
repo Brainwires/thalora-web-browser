@@ -98,6 +98,11 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
                 await RefreshStateAsync();
             return success;
         }
+        catch (Exception ex)
+        {
+            StatusText = $"Error: {ex.Message}";
+            return false;
+        }
         finally
         {
             IsLoading = false;
@@ -118,6 +123,11 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
             if (success)
                 await RefreshStateAsync();
             return success;
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Error: {ex.Message}";
+            return false;
         }
         finally
         {

@@ -36,9 +36,10 @@ scraper = "0.24"
 html5ever = "0.27"
 kuchikiki = "0.8"
 
-# CSS parsing and layout  
+# CSS parsing and layout
 lightningcss = "1.0.0-alpha.67"
 taffy = "0.5"
+cosmic-text = "0.14"
 
 # Browser APIs - extracted from Boa engine for modular architecture
 thalora-browser-apis = { path = "engines/thalora-browser-apis", default-features = false }
