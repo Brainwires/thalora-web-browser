@@ -79,6 +79,25 @@ class Program
         App.InitialWidth = windowWidth;
         App.InitialHeight = windowHeight;
 
+        // Ensure the control server socket is cleaned up on any process exit path.
+        // ShutdownControlServer() is thread-safe and idempotent — safe to call from
+        // signal handler threads. We do NOT touch the view model here (it's UI-bound).
+        //
+        // Coverage:
+        // 1. ShutdownRequested (window close) — handled in App.axaml.cs
+        // 2. SIGTERM (kill) — PosixSignalRegistration callback before default termination
+        // 3. ProcessExit — universal fallback for any exit path we missed
+        // Note: SIGINT (Ctrl+C) is intercepted by Avalonia's Cocoa backend on macOS
+        // at the native level — .NET handlers never fire. Use SIGTERM instead.
+        using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, _ =>
+        {
+            (Application.Current as App)?.ShutdownControlServer();
+        });
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            (Application.Current as App)?.ShutdownControlServer();
+        };
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

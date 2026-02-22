@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -17,7 +18,9 @@ public class BrowserControlServer : IDisposable
 {
     private readonly HttpListener _listener;
     private readonly CancellationTokenSource _cts;
+    private readonly ConcurrentBag<Task> _inflightRequests = new();
     private readonly int _port;
+    private Task? _listenTask;
     private bool _disposed;
 
     // References set after the UI is fully loaded
@@ -48,7 +51,7 @@ public class BrowserControlServer : IDisposable
     {
         _listener.Start();
         Console.Error.WriteLine($"[ControlServer] Listening on http://localhost:{_port}/");
-        _ = ListenLoop(_cts.Token);
+        _listenTask = ListenLoop(_cts.Token);
     }
 
     private async Task ListenLoop(CancellationToken ct)
@@ -58,7 +61,8 @@ public class BrowserControlServer : IDisposable
             try
             {
                 var context = await _listener.GetContextAsync().WaitAsync(ct);
-                _ = HandleRequest(context);
+                var handlerTask = HandleRequest(context);
+                _inflightRequests.Add(handlerTask);
             }
             catch (OperationCanceledException)
             {
@@ -417,8 +421,27 @@ public class BrowserControlServer : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        // Signal cancellation first
         _cts.Cancel();
-        try { _listener.Stop(); } catch { /* ignore */ }
+
+        // Close the listener to release the socket and unblock GetContextAsync
+        try { _listener.Close(); } catch { /* ignore */ }
+
+        // Wait for the listen loop to finish (with timeout)
+        if (_listenTask != null)
+        {
+            try { _listenTask.Wait(TimeSpan.FromSeconds(2)); } catch { /* ignore */ }
+        }
+
+        // Wait for any in-flight request handlers to complete (with timeout)
+        var pending = _inflightRequests.Where(t => !t.IsCompleted).ToArray();
+        if (pending.Length > 0)
+        {
+            try { Task.WaitAll(pending, TimeSpan.FromSeconds(2)); } catch { /* ignore */ }
+        }
+
+        // Dispose the CTS last
         _cts.Dispose();
     }
 }

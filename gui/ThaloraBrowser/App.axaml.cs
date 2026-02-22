@@ -31,6 +31,15 @@ public partial class App : Application
 
     private BrowserControlServer? _controlServer;
 
+    /// <summary>
+    /// Shut down the control server only. Thread-safe — safe to call from signal
+    /// handler threads. Does NOT touch UI-bound objects like the view model.
+    /// </summary>
+    public void ShutdownControlServer()
+    {
+        _controlServer?.Dispose();
+    }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
