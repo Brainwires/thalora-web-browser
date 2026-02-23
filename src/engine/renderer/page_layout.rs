@@ -331,18 +331,27 @@ pub fn compute_styled_tree_with_css(
     // so C# can properly render links, bold, italic, inline code, etc.
     let root_node = document.root_element();
     let mut id_counter: u32 = 0;
+    let mut element_selectors: HashMap<String, String> = HashMap::new();
     let root = build_styled_element_from_dom(
         &root_node,
         &css_processor,
         &mut id_counter,
         viewport_w,
         None,
+        &mut element_selectors,
     );
+
+    let selectors = if element_selectors.is_empty() {
+        None
+    } else {
+        Some(element_selectors)
+    };
 
     Ok(StyledTreeResult {
         root,
         viewport_width: viewport_w,
         viewport_height: viewport_h,
+        element_selectors: selectors,
     })
 }
 
@@ -357,6 +366,7 @@ fn build_styled_element_from_dom(
     id_counter: &mut u32,
     viewport_w: f32,
     parent_styles: Option<&ComputedStyles>,
+    element_selectors: &mut HashMap<String, String>,
 ) -> StyledElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
@@ -383,6 +393,19 @@ fn build_styled_element_from_dom(
 
     // Apply UA defaults
     apply_ua_defaults(&tag, &mut styles);
+
+    // Compute hover styles: extract :hover rules that match this element
+    let hover_computed = css_processor.compute_hover_style_for_element(element_ref);
+    let hover_resolved = computed_to_resolved(&hover_computed);
+    let hover_styles = if has_any_hover_property(&hover_resolved) {
+        Some(hover_resolved)
+    } else {
+        None
+    };
+
+    // Build a unique CSS selector for this element (for JS event dispatch)
+    let css_selector = build_element_selector(element_ref);
+    element_selectors.insert(elem_id.clone(), css_selector);
 
     // Default display for elements if not set
     if styles.display.is_none() {
@@ -491,6 +514,7 @@ fn build_styled_element_from_dom(
                     img_alt: None,
                     link_href: None,
                     styles: text_resolved,
+                    hover_styles: None,
                     children: Vec::new(),
                 });
             }
@@ -510,6 +534,7 @@ fn build_styled_element_from_dom(
                         id_counter,
                         viewport_w,
                         Some(&styles),
+                        element_selectors,
                     );
 
                     // Skip display:none and visibility:hidden elements
@@ -538,6 +563,7 @@ fn build_styled_element_from_dom(
         img_alt,
         link_href,
         styles: resolved,
+        hover_styles,
         children,
     }
 }
@@ -725,6 +751,7 @@ fn convert_to_styled_element(element: &LayoutElement) -> StyledElement {
         img_alt,
         link_href,
         styles: resolved,
+        hover_styles: None, // Old pipeline doesn't compute hover styles
         children,
     }
 }
@@ -1294,6 +1321,51 @@ fn merge_styles(dest: &mut ComputedStyles, source: &ComputedStyles) {
     for (k, v) in &source.other {
         dest.other.insert(k.clone(), v.clone());
     }
+}
+
+/// Check if a ResolvedStyles has any non-None property (used to avoid emitting empty hover_styles).
+fn has_any_hover_property(styles: &ResolvedStyles) -> bool {
+    styles.color.is_some()
+        || styles.background_color.is_some()
+        || styles.text_decoration.is_some()
+        || styles.opacity.is_some()
+        || styles.cursor.is_some()
+        || styles.border_color.is_some()
+        || styles.border_width.is_some()
+        || styles.border_style.is_some()
+        || styles.font_weight.is_some()
+        || styles.font_size.is_some()
+        || styles.font_style.is_some()
+        || styles.display.is_some()
+        || styles.visibility.is_some()
+}
+
+/// Build a unique CSS selector for an element (for JS event dispatch from GUI).
+/// Produces selectors like "div#main", "a.nav-link", "nav > ul > li:nth-child(2) > a".
+fn build_element_selector(element_ref: &ElementRef) -> String {
+    let el = element_ref.value();
+    let tag = el.name().to_lowercase();
+    let mut selector = tag.clone();
+
+    // Add ID if present (makes it unique immediately)
+    if let Some(id) = el.attr("id") {
+        selector.push('#');
+        selector.push_str(id);
+        return selector;
+    }
+
+    // Add classes
+    if let Some(classes) = el.attr("class") {
+        for cls in classes.split_whitespace() {
+            // Skip dynamically generated class names (common in CSS-in-JS)
+            if !cls.is_empty() && !cls.contains("__") {
+                selector.push('.');
+                selector.push_str(cls);
+            }
+        }
+    }
+
+    selector
 }
 
 /// Check if a tag is a block-level element

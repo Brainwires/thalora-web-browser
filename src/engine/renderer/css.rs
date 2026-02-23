@@ -623,6 +623,111 @@ impl CssProcessor {
         styles
     }
 
+    /// Compute hover-specific styles for an element using scraper's selector matching.
+    ///
+    /// This iterates all parsed rules looking for selectors that contain `:hover`.
+    /// For each matching rule, we strip `:hover` from the selector and check if the
+    /// base selector matches the element. Returns the accumulated hover-only declarations.
+    pub fn compute_hover_style_for_element(&self, element: &scraper::ElementRef) -> ComputedStyles {
+        let mut styles = ComputedStyles::default();
+        let mut matching_rules: Vec<&ParsedRule> = Vec::new();
+
+        for rule in &self.rules {
+            // Split selector by comma for multiple selectors (e.g., "a:hover, .btn:hover")
+            for raw_selector in rule.selector.split(',').map(|s| s.trim()) {
+                if raw_selector.is_empty() {
+                    continue;
+                }
+
+                // Only process selectors that contain :hover
+                if !Self::contains_hover_pseudo(raw_selector) {
+                    continue;
+                }
+
+                // Strip :hover from the selector and try to match the base
+                let base_selector = Self::strip_hover_pseudo(raw_selector);
+                if base_selector.is_empty() {
+                    // Bare ":hover" — matches any element
+                    matching_rules.push(rule);
+                    break;
+                }
+
+                // Try to parse and match the base selector with scraper
+                if let Ok(parsed_selector) = scraper::Selector::parse(&base_selector) {
+                    if parsed_selector.matches(element) {
+                        matching_rules.push(rule);
+                        break;
+                    }
+                } else {
+                    // Scraper failed to parse — try simple fallback matching
+                    let el = element.value();
+                    let tag_name = el.name().to_lowercase();
+                    if Self::simple_selector_matches(&base_selector, &tag_name, el) {
+                        matching_rules.push(rule);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Sort by specificity then source order
+        matching_rules.sort_by(|a, b| {
+            a.specificity.cmp(&b.specificity)
+                .then(a.source_order.cmp(&b.source_order))
+        });
+
+        // Apply declarations in order
+        for rule in &matching_rules {
+            self.apply_declarations(&mut styles, &rule.declarations);
+        }
+
+        styles
+    }
+
+    /// Check if a selector string contains the :hover pseudo-class.
+    fn contains_hover_pseudo(selector: &str) -> bool {
+        // Look for ":hover" that's either at the end or followed by non-alphanumeric
+        let mut search_from = 0;
+        while let Some(pos) = selector[search_from..].find(":hover") {
+            let abs_pos = search_from + pos;
+            let after = abs_pos + 6;
+            // Make sure it's ":hover" and not ":hover-something"
+            if after >= selector.len() || !selector.as_bytes()[after].is_ascii_alphanumeric() {
+                // Also make sure it's not "::hover" (pseudo-element)
+                if abs_pos == 0 || selector.as_bytes()[abs_pos - 1] != b':' {
+                    return true;
+                }
+            }
+            search_from = after;
+        }
+        false
+    }
+
+    /// Strip `:hover` from a selector, returning the base selector.
+    /// e.g., "a:hover" → "a", ".nav-link:hover" → ".nav-link",
+    /// "nav a:hover" → "nav a", ":hover" → ""
+    fn strip_hover_pseudo(selector: &str) -> String {
+        let mut result = selector.to_string();
+        // Remove ":hover" occurrences (not "::hover")
+        loop {
+            if let Some(pos) = result.find(":hover") {
+                // Ensure it's not "::hover"
+                if pos > 0 && result.as_bytes()[pos - 1] == b':' {
+                    break;
+                }
+                let after = pos + 6;
+                // Make sure it's ":hover" and not ":hover-something"
+                if after < result.len() && result.as_bytes()[after].is_ascii_alphanumeric() {
+                    break;
+                }
+                result = format!("{}{}", &result[..pos], &result[after..]);
+            } else {
+                break;
+            }
+        }
+        result.trim().to_string()
+    }
+
     /// Get computed style for a specific property
     pub fn get_property(&self, selector: &str, property: &str) -> Option<String> {
         let styles = self.compute_style(selector);

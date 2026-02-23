@@ -31,6 +31,7 @@ public class ControlTreeBuilder
     private readonly ImageCache _imageCache;
     private readonly Action<string>? _onLinkClicked;
     private readonly Action<string?>? _onHoveredLinkChanged;
+    private readonly Action<string, string>? _onDomEvent;
     private double _viewportWidth;
     private double _viewportHeight;
 
@@ -41,6 +42,12 @@ public class ControlTreeBuilder
     /// WebContentControl should apply this as its own Background.
     /// </summary>
     public IBrush? CanvasBackground { get; private set; }
+
+    /// <summary>
+    /// Element ID → CSS selector mapping from the styled tree.
+    /// Used by the GUI to dispatch DOM events to the JS engine.
+    /// </summary>
+    public Dictionary<string, string>? ElementSelectors { get; private set; }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -74,12 +81,14 @@ public class ControlTreeBuilder
         string? baseUrl,
         ImageCache imageCache,
         Action<string>? onLinkClicked = null,
-        Action<string?>? onHoveredLinkChanged = null)
+        Action<string?>? onHoveredLinkChanged = null,
+        Action<string, string>? onDomEvent = null)
     {
         _baseUrl = baseUrl;
         _imageCache = imageCache;
         _onLinkClicked = onLinkClicked;
         _onHoveredLinkChanged = onHoveredLinkChanged;
+        _onDomEvent = onDomEvent;
     }
 
     /// <summary>
@@ -107,6 +116,9 @@ public class ControlTreeBuilder
         // CSS background propagation: per spec, if the root element (html) has no
         // explicit background, the body's background covers the canvas/viewport.
         ComputeCanvasBackground(result.Root);
+
+        // Store element selectors for JS event dispatch
+        ElementSelectors = result.ElementSelectors;
 
         return BuildControl(result.Root, 16.0);
     }
@@ -199,6 +211,15 @@ public class ControlTreeBuilder
 
         // Wrap in Border for background, border, border-radius, padding
         var border = WrapInBorder(content, styles, fontSize);
+
+        // Apply hover behavior if this element has :hover style overrides
+        if (element.HoverStyles != null)
+            AttachHoverBehavior(border, content, styles, element.HoverStyles, fontSize);
+
+        // For <a> elements rendered as blocks, attach click/hover handlers to the Border.
+        // Inline <a> links (Span+Run) can't receive pointer events, but block-level links can.
+        if (element.Tag == "a" && !string.IsNullOrEmpty(element.LinkHref))
+            AttachLinkBehavior(border, element);
 
         // Apply margin
         if (styles.Margin != null)
@@ -578,7 +599,11 @@ public class ControlTreeBuilder
                     if (!string.IsNullOrEmpty(element.LinkHref))
                     {
                         var href = element.LinkHref;
-                        displayCtrl.PointerPressed += (_, _) => _onLinkClicked?.Invoke(href);
+                        displayCtrl.PointerPressed += (_, _) =>
+                        {
+                            _onLinkClicked?.Invoke(href);
+                            DispatchDomEvent("click", element.Id);
+                        };
                         displayCtrl.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
                         displayCtrl.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
                     }
@@ -588,9 +613,10 @@ public class ControlTreeBuilder
                     return;
                 }
 
-                // Text link — use Span with Run elements for proper text flow.
-                // InlineUIContainers can fail to measure/render when they're the only
-                // content in a SelectableTextBlock (Avalonia layout issue).
+                // Text link — use Span+Run for proper inline text flow.
+                // InlineUIContainer breaks SelectableTextBlock layout when multiple exist.
+                // Click handling is done at the Border level for block-rendered links
+                // (see AttachLinkBehavior in BuildControl).
                 var linkColor = StyleParser.ParseBrush(styles.Color)
                     ?? new SolidColorBrush(Color.FromRgb(0, 81, 195)); // #0051C3
 
@@ -923,6 +949,102 @@ public class ControlTreeBuilder
     }
 
     /// <summary>
+    /// Attach click and hover handlers to a block-rendered link element.
+    /// This handles <a> elements that go through BuildControl (block-level links).
+    /// </summary>
+    private void AttachLinkBehavior(Border border, StyledElement element)
+    {
+        var href = element.LinkHref!;
+        border.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+        border.PointerPressed += (_, _) =>
+        {
+            _onLinkClicked?.Invoke(href);
+            DispatchDomEvent("click", element.Id);
+        };
+        border.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
+        border.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
+    }
+
+    /// <summary>
+    /// Attach hover behavior to a border+content pair.
+    /// On PointerEntered: swap to hover styles. On PointerExited: restore originals.
+    /// All brushes are precomputed at build time for instant response.
+    /// </summary>
+    private void AttachHoverBehavior(Border border, Control content, ResolvedStyles normalStyles, ResolvedStyles hoverStyles, double fontSize)
+    {
+        // Precompute normal state
+        var normalBg = StyleParser.ParseBrush(normalStyles.BackgroundColor);
+        var normalBorderBrush = StyleParser.ParseBrush(normalStyles.BorderColor);
+        var normalOpacity = normalStyles.Opacity ?? 1.0f;
+
+        // Precompute hover state
+        var hoverBg = StyleParser.ParseBrush(hoverStyles.BackgroundColor);
+        var hoverBorderBrush = StyleParser.ParseBrush(hoverStyles.BorderColor);
+        var hoverOpacity = hoverStyles.Opacity;
+        var hoverCursor = hoverStyles.Cursor;
+
+        // Text-specific hover properties
+        IBrush? normalFg = null;
+        IBrush? hoverFg = null;
+        TextDecorationCollection? normalTextDeco = null;
+        TextDecorationCollection? hoverTextDeco = null;
+
+        if (content is SelectableTextBlock textBlock)
+        {
+            normalFg = textBlock.Foreground;
+            if (hoverStyles.Color != null)
+                hoverFg = StyleParser.ParseBrush(hoverStyles.Color);
+            if (hoverStyles.TextDecoration != null)
+            {
+                hoverTextDeco = hoverStyles.TextDecoration.ToLowerInvariant() switch
+                {
+                    "underline" => TextDecorations.Underline,
+                    "none" => null,
+                    "line-through" => TextDecorations.Strikethrough,
+                    _ => null,
+                };
+            }
+            normalTextDeco = textBlock.TextDecorations;
+        }
+
+        border.PointerEntered += (_, _) =>
+        {
+            if (hoverBg != null)
+                border.Background = hoverBg;
+            if (hoverBorderBrush != null)
+                border.BorderBrush = hoverBorderBrush;
+            if (hoverOpacity.HasValue)
+                border.Opacity = hoverOpacity.Value;
+            if (hoverCursor == "pointer")
+                border.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+
+            if (content is SelectableTextBlock tb)
+            {
+                if (hoverFg != null)
+                    tb.Foreground = hoverFg;
+                if (hoverStyles.TextDecoration != null)
+                    tb.TextDecorations = hoverTextDeco;
+            }
+        };
+
+        border.PointerExited += (_, _) =>
+        {
+            border.Background = normalBg;
+            border.BorderBrush = normalBorderBrush;
+            border.Opacity = normalOpacity;
+            border.Cursor = null;
+
+            if (content is SelectableTextBlock tb)
+            {
+                if (hoverFg != null)
+                    tb.Foreground = normalFg;
+                if (hoverStyles.TextDecoration != null)
+                    tb.TextDecorations = normalTextDeco;
+            }
+        };
+    }
+
+    /// <summary>
     /// Apply text-related CSS properties to a TextBlock.
     /// </summary>
     private static void ApplyTextProperties(SelectableTextBlock textBlock, ResolvedStyles styles, double fontSize)
@@ -1037,6 +1159,14 @@ public class ControlTreeBuilder
             sb.Append(CollectInlineText(child));
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Dispatch a DOM event to the JS engine via the callback.
+    /// </summary>
+    private void DispatchDomEvent(string eventType, string elementId)
+    {
+        _onDomEvent?.Invoke(eventType, elementId);
     }
 
     /// <summary>

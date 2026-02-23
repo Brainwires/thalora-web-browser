@@ -2,6 +2,16 @@ https://blog.cloudflare.com/markdown-for-agents/
 
 Editing a queued message needsTh to be distinct from browsing prompt history; keyboard navigation wise.
 
+# Frustration Journal
+
+When the API gets frustrated, it will log the frustration in this journal. This is useful for debugging and improving the API's performance, productivity, and user experience. The journal will include the following information:
+
+- **Timestamp**: The date and time when the frustration occurred
+- **Context**: The specific API call or user interaction that triggered the frustration
+- **Frustration Level**: A rating of the frustration level (e.g., low, medium, high)
+- **Description**: A detailed description of the frustration, including any error messages, unexpected behavior, or user feedback
+- **Resolution**: Any steps taken to resolve the frustration, such as bug fixes, performance optimizations, or user interface improvements
+
 # Web API Implementation Status
 
 This document provides a comprehensive overview of Web API implementation status in the Thalora headless web browser and its Boa JavaScript engine. The status levels are:

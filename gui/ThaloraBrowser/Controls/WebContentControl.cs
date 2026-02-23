@@ -24,6 +24,7 @@ public class WebContentControl : UserControl
     private bool _isRendering;
     private bool _renderPending;
     private bool _hasContent;
+    private Dictionary<string, string>? _elementSelectors;
 
     /// <summary>
     /// Fired when a link is clicked in the rendered content.
@@ -34,6 +35,17 @@ public class WebContentControl : UserControl
     /// Fired when the hovered link changes (for status bar updates).
     /// </summary>
     public event EventHandler<string?>? HoveredLinkChanged;
+
+    /// <summary>
+    /// Fired when a DOM event (click, etc.) should be dispatched to the JS engine.
+    /// </summary>
+    public event EventHandler<DomEventArgs>? DomEventDispatched;
+
+    /// <summary>
+    /// Element ID → CSS selector mapping from the last rendered styled tree.
+    /// Used to dispatch DOM events to the JS engine.
+    /// </summary>
+    public Dictionary<string, string>? ElementSelectors => _elementSelectors;
 
     public static readonly StyledProperty<string?> HtmlContentProperty =
         AvaloniaProperty.Register<WebContentControl, string?>(nameof(HtmlContent));
@@ -188,10 +200,14 @@ public class WebContentControl : UserControl
                     BaseUrl,
                     _imageCache,
                     onLinkClicked: href => OnLinkClicked(href),
-                    onHoveredLinkChanged: href => HoveredLinkChanged?.Invoke(this, href)
+                    onHoveredLinkChanged: href => HoveredLinkChanged?.Invoke(this, href),
+                    onDomEvent: (eventType, elementId) => OnDomEvent(eventType, elementId)
                 );
 
                 var controlTree = builder.BuildFromJson(styledTreeJson);
+
+                // Store element selectors for JS event dispatch
+                _elementSelectors = builder.ElementSelectors;
 
                 // Apply canvas background (CSS propagation from html/body)
                 if (builder.CanvasBackground != null)
@@ -231,6 +247,11 @@ public class WebContentControl : UserControl
                 OnHtmlContentChanged();
             }
         }
+    }
+
+    private void OnDomEvent(string eventType, string elementId)
+    {
+        DomEventDispatched?.Invoke(this, new DomEventArgs(eventType, elementId));
     }
 
     private void OnLinkClicked(string href)
@@ -273,4 +294,18 @@ public class LinkClickedEventArgs : EventArgs
 {
     public string Url { get; }
     public LinkClickedEventArgs(string url) { Url = url; }
+}
+
+/// <summary>
+/// Event args for DOM events dispatched from the GUI to the JS engine.
+/// </summary>
+public class DomEventArgs : EventArgs
+{
+    public string EventType { get; }
+    public string ElementId { get; }
+    public DomEventArgs(string eventType, string elementId)
+    {
+        EventType = eventType;
+        ElementId = elementId;
+    }
 }

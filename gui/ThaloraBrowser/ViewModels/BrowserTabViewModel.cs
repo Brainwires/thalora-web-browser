@@ -182,6 +182,38 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
         StatusText = Url;
     }
 
+    /// <summary>
+    /// Dispatch a DOM event to the JavaScript engine.
+    /// Looks up the CSS selector for the element and dispatches a synthetic event.
+    /// </summary>
+    public async Task DispatchDomEventAsync(string eventType, string elementId, Dictionary<string, string>? elementSelectors)
+    {
+        if (_disposed || elementSelectors == null) return;
+
+        if (!elementSelectors.TryGetValue(elementId, out var selector))
+            return;
+
+        // Escape the selector for use in querySelector
+        var escapedSelector = selector.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+        // Build JavaScript to dispatch the event
+        var js = $@"(function() {{
+            var el = document.querySelector(""{escapedSelector}"");
+            if (el) {{
+                el.dispatchEvent(new MouseEvent(""{eventType}"", {{bubbles: true, cancelable: true}}));
+            }}
+        }})();";
+
+        try
+        {
+            await _engine.ExecuteJavaScriptAsync(js);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BrowserTabVM] DOM event dispatch failed: {ex.Message}");
+        }
+    }
+
     internal static string TruncateUrl(string url)
     {
         if (url.Length <= 40) return url;

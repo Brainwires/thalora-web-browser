@@ -21,6 +21,9 @@ internal class StyledTreeResult
 
     [JsonPropertyName("viewport_height")]
     public float ViewportHeight { get; set; }
+
+    [JsonPropertyName("element_selectors")]
+    public Dictionary<string, string>? ElementSelectors { get; set; }
 }
 
 /// <summary>
@@ -48,6 +51,9 @@ internal class StyledElement
 
     [JsonPropertyName("styles")]
     public ResolvedStyles Styles { get; set; } = new();
+
+    [JsonPropertyName("hover_styles")]
+    public ResolvedStyles? HoverStyles { get; set; }
 
     [JsonPropertyName("children")]
     public List<StyledElement> Children { get; set; } = new();

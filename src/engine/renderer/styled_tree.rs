@@ -9,6 +9,7 @@
 //! measurement, layout, and painting natively.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Result of styled tree computation — the root element with all CSS resolved.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +20,10 @@ pub struct StyledTreeResult {
     pub viewport_width: f32,
     /// Viewport height used during CSS resolution
     pub viewport_height: f32,
+    /// Mapping from element ID to a unique CSS selector string.
+    /// Used by the GUI to dispatch DOM events back to the JS engine.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub element_selectors: Option<HashMap<String, String>>,
 }
 
 /// A styled DOM element with resolved CSS properties but no layout positions.
@@ -49,6 +54,12 @@ pub struct StyledElement {
 
     /// Resolved CSS styles
     pub styles: ResolvedStyles,
+
+    /// Hover-specific CSS style overrides (from :hover rules).
+    /// Only present when :hover rules match this element.
+    /// The GUI applies these locally on PointerEntered/PointerExited — no Rust round-trip needed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hover_styles: Option<ResolvedStyles>,
 
     /// Child elements
     pub children: Vec<StyledElement>,

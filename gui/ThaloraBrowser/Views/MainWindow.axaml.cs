@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         {
             webContent.LinkClicked += OnLinkClicked;
             webContent.HoveredLinkChanged += OnHoveredLinkChanged;
+            webContent.DomEventDispatched += OnDomEventDispatched;
         }
 
         // Wire up tab click handling
@@ -96,6 +97,33 @@ public partial class MainWindow : Window
         {
             await vm.NavigateToUrlAsync(e.Url);
         }
+    }
+
+    private async void OnDomEventDispatched(object? sender, DomEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel vm && vm.ActiveTab != null)
+        {
+            // Get element selectors from the WebContentControl
+            var webContent = sender as WebContentControl;
+            // Access element selectors stored on the WebContentControl
+            // We need to pass them through — they're stored after BuildFromJson
+            Dictionary<string, string>? selectors = null;
+            if (webContent != null)
+            {
+                // Element selectors are stored in the field after the last render
+                selectors = GetElementSelectors(webContent);
+            }
+            await vm.ActiveTab.DispatchDomEventAsync(e.EventType, e.ElementId, selectors);
+        }
+    }
+
+    /// <summary>
+    /// Get element selectors from WebContentControl via reflection-free field access.
+    /// The selectors are stored as a private field — we expose them through a property.
+    /// </summary>
+    private static Dictionary<string, string>? GetElementSelectors(WebContentControl webContent)
+    {
+        return webContent.ElementSelectors;
     }
 
     private void OnHoveredLinkChanged(object? sender, string? url)
