@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ThaloraBrowser.Services;
 
@@ -10,7 +12,8 @@ namespace ThaloraBrowser.ViewModels;
 public partial class BrowserTabViewModel : ViewModelBase, IDisposable
 {
     private readonly IThaloraBrowserEngine _engine;
-    private bool _disposed;
+    private System.Timers.Timer? _historyPollTimer;
+    private volatile bool _disposed;
 
     [ObservableProperty]
     private string _title = "New Tab";
@@ -80,6 +83,9 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
         finally
         {
             IsLoading = false;
+
+            // Start polling for History API events (idempotent — won't double-start)
+            StartHistoryPolling();
         }
     }
 
@@ -214,6 +220,140 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Start polling for History API events from the JS engine.
+    /// </summary>
+    private void StartHistoryPolling()
+    {
+        if (_historyPollTimer != null) return; // already running
+
+        _historyPollTimer = new System.Timers.Timer(200);
+        _historyPollTimer.Elapsed += OnHistoryPollTick;
+        _historyPollTimer.AutoReset = true;
+        _historyPollTimer.Start();
+    }
+
+    /// <summary>
+    /// Stop the history polling timer.
+    /// </summary>
+    private void StopHistoryPolling()
+    {
+        if (_historyPollTimer == null) return;
+        _historyPollTimer.Stop();
+        _historyPollTimer.Elapsed -= OnHistoryPollTick;
+        _historyPollTimer.Dispose();
+        _historyPollTimer = null;
+    }
+
+    /// <summary>
+    /// Timer callback: drain history events from the Rust engine and update the address bar.
+    /// Runs on a ThreadPool thread — must dispatch UI property changes to the UI thread.
+    /// </summary>
+    private void OnHistoryPollTick(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        // Skip if disposed, navigating, or engine is busy
+        if (_disposed || IsLoading) return;
+
+        try
+        {
+            var json = _engine.PollHistoryEvents();
+            if (string.IsNullOrEmpty(json)) return;
+
+            var events = JsonSerializer.Deserialize<JsonElement[]>(json);
+            if (events == null) return;
+
+            foreach (var evt in events)
+            {
+                if (_disposed || IsLoading) return;
+
+                var eventType = evt.GetProperty("type").GetString();
+                var url = evt.GetProperty("url").GetString() ?? "";
+
+                switch (eventType)
+                {
+                    case "pushState":
+                    case "replaceState":
+                    {
+                        var resolved = ResolveHistoryUrl(url);
+                        // Must update ObservableProperty on the UI thread
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            if (!_disposed && !IsLoading)
+                                Url = resolved;
+                        });
+                        System.Diagnostics.Debug.WriteLine($"[HistoryAPI] {eventType}: {resolved}");
+                        break;
+                    }
+
+                    case "popstate":
+                    {
+                        var resolved = ResolveHistoryUrl(url);
+                        var stateJson = evt.TryGetProperty("state_json", out var stateEl)
+                            ? stateEl.GetString() : "null";
+                        // Must update ObservableProperty on the UI thread
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            if (_disposed || IsLoading) return;
+                            Url = resolved;
+                            // Fire popstate in JS on the UI thread so it's properly sequenced
+                            _ = FirePopstateEvent(stateJson);
+                        });
+                        System.Diagnostics.Debug.WriteLine($"[HistoryAPI] popstate: {resolved}");
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HistoryAPI] Poll error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Resolve a History API URL (may be relative path like "/page2") against the current page.
+    /// </summary>
+    private string ResolveHistoryUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return Url;
+
+        // If it's already an absolute URL, use it as-is
+        if (url.StartsWith("http://") || url.StartsWith("https://"))
+            return url;
+
+        // Resolve relative URL against the current page
+        if (Uri.TryCreate(Url, UriKind.Absolute, out var baseUri) &&
+            Uri.TryCreate(baseUri, url, out var resolved))
+        {
+            return resolved.ToString();
+        }
+
+        return url;
+    }
+
+    /// <summary>
+    /// Dispatch a popstate event in the JS engine with the given state.
+    /// </summary>
+    private async Task FirePopstateEvent(string? stateJson)
+    {
+        if (_disposed) return;
+
+        var state = stateJson ?? "null";
+        var js = $@"(function() {{
+            var event = new PopStateEvent('popstate', {{ state: {state} }});
+            window.dispatchEvent(event);
+        }})();";
+
+        try
+        {
+            await _engine.ExecuteJavaScriptAsync(js);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HistoryAPI] popstate dispatch failed: {ex.Message}");
+        }
+    }
+
     internal static string TruncateUrl(string url)
     {
         if (url.Length <= 40) return url;
@@ -224,6 +364,7 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        StopHistoryPolling();
         _engine.Dispose();
     }
 }

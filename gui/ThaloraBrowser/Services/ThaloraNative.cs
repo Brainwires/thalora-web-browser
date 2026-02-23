@@ -77,4 +77,14 @@ internal static partial class ThaloraNative
 
     [LibraryImport(LibName)]
     internal static partial IntPtr thalora_compute_styled_tree(IntPtr inst, float viewportW, float viewportH);
+
+    // --- History API ---
+
+    [LibraryImport(LibName)]
+    internal static partial IntPtr thalora_poll_history_events(IntPtr inst);
+
+    // --- Navigation Mode ---
+
+    [LibraryImport(LibName)]
+    internal static partial int thalora_set_navigation_mode(IntPtr inst, int mode);
 }

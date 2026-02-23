@@ -7,6 +7,7 @@ use std::ffi::c_char;
 use std::ptr;
 
 use super::instance::{ThalorInstance, c_str_to_rust, rust_string_to_c};
+use crate::engine::browser::types::NavigationMode;
 
 /// Navigate to a URL. Returns the page HTML as a C string, or null on error.
 /// The caller must free the returned string with `thalora_free_string`.
@@ -308,6 +309,65 @@ pub extern "C" fn thalora_compute_styled_tree(
         Err(e) => {
             inst.set_error(format!("Styled tree computation failed: {}", e));
             ptr::null_mut()
+        }
+    }
+}
+
+/// Poll for History API events (pushState, replaceState, popstate).
+///
+/// Returns a JSON array of events as a C string, or null if no events are pending.
+/// The caller must free the returned string with `thalora_free_string`.
+#[unsafe(no_mangle)]
+pub extern "C" fn thalora_poll_history_events(instance: *mut ThalorInstance) -> *mut c_char {
+    if instance.is_null() {
+        return ptr::null_mut();
+    }
+    let inst = unsafe { &*instance };
+
+    let events = match inst.browser.lock() {
+        Ok(browser) => browser.drain_history_events(),
+        Err(_) => return ptr::null_mut(),
+    };
+
+    if events.is_empty() {
+        return ptr::null_mut();
+    }
+
+    match serde_json::to_string(&events) {
+        Ok(json) => rust_string_to_c(json),
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+/// Set the navigation mode for the browser instance.
+///
+/// mode: 0 = Interactive (no delays, for GUI), 1 = Stealth (human-like delays, for MCP)
+/// Returns 0 on success, -1 on error.
+#[unsafe(no_mangle)]
+pub extern "C" fn thalora_set_navigation_mode(instance: *mut ThalorInstance, mode: i32) -> i32 {
+    if instance.is_null() {
+        return -1;
+    }
+    let inst = unsafe { &*instance };
+    inst.clear_error();
+
+    let nav_mode = match mode {
+        0 => NavigationMode::Interactive,
+        1 => NavigationMode::Stealth,
+        _ => {
+            inst.set_error(format!("Invalid navigation mode: {} (expected 0=Interactive, 1=Stealth)", mode));
+            return -1;
+        }
+    };
+
+    match inst.browser.lock() {
+        Ok(mut browser) => {
+            browser.set_navigation_mode(nav_mode);
+            0
+        }
+        Err(e) => {
+            inst.set_error(format!("Lock poisoned: {}", e));
+            -1
         }
     }
 }

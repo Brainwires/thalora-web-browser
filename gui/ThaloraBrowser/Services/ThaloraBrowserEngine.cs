@@ -182,6 +182,26 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
         });
 
     /// <summary>
+    /// Poll for History API events (pushState, replaceState, popstate).
+    /// Returns a JSON array string or null if no events are pending.
+    /// </summary>
+    public string? PollHistoryEvents()
+    {
+        if (_disposed) return null;
+        var ptr = ThaloraNative.thalora_poll_history_events(_instance);
+        return ConsumeRustString(ptr);
+    }
+
+    /// <summary>
+    /// Set the navigation mode. 0 = Interactive (no delays), 1 = Stealth (human-like delays).
+    /// </summary>
+    public bool SetNavigationMode(int mode)
+    {
+        if (_disposed) return false;
+        return ThaloraNative.thalora_set_navigation_mode(_instance, mode) == 0;
+    }
+
+    /// <summary>
     /// Get the last error from the native engine.
     /// </summary>
     public string? GetLastError()

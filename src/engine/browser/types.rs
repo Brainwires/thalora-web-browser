@@ -3,6 +3,21 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::time::Instant;
 
+/// Controls whether artificial anti-bot delays are applied during navigation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NavigationMode {
+    /// GUI mode: no artificial delays, fastest possible navigation.
+    Interactive,
+    /// MCP/headless mode: human-like random delays for anti-bot evasion.
+    Stealth,
+}
+
+impl Default for NavigationMode {
+    fn default() -> Self {
+        NavigationMode::Stealth
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScrapedData {
     pub url: String,
@@ -133,4 +148,86 @@ impl Default for StealthConfig {
             },
         }
     }
+}
+
+/// A cached resource (stylesheet or script content).
+#[derive(Debug, Clone)]
+pub struct CachedResource {
+    pub content: String,
+    pub fetched_at: Instant,
+    pub url: String,
+}
+
+/// In-memory cache for fetched stylesheets and scripts, with LRU eviction.
+#[derive(Debug)]
+pub struct ResourceCache {
+    entries: HashMap<String, CachedResource>,
+    /// Insertion order for LRU eviction (oldest first)
+    insertion_order: Vec<String>,
+    max_entries: usize,
+}
+
+impl ResourceCache {
+    pub fn new(max_entries: usize) -> Self {
+        Self {
+            entries: HashMap::new(),
+            insertion_order: Vec::new(),
+            max_entries,
+        }
+    }
+
+    /// Look up a cached resource by URL.
+    pub fn get(&self, url: &str) -> Option<&CachedResource> {
+        self.entries.get(url)
+    }
+
+    /// Insert a resource into the cache. Evicts the oldest entry if at capacity.
+    pub fn insert(&mut self, url: String, content: String) {
+        // If already cached, remove old position in insertion order
+        if self.entries.contains_key(&url) {
+            self.insertion_order.retain(|u| u != &url);
+        }
+
+        // Evict oldest if at capacity
+        while self.entries.len() >= self.max_entries && !self.insertion_order.is_empty() {
+            let oldest = self.insertion_order.remove(0);
+            self.entries.remove(&oldest);
+        }
+
+        self.entries.insert(url.clone(), CachedResource {
+            content,
+            fetched_at: Instant::now(),
+            url: url.clone(),
+        });
+        self.insertion_order.push(url);
+    }
+
+    /// Clear all cached entries.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.insertion_order.clear();
+    }
+
+    /// Number of cached entries.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+impl Default for ResourceCache {
+    fn default() -> Self {
+        Self::new(500)
+    }
+}
+
+/// Events emitted by the JavaScript History API for GUI synchronization.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum HistoryEvent {
+    #[serde(rename = "pushState")]
+    PushState { url: String, state_json: Option<String> },
+    #[serde(rename = "replaceState")]
+    ReplaceState { url: String, state_json: Option<String> },
+    #[serde(rename = "popstate")]
+    PopState { url: String, state_json: Option<String>, delta: i32 },
 }

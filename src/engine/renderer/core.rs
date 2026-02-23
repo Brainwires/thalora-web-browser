@@ -90,8 +90,51 @@ impl RustRenderer {
         self.in_update = value;
     }
 
-    pub fn setup_history_api(&mut self, _browser: Arc<Mutex<crate::engine::browser::HeadlessWebBrowser>>) -> Result<()> {
-        // History is now natively implemented in Boa engine, no additional setup needed
+    pub fn setup_history_api(&mut self, events_handle: Arc<Mutex<Vec<crate::engine::browser::types::HistoryEvent>>>) -> Result<()> {
+        use thalora_browser_apis::boa_engine::js_string;
+        use crate::engine::browser::types::HistoryEvent;
+
+        if self.engine_type == EngineType::Boa {
+            if let Some(ctx) = &mut self.js_context {
+                // Get window.history object from the JS context
+                let global = ctx.global_object().clone();
+                if let Ok(window_val) = global.get(js_string!("window"), ctx) {
+                    if let Some(window_obj) = window_val.as_object() {
+                        if let Ok(history_val) = window_obj.get(js_string!("history"), ctx) {
+                            if let Some(history_obj) = history_val.as_object() {
+                                // Downcast to HistoryData and set the callback
+                                if let Some(history_data) = history_obj.downcast_ref::<thalora_browser_apis::browser::history::HistoryData>() {
+                                    let events = events_handle.clone();
+                                    history_data.set_on_change(Box::new(move |event_type, url, state_json, delta| {
+                                        let event = match event_type {
+                                            "pushState" => HistoryEvent::PushState {
+                                                url: url.to_string(),
+                                                state_json: state_json.map(|s| s.to_string()),
+                                            },
+                                            "replaceState" => HistoryEvent::ReplaceState {
+                                                url: url.to_string(),
+                                                state_json: state_json.map(|s| s.to_string()),
+                                            },
+                                            "popstate" => HistoryEvent::PopState {
+                                                url: url.to_string(),
+                                                state_json: state_json.map(|s| s.to_string()),
+                                                delta,
+                                            },
+                                            _ => return,
+                                        };
+                                        if let Ok(mut queue) = events.lock() {
+                                            queue.push(event);
+                                        }
+                                    }));
+                                    eprintln!("🔍 DEBUG: History API callback wired to event queue");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         self.history_initialized = true;
         Ok(())
     }

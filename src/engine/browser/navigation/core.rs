@@ -35,10 +35,14 @@ impl super::super::HeadlessWebBrowser {
         self.scraper.scrape_page(&self.current_content, current_url)
     }
 
-    /// Reload the current page
+    /// Reload the current page, clearing the resource cache to force re-fetching.
     pub async fn reload(&mut self) -> Result<String> {
         if let Some(ref url) = self.current_url.clone() {
-            self.navigate_to_with_options(url, false).await
+            self.resource_cache.clear();
+            self.bypass_cache = true;
+            let result = self.navigate_to_with_options(url, false).await;
+            self.bypass_cache = false;
+            result
         } else {
             Err(anyhow!("No current page to reload"))
         }

@@ -104,8 +104,16 @@ impl BuiltInConstructor for History {
     }
 }
 
+/// Callback type for history change notifications.
+/// Parameters: (event_type, url, state_json, delta)
+///   event_type: "pushState", "replaceState", or "popstate"
+///   url: the URL after the history change
+///   state_json: optional JSON-serialized state
+///   delta: the navigation delta (0 for push/replace, -1 for back, +1 for forward, or go delta)
+pub type HistoryChangeCallback = Box<dyn Fn(&str, &str, Option<&str>, i32) + Send + 'static>;
+
 /// Internal data for History objects
-#[derive(Debug, Trace, Finalize, JsData)]
+#[derive(Trace, Finalize, JsData)]
 pub struct HistoryData {
     #[unsafe_ignore_trace]
     entries: Arc<Mutex<Vec<HistoryEntry>>>,
@@ -113,6 +121,19 @@ pub struct HistoryData {
     current_index: Arc<Mutex<i32>>,
     #[unsafe_ignore_trace]
     scroll_restoration: Arc<Mutex<String>>,
+    #[unsafe_ignore_trace]
+    on_change: Arc<Mutex<Option<HistoryChangeCallback>>>,
+}
+
+impl std::fmt::Debug for HistoryData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HistoryData")
+            .field("entries", &self.entries)
+            .field("current_index", &self.current_index)
+            .field("scroll_restoration", &self.scroll_restoration)
+            .field("on_change", &self.on_change.lock().map(|cb| cb.is_some()).unwrap_or(false))
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -134,6 +155,23 @@ impl HistoryData {
             entries: Arc::new(Mutex::new(vec![initial_entry])),
             current_index: Arc::new(Mutex::new(0)),
             scroll_restoration: Arc::new(Mutex::new("auto".to_string())),
+            on_change: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Set a callback that fires on any history state change.
+    pub fn set_on_change(&self, callback: HistoryChangeCallback) {
+        if let Ok(mut cb) = self.on_change.lock() {
+            *cb = Some(callback);
+        }
+    }
+
+    /// Notify the callback (if set) about a history change.
+    fn notify(&self, event_type: &str, url: &str, state_json: Option<&str>, delta: i32) {
+        if let Ok(cb) = self.on_change.lock() {
+            if let Some(ref callback) = *cb {
+                callback(event_type, url, state_json, delta);
+            }
         }
     }
 
@@ -165,6 +203,12 @@ impl HistoryData {
         let mut index = self.current_index.lock().unwrap();
         if *index > 0 {
             *index -= 1;
+            let entries = self.entries.lock().unwrap();
+            let url = entries[*index as usize].url.clone();
+            let state = entries[*index as usize].state.clone();
+            drop(entries);
+            drop(index);
+            self.notify("popstate", &url, state.as_deref(), -1);
             true
         } else {
             false
@@ -176,6 +220,12 @@ impl HistoryData {
         let length = self.entries.lock().unwrap().len() as i32;
         if *index < length - 1 {
             *index += 1;
+            let entries = self.entries.lock().unwrap();
+            let url = entries[*index as usize].url.clone();
+            let state = entries[*index as usize].state.clone();
+            drop(entries);
+            drop(index);
+            self.notify("popstate", &url, state.as_deref(), 1);
             true
         } else {
             false
@@ -189,6 +239,12 @@ impl HistoryData {
 
         if new_index >= 0 && new_index < length {
             *index = new_index;
+            let entries = self.entries.lock().unwrap();
+            let url = entries[*index as usize].url.clone();
+            let state = entries[*index as usize].state.clone();
+            drop(entries);
+            drop(index);
+            self.notify("popstate", &url, state.as_deref(), delta);
             true
         } else {
             false
@@ -209,9 +265,9 @@ impl HistoryData {
         let new_url = url.unwrap_or(current_url);
 
         let new_entry = HistoryEntry {
-            url: new_url,
+            url: new_url.clone(),
             title,
-            state,
+            state: state.clone(),
         };
 
         // Remove any entries after current index
@@ -220,6 +276,10 @@ impl HistoryData {
         // Add new entry
         entries.push(new_entry);
         *index += 1;
+
+        drop(entries);
+        drop(index);
+        self.notify("pushState", &new_url, state.as_deref(), 0);
     }
 
     pub fn replace_state(&self, state: Option<String>, title: String, url: Option<String>) {
@@ -229,12 +289,16 @@ impl HistoryData {
         if index >= 0 && (index as usize) < entries.len() {
             let current_entry = &mut entries[index as usize];
 
-            current_entry.state = state;
+            current_entry.state = state.clone();
             current_entry.title = title;
 
-            if let Some(new_url) = url {
-                current_entry.url = new_url;
+            if let Some(ref new_url) = url {
+                current_entry.url = new_url.clone();
             }
+
+            let final_url = entries[index as usize].url.clone();
+            drop(entries);
+            self.notify("replaceState", &final_url, state.as_deref(), 0);
         }
     }
 

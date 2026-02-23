@@ -127,15 +127,25 @@ public class ControlTreeBuilder
         // Store element selectors for JS event dispatch
         ElementSelectors = result.ElementSelectors;
 
-        return BuildControl(result.Root, 16.0);
+        return BuildControl(result.Root, 16.0, 0);
     }
+
+    /// <summary>
+    /// Maximum recursion depth for building controls.
+    /// Wikipedia's DOM can nest 200+ levels deep, which blows the stack.
+    /// </summary>
+    private const int MaxBuildDepth = 120;
 
     /// <summary>
     /// Recursively convert a StyledElement into an Avalonia Control.
     /// parentFontSize is the inherited font size for em/% resolution.
     /// </summary>
-    private Control? BuildControl(StyledElement element, double parentFontSize)
+    private Control? BuildControl(StyledElement element, double parentFontSize, int depth = 0)
     {
+        // Bail out if recursion is too deep to avoid stack overflow on deeply nested DOMs
+        if (depth > MaxBuildDepth)
+            return null;
+
         var styles = element.Styles;
 
         // Skip display:none and visibility:hidden
@@ -158,13 +168,13 @@ public class ControlTreeBuilder
         if (styles.Display == "contents" && element.Children.Count > 0)
         {
             if (element.Children.Count == 1)
-                return BuildControl(element.Children[0], fontSize);
+                return BuildControl(element.Children[0], fontSize, depth + 1);
 
             // Multiple children: wrap in a transparent StackPanel
             var panel = new StackPanel { Orientation = Orientation.Vertical };
             foreach (var child in element.Children)
             {
-                var childControl = BuildControl(child, fontSize);
+                var childControl = BuildControl(child, fontSize, depth + 1);
                 if (childControl != null)
                     panel.Children.Add(childControl);
             }
@@ -203,7 +213,7 @@ public class ControlTreeBuilder
         else if (element.Children.Count > 0)
         {
             // Build a panel with child controls
-            content = BuildBlockContent(element, fontSize);
+            content = BuildBlockContent(element, fontSize, depth);
         }
         else if (!string.IsNullOrEmpty(element.TextContent))
         {
@@ -343,7 +353,7 @@ public class ControlTreeBuilder
     /// <summary>
     /// Build a StackPanel (or WrapPanel) containing block-level child controls.
     /// </summary>
-    private Control BuildBlockContent(StyledElement element, double fontSize)
+    private Control BuildBlockContent(StyledElement element, double fontSize, int depth = 0)
     {
         var styles = element.Styles;
         bool isFlex = styles.Display == "flex" || styles.Display == "inline-flex";
@@ -434,7 +444,7 @@ public class ControlTreeBuilder
                 int col = isAround ? 1 : 0;
                 foreach (var child in visibleChildren)
                 {
-                    var childControl = BuildControl(child, fontSize);
+                    var childControl = BuildControl(child, fontSize, depth + 1);
                     if (childControl != null)
                     {
                         // Apply cross-axis alignment to each item
@@ -504,7 +514,7 @@ public class ControlTreeBuilder
                 }
 
                 // Build block child (or blockified flex item)
-                var childControl = BuildControl(child, fontSize);
+                var childControl = BuildControl(child, fontSize, depth + 1);
                 if (childControl != null)
                     panel.Children.Add(childControl);
             }

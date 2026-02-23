@@ -5,7 +5,7 @@ use std::time::Instant;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
 use reqwest_cookie_store::CookieStoreMutex;
 use crate::engine::renderer::RustRenderer;
-use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry};
+use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry, NavigationMode, ResourceCache, HistoryEvent};
 use crate::engine::browser::scraper::WebScraper;
 use crate::engine::browser::{FormAnalyzer, FormInfo};
 
@@ -24,6 +24,14 @@ pub struct HeadlessWebBrowser {
     pub(super) analyzed_forms: Vec<FormInfo>,
     /// External stylesheets fetched from <link rel="stylesheet"> tags
     pub(super) external_stylesheets: Vec<String>,
+    /// Controls whether artificial anti-bot delays are applied during navigation
+    pub(super) navigation_mode: NavigationMode,
+    /// In-memory cache for fetched stylesheets and scripts
+    pub(super) resource_cache: ResourceCache,
+    /// When true, bypass the resource cache (used during reload)
+    pub(super) bypass_cache: bool,
+    /// Queue of history events from JS History API for GUI synchronization
+    pub(super) history_events: Arc<Mutex<Vec<HistoryEvent>>>,
 }
 
 impl HeadlessWebBrowser {
@@ -84,6 +92,10 @@ impl HeadlessWebBrowser {
             form_analyzer,
             analyzed_forms: Vec::new(),
             external_stylesheets: Vec::new(),
+            navigation_mode: NavigationMode::default(),
+            resource_cache: ResourceCache::default(),
+            bypass_cache: false,
+            history_events: Arc::new(Mutex::new(Vec::new())),
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));
@@ -96,8 +108,11 @@ impl HeadlessWebBrowser {
 
     pub fn setup_history_api(browser_arc: Arc<Mutex<Self>>) -> Result<()> {
         if let Ok(mut browser) = browser_arc.try_lock() {
+            // Extract the events handle while we hold the lock, then pass it
+            // directly to the renderer — avoids deadlock from re-locking browser_arc.
+            let events_handle = browser.history_events.clone();
             if let Some(ref mut renderer) = browser.renderer {
-                renderer.setup_history_api(browser_arc.clone())?;
+                renderer.setup_history_api(events_handle)?;
             }
         }
         Ok(())
@@ -140,6 +155,37 @@ impl HeadlessWebBrowser {
     /// Get external stylesheets fetched from <link rel="stylesheet"> tags
     pub fn get_external_stylesheets(&self) -> &[String] {
         &self.external_stylesheets
+    }
+
+    /// Set the navigation mode (Interactive for GUI, Stealth for MCP/headless)
+    pub fn set_navigation_mode(&mut self, mode: NavigationMode) {
+        self.navigation_mode = mode;
+    }
+
+    /// Get the current navigation mode
+    pub fn get_navigation_mode(&self) -> NavigationMode {
+        self.navigation_mode
+    }
+
+    /// Drain all pending history events from the queue.
+    pub fn drain_history_events(&self) -> Vec<HistoryEvent> {
+        if let Ok(mut events) = self.history_events.lock() {
+            events.drain(..).collect()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Push a history event into the queue (called from JS engine callback).
+    pub fn push_history_event(&self, event: HistoryEvent) {
+        if let Ok(mut events) = self.history_events.lock() {
+            events.push(event);
+        }
+    }
+
+    /// Get a clone of the history events Arc for sharing with callbacks.
+    pub fn history_events_handle(&self) -> Arc<Mutex<Vec<HistoryEvent>>> {
+        self.history_events.clone()
     }
 
     /// Find form information by submit button selector
@@ -350,6 +396,7 @@ impl Drop for HeadlessWebBrowser {
         self.current_content.clear();
         self.current_url = None;
         self.external_stylesheets.clear();
+        self.resource_cache.clear();
 
         // Note: reqwest::Client will be dropped automatically
         // It will close connection pools when the last reference is dropped

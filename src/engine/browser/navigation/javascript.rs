@@ -1,9 +1,11 @@
 use anyhow::{Result, anyhow};
 use tokio::time::{sleep, Duration};
+use std::collections::HashMap;
 use std::error::Error;
 use rand;
 
 use crate::engine::security::SsrfProtection;
+use crate::engine::browser::types::NavigationMode;
 
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
@@ -54,14 +56,18 @@ impl super::super::HeadlessWebBrowser {
             renderer.update_document_html(&content)?;
         }
 
-        // Add human-like navigation delays inline
-        let navigation_delay = 1000 + (rand::random::<u64>() % 2000); // 1-3 seconds
-        eprintln!("🔍 DEBUG: Adding human-like navigation delay: {}ms", navigation_delay);
-        sleep(Duration::from_millis(navigation_delay)).await;
+        // Add human-like navigation delays only in Stealth mode (MCP/headless)
+        if self.navigation_mode == NavigationMode::Stealth {
+            let navigation_delay = 1000 + (rand::random::<u64>() % 2000); // 1-3 seconds
+            eprintln!("🔍 DEBUG: Adding human-like navigation delay: {}ms", navigation_delay);
+            sleep(Duration::from_millis(navigation_delay)).await;
 
-        let processing_delay = 500 + (rand::random::<u64>() % 1500); // 0.5-2 seconds
-        eprintln!("🔍 DEBUG: Adding page processing delay: {}ms", processing_delay);
-        sleep(Duration::from_millis(processing_delay)).await;
+            let processing_delay = 500 + (rand::random::<u64>() % 1500); // 0.5-2 seconds
+            eprintln!("🔍 DEBUG: Adding page processing delay: {}ms", processing_delay);
+            sleep(Duration::from_millis(processing_delay)).await;
+        } else {
+            eprintln!("🔍 DEBUG: Interactive mode - skipping anti-bot delays");
+        }
 
         // Analyze forms for target="_blank" detection
         self.form_analyzer = self.form_analyzer.clone().with_base_url(url.to_string());
@@ -107,6 +113,9 @@ impl super::super::HeadlessWebBrowser {
         } else {
             eprintln!("🔍 DEBUG: wait_for_js disabled, ready for direct DOM interaction");
         }
+
+        // Reset bypass_cache flag after navigation completes
+        self.bypass_cache = false;
 
         Ok(self.current_content.clone())
     }
@@ -491,14 +500,23 @@ impl super::super::HeadlessWebBrowser {
         Ok(resolved.to_string())
     }
 
-    /// Fetch an external stylesheet from a URL
+    /// Fetch an external stylesheet from a URL, using the resource cache when available.
     ///
     /// # Security
     /// This function validates URLs to prevent SSRF attacks via stylesheet loading.
-    pub(super) async fn fetch_external_stylesheet(&self, url: &str) -> Result<String> {
+    pub(super) async fn fetch_external_stylesheet(&mut self, url: &str) -> Result<String> {
+        // Check cache first (unless bypass_cache is set for reload)
+        if !self.bypass_cache {
+            if let Some(cached) = self.resource_cache.get(url) {
+                eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
+                return Ok(cached.content.clone());
+            }
+        }
+
         // SECURITY: Validate stylesheet URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
+        eprintln!("🔍 DEBUG: CACHE MISS (stylesheet): {}", url);
         let response = self.client.get(url).send().await
             .map_err(|e| anyhow!("Failed to fetch stylesheet: {}", e))?;
 
@@ -509,10 +527,15 @@ impl super::super::HeadlessWebBrowser {
         let content = response.text().await
             .map_err(|e| anyhow!("Failed to read stylesheet content: {}", e))?;
 
+        // Insert into cache
+        self.resource_cache.insert(url.to_string(), content.clone());
+
         Ok(content)
     }
 
-    /// Fetch all external stylesheets from <link rel="stylesheet"> tags in the page HTML
+    /// Fetch all external stylesheets from <link rel="stylesheet"> tags in the page HTML.
+    /// Uses the resource cache for previously fetched stylesheets, and fetches uncached
+    /// ones concurrently using cloned HTTP clients.
     pub(super) async fn fetch_all_stylesheets(&mut self) -> Vec<String> {
         let html = self.current_content.clone();
         let base_url = self.current_url.clone().unwrap_or_else(|| "https://example.com".to_string());
@@ -547,40 +570,90 @@ impl super::super::HeadlessWebBrowser {
             return Vec::new();
         }
 
-        eprintln!("🔍 DEBUG: Fetching {} external stylesheets concurrently", stylesheet_urls.len());
+        // Separate cached and uncached URLs
+        let mut cached_results: HashMap<usize, String> = HashMap::new();
+        let mut uncached: Vec<(usize, String)> = Vec::new();
 
-        // Fetch all stylesheets concurrently
-        let futures: Vec<_> = stylesheet_urls.iter()
-            .map(|url| self.fetch_external_stylesheet(url))
-            .collect();
-
-        let results = futures::future::join_all(futures).await;
-
-        let mut stylesheets = Vec::new();
-        for (i, result) in results.into_iter().enumerate() {
-            match result {
-                Ok(css_content) => {
-                    eprintln!("🔍 DEBUG: Fetched stylesheet {} ({} chars)", stylesheet_urls[i], css_content.len());
-                    stylesheets.push(css_content);
+        for (i, url) in stylesheet_urls.iter().enumerate() {
+            if !self.bypass_cache {
+                if let Some(cached) = self.resource_cache.get(url) {
+                    eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
+                    cached_results.insert(i, cached.content.clone());
+                    continue;
                 }
-                Err(e) => {
-                    eprintln!("⚠️  WARNING: Failed to fetch stylesheet {}: {}", stylesheet_urls[i], e);
+            }
+            uncached.push((i, url.clone()));
+        }
+
+        eprintln!("🔍 DEBUG: Stylesheets: {} cached, {} to fetch", cached_results.len(), uncached.len());
+
+        // Fetch uncached stylesheets concurrently using cloned client (no &mut self borrow)
+        if !uncached.is_empty() {
+            let client = self.client.clone();
+            let fetch_futures: Vec<_> = uncached.iter().map(|(_, url)| {
+                let client = client.clone();
+                let url = url.clone();
+                async move {
+                    // Validate SSRF
+                    if let Err(e) = SsrfProtection::new().is_safe_url(&url) {
+                        return Err(anyhow!("SSRF blocked: {}", e));
+                    }
+                    let response = client.get(&url).send().await
+                        .map_err(|e| anyhow!("Failed to fetch stylesheet: {}", e))?;
+                    if !response.status().is_success() {
+                        return Err(anyhow!("Stylesheet fetch failed with status: {}", response.status()));
+                    }
+                    let content = response.text().await
+                        .map_err(|e| anyhow!("Failed to read stylesheet content: {}", e))?;
+                    Ok::<(String, String), anyhow::Error>((url, content))
+                }
+            }).collect();
+
+            let results = futures::future::join_all(fetch_futures).await;
+
+            for (result, (idx, url)) in results.into_iter().zip(uncached.iter()) {
+                match result {
+                    Ok((fetched_url, content)) => {
+                        eprintln!("🔍 DEBUG: CACHE MISS (stylesheet) fetched: {} ({} chars)", fetched_url, content.len());
+                        self.resource_cache.insert(fetched_url, content.clone());
+                        cached_results.insert(*idx, content);
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️  WARNING: Failed to fetch stylesheet {}: {}", url, e);
+                    }
                 }
             }
         }
 
-        eprintln!("🔍 DEBUG: Successfully fetched {} of {} stylesheets", stylesheets.len(), stylesheet_urls.len());
+        // Reassemble results in original order
+        let mut stylesheets = Vec::new();
+        for i in 0..stylesheet_urls.len() {
+            if let Some(content) = cached_results.remove(&i) {
+                stylesheets.push(content);
+            }
+        }
+
+        eprintln!("🔍 DEBUG: Successfully resolved {} of {} stylesheets", stylesheets.len(), stylesheet_urls.len());
         stylesheets
     }
 
-    /// Fetch an external script from a URL
+    /// Fetch an external script from a URL, using the resource cache when available.
     ///
     /// # Security
     /// This function validates URLs to prevent SSRF attacks via script loading.
-    pub(super) async fn fetch_external_script(&self, url: &str) -> Result<String> {
+    pub(super) async fn fetch_external_script(&mut self, url: &str) -> Result<String> {
+        // Check cache first (unless bypass_cache is set for reload)
+        if !self.bypass_cache {
+            if let Some(cached) = self.resource_cache.get(url) {
+                eprintln!("🔍 DEBUG: CACHE HIT (script): {}", url);
+                return Ok(cached.content.clone());
+            }
+        }
+
         // SECURITY: Validate script URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
+        eprintln!("🔍 DEBUG: CACHE MISS (script): {}", url);
         let response = self.client.get(url).send().await
             .map_err(|e| anyhow!("Failed to fetch script: {}", e))?;
 
@@ -590,6 +663,9 @@ impl super::super::HeadlessWebBrowser {
 
         let content = response.text().await
             .map_err(|e| anyhow!("Failed to read script content: {}", e))?;
+
+        // Insert into cache
+        self.resource_cache.insert(url.to_string(), content.clone());
 
         Ok(content)
     }

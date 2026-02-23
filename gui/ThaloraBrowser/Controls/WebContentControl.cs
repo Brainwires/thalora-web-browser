@@ -196,20 +196,20 @@ public class WebContentControl : UserControl
 
             Console.Error.WriteLine($"[WebContentControl] Computing styled tree: {viewportW}x{viewportH}, HTML length: {HtmlContent?.Length ?? 0}");
 
+            // Show loading indicator for fresh navigations (new HTML content),
+            // but not for resize re-renders of the same page.
+            // This fires right as the HTML arrives and before the styled tree is built.
+            bool isFreshNavigation = HtmlContent != _lastRenderedHtml;
+            if (isFreshNavigation)
+                ShowLoading();
+            _lastRenderedHtml = HtmlContent;
+
             // Get the styled tree from Rust (HTML parsed, CSS resolved, no positions)
             var styledTreeJson = await engine.ComputeStyledTreeAsync(viewportW, viewportH);
 
             if (!string.IsNullOrEmpty(styledTreeJson))
             {
                 Console.Error.WriteLine($"[WebContentControl] Styled tree JSON received: {styledTreeJson.Length} chars");
-
-                // HTML is parsed and CSS is resolved — "first meaningful content" point.
-                // Show loading indicator for fresh navigations (new HTML content),
-                // but not for resize re-renders of the same page.
-                bool isFreshNavigation = HtmlContent != _lastRenderedHtml;
-                if (isFreshNavigation)
-                    ShowLoading();
-                _lastRenderedHtml = HtmlContent;
 
                 // Build Avalonia control tree from the styled element tree
                 var builder = new ControlTreeBuilder(

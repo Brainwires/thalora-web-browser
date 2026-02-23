@@ -8,6 +8,7 @@ use std::ptr;
 use std::sync::{Arc, Mutex};
 
 use crate::engine::HeadlessWebBrowser;
+use crate::engine::browser::types::NavigationMode;
 
 /// Opaque instance holding the browser and async runtime.
 /// Each instance owns its own tokio runtime so that FFI callers
@@ -74,6 +75,11 @@ pub extern "C" fn thalora_init() -> *mut ThalorInstance {
 
     // Create the browser (HeadlessWebBrowser::new() returns Arc<Mutex<..>>)
     let browser = HeadlessWebBrowser::new();
+
+    // FFI is only used by the GUI — set Interactive mode to skip anti-bot delays
+    if let Ok(mut b) = browser.lock() {
+        b.set_navigation_mode(NavigationMode::Interactive);
+    }
 
     let instance = Box::new(ThalorInstance {
         runtime,

@@ -65,6 +65,8 @@ public class MockBrowserEngine : IThaloraBrowserEngine
     public Task<string?> GetPageTitleAsync() => Task.FromResult(PageTitle);
     public Task<string?> ComputeLayoutAsync(float viewportW, float viewportH) => Task.FromResult<string?>(null);
     public Task<string?> ComputeStyledTreeAsync(float viewportW, float viewportH) => Task.FromResult<string?>(null);
+    public string? PollHistoryEvents() => null;
+    public bool SetNavigationMode(int mode) => true;
     public string? GetLastError() => LastError;
 
     public void Dispose()

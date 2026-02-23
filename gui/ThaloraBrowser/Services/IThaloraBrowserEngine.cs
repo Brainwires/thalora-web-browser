@@ -20,5 +20,7 @@ public interface IThaloraBrowserEngine : IDisposable
     Task<string?> GetPageTitleAsync();
     Task<string?> ComputeLayoutAsync(float viewportW, float viewportH);
     Task<string?> ComputeStyledTreeAsync(float viewportW, float viewportH);
+    string? PollHistoryEvents();
+    bool SetNavigationMode(int mode);
     string? GetLastError();
 }
