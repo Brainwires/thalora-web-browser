@@ -463,6 +463,12 @@ impl super::super::HeadlessWebBrowser {
         self.current_content = content.clone();
         self.current_url = Some(url.to_string());
 
+        // Fetch external stylesheets — required for correct CSS rendering.
+        // Previously fetched stylesheets will be cache hits, so this is fast.
+        let external_css = self.fetch_all_stylesheets().await;
+        self.external_stylesheets = external_css;
+        eprintln!("🔍 DEBUG: navigate_internal - stored {} external stylesheets", self.external_stylesheets.len());
+
         // Update document HTML in the renderer if available
         if let Some(ref mut renderer) = self.renderer {
             renderer.update_document_html(&content)?;

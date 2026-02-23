@@ -340,15 +340,17 @@ public class WebContentControl : UserControl
     private void ShowLoading()
     {
         _contentPanel.Children.Clear();
-        _contentPanel.Children.Add(new TextBlock
-        {
-            Text = "Loading page. Standby...",
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
-            FontSize = 16,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 100, 0, 0),
-        });
+
+        // DISABLED: Loading indicator is more disruptive than helpful.
+        // _contentPanel.Children.Add(new TextBlock
+        // {
+        //     Text = "Loading page. Standby...",
+        //     Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
+        //     FontSize = 16,
+        //     HorizontalAlignment = HorizontalAlignment.Center,
+        //     VerticalAlignment = VerticalAlignment.Center,
+        //     Margin = new Thickness(0, 100, 0, 0),
+        // });
     }
 }
 
