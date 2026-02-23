@@ -78,7 +78,16 @@ public partial class App : Application
                     {
                         _controlServer = new BrowserControlServer(ControlPort.Value);
                         _controlServer.SetUiReferences(webContent, vm);
-                        _controlServer.Start();
+                        try
+                        {
+                            _controlServer.Start();
+                        }
+                        catch (System.Net.HttpListenerException ex)
+                        {
+                            Console.Error.WriteLine($"[App] WARNING: Control server failed to start (port {ControlPort.Value} may be in use): {ex.Message}");
+                            _controlServer.Dispose();
+                            _controlServer = null;
+                        }
                     }
                     else
                     {

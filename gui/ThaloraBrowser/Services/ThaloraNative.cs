@@ -72,4 +72,9 @@ internal static partial class ThaloraNative
 
     [LibraryImport(LibName)]
     internal static partial IntPtr thalora_compute_layout(IntPtr inst, float viewportW, float viewportH);
+
+    // --- Styled Tree (new pipeline) ---
+
+    [LibraryImport(LibName)]
+    internal static partial IntPtr thalora_compute_styled_tree(IntPtr inst, float viewportW, float viewportH);
 }

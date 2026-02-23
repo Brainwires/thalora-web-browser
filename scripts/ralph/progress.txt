@@ -1,0 +1,16 @@
+# Ralph Progress Log
+Started: 2026-02-22
+---
+
+## Codebase Patterns
+- Rust CSS properties flow: css.rs ComputedStyles → page_layout.rs LayoutElement.styles → layout.rs ElementLayout (JSON) → C# RustElementLayout → CssComputedStyle → PaintContext
+- background_color field exists end-to-end in the pipeline (ComputedStyles → ElementLayout → RustElementLayout → CssComputedStyle) — if colors aren't showing, debug CSS parsing/matching
+- margin_left_auto and margin_right_auto flags exist on ElementLayout — C# needs to use them for centering
+- <img src> attribute is NOT being captured in page_layout.rs build_layout_tree_from_dom() — the __img_src style key is never populated
+- Taffy supports Display::Flex — verify it's being used (not falling back to Display::Block)
+- Bundled fonts: NotoSans, NotoSerif, FiraMono in src/gui/fonts/
+- Font mapping: text_measure.rs parse_font_family() maps CSS font names → bundled fonts
+- Font mapping: HtmlRenderer.cs MapToBundledFontFamily() maps CSS font names → avares:// URIs
+- Pre-existing test failure: test_encrypt_different_each_time (crypto test, unrelated to rendering)
+- Memory: ThaloraBrowser ~190MB, Roslyn compiler ~300MB. Kill after use.
+---

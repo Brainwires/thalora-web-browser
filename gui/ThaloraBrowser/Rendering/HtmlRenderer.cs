@@ -373,7 +373,7 @@ public class HtmlRenderer : IDisposable
         {
             FontSize = 16,
             FontWeight = Avalonia.Media.FontWeight.Normal,
-            FontFamily = new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans"),
+            FontFamily = new FontFamily("fonts:ThaloraBrowser#Noto Sans"),
             Color = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
             BackgroundColor = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
             Display = DisplayMode.Block,
@@ -382,9 +382,9 @@ public class HtmlRenderer : IDisposable
     }
 
     // Bundled font family constants — these match the font files in src/gui/fonts/
-    private static readonly FontFamily BundledNotoSans = new("avares://ThaloraBrowser/Fonts#Noto Sans");
-    private static readonly FontFamily BundledNotoSerif = new("avares://ThaloraBrowser/Fonts#Noto Serif");
-    private static readonly FontFamily BundledFiraMono = new("avares://ThaloraBrowser/Fonts#Fira Mono");
+    private static readonly FontFamily BundledNotoSans = new("fonts:ThaloraBrowser#Noto Sans");
+    private static readonly FontFamily BundledNotoSerif = new("fonts:ThaloraBrowser#Noto Serif");
+    private static readonly FontFamily BundledFiraMono = new("fonts:ThaloraBrowser#Fira Mono");
 
     /// <summary>
     /// Map a CSS font-family string to a bundled font for width agreement with Rust.

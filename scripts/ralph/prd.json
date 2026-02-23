@@ -16,8 +16,8 @@
         "Launch browser on https://blog.cloudflare.com/markdown-for-agents/, take screenshot, confirm image placeholders appear (C# ImageCache already handles downloading)"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added img src, alt, width, height capture in build_layout_tree_from_dom after apply_ua_defaults"
     },
     {
       "id": "US-002",

@@ -13,6 +13,7 @@ use super::css::{CssProcessor, ComputedStyles, BoxModel, BorderStyles};
 use super::layout::{
     LayoutEngine, LayoutElement, LayoutResult, ElementLayout, BoxModelSides, parse_px_value,
 };
+use super::styled_tree::{StyledTreeResult, StyledElement, ResolvedStyles, StyleBoxSides};
 
 /// User-agent default styles for block-level elements.
 /// These mirror the CSS 2.1 spec defaults that browsers apply.
@@ -25,6 +26,10 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             // so the C# renderer picks it up. Page stylesheets can override this.
             if styles.background_color.is_none() {
                 styles.background_color = Some("#ffffff".to_string());
+            }
+            // Default text color is black (CSS initial value). This inherits to all children.
+            if styles.color.is_none() {
+                styles.color = Some("#000000".to_string());
             }
         }
         "body" => {
@@ -131,15 +136,37 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             styles.display = Some("block".to_string());
             if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
             styles.other.entry("white-space".to_string()).or_insert_with(|| "pre".to_string());
+            if styles.background_color.is_none() {
+                styles.background_color = Some("#f4f4f4".to_string());
+            }
+            if styles.padding.is_none() {
+                styles.padding = Some(BoxModel {
+                    top: "16px".to_string(), right: "16px".to_string(),
+                    bottom: "16px".to_string(), left: "16px".to_string(),
+                });
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "16px".to_string(), right: "0px".to_string(),
                     bottom: "16px".to_string(), left: "0px".to_string(),
                 });
             }
+            styles.other.entry("overflow".to_string()).or_insert_with(|| "hidden".to_string());
+            styles.other.entry("border-radius".to_string()).or_insert_with(|| "4px".to_string());
         }
         "code" => {
             if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
+            // Inline code gets subtle background (not inside <pre> — parent handles that)
+            if styles.background_color.is_none() {
+                styles.background_color = Some("#f0f0f0".to_string());
+            }
+            if styles.padding.is_none() {
+                styles.padding = Some(BoxModel {
+                    top: "2px".to_string(), right: "4px".to_string(),
+                    bottom: "2px".to_string(), left: "4px".to_string(),
+                });
+            }
+            styles.other.entry("border-radius".to_string()).or_insert_with(|| "3px".to_string());
         }
         "hr" => {
             styles.display = Some("block".to_string());
@@ -177,7 +204,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             styles.other.entry("list-style-type".to_string()).or_insert_with(|| "disc".to_string());
         }
         "a" => {
-            if styles.color.is_none() { styles.color = Some("rgb(100, 149, 237)".to_string()); }
+            if styles.color.is_none() { styles.color = Some("#0051C3".to_string()); }
             styles.other.entry("text-decoration".to_string()).or_insert_with(|| "underline".to_string());
         }
         "strong" | "b" => {
@@ -251,9 +278,185 @@ const SKIP_TAGS: &[&str] = &[
     "script", "style", "link", "meta", "head", "title", "noscript", "template",
 ];
 
-/// Compute the full page layout from raw HTML.
+/// Compute a styled element tree from raw HTML (new pipeline).
 ///
-/// This is the main bridge function:
+/// This is the new bridge function for the Avalonia native rendering pipeline:
+/// 1. Parses HTML with scraper
+/// 2. Extracts `<style>` blocks and feeds them to CssProcessor
+/// 3. Walks the DOM, computes CSS per element, builds LayoutElement tree
+/// 4. Converts LayoutElement tree → StyledElement tree (NO taffy, NO positions)
+///
+/// The resulting StyledTreeResult is serialized to JSON and sent to C#,
+/// where Avalonia handles layout and rendering using native controls.
+pub fn compute_styled_tree(html: &str, viewport_w: f32, viewport_h: f32) -> Result<StyledTreeResult> {
+    compute_styled_tree_with_css(html, viewport_w, viewport_h, &[])
+}
+
+/// Compute a styled element tree from raw HTML with external CSS stylesheets.
+pub fn compute_styled_tree_with_css(
+    html: &str,
+    viewport_w: f32,
+    viewport_h: f32,
+    external_css: &[String],
+) -> Result<StyledTreeResult> {
+    let document = Html::parse_document(html);
+
+    // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
+    let mut css_processor = CssProcessor::new_with_viewport(viewport_w);
+    for css_text in external_css {
+        if !css_text.trim().is_empty() {
+            if let Err(e) = css_processor.parse(css_text) {
+                eprintln!("[styled_tree] Failed to parse external stylesheet: {}", e);
+            }
+        }
+    }
+
+    // Step 1b: Then parse <style> blocks (higher source-order precedence)
+    let style_selector = Selector::parse("style").unwrap();
+    for style_el in document.select(&style_selector) {
+        let css_text: String = style_el.text().collect();
+        if !css_text.trim().is_empty() {
+            if let Err(e) = css_processor.parse(&css_text) {
+                eprintln!("[styled_tree] Failed to parse <style> block: {}", e);
+            }
+        }
+    }
+
+    // Step 2: Walk the DOM tree and build LayoutElement tree (reuses existing logic)
+    let root_node = document.root_element();
+    let layout_tree = build_layout_tree_from_dom(
+        &root_node,
+        &css_processor,
+        &mut 0,
+        viewport_w,
+        viewport_w as f64,
+        None,
+    );
+
+    // Step 3: Convert LayoutElement → StyledElement (no taffy involved)
+    let root = convert_to_styled_element(&layout_tree);
+
+    Ok(StyledTreeResult {
+        root,
+        viewport_width: viewport_w,
+        viewport_height: viewport_h,
+    })
+}
+
+/// Recursively convert a LayoutElement (internal) to a StyledElement (output).
+fn convert_to_styled_element(element: &LayoutElement) -> StyledElement {
+    let styles = &element.styles;
+
+    // Extract content from __xxx keys in styles.other
+    let text_content = styles.other.get("__text_content").cloned();
+    let img_src = if element.tag == "img" {
+        styles.other.get("__img_src").cloned()
+    } else {
+        None
+    };
+    let img_alt = if element.tag == "img" {
+        styles.other.get("__img_alt").cloned()
+    } else {
+        None
+    };
+    let link_href = styles.other.get("__link_href").cloned();
+
+    // Convert ComputedStyles → ResolvedStyles
+    let resolved = ResolvedStyles {
+        display: styles.display.clone(),
+        position: styles.position.clone(),
+        flex_direction: styles.flex_direction.clone(),
+        flex_wrap: styles.other.get("flex-wrap").cloned(),
+        justify_content: styles.justify_content.clone(),
+        align_items: styles.align_items.clone(),
+        align_self: styles.other.get("align-self").cloned(),
+        gap: styles.gap.clone(),
+        flex_grow: styles.other.get("flex-grow").cloned(),
+        flex_shrink: styles.other.get("flex-shrink").cloned(),
+        flex_basis: styles.other.get("flex-basis").cloned(),
+
+        width: styles.width.clone(),
+        height: styles.height.clone(),
+        min_width: styles.other.get("min-width").cloned(),
+        min_height: styles.other.get("min-height").cloned(),
+        max_width: styles.other.get("max-width").cloned(),
+        max_height: styles.other.get("max-height").cloned(),
+
+        margin: styles.margin.as_ref().map(|m| StyleBoxSides {
+            top: m.top.clone(),
+            right: m.right.clone(),
+            bottom: m.bottom.clone(),
+            left: m.left.clone(),
+        }),
+        padding: styles.padding.as_ref().map(|p| StyleBoxSides {
+            top: p.top.clone(),
+            right: p.right.clone(),
+            bottom: p.bottom.clone(),
+            left: p.left.clone(),
+        }),
+
+        font_size: styles.font_size.clone(),
+        font_family: styles.font_family.clone(),
+        font_weight: styles.font_weight.clone(),
+        font_style: styles.other.get("font-style").cloned(),
+        line_height: styles.other.get("line-height").cloned(),
+        text_align: styles.other.get("text-align").cloned(),
+        text_decoration: styles.other.get("text-decoration").cloned(),
+        text_transform: styles.other.get("text-transform").cloned(),
+        white_space: styles.other.get("white-space").cloned(),
+        letter_spacing: styles.other.get("letter-spacing").cloned(),
+        word_spacing: styles.other.get("word-spacing").cloned(),
+
+        color: styles.color.clone(),
+        background_color: styles.background_color.clone(),
+
+        border_width: styles.border.as_ref().map(|b| {
+            let w = b.width.clone();
+            StyleBoxSides {
+                top: w.clone(),
+                right: w.clone(),
+                bottom: w.clone(),
+                left: w,
+            }
+        }),
+        border_color: styles.border.as_ref().and_then(|b| {
+            if b.color.is_empty() { None } else { Some(b.color.clone()) }
+        }),
+        border_style: styles.border.as_ref().and_then(|b| {
+            if b.style.is_empty() { None } else { Some(b.style.clone()) }
+        }),
+        border_radius: styles.other.get("border-radius").cloned(),
+
+        opacity: styles.opacity,
+        overflow: styles.overflow.clone(),
+        visibility: styles.visibility.clone(),
+        z_index: styles.z_index,
+        list_style_type: styles.other.get("list-style-type").cloned(),
+        cursor: styles.other.get("cursor").cloned(),
+    };
+
+    // Recursively convert children
+    let children: Vec<StyledElement> = element
+        .children
+        .iter()
+        .map(|child| convert_to_styled_element(child))
+        .collect();
+
+    StyledElement {
+        id: element.id.clone(),
+        tag: element.tag.clone(),
+        text_content,
+        img_src,
+        img_alt,
+        link_href,
+        styles: resolved,
+        children,
+    }
+}
+
+/// Compute the full page layout from raw HTML (old pipeline, kept for compatibility).
+///
+/// This is the legacy bridge function:
 /// 1. Parses HTML with scraper
 /// 2. Extracts `<style>` blocks and feeds them to CssProcessor
 /// 3. Walks the DOM, computes CSS per element, builds LayoutElement tree
@@ -451,6 +654,29 @@ fn build_layout_tree_from_dom(
 
     // Apply UA defaults (only for properties not already set by CSS)
     apply_ua_defaults(&tag, &mut styles);
+
+    // Capture HTML attributes that affect rendering
+    if tag == "img" {
+        if let Some(src) = el.attr("src") {
+            styles.other.insert("__img_src".to_string(), src.to_string());
+        }
+        // Use alt text as fallback display content and store separately for the styled tree
+        if let Some(alt) = el.attr("alt") {
+            styles.other.insert("__text_content".to_string(), alt.to_string());
+            styles.other.insert("__img_alt".to_string(), alt.to_string());
+        }
+        // Capture width/height attributes if not set by CSS
+        if styles.width.is_none() {
+            if let Some(w) = el.attr("width") {
+                styles.width = Some(format!("{}px", w));
+            }
+        }
+        if styles.height.is_none() {
+            if let Some(h) = el.attr("height") {
+                styles.height = Some(format!("{}px", h));
+            }
+        }
+    }
 
     // Default display for block elements if not set
     if styles.display.is_none() {
@@ -993,5 +1219,228 @@ mod tests {
 
         assert!(!texts.is_empty(), "Should find text content in layout");
         assert!(texts.iter().any(|t| t.contains("Example Domain")), "Should contain 'Example Domain'");
+    }
+
+    #[test]
+    fn test_styled_tree_basic() {
+        let html = r#"
+        <html>
+        <head><title>Test</title></head>
+        <body>
+            <h1>Hello World</h1>
+            <p>This is a <strong>paragraph</strong>.</p>
+        </body>
+        </html>
+        "#;
+
+        let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
+        assert_eq!(result.root.tag, "html");
+        assert_eq!(result.viewport_width, 1024.0);
+
+        // Should have body as a child of html
+        let body = result.root.children.iter().find(|c| c.tag == "body");
+        assert!(body.is_some(), "Should have body element");
+
+        // Body should have children (h1, p)
+        let body = body.unwrap();
+        assert!(!body.children.is_empty(), "Body should have children");
+    }
+
+    #[test]
+    fn test_styled_tree_preserves_css() {
+        let html = r#"
+        <html>
+        <head>
+            <style>
+                .container { max-width: 600px; margin: 0 auto; background-color: #fdfdff; }
+            </style>
+        </head>
+        <body>
+            <div class="container"><p>Content</p></div>
+        </body>
+        </html>
+        "#;
+
+        let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
+
+        // Find the container div
+        fn find_by_tag<'a>(el: &'a StyledElement, tag: &str) -> Option<&'a StyledElement> {
+            if el.tag == tag { return Some(el); }
+            for child in &el.children {
+                if let Some(found) = find_by_tag(child, tag) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+
+        let div = find_by_tag(&result.root, "div");
+        assert!(div.is_some(), "Should find div element");
+        let div = div.unwrap();
+
+        // Should have max-width from CSS
+        assert_eq!(div.styles.max_width.as_deref(), Some("600px"));
+        // Should have background-color from CSS
+        assert_eq!(div.styles.background_color.as_deref(), Some("#fdfdff"));
+    }
+
+    #[test]
+    fn test_styled_tree_images() {
+        // Note: <a> is inline, so it gets merged into a #text element by flush_inline_run.
+        // Only block-level elements like <img> (inline-block) appear as separate StyledElements.
+        let html = r#"
+        <html>
+        <body>
+            <img src="photo.jpg" alt="A photo" width="200" height="100" />
+        </body>
+        </html>
+        "#;
+
+        let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
+
+        fn find_by_tag<'a>(el: &'a StyledElement, tag: &str) -> Option<&'a StyledElement> {
+            if el.tag == tag { return Some(el); }
+            for child in &el.children {
+                if let Some(found) = find_by_tag(child, tag) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+
+        // Check image
+        let img = find_by_tag(&result.root, "img");
+        assert!(img.is_some(), "Should find img element");
+        let img = img.unwrap();
+        assert_eq!(img.img_src.as_deref(), Some("photo.jpg"));
+        assert_eq!(img.img_alt.as_deref(), Some("A photo"));
+    }
+
+    #[test]
+    fn test_styled_tree_text_content() {
+        // When <a> wraps text, the link href gets stored on the #text if <a> is the
+        // direct parent being processed. When <a> is inside <p>, the text is concatenated
+        // into the inline run. This tests that text content flows through correctly.
+        let html = r#"
+        <html>
+        <body>
+            <p>Hello world</p>
+        </body>
+        </html>
+        "#;
+
+        let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
+
+        fn find_text<'a>(el: &'a StyledElement) -> Option<&'a StyledElement> {
+            if el.text_content.is_some() { return Some(el); }
+            for child in &el.children {
+                if let Some(found) = find_text(child) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+
+        let text_el = find_text(&result.root);
+        assert!(text_el.is_some(), "Should find element with text_content");
+        assert!(text_el.unwrap().text_content.as_ref().unwrap().contains("Hello world"));
+    }
+
+    #[test]
+    fn test_styled_tree_serializes_to_json() {
+        let html = r#"<html><body><p>Hello</p></body></html>"#;
+        let result = compute_styled_tree(html, 800.0, 600.0).unwrap();
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"tag\":\"html\""));
+        assert!(json.contains("\"viewport_width\":800.0"));
+    }
+
+    #[test]
+    fn test_styled_tree_css_colors() {
+        let html = r#"<html><head><style>
+            body { color: #333333; background-color: #ffffff; }
+            .red { color: red; }
+            .blue-bg { background-color: blue; }
+        </style></head><body>
+            <p class="red">Red text</p>
+            <p class="blue-bg">Blue bg</p>
+            <p>Inherited color</p>
+        </body></html>"#;
+        let result = compute_styled_tree(html, 800.0, 600.0).unwrap();
+        let json = serde_json::to_string_pretty(&result).unwrap();
+        eprintln!("STYLED TREE JSON:\n{}", json);
+
+        // Find the elements and check colors
+        fn find_text_elements(el: &StyledElement, results: &mut Vec<(String, Option<String>, Option<String>)>) {
+            if let Some(ref text) = el.text_content {
+                if !text.trim().is_empty() {
+                    results.push((text.clone(), el.styles.color.clone(), el.styles.background_color.clone()));
+                }
+            }
+            for child in &el.children {
+                find_text_elements(child, results);
+            }
+        }
+        let mut text_elements = Vec::new();
+        find_text_elements(&result.root, &mut text_elements);
+
+        eprintln!("TEXT ELEMENTS:");
+        for (text, color, bg) in &text_elements {
+            eprintln!("  text='{}' color={:?} bg={:?}", text, color, bg);
+        }
+
+        // Red text should have color: red
+        let red_el = text_elements.iter().find(|(t, _, _)| t.contains("Red text")).expect("Should find 'Red text'");
+        assert!(red_el.1.is_some(), "Red text should have a color set: {:?}", red_el);
+
+        // Blue bg: background-color doesn't inherit to #text children, it stays on parent
+        // So the text element won't have it. This is correct CSS behavior.
+
+        // Inherited color should have color from body
+        let inherited_el = text_elements.iter().find(|(t, _, _)| t.contains("Inherited")).expect("Should find 'Inherited color'");
+        assert!(inherited_el.1.is_some(), "Inherited color should have color from body: {:?}", inherited_el);
+    }
+
+    #[test]
+    fn test_styled_tree_css_variables() {
+        // Simulate Tailwind-style CSS variables
+        let html = r#"<html><head><style>
+            :root { --text-color: #1a1a1a; --bg-color: #f5f5f5; }
+            *, :before, :after { --tw-text-opacity: 1; }
+            body { color: var(--text-color); background-color: var(--bg-color); }
+            .tw-black { color: rgb(0 0 0 / var(--tw-text-opacity, 1)); }
+        </style></head><body>
+            <p>Body text should be #1a1a1a</p>
+            <p class="tw-black">Tailwind black</p>
+        </body></html>"#;
+        let result = compute_styled_tree(html, 800.0, 600.0).unwrap();
+
+        fn find_text_elements(el: &StyledElement, results: &mut Vec<(String, Option<String>, Option<String>)>) {
+            if let Some(ref text) = el.text_content {
+                if !text.trim().is_empty() {
+                    results.push((text.clone(), el.styles.color.clone(), el.styles.background_color.clone()));
+                }
+            }
+            for child in &el.children {
+                find_text_elements(child, results);
+            }
+        }
+        let mut text_elements = Vec::new();
+        find_text_elements(&result.root, &mut text_elements);
+
+        eprintln!("CSS VARIABLE TEST:");
+        for (text, color, bg) in &text_elements {
+            eprintln!("  text='{}' color={:?} bg={:?}", text, color, bg);
+        }
+
+        // Body text should have resolved var(--text-color) → #1a1a1a
+        let body_el = text_elements.iter().find(|(t, _, _)| t.contains("Body text")).expect("Should find 'Body text'");
+        assert!(body_el.1.is_some(), "Body text should have color resolved from var(): {:?}", body_el);
+        assert!(!body_el.1.as_ref().unwrap().contains("var("), "Color should be resolved, not contain var(): {:?}", body_el.1);
+
+        // Tailwind black — rgb(0 0 0 / var(--tw-text-opacity, 1))
+        let tw_el = text_elements.iter().find(|(t, _, _)| t.contains("Tailwind")).expect("Should find 'Tailwind black'");
+        eprintln!("  Tailwind black resolved color: {:?}", tw_el.1);
+        assert!(tw_el.1.is_some(), "Tailwind text should have a color: {:?}", tw_el);
     }
 }

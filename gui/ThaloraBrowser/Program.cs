@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Media.Fonts;
 
 namespace ThaloraBrowser;
 
@@ -105,6 +106,14 @@ class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
+            .ConfigureFonts(fontManager =>
+            {
+                // Register bundled fonts (Noto Sans, Noto Serif, Fira Mono)
+                // embedded as AvaloniaResource in the Fonts/ directory.
+                fontManager.AddFontCollection(new EmbeddedFontCollection(
+                    new Uri("fonts:ThaloraBrowser", UriKind.Absolute),
+                    new Uri("avares://ThaloraBrowser/Fonts", UriKind.Absolute)));
+            })
             .LogToTrace();
 
     /// Resolve the "thalora" native library from the Rust build output directory.

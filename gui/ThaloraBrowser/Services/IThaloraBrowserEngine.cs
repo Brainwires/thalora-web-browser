@@ -19,5 +19,6 @@ public interface IThaloraBrowserEngine : IDisposable
     Task<bool> SubmitFormAsync(string formSelector, string? jsonData = null);
     Task<string?> GetPageTitleAsync();
     Task<string?> ComputeLayoutAsync(float viewportW, float viewportH);
+    Task<string?> ComputeStyledTreeAsync(float viewportW, float viewportH);
     string? GetLastError();
 }

@@ -159,13 +159,25 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
         });
 
     /// <summary>
-    /// Compute the page layout on the Rust side and return it as JSON.
+    /// Compute the page layout on the Rust side and return it as JSON (old pipeline).
     /// </summary>
     public Task<string?> ComputeLayoutAsync(float viewportW, float viewportH)
         => Task.Run(() =>
         {
             ThrowIfDisposed();
             var ptr = ThaloraNative.thalora_compute_layout(_instance, viewportW, viewportH);
+            return ConsumeRustString(ptr);
+        });
+
+    /// <summary>
+    /// Compute the styled element tree on the Rust side and return it as JSON (new pipeline).
+    /// Returns CSS-resolved elements without positions — C# handles layout via Avalonia controls.
+    /// </summary>
+    public Task<string?> ComputeStyledTreeAsync(float viewportW, float viewportH)
+        => Task.Run(() =>
+        {
+            ThrowIfDisposed();
+            var ptr = ThaloraNative.thalora_compute_styled_tree(_instance, viewportW, viewportH);
             return ConsumeRustString(ptr);
         });
 
