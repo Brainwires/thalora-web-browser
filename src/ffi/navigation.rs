@@ -289,10 +289,13 @@ pub extern "C" fn thalora_compute_styled_tree(
         return ptr::null_mut();
     }
 
+    // Collect external stylesheets before dropping the lock
+    let external_css: Vec<String> = browser.get_external_stylesheets().to_vec();
+
     // Drop the lock before computing (which can take time)
     drop(browser);
 
-    match crate::engine::renderer::compute_styled_tree(&content, viewport_w, viewport_h) {
+    match crate::engine::renderer::compute_styled_tree_with_css(&content, viewport_w, viewport_h, &external_css) {
         Ok(styled_tree) => {
             match serde_json::to_string(&styled_tree) {
                 Ok(json) => rust_string_to_c(json),

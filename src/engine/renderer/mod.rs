@@ -13,5 +13,5 @@ pub mod polyfills;
 pub use core::RustRenderer;
 pub use css::CssProcessor;
 pub use layout::{LayoutEngine, LayoutResult, ElementLayout, LayoutElement, BoxModelSides, parse_px_value};
-pub use page_layout::{compute_page_layout, compute_page_layout_with_css, compute_styled_tree};
+pub use page_layout::{compute_page_layout, compute_page_layout_with_css, compute_styled_tree, compute_styled_tree_with_css};
 pub use styled_tree::{StyledTreeResult, StyledElement, ResolvedStyles};

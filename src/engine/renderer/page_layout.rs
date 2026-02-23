@@ -20,7 +20,7 @@ use super::styled_tree::{StyledTreeResult, StyledElement, ResolvedStyles, StyleB
 fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
     match tag {
         "html" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             // Browsers render the html element with a white canvas background by default.
             // CSS spec says transparent, but the viewport/canvas is white — we apply it here
             // so the C# renderer picks it up. Page stylesheets can override this.
@@ -33,7 +33,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "body" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "8px".to_string(),
@@ -44,7 +44,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h1" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_size.is_none() { styles.font_size = Some("32px".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.margin.is_none() {
@@ -55,7 +55,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h2" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_size.is_none() { styles.font_size = Some("24px".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.margin.is_none() {
@@ -66,7 +66,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h3" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_size.is_none() { styles.font_size = Some("18.72px".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.margin.is_none() {
@@ -77,7 +77,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h4" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_size.is_none() { styles.font_size = Some("16px".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.margin.is_none() {
@@ -88,7 +88,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h5" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_size.is_none() { styles.font_size = Some("13.28px".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.margin.is_none() {
@@ -99,7 +99,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h6" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_size.is_none() { styles.font_size = Some("10.72px".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.margin.is_none() {
@@ -110,7 +110,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "p" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "16px".to_string(), right: "0px".to_string(),
@@ -121,10 +121,12 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
         "div" | "section" | "article" | "header" | "footer" | "main" | "nav" | "aside"
         | "form" | "figure" | "figcaption" | "details" | "summary" | "dialog" | "address"
         | "fieldset" | "legend" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
         }
         "blockquote" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "16px".to_string(), right: "40px".to_string(),
@@ -133,7 +135,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "pre" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
             styles.other.entry("white-space".to_string()).or_insert_with(|| "pre".to_string());
             if styles.background_color.is_none() {
@@ -169,7 +171,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             styles.other.entry("border-radius".to_string()).or_insert_with(|| "3px".to_string());
         }
         "hr" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "8px".to_string(), right: "0px".to_string(),
@@ -185,7 +187,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "ul" | "ol" => {
-            styles.display = Some("block".to_string());
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "16px".to_string(), right: "0px".to_string(),
@@ -200,7 +202,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "li" => {
-            styles.display = Some("list-item".to_string());
+            if styles.display.is_none() { styles.display = Some("list-item".to_string()); }
             styles.other.entry("list-style-type".to_string()).or_insert_with(|| "disc".to_string());
         }
         "a" => {
@@ -223,7 +225,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             if styles.display.is_none() { styles.display = Some("inline".to_string()); }
         }
         "table" => {
-            styles.display = Some("table".to_string());
+            if styles.display.is_none() { styles.display = Some("table".to_string()); }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "16px".to_string(), right: "0px".to_string(),
@@ -239,10 +241,10 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "tr" => {
-            styles.display = Some("table-row".to_string());
+            if styles.display.is_none() { styles.display = Some("table-row".to_string()); }
         }
         "td" => {
-            styles.display = Some("table-cell".to_string());
+            if styles.display.is_none() { styles.display = Some("table-cell".to_string()); }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
                     top: "4px".to_string(), right: "8px".to_string(),
@@ -251,7 +253,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "th" => {
-            styles.display = Some("table-cell".to_string());
+            if styles.display.is_none() { styles.display = Some("table-cell".to_string()); }
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
@@ -322,25 +324,296 @@ pub fn compute_styled_tree_with_css(
         }
     }
 
-    // Step 2: Walk the DOM tree and build LayoutElement tree (reuses existing logic)
+    // Step 2: Walk the DOM tree and build StyledElement tree directly.
+    // This preserves inline element structure (<a>, <strong>, <em>, <code>, <span>)
+    // so C# can properly render links, bold, italic, inline code, etc.
     let root_node = document.root_element();
-    let layout_tree = build_layout_tree_from_dom(
+    let mut id_counter: u32 = 0;
+    let root = build_styled_element_from_dom(
         &root_node,
         &css_processor,
-        &mut 0,
+        &mut id_counter,
         viewport_w,
-        viewport_w as f64,
         None,
     );
-
-    // Step 3: Convert LayoutElement → StyledElement (no taffy involved)
-    let root = convert_to_styled_element(&layout_tree);
 
     Ok(StyledTreeResult {
         root,
         viewport_width: viewport_w,
         viewport_height: viewport_h,
     })
+}
+
+/// Build a StyledElement tree directly from the DOM, preserving inline element structure.
+///
+/// Unlike `build_layout_tree_from_dom` (which flattens inline elements into text runs),
+/// this function keeps every element as a proper node in the tree. This allows the C#
+/// ControlTreeBuilder to style `<a>`, `<strong>`, `<em>`, `<code>`, `<span>` etc. individually.
+fn build_styled_element_from_dom(
+    element_ref: &ElementRef,
+    css_processor: &CssProcessor,
+    id_counter: &mut u32,
+    viewport_w: f32,
+    parent_styles: Option<&ComputedStyles>,
+) -> StyledElement {
+    let el = element_ref.value();
+    let tag = el.name().to_lowercase();
+
+    // Compute CSS styles
+    let mut styles = css_processor.compute_style_for_element(element_ref);
+
+    // Handle inline style attribute
+    let elem_id = format!("e{}", *id_counter);
+    *id_counter += 1;
+
+    if let Some(inline_style) = el.attr("style") {
+        let mut inline_processor = CssProcessor::new();
+        if inline_processor.parse_inline_style(inline_style, &elem_id).is_ok() {
+            let inline_styles = inline_processor.compute_style(&format!("#{}", elem_id));
+            merge_styles(&mut styles, &inline_styles);
+        }
+    }
+
+    // Inherit properties from parent
+    if let Some(parent) = parent_styles {
+        inherit_properties(&mut styles, parent);
+    }
+
+    // Apply UA defaults
+    apply_ua_defaults(&tag, &mut styles);
+
+    // Default display for elements if not set
+    if styles.display.is_none() {
+        styles.display = Some(if is_block_element(&tag) { "block" } else { "inline" }.to_string());
+    }
+
+    // Extract HTML attributes
+    let link_href = if tag == "a" {
+        el.attr("href").map(|h| h.to_string())
+    } else {
+        None
+    };
+
+    let img_src = if tag == "img" {
+        el.attr("src").map(|s| s.to_string())
+    } else {
+        None
+    };
+
+    let img_alt = if tag == "img" {
+        el.attr("alt").map(|a| a.to_string())
+    } else {
+        None
+    };
+
+    // Capture width/height attributes for img if not set by CSS
+    if tag == "img" {
+        if styles.width.is_none() {
+            if let Some(w) = el.attr("width") {
+                styles.width = Some(format!("{}px", w));
+            }
+        }
+        if styles.height.is_none() {
+            if let Some(h) = el.attr("height") {
+                styles.height = Some(format!("{}px", h));
+            }
+        }
+    }
+
+    // White-space mode for text collapsing
+    let ws = styles.other.get("white-space").cloned().unwrap_or_else(|| "normal".to_string());
+
+    // Build children — preserve ALL elements (inline and block) as children
+    let mut children = Vec::new();
+
+    for child_node in element_ref.children() {
+        match child_node.value() {
+            Node::Text(text) => {
+                let raw_text = text.text.as_ref();
+                // Collapse whitespace for normal/nowrap modes
+                // IMPORTANT: Preserve leading/trailing single space — HTML whitespace
+                // between inline elements must collapse to a single space, not disappear.
+                let text_str = if ws == "normal" || ws == "nowrap" {
+                    let has_leading_ws = raw_text.starts_with(char::is_whitespace);
+                    let has_trailing_ws = raw_text.ends_with(char::is_whitespace);
+                    let collapsed = raw_text.split_whitespace().collect::<Vec<_>>().join(" ");
+                    if collapsed.is_empty() {
+                        // Whitespace-only text between inline elements → single space
+                        if has_leading_ws || has_trailing_ws {
+                            " ".to_string()
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        let mut result = String::new();
+                        if has_leading_ws {
+                            result.push(' ');
+                        }
+                        result.push_str(&collapsed);
+                        if has_trailing_ws {
+                            result.push(' ');
+                        }
+                        result
+                    }
+                } else {
+                    raw_text.to_string()
+                };
+                if text_str.is_empty() {
+                    continue;
+                }
+
+                // Create a #text StyledElement
+                let text_id = format!("t{}", *id_counter);
+                *id_counter += 1;
+
+                // Inherit text-related styles from parent
+                let text_resolved = ResolvedStyles {
+                    display: Some("inline".to_string()),
+                    font_size: styles.font_size.clone(),
+                    font_family: styles.font_family.clone(),
+                    font_weight: styles.font_weight.clone(),
+                    font_style: styles.other.get("font-style").cloned(),
+                    line_height: styles.other.get("line-height").cloned(),
+                    color: styles.color.clone(),
+                    white_space: styles.other.get("white-space").cloned(),
+                    text_decoration: styles.other.get("text-decoration").cloned(),
+                    letter_spacing: styles.other.get("letter-spacing").cloned(),
+                    ..ResolvedStyles::default()
+                };
+
+                children.push(StyledElement {
+                    id: text_id,
+                    tag: "#text".to_string(),
+                    text_content: Some(text_str),
+                    img_src: None,
+                    img_alt: None,
+                    link_href: None,
+                    styles: text_resolved,
+                    children: Vec::new(),
+                });
+            }
+            Node::Element(_) => {
+                if let Some(child_el_ref) = ElementRef::wrap(child_node) {
+                    let child_tag = child_el_ref.value().name().to_lowercase();
+
+                    // Skip metadata/invisible tags
+                    if SKIP_TAGS.contains(&child_tag.as_str()) {
+                        continue;
+                    }
+
+                    // Recursively build child element
+                    let child_styled = build_styled_element_from_dom(
+                        &child_el_ref,
+                        css_processor,
+                        id_counter,
+                        viewport_w,
+                        Some(&styles),
+                    );
+
+                    // Skip display:none and visibility:hidden elements
+                    if child_styled.styles.display.as_deref() == Some("none") {
+                        continue;
+                    }
+                    if child_styled.styles.visibility.as_deref() == Some("hidden") {
+                        continue;
+                    }
+
+                    children.push(child_styled);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Convert ComputedStyles → ResolvedStyles
+    let resolved = computed_to_resolved(&styles);
+
+    StyledElement {
+        id: elem_id,
+        tag,
+        text_content: None, // Block/inline elements carry text via #text children
+        img_src,
+        img_alt,
+        link_href,
+        styles: resolved,
+        children,
+    }
+}
+
+/// Convert ComputedStyles to ResolvedStyles (shared conversion logic)
+fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
+    ResolvedStyles {
+        display: styles.display.clone(),
+        position: styles.position.clone(),
+        flex_direction: styles.flex_direction.clone(),
+        flex_wrap: styles.other.get("flex-wrap").cloned(),
+        justify_content: styles.justify_content.clone(),
+        align_items: styles.align_items.clone(),
+        align_self: styles.other.get("align-self").cloned(),
+        gap: styles.gap.clone(),
+        flex_grow: styles.other.get("flex-grow").cloned(),
+        flex_shrink: styles.other.get("flex-shrink").cloned(),
+        flex_basis: styles.other.get("flex-basis").cloned(),
+
+        width: styles.width.clone(),
+        height: styles.height.clone(),
+        min_width: styles.other.get("min-width").cloned(),
+        min_height: styles.other.get("min-height").cloned(),
+        max_width: styles.other.get("max-width").cloned(),
+        max_height: styles.other.get("max-height").cloned(),
+
+        margin: styles.margin.as_ref().map(|m| StyleBoxSides {
+            top: m.top.clone(),
+            right: m.right.clone(),
+            bottom: m.bottom.clone(),
+            left: m.left.clone(),
+        }),
+        padding: styles.padding.as_ref().map(|p| StyleBoxSides {
+            top: p.top.clone(),
+            right: p.right.clone(),
+            bottom: p.bottom.clone(),
+            left: p.left.clone(),
+        }),
+
+        font_size: styles.font_size.clone(),
+        font_family: styles.font_family.clone(),
+        font_weight: styles.font_weight.clone(),
+        font_style: styles.other.get("font-style").cloned(),
+        line_height: styles.other.get("line-height").cloned(),
+        text_align: styles.other.get("text-align").cloned(),
+        text_decoration: styles.other.get("text-decoration").cloned(),
+        text_transform: styles.other.get("text-transform").cloned(),
+        white_space: styles.other.get("white-space").cloned(),
+        letter_spacing: styles.other.get("letter-spacing").cloned(),
+        word_spacing: styles.other.get("word-spacing").cloned(),
+
+        color: styles.color.clone(),
+        background_color: styles.background_color.clone(),
+
+        border_width: styles.border.as_ref().map(|b| {
+            let w = b.width.clone();
+            StyleBoxSides {
+                top: w.clone(),
+                right: w.clone(),
+                bottom: w.clone(),
+                left: w,
+            }
+        }),
+        border_color: styles.border.as_ref().and_then(|b| {
+            if b.color.is_empty() { None } else { Some(b.color.clone()) }
+        }),
+        border_style: styles.border.as_ref().and_then(|b| {
+            if b.style.is_empty() { None } else { Some(b.style.clone()) }
+        }),
+        border_radius: styles.other.get("border-radius").cloned(),
+
+        opacity: styles.opacity,
+        overflow: styles.overflow.clone(),
+        visibility: styles.visibility.clone(),
+        z_index: styles.z_index,
+        list_style_type: styles.other.get("list-style-type").cloned(),
+        cursor: styles.other.get("cursor").cloned(),
+    }
 }
 
 /// Recursively convert a LayoutElement (internal) to a StyledElement (output).
@@ -1442,5 +1715,48 @@ mod tests {
         let tw_el = text_elements.iter().find(|(t, _, _)| t.contains("Tailwind")).expect("Should find 'Tailwind black'");
         eprintln!("  Tailwind black resolved color: {:?}", tw_el.1);
         assert!(tw_el.1.is_some(), "Tailwind text should have a color: {:?}", tw_el);
+    }
+
+    #[test]
+    fn test_cloudflare_nav_display_none() {
+        // End-to-end test: real HTML + real CSS → nav should have display:none
+        let html_path = "/tmp/cloudflare_full.html";
+        let ashes_path = "/tmp/ashes_test.css";
+        let index_path = "/tmp/cloudflare_test.css";
+        if !std::path::Path::new(html_path).exists()
+            || !std::path::Path::new(ashes_path).exists()
+            || !std::path::Path::new(index_path).exists()
+        {
+            eprintln!("Skipping: test files not found");
+            return;
+        }
+
+        let html = std::fs::read_to_string(html_path).unwrap();
+        let ashes = std::fs::read_to_string(ashes_path).unwrap();
+        let index = std::fs::read_to_string(index_path).unwrap();
+
+        let result = compute_styled_tree_with_css(&html, 1280.0, 800.0, &[ashes, index]).unwrap();
+
+        // Find <nav> elements in the styled tree
+        fn find_navs(el: &StyledElement, results: &mut Vec<(String, Option<String>)>) {
+            if el.tag == "nav" {
+                results.push((el.tag.clone(), el.styles.display.clone()));
+            }
+            for child in &el.children {
+                find_navs(child, results);
+            }
+        }
+
+        let mut navs = Vec::new();
+        find_navs(&result.root, &mut navs);
+        eprintln!("Found {} nav elements:", navs.len());
+        for (tag, display) in &navs {
+            eprintln!("  <{}> display={:?}", tag, display);
+        }
+
+        // The first nav (with class "db dn-l") should be display:none at 1280px
+        assert!(!navs.is_empty(), "Should find at least one nav");
+        assert_eq!(navs[0].1.as_deref(), Some("none"),
+            "First nav should be display:none at 1280px (dn-l media query)");
     }
 }

@@ -122,41 +122,36 @@ class Program
         if (libraryName != "thalora")
             return IntPtr.Zero;
 
-        // Try multiple candidate paths
-        string[] candidates;
+        // Check THALORA_LIB_PATH environment variable first
+        var envPath = Environment.GetEnvironmentVariable("THALORA_LIB_PATH");
+        if (!string.IsNullOrEmpty(envPath))
+        {
+            var fullEnvPath = Path.GetFullPath(envPath);
+            if (NativeLibrary.TryLoad(fullEnvPath, out var envHandle))
+                return envHandle;
+        }
+
+        // Platform-specific library name
+        string libName;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            candidates = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "thalora.dll"),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "debug", "thalora.dll")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "debug", "thalora.dll")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "release", "thalora.dll")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "release", "thalora.dll")),
-            };
-        }
+            libName = "thalora.dll";
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            candidates = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "libthalora.dylib"),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "debug", "libthalora.dylib")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "debug", "libthalora.dylib")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "release", "libthalora.dylib")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "release", "libthalora.dylib")),
-            };
-        }
+            libName = "libthalora.dylib";
         else
+            libName = "libthalora.so";
+
+        // Try multiple candidate paths — prefer release over debug
+        var candidates = new[]
         {
-            candidates = new[]
-            {
-                Path.Combine(AppContext.BaseDirectory, "libthalora.so"),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "debug", "libthalora.so")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "debug", "libthalora.so")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "release", "libthalora.so")),
-                Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "release", "libthalora.so")),
-            };
-        }
+            // Release paths first
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "release", libName)),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "release", libName)),
+            // Then check bin directory (may be stale — checked after release)
+            Path.Combine(AppContext.BaseDirectory, libName),
+            // Debug paths last
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "target", "debug", libName)),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "target", "debug", libName)),
+        };
 
         foreach (var candidate in candidates)
         {

@@ -197,31 +197,33 @@ public class ControlTreeBuilder
             }
         }
 
-        // Apply max-width
-        var maxWidth = StyleParser.ParseLength(styles.MaxWidth, fontSize);
+        // Apply max-width (skip percentages — we don't know parent container size)
+        var maxWidth = IsPercentage(styles.MaxWidth) ? null : StyleParser.ParseLength(styles.MaxWidth, fontSize);
         if (maxWidth.HasValue)
             border.MaxWidth = maxWidth.Value;
 
         // Apply explicit width/height
-        var width = StyleParser.ParseLength(styles.Width, fontSize);
+        // Skip percentage widths/heights — Avalonia's default Stretch behavior handles 100%,
+        // and we don't track parent sizes for other percentages.
+        var width = IsPercentage(styles.Width) ? null : StyleParser.ParseLength(styles.Width, fontSize);
         if (width.HasValue)
             border.Width = width.Value;
 
-        var height = StyleParser.ParseLength(styles.Height, fontSize);
+        var height = IsPercentage(styles.Height) ? null : StyleParser.ParseLength(styles.Height, fontSize);
         if (height.HasValue)
             border.Height = height.Value;
 
         // Apply min-width/min-height
-        var minWidth = StyleParser.ParseLength(styles.MinWidth, fontSize);
+        var minWidth = IsPercentage(styles.MinWidth) ? null : StyleParser.ParseLength(styles.MinWidth, fontSize);
         if (minWidth.HasValue)
             border.MinWidth = minWidth.Value;
 
-        var minHeight = StyleParser.ParseLength(styles.MinHeight, fontSize);
+        var minHeight = IsPercentage(styles.MinHeight) ? null : StyleParser.ParseLength(styles.MinHeight, fontSize);
         if (minHeight.HasValue)
             border.MinHeight = minHeight.Value;
 
         // Apply max-height
-        var maxHeight = StyleParser.ParseLength(styles.MaxHeight, fontSize);
+        var maxHeight = IsPercentage(styles.MaxHeight) ? null : StyleParser.ParseLength(styles.MaxHeight, fontSize);
         if (maxHeight.HasValue)
             border.MaxHeight = maxHeight.Value;
 
@@ -244,22 +246,71 @@ public class ControlTreeBuilder
         var styles = element.Styles;
         bool isFlex = styles.Display == "flex" || styles.Display == "inline-flex";
 
-        var panel = new StackPanel();
+        Panel panel;
 
         if (isFlex)
         {
-            // Flex direction
             bool isRow = styles.FlexDirection != "column" && styles.FlexDirection != "column-reverse";
-            panel.Orientation = isRow ? Orientation.Horizontal : Orientation.Vertical;
+            bool isWrap = styles.FlexWrap == "wrap" || styles.FlexWrap == "wrap-reverse";
 
-            // Gap
-            var gap = StyleParser.ParseLength(styles.Gap, fontSize);
-            if (gap.HasValue)
-                panel.Spacing = gap.Value;
+            if (isWrap && isRow)
+            {
+                // Use WrapPanel for flex-wrap in row direction
+                var wrapPanel = new WrapPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                };
+                panel = wrapPanel;
+            }
+            else
+            {
+                var stackPanel = new StackPanel
+                {
+                    Orientation = isRow ? Orientation.Horizontal : Orientation.Vertical,
+                };
+                // Gap
+                var gap = StyleParser.ParseLength(styles.Gap, fontSize);
+                if (gap.HasValue)
+                    stackPanel.Spacing = gap.Value;
+                panel = stackPanel;
+            }
+
+            // justify-content: center → center items along the main axis
+            if (styles.JustifyContent == "center")
+            {
+                if (isRow)
+                    panel.HorizontalAlignment = HorizontalAlignment.Center;
+                else
+                    panel.VerticalAlignment = VerticalAlignment.Center;
+            }
+            else if (styles.JustifyContent == "flex-end" || styles.JustifyContent == "end")
+            {
+                if (isRow)
+                    panel.HorizontalAlignment = HorizontalAlignment.Right;
+                else
+                    panel.VerticalAlignment = VerticalAlignment.Bottom;
+            }
+            else if (styles.JustifyContent == "space-between" || styles.JustifyContent == "space-around"
+                || styles.JustifyContent == "space-evenly")
+            {
+                // For space-between/around/evenly, stretch to full width
+                // Items will be distributed — best approximation with StackPanel
+                if (isRow)
+                    panel.HorizontalAlignment = HorizontalAlignment.Stretch;
+            }
+
+            // align-items: center → center items along the cross axis
+            if (styles.AlignItems == "center")
+            {
+                if (isRow)
+                    panel.VerticalAlignment = VerticalAlignment.Center;
+                else
+                    panel.HorizontalAlignment = HorizontalAlignment.Center;
+            }
         }
         else
         {
-            panel.Orientation = Orientation.Vertical;
+            panel = new StackPanel { Orientation = Orientation.Vertical };
         }
 
         // Process children: group consecutive inline children into text blocks,
@@ -414,13 +465,45 @@ public class ControlTreeBuilder
                 return;
             }
 
+            case "img":
+            {
+                if (string.IsNullOrEmpty(element.ImgSrc))
+                    return;
+
+                var (displayCtrl, imgCtrl) = CreateInlineImageWithControl(element, fontSize);
+                _ = LoadImageAsync(imgCtrl, element.ImgSrc);
+                inlines.Add(new InlineUIContainer { Child = displayCtrl });
+                return;
+            }
+
             case "a":
             {
-                // Build link text content
+                // Check if link contains an image (e.g., logo, avatar, icon)
+                var imgChild = element.Children.FirstOrDefault(c => c.Tag == "img" && !string.IsNullOrEmpty(c.ImgSrc));
+                if (imgChild != null)
+                {
+                    var imgStyles = imgChild.Styles;
+                    var imgFontSize = StyleParser.ParseFontSize(imgStyles.FontSize, fontSize);
+                    var (displayCtrl, imgCtrl) = CreateInlineImageWithControl(imgChild, imgFontSize);
+                    displayCtrl.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+
+                    if (!string.IsNullOrEmpty(element.LinkHref))
+                    {
+                        var href = element.LinkHref;
+                        displayCtrl.PointerPressed += (_, _) => _onLinkClicked?.Invoke(href);
+                        displayCtrl.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
+                        displayCtrl.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
+                    }
+
+                    _ = LoadImageAsync(imgCtrl, imgChild.ImgSrc!);
+                    inlines.Add(new InlineUIContainer { Child = displayCtrl });
+                    return;
+                }
+
+                // Text link — collect text content
                 var linkText = "";
                 if (element.Children.Count > 0)
                 {
-                    // Collect text from children
                     linkText = CollectInlineText(element);
                 }
                 else if (!string.IsNullOrEmpty(element.TextContent))
@@ -443,7 +526,7 @@ public class ControlTreeBuilder
                     FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
                     FontWeight = StyleParser.ParseFontWeight(styles.FontWeight),
                     FontStyle = StyleParser.ParseFontStyle(styles.FontStyle),
-                    TextDecorations = TextDecorations.Underline,
+                    TextDecorations = styles.TextDecoration == "none" ? null : TextDecorations.Underline,
                     Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
                 };
 
@@ -564,14 +647,45 @@ public class ControlTreeBuilder
             HorizontalAlignment = HorizontalAlignment.Left,
         };
 
-        // Set explicit dimensions if available
-        var width = StyleParser.ParseLength(styles.Width, fontSize);
-        var height = StyleParser.ParseLength(styles.Height, fontSize);
-        if (width.HasValue) image.Width = width.Value;
-        if (height.HasValue) image.Height = height.Value;
+        // Handle width
+        bool hasExplicitWidth = false;
+        if (!string.IsNullOrEmpty(styles.Width) && styles.Width != "auto")
+        {
+            if (styles.Width.TrimEnd().EndsWith("%"))
+            {
+                // Percentage width — stretch to fill container
+                image.HorizontalAlignment = HorizontalAlignment.Stretch;
+                image.Stretch = Stretch.Uniform;
+                hasExplicitWidth = true;
+            }
+            else
+            {
+                var width = StyleParser.ParseLength(styles.Width, fontSize);
+                if (width.HasValue && width.Value > 0)
+                {
+                    image.Width = width.Value;
+                    hasExplicitWidth = true;
+                }
+            }
+        }
 
-        // Default size if none specified
-        if (!width.HasValue && !height.HasValue)
+        // Handle height
+        bool hasExplicitHeight = false;
+        if (!string.IsNullOrEmpty(styles.Height) && styles.Height != "auto")
+        {
+            if (!styles.Height.TrimEnd().EndsWith("%"))
+            {
+                var height = StyleParser.ParseLength(styles.Height, fontSize);
+                if (height.HasValue && height.Value > 0)
+                {
+                    image.Height = height.Value;
+                    hasExplicitHeight = true;
+                }
+            }
+        }
+
+        // Default max size if no dimensions specified
+        if (!hasExplicitWidth && !hasExplicitHeight)
         {
             image.MaxWidth = 800;
             image.MaxHeight = 600;
@@ -583,13 +697,87 @@ public class ControlTreeBuilder
             _ = LoadImageAsync(image, imgSrc);
         }
 
+        // Wrap in Border for border-radius clipping
+        if (!string.IsNullOrEmpty(styles.BorderRadius))
+        {
+            var border = new Border
+            {
+                Child = image,
+                ClipToBounds = true,
+                CornerRadius = StyleParser.ParseBorderRadius(styles.BorderRadius, fontSize),
+            };
+            if (hasExplicitWidth) border.Width = image.Width;
+            if (hasExplicitHeight) border.Height = image.Height;
+            return border;
+        }
+
         return image;
+    }
+
+    /// <summary>
+    /// Create an Image control for use in InlineUIContainer (inside text flow).
+    /// Returns the display control (may be Image or Border wrapping Image) and the Image for async loading.
+    /// </summary>
+    private static (Control displayControl, Avalonia.Controls.Image imageControl) CreateInlineImageWithControl(StyledElement element, double fontSize)
+    {
+        var styles = element.Styles;
+        var imageControl = new Avalonia.Controls.Image
+        {
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        // Handle width
+        double? imgWidth = null;
+        if (!string.IsNullOrEmpty(styles.Width) && styles.Width != "auto"
+            && !styles.Width.TrimEnd().EndsWith("%"))
+        {
+            var w = StyleParser.ParseLength(styles.Width, fontSize);
+            if (w.HasValue && w.Value > 0)
+            {
+                imageControl.Width = w.Value;
+                imgWidth = w.Value;
+            }
+        }
+
+        // Handle height
+        double? imgHeight = null;
+        if (!string.IsNullOrEmpty(styles.Height) && styles.Height != "auto"
+            && !styles.Height.TrimEnd().EndsWith("%"))
+        {
+            var h = StyleParser.ParseLength(styles.Height, fontSize);
+            if (h.HasValue && h.Value > 0)
+            {
+                imageControl.Height = h.Value;
+                imgHeight = h.Value;
+            }
+        }
+
+        // Wrap in Border for border-radius clipping
+        if (!string.IsNullOrEmpty(styles.BorderRadius))
+        {
+            var border = new Border
+            {
+                Child = imageControl,
+                ClipToBounds = true,
+                CornerRadius = StyleParser.ParseBorderRadius(styles.BorderRadius, fontSize),
+            };
+            if (imgWidth.HasValue) border.Width = imgWidth.Value;
+            if (imgHeight.HasValue) border.Height = imgHeight.Value;
+            return (border, imageControl);
+        }
+
+        return (imageControl, imageControl);
     }
 
     private async Task LoadImageAsync(Avalonia.Controls.Image imageControl, string src)
     {
         try
         {
+            // Skip SVG images — Avalonia Bitmap doesn't support SVG format
+            if (src.Contains(".svg", StringComparison.OrdinalIgnoreCase))
+                return;
+
             var bitmap = await _imageCache.GetImageAsync(src, _baseUrl);
             if (bitmap != null)
             {
@@ -704,8 +892,27 @@ public class ControlTreeBuilder
     /// <summary>
     /// Determine if a StyledElement should be treated as inline content.
     /// </summary>
+    /// <summary>
+    /// Check if a CSS value is a percentage (e.g., "100%", "50%").
+    /// Percentage widths/heights can't be resolved without parent size,
+    /// so we skip them and let Avalonia's layout handle it.
+    /// </summary>
+    private static bool IsPercentage(string? value)
+        => value != null && value.TrimEnd().EndsWith('%');
+
     private static bool IsInlineElement(StyledElement element)
     {
+        // Images: treat as block when they're likely content images
+        if (element.Tag == "img")
+        {
+            // Percentage width → block (full-width stretching)
+            if (IsPercentage(element.Styles.Width))
+                return false;
+            // No explicit dimensions → likely a content image, not an inline icon
+            if (string.IsNullOrEmpty(element.Styles.Width) && string.IsNullOrEmpty(element.Styles.Height))
+                return false;
+        }
+
         // Explicit display overrides
         if (element.Styles.Display == "block" || element.Styles.Display == "flex"
             || element.Styles.Display == "grid" || element.Styles.Display == "list-item"

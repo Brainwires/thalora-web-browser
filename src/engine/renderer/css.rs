@@ -130,11 +130,49 @@ impl CssProcessor {
         }
     }
 
+    /// Pre-process CSS to remove constructs that lightningcss can't handle.
+    /// This strips IE CSS hacks like `*zoom: 1` which cause parse failures.
+    fn preprocess_css(css: &str) -> String {
+        // Remove IE property hacks: `*property: value` inside declaration blocks.
+        // These are `{...; *zoom: 1; ...}` patterns — the `*` prefix is an IE 6/7 hack.
+        let mut result = String::with_capacity(css.len());
+        let bytes = css.as_bytes();
+        let len = bytes.len();
+        let mut i = 0;
+        while i < len {
+            // Detect `*identifier:` inside a block (after `{` or `;`)
+            if bytes[i] == b'*' && i + 1 < len && bytes[i + 1].is_ascii_alphabetic() {
+                // Check if preceded by `{` or `;` (skipping whitespace)
+                let mut j = i.wrapping_sub(1);
+                while j < len && (bytes[j] == b' ' || bytes[j] == b'\n' || bytes[j] == b'\r' || bytes[j] == b'\t') {
+                    j = j.wrapping_sub(1);
+                }
+                if j < len && (bytes[j] == b'{' || bytes[j] == b';') {
+                    // This is an IE hack — skip until `;` or `}`
+                    i += 1;
+                    while i < len && bytes[i] != b';' && bytes[i] != b'}' {
+                        i += 1;
+                    }
+                    if i < len && bytes[i] == b';' {
+                        i += 1; // skip the semicolon too
+                    }
+                    // If we hit `}`, don't consume it — it closes the block
+                    continue;
+                }
+            }
+            result.push(bytes[i] as char);
+            i += 1;
+        }
+        result
+    }
+
     /// Parse a CSS string and add its rules to the processor
     pub fn parse(&mut self, css: &str) -> Result<()> {
-        self.sources.push(css.to_string());
+        // Pre-process to remove IE hacks that lightningcss can't handle
+        let cleaned = Self::preprocess_css(css);
+        self.sources.push(cleaned.clone());
 
-        let stylesheet = StyleSheet::parse(css, ParserOptions::default())
+        let stylesheet = StyleSheet::parse(&cleaned, ParserOptions::default())
             .map_err(|e| anyhow::anyhow!("CSS parse error: {:?}", e))?;
 
         // Extract rules from the stylesheet
@@ -268,8 +306,13 @@ impl CssProcessor {
             return false;
         }
 
-        // Handle "screen and (...)" or just "(...)"
-        let conditions_str = if query.starts_with("screen and ") {
+        // Handle "only screen and (...)", "screen and (...)", or just "(...)"
+        // The "only" keyword is for backwards compatibility and should be ignored.
+        let conditions_str = if query.starts_with("only screen and ") {
+            &query[16..]
+        } else if query.starts_with("only screen") {
+            return true; // "only screen" with no conditions
+        } else if query.starts_with("screen and ") {
             &query[11..]
         } else if query.starts_with("all and ") {
             &query[8..]
@@ -1040,6 +1083,165 @@ mod tests {
         // At 500px viewport, max-width: 700px matches, so div should get width: auto
         let styles = processor.compute_style("div");
         assert_eq!(styles.width, Some("auto".to_string()));
+    }
+
+    #[test]
+    fn test_media_query_screen_and_em_units() {
+        // Cloudflare uses Tachyons with `@media screen and (min-width: 60em)` (= 960px)
+        let mut processor = CssProcessor::new_with_viewport(1280.0);
+        let css = r#"
+            @media screen and (min-width: 60em) {
+                .dn-l { display: none }
+                .flex-l { display: flex }
+            }
+        "#;
+        processor.parse(css).unwrap();
+        let rules = processor.get_rules();
+        eprintln!("Rules parsed: {} (expected >= 2)", rules.len());
+        for rule in rules {
+            eprintln!("  selector='{}' declarations={:?}", rule.selector, rule.declarations);
+        }
+        assert!(rules.len() >= 2, "Expected at least 2 rules from @media screen and (min-width: 60em) at 1280px viewport");
+
+        let styles = processor.compute_style(".dn-l");
+        assert_eq!(styles.display, Some("none".to_string()), "Expected .dn-l to have display:none");
+    }
+
+    #[test]
+    fn test_media_query_only_screen() {
+        // Test `only screen and (min-width: 960px)` variant
+        let mut processor = CssProcessor::new_with_viewport(1280.0);
+        let css = r#"
+            @media only screen and (min-width: 960px) {
+                .hidden-desktop { display: none }
+            }
+        "#;
+        processor.parse(css).unwrap();
+        let rules = processor.get_rules();
+        eprintln!("Only screen rules: {}", rules.len());
+        assert!(rules.len() >= 1, "Expected rule from @media only screen and (min-width: 960px)");
+    }
+
+    #[test]
+    fn test_media_query_override_source_order() {
+        // Simulates Tachyons: .db (display:block, unconditional) then .dn-l (display:none, media query)
+        // At 1280px viewport with min-width: 60em (960px) matching, .dn-l should win by source order
+        let mut processor = CssProcessor::new_with_viewport(1280.0);
+        let css = r#"
+            .db { display: block }
+            .dn { display: none }
+            @media screen and (min-width: 60em) {
+                .dn-l { display: none }
+                .db-l { display: block }
+            }
+        "#;
+        processor.parse(css).unwrap();
+
+        let rules = processor.get_rules();
+        eprintln!("All rules (count={}):", rules.len());
+        for rule in rules {
+            eprintln!("  [order={}] selector='{}' spec={:?} decls={:?}",
+                rule.source_order, rule.selector, rule.specificity, rule.declarations);
+        }
+
+        // Check: an element with class="db dn-l" should get display:none
+        // because .dn-l has higher source order
+        let html = r#"<html><body><nav class="db dn-l">test</nav></body></html>"#;
+        let document = scraper::Html::parse_document(html);
+        let nav_sel = scraper::Selector::parse("nav").unwrap();
+        let nav = document.select(&nav_sel).next().unwrap();
+
+        let styles = processor.compute_style_for_element(&nav);
+        eprintln!("nav.db.dn-l display = {:?}", styles.display);
+        assert_eq!(styles.display, Some("none".to_string()),
+            "Expected .dn-l (media query, higher source order) to override .db");
+    }
+
+    #[test]
+    fn test_real_cloudflare_css_media_query() {
+        // Load the REAL Cloudflare CSS and test media query application
+        let css_path = "/tmp/cloudflare_test.css";
+        if !std::path::Path::new(css_path).exists() {
+            eprintln!("Skipping test: {} not found", css_path);
+            return;
+        }
+        let css = std::fs::read_to_string(css_path).unwrap();
+        let mut processor = CssProcessor::new_with_viewport(1280.0);
+        processor.parse(&css).unwrap();
+
+        let rules = processor.get_rules();
+        eprintln!("Total rules from Cloudflare CSS: {}", rules.len());
+
+        // Find .dn-l and .db rules specifically
+        for rule in rules {
+            if rule.selector.contains("dn-l") || rule.selector == ".db" {
+                eprintln!("  [order={}] '{}' spec={:?} decls={:?}",
+                    rule.source_order, rule.selector, rule.specificity, rule.declarations);
+            }
+        }
+
+        // Test against a simulated nav element with the actual Cloudflare classes
+        let html = r#"<html><body><nav class="bb b--black-10 db dn-l w-100 ph3">test</nav></body></html>"#;
+        let document = scraper::Html::parse_document(html);
+        let nav_sel = scraper::Selector::parse("nav").unwrap();
+        let nav = document.select(&nav_sel).next().unwrap();
+
+        let styles = processor.compute_style_for_element(&nav);
+        eprintln!("nav display = {:?}", styles.display);
+        assert_eq!(styles.display, Some("none".to_string()),
+            "Expected .dn-l from @media screen and (min-width: 60em) to apply at 1280px viewport");
+    }
+
+    #[test]
+    fn test_real_cloudflare_both_stylesheets() {
+        // Test with BOTH external CSS files in order, plus HTML style blocks
+        let ashes_path = "/tmp/ashes_test.css";
+        let index_path = "/tmp/cloudflare_test.css";
+        if !std::path::Path::new(ashes_path).exists() || !std::path::Path::new(index_path).exists() {
+            eprintln!("Skipping test: CSS files not found");
+            return;
+        }
+
+        let ashes_css = std::fs::read_to_string(ashes_path).unwrap();
+        let index_css = std::fs::read_to_string(index_path).unwrap();
+
+        let mut processor = CssProcessor::new_with_viewport(1280.0);
+        // Parse external CSS in order (same as browser)
+        processor.parse(&ashes_css).unwrap();
+        processor.parse(&index_css).unwrap();
+
+        // Then parse inline <style> blocks from the actual page
+        let style_block_1 = ":root{--header-nav-height:60px;--footer-height:200px}body{margin:0;padding:0}";
+        let style_block_2 = "a{color:inherit}";
+        processor.parse(style_block_1).unwrap();
+        processor.parse(style_block_2).unwrap();
+
+        let rules = processor.get_rules();
+        eprintln!("Total rules with both CSS: {}", rules.len());
+
+        // Find .dn-l and .db rules
+        let mut db_orders = vec![];
+        let mut dn_l_orders = vec![];
+        for rule in rules {
+            if rule.selector == ".db" {
+                db_orders.push(rule.source_order);
+            }
+            if rule.selector == ".dn-l" {
+                dn_l_orders.push(rule.source_order);
+            }
+        }
+        eprintln!(".db source orders: {:?}", db_orders);
+        eprintln!(".dn-l source orders: {:?}", dn_l_orders);
+
+        // Test nav element
+        let html = r#"<html><body><nav class="bb b--black-10 db dn-l w-100 ph3">test</nav></body></html>"#;
+        let document = scraper::Html::parse_document(html);
+        let nav_sel = scraper::Selector::parse("nav").unwrap();
+        let nav = document.select(&nav_sel).next().unwrap();
+        let styles = processor.compute_style_for_element(&nav);
+        eprintln!("nav display = {:?}", styles.display);
+        assert_eq!(styles.display, Some("none".to_string()),
+            "Expected .dn-l to override .db at 1280px viewport");
     }
 
     #[test]

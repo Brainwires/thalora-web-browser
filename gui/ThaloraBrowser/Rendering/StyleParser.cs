@@ -190,6 +190,71 @@ internal static class StyleParser
             }
         }
 
+        // Handle CSS color() function — e.g., "color(#738a94 l(-25%))" or "color(#2da7cb lightness(-4%))"
+        // This is a CSS Color Level 4 relative color function used by sites like Cloudflare blog.
+        if (value.StartsWith("color(") && value.EndsWith(")"))
+        {
+            var inner = value.Substring(6, value.Length - 7).Trim();
+            // Split into base color and modifiers
+            // Pattern: "#hex modifier(value) modifier(value)..."
+            var firstSpace = inner.IndexOf(' ');
+            if (firstSpace > 0)
+            {
+                var baseColorStr = inner.Substring(0, firstSpace).Trim();
+                var modifiers = inner.Substring(firstSpace).Trim();
+
+                var baseColor = ParseColor(baseColorStr);
+                if (baseColor.HasValue)
+                {
+                    // Convert to HSL for lightness/whiteness modifications
+                    var c = baseColor.Value;
+                    double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+                    double max = Math.Max(r, Math.Max(g, b));
+                    double min = Math.Min(r, Math.Min(g, b));
+                    double hue = 0, sat = 0, lit = (max + min) / 2.0;
+
+                    if (max != min)
+                    {
+                        double d = max - min;
+                        sat = lit > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+                        if (max == r) hue = (g - b) / d + (g < b ? 6 : 0);
+                        else if (max == g) hue = (b - r) / d + 2;
+                        else hue = (r - g) / d + 4;
+                        hue *= 60;
+                    }
+
+                    // Apply modifiers: l(-25%), lightness(-4%), whiteness(7%)
+                    foreach (var mod in modifiers.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        var m = mod.Trim();
+                        // Parse "l(value%)" or "lightness(value%)"
+                        string? percentStr = null;
+                        if (m.StartsWith("l(") && m.EndsWith(")"))
+                            percentStr = m.Substring(2, m.Length - 3).TrimEnd('%');
+                        else if (m.StartsWith("lightness(") && m.EndsWith(")"))
+                            percentStr = m.Substring(10, m.Length - 11).TrimEnd('%');
+                        else if (m.StartsWith("whiteness(") && m.EndsWith(")"))
+                            percentStr = m.Substring(10, m.Length - 11).TrimEnd('%');
+
+                        if (percentStr != null && double.TryParse(percentStr,
+                            NumberStyles.Float, CultureInfo.InvariantCulture, out var pct))
+                        {
+                            // Apply as relative adjustment to lightness
+                            lit = Math.Clamp(lit + pct / 100.0, 0, 1);
+                        }
+                    }
+
+                    var (rr, gg, bb) = HslToRgb(hue, sat, lit);
+                    return Color.FromArgb(c.A, (byte)rr, (byte)gg, (byte)bb);
+                }
+            }
+            else
+            {
+                // No modifiers, just "color(#hex)" — parse as is
+                return ParseColor(inner);
+            }
+        }
+
         // Handle hsl()/hsla()
         if (value.StartsWith("hsl"))
         {
@@ -391,7 +456,7 @@ internal static class StyleParser
     /// Parse a CSS border-radius string to an Avalonia CornerRadius.
     /// Supports single value ("4px") and shorthand ("4px 8px").
     /// </summary>
-    internal static CornerRadius ParseBorderRadius(string? value, double parentFontSize = 16)
+    internal static CornerRadius ParseBorderRadius(string? value, double parentFontSize = 16, double parentSize = 0)
     {
         if (string.IsNullOrWhiteSpace(value))
             return default;
@@ -399,8 +464,20 @@ internal static class StyleParser
         var parts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 1)
         {
-            var r = ParseLength(parts[0], parentFontSize) ?? 0;
-            return new CornerRadius(r);
+            // Percentage border-radius: use parentSize if available, else use large value
+            // that Avalonia will clamp to half the element dimension
+            if (parts[0].TrimEnd().EndsWith("%"))
+            {
+                if (parentSize > 0)
+                {
+                    var r = ParseLength(parts[0], parentFontSize, parentSize) ?? 0;
+                    return new CornerRadius(r);
+                }
+                // No parent size known — use large value for circular/pill shape
+                return new CornerRadius(9999);
+            }
+            var r2 = ParseLength(parts[0], parentFontSize) ?? 0;
+            return new CornerRadius(r2);
         }
         if (parts.Length == 2)
         {
