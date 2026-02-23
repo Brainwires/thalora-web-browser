@@ -57,6 +57,50 @@ pub struct ComputedStyles {
     pub opacity: Option<f32>,
     /// Visibility
     pub visibility: Option<String>,
+
+    // --- Promoted from `other` HashMap for performance (direct field access, no hashing) ---
+
+    /// Flex wrap: nowrap, wrap, wrap-reverse
+    pub flex_wrap: Option<String>,
+    /// Align self
+    pub align_self: Option<String>,
+    /// Flex grow factor
+    pub flex_grow: Option<String>,
+    /// Flex shrink factor
+    pub flex_shrink: Option<String>,
+    /// Flex basis
+    pub flex_basis: Option<String>,
+    /// Min width
+    pub min_width: Option<String>,
+    /// Min height
+    pub min_height: Option<String>,
+    /// Max width
+    pub max_width: Option<String>,
+    /// Max height
+    pub max_height: Option<String>,
+    /// Font style (normal, italic, oblique)
+    pub font_style: Option<String>,
+    /// Line height
+    pub line_height: Option<String>,
+    /// Text alignment
+    pub text_align: Option<String>,
+    /// Text decoration
+    pub text_decoration: Option<String>,
+    /// Text transform
+    pub text_transform: Option<String>,
+    /// White space handling
+    pub white_space: Option<String>,
+    /// Letter spacing
+    pub letter_spacing: Option<String>,
+    /// Word spacing
+    pub word_spacing: Option<String>,
+    /// Border radius
+    pub border_radius: Option<String>,
+    /// List style type
+    pub list_style_type: Option<String>,
+    /// Cursor style
+    pub cursor: Option<String>,
+
     /// All other properties as key-value pairs
     #[serde(flatten)]
     pub other: HashMap<String, String>,
@@ -113,16 +157,21 @@ pub struct CompiledRule {
     /// Key class name extracted from the rightmost simple selector.
     /// Used with key_tags for indexed rule lookup.
     pub key_classes: Vec<Option<String>>,
+    /// Key ID extracted from the rightmost simple selector.
+    /// Used with key_tags/key_classes for indexed rule lookup.
+    pub key_ids: Vec<Option<String>>,
 }
 
 /// Indexed rule lookup for fast CSS matching.
 /// Instead of iterating all rules per element, look up candidate rules by the element's
-/// tag name and class names, then only run .matches() on those candidates.
+/// tag name, class names, and ID, then only run .matches() on those candidates.
 pub struct RuleIndex {
     /// compiled_rule index → for rules whose key selector targets a specific tag
     pub by_tag: HashMap<String, Vec<usize>>,
     /// compiled_rule index → for rules whose key selector targets a specific class
     pub by_class: HashMap<String, Vec<usize>>,
+    /// compiled_rule index → for rules whose key selector targets a specific ID
+    pub by_id: HashMap<String, Vec<usize>>,
     /// compiled_rule indices for rules that could match any element (universal, complex selectors)
     pub universal: Vec<usize>,
 }
@@ -187,6 +236,7 @@ impl CssProcessor {
             let mut hover_base_selectors = Vec::new();
             let mut key_tags = Vec::with_capacity(selector_alternatives.len());
             let mut key_classes = Vec::with_capacity(selector_alternatives.len());
+            let mut key_ids = Vec::with_capacity(selector_alternatives.len());
 
             for raw_selector in &selector_alternatives {
                 if raw_selector.is_empty() {
@@ -194,12 +244,14 @@ impl CssProcessor {
                     hover_base_selectors.push(None);
                     key_tags.push(None);
                     key_classes.push(None);
+                    key_ids.push(None);
                     continue;
                 }
 
-                // Extract key tag and class from rightmost simple selector for indexed lookup
+                // Extract key tag, class, and ID from rightmost simple selector for indexed lookup
                 key_tags.push(Self::extract_key_tag(raw_selector));
                 key_classes.push(Self::extract_key_class(raw_selector));
+                key_ids.push(Self::extract_key_id(raw_selector));
 
                 // Check for :hover
                 let is_hover = Self::contains_hover_pseudo(raw_selector);
@@ -231,25 +283,28 @@ impl CssProcessor {
                 hover_base_selectors,
                 key_tags,
                 key_classes,
+                key_ids,
             });
         }
 
-        // Build the rule index: group compiled rules by key tag, key class, or universal
+        // Build the rule index: group compiled rules by key tag, key class, key id, or universal
         let mut by_tag: HashMap<String, Vec<usize>> = HashMap::new();
         let mut by_class: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut by_id: HashMap<String, Vec<usize>> = HashMap::new();
         let mut universal: Vec<usize> = Vec::new();
 
         for (ci, compiled) in self.compiled_rules.iter().enumerate() {
-            // A rule is indexed by the FIRST selector alternative that has a key tag or class.
-            // If any alternative has no key tag/class, the rule must go in universal.
+            // A rule is indexed by the FIRST selector alternative that has a key tag, class, or id.
+            // If any alternative has no key tag/class/id, the rule must go in universal.
             let mut has_specific = false;
             let mut has_universal_alt = false;
 
             for i in 0..compiled.key_tags.len() {
                 let kt = compiled.key_tags.get(i).and_then(|x| x.as_ref());
                 let kc = compiled.key_classes.get(i).and_then(|x| x.as_ref());
+                let ki = compiled.key_ids.get(i).and_then(|x| x.as_ref());
 
-                if kt.is_some() || kc.is_some() {
+                if kt.is_some() || kc.is_some() || ki.is_some() {
                     has_specific = true;
                     if let Some(tag) = kt {
                         by_tag.entry(tag.clone()).or_default().push(ci);
@@ -257,23 +312,26 @@ impl CssProcessor {
                     if let Some(cls) = kc {
                         by_class.entry(cls.clone()).or_default().push(ci);
                     }
+                    if let Some(id) = ki {
+                        by_id.entry(id.clone()).or_default().push(ci);
+                    }
                 } else {
                     has_universal_alt = true;
                 }
             }
 
-            // If any selector alternative is universal (no tag/class), the rule must also
+            // If any selector alternative is universal (no tag/class/id), the rule must also
             // be in the universal bucket so it gets checked for all elements.
             if has_universal_alt || !has_specific {
                 universal.push(ci);
             }
         }
 
-        eprintln!("[TIMING] compile_selectors: {}ms ({} rules, {} universal, {} tag-indexed, {} class-indexed)",
+        eprintln!("[TIMING] compile_selectors: {}ms ({} rules, {} universal, {} tag-indexed, {} class-indexed, {} id-indexed)",
             start.elapsed().as_millis(), self.rules.len(), universal.len(),
-            by_tag.len(), by_class.len());
+            by_tag.len(), by_class.len(), by_id.len());
 
-        self.rule_index = Some(RuleIndex { by_tag, by_class, universal });
+        self.rule_index = Some(RuleIndex { by_tag, by_class, by_id, universal });
     }
 
     /// Extract the tag name from the rightmost simple selector of a CSS selector string.
@@ -305,6 +363,37 @@ impl CssProcessor {
         } else {
             Some(tag.to_lowercase())
         }
+    }
+
+    /// Extract the ID from the rightmost simple selector of a CSS selector string.
+    /// Returns None for tag-only, class-only, or universal selectors.
+    /// Examples:
+    ///   "#main"        → Some("main")
+    ///   "div#content"  → Some("content")
+    ///   ".container"   → None
+    ///   "h1"           → None
+    fn extract_key_id(selector: &str) -> Option<String> {
+        let last = selector
+            .rsplit(|c: char| c == ' ' || c == '>' || c == '+' || c == '~')
+            .next()
+            .unwrap_or(selector)
+            .trim();
+        if last.is_empty() {
+            return None;
+        }
+        // Find first '#' that starts an ID
+        if let Some(hash_pos) = last.find('#') {
+            let after_hash = &last[hash_pos + 1..];
+            // ID ends at next '.', '#', ':', '['
+            let id_end = after_hash
+                .find(|c: char| c == '.' || c == '#' || c == ':' || c == '[')
+                .unwrap_or(after_hash.len());
+            let id = &after_hash[..id_end];
+            if !id.is_empty() {
+                return Some(id.to_lowercase());
+            }
+        }
+        None
     }
 
     /// Extract the first class name from the rightmost simple selector of a CSS selector string.
@@ -401,6 +490,27 @@ impl CssProcessor {
                             _ => {}
                         }
                     }
+                    // Promoted properties
+                    "flex-wrap" => styles.flex_wrap = Some(value),
+                    "align-self" => styles.align_self = Some(value),
+                    "flex-grow" => styles.flex_grow = Some(value),
+                    "flex-shrink" => styles.flex_shrink = Some(value),
+                    "flex-basis" => styles.flex_basis = Some(value),
+                    "min-width" => styles.min_width = Some(value),
+                    "min-height" => styles.min_height = Some(value),
+                    "max-width" => styles.max_width = Some(value),
+                    "max-height" => styles.max_height = Some(value),
+                    "font-style" => styles.font_style = Some(value),
+                    "line-height" => styles.line_height = Some(value),
+                    "text-align" => styles.text_align = Some(value),
+                    "text-decoration" => styles.text_decoration = Some(value),
+                    "text-transform" => styles.text_transform = Some(value),
+                    "white-space" => styles.white_space = Some(value),
+                    "letter-spacing" => styles.letter_spacing = Some(value),
+                    "word-spacing" => styles.word_spacing = Some(value),
+                    "border-radius" => styles.border_radius = Some(value),
+                    "list-style-type" => styles.list_style_type = Some(value),
+                    "cursor" => styles.cursor = Some(value),
                     _ => {
                         // Store everything else in the 'other' map
                         styles.other.insert(prop, value);
@@ -896,6 +1006,14 @@ impl CssProcessor {
             // Add rules indexed by this element's tag
             if let Some(tag_rules) = index.by_tag.get(&tag_name) {
                 candidates.extend_from_slice(tag_rules);
+            }
+
+            // Add rules indexed by this element's ID
+            if let Some(id_attr) = el.attr("id") {
+                let id_lower = id_attr.to_lowercase();
+                if let Some(id_rules) = index.by_id.get(&id_lower) {
+                    candidates.extend_from_slice(id_rules);
+                }
             }
 
             // Add rules indexed by this element's classes
@@ -1532,6 +1650,27 @@ impl CssProcessor {
                     padding.left = clean_value;
                     styles.padding = Some(padding);
                 },
+                // Promoted properties (previously in `other` HashMap)
+                "flex-wrap" => styles.flex_wrap = Some(clean_value),
+                "align-self" => styles.align_self = Some(clean_value),
+                "flex-grow" => styles.flex_grow = Some(clean_value),
+                "flex-shrink" => styles.flex_shrink = Some(clean_value),
+                "flex-basis" => styles.flex_basis = Some(clean_value),
+                "min-width" => styles.min_width = Some(clean_value),
+                "min-height" => styles.min_height = Some(clean_value),
+                "max-width" => styles.max_width = Some(clean_value),
+                "max-height" => styles.max_height = Some(clean_value),
+                "font-style" => styles.font_style = Some(clean_value),
+                "line-height" => styles.line_height = Some(clean_value),
+                "text-align" => styles.text_align = Some(clean_value),
+                "text-decoration" => styles.text_decoration = Some(clean_value),
+                "text-transform" => styles.text_transform = Some(clean_value),
+                "white-space" => styles.white_space = Some(clean_value),
+                "letter-spacing" => styles.letter_spacing = Some(clean_value),
+                "word-spacing" => styles.word_spacing = Some(clean_value),
+                "border-radius" => styles.border_radius = Some(clean_value),
+                "list-style-type" => styles.list_style_type = Some(clean_value),
+                "cursor" => styles.cursor = Some(clean_value),
                 _ => {
                     styles.other.insert(prop.clone(), clean_value);
                 }

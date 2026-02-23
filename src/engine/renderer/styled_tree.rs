@@ -62,6 +62,7 @@ pub struct StyledElement {
     pub hover_styles: Option<ResolvedStyles>,
 
     /// Child elements
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<StyledElement>,
 }
 

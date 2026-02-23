@@ -405,34 +405,34 @@ impl LayoutEngine {
             }
         }
 
-        // Check for additional flex properties in 'other'
-        if let Some(flex_grow) = styles.other.get("flex-grow") {
+        // Check for additional flex properties
+        if let Some(ref flex_grow) = styles.flex_grow {
             if let Ok(val) = flex_grow.parse::<f32>() {
                 taffy_style.flex_grow = val;
             }
         }
 
-        if let Some(flex_shrink) = styles.other.get("flex-shrink") {
+        if let Some(ref flex_shrink) = styles.flex_shrink {
             if let Ok(val) = flex_shrink.parse::<f32>() {
                 taffy_style.flex_shrink = val;
             }
         }
 
-        if let Some(flex_basis) = styles.other.get("flex-basis") {
+        if let Some(ref flex_basis) = styles.flex_basis {
             taffy_style.flex_basis = parse_dimension(flex_basis, font_size_px, vw, vh);
         }
 
         // Min/max dimensions
-        if let Some(min_width) = styles.other.get("min-width") {
+        if let Some(ref min_width) = styles.min_width {
             taffy_style.min_size.width = parse_dimension(min_width, font_size_px, vw, vh);
         }
-        if let Some(max_width) = styles.other.get("max-width") {
+        if let Some(ref max_width) = styles.max_width {
             taffy_style.max_size.width = parse_dimension(max_width, font_size_px, vw, vh);
         }
-        if let Some(min_height) = styles.other.get("min-height") {
+        if let Some(ref min_height) = styles.min_height {
             taffy_style.min_size.height = parse_dimension(min_height, font_size_px, vw, vh);
         }
-        if let Some(max_height) = styles.other.get("max-height") {
+        if let Some(ref max_height) = styles.max_height {
             taffy_style.max_size.height = parse_dimension(max_height, font_size_px, vw, vh);
         }
 
@@ -558,17 +558,17 @@ impl LayoutEngine {
             font_size: Some(font_size_px),
             font_family: styles.font_family.clone(),
             font_weight: styles.font_weight.clone(),
-            font_style: styles.other.get("font-style").cloned(),
-            text_align: styles.other.get("text-align").cloned(),
-            text_decoration: styles.other.get("text-decoration").cloned(),
-            line_height: styles.other.get("line-height").and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh).or_else(|| s.parse::<f64>().ok())),
-            white_space: styles.other.get("white-space").cloned(),
-            border_radius: styles.other.get("border-radius").and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh)),
+            font_style: styles.font_style.clone(),
+            text_align: styles.text_align.clone(),
+            text_decoration: styles.text_decoration.clone(),
+            line_height: styles.line_height.as_ref().and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh).or_else(|| s.parse::<f64>().ok())),
+            white_space: styles.white_space.clone(),
+            border_radius: styles.border_radius.as_ref().and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh)),
             border_width: styles.border.as_ref().and_then(|b| resolve_css_length_vp(&b.width, font_size_px, vw, vh)),
             border_color: styles.border.as_ref().map(|b| b.color.clone()),
             opacity: styles.opacity,
             overflow: styles.overflow.clone(),
-            list_style_type: styles.other.get("list-style-type").cloned(),
+            list_style_type: styles.list_style_type.clone(),
             margin_left_auto: styles.margin.as_ref().map(|m| m.left == "auto").unwrap_or(false),
             margin_right_auto: styles.margin.as_ref().map(|m| m.right == "auto").unwrap_or(false),
             padding: styles.padding.as_ref().map(|p| BoxModelSides {

@@ -136,7 +136,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
         "pre" => {
             if styles.display.is_none() { styles.display = Some("block".to_string()); }
             if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
-            styles.other.entry("white-space".to_string()).or_insert_with(|| "pre".to_string());
+            if styles.white_space.is_none() { styles.white_space = Some("pre".to_string()); }
             if styles.background_color.is_none() {
                 styles.background_color = Some("#f4f4f4".to_string());
             }
@@ -152,8 +152,8 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
                     bottom: "16px".to_string(), left: "0px".to_string(),
                 });
             }
-            styles.other.entry("overflow".to_string()).or_insert_with(|| "hidden".to_string());
-            styles.other.entry("border-radius".to_string()).or_insert_with(|| "4px".to_string());
+            if styles.overflow.is_none() { styles.overflow = Some("hidden".to_string()); }
+            if styles.border_radius.is_none() { styles.border_radius = Some("4px".to_string()); }
         }
         "code" => {
             if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
@@ -167,7 +167,7 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
                     bottom: "2px".to_string(), left: "4px".to_string(),
                 });
             }
-            styles.other.entry("border-radius".to_string()).or_insert_with(|| "3px".to_string());
+            if styles.border_radius.is_none() { styles.border_radius = Some("3px".to_string()); }
         }
         "hr" => {
             if styles.display.is_none() { styles.display = Some("block".to_string()); }
@@ -202,17 +202,17 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
         }
         "li" => {
             if styles.display.is_none() { styles.display = Some("list-item".to_string()); }
-            styles.other.entry("list-style-type".to_string()).or_insert_with(|| "disc".to_string());
+            if styles.list_style_type.is_none() { styles.list_style_type = Some("disc".to_string()); }
         }
         "a" => {
             if styles.color.is_none() { styles.color = Some("#0051C3".to_string()); }
-            styles.other.entry("text-decoration".to_string()).or_insert_with(|| "underline".to_string());
+            if styles.text_decoration.is_none() { styles.text_decoration = Some("underline".to_string()); }
         }
         "strong" | "b" => {
             if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
         }
         "em" | "i" => {
-            styles.other.entry("font-style".to_string()).or_insert_with(|| "italic".to_string());
+            if styles.font_style.is_none() { styles.font_style = Some("italic".to_string()); }
         }
         "span" | "label" => {
             if styles.display.is_none() { styles.display = Some("inline".to_string()); }
@@ -278,9 +278,21 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
     }
 }
 
-/// Tags that should be skipped during layout (metadata/invisible)
+/// Tags that should be skipped during layout (metadata/invisible/non-renderable).
+/// Includes elements we can't render whose subtrees would be wasted CSS work.
 const SKIP_TAGS: &[&str] = &[
+    // Metadata / invisible
     "script", "style", "link", "meta", "head", "title", "noscript", "template",
+    // SVG (can't render, often has deep subtrees with path/rect/circle/g elements)
+    "svg",
+    // Embedded content we don't render
+    "canvas", "video", "audio", "source", "track", "embed", "object", "param", "iframe",
+    // Form internals not individually visible
+    "datalist",
+    // Table column styling (not visual elements themselves)
+    "colgroup", "col",
+    // Image maps
+    "map", "area",
 ];
 
 /// Compute a styled element tree from raw HTML (new pipeline).
@@ -420,6 +432,28 @@ fn build_styled_element_from_dom(
     // Apply UA defaults
     apply_ua_defaults(&tag, &mut styles);
 
+    // Default display for elements if not set
+    if styles.display.is_none() {
+        styles.display = Some(if is_block_element(&tag) { "block" } else { "inline" }.to_string());
+    }
+
+    // Early exit for display:none — skip entire subtree (children, hover, selectors).
+    // This is a major optimization: avoids computing CSS for all descendants of hidden elements.
+    if styles.display.as_deref() == Some("none") {
+        let resolved = computed_to_resolved(&styles);
+        return StyledElement {
+            id: elem_id,
+            tag,
+            text_content: None,
+            img_src: None,
+            img_alt: None,
+            link_href: None,
+            styles: resolved,
+            hover_styles: None,
+            children: Vec::new(),
+        };
+    }
+
     // Compute hover styles only for interactive elements (links, buttons, etc.)
     // This saves significant time on large pages — hover matching iterates all CSS rules.
     let hover_styles = if HOVER_INTERACTIVE_TAGS.contains(&tag.as_str())
@@ -439,11 +473,6 @@ fn build_styled_element_from_dom(
     // Build a unique CSS selector for this element (for JS event dispatch)
     let css_selector = build_element_selector(element_ref);
     element_selectors.insert(elem_id.clone(), css_selector);
-
-    // Default display for elements if not set
-    if styles.display.is_none() {
-        styles.display = Some(if is_block_element(&tag) { "block" } else { "inline" }.to_string());
-    }
 
     // Extract HTML attributes
     let link_href = if tag == "a" {
@@ -479,7 +508,7 @@ fn build_styled_element_from_dom(
     }
 
     // White-space mode for text collapsing
-    let ws = styles.other.get("white-space").cloned().unwrap_or_else(|| "normal".to_string());
+    let ws = styles.white_space.clone().unwrap_or_else(|| "normal".to_string());
 
     // Build children — preserve ALL elements (inline and block) as children
     let mut children = Vec::new();
@@ -535,12 +564,12 @@ fn build_styled_element_from_dom(
                     font_size: styles.font_size.clone(),
                     font_family: styles.font_family.clone(),
                     font_weight: styles.font_weight.clone(),
-                    font_style: styles.other.get("font-style").cloned(),
-                    line_height: styles.other.get("line-height").cloned(),
+                    font_style: styles.font_style.clone(),
+                    line_height: styles.line_height.clone(),
                     color: styles.color.clone(),
-                    white_space: styles.other.get("white-space").cloned(),
-                    text_decoration: styles.other.get("text-decoration").cloned(),
-                    letter_spacing: styles.other.get("letter-spacing").cloned(),
+                    white_space: styles.white_space.clone(),
+                    text_decoration: styles.text_decoration.clone(),
+                    letter_spacing: styles.letter_spacing.clone(),
                     ..ResolvedStyles::default()
                 };
 
@@ -575,7 +604,9 @@ fn build_styled_element_from_dom(
                         element_selectors,
                     );
 
-                    // Skip display:none and visibility:hidden elements
+                    // display:none is now handled inside build_styled_element_from_dom
+                    // (early exit before recursing into children), but we still filter
+                    // the returned element to avoid including it in the parent's children.
                     if child_styled.styles.display.as_deref() == Some("none") {
                         continue;
                     }
@@ -612,21 +643,21 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         display: styles.display.clone(),
         position: styles.position.clone(),
         flex_direction: styles.flex_direction.clone(),
-        flex_wrap: styles.other.get("flex-wrap").cloned(),
+        flex_wrap: styles.flex_wrap.clone(),
         justify_content: styles.justify_content.clone(),
         align_items: styles.align_items.clone(),
-        align_self: styles.other.get("align-self").cloned(),
+        align_self: styles.align_self.clone(),
         gap: styles.gap.clone(),
-        flex_grow: styles.other.get("flex-grow").cloned(),
-        flex_shrink: styles.other.get("flex-shrink").cloned(),
-        flex_basis: styles.other.get("flex-basis").cloned(),
+        flex_grow: styles.flex_grow.clone(),
+        flex_shrink: styles.flex_shrink.clone(),
+        flex_basis: styles.flex_basis.clone(),
 
         width: styles.width.clone(),
         height: styles.height.clone(),
-        min_width: styles.other.get("min-width").cloned(),
-        min_height: styles.other.get("min-height").cloned(),
-        max_width: styles.other.get("max-width").cloned(),
-        max_height: styles.other.get("max-height").cloned(),
+        min_width: styles.min_width.clone(),
+        min_height: styles.min_height.clone(),
+        max_width: styles.max_width.clone(),
+        max_height: styles.max_height.clone(),
 
         margin: styles.margin.as_ref().map(|m| StyleBoxSides {
             top: m.top.clone(),
@@ -644,14 +675,14 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         font_size: styles.font_size.clone(),
         font_family: styles.font_family.clone(),
         font_weight: styles.font_weight.clone(),
-        font_style: styles.other.get("font-style").cloned(),
-        line_height: styles.other.get("line-height").cloned(),
-        text_align: styles.other.get("text-align").cloned(),
-        text_decoration: styles.other.get("text-decoration").cloned(),
-        text_transform: styles.other.get("text-transform").cloned(),
-        white_space: styles.other.get("white-space").cloned(),
-        letter_spacing: styles.other.get("letter-spacing").cloned(),
-        word_spacing: styles.other.get("word-spacing").cloned(),
+        font_style: styles.font_style.clone(),
+        line_height: styles.line_height.clone(),
+        text_align: styles.text_align.clone(),
+        text_decoration: styles.text_decoration.clone(),
+        text_transform: styles.text_transform.clone(),
+        white_space: styles.white_space.clone(),
+        letter_spacing: styles.letter_spacing.clone(),
+        word_spacing: styles.word_spacing.clone(),
 
         color: styles.color.clone(),
         background_color: styles.background_color.clone(),
@@ -671,14 +702,14 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         border_style: styles.border.as_ref().and_then(|b| {
             if b.style.is_empty() { None } else { Some(b.style.clone()) }
         }),
-        border_radius: styles.other.get("border-radius").cloned(),
+        border_radius: styles.border_radius.clone(),
 
         opacity: styles.opacity,
         overflow: styles.overflow.clone(),
         visibility: styles.visibility.clone(),
         z_index: styles.z_index,
-        list_style_type: styles.other.get("list-style-type").cloned(),
-        cursor: styles.other.get("cursor").cloned(),
+        list_style_type: styles.list_style_type.clone(),
+        cursor: styles.cursor.clone(),
     }
 }
 
@@ -700,79 +731,8 @@ fn convert_to_styled_element(element: &LayoutElement) -> StyledElement {
     };
     let link_href = styles.other.get("__link_href").cloned();
 
-    // Convert ComputedStyles → ResolvedStyles
-    let resolved = ResolvedStyles {
-        display: styles.display.clone(),
-        position: styles.position.clone(),
-        flex_direction: styles.flex_direction.clone(),
-        flex_wrap: styles.other.get("flex-wrap").cloned(),
-        justify_content: styles.justify_content.clone(),
-        align_items: styles.align_items.clone(),
-        align_self: styles.other.get("align-self").cloned(),
-        gap: styles.gap.clone(),
-        flex_grow: styles.other.get("flex-grow").cloned(),
-        flex_shrink: styles.other.get("flex-shrink").cloned(),
-        flex_basis: styles.other.get("flex-basis").cloned(),
-
-        width: styles.width.clone(),
-        height: styles.height.clone(),
-        min_width: styles.other.get("min-width").cloned(),
-        min_height: styles.other.get("min-height").cloned(),
-        max_width: styles.other.get("max-width").cloned(),
-        max_height: styles.other.get("max-height").cloned(),
-
-        margin: styles.margin.as_ref().map(|m| StyleBoxSides {
-            top: m.top.clone(),
-            right: m.right.clone(),
-            bottom: m.bottom.clone(),
-            left: m.left.clone(),
-        }),
-        padding: styles.padding.as_ref().map(|p| StyleBoxSides {
-            top: p.top.clone(),
-            right: p.right.clone(),
-            bottom: p.bottom.clone(),
-            left: p.left.clone(),
-        }),
-
-        font_size: styles.font_size.clone(),
-        font_family: styles.font_family.clone(),
-        font_weight: styles.font_weight.clone(),
-        font_style: styles.other.get("font-style").cloned(),
-        line_height: styles.other.get("line-height").cloned(),
-        text_align: styles.other.get("text-align").cloned(),
-        text_decoration: styles.other.get("text-decoration").cloned(),
-        text_transform: styles.other.get("text-transform").cloned(),
-        white_space: styles.other.get("white-space").cloned(),
-        letter_spacing: styles.other.get("letter-spacing").cloned(),
-        word_spacing: styles.other.get("word-spacing").cloned(),
-
-        color: styles.color.clone(),
-        background_color: styles.background_color.clone(),
-
-        border_width: styles.border.as_ref().map(|b| {
-            let w = b.width.clone();
-            StyleBoxSides {
-                top: w.clone(),
-                right: w.clone(),
-                bottom: w.clone(),
-                left: w,
-            }
-        }),
-        border_color: styles.border.as_ref().and_then(|b| {
-            if b.color.is_empty() { None } else { Some(b.color.clone()) }
-        }),
-        border_style: styles.border.as_ref().and_then(|b| {
-            if b.style.is_empty() { None } else { Some(b.style.clone()) }
-        }),
-        border_radius: styles.other.get("border-radius").cloned(),
-
-        opacity: styles.opacity,
-        overflow: styles.overflow.clone(),
-        visibility: styles.visibility.clone(),
-        z_index: styles.z_index,
-        list_style_type: styles.other.get("list-style-type").cloned(),
-        cursor: styles.other.get("cursor").cloned(),
-    };
+    // Convert ComputedStyles → ResolvedStyles (reuse shared conversion)
+    let resolved = computed_to_resolved(styles);
 
     // Recursively convert children
     let children: Vec<StyledElement> = element
@@ -851,16 +811,16 @@ pub fn compute_page_layout_with_css(html: &str, viewport_w: f32, viewport_h: f32
     // Body inherits this stretching so backgrounds cover the full viewport.
     let vh = format!("{}px", viewport_h);
     if layout_tree.tag == "html" {
-        layout_tree.styles.other
-            .entry("min-height".to_string())
-            .or_insert_with(|| vh.clone());
+        if layout_tree.styles.min_height.is_none() {
+            layout_tree.styles.min_height = Some(vh.clone());
+        }
 
         // Find body child and set its min-height too
         for child in &mut layout_tree.children {
             if child.tag == "body" {
-                child.styles.other
-                    .entry("min-height".to_string())
-                    .or_insert_with(|| vh.clone());
+                if child.styles.min_height.is_none() {
+                    child.styles.min_height = Some(vh.clone());
+                }
                 break;
             }
         }
@@ -897,63 +857,38 @@ fn inherit_properties(child: &mut ComputedStyles, parent: &ComputedStyles) {
     if child.font_weight.is_none() {
         child.font_weight = parent.font_weight.clone();
     }
-    // font-style
-    if !child.other.contains_key("font-style") {
-        if let Some(fs) = parent.other.get("font-style") {
-            child.other.insert("font-style".to_string(), fs.clone());
-        }
+    if child.font_style.is_none() {
+        child.font_style = parent.font_style.clone();
     }
-    // line-height
-    if !child.other.contains_key("line-height") {
-        if let Some(lh) = parent.other.get("line-height") {
-            child.other.insert("line-height".to_string(), lh.clone());
-        }
+    if child.line_height.is_none() {
+        child.line_height = parent.line_height.clone();
     }
-    // text-align
-    if !child.other.contains_key("text-align") {
-        if let Some(ta) = parent.other.get("text-align") {
-            child.other.insert("text-align".to_string(), ta.clone());
-        }
+    if child.text_align.is_none() {
+        child.text_align = parent.text_align.clone();
     }
-    // white-space
-    if !child.other.contains_key("white-space") {
-        if let Some(ws) = parent.other.get("white-space") {
-            child.other.insert("white-space".to_string(), ws.clone());
-        }
+    if child.white_space.is_none() {
+        child.white_space = parent.white_space.clone();
     }
-    // visibility
     if child.visibility.is_none() {
         child.visibility = parent.visibility.clone();
     }
-    // text-decoration
-    if !child.other.contains_key("text-decoration") {
-        if let Some(td) = parent.other.get("text-decoration") {
-            child.other.insert("text-decoration".to_string(), td.clone());
-        }
+    if child.text_decoration.is_none() {
+        child.text_decoration = parent.text_decoration.clone();
     }
-    // text-transform
-    if !child.other.contains_key("text-transform") {
-        if let Some(tt) = parent.other.get("text-transform") {
-            child.other.insert("text-transform".to_string(), tt.clone());
-        }
+    if child.text_transform.is_none() {
+        child.text_transform = parent.text_transform.clone();
     }
-    // letter-spacing
-    if !child.other.contains_key("letter-spacing") {
-        if let Some(ls) = parent.other.get("letter-spacing") {
-            child.other.insert("letter-spacing".to_string(), ls.clone());
-        }
+    if child.letter_spacing.is_none() {
+        child.letter_spacing = parent.letter_spacing.clone();
     }
-    // word-spacing
-    if !child.other.contains_key("word-spacing") {
-        if let Some(ws) = parent.other.get("word-spacing") {
-            child.other.insert("word-spacing".to_string(), ws.clone());
-        }
+    if child.word_spacing.is_none() {
+        child.word_spacing = parent.word_spacing.clone();
     }
-    // cursor
-    if !child.other.contains_key("cursor") {
-        if let Some(c) = parent.other.get("cursor") {
-            child.other.insert("cursor".to_string(), c.clone());
-        }
+    if child.cursor.is_none() {
+        child.cursor = parent.cursor.clone();
+    }
+    if child.list_style_type.is_none() {
+        child.list_style_type = parent.list_style_type.clone();
     }
 }
 
@@ -1079,7 +1014,7 @@ fn build_layout_tree_from_dom(
         BlockElement { element_ref: ElementRef<'a> },
     }
 
-    let ws = styles.other.get("white-space").map(|s| s.as_str()).unwrap_or("normal");
+    let ws = styles.white_space.as_deref().unwrap_or("normal");
     let link_href_from_parent = if tag == "a" {
         el.attr("href").map(|h| h.to_string())
     } else {
@@ -1185,7 +1120,7 @@ fn build_layout_tree_from_dom(
         let font_size = styles.font_size.as_ref()
             .and_then(|s| super::layout::resolve_css_length(s, 16.0))
             .unwrap_or(16.0);
-        let line_height = styles.other.get("line-height")
+        let line_height = styles.line_height.as_ref()
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(1.4);
         let font_family = styles.font_family.as_deref().unwrap_or("sans-serif");
@@ -1214,16 +1149,10 @@ fn build_layout_tree_from_dom(
         text_styles.font_family = styles.font_family.clone();
         text_styles.font_weight = styles.font_weight.clone();
         text_styles.color = styles.color.clone();
-        if let Some(fs_val) = styles.other.get("font-style") {
-            text_styles.other.insert("font-style".to_string(), fs_val.clone());
-        }
-        if let Some(lh) = styles.other.get("line-height") {
-            text_styles.other.insert("line-height".to_string(), lh.clone());
-        }
-        if let Some(ws_val) = styles.other.get("white-space") {
-            text_styles.other.insert("white-space".to_string(), ws_val.clone());
-        }
-        text_styles.other.insert("min-height".to_string(), format!("{}px", buffered_height));
+        text_styles.font_style = styles.font_style.clone();
+        text_styles.line_height = styles.line_height.clone();
+        text_styles.white_space = styles.white_space.clone();
+        text_styles.min_height = Some(format!("{}px", buffered_height));
         text_styles.display = Some("block".to_string());
         text_styles.other.insert("__text_content".to_string(), combined_text.to_string());
 
@@ -1356,6 +1285,27 @@ fn merge_styles(dest: &mut ComputedStyles, source: &ComputedStyles) {
     if source.margin.is_some() { dest.margin = source.margin.clone(); }
     if source.padding.is_some() { dest.padding = source.padding.clone(); }
     if source.border.is_some() { dest.border = source.border.clone(); }
+    // Promoted properties
+    if source.flex_wrap.is_some() { dest.flex_wrap = source.flex_wrap.clone(); }
+    if source.align_self.is_some() { dest.align_self = source.align_self.clone(); }
+    if source.flex_grow.is_some() { dest.flex_grow = source.flex_grow.clone(); }
+    if source.flex_shrink.is_some() { dest.flex_shrink = source.flex_shrink.clone(); }
+    if source.flex_basis.is_some() { dest.flex_basis = source.flex_basis.clone(); }
+    if source.min_width.is_some() { dest.min_width = source.min_width.clone(); }
+    if source.min_height.is_some() { dest.min_height = source.min_height.clone(); }
+    if source.max_width.is_some() { dest.max_width = source.max_width.clone(); }
+    if source.max_height.is_some() { dest.max_height = source.max_height.clone(); }
+    if source.font_style.is_some() { dest.font_style = source.font_style.clone(); }
+    if source.line_height.is_some() { dest.line_height = source.line_height.clone(); }
+    if source.text_align.is_some() { dest.text_align = source.text_align.clone(); }
+    if source.text_decoration.is_some() { dest.text_decoration = source.text_decoration.clone(); }
+    if source.text_transform.is_some() { dest.text_transform = source.text_transform.clone(); }
+    if source.white_space.is_some() { dest.white_space = source.white_space.clone(); }
+    if source.letter_spacing.is_some() { dest.letter_spacing = source.letter_spacing.clone(); }
+    if source.word_spacing.is_some() { dest.word_spacing = source.word_spacing.clone(); }
+    if source.border_radius.is_some() { dest.border_radius = source.border_radius.clone(); }
+    if source.list_style_type.is_some() { dest.list_style_type = source.list_style_type.clone(); }
+    if source.cursor.is_some() { dest.cursor = source.cursor.clone(); }
     for (k, v) in &source.other {
         dest.other.insert(k.clone(), v.clone());
     }
