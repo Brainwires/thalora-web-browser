@@ -24,6 +24,7 @@ public class WebContentControl : UserControl
     private bool _isRendering;
     private bool _renderPending;
     private bool _hasContent;
+    private string? _lastRenderedHtml;
     private Dictionary<string, string>? _elementSelectors;
     private ElementActionRegistry? _elementActions;
 
@@ -195,12 +196,20 @@ public class WebContentControl : UserControl
 
             Console.Error.WriteLine($"[WebContentControl] Computing styled tree: {viewportW}x{viewportH}, HTML length: {HtmlContent?.Length ?? 0}");
 
-            // Get the styled tree from Rust (CSS resolved, no positions)
+            // Get the styled tree from Rust (HTML parsed, CSS resolved, no positions)
             var styledTreeJson = await engine.ComputeStyledTreeAsync(viewportW, viewportH);
 
             if (!string.IsNullOrEmpty(styledTreeJson))
             {
                 Console.Error.WriteLine($"[WebContentControl] Styled tree JSON received: {styledTreeJson.Length} chars");
+
+                // HTML is parsed and CSS is resolved — "first meaningful content" point.
+                // Show loading indicator for fresh navigations (new HTML content),
+                // but not for resize re-renders of the same page.
+                bool isFreshNavigation = HtmlContent != _lastRenderedHtml;
+                if (isFreshNavigation)
+                    ShowLoading();
+                _lastRenderedHtml = HtmlContent;
 
                 // Build Avalonia control tree from the styled element tree
                 var builder = new ControlTreeBuilder(
@@ -266,17 +275,39 @@ public class WebContentControl : UserControl
 
     private void OnLinkClicked(string href)
     {
-        // Resolve relative URLs against base URL
+        // Resolve relative URLs against base URL.
+        // Note: Uri.TryCreate("/path", UriKind.Absolute) returns true on .NET (treated as file path),
+        // so we must check the scheme to distinguish real absolute URLs from root-relative paths.
         string? resolvedUrl = null;
-        if (Uri.TryCreate(href, UriKind.Absolute, out _))
+        if (Uri.TryCreate(href, UriKind.Absolute, out var absUri)
+            && (absUri.Scheme == "http" || absUri.Scheme == "https"))
         {
             resolvedUrl = href;
         }
-        else if (BaseUrl != null && Uri.TryCreate(BaseUrl, UriKind.Absolute, out var baseUri))
+        else
         {
-            if (Uri.TryCreate(baseUri, href, out var resolved))
-                resolvedUrl = resolved.ToString();
+            // Resolve against BaseUrl (bound to the current page URL)
+            var baseUrl = BaseUrl;
+
+            // Fallback: if BaseUrl is empty or has no host, ask the engine directly
+            if (string.IsNullOrEmpty(baseUrl)
+                || !Uri.TryCreate(baseUrl, UriKind.Absolute, out var checkUri)
+                || string.IsNullOrEmpty(checkUri.Host))
+            {
+                var engine = Engine ?? (DataContext as ThaloraBrowser.ViewModels.BrowserTabViewModel)?.Engine;
+                var engineUrl = engine?.GetCurrentUrlAsync().Result;
+                if (!string.IsNullOrEmpty(engineUrl))
+                    baseUrl = engineUrl;
+            }
+
+            if (baseUrl != null && Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+            {
+                if (Uri.TryCreate(baseUri, href, out var resolved))
+                    resolvedUrl = resolved.ToString();
+            }
         }
+
+        Console.Error.WriteLine($"[WebContentControl] OnLinkClicked: href='{href}', BaseUrl='{BaseUrl}', resolved='{resolvedUrl}'");
 
         if (resolvedUrl != null)
             LinkClicked?.Invoke(this, new LinkClickedEventArgs(resolvedUrl));
@@ -289,6 +320,20 @@ public class WebContentControl : UserControl
         {
             Text = "Navigate to a URL to get started",
             Foreground = new SolidColorBrush(Color.FromRgb(120, 120, 120)),
+            FontSize = 16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 100, 0, 0),
+        });
+    }
+
+    private void ShowLoading()
+    {
+        _contentPanel.Children.Clear();
+        _contentPanel.Children.Add(new TextBlock
+        {
+            Text = "Loading page. Standby...",
+            Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
             FontSize = 16,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
