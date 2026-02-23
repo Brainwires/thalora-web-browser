@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using ThaloraBrowser.Controls;
+using ThaloraBrowser.Rendering;
 using ThaloraBrowser.ViewModels;
 
 namespace ThaloraBrowser.Services;
@@ -124,6 +125,38 @@ public class BrowserControlServer : IDisposable
                 case "/click":
                     if (request.HttpMethod == "POST")
                         await HandleClick(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/hover-element":
+                    if (request.HttpMethod == "POST")
+                        await HandleHoverElement(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/unhover-element":
+                    if (request.HttpMethod == "POST")
+                        await HandleUnhoverElement(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/click-element":
+                    if (request.HttpMethod == "POST")
+                        await HandleClickElement(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/elements":
+                    await HandleElements(response);
+                    break;
+
+                case "/find-element":
+                    if (request.HttpMethod == "POST")
+                        await HandleFindElement(request, response);
                     else
                         await RespondError(response, 405, "POST required");
                     break;
@@ -311,32 +344,24 @@ public class BrowserControlServer : IDisposable
     }
 
     /// <summary>
-    /// Simulate a click at coordinates. Body: {"x":N,"y":N}
+    /// Coordinate-based click (legacy). Use /click-element for element-based interaction.
     /// </summary>
     private async Task HandleClick(HttpListenerRequest request, HttpListenerResponse response)
     {
-        if (_webContent == null)
+        await RespondJson(response, new
         {
-            await RespondError(response, 503, "UI not ready");
-            return;
-        }
-
-        var body = await ReadBody(request);
-        var data = JsonSerializer.Deserialize<JsonElement>(body);
-        var x = data.GetProperty("x").GetDouble();
-        var y = data.GetProperty("y").GetDouble();
-
-        // With the Avalonia native control tree, hit-testing is handled by Avalonia's input system.
-        // Simulate a pointer press at the given coordinates — any link handlers set up by
-        // ControlTreeBuilder will fire via normal Avalonia event routing.
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            // Avalonia doesn't have a direct API to simulate pointer events at coordinates,
-            // so we just report the click coordinates. Links are handled by pointer events
-            // on the individual TextBlock controls created by ControlTreeBuilder.
+            status = "deprecated",
+            message = "Coordinate-based /click is not supported with the Avalonia control tree. " +
+                      "Use /elements to list interactive elements, then /click-element with an element_id.",
+            alternatives = new[]
+            {
+                "GET /elements — list all interactive elements",
+                "POST /find-element — search by tag/text/href",
+                "POST /click-element — click by element_id",
+                "POST /hover-element — hover by element_id",
+                "POST /unhover-element — unhover by element_id",
+            }
         });
-
-        await RespondJson(response, new { status = "clicked", x, y });
     }
 
     /// <summary>
@@ -497,6 +522,200 @@ public class BrowserControlServer : IDisposable
         await Task.Delay(200);
 
         await RespondJson(response, new { status = "waited", wait_ms = waitMs });
+    }
+
+    // --- Element interaction endpoints ---
+
+    /// <summary>
+    /// Hover an element by ID. Body: {"element_id":"e123"}
+    /// Invokes the element's OnHover action on the UI thread.
+    /// </summary>
+    private async Task HandleHoverElement(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("element_id", out var idProp))
+        {
+            await RespondError(response, 400, "Missing 'element_id' field");
+            return;
+        }
+        var elementId = idProp.GetString() ?? "";
+
+        if (!registry.TryGet(elementId, out var actions) || actions == null)
+        {
+            await RespondError(response, 404, $"Element '{elementId}' not found in registry");
+            return;
+        }
+
+        if (actions.OnHover != null)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => actions.OnHover());
+        }
+
+        await RespondJson(response, new
+        {
+            status = "hovered",
+            element_id = actions.ElementId,
+            tag = actions.Tag,
+            text = actions.TextContent,
+            href = actions.Href,
+            has_hover_styles = actions.HasHoverStyles,
+        });
+    }
+
+    /// <summary>
+    /// Unhover an element by ID. Body: {"element_id":"e123"}
+    /// </summary>
+    private async Task HandleUnhoverElement(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("element_id", out var idProp))
+        {
+            await RespondError(response, 400, "Missing 'element_id' field");
+            return;
+        }
+        var elementId = idProp.GetString() ?? "";
+
+        if (!registry.TryGet(elementId, out var actions) || actions == null)
+        {
+            await RespondError(response, 404, $"Element '{elementId}' not found in registry");
+            return;
+        }
+
+        if (actions.OnUnhover != null)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => actions.OnUnhover());
+        }
+
+        await RespondJson(response, new
+        {
+            status = "unhovered",
+            element_id = actions.ElementId,
+        });
+    }
+
+    /// <summary>
+    /// Click an element by ID. Body: {"element_id":"e123"}
+    /// Invokes the element's OnClick action (triggers link navigation + DOM event dispatch).
+    /// </summary>
+    private async Task HandleClickElement(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        if (!data.TryGetProperty("element_id", out var idProp))
+        {
+            await RespondError(response, 400, "Missing 'element_id' field");
+            return;
+        }
+        var elementId = idProp.GetString() ?? "";
+
+        if (!registry.TryGet(elementId, out var actions) || actions == null)
+        {
+            await RespondError(response, 404, $"Element '{elementId}' not found in registry");
+            return;
+        }
+
+        if (actions.OnClick != null)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() => actions.OnClick());
+        }
+
+        await RespondJson(response, new
+        {
+            status = "clicked",
+            element_id = actions.ElementId,
+            tag = actions.Tag,
+            href = actions.Href,
+            is_link = actions.IsLink,
+        });
+    }
+
+    /// <summary>
+    /// List all interactive elements (links + elements with hover styles).
+    /// </summary>
+    private async Task HandleElements(HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var elements = registry.GetInteractiveElements()
+            .Select(e => new
+            {
+                id = e.ElementId,
+                tag = e.Tag,
+                text = e.TextContent,
+                href = e.Href,
+                is_link = e.IsLink,
+                has_hover_styles = e.HasHoverStyles,
+            })
+            .ToList();
+
+        await RespondJson(response, new { elements, total = elements.Count });
+    }
+
+    /// <summary>
+    /// Find elements by optional criteria. Body: {"tag":"a", "text":"AI", "href":"cloudflare"}
+    /// All criteria are optional; results match ALL provided criteria (AND logic).
+    /// </summary>
+    private async Task HandleFindElement(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var registry = _webContent?.ElementActions;
+        if (registry == null)
+        {
+            await RespondError(response, 503, "No rendered content or element registry");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+
+        string? tag = null, text = null, href = null;
+        if (data.TryGetProperty("tag", out var tagProp))
+            tag = tagProp.GetString();
+        if (data.TryGetProperty("text", out var textProp))
+            text = textProp.GetString();
+        if (data.TryGetProperty("href", out var hrefProp))
+            href = hrefProp.GetString();
+
+        var matches = registry.Find(tag, text, href)
+            .Select(e => new
+            {
+                id = e.ElementId,
+                tag = e.Tag,
+                text = e.TextContent,
+                href = e.Href,
+                is_link = e.IsLink,
+                has_hover_styles = e.HasHoverStyles,
+            })
+            .ToList();
+
+        await RespondJson(response, new { matches, total = matches.Count });
     }
 
     // --- Helpers ---

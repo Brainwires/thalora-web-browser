@@ -32,6 +32,7 @@ public class ControlTreeBuilder
     private readonly Action<string>? _onLinkClicked;
     private readonly Action<string?>? _onHoveredLinkChanged;
     private readonly Action<string, string>? _onDomEvent;
+    private readonly ElementActionRegistry _elementActions = new();
     private double _viewportWidth;
     private double _viewportHeight;
 
@@ -48,6 +49,12 @@ public class ControlTreeBuilder
     /// Used by the GUI to dispatch DOM events to the JS engine.
     /// </summary>
     public Dictionary<string, string>? ElementSelectors { get; private set; }
+
+    /// <summary>
+    /// Registry of interactive elements (links, hover targets) and their programmatic actions.
+    /// Populated during BuildFromJson(). Used by BrowserControlServer for /click-element, /hover-element, etc.
+    /// </summary>
+    public ElementActionRegistry ElementActions => _elementActions;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -212,14 +219,64 @@ public class ControlTreeBuilder
         // Wrap in Border for background, border, border-radius, padding
         var border = WrapInBorder(content, styles, fontSize);
 
+        // Track actions for registry
+        Action? regOnHover = null;
+        Action? regOnUnhover = null;
+        Action? regOnClick = null;
+        bool hasHoverStyles = element.HoverStyles != null;
+        bool isLink = element.Tag == "a" && !string.IsNullOrEmpty(element.LinkHref);
+
         // Apply hover behavior if this element has :hover style overrides
         if (element.HoverStyles != null)
-            AttachHoverBehavior(border, content, styles, element.HoverStyles, fontSize);
+        {
+            var (hoverAction, unhoverAction) = AttachHoverBehavior(border, content, styles, element.HoverStyles, fontSize);
+            regOnHover = hoverAction;
+            regOnUnhover = unhoverAction;
+        }
 
         // For <a> elements rendered as blocks, attach click/hover handlers to the Border.
         // Inline <a> links (Span+Run) can't receive pointer events, but block-level links can.
-        if (element.Tag == "a" && !string.IsNullOrEmpty(element.LinkHref))
-            AttachLinkBehavior(border, element);
+        if (isLink)
+        {
+            var (linkHover, linkUnhover, linkClick) = AttachLinkBehavior(border, element);
+            // If this element also had hover styles, compose the actions
+            if (regOnHover != null)
+            {
+                var existingHover = regOnHover;
+                var existingUnhover = regOnUnhover!;
+                regOnHover = () => { existingHover(); linkHover(); };
+                regOnUnhover = () => { existingUnhover(); linkUnhover(); };
+            }
+            else
+            {
+                regOnHover = linkHover;
+                regOnUnhover = linkUnhover;
+            }
+            regOnClick = linkClick;
+        }
+        else if (hasHoverStyles)
+        {
+            // Non-link with hover styles: register a click that dispatches the DOM event
+            regOnClick = () => DispatchDomEvent("click", element.Id);
+        }
+
+        // Register in the element action registry if interactive
+        if (hasHoverStyles || isLink)
+        {
+            var textContent = CollectInlineText(element);
+            _elementActions.Register(new ElementActionRegistry.ElementActions
+            {
+                ElementId = element.Id,
+                Tag = element.Tag,
+                TextContent = string.IsNullOrWhiteSpace(textContent) ? null : textContent.Trim(),
+                Href = element.LinkHref,
+                HasHoverStyles = hasHoverStyles,
+                IsLink = isLink,
+                OnHover = regOnHover,
+                OnUnhover = regOnUnhover,
+                OnClick = regOnClick,
+            });
+        }
 
         // Apply margin
         if (styles.Margin != null)
@@ -598,14 +655,32 @@ public class ControlTreeBuilder
 
                     if (!string.IsNullOrEmpty(element.LinkHref))
                     {
-                        var href = element.LinkHref;
+                        var imgHref = element.LinkHref;
                         displayCtrl.PointerPressed += (_, _) =>
                         {
-                            _onLinkClicked?.Invoke(href);
+                            _onLinkClicked?.Invoke(imgHref);
                             DispatchDomEvent("click", element.Id);
                         };
-                        displayCtrl.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
+                        displayCtrl.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(imgHref);
                         displayCtrl.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
+
+                        // Register image link in action registry for programmatic interaction
+                        _elementActions.Register(new ElementActionRegistry.ElementActions
+                        {
+                            ElementId = element.Id,
+                            Tag = element.Tag,
+                            TextContent = element.ImgAlt ?? CollectInlineText(element),
+                            Href = imgHref,
+                            HasHoverStyles = element.HoverStyles != null,
+                            IsLink = true,
+                            OnHover = () => _onHoveredLinkChanged?.Invoke(imgHref),
+                            OnUnhover = () => _onHoveredLinkChanged?.Invoke(null),
+                            OnClick = () =>
+                            {
+                                _onLinkClicked?.Invoke(imgHref);
+                                DispatchDomEvent("click", element.Id);
+                            },
+                        });
                     }
 
                     _ = LoadImageAsync(imgCtrl, imgChild.ImgSrc!);
@@ -613,34 +688,115 @@ public class ControlTreeBuilder
                     return;
                 }
 
-                // Text link — use Span+Run for proper inline text flow.
-                // InlineUIContainer breaks SelectableTextBlock layout when multiple exist.
-                // Click handling is done at the Border level for block-rendered links
-                // (see AttachLinkBehavior in BuildControl).
+                // Text link — use InlineUIContainer with Border+TextBlock so pointer events work.
+                // Avalonia's Span/Run inlines cannot receive pointer events at all,
+                // which means links rendered as Span+Run are completely non-interactive.
+                // InlineUIContainer wraps a real Control that participates in hit-testing.
+                var linkText = CollectInlineText(element);
+                if (string.IsNullOrWhiteSpace(linkText))
+                    return;
+
                 var linkColor = StyleParser.ParseBrush(styles.Color)
                     ?? new SolidColorBrush(Color.FromRgb(0, 81, 195)); // #0051C3
 
-                var linkSpan = new Span();
-                linkSpan.Foreground = linkColor;
+                var linkTextBlock = new TextBlock
+                {
+                    Text = linkText,
+                    Foreground = linkColor,
+                    FontSize = fontSize,
+                    FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+                    FontWeight = StyleParser.ParseFontWeight(styles.FontWeight),
+                    FontStyle = StyleParser.ParseFontStyle(styles.FontStyle),
+                    TextWrapping = TextWrapping.NoWrap,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+
                 if (styles.TextDecoration != "none")
-                    linkSpan.TextDecorations = TextDecorations.Underline;
-                if (styles.FontSize != null)
-                    linkSpan.FontSize = fontSize;
-                linkSpan.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
-                linkSpan.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
-                linkSpan.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
+                    linkTextBlock.TextDecorations = TextDecorations.Underline;
 
-                // Recursively add child content as proper inline elements
-                foreach (var child in element.Children)
-                    AddInlineContent(linkSpan.Inlines, child, fontSize);
-                if (element.Children.Count == 0 && !string.IsNullOrEmpty(element.TextContent))
-                    linkSpan.Inlines.Add(new Run(element.TextContent));
+                var linkBorder = new Border
+                {
+                    Child = linkTextBlock,
+                    Background = Avalonia.Media.Brushes.Transparent,
+                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                };
 
-                // Skip empty links
-                if (linkSpan.Inlines.Count == 0)
-                    return;
+                // Build action closures for pointer events and programmatic invocation
+                var href = element.LinkHref ?? "";
+                Action onClick = () =>
+                {
+                    _onLinkClicked?.Invoke(href);
+                    DispatchDomEvent("click", element.Id);
+                };
+                Action onHover;
+                Action onUnhover;
 
-                inlines.Add(linkSpan);
+                // Hover style changes (foreground color, text decoration, background)
+                if (element.HoverStyles != null)
+                {
+                    var normalFg = linkColor;
+                    var normalTextDeco = linkTextBlock.TextDecorations;
+                    var normalBg = linkBorder.Background;
+                    var hoverFg = element.HoverStyles.Color != null
+                        ? StyleParser.ParseBrush(element.HoverStyles.Color) : null;
+                    var hoverBg = element.HoverStyles.BackgroundColor != null
+                        ? StyleParser.ParseBrush(element.HoverStyles.BackgroundColor) : null;
+                    TextDecorationCollection? hoverTextDeco = null;
+                    if (element.HoverStyles.TextDecoration != null)
+                    {
+                        hoverTextDeco = element.HoverStyles.TextDecoration.ToLowerInvariant() switch
+                        {
+                            "underline" => TextDecorations.Underline,
+                            "none" => null,
+                            "line-through" => TextDecorations.Strikethrough,
+                            _ => null,
+                        };
+                    }
+
+                    onHover = () =>
+                    {
+                        _onHoveredLinkChanged?.Invoke(href);
+                        if (hoverFg != null) linkTextBlock.Foreground = hoverFg;
+                        if (hoverBg != null) linkBorder.Background = hoverBg;
+                        if (element.HoverStyles!.TextDecoration != null) linkTextBlock.TextDecorations = hoverTextDeco;
+                    };
+                    onUnhover = () =>
+                    {
+                        _onHoveredLinkChanged?.Invoke(null);
+                        if (hoverFg != null) linkTextBlock.Foreground = normalFg;
+                        if (hoverBg != null) linkBorder.Background = normalBg;
+                        if (element.HoverStyles!.TextDecoration != null) linkTextBlock.TextDecorations = normalTextDeco;
+                    };
+                }
+                else
+                {
+                    onHover = () => _onHoveredLinkChanged?.Invoke(href);
+                    onUnhover = () => _onHoveredLinkChanged?.Invoke(null);
+                }
+
+                // Wire pointer events — single set of handlers
+                linkBorder.PointerPressed += (_, _) => onClick();
+                linkBorder.PointerEntered += (_, _) => onHover();
+                linkBorder.PointerExited += (_, _) => onUnhover();
+
+                // Register in action registry for programmatic interaction
+                if (!string.IsNullOrEmpty(element.LinkHref))
+                {
+                    _elementActions.Register(new ElementActionRegistry.ElementActions
+                    {
+                        ElementId = element.Id,
+                        Tag = element.Tag,
+                        TextContent = linkText.Trim(),
+                        Href = href,
+                        HasHoverStyles = element.HoverStyles != null,
+                        IsLink = true,
+                        OnHover = onHover,
+                        OnUnhover = onUnhover,
+                        OnClick = onClick,
+                    });
+                }
+
+                inlines.Add(new InlineUIContainer { Child = linkBorder });
                 return;
             }
 
@@ -950,30 +1106,47 @@ public class ControlTreeBuilder
 
     /// <summary>
     /// Attach click and hover handlers to a block-rendered link element.
-    /// This handles <a> elements that go through BuildControl (block-level links).
+    /// This handles &lt;a&gt; elements that go through BuildControl (block-level links).
+    /// Returns (onHover, onUnhover, onClick) actions for the ElementActionRegistry.
     /// </summary>
-    private void AttachLinkBehavior(Border border, StyledElement element)
+    private (Action onHover, Action onUnhover, Action onClick) AttachLinkBehavior(Border border, StyledElement element)
     {
+        // Ensure hit-testable: Avalonia skips controls with null Background from pointer hit-testing
+        if (border.Background == null)
+            border.Background = Avalonia.Media.Brushes.Transparent;
+
         var href = element.LinkHref!;
         border.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
-        border.PointerPressed += (_, _) =>
+
+        Action onClick = () =>
         {
             _onLinkClicked?.Invoke(href);
             DispatchDomEvent("click", element.Id);
         };
-        border.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
-        border.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
+        Action onHover = () => _onHoveredLinkChanged?.Invoke(href);
+        Action onUnhover = () => _onHoveredLinkChanged?.Invoke(null);
+
+        border.PointerPressed += (_, _) => onClick();
+        border.PointerEntered += (_, _) => onHover();
+        border.PointerExited += (_, _) => onUnhover();
+
+        return (onHover, onUnhover, onClick);
     }
 
     /// <summary>
     /// Attach hover behavior to a border+content pair.
     /// On PointerEntered: swap to hover styles. On PointerExited: restore originals.
     /// All brushes are precomputed at build time for instant response.
+    /// Returns (onHover, onUnhover) actions for the ElementActionRegistry.
     /// </summary>
-    private void AttachHoverBehavior(Border border, Control content, ResolvedStyles normalStyles, ResolvedStyles hoverStyles, double fontSize)
+    private (Action onHover, Action onUnhover) AttachHoverBehavior(Border border, Control content, ResolvedStyles normalStyles, ResolvedStyles hoverStyles, double fontSize)
     {
-        // Precompute normal state
-        var normalBg = StyleParser.ParseBrush(normalStyles.BackgroundColor);
+        // Ensure hit-testable: Avalonia skips controls with null Background from pointer hit-testing
+        if (border.Background == null)
+            border.Background = Avalonia.Media.Brushes.Transparent;
+
+        // Precompute normal state — capture from the border itself (which now has Transparent fallback)
+        var normalBg = border.Background;
         var normalBorderBrush = StyleParser.ParseBrush(normalStyles.BorderColor);
         var normalOpacity = normalStyles.Opacity ?? 1.0f;
 
@@ -1007,7 +1180,7 @@ public class ControlTreeBuilder
             normalTextDeco = textBlock.TextDecorations;
         }
 
-        border.PointerEntered += (_, _) =>
+        Action onHover = () =>
         {
             if (hoverBg != null)
                 border.Background = hoverBg;
@@ -1027,7 +1200,7 @@ public class ControlTreeBuilder
             }
         };
 
-        border.PointerExited += (_, _) =>
+        Action onUnhover = () =>
         {
             border.Background = normalBg;
             border.BorderBrush = normalBorderBrush;
@@ -1042,6 +1215,11 @@ public class ControlTreeBuilder
                     tb.TextDecorations = normalTextDeco;
             }
         };
+
+        border.PointerEntered += (_, _) => onHover();
+        border.PointerExited += (_, _) => onUnhover();
+
+        return (onHover, onUnhover);
     }
 
     /// <summary>

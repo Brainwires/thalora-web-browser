@@ -25,6 +25,7 @@ public class WebContentControl : UserControl
     private bool _renderPending;
     private bool _hasContent;
     private Dictionary<string, string>? _elementSelectors;
+    private ElementActionRegistry? _elementActions;
 
     /// <summary>
     /// Fired when a link is clicked in the rendered content.
@@ -46,6 +47,12 @@ public class WebContentControl : UserControl
     /// Used to dispatch DOM events to the JS engine.
     /// </summary>
     public Dictionary<string, string>? ElementSelectors => _elementSelectors;
+
+    /// <summary>
+    /// Registry of interactive elements from the last rendered tree.
+    /// Used by BrowserControlServer for /click-element, /hover-element, etc.
+    /// </summary>
+    public ElementActionRegistry? ElementActions => _elementActions;
 
     public static readonly StyledProperty<string?> HtmlContentProperty =
         AvaloniaProperty.Register<WebContentControl, string?>(nameof(HtmlContent));
@@ -208,6 +215,9 @@ public class WebContentControl : UserControl
 
                 // Store element selectors for JS event dispatch
                 _elementSelectors = builder.ElementSelectors;
+
+                // Store element action registry for programmatic interaction
+                _elementActions = builder.ElementActions;
 
                 // Apply canvas background (CSS propagation from html/body)
                 if (builder.CanvasBackground != null)

@@ -32,6 +32,11 @@ public sealed class HttpProxyServer : IAsyncDisposable
         "/wait-for-images",
         "/layout",
         "/html",
+        "/hover-element",
+        "/unhover-element",
+        "/click-element",
+        "/elements",
+        "/find-element",
     };
 
     public HttpProxyServer(int port, GuiProcessManager guiManager, Func<Task> shutdownCallback)
