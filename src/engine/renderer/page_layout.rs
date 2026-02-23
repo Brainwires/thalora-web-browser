@@ -254,10 +254,27 @@ const SKIP_TAGS: &[&str] = &[
 /// 4. Runs LayoutEngine (taffy) to compute positions/sizes
 /// 5. Copies visual properties into the resulting ElementLayout tree
 pub fn compute_page_layout(html: &str, viewport_w: f32, viewport_h: f32) -> Result<LayoutResult> {
+    compute_page_layout_with_css(html, viewport_w, viewport_h, &[])
+}
+
+/// Compute the full page layout from raw HTML with external CSS stylesheets.
+///
+/// External CSS is parsed first (lower specificity by source order), then
+/// inline `<style>` blocks are parsed (higher source order, so they override).
+pub fn compute_page_layout_with_css(html: &str, viewport_w: f32, viewport_h: f32, external_css: &[String]) -> Result<LayoutResult> {
     let document = Html::parse_document(html);
 
-    // Step 1: Extract all <style> tag contents
-    let mut css_processor = CssProcessor::new();
+    // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
+    let mut css_processor = CssProcessor::new_with_viewport(viewport_w);
+    for css_text in external_css {
+        if !css_text.trim().is_empty() {
+            if let Err(e) = css_processor.parse(css_text) {
+                eprintln!("[page_layout] Failed to parse external stylesheet: {}", e);
+            }
+        }
+    }
+
+    // Step 1b: Then parse <style> blocks (higher source-order precedence, overrides external)
     let style_selector = Selector::parse("style").unwrap();
     for style_el in document.select(&style_selector) {
         let css_text: String = style_el.text().collect();
@@ -277,6 +294,7 @@ pub fn compute_page_layout(html: &str, viewport_w: f32, viewport_h: f32) -> Resu
         &mut 0,
         viewport_w,
         viewport_w as f64,
+        None, // no parent styles for root
     );
 
     // Step 2.5: Ensure html and body span the full viewport (CSS spec behavior)
@@ -314,24 +332,99 @@ pub fn compute_page_layout(html: &str, viewport_w: f32, viewport_h: f32) -> Resu
     Ok(layout_result)
 }
 
+/// Inherit CSS properties from parent to child per CSS spec.
+/// Only inheritable properties are copied, and only when the child doesn't define them.
+fn inherit_properties(child: &mut ComputedStyles, parent: &ComputedStyles) {
+    // Per CSS spec, these properties are inherited by default:
+    if child.color.is_none() {
+        child.color = parent.color.clone();
+    }
+    if child.font_size.is_none() {
+        child.font_size = parent.font_size.clone();
+    }
+    if child.font_family.is_none() {
+        child.font_family = parent.font_family.clone();
+    }
+    if child.font_weight.is_none() {
+        child.font_weight = parent.font_weight.clone();
+    }
+    // font-style
+    if !child.other.contains_key("font-style") {
+        if let Some(fs) = parent.other.get("font-style") {
+            child.other.insert("font-style".to_string(), fs.clone());
+        }
+    }
+    // line-height
+    if !child.other.contains_key("line-height") {
+        if let Some(lh) = parent.other.get("line-height") {
+            child.other.insert("line-height".to_string(), lh.clone());
+        }
+    }
+    // text-align
+    if !child.other.contains_key("text-align") {
+        if let Some(ta) = parent.other.get("text-align") {
+            child.other.insert("text-align".to_string(), ta.clone());
+        }
+    }
+    // white-space
+    if !child.other.contains_key("white-space") {
+        if let Some(ws) = parent.other.get("white-space") {
+            child.other.insert("white-space".to_string(), ws.clone());
+        }
+    }
+    // visibility
+    if child.visibility.is_none() {
+        child.visibility = parent.visibility.clone();
+    }
+    // text-decoration
+    if !child.other.contains_key("text-decoration") {
+        if let Some(td) = parent.other.get("text-decoration") {
+            child.other.insert("text-decoration".to_string(), td.clone());
+        }
+    }
+    // text-transform
+    if !child.other.contains_key("text-transform") {
+        if let Some(tt) = parent.other.get("text-transform") {
+            child.other.insert("text-transform".to_string(), tt.clone());
+        }
+    }
+    // letter-spacing
+    if !child.other.contains_key("letter-spacing") {
+        if let Some(ls) = parent.other.get("letter-spacing") {
+            child.other.insert("letter-spacing".to_string(), ls.clone());
+        }
+    }
+    // word-spacing
+    if !child.other.contains_key("word-spacing") {
+        if let Some(ws) = parent.other.get("word-spacing") {
+            child.other.insert("word-spacing".to_string(), ws.clone());
+        }
+    }
+    // cursor
+    if !child.other.contains_key("cursor") {
+        if let Some(c) = parent.other.get("cursor") {
+            child.other.insert("cursor".to_string(), c.clone());
+        }
+    }
+}
+
 /// Build a LayoutElement tree from the scraper DOM.
 /// `available_width` tracks the estimated content width of the current container
 /// for text wrapping height estimates.
+/// `parent_styles` enables CSS property inheritance from parent to child.
 fn build_layout_tree_from_dom(
     element_ref: &ElementRef,
     css_processor: &CssProcessor,
     id_counter: &mut u32,
     viewport_w: f32,
     available_width: f64,
+    parent_styles: Option<&ComputedStyles>,
 ) -> LayoutElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
 
-    // Build selector string for CSS matching
-    let selector = build_css_selector(el);
-
-    // Compute CSS styles for this element
-    let mut styles = css_processor.compute_style(&selector);
+    // Compute CSS styles using scraper's element-based selector matching
+    let mut styles = css_processor.compute_style_for_element(element_ref);
 
     // Handle inline style attribute
     let elem_id = format!("e{}", *id_counter);
@@ -343,6 +436,11 @@ fn build_layout_tree_from_dom(
             let inline_styles = inline_processor.compute_style(&format!("#{}", elem_id));
             merge_styles(&mut styles, &inline_styles);
         }
+    }
+
+    // Inherit properties from parent (Phase 4: CSS inheritance)
+    if let Some(parent) = parent_styles {
+        inherit_properties(&mut styles, parent);
     }
 
     // Apply UA defaults (only for properties not already set by CSS)
@@ -407,6 +505,7 @@ fn build_layout_tree_from_dom(
                         id_counter,
                         viewport_w,
                         child_available_width,
+                        Some(&styles),
                     );
 
                     // Skip display:none

@@ -12,4 +12,4 @@ pub mod polyfills;
 pub use core::RustRenderer;
 pub use css::CssProcessor;
 pub use layout::{LayoutEngine, LayoutResult, ElementLayout, LayoutElement, BoxModelSides, parse_px_value};
-pub use page_layout::compute_page_layout;
+pub use page_layout::{compute_page_layout, compute_page_layout_with_css};

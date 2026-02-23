@@ -151,16 +151,6 @@ ipnetwork = "0.20"
 # CDP (Chrome DevTools Protocol) support
 chrono = { version = "0.4", features = ["serde"] }
 
-# GUI dependencies (optional - enable with "gui" feature)
-winit = { version = "0.29", optional = true }
-wgpu = { version = "0.20", optional = true }
-egui = { version = "0.28", optional = true }
-egui-winit = { version = "0.28", optional = true }
-egui-wgpu = { version = "0.28", optional = true }
-pollster = { version = "0.3", optional = true }
-env_logger = { version = "0.11", optional = true }
-log = { version = "0.4", optional = true }
-
 # AI Memory Heap for persistent storage
 dirs = { version = "5.0", optional = true }
 vfs = { path = "vfs", default-features = false }
@@ -249,9 +239,6 @@ wasm = [
     "thalora-browser-apis/wasm",
     "boa_engine/wasm",
 ]
-
-# GUI mode with winit and wgpu for graphical browser interface (native only)
-gui = ["native", "winit", "wgpu", "egui", "egui-winit", "egui-wgpu", "pollster", "env_logger", "log"]
 
 # WASM debugging MCP tools (extends desktop — no ffmpeg needed)
 wasm-debug = ["desktop", "dep:wasmprinter"]

@@ -35,10 +35,6 @@ pub mod ffi;
 #[cfg(feature = "core")]
 pub mod protocols;
 
-// GUI module (requires gui feature - includes windowing, egui, wgpu)
-#[cfg(feature = "gui")]
-pub mod gui;
-
 // Debug utilities
 pub mod debug_utils;
 
@@ -73,7 +69,3 @@ pub use protocols::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, Cd
 pub use protocols::{McpServer, MemoryTools};
 #[cfg(feature = "wasm-debug")]
 pub use protocols::wasm_debug_tools::WasmDebugTools;
-
-// GUI exports (requires gui feature)
-#[cfg(feature = "gui")]
-pub use gui::{BrowserUI, NavigationState, BrowserAction, InputHandler, TabManager, Tab, TabId};

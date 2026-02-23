@@ -19,7 +19,7 @@ fn get_font_system() -> &'static Mutex<FontSystem> {
 fn load_bundled_fonts(fs: &mut FontSystem) {
     let candidates = [
         // Relative to source tree (development builds)
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/gui/fonts"),
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fonts"),
         // Relative to executable (installed/deployed)
         std::env::current_exe()
             .ok()

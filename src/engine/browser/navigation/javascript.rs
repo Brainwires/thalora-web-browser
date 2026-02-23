@@ -40,6 +40,11 @@ impl super::super::HeadlessWebBrowser {
 
         eprintln!("🔍 DEBUG: Content length: {} characters", content.len());
 
+        // Fetch external stylesheets from <link rel="stylesheet"> tags
+        let external_css = self.fetch_all_stylesheets().await;
+        self.external_stylesheets = external_css;
+        eprintln!("🔍 DEBUG: Stored {} external stylesheets", self.external_stylesheets.len());
+
         // Store HTML content for form parsing when needed
         eprintln!("🔍 DEBUG: HTML content available for form parsing: {} characters", content.len());
 
@@ -484,6 +489,88 @@ impl super::super::HeadlessWebBrowser {
             .map_err(|e| anyhow!("Failed to resolve script URL: {}", e))?;
 
         Ok(resolved.to_string())
+    }
+
+    /// Fetch an external stylesheet from a URL
+    ///
+    /// # Security
+    /// This function validates URLs to prevent SSRF attacks via stylesheet loading.
+    pub(super) async fn fetch_external_stylesheet(&self, url: &str) -> Result<String> {
+        // SECURITY: Validate stylesheet URL to prevent SSRF attacks
+        SsrfProtection::new().is_safe_url(url)?;
+
+        let response = self.client.get(url).send().await
+            .map_err(|e| anyhow!("Failed to fetch stylesheet: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!("Stylesheet fetch failed with status: {}", response.status()));
+        }
+
+        let content = response.text().await
+            .map_err(|e| anyhow!("Failed to read stylesheet content: {}", e))?;
+
+        Ok(content)
+    }
+
+    /// Fetch all external stylesheets from <link rel="stylesheet"> tags in the page HTML
+    pub(super) async fn fetch_all_stylesheets(&mut self) -> Vec<String> {
+        let html = self.current_content.clone();
+        let base_url = self.current_url.clone().unwrap_or_else(|| "https://example.com".to_string());
+
+        let document = scraper::Html::parse_document(&html);
+        let link_selector = scraper::Selector::parse("link").unwrap();
+
+        let mut stylesheet_urls = Vec::new();
+
+        for link_element in document.select(&link_selector) {
+            // Only process <link rel="stylesheet"> elements
+            let rel = link_element.value().attr("rel").unwrap_or("");
+            if !rel.split_whitespace().any(|r| r.eq_ignore_ascii_case("stylesheet")) {
+                continue;
+            }
+
+            if let Some(href) = link_element.value().attr("href") {
+                // Resolve relative URLs
+                match self.resolve_script_url(&base_url, href) {
+                    Ok(resolved_url) => {
+                        eprintln!("🔍 DEBUG: Found external stylesheet: {}", resolved_url);
+                        stylesheet_urls.push(resolved_url);
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️  WARNING: Failed to resolve stylesheet URL '{}': {}", href, e);
+                    }
+                }
+            }
+        }
+
+        if stylesheet_urls.is_empty() {
+            return Vec::new();
+        }
+
+        eprintln!("🔍 DEBUG: Fetching {} external stylesheets concurrently", stylesheet_urls.len());
+
+        // Fetch all stylesheets concurrently
+        let futures: Vec<_> = stylesheet_urls.iter()
+            .map(|url| self.fetch_external_stylesheet(url))
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+
+        let mut stylesheets = Vec::new();
+        for (i, result) in results.into_iter().enumerate() {
+            match result {
+                Ok(css_content) => {
+                    eprintln!("🔍 DEBUG: Fetched stylesheet {} ({} chars)", stylesheet_urls[i], css_content.len());
+                    stylesheets.push(css_content);
+                }
+                Err(e) => {
+                    eprintln!("⚠️  WARNING: Failed to fetch stylesheet {}: {}", stylesheet_urls[i], e);
+                }
+            }
+        }
+
+        eprintln!("🔍 DEBUG: Successfully fetched {} of {} stylesheets", stylesheets.len(), stylesheet_urls.len());
+        stylesheets
     }
 
     /// Fetch an external script from a URL

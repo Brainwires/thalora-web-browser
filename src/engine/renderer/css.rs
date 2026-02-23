@@ -88,6 +88,9 @@ pub struct ParsedRule {
     pub specificity: (u32, u32, u32),
     /// Declarations (property: value)
     pub declarations: HashMap<String, String>,
+    /// Source order index for tie-breaking specificity
+    #[serde(default)]
+    pub source_order: usize,
 }
 
 /// CSS processor for handling CSS parsing, computation, and optimization
@@ -96,6 +99,12 @@ pub struct CssProcessor {
     rules: Vec<ParsedRule>,
     /// Raw stylesheet sources for reference
     sources: Vec<String>,
+    /// CSS custom properties (--name: value) collected from :root and other selectors
+    custom_properties: HashMap<String, String>,
+    /// Viewport width for media query evaluation
+    viewport_width: f32,
+    /// Source order counter
+    source_order_counter: usize,
 }
 
 impl CssProcessor {
@@ -104,6 +113,20 @@ impl CssProcessor {
         Self {
             rules: Vec::new(),
             sources: Vec::new(),
+            custom_properties: HashMap::new(),
+            viewport_width: 1024.0,
+            source_order_counter: 0,
+        }
+    }
+
+    /// Create a new CSS processor with a specific viewport width for media query evaluation
+    pub fn new_with_viewport(viewport_width: f32) -> Self {
+        Self {
+            rules: Vec::new(),
+            sources: Vec::new(),
+            custom_properties: HashMap::new(),
+            viewport_width,
+            source_order_counter: 0,
         }
     }
 
@@ -115,43 +138,358 @@ impl CssProcessor {
             .map_err(|e| anyhow::anyhow!("CSS parse error: {:?}", e))?;
 
         // Extract rules from the stylesheet
-        for rule in stylesheet.rules.0.iter() {
-            if let CssRule::Style(style_rule) = rule {
-                // Get selector string
-                let selector_str = style_rule.selectors.to_css_string(PrinterOptions::default())
-                    .unwrap_or_default();
+        self.process_rules(&stylesheet.rules.0);
 
-                // Calculate specificity (simplified)
-                let specificity = self.calculate_specificity(&selector_str);
+        Ok(())
+    }
 
-                // Extract declarations
-                let mut declarations = HashMap::new();
-                for decl in style_rule.declarations.declarations.iter() {
-                    let prop_name = decl.property_id().to_css_string(PrinterOptions::default())
+    /// Process CSS rules recursively (handles @media, @supports, etc.)
+    fn process_rules(&mut self, rules: &[CssRule]) {
+        for rule in rules {
+            match rule {
+                CssRule::Style(style_rule) => {
+                    // Get selector string
+                    let selector_str = style_rule.selectors.to_css_string(PrinterOptions::default())
                         .unwrap_or_default();
-                    let prop_value = decl.value_to_css_string(PrinterOptions::default())
-                        .unwrap_or_default();
-                    declarations.insert(prop_name, prop_value);
+
+                    // Calculate specificity
+                    let specificity = self.calculate_specificity(&selector_str);
+
+                    // Extract declarations
+                    let mut declarations = HashMap::new();
+                    for decl in style_rule.declarations.declarations.iter() {
+                        let prop_name = decl.property_id().to_css_string(PrinterOptions::default())
+                            .unwrap_or_default();
+                        let prop_value = decl.value_to_css_string(PrinterOptions::default())
+                            .unwrap_or_default();
+                        declarations.insert(prop_name, prop_value);
+                    }
+
+                    // Also handle important declarations
+                    for decl in style_rule.declarations.important_declarations.iter() {
+                        let prop_name = decl.property_id().to_css_string(PrinterOptions::default())
+                            .unwrap_or_default();
+                        let prop_value = format!("{} !important",
+                            decl.value_to_css_string(PrinterOptions::default()).unwrap_or_default());
+                        declarations.insert(prop_name, prop_value);
+                    }
+
+                    // Collect custom properties from :root rules (or any rule)
+                    let is_root_selector = selector_str.split(',')
+                        .any(|s| {
+                            let s = s.trim();
+                            s == ":root" || s == "html" || s == ":root, html" || s == "html, :root"
+                        });
+
+                    for (prop, value) in &declarations {
+                        if prop.starts_with("--") {
+                            let clean_value = value.trim_end_matches(" !important").to_string();
+                            // :root custom properties get stored globally
+                            // Non-root ones too (simplified — real browsers scope them)
+                            self.custom_properties.insert(prop.clone(), clean_value);
+                        }
+                    }
+
+                    let source_order = self.source_order_counter;
+                    self.source_order_counter += 1;
+
+                    self.rules.push(ParsedRule {
+                        selector: selector_str,
+                        specificity,
+                        declarations,
+                        source_order,
+                    });
                 }
-
-                // Also handle important declarations
-                for decl in style_rule.declarations.important_declarations.iter() {
-                    let prop_name = decl.property_id().to_css_string(PrinterOptions::default())
+                CssRule::Media(media_rule) => {
+                    // Evaluate media query against viewport
+                    let media_str = media_rule.query.to_css_string(PrinterOptions::default())
                         .unwrap_or_default();
-                    let prop_value = format!("{} !important",
-                        decl.value_to_css_string(PrinterOptions::default()).unwrap_or_default());
-                    declarations.insert(prop_name, prop_value);
-                }
 
-                self.rules.push(ParsedRule {
-                    selector: selector_str,
-                    specificity,
-                    declarations,
-                });
+                    if self.evaluate_media_query(&media_str) {
+                        // Media query matches — process inner rules
+                        self.process_rules(&media_rule.rules.0);
+                    }
+                }
+                _ => {
+                    // Skip @font-face, @keyframes, @import, etc.
+                }
+            }
+        }
+    }
+
+    /// Evaluate a media query string against the current viewport
+    fn evaluate_media_query(&self, query: &str) -> bool {
+        // Handle multiple queries separated by comma (OR logic)
+        for single_query in query.split(',') {
+            if self.evaluate_single_media_query(single_query.trim()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Evaluate a single media query
+    fn evaluate_single_media_query(&self, query: &str) -> bool {
+        let query = query.trim();
+
+        // Empty query matches everything
+        if query.is_empty() {
+            return true;
+        }
+
+        // Handle "not" prefix
+        let (negated, query) = if query.starts_with("not ") {
+            (true, &query[4..])
+        } else {
+            (false, query)
+        };
+
+        let result = self.evaluate_media_query_inner(query);
+
+        if negated { !result } else { result }
+    }
+
+    /// Inner media query evaluation
+    fn evaluate_media_query_inner(&self, query: &str) -> bool {
+        let query = query.trim();
+
+        // "all" always matches
+        if query == "all" {
+            return true;
+        }
+
+        // "screen" matches (we're a screen renderer)
+        if query == "screen" {
+            return true;
+        }
+
+        // "print" never matches
+        if query == "print" {
+            return false;
+        }
+
+        // Handle "screen and (...)" or just "(...)"
+        let conditions_str = if query.starts_with("screen and ") {
+            &query[11..]
+        } else if query.starts_with("all and ") {
+            &query[8..]
+        } else {
+            query
+        };
+
+        // Parse individual conditions: "(max-width: 700px)" etc.
+        // Handle "and" joined conditions
+        let mut all_match = true;
+        for part in conditions_str.split(" and ") {
+            let part = part.trim().trim_start_matches('(').trim_end_matches(')');
+            if !self.evaluate_media_feature(part) {
+                all_match = false;
+                break;
             }
         }
 
-        Ok(())
+        all_match
+    }
+
+    /// Evaluate a single media feature like "max-width: 700px" or "width <= 700px"
+    fn evaluate_media_feature(&self, feature: &str) -> bool {
+        // Handle modern range syntax: "width <= 700px", "width >= 768px", "700px <= width"
+        if let Some(result) = self.evaluate_range_media_feature(feature) {
+            return result;
+        }
+
+        // Handle legacy syntax: "max-width: 700px"
+        let parts: Vec<&str> = feature.splitn(2, ':').collect();
+        if parts.len() != 2 {
+            // Features without values (e.g., "color") — assume true
+            return true;
+        }
+
+        let name = parts[0].trim();
+        let value_str = parts[1].trim();
+
+        match name {
+            "max-width" => {
+                if let Some(px) = Self::parse_media_length(value_str) {
+                    self.viewport_width <= px
+                } else {
+                    true
+                }
+            }
+            "min-width" => {
+                if let Some(px) = Self::parse_media_length(value_str) {
+                    self.viewport_width >= px
+                } else {
+                    true
+                }
+            }
+            "max-height" | "min-height" => {
+                // We don't track viewport height precisely — assume true
+                true
+            }
+            "prefers-color-scheme" => {
+                // Default to light mode
+                value_str == "light"
+            }
+            "prefers-reduced-motion" => {
+                value_str == "no-preference"
+            }
+            _ => true, // Unknown features — assume match to be permissive
+        }
+    }
+
+    /// Evaluate CSS Media Queries Level 4 range syntax
+    /// e.g., "width <= 700px", "width >= 768px", "width < 1200px", "700px <= width"
+    fn evaluate_range_media_feature(&self, feature: &str) -> Option<bool> {
+        let feature = feature.trim();
+
+        // Try patterns: "prop <= val", "prop >= val", "prop < val", "prop > val"
+        for (op, op_str) in &[("<=", "<="), (">=", ">="), ("<", "<"), (">", ">")] {
+            if let Some(pos) = feature.find(op_str) {
+                let left = feature[..pos].trim();
+                let right = feature[pos + op.len()..].trim();
+
+                // Determine which side is the property name
+                let (prop, value, reversed) = if left.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
+                    (left, right, false)
+                } else {
+                    (right, left, true)
+                };
+
+                let viewport_val = match prop {
+                    "width" => Some(self.viewport_width),
+                    "height" => return Some(true), // Not tracked precisely
+                    _ => None,
+                };
+
+                if let (Some(vp), Some(px)) = (viewport_val, Self::parse_media_length(value)) {
+                    let result = if reversed {
+                        // "700px <= width" means width >= 700px
+                        match *op_str {
+                            "<=" => vp >= px,
+                            ">=" => vp <= px,
+                            "<" => vp > px,
+                            ">" => vp < px,
+                            _ => true,
+                        }
+                    } else {
+                        // "width <= 700px"
+                        match *op_str {
+                            "<=" => vp <= px,
+                            ">=" => vp >= px,
+                            "<" => vp < px,
+                            ">" => vp > px,
+                            _ => true,
+                        }
+                    };
+                    return Some(result);
+                }
+            }
+        }
+
+        None // Not a range expression
+    }
+
+    /// Parse a media query length value like "700px" to f32
+    fn parse_media_length(value: &str) -> Option<f32> {
+        let v = value.trim();
+        if v.ends_with("px") {
+            v.trim_end_matches("px").parse::<f32>().ok()
+        } else if v.ends_with("em") || v.ends_with("rem") {
+            // 1em/rem = 16px for media queries (always relative to initial value)
+            v.trim_end_matches("em").trim_end_matches("r").parse::<f32>().ok()
+                .map(|n| n * 16.0)
+        } else {
+            v.parse::<f32>().ok()
+        }
+    }
+
+    /// Resolve CSS `var()` references in a property value.
+    /// Handles `var(--name)` and `var(--name, fallback)` with up to 10 levels of nesting.
+    pub fn resolve_var(&self, value: &str) -> String {
+        let mut result = value.to_string();
+
+        // Iterate to resolve nested var() references (max 10 levels)
+        for _ in 0..10 {
+            if !result.contains("var(") {
+                break;
+            }
+            result = self.resolve_var_once(&result);
+        }
+
+        result
+    }
+
+    /// Single pass of var() resolution
+    fn resolve_var_once(&self, value: &str) -> String {
+        let mut result = String::with_capacity(value.len());
+        let mut chars = value.char_indices().peekable();
+
+        while let Some((i, c)) = chars.next() {
+            // Look for "var("
+            if c == 'v' && value[i..].starts_with("var(") {
+                // Find the matching closing paren, accounting for nesting
+                let start = i + 4; // after "var("
+                let mut depth = 1;
+                let mut end = start;
+                for (j, ch) in value[start..].char_indices() {
+                    match ch {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                end = start + j;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
+                if depth != 0 {
+                    // Malformed var() — keep as-is
+                    result.push(c);
+                    continue;
+                }
+
+                let inner = &value[start..end];
+
+                // Split on first comma for fallback: "var(--name, fallback)"
+                let (var_name, fallback) = if let Some(comma_pos) = inner.find(',') {
+                    let name = inner[..comma_pos].trim();
+                    let fb = inner[comma_pos + 1..].trim();
+                    (name, Some(fb))
+                } else {
+                    (inner.trim(), None)
+                };
+
+                // Look up the custom property
+                let resolved = if let Some(val) = self.custom_properties.get(var_name) {
+                    val.clone()
+                } else if let Some(fb) = fallback {
+                    fb.to_string()
+                } else {
+                    // Unresolved — keep original for debugging
+                    format!("var({})", inner)
+                };
+
+                result.push_str(&resolved);
+
+                // Skip past the closing paren
+                // Advance the char iterator past the end of var(...)
+                let skip_to = end + 1; // +1 for the ')'
+                while let Some(&(j, _)) = chars.peek() {
+                    if j >= skip_to {
+                        break;
+                    }
+                    chars.next();
+                }
+            } else {
+                result.push(c);
+            }
+        }
+
+        result
     }
 
     /// Parse CSS and add rules from inline style attribute
@@ -168,7 +506,7 @@ impl CssProcessor {
             .collect()
     }
 
-    /// Compute styles for an element given its selector chain
+    /// Compute styles for an element given its selector chain (legacy string-based matching)
     /// selector_chain is a list of selectors from root to the element (e.g., ["html", "body", "div.container", "p"])
     pub fn compute_style(&self, selector: &str) -> ComputedStyles {
         let mut styles = ComputedStyles::default();
@@ -178,11 +516,53 @@ impl CssProcessor {
             .filter(|rule| self.selector_applies(&rule.selector, selector))
             .collect();
 
-        // Sort by specificity (lower first, so higher specificity overrides)
-        matching_rules.sort_by(|a, b| a.specificity.cmp(&b.specificity));
+        // Sort by specificity then source order (lower first, so higher specificity overrides)
+        matching_rules.sort_by(|a, b| {
+            a.specificity.cmp(&b.specificity)
+                .then(a.source_order.cmp(&b.source_order))
+        });
 
         // Apply declarations in order
         for rule in matching_rules {
+            self.apply_declarations(&mut styles, &rule.declarations);
+        }
+
+        styles
+    }
+
+    /// Compute styles for an element using scraper's built-in CSS selector matching.
+    /// This properly handles descendant selectors, child selectors, compound selectors, etc.
+    pub fn compute_style_for_element(&self, element: &scraper::ElementRef) -> ComputedStyles {
+        let mut styles = ComputedStyles::default();
+
+        // Collect all rules whose selectors match this element
+        let mut matching_rules: Vec<(&ParsedRule, bool)> = Vec::new(); // (rule, is_important)
+
+        for rule in &self.rules {
+            // Split selector by comma for multiple selectors (e.g., "h1, h2, h3")
+            for raw_selector in rule.selector.split(',').map(|s| s.trim()) {
+                if raw_selector.is_empty() {
+                    continue;
+                }
+
+                // Try to parse the selector with scraper
+                if let Ok(parsed_selector) = scraper::Selector::parse(raw_selector) {
+                    if parsed_selector.matches(element) {
+                        matching_rules.push((rule, false));
+                        break; // One match is enough for this rule
+                    }
+                }
+            }
+        }
+
+        // Sort by specificity then source order
+        matching_rules.sort_by(|a, b| {
+            a.0.specificity.cmp(&b.0.specificity)
+                .then(a.0.source_order.cmp(&b.0.source_order))
+        });
+
+        // Apply declarations in order (non-important first)
+        for (rule, _) in &matching_rules {
             self.apply_declarations(&mut styles, &rule.declarations);
         }
 
@@ -265,10 +645,17 @@ impl CssProcessor {
         &self.rules
     }
 
+    /// Get custom properties map
+    pub fn get_custom_properties(&self) -> &HashMap<String, String> {
+        &self.custom_properties
+    }
+
     /// Clear all parsed rules
     pub fn clear(&mut self) {
         self.rules.clear();
         self.sources.clear();
+        self.custom_properties.clear();
+        self.source_order_counter = 0;
     }
 
     /// Calculate selector specificity (simplified)
@@ -327,7 +714,7 @@ impl CssProcessor {
         }
     }
 
-    /// Check if a rule selector applies to a target element
+    /// Check if a rule selector applies to a target element (legacy string-based matching)
     fn selector_applies(&self, rule_selector: &str, target: &str) -> bool {
         // Split rule selector by comma for multiple selectors
         for raw_selector in rule_selector.split(',').map(|s| s.trim()) {
@@ -362,11 +749,18 @@ impl CssProcessor {
         false
     }
 
-    /// Apply declarations to computed styles
+    /// Apply declarations to computed styles, resolving var() references
     fn apply_declarations(&self, styles: &mut ComputedStyles, declarations: &HashMap<String, String>) {
         for (prop, value) in declarations {
+            // Skip custom properties (--*) — they're already collected
+            if prop.starts_with("--") {
+                continue;
+            }
+
             // Remove !important suffix for storage
-            let clean_value = value.trim_end_matches(" !important").to_string();
+            let raw_value = value.trim_end_matches(" !important").to_string();
+            // Resolve var() references
+            let clean_value = self.resolve_var(&raw_value);
 
             match prop.as_str() {
                 "display" => styles.display = Some(clean_value),
@@ -377,17 +771,13 @@ impl CssProcessor {
                 "background" => {
                     // The background shorthand can include color, image, position, etc.
                     // Extract just the color if it's a simple color value.
-                    // lightningcss often splits background into component properties,
-                    // but when it outputs the shorthand, the color is usually the first value.
                     let v = clean_value.trim();
-                    // If it looks like a color value (hex, rgb, named color), use it
                     if v.starts_with('#') || v.starts_with("rgb") || v.starts_with("hsl")
                         || v == "transparent" || v == "inherit"
                         || (!v.contains(' ') && !v.starts_with("url"))
                     {
                         styles.background_color = Some(clean_value);
                     } else {
-                        // Store full background in other for potential future use
                         styles.other.insert("background".to_string(), clean_value);
                     }
                 },
@@ -597,5 +987,114 @@ mod tests {
         assert_eq!(box4.right, "20px");
         assert_eq!(box4.bottom, "30px");
         assert_eq!(box4.left, "40px");
+    }
+
+    #[test]
+    fn test_media_query_evaluation() {
+        let processor = CssProcessor::new_with_viewport(1024.0);
+
+        // max-width greater than viewport — should match
+        assert!(processor.evaluate_media_query("(max-width: 1200px)"));
+        // max-width less than viewport — should not match
+        assert!(!processor.evaluate_media_query("(max-width: 700px)"));
+        // min-width less than viewport — should match
+        assert!(processor.evaluate_media_query("(min-width: 768px)"));
+        // min-width greater than viewport — should not match
+        assert!(!processor.evaluate_media_query("(min-width: 1200px)"));
+        // screen — should match
+        assert!(processor.evaluate_media_query("screen"));
+        // print — should not match
+        assert!(!processor.evaluate_media_query("print"));
+        // screen and condition
+        assert!(processor.evaluate_media_query("screen and (min-width: 768px)"));
+    }
+
+    #[test]
+    fn test_media_query_in_css() {
+        let mut processor = CssProcessor::new_with_viewport(1024.0);
+        let css = r#"
+            div { width: 600px; }
+            @media (max-width: 700px) {
+                div { width: auto; }
+            }
+        "#;
+
+        processor.parse(css).unwrap();
+        // The media query (max-width: 700px) should NOT match at 1024px viewport
+        // So only the first rule should be present
+        let styles = processor.compute_style("div");
+        assert_eq!(styles.width, Some("600px".to_string()));
+    }
+
+    #[test]
+    fn test_media_query_matches() {
+        let mut processor = CssProcessor::new_with_viewport(500.0);
+        let css = r#"
+            div { width: 600px; }
+            @media (max-width: 700px) {
+                div { width: auto; }
+            }
+        "#;
+
+        processor.parse(css).unwrap();
+        // At 500px viewport, max-width: 700px matches, so div should get width: auto
+        let styles = processor.compute_style("div");
+        assert_eq!(styles.width, Some("auto".to_string()));
+    }
+
+    #[test]
+    fn test_css_custom_properties() {
+        let mut processor = CssProcessor::new();
+        let css = r#"
+            :root {
+                --primary-color: #3366ff;
+                --font-size: 16px;
+            }
+            .button {
+                color: var(--primary-color);
+                font-size: var(--font-size);
+            }
+        "#;
+
+        processor.parse(css).unwrap();
+        let styles = processor.compute_style(".button");
+        // lightningcss normalizes #3366ff → #36f
+        assert_eq!(styles.color, Some("#36f".to_string()));
+        assert_eq!(styles.font_size, Some("16px".to_string()));
+    }
+
+    #[test]
+    fn test_css_var_with_fallback() {
+        let mut processor = CssProcessor::new();
+        let css = r#"
+            .box {
+                color: var(--undefined-var, red);
+                background-color: var(--also-undefined, #ffffff);
+            }
+        "#;
+
+        processor.parse(css).unwrap();
+        let styles = processor.compute_style(".box");
+        assert_eq!(styles.color, Some("red".to_string()));
+        // lightningcss normalizes #ffffff → #fff
+        assert_eq!(styles.background_color, Some("#fff".to_string()));
+    }
+
+    #[test]
+    fn test_element_based_matching() {
+        let html = r#"<html><body><div class="container"><p class="text">Hello</p></div></body></html>"#;
+        let document = scraper::Html::parse_document(html);
+
+        let mut processor = CssProcessor::new();
+        // lightningcss normalizes named colors: blue → #00f
+        processor.parse(".container .text { color: blue; }").unwrap();
+        processor.parse("p { font-size: 14px; }").unwrap();
+
+        let p_selector = scraper::Selector::parse("p.text").unwrap();
+        if let Some(p_element) = document.select(&p_selector).next() {
+            let styles = processor.compute_style_for_element(&p_element);
+            assert_eq!(styles.color, Some("#00f".to_string()));
+            assert_eq!(styles.font_size, Some("14px".to_string()));
+        }
     }
 }

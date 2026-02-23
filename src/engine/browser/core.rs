@@ -22,6 +22,8 @@ pub struct HeadlessWebBrowser {
     pub(super) scraper: WebScraper,
     pub(super) form_analyzer: FormAnalyzer,
     pub(super) analyzed_forms: Vec<FormInfo>,
+    /// External stylesheets fetched from <link rel="stylesheet"> tags
+    pub(super) external_stylesheets: Vec<String>,
 }
 
 impl HeadlessWebBrowser {
@@ -81,6 +83,7 @@ impl HeadlessWebBrowser {
             scraper,
             form_analyzer,
             analyzed_forms: Vec::new(),
+            external_stylesheets: Vec::new(),
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));
@@ -132,6 +135,11 @@ impl HeadlessWebBrowser {
     /// Get forms that open new windows
     pub fn get_new_window_forms(&self) -> Vec<&FormInfo> {
         self.analyzed_forms.iter().filter(|f| f.opens_new_window).collect()
+    }
+
+    /// Get external stylesheets fetched from <link rel="stylesheet"> tags
+    pub fn get_external_stylesheets(&self) -> &[String] {
+        &self.external_stylesheets
     }
 
     /// Find form information by submit button selector
@@ -341,6 +349,7 @@ impl Drop for HeadlessWebBrowser {
         // Clear content
         self.current_content.clear();
         self.current_url = None;
+        self.external_stylesheets.clear();
 
         // Note: reqwest::Client will be dropped automatically
         // It will close connection pools when the last reference is dropped

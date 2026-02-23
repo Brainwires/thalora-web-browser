@@ -14,10 +14,6 @@ pub mod apis;
 pub mod features;
 pub mod protocols;
 
-// GUI module for graphical browser interface
-#[cfg(feature = "gui")]
-pub mod gui;
-
 use protocols::mcp_server::McpServer;
 use engine::{EngineType, EngineFactory, EngineConfig};
 
@@ -98,24 +94,6 @@ enum Commands {
         #[arg(long)]
         persistent: bool,
     },
-    /// Run as graphical web browser
-    Browser {
-        /// Initial URL to load
-        #[arg(long)]
-        url: Option<String>,
-        /// Window width in pixels
-        #[arg(long, default_value = "1200")]
-        width: u32,
-        /// Window height in pixels
-        #[arg(long, default_value = "800")]
-        height: u32,
-        /// Enable fullscreen mode
-        #[arg(long)]
-        fullscreen: bool,
-        /// Enable debug mode with developer tools
-        #[arg(long)]
-        debug: bool,
-    },
     /// Run as display server for remote browser UI
     DisplayServer {
         /// Port to listen on
@@ -177,10 +155,6 @@ async fn main() -> Result<()> {
                     Ok(())
                 }
             }
-        }
-        Some(Commands::Browser { url, width, height, fullscreen, debug }) => {
-            // Run as graphical web browser
-            run_graphical_browser(url, width, height, fullscreen, debug, engine_config).await
         }
         Some(Commands::DisplayServer { port, host }) => {
             // Run as display server
@@ -263,42 +237,6 @@ async fn setup_signal_handler() {
         // On non-Unix systems, just wait for Ctrl+C
         signal::ctrl_c().await.expect("Failed to set up Ctrl+C handler");
         eprintln!("📡 Received Ctrl+C");
-    }
-}
-
-/// Run as graphical web browser
-async fn run_graphical_browser(
-    initial_url: Option<String>, 
-    width: u32, 
-    height: u32, 
-    fullscreen: bool, 
-    debug_mode: bool, 
-    engine_config: EngineConfig
-) -> Result<()> {
-    tracing::info!("Starting graphical browser mode");
-    tracing::info!("Window size: {}x{}", width, height);
-    tracing::info!("Fullscreen: {}", fullscreen);
-    tracing::info!("Debug mode: {}", debug_mode);
-    
-    if let Some(url) = &initial_url {
-        tracing::info!("Initial URL: {}", url);
-    }
-
-    // Initialize the GUI browser
-    // This will be implemented in the gui module
-    #[cfg(feature = "gui")]
-    {
-        use crate::gui::GraphicalBrowser;
-        let mut browser = GraphicalBrowser::new(width, height, fullscreen, debug_mode, engine_config)?;
-        if let Some(url) = initial_url {
-            browser.navigate_to(&url).await?;
-        }
-        browser.run().await
-    }
-    
-    #[cfg(not(feature = "gui"))]
-    {
-        anyhow::bail!("GUI mode not available. Recompile with --features gui to enable graphical browser mode.");
     }
 }
 
