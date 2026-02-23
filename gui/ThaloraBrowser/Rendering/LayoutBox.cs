@@ -84,6 +84,4 @@ public class TextRun
     public CssComputedStyle Style { get; set; } = new();
     public Rect Bounds { get; set; }
     public string? LinkHref { get; set; }
-    /// <summary>Whether this text was pre-split by Rust — skip Avalonia re-wrapping.</summary>
-    public bool IsPreSplitLine { get; set; }
 }

@@ -217,12 +217,22 @@ public class PaintContext
                     _ => $"{index}.",
                 };
 
-                var typeface = new Typeface(box.Style.FontFamily, box.Style.FontStyle, box.Style.FontWeight);
+                Typeface markerTypeface;
+                try
+                {
+                    markerTypeface = new Typeface(box.Style.FontFamily, box.Style.FontStyle, box.Style.FontWeight);
+                    _ = markerTypeface.GlyphTypeface;
+                }
+                catch
+                {
+                    markerTypeface = new Typeface(FontFamily.Default, box.Style.FontStyle, box.Style.FontWeight);
+                }
+
                 var ft = new FormattedText(
                     marker,
                     System.Globalization.CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight,
-                    typeface,
+                    markerTypeface,
                     box.Style.FontSize,
                     box.Style.Color
                 );
@@ -236,7 +246,19 @@ public class PaintContext
         if (string.IsNullOrEmpty(run.Text) || run.Text == "\n")
             return;
 
-        var typeface = new Typeface(run.Style.FontFamily, run.Style.FontStyle, run.Style.FontWeight);
+        Typeface typeface;
+        try
+        {
+            typeface = new Typeface(run.Style.FontFamily, run.Style.FontStyle, run.Style.FontWeight);
+            // Validate by accessing the GlyphTypeface — some font families pass
+            // construction but throw on first use. Catch here to fall back cleanly.
+            _ = typeface.GlyphTypeface;
+        }
+        catch
+        {
+            typeface = new Typeface(FontFamily.Default, run.Style.FontStyle, run.Style.FontWeight);
+        }
+
         var formatted = new FormattedText(
             run.Text,
             System.Globalization.CultureInfo.CurrentCulture,
@@ -246,10 +268,9 @@ public class PaintContext
             run.Style.Color
         );
 
-        // Only re-wrap text that was NOT pre-split by Rust.
-        // Pre-split lines already contain exactly the text for one visual line,
-        // so setting MaxTextWidth would cause unwanted re-wrapping.
-        if (!run.IsPreSplitLine && run.Bounds.Width > 0)
+        // Constrain text to the layout box width so text wraps naturally
+        // within the container boundaries.
+        if (run.Bounds.Width > 0)
             formatted.MaxTextWidth = run.Bounds.Width;
 
         // Apply text alignment

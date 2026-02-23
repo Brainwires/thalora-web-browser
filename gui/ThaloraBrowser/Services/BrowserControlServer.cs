@@ -107,7 +107,7 @@ public class BrowserControlServer : IDisposable
                     break;
 
                 case "/screenshot":
-                    await HandleScreenshot(response);
+                    await HandleScreenshot(request, response);
                     break;
 
                 case "/state":
@@ -135,6 +135,24 @@ public class BrowserControlServer : IDisposable
                         await RespondError(response, 405, "POST required");
                     break;
 
+                case "/scroll":
+                    if (request.HttpMethod == "POST")
+                        await HandleScroll(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
+                case "/content-height":
+                    await HandleContentHeight(response);
+                    break;
+
+                case "/wait-for-images":
+                    if (request.HttpMethod == "POST")
+                        await HandleWaitForImages(request, response);
+                    else
+                        await RespondError(response, 405, "POST required");
+                    break;
+
                 case "/layout":
                     await HandleLayout(response);
                     break;
@@ -157,13 +175,22 @@ public class BrowserControlServer : IDisposable
 
     /// <summary>
     /// Capture a screenshot of the WebContentControl as PNG.
+    /// Accepts optional ?delay=ms query parameter for render-settle timing.
     /// </summary>
-    private async Task HandleScreenshot(HttpListenerResponse response)
+    private async Task HandleScreenshot(HttpListenerRequest request, HttpListenerResponse response)
     {
         if (_webContent == null)
         {
             await RespondError(response, 503, "UI not ready");
             return;
+        }
+
+        // Optional render-settle delay
+        var delayParam = request.QueryString["delay"];
+        if (delayParam != null && int.TryParse(delayParam, out var delayMs) && delayMs > 0)
+        {
+            delayMs = Math.Min(delayMs, 10000); // Cap at 10s
+            await Task.Delay(delayMs);
         }
 
         byte[]? pngBytes = null;
@@ -226,7 +253,9 @@ public class BrowserControlServer : IDisposable
     }
 
     /// <summary>
-    /// Navigate to a URL. Body: {"url":"..."}
+    /// Navigate to a URL. Body: {"url":"...", "timeout_ms": 30000}
+    /// Waits for the page to finish loading (IsLoading == false) with a configurable
+    /// timeout (default 30s), then adds a 500ms settle delay.
     /// </summary>
     private async Task HandleNavigate(HttpListenerRequest request, HttpListenerResponse response)
     {
@@ -246,15 +275,35 @@ public class BrowserControlServer : IDisposable
             return;
         }
 
+        var timeoutMs = 30000;
+        if (data.TryGetProperty("timeout_ms", out var timeoutProp) && timeoutProp.TryGetInt32(out var customTimeout))
+        {
+            timeoutMs = Math.Clamp(customTimeout, 1000, 120000);
+        }
+
         await Dispatcher.UIThread.InvokeAsync(async () =>
         {
             await _viewModel.NavigateToUrlAsync(url);
         });
 
-        // Wait a moment for navigation to complete
+        // Poll until IsLoading == false or timeout
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        var loaded = false;
+        while (DateTime.UtcNow < deadline)
+        {
+            var isLoading = await Dispatcher.UIThread.InvokeAsync(() => _viewModel.ActiveTab?.IsLoading ?? false);
+            if (!isLoading)
+            {
+                loaded = true;
+                break;
+            }
+            await Task.Delay(100);
+        }
+
+        // Settle delay to let rendering finish
         await Task.Delay(500);
 
-        await RespondJson(response, new { status = "navigated", url });
+        await RespondJson(response, new { status = "navigated", url, loaded, timeout_ms = timeoutMs });
     }
 
     /// <summary>
@@ -374,6 +423,93 @@ public class BrowserControlServer : IDisposable
         response.ContentLength64 = bytes.Length;
         await response.OutputStream.WriteAsync(bytes);
         response.Close();
+    }
+
+    /// <summary>
+    /// Set scroll position. Body: {"y": offset}
+    /// </summary>
+    private async Task HandleScroll(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        if (_webContent == null)
+        {
+            await RespondError(response, 503, "UI not ready");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+        var y = data.GetProperty("y").GetDouble();
+
+        double actualY = 0;
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _webContent.SetScrollOffset(y);
+            actualY = _webContent.ScrollOffsetY;
+        });
+
+        await RespondJson(response, new { status = "scrolled", scroll_y = actualY });
+    }
+
+    /// <summary>
+    /// Return content dimensions and scroll state.
+    /// </summary>
+    private async Task HandleContentHeight(HttpListenerResponse response)
+    {
+        if (_webContent == null)
+        {
+            await RespondError(response, 503, "UI not ready");
+            return;
+        }
+
+        object? dims = null;
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            dims = new
+            {
+                content_height = _webContent.ContentHeight,
+                viewport_height = _webContent.ViewportHeight,
+                viewport_width = _webContent.ViewportWidth,
+                scroll_y = _webContent.ScrollOffsetY,
+                max_scroll_y = _webContent.MaxScrollY,
+            };
+        });
+
+        await RespondJson(response, dims!);
+    }
+
+    /// <summary>
+    /// Wait for async image loads. Body: {"wait_ms": 3000}
+    /// Triggers a re-render after waiting.
+    /// </summary>
+    private async Task HandleWaitForImages(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        if (_webContent == null)
+        {
+            await RespondError(response, 503, "UI not ready");
+            return;
+        }
+
+        var body = await ReadBody(request);
+        var data = JsonSerializer.Deserialize<JsonElement>(body);
+
+        var waitMs = 3000;
+        if (data.TryGetProperty("wait_ms", out var waitProp) && waitProp.TryGetInt32(out var customWait))
+        {
+            waitMs = Math.Clamp(customWait, 100, 30000);
+        }
+
+        await Task.Delay(waitMs);
+
+        // Trigger a re-render to pick up any newly loaded images
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            _webContent.InvalidateVisual();
+        });
+
+        // Small settle delay after invalidation
+        await Task.Delay(200);
+
+        await RespondJson(response, new { status = "waited", wait_ms = waitMs });
     }
 
     // --- Helpers ---

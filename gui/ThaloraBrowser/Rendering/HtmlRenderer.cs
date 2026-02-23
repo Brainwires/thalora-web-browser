@@ -174,7 +174,6 @@ public class HtmlRenderer : IDisposable
                     Style = style,
                     LinkHref = el.LinkHref,
                     Bounds = contentRect,
-                    IsPreSplitLine = el.PreSplitLine,
                 }
             };
 
@@ -365,7 +364,7 @@ public class HtmlRenderer : IDisposable
         "table" => BoxType.TableBox,
         "table-row" => BoxType.TableRowBox,
         "table-cell" => BoxType.TableCellBox,
-        _ => (tag == "#text" || tag == "#text-line") ? BoxType.Anonymous : BoxType.Block,
+        _ => tag == "#text" ? BoxType.Anonymous : BoxType.Block,
     };
 
     private static CssComputedStyle CreateDefaultRootStyle()
@@ -376,28 +375,64 @@ public class HtmlRenderer : IDisposable
             FontWeight = Avalonia.Media.FontWeight.Normal,
             FontFamily = new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans"),
             Color = new SolidColorBrush(Color.FromRgb(0, 0, 0)),
-            BackgroundColor = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+            BackgroundColor = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
             Display = DisplayMode.Block,
             LineHeight = 1.4,
         };
     }
 
+    // Bundled font family constants — these match the font files in src/gui/fonts/
+    private static readonly FontFamily BundledNotoSans = new("avares://ThaloraBrowser/Fonts#Noto Sans");
+    private static readonly FontFamily BundledNotoSerif = new("avares://ThaloraBrowser/Fonts#Noto Serif");
+    private static readonly FontFamily BundledFiraMono = new("avares://ThaloraBrowser/Fonts#Fira Mono");
+
     /// <summary>
     /// Map a CSS font-family string to a bundled font for width agreement with Rust.
+    /// Walks the comma-separated font stack and returns the first match.
+    /// Supports CSS generic families: sans-serif, serif, monospace, system-ui, cursive, fantasy.
     /// </summary>
     private static FontFamily MapToBundledFontFamily(string cssFontFamily)
     {
         foreach (var name in cssFontFamily.Split(','))
         {
             var trimmed = name.Trim().Trim('"', '\'').ToLowerInvariant();
+
+            // Monospace family
             switch (trimmed)
             {
                 case "monospace":
                 case "fira mono":
+                case "fira code":
                 case "courier new":
                 case "courier":
                 case "consolas":
-                    return new FontFamily("avares://ThaloraBrowser/Fonts#Fira Mono");
+                case "menlo":
+                case "monaco":
+                case "source code pro":
+                case "jetbrains mono":
+                case "sf mono":
+                case "ubuntu mono":
+                case "dejavu sans mono":
+                case "liberation mono":
+                case "lucida console":
+                    return BundledFiraMono;
+
+                // Serif family
+                case "serif":
+                case "noto serif":
+                case "times new roman":
+                case "times":
+                case "georgia":
+                case "palatino":
+                case "palatino linotype":
+                case "book antiqua":
+                case "garamond":
+                case "cambria":
+                case "dejavu serif":
+                case "liberation serif":
+                    return BundledNotoSerif;
+
+                // Sans-serif family (most common on the web)
                 case "sans-serif":
                 case "noto sans":
                 case "arial":
@@ -405,14 +440,47 @@ public class HtmlRenderer : IDisposable
                 case "helvetica neue":
                 case "segoe ui":
                 case "open sans":
+                case "roboto":
+                case "lato":
+                case "inter":
+                case "source sans pro":
+                case "source sans 3":
+                case "ubuntu":
+                case "nunito":
+                case "poppins":
+                case "montserrat":
+                case "raleway":
+                case "pt sans":
+                case "verdana":
+                case "tahoma":
+                case "trebuchet ms":
+                case "lucida grande":
+                case "lucida sans":
+                case "dejavu sans":
+                case "liberation sans":
+                case "gill sans":
+                case "franklin gothic medium":
                 case "-apple-system":
                 case "system-ui":
                 case "blinkmacsystemfont":
-                    return new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans");
+                case "ui-sans-serif":
+                    return BundledNotoSans;
+
+                // CSS generic families that map to sans-serif
+                case "cursive":
+                case "fantasy":
+                case "ui-serif":
+                    return BundledNotoSerif;
+                case "ui-monospace":
+                    return BundledFiraMono;
+                case "ui-rounded":
+                case "math":
+                case "emoji":
+                    return BundledNotoSans;
             }
         }
         // Default to Noto Sans for any unrecognized font
-        return new FontFamily("avares://ThaloraBrowser/Fonts#Noto Sans");
+        return BundledNotoSans;
     }
 
     private static LayoutBox CreateErrorBox(string message)
@@ -591,8 +659,6 @@ internal class RustElementLayout
     [JsonPropertyName("is_visible")]
     public bool IsVisible { get; set; } = true;
 
-    [JsonPropertyName("pre_split_line")]
-    public bool PreSplitLine { get; set; }
 }
 
 internal class RustContentBox

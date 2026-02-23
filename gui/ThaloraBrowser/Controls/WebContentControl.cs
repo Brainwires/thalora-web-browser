@@ -66,6 +66,41 @@ public class WebContentControl : Control
         FocusableProperty.OverrideDefaultValue<WebContentControl>(true);
     }
 
+    /// <summary>
+    /// Current vertical scroll offset in pixels.
+    /// </summary>
+    public double ScrollOffsetY => _scrollOffsetY;
+
+    /// <summary>
+    /// Maximum vertical scroll offset in pixels.
+    /// </summary>
+    public double MaxScrollY => _maxScrollY;
+
+    /// <summary>
+    /// Total content height of the rendered page in pixels.
+    /// </summary>
+    public double ContentHeight => _renderer?.ContentHeight ?? 0;
+
+    /// <summary>
+    /// Current viewport height in pixels.
+    /// </summary>
+    public double ViewportHeight => Bounds.Height;
+
+    /// <summary>
+    /// Current viewport width in pixels.
+    /// </summary>
+    public double ViewportWidth => Bounds.Width;
+
+    /// <summary>
+    /// Programmatically set the scroll offset and re-render.
+    /// The value is clamped to [0, MaxScrollY].
+    /// </summary>
+    public void SetScrollOffset(double y)
+    {
+        _scrollOffsetY = Math.Clamp(y, 0, _maxScrollY);
+        InvalidateVisual();
+    }
+
     public WebContentControl()
     {
         _renderer = new HtmlRenderer();
@@ -87,8 +122,8 @@ public class WebContentControl : Control
     {
         base.Render(context);
 
-        // Draw default background
-        IBrush canvasBg = new SolidColorBrush(Color.FromRgb(30, 30, 30));
+        // Draw default background — white matches browser canvas default
+        IBrush canvasBg = new SolidColorBrush(Color.FromRgb(255, 255, 255));
 
         if (_renderer?.CurrentLayout != null)
         {

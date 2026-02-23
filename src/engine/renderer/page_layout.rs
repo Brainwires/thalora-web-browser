@@ -20,6 +20,12 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
     match tag {
         "html" => {
             styles.display = Some("block".to_string());
+            // Browsers render the html element with a white canvas background by default.
+            // CSS spec says transparent, but the viewport/canvas is white — we apply it here
+            // so the C# renderer picks it up. Page stylesheets can override this.
+            if styles.background_color.is_none() {
+                styles.background_color = Some("#ffffff".to_string());
+            }
         }
         "body" => {
             styles.display = Some("block".to_string());
@@ -488,8 +494,33 @@ fn build_layout_tree_from_dom(
         w.max(50.0)
     };
 
-    // Build children
-    let mut children = Vec::new();
+    // =========================================================================
+    // Build children with inline formatting context support.
+    //
+    // Inline elements (text nodes, <a>, <span>, <strong>, <em>, <code>, etc.)
+    // are collected into "inline runs". Consecutive inline runs are concatenated
+    // into a single text block, measured together, and split into pre-split lines.
+    // Block elements interrupt the inline flow and are processed separately.
+    // =========================================================================
+
+    // Phase 1: Classify children as inline or block segments.
+    enum ChildSegment<'a> {
+        /// Plain text content with optional link href (inherited from <a> parent)
+        InlineText { text: String, link_href: Option<String> },
+        /// An inline element like <a>, <strong>, <em> — extract its text inline
+        InlineElement { element_ref: ElementRef<'a>, tag: String },
+        /// A block-level element — process recursively
+        BlockElement { element_ref: ElementRef<'a> },
+    }
+
+    let ws = styles.other.get("white-space").map(|s| s.as_str()).unwrap_or("normal");
+    let link_href_from_parent = if tag == "a" {
+        el.attr("href").map(|h| h.to_string())
+    } else {
+        None
+    };
+
+    let mut segments: Vec<ChildSegment> = Vec::new();
     for child in element_ref.children() {
         match child.value() {
             Node::Element(_) => {
@@ -498,171 +529,215 @@ fn build_layout_tree_from_dom(
                     if SKIP_TAGS.contains(&child_tag.as_str()) {
                         continue;
                     }
-
-                    let child_layout = build_layout_tree_from_dom(
-                        &child_el_ref,
-                        css_processor,
-                        id_counter,
-                        viewport_w,
-                        child_available_width,
-                        Some(&styles),
-                    );
-
-                    // Skip display:none
-                    if child_layout.styles.display.as_deref() == Some("none") {
-                        continue;
+                    if is_inline_element(&child_tag) {
+                        segments.push(ChildSegment::InlineElement {
+                            element_ref: child_el_ref,
+                            tag: child_tag,
+                        });
+                    } else {
+                        segments.push(ChildSegment::BlockElement {
+                            element_ref: child_el_ref,
+                        });
                     }
-                    if child_layout.styles.visibility.as_deref() == Some("hidden") {
-                        continue;
-                    }
-
-                    children.push(child_layout);
                 }
             }
             Node::Text(text) => {
                 let raw_text = text.text.as_ref();
-                // Skip whitespace-only text nodes (unless parent preserves whitespace)
-                let ws = styles.other.get("white-space").map(|s| s.as_str()).unwrap_or("normal");
                 if ws == "normal" && raw_text.trim().is_empty() {
                     continue;
                 }
-                // Collapse whitespace like browsers do: newlines, tabs, and runs of
-                // spaces all become a single space in normal white-space mode.
                 let text_str: String = if ws == "normal" || ws == "nowrap" {
                     raw_text.split_whitespace().collect::<Vec<_>>().join(" ")
                 } else {
                     raw_text.to_string()
                 };
-
-                // Text nodes — measure with real font shaping using per-line data
-                let font_size = styles.font_size.as_ref()
-                    .and_then(|s| super::layout::resolve_css_length(s, 16.0))
-                    .unwrap_or(16.0);
-                let line_height = styles.other.get("line-height")
-                    .and_then(|s| s.parse::<f64>().ok())
-                    .unwrap_or(1.4);
-                let font_family = styles.font_family.as_deref().unwrap_or("sans-serif");
-                let font_weight = styles.font_weight.as_deref();
-                let container_w = child_available_width.max(50.0);
-
-                let lines_result = super::text_measure::measure_text_lines(
-                    &text_str,
-                    font_family,
-                    font_size as f32,
-                    font_weight,
-                    Some(container_w as f32),
-                    line_height as f32,
-                );
-
-                // Helper: build inherited text styles from parent
-                let make_text_styles = |text_content: &str, line_h: f64| -> ComputedStyles {
-                    let mut ts = ComputedStyles::default();
-                    ts.font_size = styles.font_size.clone();
-                    ts.font_family = styles.font_family.clone();
-                    ts.font_weight = styles.font_weight.clone();
-                    ts.color = styles.color.clone();
-                    if let Some(fs) = styles.other.get("font-style") {
-                        ts.other.insert("font-style".to_string(), fs.clone());
-                    }
-                    if let Some(lh) = styles.other.get("line-height") {
-                        ts.other.insert("line-height".to_string(), lh.clone());
-                    }
-                    if let Some(ws_val) = styles.other.get("white-space") {
-                        ts.other.insert("white-space".to_string(), ws_val.clone());
-                    }
-                    ts.other.insert("min-height".to_string(), format!("{}px", line_h));
-                    ts.display = Some("block".to_string());
-                    ts.other.insert("__text_content".to_string(), text_content.to_string());
-                    ts.other.insert("__pre_split_line".to_string(), "true".to_string());
-                    ts
-                };
-
-                // Link href for <a> elements
-                let link_href = if tag == "a" {
-                    el.attr("href").map(|h| h.to_string())
-                } else {
-                    None
-                };
-
-                if lines_result.lines.len() <= 1 {
-                    // Single line: keep current behavior with pre_split_line marker
-                    let text_id = format!("t{}", *id_counter);
-                    *id_counter += 1;
-
-                    let line = lines_result.lines.first();
-                    let line_h = line.map(|l| l.height as f64).unwrap_or(font_size * line_height);
-
-                    let mut text_styles = make_text_styles(&text_str, line_h);
-
-                    if let Some(ref href) = link_href {
-                        text_styles.other.insert("__link_href".to_string(), href.clone());
-                    }
-
-                    let text_layout = LayoutElement {
-                        id: text_id,
-                        tag: "#text".to_string(),
-                        styles: text_styles,
-                        children: Vec::new(),
-                    };
-
-                    children.push(text_layout);
-                } else {
-                    // Multiple lines: create a #text parent container with N #text-line children
-                    let parent_id = format!("t{}", *id_counter);
-                    *id_counter += 1;
-
-                    let mut parent_styles = ComputedStyles::default();
-                    parent_styles.font_size = styles.font_size.clone();
-                    parent_styles.font_family = styles.font_family.clone();
-                    parent_styles.font_weight = styles.font_weight.clone();
-                    parent_styles.color = styles.color.clone();
-                    if let Some(fs) = styles.other.get("font-style") {
-                        parent_styles.other.insert("font-style".to_string(), fs.clone());
-                    }
-                    if let Some(lh) = styles.other.get("line-height") {
-                        parent_styles.other.insert("line-height".to_string(), lh.clone());
-                    }
-                    if let Some(ws_val) = styles.other.get("white-space") {
-                        parent_styles.other.insert("white-space".to_string(), ws_val.clone());
-                    }
-                    parent_styles.display = Some("block".to_string());
-                    parent_styles.other.insert("min-height".to_string(), format!("{}px", lines_result.total_height));
-
-                    if let Some(ref href) = link_href {
-                        parent_styles.other.insert("__link_href".to_string(), href.clone());
-                    }
-
-                    let mut line_children = Vec::new();
-                    for line in &lines_result.lines {
-                        let line_id = format!("t{}", *id_counter);
-                        *id_counter += 1;
-
-                        let mut line_styles = make_text_styles(&line.text, line.height as f64);
-
-                        if let Some(ref href) = link_href {
-                            line_styles.other.insert("__link_href".to_string(), href.clone());
-                        }
-
-                        line_children.push(LayoutElement {
-                            id: line_id,
-                            tag: "#text-line".to_string(),
-                            styles: line_styles,
-                            children: Vec::new(),
-                        });
-                    }
-
-                    let text_layout = LayoutElement {
-                        id: parent_id,
-                        tag: "#text".to_string(),
-                        styles: parent_styles,
-                        children: line_children,
-                    };
-
-                    children.push(text_layout);
+                if text_str.is_empty() {
+                    continue;
                 }
+                segments.push(ChildSegment::InlineText {
+                    text: text_str,
+                    link_href: link_href_from_parent.clone(),
+                });
             }
             _ => {}
         }
+    }
+
+    // Phase 2: Group consecutive inline segments and process.
+    let mut children = Vec::new();
+
+    // Helper: extract all text content from an inline element recursively
+    fn extract_inline_text(el_ref: &ElementRef, ws: &str) -> String {
+        let mut text = String::new();
+        for child in el_ref.children() {
+            match child.value() {
+                scraper::Node::Text(t) => {
+                    let raw = t.text.as_ref();
+                    if ws == "normal" || ws == "nowrap" {
+                        let collapsed = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+                        if !text.is_empty() && !collapsed.is_empty()
+                            && !text.ends_with(' ') && !collapsed.starts_with(' ')
+                        {
+                            text.push(' ');
+                        }
+                        text.push_str(&collapsed);
+                    } else {
+                        text.push_str(raw);
+                    }
+                }
+                scraper::Node::Element(_) => {
+                    if let Some(child_el) = ElementRef::wrap(child) {
+                        let inner = extract_inline_text(&child_el, ws);
+                        if !text.is_empty() && !inner.is_empty()
+                            && !text.ends_with(' ') && !inner.starts_with(' ')
+                        {
+                            text.push(' ');
+                        }
+                        text.push_str(&inner);
+                    }
+                }
+                _ => {}
+            }
+        }
+        text
+    }
+
+    /// Flush an accumulated inline run into a single text element.
+    /// Uses measure_text() for total dimensions only — Avalonia handles all line wrapping.
+    fn flush_inline_run(
+        combined_text: &str,
+        styles: &ComputedStyles,
+        id_counter: &mut u32,
+        child_available_width: f64,
+        link_href: &Option<String>,
+        children: &mut Vec<LayoutElement>,
+    ) {
+        if combined_text.trim().is_empty() {
+            return;
+        }
+
+        let font_size = styles.font_size.as_ref()
+            .and_then(|s| super::layout::resolve_css_length(s, 16.0))
+            .unwrap_or(16.0);
+        let line_height = styles.other.get("line-height")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(1.4);
+        let font_family = styles.font_family.as_deref().unwrap_or("sans-serif");
+        let font_weight = styles.font_weight.as_deref();
+        let container_w = child_available_width.max(50.0);
+
+        // Measure total dimensions only — no line splitting
+        let measurement = super::text_measure::measure_text(
+            combined_text,
+            font_family,
+            font_size as f32,
+            font_weight,
+            Some(container_w as f32),
+            line_height as f32,
+        );
+
+        // Apply 10% height buffer to account for metric differences between
+        // cosmic_text (Rust) and Avalonia FormattedText (C#)
+        let buffered_height = (measurement.height as f64) * 1.10;
+
+        let text_id = format!("t{}", *id_counter);
+        *id_counter += 1;
+
+        let mut text_styles = ComputedStyles::default();
+        text_styles.font_size = styles.font_size.clone();
+        text_styles.font_family = styles.font_family.clone();
+        text_styles.font_weight = styles.font_weight.clone();
+        text_styles.color = styles.color.clone();
+        if let Some(fs_val) = styles.other.get("font-style") {
+            text_styles.other.insert("font-style".to_string(), fs_val.clone());
+        }
+        if let Some(lh) = styles.other.get("line-height") {
+            text_styles.other.insert("line-height".to_string(), lh.clone());
+        }
+        if let Some(ws_val) = styles.other.get("white-space") {
+            text_styles.other.insert("white-space".to_string(), ws_val.clone());
+        }
+        text_styles.other.insert("min-height".to_string(), format!("{}px", buffered_height));
+        text_styles.display = Some("block".to_string());
+        text_styles.other.insert("__text_content".to_string(), combined_text.to_string());
+
+        if let Some(href) = link_href {
+            text_styles.other.insert("__link_href".to_string(), href.clone());
+        }
+
+        children.push(LayoutElement {
+            id: text_id,
+            tag: "#text".to_string(),
+            styles: text_styles,
+            children: Vec::new(),
+        });
+    }
+
+    let mut inline_buffer = String::new();
+    let mut i = 0;
+    while i < segments.len() {
+        match &segments[i] {
+            ChildSegment::InlineText { text, link_href: _ } => {
+                // Accumulate inline text
+                if !inline_buffer.is_empty() && !inline_buffer.ends_with(' ')
+                    && !text.starts_with(' ')
+                {
+                    inline_buffer.push(' ');
+                }
+                inline_buffer.push_str(text);
+                i += 1;
+            }
+            ChildSegment::InlineElement { element_ref: inline_el, tag: _inline_tag } => {
+                // Extract text from the inline element and append to the buffer
+                let inline_text = extract_inline_text(inline_el, ws);
+                if !inline_text.is_empty() {
+                    if !inline_buffer.is_empty() && !inline_buffer.ends_with(' ')
+                        && !inline_text.starts_with(' ')
+                    {
+                        inline_buffer.push(' ');
+                    }
+                    inline_buffer.push_str(&inline_text);
+                }
+                i += 1;
+            }
+            ChildSegment::BlockElement { element_ref: block_el } => {
+                // Flush any accumulated inline content first
+                if !inline_buffer.is_empty() {
+                    flush_inline_run(
+                        &inline_buffer, &styles, id_counter,
+                        child_available_width, &link_href_from_parent,
+                        &mut children,
+                    );
+                    inline_buffer.clear();
+                }
+
+                // Process block element normally
+                let child_layout = build_layout_tree_from_dom(
+                    block_el,
+                    css_processor,
+                    id_counter,
+                    viewport_w,
+                    child_available_width,
+                    Some(&styles),
+                );
+
+                if child_layout.styles.display.as_deref() != Some("none")
+                    && child_layout.styles.visibility.as_deref() != Some("hidden")
+                {
+                    children.push(child_layout);
+                }
+                i += 1;
+            }
+        }
+    }
+
+    // Flush remaining inline content
+    if !inline_buffer.is_empty() {
+        flush_inline_run(
+            &inline_buffer, &styles, id_counter,
+            child_available_width, &link_href_from_parent,
+            &mut children,
+        );
     }
 
     LayoutElement {
@@ -731,13 +806,22 @@ fn is_block_element(tag: &str) -> bool {
     )
 }
 
+/// Check if a tag is an inline-level element (flows with text).
+fn is_inline_element(tag: &str) -> bool {
+    matches!(tag,
+        "a" | "span" | "strong" | "b" | "em" | "i" | "u" | "s" | "strike"
+        | "code" | "kbd" | "samp" | "var" | "mark" | "small" | "big" | "sub" | "sup"
+        | "abbr" | "cite" | "dfn" | "q" | "time" | "data" | "ruby" | "bdo" | "bdi"
+        | "wbr" | "del" | "ins" | "label"
+    )
+}
+
 /// Visual data extracted from LayoutElement tree for post-processing
 struct VisualData {
     text_content: Option<String>,
     link_href: Option<String>,
     img_src: Option<String>,
     tag: String,
-    pre_split_line: bool,
 }
 
 /// Build a map from element ID -> visual data
@@ -755,16 +839,12 @@ fn collect_visual_data(element: &LayoutElement, map: &mut HashMap<String, Visual
     } else {
         None
     };
-    let pre_split_line = element.styles.other.get("__pre_split_line")
-        .map(|v| v == "true")
-        .unwrap_or(false);
 
     map.insert(element.id.clone(), VisualData {
         text_content,
         link_href,
         img_src,
         tag: element.tag.clone(),
-        pre_split_line,
     });
 
     for child in &element.children {
@@ -778,7 +858,6 @@ fn apply_visual_properties(layout: &mut ElementLayout, visual_map: &HashMap<Stri
         layout.text_content = visual.text_content.clone();
         layout.link_href = visual.link_href.clone();
         layout.img_src = visual.img_src.clone();
-        layout.pre_split_line = visual.pre_split_line;
     }
 
     for child in &mut layout.children {

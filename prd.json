@@ -1,0 +1,125 @@
+{
+  "project": "ThaloraBrowser",
+  "branchName": "ralph/visual-rendering-parity",
+  "description": "Fix rendering pipeline so Cloudflare blog page visually matches Chrome reference PDF. Covers image display, background colors, max-width centering, code block styling, link colors, and inline code styling.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Extract img src attribute and flow through to C# rendering",
+      "description": "As a browser user, I want images to appear on the page so that the rendered page matches what Chrome shows.",
+      "acceptanceCriteria": [
+        "In page_layout.rs build_layout_tree_from_dom(), capture el.attr('src') for <img> tags and store as __img_src in styles.other",
+        "Ensure img elements are NOT skipped by the SKIP_TAGS list or inline element classification — they should be processed as block elements with their src attribute",
+        "In collect_visual_data(), the existing img_src extraction from __img_src already works — verify it finds the new data",
+        "cargo build succeeds with no errors",
+        "dotnet build gui/ThaloraBrowser succeeds with no errors",
+        "Launch browser on https://blog.cloudflare.com/markdown-for-agents/, take screenshot, confirm image placeholders appear (C# ImageCache already handles downloading)"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Debug and fix background-color pipeline end-to-end",
+      "description": "As a browser user, I want elements with CSS background-color to render with colored backgrounds so code blocks, headers, and styled sections appear correctly.",
+      "acceptanceCriteria": [
+        "In css.rs apply_declarations(), verify background-color values are being parsed and stored in ComputedStyles.background_color for elements that have them in the stylesheet",
+        "In page_layout.rs, verify background_color from ComputedStyles flows into LayoutElement.styles.background_color",
+        "In layout.rs extract_layout(), verify background_color from ComputedStyles is copied to ElementLayout.background_color",
+        "Add UA default styles: <pre> gets background-color #f4f4f4, <code> inside <pre> inherits it",
+        "In HtmlRenderer.cs BuildComputedStyle(), verify BackgroundColor from JSON is applied to CssComputedStyle",
+        "In PaintContext.cs PaintBox(), verify background color is painted as a filled rectangle before painting children",
+        "cargo build succeeds",
+        "dotnet build gui/ThaloraBrowser succeeds",
+        "Launch browser, take screenshot — code blocks should have gray (#f4f4f4) backgrounds"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Fix max-width and margin:auto centering",
+      "description": "As a browser user, I want content containers with max-width and margin:auto to be horizontally centered, so the main article body appears centered like in Chrome.",
+      "acceptanceCriteria": [
+        "In layout.rs, verify max-width from CSS is set as taffy max_size.width on the node",
+        "In layout.rs, verify margin:auto is translated to taffy's margin auto values (not just flags)",
+        "In layout.rs extract_layout(), the margin_left_auto and margin_right_auto flags are already set — verify they work",
+        "In HtmlRenderer.cs or PaintContext.cs, if taffy doesn't center automatically, calculate left offset = (parent_width - element_width) / 2 when both margin_left_auto and margin_right_auto are true",
+        "cargo build succeeds",
+        "dotnet build gui/ThaloraBrowser succeeds",
+        "Launch browser, take screenshot — main article content should be centered with ~720px width, not spanning full 1280px"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Style code blocks with monospace font, background, and padding",
+      "description": "As a browser user, I want <pre> and <code> blocks to render with monospace font, gray background, and padding so they look like code blocks.",
+      "acceptanceCriteria": [
+        "In page_layout.rs UA defaults section, add: <pre> gets font-family 'Fira Mono', background-color #f4f4f4, padding 16px, overflow hidden, border-radius 4px",
+        "In page_layout.rs UA defaults, add: <code> gets font-family 'Fira Mono', font-size 0.9em relative to parent",
+        "Inline <code> (not inside <pre>) gets background-color #f0f0f0, padding 2px 4px, border-radius 3px",
+        "The monospace font maps to bundled Fira Mono in both Rust text_measure.rs and C# HtmlRenderer.cs",
+        "cargo build succeeds",
+        "dotnet build gui/ThaloraBrowser succeeds",
+        "Launch browser, take screenshot — code blocks have gray background and monospace font"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add default link color styling",
+      "description": "As a browser user, I want links (<a> tags) to appear in blue so they are visually distinct from plain text.",
+      "acceptanceCriteria": [
+        "In page_layout.rs UA defaults section, add: <a> gets color #0051C3 (Cloudflare-style blue) as a default when no CSS color is specified",
+        "Links that have explicit CSS color from the stylesheet should keep their CSS color (don't override)",
+        "The color flows through the existing pipeline: ComputedStyles.color -> ElementLayout.color -> C# CssComputedStyle.Color -> PaintContext text color",
+        "cargo build succeeds",
+        "dotnet build gui/ThaloraBrowser succeeds",
+        "Launch browser, take screenshot — links appear in blue"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Fix flexbox horizontal layout for navigation",
+      "description": "As a browser user, I want flex containers with row direction to lay out children horizontally so navigation bars display correctly.",
+      "acceptanceCriteria": [
+        "In layout.rs, verify that display:flex elements get taffy Display::Flex (not Display::Block)",
+        "In layout.rs, verify flex-direction:row is the default for flex containers (taffy default)",
+        "In layout.rs, verify child elements of flex containers get proper flex item styles (flex-grow, flex-shrink, flex-basis)",
+        "Flex children should appear side-by-side horizontally, not stacked vertically",
+        "cargo build succeeds",
+        "dotnet build gui/ThaloraBrowser succeeds",
+        "Launch browser, take screenshot — top navigation items appear in a horizontal row"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Capture and compare screenshots against reference",
+      "description": "As a developer, I want to run the capture script and visually compare all viewports against the PDF reference images to verify rendering improvements.",
+      "acceptanceCriteria": [
+        "Run gui/ThaloraBrowser/visual-tests/scripts/capture_screenshots.sh to capture fresh viewport screenshots",
+        "Compare viewport-01.png against references/cloudflare-blog/page-01.png — content should be centered, images visible, links colored",
+        "Compare viewport-03.png against page-03.png — code blocks should have gray background and monospace font",
+        "Update gui/ThaloraBrowser/visual-tests/rendering-issues.md with status of each issue (FIXED or remaining notes)",
+        "cargo build succeeds",
+        "dotnet build gui/ThaloraBrowser succeeds"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

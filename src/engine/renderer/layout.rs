@@ -127,9 +127,6 @@ pub struct ElementLayout {
     /// List style type (disc, decimal, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub list_style_type: Option<String>,
-    /// Whether this text was pre-split into individual visual lines by Rust
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub pre_split_line: bool,
     /// Whether margin-left is auto (for centering)
     #[serde(default, skip_serializing_if = "is_false")]
     pub margin_left_auto: bool,
@@ -572,7 +569,6 @@ impl LayoutEngine {
             opacity: styles.opacity,
             overflow: styles.overflow.clone(),
             list_style_type: styles.other.get("list-style-type").cloned(),
-            pre_split_line: false, // populated by page_layout post-processing
             margin_left_auto: styles.margin.as_ref().map(|m| m.left == "auto").unwrap_or(false),
             margin_right_auto: styles.margin.as_ref().map(|m| m.right == "auto").unwrap_or(false),
             padding: styles.padding.as_ref().map(|p| BoxModelSides {
@@ -746,7 +742,6 @@ impl ElementLayout {
             opacity: None,
             overflow: None,
             list_style_type: None,
-            pre_split_line: false,
             margin_left_auto: false,
             margin_right_auto: false,
             padding: None,
