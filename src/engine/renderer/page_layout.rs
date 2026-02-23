@@ -21,12 +21,10 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
     match tag {
         "html" => {
             if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            // Browsers render the html element with a white canvas background by default.
-            // CSS spec says transparent, but the viewport/canvas is white — we apply it here
-            // so the C# renderer picks it up. Page stylesheets can override this.
-            if styles.background_color.is_none() {
-                styles.background_color = Some("#ffffff".to_string());
-            }
+            // CSS spec: the html element's background is transparent by default.
+            // When html has no background, the body's background propagates to the canvas.
+            // We do NOT set a default background here — the C# side handles canvas background
+            // propagation (WebContentControl.Background is white by default).
             // Default text color is black (CSS initial value). This inherits to all children.
             if styles.color.is_none() {
                 styles.color = Some("#000000".to_string());
@@ -270,6 +268,10 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
                     bottom: "4px".to_string(), left: "8px".to_string(),
                 });
             }
+        }
+        "progress" | "meter" => {
+            // Replaced elements: render as visible blocks with their specified dimensions
+            if styles.display.is_none() { styles.display = Some("block".to_string()); }
         }
         _ => {}
     }

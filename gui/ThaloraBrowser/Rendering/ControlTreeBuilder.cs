@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
@@ -30,6 +31,16 @@ public class ControlTreeBuilder
     private readonly ImageCache _imageCache;
     private readonly Action<string>? _onLinkClicked;
     private readonly Action<string?>? _onHoveredLinkChanged;
+    private double _viewportWidth;
+    private double _viewportHeight;
+
+    /// <summary>
+    /// CSS canvas background color, determined after building the tree.
+    /// Per CSS spec: if the root element (html) has no background, the body's background
+    /// propagates to cover the entire canvas/viewport.
+    /// WebContentControl should apply this as its own Background.
+    /// </summary>
+    public IBrush? CanvasBackground { get; private set; }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -90,6 +101,13 @@ public class ControlTreeBuilder
         if (result?.Root == null)
             return CreateErrorControl("Empty styled tree from Rust");
 
+        _viewportWidth = result.ViewportWidth;
+        _viewportHeight = result.ViewportHeight;
+
+        // CSS background propagation: per spec, if the root element (html) has no
+        // explicit background, the body's background covers the canvas/viewport.
+        ComputeCanvasBackground(result.Root);
+
         return BuildControl(result.Root, 16.0);
     }
 
@@ -112,6 +130,12 @@ public class ControlTreeBuilder
 
         // display:contents — don't generate a box, pass children to parent
         // This is used by frameworks like Astro (<astro-island>) and CSS grid layouts.
+        // Exception: <pre> elements should always render their box (background, padding,
+        // border-radius) even if CSS says display:contents — this is typically a CSS
+        // specificity artifact and the visual block is always expected.
+        if (styles.Display == "contents" && element.Tag == "pre")
+            styles.Display = "block";
+
         if (styles.Display == "contents" && element.Children.Count > 0)
         {
             if (element.Children.Count == 1)
@@ -187,43 +211,43 @@ public class ControlTreeBuilder
                 // margin: auto centering
                 border.HorizontalAlignment = HorizontalAlignment.Center;
                 // Apply top/bottom margin only
-                var top = StyleParser.ParseLength(styles.Margin.Top, fontSize) ?? 0;
-                var bottom = StyleParser.ParseLength(styles.Margin.Bottom, fontSize) ?? 0;
+                var top = Len(styles.Margin.Top, fontSize) ?? 0;
+                var bottom = Len(styles.Margin.Bottom, fontSize) ?? 0;
                 border.Margin = new Thickness(0, top, 0, bottom);
             }
             else
             {
-                border.Margin = StyleParser.ParseBoxSides(styles.Margin, fontSize);
+                border.Margin = Box(styles.Margin, fontSize);
             }
         }
 
         // Apply max-width (skip percentages — we don't know parent container size)
-        var maxWidth = IsPercentage(styles.MaxWidth) ? null : StyleParser.ParseLength(styles.MaxWidth, fontSize);
+        var maxWidth = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
         if (maxWidth.HasValue)
             border.MaxWidth = maxWidth.Value;
 
         // Apply explicit width/height
         // Skip percentage widths/heights — Avalonia's default Stretch behavior handles 100%,
         // and we don't track parent sizes for other percentages.
-        var width = IsPercentage(styles.Width) ? null : StyleParser.ParseLength(styles.Width, fontSize);
+        var width = IsPercentage(styles.Width) ? null : Len(styles.Width, fontSize);
         if (width.HasValue)
             border.Width = width.Value;
 
-        var height = IsPercentage(styles.Height) ? null : StyleParser.ParseLength(styles.Height, fontSize);
+        var height = IsPercentage(styles.Height) ? null : Len(styles.Height, fontSize);
         if (height.HasValue)
             border.Height = height.Value;
 
         // Apply min-width/min-height
-        var minWidth = IsPercentage(styles.MinWidth) ? null : StyleParser.ParseLength(styles.MinWidth, fontSize);
+        var minWidth = IsPercentage(styles.MinWidth) ? null : Len(styles.MinWidth, fontSize);
         if (minWidth.HasValue)
             border.MinWidth = minWidth.Value;
 
-        var minHeight = IsPercentage(styles.MinHeight) ? null : StyleParser.ParseLength(styles.MinHeight, fontSize);
+        var minHeight = IsPercentage(styles.MinHeight) ? null : Len(styles.MinHeight, fontSize);
         if (minHeight.HasValue)
             border.MinHeight = minHeight.Value;
 
         // Apply max-height
-        var maxHeight = IsPercentage(styles.MaxHeight) ? null : StyleParser.ParseLength(styles.MaxHeight, fontSize);
+        var maxHeight = IsPercentage(styles.MaxHeight) ? null : Len(styles.MaxHeight, fontSize);
         if (maxHeight.HasValue)
             border.MaxHeight = maxHeight.Value;
 
@@ -269,7 +293,7 @@ public class ControlTreeBuilder
                     Orientation = isRow ? Orientation.Horizontal : Orientation.Vertical,
                 };
                 // Gap
-                var gap = StyleParser.ParseLength(styles.Gap, fontSize);
+                var gap = Len(styles.Gap, fontSize);
                 if (gap.HasValue)
                     stackPanel.Spacing = gap.Value;
                 panel = stackPanel;
@@ -290,22 +314,84 @@ public class ControlTreeBuilder
                 else
                     panel.VerticalAlignment = VerticalAlignment.Bottom;
             }
-            else if (styles.JustifyContent == "space-between" || styles.JustifyContent == "space-around"
-                || styles.JustifyContent == "space-evenly")
+            else if (isRow && (styles.JustifyContent == "space-between" || styles.JustifyContent == "space-around"
+                || styles.JustifyContent == "space-evenly"))
             {
-                // For space-between/around/evenly, stretch to full width
-                // Items will be distributed — best approximation with StackPanel
-                if (isRow)
-                    panel.HorizontalAlignment = HorizontalAlignment.Stretch;
+                // Use Grid to distribute space between items.
+                // Build all visible children, place them in Auto columns
+                // separated by Star columns that absorb remaining space.
+                // Star columns need a concrete width to distribute into, so if the
+                // element has a max-width or width, apply it to the Grid directly.
+                var grid = new Grid();
+                grid.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+                // Give the Grid a concrete width so Star columns can distribute space.
+                // Check explicit width first, then max-width, then fall back to viewport.
+                var gridWidth = IsPercentage(styles.Width) ? null : Len(styles.Width, fontSize);
+                if (!gridWidth.HasValue)
+                    gridWidth = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
+                if (gridWidth.HasValue)
+                    grid.Width = gridWidth.Value;
+
+                // Apply cross-axis alignment
+                if (styles.AlignItems == "center")
+                    grid.VerticalAlignment = VerticalAlignment.Center;
+
+                var visibleChildren = element.Children
+                    .Where(c => c.Styles.Display != "none")
+                    .ToList();
+
+                // Build column definitions: Auto | Star | Auto | Star | ... | Auto
+                // For space-around: Star | Auto | Star | Auto | ... | Star
+                bool isAround = styles.JustifyContent == "space-around" || styles.JustifyContent == "space-evenly";
+                for (int i = 0; i < visibleChildren.Count; i++)
+                {
+                    if (i > 0 || isAround)
+                        grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+                    grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                }
+                if (isAround)
+                    grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+
+                int col = isAround ? 1 : 0;
+                foreach (var child in visibleChildren)
+                {
+                    var childControl = BuildControl(child, fontSize);
+                    if (childControl != null)
+                    {
+                        // Apply cross-axis alignment to each item
+                        if (styles.AlignItems == "center")
+                            childControl.VerticalAlignment = VerticalAlignment.Center;
+                        Grid.SetColumn(childControl, col);
+                        grid.Children.Add(childControl);
+                    }
+                    col += 2; // skip spacer column
+                }
+
+                return grid;
             }
 
-            // align-items: center → center items along the cross axis
+            // align-items → alignment along the cross axis
             if (styles.AlignItems == "center")
             {
                 if (isRow)
                     panel.VerticalAlignment = VerticalAlignment.Center;
                 else
                     panel.HorizontalAlignment = HorizontalAlignment.Center;
+            }
+            else if (styles.AlignItems == "flex-end" || styles.AlignItems == "end")
+            {
+                if (isRow)
+                    panel.VerticalAlignment = VerticalAlignment.Bottom;
+                else
+                    panel.HorizontalAlignment = HorizontalAlignment.Right;
+            }
+            else if (styles.AlignItems == "flex-start" || styles.AlignItems == "start")
+            {
+                if (isRow)
+                    panel.VerticalAlignment = VerticalAlignment.Top;
+                else
+                    panel.HorizontalAlignment = HorizontalAlignment.Left;
             }
         }
         else
@@ -314,7 +400,9 @@ public class ControlTreeBuilder
         }
 
         // Process children: group consecutive inline children into text blocks,
-        // and add block children directly
+        // and add block children directly.
+        // CSS spec: In flex containers, ALL direct children are blockified (become flex items),
+        // regardless of their display property. So skip inline grouping for flex children.
         var inlineBuffer = new List<StyledElement>();
 
         foreach (var child in element.Children)
@@ -322,7 +410,7 @@ public class ControlTreeBuilder
             if (child.Styles.Display == "none")
                 continue;
 
-            if (IsInlineElement(child))
+            if (!isFlex && IsInlineElement(child))
             {
                 inlineBuffer.Add(child);
             }
@@ -337,7 +425,7 @@ public class ControlTreeBuilder
                     inlineBuffer.Clear();
                 }
 
-                // Build block child
+                // Build block child (or blockified flex item)
                 var childControl = BuildControl(child, fontSize);
                 if (childControl != null)
                     panel.Children.Add(childControl);
@@ -500,45 +588,33 @@ public class ControlTreeBuilder
                     return;
                 }
 
-                // Text link — collect text content
-                var linkText = "";
-                if (element.Children.Count > 0)
-                {
-                    linkText = CollectInlineText(element);
-                }
-                else if (!string.IsNullOrEmpty(element.TextContent))
-                {
-                    linkText = element.TextContent;
-                }
-
-                if (string.IsNullOrEmpty(linkText))
-                    return;
-
+                // Text link — use Span with Run elements for proper text flow.
+                // InlineUIContainers can fail to measure/render when they're the only
+                // content in a SelectableTextBlock (Avalonia layout issue).
                 var linkColor = StyleParser.ParseBrush(styles.Color)
                     ?? new SolidColorBrush(Color.FromRgb(0, 81, 195)); // #0051C3
 
-                // Use InlineUIContainer with a clickable TextBlock for link behavior
-                var linkTextBlock = new TextBlock
-                {
-                    Text = linkText,
-                    Foreground = linkColor,
-                    FontSize = fontSize,
-                    FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
-                    FontWeight = StyleParser.ParseFontWeight(styles.FontWeight),
-                    FontStyle = StyleParser.ParseFontStyle(styles.FontStyle),
-                    TextDecorations = styles.TextDecoration == "none" ? null : TextDecorations.Underline,
-                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
-                };
+                var linkSpan = new Span();
+                linkSpan.Foreground = linkColor;
+                if (styles.TextDecoration != "none")
+                    linkSpan.TextDecorations = TextDecorations.Underline;
+                if (styles.FontSize != null)
+                    linkSpan.FontSize = fontSize;
+                linkSpan.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                linkSpan.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
+                linkSpan.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
 
-                if (!string.IsNullOrEmpty(element.LinkHref))
-                {
-                    var href = element.LinkHref;
-                    linkTextBlock.PointerPressed += (_, _) => _onLinkClicked?.Invoke(href);
-                    linkTextBlock.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
-                    linkTextBlock.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
-                }
+                // Recursively add child content as proper inline elements
+                foreach (var child in element.Children)
+                    AddInlineContent(linkSpan.Inlines, child, fontSize);
+                if (element.Children.Count == 0 && !string.IsNullOrEmpty(element.TextContent))
+                    linkSpan.Inlines.Add(new Run(element.TextContent));
 
-                inlines.Add(new InlineUIContainer { Child = linkTextBlock });
+                // Skip empty links
+                if (linkSpan.Inlines.Count == 0)
+                    return;
+
+                inlines.Add(linkSpan);
                 return;
             }
 
@@ -660,7 +736,7 @@ public class ControlTreeBuilder
             }
             else
             {
-                var width = StyleParser.ParseLength(styles.Width, fontSize);
+                var width = Len(styles.Width, fontSize);
                 if (width.HasValue && width.Value > 0)
                 {
                     image.Width = width.Value;
@@ -675,7 +751,7 @@ public class ControlTreeBuilder
         {
             if (!styles.Height.TrimEnd().EndsWith("%"))
             {
-                var height = StyleParser.ParseLength(styles.Height, fontSize);
+                var height = Len(styles.Height, fontSize);
                 if (height.HasValue && height.Value > 0)
                 {
                     image.Height = height.Value;
@@ -718,7 +794,7 @@ public class ControlTreeBuilder
     /// Create an Image control for use in InlineUIContainer (inside text flow).
     /// Returns the display control (may be Image or Border wrapping Image) and the Image for async loading.
     /// </summary>
-    private static (Control displayControl, Avalonia.Controls.Image imageControl) CreateInlineImageWithControl(StyledElement element, double fontSize)
+    private (Control displayControl, Avalonia.Controls.Image imageControl) CreateInlineImageWithControl(StyledElement element, double fontSize)
     {
         var styles = element.Styles;
         var imageControl = new Avalonia.Controls.Image
@@ -732,7 +808,7 @@ public class ControlTreeBuilder
         if (!string.IsNullOrEmpty(styles.Width) && styles.Width != "auto"
             && !styles.Width.TrimEnd().EndsWith("%"))
         {
-            var w = StyleParser.ParseLength(styles.Width, fontSize);
+            var w = Len(styles.Width, fontSize);
             if (w.HasValue && w.Value > 0)
             {
                 imageControl.Width = w.Value;
@@ -745,7 +821,7 @@ public class ControlTreeBuilder
         if (!string.IsNullOrEmpty(styles.Height) && styles.Height != "auto"
             && !styles.Height.TrimEnd().EndsWith("%"))
         {
-            var h = StyleParser.ParseLength(styles.Height, fontSize);
+            var h = Len(styles.Height, fontSize);
             if (h.HasValue && h.Value > 0)
             {
                 imageControl.Height = h.Value;
@@ -807,7 +883,7 @@ public class ControlTreeBuilder
         {
             Height = 1,
             Background = bgColor,
-            Margin = StyleParser.ParseBoxSides(styles.Margin, fontSize),
+            Margin = Box(styles.Margin, fontSize),
             HorizontalAlignment = HorizontalAlignment.Stretch,
         };
     }
@@ -833,7 +909,7 @@ public class ControlTreeBuilder
             border.BorderBrush = borderBrush;
 
         if (styles.BorderWidth != null)
-            border.BorderThickness = StyleParser.ParseBoxSides(styles.BorderWidth, fontSize);
+            border.BorderThickness = Box(styles.BorderWidth, fontSize);
 
         // Border radius
         if (!string.IsNullOrEmpty(styles.BorderRadius))
@@ -841,7 +917,7 @@ public class ControlTreeBuilder
 
         // Padding
         if (styles.Padding != null)
-            border.Padding = StyleParser.ParseBoxSides(styles.Padding, fontSize);
+            border.Padding = Box(styles.Padding, fontSize);
 
         return border;
     }
@@ -868,11 +944,16 @@ public class ControlTreeBuilder
         if (styles.LineHeight != null)
         {
             var lhMultiplier = StyleParser.ParseLineHeight(styles.LineHeight, fontSize);
-            textBlock.LineHeight = fontSize * lhMultiplier;
+            // Avalonia clips text to LineHeight (unlike CSS where text overflows line boxes).
+            // Tight CSS line-heights (e.g., 1.15) would clip descenders/ascenders.
+            // Only set LineHeight when it's large enough to prevent clipping.
+            // Below ~1.25x, let Avalonia use its natural font metrics.
+            if (lhMultiplier >= 1.25)
+                textBlock.LineHeight = fontSize * lhMultiplier;
         }
 
         // White-space handling
-        if (styles.WhiteSpace == "pre" || styles.WhiteSpace == "pre-wrap" || styles.WhiteSpace == "pre-line")
+        if (styles.WhiteSpace is "pre" or "pre-wrap" or "pre-line" or "break-spaces")
         {
             textBlock.TextWrapping = styles.WhiteSpace == "pre" ? TextWrapping.NoWrap : TextWrapping.Wrap;
         }
@@ -899,6 +980,18 @@ public class ControlTreeBuilder
     /// </summary>
     private static bool IsPercentage(string? value)
         => value != null && value.TrimEnd().EndsWith('%');
+
+    /// <summary>
+    /// Parse a CSS length with viewport unit support. Shorthand for passing viewport dims.
+    /// </summary>
+    private double? Len(string? value, double fontSize, double parentSize = 0)
+        => StyleParser.ParseLength(value, fontSize, parentSize, _viewportWidth, _viewportHeight);
+
+    /// <summary>
+    /// Parse box sides with viewport unit support.
+    /// </summary>
+    private Thickness Box(StyleBoxSides? sides, double fontSize, double parentSize = 0)
+        => StyleParser.ParseBoxSides(sides, fontSize, parentSize, _viewportWidth, _viewportHeight);
 
     private static bool IsInlineElement(StyledElement element)
     {
@@ -944,6 +1037,44 @@ public class ControlTreeBuilder
             sb.Append(CollectInlineText(child));
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Compute the canvas background per CSS background propagation rules.
+    /// If html has no background, body's background propagates to the canvas.
+    /// When propagated, body's background is removed (canvas paints it instead).
+    /// </summary>
+    private void ComputeCanvasBackground(StyledElement root)
+    {
+        CanvasBackground = null;
+
+        if (root.Tag != "html")
+            return;
+
+        var htmlBg = StyleParser.ParseBrush(root.Styles.BackgroundColor);
+        if (htmlBg != null)
+        {
+            // html has explicit background — use it as canvas, remove from html
+            CanvasBackground = htmlBg;
+            root.Styles.BackgroundColor = null;
+            return;
+        }
+
+        // html has no background — propagate body's background to canvas
+        var body = root.Children.FirstOrDefault(c => c.Tag == "body");
+        if (body != null)
+        {
+            var bodyBg = StyleParser.ParseBrush(body.Styles.BackgroundColor);
+            if (bodyBg != null)
+            {
+                CanvasBackground = bodyBg;
+                // Per spec, body background is consumed by the canvas propagation
+                body.Styles.BackgroundColor = null;
+            }
+        }
+
+        // Default white canvas if nothing set
+        CanvasBackground ??= Brushes.White;
     }
 
     /// <summary>

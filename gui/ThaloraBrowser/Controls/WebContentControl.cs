@@ -193,6 +193,12 @@ public class WebContentControl : UserControl
 
                 var controlTree = builder.BuildFromJson(styledTreeJson);
 
+                // Apply canvas background (CSS propagation from html/body)
+                if (builder.CanvasBackground != null)
+                    Background = builder.CanvasBackground;
+                else
+                    Background = Brushes.White;
+
                 // Replace content — only reset scroll on actual navigation
                 bool wasEmpty = !_hasContent;
                 _hasContent = true;

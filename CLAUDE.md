@@ -81,6 +81,26 @@ fn my_test() {
 }
 ```
 
+### GUI Browser (Avalonia)
+```bash
+# Launch GUI directly (standalone, no controller)
+dotnet run --project gui/ThaloraBrowser -- --url "https://example.com" --control-port 9222
+
+# Launch via BrowserController (recommended for automation/testing)
+# Controller owns port 9290, manages GUI lifecycle, auto-restarts on crash
+dotnet run --project gui/BrowserController -- --port 9290 --url "https://example.com"
+
+# Build BrowserController
+dotnet build gui/BrowserController
+
+# Controller HTTP endpoints:
+#   GET  /health    — always responds, reports GUI health
+#   GET  /status    — full state: PID, port, restart count, uptime
+#   POST /restart   — force GUI restart
+#   POST /shutdown  — graceful shutdown of GUI + Controller
+#   All other endpoints proxied to GUI: /screenshot, /navigate, /state, etc.
+```
+
 ### Debugging and Analysis
 ```bash
 # Test with debug logging
@@ -129,6 +149,14 @@ src/
 - `mcp_server.rs` - Model Context Protocol server implementation
 - `cdp.rs` - Chrome DevTools Protocol compatibility for debugging
 - `memory_tools.rs` - Memory management tools for MCP integration
+
+**BrowserController** (`gui/BrowserController/`):
+- Separate console process (no Avalonia/Cocoa) that manages the GUI lifecycle
+- `Program.cs` - Entry point with CLI args and signal handling
+- `GuiProcessManager.cs` - Launches GUI on ephemeral port, health monitoring, auto-restart
+- `HttpProxyServer.cs` - External HTTP server, proxies requests to GUI, lifecycle endpoints
+- Architecture: `Client → Controller (port 9290) → GUI (ephemeral port)`
+- Key benefit: Controller is always cleanly killable, even if GUI becomes a macOS zombie
 
 ### Test Architecture
 

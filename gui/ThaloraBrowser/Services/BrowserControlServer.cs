@@ -161,6 +161,10 @@ public class BrowserControlServer : IDisposable
                     await HandleHtml(response);
                     break;
 
+                case "/shutdown":
+                    await HandleShutdown(response);
+                    break;
+
                 default:
                     await RespondError(response, 404, $"Unknown endpoint: {path}");
                     break;
@@ -523,6 +527,28 @@ public class BrowserControlServer : IDisposable
         response.ContentLength64 = bytes.Length;
         await response.OutputStream.WriteAsync(bytes);
         response.Close();
+    }
+
+    /// <summary>
+    /// Gracefully shut down the application. Responds with OK, then triggers
+    /// Avalonia's desktop lifetime shutdown on the UI thread so the process
+    /// exits cleanly without leaving zombie windows on macOS.
+    /// </summary>
+    private async Task HandleShutdown(HttpListenerResponse response)
+    {
+        await RespondJson(response, new { status = "shutting_down" });
+
+        // Give the response a moment to flush, then shut down on UI thread
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(200);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                var lifetime = Avalonia.Application.Current?.ApplicationLifetime
+                    as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+                lifetime?.Shutdown(0);
+            });
+        });
     }
 
     public void Dispose()

@@ -1,6 +1,10 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Avalonia;
@@ -76,9 +80,19 @@ class Program
         initialUrl ??= args.FirstOrDefault(a => !a.StartsWith("-") && !int.TryParse(a, out _));
 
         App.InitialUrl = initialUrl;
-        App.ControlPort = controlPort;
         App.InitialWidth = windowWidth;
         App.InitialHeight = windowHeight;
+
+        // When --control-port is specified, it's the CONTROLLER's external port.
+        // The internal BrowserControlServer runs on an auto-assigned ephemeral port.
+        // The GUI ensures the controller is running, then registers with it.
+        if (controlPort.HasValue)
+        {
+            App.ControllerPort = controlPort.Value;
+            App.InternalServerPort = FindFreePort();
+            EnsureControllerRunning(controlPort.Value);
+            Console.Error.WriteLine($"[gui] Controller port: {controlPort.Value}, internal server port: {App.InternalServerPort}");
+        }
 
         // Ensure the control server socket is cleaned up on any process exit path.
         // ShutdownControlServer() is thread-safe and idempotent — safe to call from
@@ -115,6 +129,115 @@ class Program
                     new Uri("avares://ThaloraBrowser/Fonts", UriKind.Absolute)));
             })
             .LogToTrace();
+
+    /// <summary>
+    /// Check if the BrowserController is already running on the given port.
+    /// If not, spawn it as a detached background process.
+    /// </summary>
+    private static void EnsureControllerRunning(int controllerPort)
+    {
+        // Check if controller is already responding
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        try
+        {
+            var response = client.GetAsync($"http://localhost:{controllerPort}/health").Result;
+            if (response.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"[gui] Controller already running on port {controllerPort}");
+                return;
+            }
+        }
+        catch
+        {
+            // Not running, need to start it
+        }
+
+        Console.Error.WriteLine($"[gui] Starting BrowserController on port {controllerPort}...");
+
+        var controllerProjectPath = FindControllerProjectPath();
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            Arguments = $"run --project \"{controllerProjectPath}\" -- --port {controllerPort}",
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+            CreateNoWindow = true,
+        };
+
+        var process = Process.Start(psi);
+        if (process == null)
+        {
+            Console.Error.WriteLine("[gui] WARNING: Failed to start BrowserController process");
+            return;
+        }
+
+        Console.Error.WriteLine($"[gui] BrowserController started (PID: {process.Id})");
+
+        // Wait for the controller to become responsive (up to 15s for dotnet run + build)
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            System.Threading.Thread.Sleep(500);
+            try
+            {
+                var response = client.GetAsync($"http://localhost:{controllerPort}/health").Result;
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.Error.WriteLine("[gui] BrowserController is ready");
+                    return;
+                }
+            }
+            catch
+            {
+                // Still starting up
+            }
+        }
+
+        Console.Error.WriteLine("[gui] WARNING: BrowserController may not be ready yet, continuing anyway");
+    }
+
+    /// <summary>
+    /// Find the BrowserController project directory, searching relative to the repo root.
+    /// </summary>
+    private static string FindControllerProjectPath()
+    {
+        // Walk up from the current directory looking for the gui/BrowserController project
+        var dir = AppContext.BaseDirectory;
+        for (var i = 0; i < 10; i++)
+        {
+            var candidate = Path.Combine(dir, "gui", "BrowserController", "BrowserController.csproj");
+            if (File.Exists(candidate))
+                return Path.Combine(dir, "gui", "BrowserController");
+
+            var parent = Directory.GetParent(dir);
+            if (parent == null) break;
+            dir = parent.FullName;
+        }
+
+        // Also check relative to the working directory
+        var cwd = Directory.GetCurrentDirectory();
+        var cwdCandidate = Path.Combine(cwd, "gui", "BrowserController", "BrowserController.csproj");
+        if (File.Exists(cwdCandidate))
+            return Path.Combine(cwd, "gui", "BrowserController");
+
+        throw new InvalidOperationException(
+            "Could not find gui/BrowserController/BrowserController.csproj. " +
+            "Run from the thalora-web-browser repository root.");
+    }
+
+    /// <summary>
+    /// Find a free TCP port by binding to port 0.
+    /// </summary>
+    private static int FindFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
 
     /// Resolve the "thalora" native library from the Rust build output directory.
     private static IntPtr ResolveThaloraNative(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)

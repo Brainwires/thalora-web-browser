@@ -1,5 +1,7 @@
 https://blog.cloudflare.com/markdown-for-agents/
 
+Editing a queued message needsTh to be distinct from browsing prompt history; keyboard navigation wise.
+
 # Web API Implementation Status
 
 This document provides a comprehensive overview of Web API implementation status in the Thalora headless web browser and its Boa JavaScript engine. The status levels are:

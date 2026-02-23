@@ -581,6 +581,9 @@ impl CssProcessor {
         // Collect all rules whose selectors match this element
         let mut matching_rules: Vec<(&ParsedRule, bool)> = Vec::new(); // (rule, is_important)
 
+        let el = element.value();
+        let tag_name = el.name().to_lowercase();
+
         for rule in &self.rules {
             // Split selector by comma for multiple selectors (e.g., "h1, h2, h3")
             for raw_selector in rule.selector.split(',').map(|s| s.trim()) {
@@ -593,6 +596,14 @@ impl CssProcessor {
                     if parsed_selector.matches(element) {
                         matching_rules.push((rule, false));
                         break; // One match is enough for this rule
+                    }
+                } else {
+                    // Scraper failed to parse — likely due to pseudo-classes (:link, :visited, etc.)
+                    // Handle common link pseudo-classes: treat :link/:visited on <a> as matching
+                    // any <a> element with an href attribute (we don't track visited state).
+                    if Self::matches_pseudo_class_fallback(raw_selector, &tag_name, el) {
+                        matching_rules.push((rule, false));
+                        break;
                     }
                 }
             }
@@ -744,6 +755,112 @@ impl CssProcessor {
     fn selectors_match(&self, rule_selector: &str, target_selector: &str) -> bool {
         // Simple exact match for now
         rule_selector == target_selector
+    }
+
+    /// Fallback matching for selectors containing pseudo-classes that scraper can't parse.
+    /// Handles :link, :visited (match <a> with href), and strips other pseudo-classes
+    /// to attempt base selector matching.
+    fn matches_pseudo_class_fallback(
+        raw_selector: &str,
+        tag_name: &str,
+        el: &scraper::node::Element,
+    ) -> bool {
+        // Extract the pseudo-class and base selector
+        // Handle selectors like "a:link", ".class:hover", "div a:visited"
+        // We find the last pseudo-class in the selector
+        if let Some(colon_idx) = raw_selector.rfind(':') {
+            let pseudo_part = &raw_selector[colon_idx + 1..];
+            let base = raw_selector[..colon_idx].trim();
+
+            // Extract just the pseudo-class name (before any parentheses)
+            let pseudo_name = pseudo_part.split('(').next().unwrap_or("").trim();
+
+            match pseudo_name {
+                "link" | "visited" | "any-link" => {
+                    // :link / :visited / :any-link apply to <a> elements with href
+                    if tag_name != "a" || el.attr("href").is_none() {
+                        return false;
+                    }
+                    // Match the base selector (e.g., "a" from "a:link")
+                    if base.is_empty() {
+                        return true;
+                    }
+                    // Try to parse and match the base selector
+                    // For simple selectors like "a", check tag match
+                    Self::simple_selector_matches(base, tag_name, el)
+                }
+                "hover" | "active" | "focus" | "focus-visible" | "focus-within" => {
+                    // Interactive pseudo-classes don't apply during static rendering
+                    false
+                }
+                _ => {
+                    // Unknown pseudo-class — try stripping it and matching base
+                    if base.is_empty() {
+                        return false;
+                    }
+                    Self::simple_selector_matches(base, tag_name, el)
+                }
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Simple selector matching for fallback pseudo-class handling.
+    /// Handles tag selectors, class selectors, and ID selectors.
+    fn simple_selector_matches(selector: &str, tag_name: &str, el: &scraper::node::Element) -> bool {
+        // Try scraper first (it handles complex selectors)
+        if let Ok(parsed) = scraper::Selector::parse(selector) {
+            // We can't use parsed.matches() without an ElementRef, so fall back to manual
+            // For now, do simple matching
+        }
+
+        let selector = selector.trim();
+
+        // Simple tag match: "a", "div", etc.
+        if selector == tag_name {
+            return true;
+        }
+
+        // Class-based match: ".classname" or "tag.classname"
+        if selector.contains('.') {
+            let classes_attr = el.attr("class").unwrap_or("");
+            let el_classes: Vec<&str> = classes_attr.split_whitespace().collect();
+
+            // Split selector into tag and classes
+            let parts: Vec<&str> = selector.split('.').collect();
+            let sel_tag = parts[0]; // May be empty for ".classname"
+
+            // Check tag match (empty means any tag)
+            if !sel_tag.is_empty() && sel_tag != tag_name {
+                return false;
+            }
+
+            // Check all required classes
+            for cls in &parts[1..] {
+                if !cls.is_empty() && !el_classes.contains(cls) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // ID-based match: "#id" or "tag#id"
+        if selector.contains('#') {
+            let parts: Vec<&str> = selector.splitn(2, '#').collect();
+            let sel_tag = parts[0];
+            let sel_id = parts.get(1).unwrap_or(&"");
+
+            if !sel_tag.is_empty() && sel_tag != tag_name {
+                return false;
+            }
+            if let Some(el_id) = el.attr("id") {
+                return el_id == *sel_id;
+            }
+            return false;
+        }
+
+        false
     }
 
     /// Strip pseudo-classes and pseudo-elements from a selector for matching.

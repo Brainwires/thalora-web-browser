@@ -27,8 +27,10 @@ internal static class StyleParser
     /// Returns null for "auto" or unparseable values.
     /// parentFontSize is used for em/rem resolution.
     /// parentSize is used for percentage resolution.
+    /// viewportWidth/viewportHeight are used for vw/vh resolution.
     /// </summary>
-    internal static double? ParseLength(string? value, double parentFontSize = 16, double parentSize = 0)
+    internal static double? ParseLength(string? value, double parentFontSize = 16, double parentSize = 0,
+        double viewportWidth = 0, double viewportHeight = 0)
     {
         if (string.IsNullOrWhiteSpace(value) || value == "auto" || value == "none")
             return null;
@@ -41,17 +43,18 @@ internal static class StyleParser
                 NumberStyles.Float, CultureInfo.InvariantCulture, out var px))
                 return px;
         }
+        else if (value.EndsWith("rem"))
+        {
+            // MUST check "rem" before "em" since "rem" also EndsWith("em")
+            if (double.TryParse(value.AsSpan(0, value.Length - 3),
+                NumberStyles.Float, CultureInfo.InvariantCulture, out var rem))
+                return rem * 16; // Root font size is always 16px
+        }
         else if (value.EndsWith("em"))
         {
             if (double.TryParse(value.AsSpan(0, value.Length - 2),
                 NumberStyles.Float, CultureInfo.InvariantCulture, out var em))
                 return em * parentFontSize;
-        }
-        else if (value.EndsWith("rem"))
-        {
-            if (double.TryParse(value.AsSpan(0, value.Length - 3),
-                NumberStyles.Float, CultureInfo.InvariantCulture, out var rem))
-                return rem * 16; // Root font size is always 16px
         }
         else if (value.EndsWith("%"))
         {
@@ -61,16 +64,15 @@ internal static class StyleParser
         }
         else if (value.EndsWith("vw"))
         {
-            // vw/vh need viewport — pass as parentSize
             if (double.TryParse(value.AsSpan(0, value.Length - 2),
                 NumberStyles.Float, CultureInfo.InvariantCulture, out var vw))
-                return vw / 100.0 * parentSize;
+                return vw / 100.0 * viewportWidth;
         }
         else if (value.EndsWith("vh"))
         {
             if (double.TryParse(value.AsSpan(0, value.Length - 2),
                 NumberStyles.Float, CultureInfo.InvariantCulture, out var vh))
-                return vh / 100.0 * parentSize;
+                return vh / 100.0 * viewportHeight;
         }
         else if (value.EndsWith("pt"))
         {
@@ -124,8 +126,8 @@ internal static class StyleParser
     /// </summary>
     internal static Color? ParseColor(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value == "transparent" || value == "inherit"
-            || value == "initial" || value == "unset" || value == "currentColor")
+        if (string.IsNullOrWhiteSpace(value) || value == "transparent" || value == "none"
+            || value == "inherit" || value == "initial" || value == "unset" || value == "currentColor")
             return null;
 
         value = value.Trim();
@@ -500,15 +502,16 @@ internal static class StyleParser
     /// <summary>
     /// Parse a StyleBoxSides (margin/padding) into an Avalonia Thickness.
     /// </summary>
-    internal static Thickness ParseBoxSides(StyleBoxSides? sides, double parentFontSize = 16, double parentSize = 0)
+    internal static Thickness ParseBoxSides(StyleBoxSides? sides, double parentFontSize = 16, double parentSize = 0,
+        double viewportWidth = 0, double viewportHeight = 0)
     {
         if (sides == null)
             return default;
 
-        var top = ParseLength(sides.Top, parentFontSize, parentSize) ?? 0;
-        var right = ParseLength(sides.Right, parentFontSize, parentSize) ?? 0;
-        var bottom = ParseLength(sides.Bottom, parentFontSize, parentSize) ?? 0;
-        var left = ParseLength(sides.Left, parentFontSize, parentSize) ?? 0;
+        var top = ParseLength(sides.Top, parentFontSize, parentSize, viewportWidth, viewportHeight) ?? 0;
+        var right = ParseLength(sides.Right, parentFontSize, parentSize, viewportWidth, viewportHeight) ?? 0;
+        var bottom = ParseLength(sides.Bottom, parentFontSize, parentSize, viewportWidth, viewportHeight) ?? 0;
+        var left = ParseLength(sides.Left, parentFontSize, parentSize, viewportWidth, viewportHeight) ?? 0;
 
         return new Thickness(left, top, right, bottom);
     }
