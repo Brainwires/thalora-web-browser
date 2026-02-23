@@ -103,6 +103,7 @@ public class ControlTreeBuilder
     /// </summary>
     public Control? BuildFromJson(string json)
     {
+        var swDeserialize = System.Diagnostics.Stopwatch.StartNew();
         StyledTreeResult? result;
         try
         {
@@ -113,6 +114,8 @@ public class ControlTreeBuilder
             System.Diagnostics.Debug.WriteLine($"[ControlTreeBuilder] JSON parse error: {ex.Message}");
             return CreateErrorControl($"JSON parse error: {ex.Message}");
         }
+        swDeserialize.Stop();
+        Console.Error.WriteLine($"[TIMING] C# JSON deserialization: {swDeserialize.ElapsedMilliseconds}ms ({json.Length} chars)");
 
         if (result?.Root == null)
             return CreateErrorControl("Empty styled tree from Rust");
@@ -127,7 +130,13 @@ public class ControlTreeBuilder
         // Store element selectors for JS event dispatch
         ElementSelectors = result.ElementSelectors;
 
-        return BuildControl(result.Root, 16.0, 0);
+        var swBuild = System.Diagnostics.Stopwatch.StartNew();
+        var control = BuildControl(result.Root, 16.0, 0);
+        swBuild.Stop();
+        Console.Error.WriteLine($"[TIMING] C# BuildControl (tree construction): {swBuild.ElapsedMilliseconds}ms");
+        Console.Error.WriteLine($"[TIMING] C# Total BuildFromJson: {swDeserialize.ElapsedMilliseconds + swBuild.ElapsedMilliseconds}ms");
+
+        return control;
     }
 
     /// <summary>
@@ -1258,8 +1267,10 @@ public class ControlTreeBuilder
             // Tight CSS line-heights (e.g., 1.15) would clip descenders/ascenders.
             // Only set LineHeight when it's large enough to prevent clipping.
             // Below ~1.25x, let Avalonia use its natural font metrics.
-            if (lhMultiplier >= 1.25)
-                textBlock.LineHeight = fontSize * lhMultiplier;
+            // Guard: Avalonia throws if LineHeight <= 0.
+            var computedLh = fontSize * lhMultiplier;
+            if (lhMultiplier >= 1.25 && computedLh > 0)
+                textBlock.LineHeight = computedLh;
         }
 
         // White-space handling

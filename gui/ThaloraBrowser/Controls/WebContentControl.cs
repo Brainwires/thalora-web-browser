@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -205,7 +206,11 @@ public class WebContentControl : UserControl
             _lastRenderedHtml = HtmlContent;
 
             // Get the styled tree from Rust (HTML parsed, CSS resolved, no positions)
+            var swTotal = Stopwatch.StartNew();
+            var swFfi = Stopwatch.StartNew();
             var styledTreeJson = await engine.ComputeStyledTreeAsync(viewportW, viewportH);
+            swFfi.Stop();
+            Console.Error.WriteLine($"[TIMING] C# ComputeStyledTreeAsync (FFI call): {swFfi.ElapsedMilliseconds}ms");
 
             if (!string.IsNullOrEmpty(styledTreeJson))
             {
@@ -220,7 +225,12 @@ public class WebContentControl : UserControl
                     onDomEvent: (eventType, elementId) => OnDomEvent(eventType, elementId)
                 );
 
+                var swBuild = Stopwatch.StartNew();
                 var controlTree = builder.BuildFromJson(styledTreeJson);
+                swBuild.Stop();
+                Console.Error.WriteLine($"[TIMING] C# ControlTreeBuilder.BuildFromJson: {swBuild.ElapsedMilliseconds}ms");
+                swTotal.Stop();
+                Console.Error.WriteLine($"[TIMING] C# Total OnHtmlContentChanged: {swTotal.ElapsedMilliseconds}ms");
 
                 // Store element selectors for JS event dispatch
                 _elementSelectors = builder.ElementSelectors;

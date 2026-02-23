@@ -8,6 +8,7 @@
 use anyhow::{Result, Context};
 use scraper::{Html, Selector, Node, ElementRef};
 use std::collections::HashMap;
+use std::time::Instant;
 
 use super::css::{CssProcessor, ComputedStyles, BoxModel, BorderStyles};
 use super::layout::{
@@ -303,9 +304,14 @@ pub fn compute_styled_tree_with_css(
     viewport_h: f32,
     external_css: &[String],
 ) -> Result<StyledTreeResult> {
+    let total_start = Instant::now();
+
+    let parse_start = Instant::now();
     let document = Html::parse_document(html);
+    eprintln!("[TIMING] HTML parse: {}ms ({} bytes)", parse_start.elapsed().as_millis(), html.len());
 
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
+    let ext_css_start = Instant::now();
     let mut css_processor = CssProcessor::new_with_viewport(viewport_w);
     for css_text in external_css {
         if !css_text.trim().is_empty() {
@@ -314,21 +320,30 @@ pub fn compute_styled_tree_with_css(
             }
         }
     }
+    eprintln!("[TIMING] External CSS parse: {}ms ({} stylesheets)", ext_css_start.elapsed().as_millis(), external_css.len());
 
     // Step 1b: Then parse <style> blocks (higher source-order precedence)
+    let inline_css_start = Instant::now();
     let style_selector = Selector::parse("style").unwrap();
+    let mut style_block_count = 0u32;
     for style_el in document.select(&style_selector) {
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
+            style_block_count += 1;
             if let Err(e) = css_processor.parse(&css_text) {
                 eprintln!("[styled_tree] Failed to parse <style> block: {}", e);
             }
         }
     }
+    eprintln!("[TIMING] Inline CSS parse: {}ms ({} style blocks)", inline_css_start.elapsed().as_millis(), style_block_count);
+
+    // Step 1c: Pre-compile all selectors for fast matching
+    css_processor.compile_selectors();
 
     // Step 2: Walk the DOM tree and build StyledElement tree directly.
     // This preserves inline element structure (<a>, <strong>, <em>, <code>, <span>)
     // so C# can properly render links, bold, italic, inline code, etc.
+    let walk_start = Instant::now();
     let root_node = document.root_element();
     let mut id_counter: u32 = 0;
     let mut element_selectors: HashMap<String, String> = HashMap::new();
@@ -340,12 +355,15 @@ pub fn compute_styled_tree_with_css(
         None,
         &mut element_selectors,
     );
+    eprintln!("[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)", walk_start.elapsed().as_millis(), id_counter);
 
     let selectors = if element_selectors.is_empty() {
         None
     } else {
         Some(element_selectors)
     };
+
+    eprintln!("[TIMING] Total compute_styled_tree_with_css: {}ms", total_start.elapsed().as_millis());
 
     Ok(StyledTreeResult {
         root,
@@ -354,6 +372,17 @@ pub fn compute_styled_tree_with_css(
         element_selectors: selectors,
     })
 }
+
+/// Maximum number of elements to process before stopping.
+/// Prevents extremely large pages (Wikipedia: 3700+ elements) from taking minutes.
+/// 2000 elements is enough to render the meaningful content of any page.
+const MAX_ELEMENT_COUNT: u32 = 2000;
+
+/// Tags that can have meaningful :hover styles (links, buttons, form elements).
+/// Skipping hover computation for all other elements saves significant time.
+const HOVER_INTERACTIVE_TAGS: &[&str] = &[
+    "a", "button", "input", "select", "textarea", "summary", "details", "label",
+];
 
 /// Build a StyledElement tree directly from the DOM, preserving inline element structure.
 ///
@@ -374,16 +403,13 @@ fn build_styled_element_from_dom(
     // Compute CSS styles
     let mut styles = css_processor.compute_style_for_element(element_ref);
 
-    // Handle inline style attribute
+    // Handle inline style attribute — use direct parser (no CssProcessor overhead)
     let elem_id = format!("e{}", *id_counter);
     *id_counter += 1;
 
     if let Some(inline_style) = el.attr("style") {
-        let mut inline_processor = CssProcessor::new();
-        if inline_processor.parse_inline_style(inline_style, &elem_id).is_ok() {
-            let inline_styles = inline_processor.compute_style(&format!("#{}", elem_id));
-            merge_styles(&mut styles, &inline_styles);
-        }
+        let inline_styles = CssProcessor::parse_inline_style_direct(inline_style);
+        merge_styles(&mut styles, &inline_styles);
     }
 
     // Inherit properties from parent
@@ -394,11 +420,18 @@ fn build_styled_element_from_dom(
     // Apply UA defaults
     apply_ua_defaults(&tag, &mut styles);
 
-    // Compute hover styles: extract :hover rules that match this element
-    let hover_computed = css_processor.compute_hover_style_for_element(element_ref);
-    let hover_resolved = computed_to_resolved(&hover_computed);
-    let hover_styles = if has_any_hover_property(&hover_resolved) {
-        Some(hover_resolved)
+    // Compute hover styles only for interactive elements (links, buttons, etc.)
+    // This saves significant time on large pages — hover matching iterates all CSS rules.
+    let hover_styles = if HOVER_INTERACTIVE_TAGS.contains(&tag.as_str())
+        || el.attr("class").map_or(false, |c| c.contains("btn") || c.contains("button"))
+    {
+        let hover_computed = css_processor.compute_hover_style_for_element(element_ref);
+        let hover_resolved = computed_to_resolved(&hover_computed);
+        if has_any_hover_property(&hover_resolved) {
+            Some(hover_resolved)
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -452,6 +485,11 @@ fn build_styled_element_from_dom(
     let mut children = Vec::new();
 
     for child_node in element_ref.children() {
+        // Stop processing if we've hit the element cap
+        if *id_counter >= MAX_ELEMENT_COUNT {
+            break;
+        }
+
         match child_node.value() {
             Node::Text(text) => {
                 let raw_text = text.text.as_ref();

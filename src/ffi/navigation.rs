@@ -5,6 +5,7 @@
 
 use std::ffi::c_char;
 use std::ptr;
+use std::time::Instant;
 
 use super::instance::{ThalorInstance, c_str_to_rust, rust_string_to_c};
 use crate::engine::browser::types::NavigationMode;
@@ -276,6 +277,9 @@ pub extern "C" fn thalora_compute_styled_tree(
     let inst = unsafe { &*instance };
     inst.clear_error();
 
+    let ffi_start = Instant::now();
+
+    let content_start = Instant::now();
     let browser = match inst.browser.lock() {
         Ok(b) => b,
         Err(e) => {
@@ -295,11 +299,20 @@ pub extern "C" fn thalora_compute_styled_tree(
 
     // Drop the lock before computing (which can take time)
     drop(browser);
+    eprintln!("[TIMING] FFI get_current_content: {}ms ({} bytes, {} external CSS)", content_start.elapsed().as_millis(), content.len(), external_css.len());
 
+    let compute_start = Instant::now();
     match crate::engine::renderer::compute_styled_tree_with_css(&content, viewport_w, viewport_h, &external_css) {
         Ok(styled_tree) => {
+            eprintln!("[TIMING] FFI compute_styled_tree_with_css: {}ms", compute_start.elapsed().as_millis());
+
+            let serialize_start = Instant::now();
             match serde_json::to_string(&styled_tree) {
-                Ok(json) => rust_string_to_c(json),
+                Ok(json) => {
+                    eprintln!("[TIMING] FFI serde_json::to_string: {}ms ({} bytes output)", serialize_start.elapsed().as_millis(), json.len());
+                    eprintln!("[TIMING] FFI Total styled tree: {}ms", ffi_start.elapsed().as_millis());
+                    rust_string_to_c(json)
+                }
                 Err(e) => {
                     inst.set_error(format!("Failed to serialize styled tree: {}", e));
                     ptr::null_mut()

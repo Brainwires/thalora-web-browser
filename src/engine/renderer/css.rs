@@ -93,6 +93,40 @@ pub struct ParsedRule {
     pub source_order: usize,
 }
 
+/// A pre-compiled CSS rule: selector already parsed into scraper::Selector for fast matching.
+/// Rules whose selectors fail to parse are stored with compiled_selector = None and fall back
+/// to the slow path (pseudo-class fallback matching).
+pub struct CompiledRule {
+    /// Index into CssProcessor::rules
+    pub rule_index: usize,
+    /// Pre-compiled selectors (one per comma-separated selector alternative).
+    /// None entries mean scraper couldn't parse that selector alternative.
+    pub compiled_selectors: Vec<Option<scraper::Selector>>,
+    /// Whether any selector alternative contains :hover (for fast skip in non-hover path)
+    pub has_hover: bool,
+    /// For hover rules: pre-compiled base selectors with :hover stripped
+    pub hover_base_selectors: Vec<Option<scraper::Selector>>,
+    /// Key tag names extracted from each selector alternative's rightmost simple selector.
+    /// Used for fast pre-filtering: if the element's tag doesn't match any key_tag, skip .matches().
+    /// None means the selector has no tag constraint (class-only, universal, etc.) — must always check.
+    pub key_tags: Vec<Option<String>>,
+    /// Key class name extracted from the rightmost simple selector.
+    /// Used with key_tags for indexed rule lookup.
+    pub key_classes: Vec<Option<String>>,
+}
+
+/// Indexed rule lookup for fast CSS matching.
+/// Instead of iterating all rules per element, look up candidate rules by the element's
+/// tag name and class names, then only run .matches() on those candidates.
+pub struct RuleIndex {
+    /// compiled_rule index → for rules whose key selector targets a specific tag
+    pub by_tag: HashMap<String, Vec<usize>>,
+    /// compiled_rule index → for rules whose key selector targets a specific class
+    pub by_class: HashMap<String, Vec<usize>>,
+    /// compiled_rule indices for rules that could match any element (universal, complex selectors)
+    pub universal: Vec<usize>,
+}
+
 /// CSS processor for handling CSS parsing, computation, and optimization
 pub struct CssProcessor {
     /// Parsed rules from all stylesheets
@@ -105,6 +139,10 @@ pub struct CssProcessor {
     viewport_width: f32,
     /// Source order counter
     source_order_counter: usize,
+    /// Pre-compiled selectors for fast matching (populated by compile_selectors())
+    compiled_rules: Vec<CompiledRule>,
+    /// Indexed rule lookup for O(1) candidate selection per element
+    rule_index: Option<RuleIndex>,
 }
 
 impl CssProcessor {
@@ -116,6 +154,8 @@ impl CssProcessor {
             custom_properties: HashMap::new(),
             viewport_width: 1024.0,
             source_order_counter: 0,
+            compiled_rules: Vec::new(),
+            rule_index: None,
         }
     }
 
@@ -127,6 +167,270 @@ impl CssProcessor {
             custom_properties: HashMap::new(),
             viewport_width,
             source_order_counter: 0,
+            compiled_rules: Vec::new(),
+            rule_index: None,
+        }
+    }
+
+    /// Pre-compile all CSS selectors for fast matching.
+    /// Call this after all stylesheets have been parsed, before computing styles.
+    /// This avoids re-parsing selector strings on every element match.
+    pub fn compile_selectors(&mut self) {
+        let start = std::time::Instant::now();
+        self.compiled_rules.clear();
+        self.compiled_rules.reserve(self.rules.len());
+
+        for (idx, rule) in self.rules.iter().enumerate() {
+            let selector_alternatives: Vec<&str> = rule.selector.split(',').map(|s| s.trim()).collect();
+            let mut compiled_selectors = Vec::with_capacity(selector_alternatives.len());
+            let mut has_hover = false;
+            let mut hover_base_selectors = Vec::new();
+            let mut key_tags = Vec::with_capacity(selector_alternatives.len());
+            let mut key_classes = Vec::with_capacity(selector_alternatives.len());
+
+            for raw_selector in &selector_alternatives {
+                if raw_selector.is_empty() {
+                    compiled_selectors.push(None);
+                    hover_base_selectors.push(None);
+                    key_tags.push(None);
+                    key_classes.push(None);
+                    continue;
+                }
+
+                // Extract key tag and class from rightmost simple selector for indexed lookup
+                key_tags.push(Self::extract_key_tag(raw_selector));
+                key_classes.push(Self::extract_key_class(raw_selector));
+
+                // Check for :hover
+                let is_hover = Self::contains_hover_pseudo(raw_selector);
+                if is_hover {
+                    has_hover = true;
+                }
+
+                // Compile the full selector
+                let compiled = scraper::Selector::parse(raw_selector).ok();
+                compiled_selectors.push(compiled);
+
+                // For hover selectors, also compile the base (with :hover stripped)
+                if is_hover {
+                    let base = Self::strip_hover_pseudo(raw_selector);
+                    if base.is_empty() {
+                        hover_base_selectors.push(None); // bare :hover matches anything
+                    } else {
+                        hover_base_selectors.push(scraper::Selector::parse(&base).ok());
+                    }
+                } else {
+                    hover_base_selectors.push(None);
+                }
+            }
+
+            self.compiled_rules.push(CompiledRule {
+                rule_index: idx,
+                compiled_selectors,
+                has_hover,
+                hover_base_selectors,
+                key_tags,
+                key_classes,
+            });
+        }
+
+        // Build the rule index: group compiled rules by key tag, key class, or universal
+        let mut by_tag: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut by_class: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut universal: Vec<usize> = Vec::new();
+
+        for (ci, compiled) in self.compiled_rules.iter().enumerate() {
+            // A rule is indexed by the FIRST selector alternative that has a key tag or class.
+            // If any alternative has no key tag/class, the rule must go in universal.
+            let mut has_specific = false;
+            let mut has_universal_alt = false;
+
+            for i in 0..compiled.key_tags.len() {
+                let kt = compiled.key_tags.get(i).and_then(|x| x.as_ref());
+                let kc = compiled.key_classes.get(i).and_then(|x| x.as_ref());
+
+                if kt.is_some() || kc.is_some() {
+                    has_specific = true;
+                    if let Some(tag) = kt {
+                        by_tag.entry(tag.clone()).or_default().push(ci);
+                    }
+                    if let Some(cls) = kc {
+                        by_class.entry(cls.clone()).or_default().push(ci);
+                    }
+                } else {
+                    has_universal_alt = true;
+                }
+            }
+
+            // If any selector alternative is universal (no tag/class), the rule must also
+            // be in the universal bucket so it gets checked for all elements.
+            if has_universal_alt || !has_specific {
+                universal.push(ci);
+            }
+        }
+
+        eprintln!("[TIMING] compile_selectors: {}ms ({} rules, {} universal, {} tag-indexed, {} class-indexed)",
+            start.elapsed().as_millis(), self.rules.len(), universal.len(),
+            by_tag.len(), by_class.len());
+
+        self.rule_index = Some(RuleIndex { by_tag, by_class, universal });
+    }
+
+    /// Extract the tag name from the rightmost simple selector of a CSS selector string.
+    /// Returns None for class-only, ID-only, or universal selectors.
+    /// Examples:
+    ///   "nav > ul > li > a.link" → Some("a")
+    ///   ".container"             → None
+    ///   "div.flex"               → Some("div")
+    ///   "#main"                  → None
+    ///   "h1"                     → Some("h1")
+    ///   "*"                      → None
+    fn extract_key_tag(selector: &str) -> Option<String> {
+        // Get the last simple selector (after the last combinator: space, >, +, ~)
+        let last = selector
+            .rsplit(|c: char| c == ' ' || c == '>' || c == '+' || c == '~')
+            .next()
+            .unwrap_or(selector)
+            .trim();
+        if last.is_empty() {
+            return None;
+        }
+        // Extract tag name: everything before first '.', '#', ':', '['
+        let tag_end = last
+            .find(|c: char| c == '.' || c == '#' || c == ':' || c == '[')
+            .unwrap_or(last.len());
+        let tag = &last[..tag_end];
+        if tag.is_empty() || tag == "*" {
+            None
+        } else {
+            Some(tag.to_lowercase())
+        }
+    }
+
+    /// Extract the first class name from the rightmost simple selector of a CSS selector string.
+    /// Returns None for tag-only, ID-only, or universal selectors.
+    /// Examples:
+    ///   ".container"        → Some("container")
+    ///   "div.flex"          → Some("flex")
+    ///   "a.nav-link.active" → Some("nav-link")
+    ///   "#main"             → None
+    ///   "h1"                → None
+    fn extract_key_class(selector: &str) -> Option<String> {
+        let last = selector
+            .rsplit(|c: char| c == ' ' || c == '>' || c == '+' || c == '~')
+            .next()
+            .unwrap_or(selector)
+            .trim();
+        if last.is_empty() {
+            return None;
+        }
+        // Find first '.' that starts a class name
+        if let Some(dot_pos) = last.find('.') {
+            let after_dot = &last[dot_pos + 1..];
+            // Class name ends at next '.', '#', ':', '['
+            let class_end = after_dot
+                .find(|c: char| c == '.' || c == '#' || c == ':' || c == '[')
+                .unwrap_or(after_dot.len());
+            let class = &after_dot[..class_end];
+            if !class.is_empty() {
+                return Some(class.to_lowercase());
+            }
+        }
+        None
+    }
+
+    /// Parse inline style declarations directly into ComputedStyles without
+    /// creating a full CssProcessor. Much faster for per-element inline styles.
+    pub fn parse_inline_style_direct(style: &str) -> ComputedStyles {
+        let mut styles = ComputedStyles::default();
+        for declaration in style.split(';') {
+            let declaration = declaration.trim();
+            if declaration.is_empty() {
+                continue;
+            }
+            if let Some((prop, value)) = declaration.split_once(':') {
+                let prop = prop.trim().to_lowercase();
+                let value = value.trim().to_string();
+                if value.is_empty() {
+                    continue;
+                }
+                // Map CSS properties to ComputedStyles fields
+                match prop.as_str() {
+                    "display" => styles.display = Some(value),
+                    "position" => styles.position = Some(value),
+                    "width" => styles.width = Some(value),
+                    "height" => styles.height = Some(value),
+                    "background-color" | "background" => styles.background_color = Some(value),
+                    "color" => styles.color = Some(value),
+                    "font-size" => styles.font_size = Some(value),
+                    "font-family" => styles.font_family = Some(value),
+                    "font-weight" => styles.font_weight = Some(value),
+                    "flex-direction" => styles.flex_direction = Some(value),
+                    "justify-content" => styles.justify_content = Some(value),
+                    "align-items" => styles.align_items = Some(value),
+                    "gap" => styles.gap = Some(value),
+                    "overflow" => styles.overflow = Some(value),
+                    "visibility" => styles.visibility = Some(value),
+                    "opacity" => { if let Ok(v) = value.parse::<f32>() { styles.opacity = Some(v); } },
+                    "z-index" => { if let Ok(v) = value.parse::<i32>() { styles.z_index = Some(v); } },
+                    "margin" => {
+                        let parts: Vec<&str> = value.split_whitespace().collect();
+                        styles.margin = Some(Self::parse_shorthand_box(&parts));
+                    }
+                    "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
+                        let m = styles.margin.get_or_insert_with(|| BoxModel::default());
+                        match prop.as_str() {
+                            "margin-top" => m.top = value,
+                            "margin-right" => m.right = value,
+                            "margin-bottom" => m.bottom = value,
+                            "margin-left" => m.left = value,
+                            _ => {}
+                        }
+                    }
+                    "padding" => {
+                        let parts: Vec<&str> = value.split_whitespace().collect();
+                        styles.padding = Some(Self::parse_shorthand_box(&parts));
+                    }
+                    "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
+                        let p = styles.padding.get_or_insert_with(|| BoxModel::default());
+                        match prop.as_str() {
+                            "padding-top" => p.top = value,
+                            "padding-right" => p.right = value,
+                            "padding-bottom" => p.bottom = value,
+                            "padding-left" => p.left = value,
+                            _ => {}
+                        }
+                    }
+                    _ => {
+                        // Store everything else in the 'other' map
+                        styles.other.insert(prop, value);
+                    }
+                }
+            }
+        }
+        styles
+    }
+
+    /// Parse a CSS shorthand box value (margin/padding) into a BoxModel.
+    fn parse_shorthand_box(parts: &[&str]) -> BoxModel {
+        match parts.len() {
+            1 => BoxModel {
+                top: parts[0].to_string(), right: parts[0].to_string(),
+                bottom: parts[0].to_string(), left: parts[0].to_string(),
+            },
+            2 => BoxModel {
+                top: parts[0].to_string(), right: parts[1].to_string(),
+                bottom: parts[0].to_string(), left: parts[1].to_string(),
+            },
+            3 => BoxModel {
+                top: parts[0].to_string(), right: parts[1].to_string(),
+                bottom: parts[2].to_string(), left: parts[1].to_string(),
+            },
+            4 => BoxModel {
+                top: parts[0].to_string(), right: parts[1].to_string(),
+                bottom: parts[2].to_string(), left: parts[3].to_string(),
+            },
+            _ => BoxModel::default(),
         }
     }
 
@@ -573,34 +877,102 @@ impl CssProcessor {
         styles
     }
 
-    /// Compute styles for an element using scraper's built-in CSS selector matching.
-    /// This properly handles descendant selectors, child selectors, compound selectors, etc.
+    /// Compute styles for an element using indexed rule lookup.
+    /// Instead of checking all rules, only checks rules that could match this element
+    /// based on its tag name and class names. This reduces matching from O(all_rules) to
+    /// O(relevant_rules) per element, which is typically 5-20x fewer rules.
     pub fn compute_style_for_element(&self, element: &scraper::ElementRef) -> ComputedStyles {
         let mut styles = ComputedStyles::default();
 
-        // Collect all rules whose selectors match this element
-        let mut matching_rules: Vec<(&ParsedRule, bool)> = Vec::new(); // (rule, is_important)
+        // Fast path: use indexed rule lookup
+        if let Some(ref index) = self.rule_index {
+            let mut matching_rules: Vec<(&ParsedRule, bool)> = Vec::new();
+            let el = element.value();
+            let tag_name = el.name().to_lowercase();
 
+            // Collect candidate rule indices from the index
+            let mut candidates = Vec::new();
+
+            // Add rules indexed by this element's tag
+            if let Some(tag_rules) = index.by_tag.get(&tag_name) {
+                candidates.extend_from_slice(tag_rules);
+            }
+
+            // Add rules indexed by this element's classes
+            if let Some(class_attr) = el.attr("class") {
+                for cls in class_attr.split_whitespace() {
+                    let cls_lower = cls.to_lowercase();
+                    if let Some(class_rules) = index.by_class.get(&cls_lower) {
+                        candidates.extend_from_slice(class_rules);
+                    }
+                }
+            }
+
+            // Add universal rules (always checked)
+            candidates.extend_from_slice(&index.universal);
+
+            // Deduplicate candidate indices
+            candidates.sort_unstable();
+            candidates.dedup();
+
+            // Only check candidate rules
+            for &ci in &candidates {
+                let compiled = &self.compiled_rules[ci];
+                let rule = &self.rules[compiled.rule_index];
+
+                let mut matched = false;
+                for (i, compiled_sel) in compiled.compiled_selectors.iter().enumerate() {
+                    if let Some(sel) = compiled_sel {
+                        if sel.matches(element) {
+                            matched = true;
+                            break;
+                        }
+                    } else {
+                        // Fallback: selector failed to compile, try pseudo-class fallback
+                        let raw_selectors: Vec<&str> = rule.selector.split(',').map(|s| s.trim()).collect();
+                        if let Some(raw_sel) = raw_selectors.get(i) {
+                            if Self::matches_pseudo_class_fallback(raw_sel, &tag_name, el) {
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if matched {
+                    matching_rules.push((rule, false));
+                }
+            }
+
+            // Sort by specificity then source order
+            matching_rules.sort_by(|a, b| {
+                a.0.specificity.cmp(&b.0.specificity)
+                    .then(a.0.source_order.cmp(&b.0.source_order))
+            });
+
+            for (rule, _) in &matching_rules {
+                self.apply_declarations(&mut styles, &rule.declarations);
+            }
+
+            return styles;
+        }
+
+        // Slow path: no pre-compiled selectors, parse at runtime (legacy)
+        let mut matching_rules: Vec<(&ParsedRule, bool)> = Vec::new();
         let el = element.value();
         let tag_name = el.name().to_lowercase();
 
         for rule in &self.rules {
-            // Split selector by comma for multiple selectors (e.g., "h1, h2, h3")
             for raw_selector in rule.selector.split(',').map(|s| s.trim()) {
                 if raw_selector.is_empty() {
                     continue;
                 }
-
-                // Try to parse the selector with scraper
                 if let Ok(parsed_selector) = scraper::Selector::parse(raw_selector) {
                     if parsed_selector.matches(element) {
                         matching_rules.push((rule, false));
-                        break; // One match is enough for this rule
+                        break;
                     }
                 } else {
-                    // Scraper failed to parse — likely due to pseudo-classes (:link, :visited, etc.)
-                    // Handle common link pseudo-classes: treat :link/:visited on <a> as matching
-                    // any <a> element with an href attribute (we don't track visited state).
                     if Self::matches_pseudo_class_fallback(raw_selector, &tag_name, el) {
                         matching_rules.push((rule, false));
                         break;
@@ -609,13 +981,11 @@ impl CssProcessor {
             }
         }
 
-        // Sort by specificity then source order
         matching_rules.sort_by(|a, b| {
             a.0.specificity.cmp(&b.0.specificity)
                 .then(a.0.source_order.cmp(&b.0.source_order))
         });
 
-        // Apply declarations in order (non-important first)
         for (rule, _) in &matching_rules {
             self.apply_declarations(&mut styles, &rule.declarations);
         }
@@ -630,36 +1000,88 @@ impl CssProcessor {
     /// base selector matches the element. Returns the accumulated hover-only declarations.
     pub fn compute_hover_style_for_element(&self, element: &scraper::ElementRef) -> ComputedStyles {
         let mut styles = ComputedStyles::default();
+
+        // Fast path: use pre-compiled selectors
+        if !self.compiled_rules.is_empty() {
+            let mut matching_rules: Vec<&ParsedRule> = Vec::new();
+            let el = element.value();
+            let tag_name = el.name().to_lowercase();
+
+            for compiled in &self.compiled_rules {
+                // Skip rules that don't have :hover at all
+                if !compiled.has_hover {
+                    continue;
+                }
+
+                let rule = &self.rules[compiled.rule_index];
+                let raw_selectors: Vec<&str> = rule.selector.split(',').map(|s| s.trim()).collect();
+                let mut matched = false;
+
+                for (i, raw_sel) in raw_selectors.iter().enumerate() {
+                    if !Self::contains_hover_pseudo(raw_sel) {
+                        continue;
+                    }
+
+                    // Use pre-compiled hover base selector
+                    if let Some(Some(base_sel)) = compiled.hover_base_selectors.get(i) {
+                        if base_sel.matches(element) {
+                            matched = true;
+                            break;
+                        }
+                    } else if let Some(None) = compiled.hover_base_selectors.get(i) {
+                        // Base selector was empty (bare ":hover") or failed to compile
+                        let base = Self::strip_hover_pseudo(raw_sel);
+                        if base.is_empty() {
+                            matched = true;
+                            break;
+                        }
+                        // Fallback for failed compile
+                        if Self::simple_selector_matches(&base, &tag_name, el) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+
+                if matched {
+                    matching_rules.push(rule);
+                }
+            }
+
+            matching_rules.sort_by(|a, b| {
+                a.specificity.cmp(&b.specificity)
+                    .then(a.source_order.cmp(&b.source_order))
+            });
+
+            for rule in &matching_rules {
+                self.apply_declarations(&mut styles, &rule.declarations);
+            }
+
+            return styles;
+        }
+
+        // Slow path: no pre-compiled selectors (legacy)
         let mut matching_rules: Vec<&ParsedRule> = Vec::new();
 
         for rule in &self.rules {
-            // Split selector by comma for multiple selectors (e.g., "a:hover, .btn:hover")
             for raw_selector in rule.selector.split(',').map(|s| s.trim()) {
                 if raw_selector.is_empty() {
                     continue;
                 }
-
-                // Only process selectors that contain :hover
                 if !Self::contains_hover_pseudo(raw_selector) {
                     continue;
                 }
-
-                // Strip :hover from the selector and try to match the base
                 let base_selector = Self::strip_hover_pseudo(raw_selector);
                 if base_selector.is_empty() {
-                    // Bare ":hover" — matches any element
                     matching_rules.push(rule);
                     break;
                 }
-
-                // Try to parse and match the base selector with scraper
                 if let Ok(parsed_selector) = scraper::Selector::parse(&base_selector) {
                     if parsed_selector.matches(element) {
                         matching_rules.push(rule);
                         break;
                     }
                 } else {
-                    // Scraper failed to parse — try simple fallback matching
                     let el = element.value();
                     let tag_name = el.name().to_lowercase();
                     if Self::simple_selector_matches(&base_selector, &tag_name, el) {
@@ -670,13 +1092,11 @@ impl CssProcessor {
             }
         }
 
-        // Sort by specificity then source order
         matching_rules.sort_by(|a, b| {
             a.specificity.cmp(&b.specificity)
                 .then(a.source_order.cmp(&b.source_order))
         });
 
-        // Apply declarations in order
         for rule in &matching_rules {
             self.apply_declarations(&mut styles, &rule.declarations);
         }
