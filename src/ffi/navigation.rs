@@ -4,6 +4,7 @@
 //! blocking on the internal tokio runtime to provide sync C FFI.
 
 use std::ffi::c_char;
+use std::panic;
 use std::ptr;
 use std::time::Instant;
 
@@ -302,8 +303,16 @@ pub extern "C" fn thalora_compute_styled_tree(
     eprintln!("[TIMING] FFI get_current_content: {}ms ({} bytes, {} external CSS)", content_start.elapsed().as_millis(), content.len(), external_css.len());
 
     let compute_start = Instant::now();
-    match crate::engine::renderer::compute_styled_tree_with_css(&content, viewport_w, viewport_h, &external_css) {
-        Ok(styled_tree) => {
+
+    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
+    // (undefined behavior). Note: catch_unwind does NOT catch stack overflows —
+    // that's handled by MAX_RECURSION_DEPTH in build_styled_element_from_dom().
+    let compute_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        crate::engine::renderer::compute_styled_tree_with_css(&content, viewport_w, viewport_h, &external_css)
+    }));
+
+    match compute_result {
+        Ok(Ok(styled_tree)) => {
             eprintln!("[TIMING] FFI compute_styled_tree_with_css: {}ms", compute_start.elapsed().as_millis());
 
             let serialize_start = Instant::now();
@@ -319,8 +328,13 @@ pub extern "C" fn thalora_compute_styled_tree(
                 }
             }
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             inst.set_error(format!("Styled tree computation failed: {}", e));
+            ptr::null_mut()
+        }
+        Err(_) => {
+            eprintln!("[ERROR] FFI compute_styled_tree_with_css panicked! Returning null.");
+            inst.set_error("Styled tree computation panicked (internal error)".into());
             ptr::null_mut()
         }
     }

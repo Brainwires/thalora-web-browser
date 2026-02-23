@@ -113,6 +113,19 @@ class Program
             (Application.Current as App)?.ShutdownControlServer();
         };
 
+        // Global exception handler — prevents Avalonia layout/rendering exceptions
+        // (e.g., FontSize=0, invalid GlyphTypeface) from crashing the entire process.
+        // The GUI stays alive; the page may render partially but won't take down the app.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[gui] UNHANDLED EXCEPTION (terminating={e.IsTerminating}): {e.ExceptionObject}");
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Console.Error.WriteLine($"[gui] UNOBSERVED TASK EXCEPTION: {e.Exception}");
+            e.SetObserved();
+        };
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 

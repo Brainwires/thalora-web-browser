@@ -366,6 +366,7 @@ pub fn compute_styled_tree_with_css(
         viewport_w,
         None,
         &mut element_selectors,
+        0,
     );
     eprintln!("[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)", walk_start.elapsed().as_millis(), id_counter);
 
@@ -390,6 +391,11 @@ pub fn compute_styled_tree_with_css(
 /// 2000 elements is enough to render the meaningful content of any page.
 const MAX_ELEMENT_COUNT: u32 = 2000;
 
+/// Maximum recursion depth for DOM tree traversal.
+/// Prevents stack overflow on deeply nested pages (Wikipedia/Wiktionary can nest 200+ levels).
+/// Each recursion frame uses 2-4KB of stack; at 100 depth that's ~400KB of the 8MB stack.
+const MAX_RECURSION_DEPTH: u32 = 100;
+
 /// Tags that can have meaningful :hover styles (links, buttons, form elements).
 /// Skipping hover computation for all other elements saves significant time.
 const HOVER_INTERACTIVE_TAGS: &[&str] = &[
@@ -408,6 +414,7 @@ fn build_styled_element_from_dom(
     viewport_w: f32,
     parent_styles: Option<&ComputedStyles>,
     element_selectors: &mut HashMap<String, String>,
+    depth: u32,
 ) -> StyledElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
@@ -440,6 +447,23 @@ fn build_styled_element_from_dom(
     // Early exit for display:none — skip entire subtree (children, hover, selectors).
     // This is a major optimization: avoids computing CSS for all descendants of hidden elements.
     if styles.display.as_deref() == Some("none") {
+        let resolved = computed_to_resolved(&styles);
+        return StyledElement {
+            id: elem_id,
+            tag,
+            text_content: None,
+            img_src: None,
+            img_alt: None,
+            link_href: None,
+            styles: resolved,
+            hover_styles: None,
+            children: Vec::new(),
+        };
+    }
+
+    // Depth limit — stop recursion to prevent stack overflow on deeply nested DOMs.
+    // We still compute this element's own styles (above), but don't recurse into children.
+    if depth >= MAX_RECURSION_DEPTH {
         let resolved = computed_to_resolved(&styles);
         return StyledElement {
             id: elem_id,
@@ -602,6 +626,7 @@ fn build_styled_element_from_dom(
                         viewport_w,
                         Some(&styles),
                         element_selectors,
+                        depth + 1,
                     );
 
                     // display:none is now handled inside build_styled_element_from_dom

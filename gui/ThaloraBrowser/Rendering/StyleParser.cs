@@ -104,7 +104,7 @@ internal static class StyleParser
             return parentFontSize;
 
         // Named sizes
-        return value.Trim().ToLowerInvariant() switch
+        var result = value.Trim().ToLowerInvariant() switch
         {
             "xx-small" => 9,
             "x-small" => 10,
@@ -118,6 +118,10 @@ internal static class StyleParser
             "larger" => parentFontSize * 1.2,
             _ => ParseLength(value, parentFontSize) ?? parentFontSize,
         };
+
+        // Avalonia crashes with ArgumentOutOfRangeException on FontSize = 0.
+        // CSS font-size:0 is legal but useless; clamp to minimum 1px.
+        return Math.Max(result, 1);
     }
 
     /// <summary>
@@ -231,11 +235,11 @@ internal static class StyleParser
                         var m = mod.Trim();
                         // Parse "l(value%)" or "lightness(value%)"
                         string? percentStr = null;
-                        if (m.StartsWith("l(") && m.EndsWith(")"))
+                        if (m.StartsWith("l(") && m.EndsWith(")") && m.Length > 3)
                             percentStr = m.Substring(2, m.Length - 3).TrimEnd('%');
-                        else if (m.StartsWith("lightness(") && m.EndsWith(")"))
+                        else if (m.StartsWith("lightness(") && m.EndsWith(")") && m.Length > 11)
                             percentStr = m.Substring(10, m.Length - 11).TrimEnd('%');
-                        else if (m.StartsWith("whiteness(") && m.EndsWith(")"))
+                        else if (m.StartsWith("whiteness(") && m.EndsWith(")") && m.Length > 11)
                             percentStr = m.Substring(10, m.Length - 11).TrimEnd('%');
 
                         if (percentStr != null && double.TryParse(percentStr,
