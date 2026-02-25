@@ -100,6 +100,14 @@ pub struct ComputedStyles {
     pub list_style_type: Option<String>,
     /// Cursor style
     pub cursor: Option<String>,
+    /// Grid template columns (e.g., "1fr 3fr", "200px 1fr 200px", "12.25rem minmax(0,1fr)")
+    pub grid_template_columns: Option<String>,
+    /// Grid template rows (e.g., "min-content 1fr min-content")
+    pub grid_template_rows: Option<String>,
+    /// Grid template areas (e.g., "'header header' 'sidebar content' 'footer footer'")
+    pub grid_template_areas: Option<String>,
+    /// Grid area name for child placement (e.g., "pageContent", "sidebar")
+    pub grid_area: Option<String>,
 
     /// All other properties as key-value pairs
     #[serde(flatten)]
@@ -186,6 +194,8 @@ pub struct CssProcessor {
     custom_properties: HashMap<String, String>,
     /// Viewport width for media query evaluation
     viewport_width: f32,
+    /// Classes on the <html> element (for scoping custom property selectors)
+    html_classes: Vec<String>,
     /// Source order counter
     source_order_counter: usize,
     /// Pre-compiled selectors for fast matching (populated by compile_selectors())
@@ -202,6 +212,7 @@ impl CssProcessor {
             sources: Vec::new(),
             custom_properties: HashMap::new(),
             viewport_width: 1024.0,
+            html_classes: Vec::new(),
             source_order_counter: 0,
             compiled_rules: Vec::new(),
             rule_index: None,
@@ -215,10 +226,19 @@ impl CssProcessor {
             sources: Vec::new(),
             custom_properties: HashMap::new(),
             viewport_width,
+            html_classes: Vec::new(),
             source_order_counter: 0,
             compiled_rules: Vec::new(),
             rule_index: None,
         }
+    }
+
+    /// Set the classes present on the <html> element.
+    /// Used to scope CSS custom property definitions: selectors like
+    /// `html.skin-theme-clientpref-night` should only contribute custom properties
+    /// when the <html> element actually has that class.
+    pub fn set_html_classes(&mut self, classes: Vec<String>) {
+        self.html_classes = classes;
     }
 
     /// Pre-compile all CSS selectors for fast matching.
@@ -259,8 +279,23 @@ impl CssProcessor {
                     has_hover = true;
                 }
 
+                // Strip `:not(:focus)`, `:not(:hover)`, `:not(:active)`, `:not(:focus-visible)`
+                // from selectors before compilation. In static rendering, elements are never
+                // focused/hovered/active, so these negations are always true.
+                let preprocessed = raw_selector
+                    .replace(":not(:focus-visible)", "")
+                    .replace(":not(:focus-within)", "")
+                    .replace(":not(:focus)", "")
+                    .replace(":not(:hover)", "")
+                    .replace(":not(:active)", "");
+                let sel_to_compile = if preprocessed.trim().is_empty() {
+                    raw_selector.to_string()
+                } else {
+                    preprocessed
+                };
+
                 // Compile the full selector
-                let compiled = scraper::Selector::parse(raw_selector).ok();
+                let compiled = scraper::Selector::parse(&sel_to_compile).ok();
                 compiled_selectors.push(compiled);
 
                 // For hover selectors, also compile the base (with :hover stripped)
@@ -449,7 +484,12 @@ impl CssProcessor {
                     "position" => styles.position = Some(value),
                     "width" => styles.width = Some(value),
                     "height" => styles.height = Some(value),
-                    "background-color" | "background" => styles.background_color = Some(value),
+                    "background-color" => styles.background_color = Some(value),
+                    "background" => {
+                        if let Some(color) = Self::extract_color_from_background(&value) {
+                            styles.background_color = Some(color);
+                        }
+                    }
                     "color" => styles.color = Some(value),
                     "font-size" => styles.font_size = Some(value),
                     "font-family" => styles.font_family = Some(value),
@@ -496,6 +536,40 @@ impl CssProcessor {
                     "flex-grow" => styles.flex_grow = Some(value),
                     "flex-shrink" => styles.flex_shrink = Some(value),
                     "flex-basis" => styles.flex_basis = Some(value),
+                    "flex" => {
+                        // flex shorthand: <grow> [<shrink>] [<basis>]
+                        // Common forms: "1" → grow:1 shrink:1 basis:0%
+                        //               "0 1 auto" → grow:0 shrink:1 basis:auto
+                        //               "none" → grow:0 shrink:0 basis:auto
+                        let parts: Vec<&str> = value.split_whitespace().collect();
+                        match parts.len() {
+                            1 if parts[0] == "none" => {
+                                styles.flex_grow = Some("0".to_string());
+                                styles.flex_shrink = Some("0".to_string());
+                                styles.flex_basis = Some("auto".to_string());
+                            }
+                            1 if parts[0] == "auto" => {
+                                styles.flex_grow = Some("1".to_string());
+                                styles.flex_shrink = Some("1".to_string());
+                                styles.flex_basis = Some("auto".to_string());
+                            }
+                            1 => {
+                                styles.flex_grow = Some(parts[0].to_string());
+                                styles.flex_shrink = Some("1".to_string());
+                                styles.flex_basis = Some("0%".to_string());
+                            }
+                            2 => {
+                                styles.flex_grow = Some(parts[0].to_string());
+                                styles.flex_shrink = Some(parts[1].to_string());
+                                styles.flex_basis = Some("0%".to_string());
+                            }
+                            _ => {
+                                styles.flex_grow = Some(parts[0].to_string());
+                                styles.flex_shrink = Some(parts[1].to_string());
+                                styles.flex_basis = Some(parts[2].to_string());
+                            }
+                        }
+                    },
                     "min-width" => styles.min_width = Some(value),
                     "min-height" => styles.min_height = Some(value),
                     "max-width" => styles.max_width = Some(value),
@@ -510,7 +584,87 @@ impl CssProcessor {
                     "word-spacing" => styles.word_spacing = Some(value),
                     "border-radius" => styles.border_radius = Some(value),
                     "list-style-type" => styles.list_style_type = Some(value),
+                    "list-style" => {
+                        // list-style shorthand: <type> || <position> || <image>
+                        // Common usage: "none" sets list-style-type to none
+                        let v = value.trim();
+                        if v == "none" || v.starts_with("none ") || v.contains(" none") {
+                            styles.list_style_type = Some("none".to_string());
+                        } else {
+                            // Extract the type keyword from the shorthand
+                            for part in v.split_whitespace() {
+                                match part {
+                                    "disc" | "circle" | "square" | "decimal"
+                                    | "decimal-leading-zero" | "lower-roman" | "upper-roman"
+                                    | "lower-alpha" | "upper-alpha" | "lower-latin"
+                                    | "upper-latin" | "lower-greek" => {
+                                        styles.list_style_type = Some(part.to_string());
+                                        break;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    },
                     "cursor" => styles.cursor = Some(value),
+                    "grid-template-columns" => styles.grid_template_columns = Some(value),
+                    "grid-template-rows" => styles.grid_template_rows = Some(value),
+                    "grid-template-areas" => styles.grid_template_areas = Some(value),
+                    "grid-area" => styles.grid_area = Some(value),
+                    "grid-template" => {
+                        // grid-template shorthand: extract columns (after last '/') and rows/areas (before)
+                        if let Some(slash_pos) = value.rfind('/') {
+                            let columns = value[slash_pos + 1..].trim().to_string();
+                            if !columns.is_empty() {
+                                styles.grid_template_columns = Some(columns);
+                            }
+                            let rows_part = value[..slash_pos].trim().to_string();
+                            if !rows_part.is_empty() {
+                                let mut areas = Vec::new();
+                                let mut rows = Vec::new();
+                                let mut in_quote = false;
+                                let mut quote_char = '\0';
+                                let mut current_area = String::new();
+                                let mut current_token = String::new();
+                                for ch in rows_part.chars() {
+                                    if (ch == '\'' || ch == '"') && (!in_quote || ch == quote_char) {
+                                        if in_quote {
+                                            areas.push(current_area.clone());
+                                            current_area.clear();
+                                            in_quote = false;
+                                            quote_char = '\0';
+                                        } else {
+                                            let token = current_token.trim().to_string();
+                                            if !token.is_empty() { rows.push(token); }
+                                            current_token.clear();
+                                            in_quote = true;
+                                            quote_char = ch;
+                                        }
+                                    } else if in_quote {
+                                        current_area.push(ch);
+                                    } else {
+                                        current_token.push(ch);
+                                    }
+                                }
+                                let token = current_token.trim().to_string();
+                                if !token.is_empty() { rows.push(token); }
+                                if !areas.is_empty() {
+                                    let areas_str = areas.iter()
+                                        .map(|a| format!("'{}'", a))
+                                        .collect::<Vec<_>>()
+                                        .join(" ");
+                                    styles.grid_template_areas = Some(areas_str);
+                                }
+                                if !rows.is_empty() {
+                                    styles.grid_template_rows = Some(rows.join(" "));
+                                }
+                            }
+                        }
+                    }
+                    "column-gap" => styles.gap = Some(value),
+                    "row-gap" => {
+                        if styles.gap.is_none() { styles.gap = Some(value); }
+                    }
                     _ => {
                         // Store everything else in the 'other' map
                         styles.other.insert(prop, value);
@@ -542,6 +696,90 @@ impl CssProcessor {
             },
             _ => BoxModel::default(),
         }
+    }
+
+    /// Check if a single CSS selector alternative would match the document root element.
+    ///
+    /// This is used for scoping CSS custom property definitions: selectors like
+    /// `html.skin-theme-clientpref-night` should only contribute their custom properties
+    /// when the `<html>` element actually has that class.
+    ///
+    /// Matches:
+    /// - `:root` / `html` / `*` (always match root)
+    /// - `html.some-class` (matches if html_classes contains "some-class")
+    /// - `.some-class` (matches if html_classes contains "some-class", since :root has all classes)
+    /// - Complex selectors (descendant/child combinators) are skipped (return false)
+    fn selector_matches_root(&self, selector: &str) -> bool {
+        let s = selector.trim();
+        if s.is_empty() {
+            return false;
+        }
+
+        // Universal selectors always match
+        if s == ":root" || s == "html" || s == "*"
+            || s == "*, :before, :after"
+            || s == "*, ::before, ::after"
+            || s == ":before" || s == ":after"
+            || s == "::before" || s == "::after"
+        {
+            return true;
+        }
+
+        // If selector has spaces or combinators (>, +, ~), it's a descendant selector —
+        // custom properties on descendant selectors aren't typically root-scoped.
+        // But they might define vars used elsewhere. For now, be permissive and store them.
+        if s.contains(' ') || s.contains('>') || s.contains('+') || s.contains('~') {
+            // Descendant/complex selectors — store their custom properties
+            // (they might define vars that other elements need)
+            return true;
+        }
+
+        // Handle :root with pseudo-classes (e.g., ":root:lang(en)")
+        if s.starts_with(":root") {
+            return true;
+        }
+
+        // Handle "html.classname" — check if the html element has the required classes
+        if s.starts_with("html.") || s.starts_with("html[") {
+            // Extract class requirements from the selector
+            return self.html_element_matches_selector(s);
+        }
+
+        // Handle ".classname" (without tag) — could match any element including :root
+        // Be permissive: store the custom properties
+        if s.starts_with('.') || s.starts_with('[') || s.starts_with('#') {
+            return true;
+        }
+
+        // Other tag selectors (e.g., "body", "div") — these don't match root
+        // but their custom properties might be needed. Be permissive.
+        true
+    }
+
+    /// Check if the html element matches a simple selector like "html.class1.class2".
+    /// Only handles class and tag requirements on the html element itself.
+    fn html_element_matches_selector(&self, selector: &str) -> bool {
+        // Parse "html.class1.class2" or "html[attr]" patterns
+        let without_tag = if selector.starts_with("html") {
+            &selector[4..]
+        } else {
+            selector
+        };
+
+        // Extract all class requirements (everything after each '.')
+        for part in without_tag.split('.') {
+            let class_name = part.split(|c: char| c == ':' || c == '[' || c == '#')
+                .next()
+                .unwrap_or("")
+                .trim();
+            if !class_name.is_empty() {
+                if !self.html_classes.iter().any(|c| c == class_name) {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     /// Pre-process CSS to remove constructs that lightningcss can't handle.
@@ -633,12 +871,21 @@ impl CssProcessor {
                             s == ":root" || s == "html" || s == ":root, html" || s == "html, :root"
                         });
 
+                    // Custom properties (CSS variables) need scoping:
+                    // Only store them if at least one selector alternative would match
+                    // the document root. Selectors like `html.skin-theme-clientpref-night`
+                    // should only contribute their custom properties when the <html> element
+                    // actually has that class.
+                    let should_store_vars = selector_str.split(',')
+                        .any(|alt| self.selector_matches_root(alt.trim()));
+
                     for (prop, value) in &declarations {
                         if prop.starts_with("--") {
                             let clean_value = value.trim_end_matches(" !important").to_string();
-                            // :root custom properties get stored globally
-                            // Non-root ones too (simplified — real browsers scope them)
-                            self.custom_properties.insert(prop.clone(), clean_value);
+
+                            if should_store_vars {
+                                self.custom_properties.insert(prop.clone(), clean_value);
+                            }
                         }
                     }
 
@@ -657,7 +904,8 @@ impl CssProcessor {
                     let media_str = media_rule.query.to_css_string(PrinterOptions::default())
                         .unwrap_or_default();
 
-                    if self.evaluate_media_query(&media_str) {
+                    let matches = self.evaluate_media_query(&media_str);
+                    if matches {
                         // Media query matches — process inner rules
                         self.process_rules(&media_rule.rules.0);
                     }
@@ -850,6 +1098,10 @@ impl CssProcessor {
     /// Parse a media query length value like "700px" to f32
     fn parse_media_length(value: &str) -> Option<f32> {
         let v = value.trim();
+        // Handle calc() expressions: calc(640px - 1px) → 639
+        if v.starts_with("calc(") && v.ends_with(")") {
+            return Self::evaluate_calc_expr(&v[5..v.len()-1]);
+        }
         if v.ends_with("px") {
             v.trim_end_matches("px").parse::<f32>().ok()
         } else if v.ends_with("em") || v.ends_with("rem") {
@@ -859,6 +1111,31 @@ impl CssProcessor {
         } else {
             v.parse::<f32>().ok()
         }
+    }
+
+    /// Evaluate a simple calc() expression in media queries.
+    /// Handles: calc(Npx +/- Mpx), calc(Nem +/- Mem), etc.
+    fn evaluate_calc_expr(expr: &str) -> Option<f32> {
+        let expr = expr.trim();
+
+        // Try to find + or - operator (not inside a sub-expression)
+        // Handle: "640px - 1px", "100vw - 2rem"
+        for op in [" - ", " + "] {
+            if let Some(pos) = expr.find(op) {
+                let left = expr[..pos].trim();
+                let right = expr[pos + op.len()..].trim();
+                let left_val = Self::parse_media_length(left)?;
+                let right_val = Self::parse_media_length(right)?;
+                return Some(if op == " + " {
+                    left_val + right_val
+                } else {
+                    left_val - right_val
+                });
+            }
+        }
+
+        // Fallback: try parsing the whole expression as a single value
+        Self::parse_media_length(expr)
     }
 
     /// Resolve CSS `var()` references in a property value.
@@ -922,7 +1199,20 @@ impl CssProcessor {
 
                 // Look up the custom property
                 let resolved = if let Some(val) = self.custom_properties.get(var_name) {
-                    val.clone()
+                    // Detect self-referential values: if the stored value references
+                    // the same variable (e.g., --font-size-medium: var(--font-size-medium, 1rem)),
+                    // use the fallback instead to break the cycle.
+                    // Per CSS spec, a custom property that references itself is
+                    // "invalid at computed-value time" and the fallback must be used.
+                    if val.contains(&format!("var({}", var_name)) {
+                        if let Some(fb) = fallback {
+                            fb.to_string()
+                        } else {
+                            val.clone()
+                        }
+                    } else {
+                        val.clone()
+                    }
                 } else if let Some(fb) = fallback {
                     fb.to_string()
                 } else {
@@ -1085,7 +1375,16 @@ impl CssProcessor {
                 if raw_selector.is_empty() {
                     continue;
                 }
-                if let Ok(parsed_selector) = scraper::Selector::parse(raw_selector) {
+                // Strip always-true negations for static rendering
+                let preprocessed_slow = raw_selector
+                    .replace(":not(:focus-visible)", "")
+                    .replace(":not(:focus-within)", "")
+                    .replace(":not(:focus)", "")
+                    .replace(":not(:hover)", "")
+                    .replace(":not(:active)", "");
+                let sel_slow = if preprocessed_slow.trim().is_empty() { raw_selector.to_string() } else { preprocessed_slow };
+                let sel_slow = sel_slow.as_str();
+                if let Ok(parsed_selector) = scraper::Selector::parse(sel_slow) {
                     if parsed_selector.matches(element) {
                         matching_rules.push((rule, false));
                         break;
@@ -1436,6 +1735,16 @@ impl CssProcessor {
                     // Interactive pseudo-classes don't apply during static rendering
                     false
                 }
+                // Pseudo-elements create virtual elements inside the target — their styles
+                // must NOT apply to the element itself. Both CSS2 (single colon) and CSS3
+                // (double colon) syntax end up here because rfind(':') strips the last colon.
+                "before" | "after" | "first-letter" | "first-line" | "placeholder"
+                | "selection" | "marker" | "backdrop" | "cue" | "grammar-error"
+                | "spelling-error" | "target-text" | "file-selector-button"
+                | ":before" | ":after" | ":first-letter" | ":first-line"
+                | ":placeholder" | ":selection" | ":marker" => {
+                    false
+                }
                 _ => {
                     // Unknown pseudo-class — try stripping it and matching base
                     if base.is_empty() {
@@ -1560,6 +1869,7 @@ impl CssProcessor {
                 continue;
             }
 
+
             // Remove !important suffix for storage
             let raw_value = value.trim_end_matches(" !important").to_string();
             // Resolve var() references
@@ -1573,13 +1883,9 @@ impl CssProcessor {
                 "background-color" => styles.background_color = Some(clean_value),
                 "background" => {
                     // The background shorthand can include color, image, position, etc.
-                    // Extract just the color if it's a simple color value.
-                    let v = clean_value.trim();
-                    if v.starts_with('#') || v.starts_with("rgb") || v.starts_with("hsl")
-                        || v == "transparent" || v == "inherit"
-                        || (!v.contains(' ') && !v.starts_with("url"))
-                    {
-                        styles.background_color = Some(clean_value);
+                    // Extract the color component from the shorthand.
+                    if let Some(color) = Self::extract_color_from_background(&clean_value) {
+                        styles.background_color = Some(color);
                     } else {
                         styles.other.insert("background".to_string(), clean_value);
                     }
@@ -1656,6 +1962,37 @@ impl CssProcessor {
                 "flex-grow" => styles.flex_grow = Some(clean_value),
                 "flex-shrink" => styles.flex_shrink = Some(clean_value),
                 "flex-basis" => styles.flex_basis = Some(clean_value),
+                "flex" => {
+                    // flex shorthand: <grow> [<shrink>] [<basis>]
+                    let parts: Vec<&str> = clean_value.split_whitespace().collect();
+                    match parts.len() {
+                        1 if parts[0] == "none" => {
+                            styles.flex_grow = Some("0".to_string());
+                            styles.flex_shrink = Some("0".to_string());
+                            styles.flex_basis = Some("auto".to_string());
+                        }
+                        1 if parts[0] == "auto" => {
+                            styles.flex_grow = Some("1".to_string());
+                            styles.flex_shrink = Some("1".to_string());
+                            styles.flex_basis = Some("auto".to_string());
+                        }
+                        1 => {
+                            styles.flex_grow = Some(parts[0].to_string());
+                            styles.flex_shrink = Some("1".to_string());
+                            styles.flex_basis = Some("0%".to_string());
+                        }
+                        2 => {
+                            styles.flex_grow = Some(parts[0].to_string());
+                            styles.flex_shrink = Some(parts[1].to_string());
+                            styles.flex_basis = Some("0%".to_string());
+                        }
+                        _ => {
+                            styles.flex_grow = Some(parts[0].to_string());
+                            styles.flex_shrink = Some(parts[1].to_string());
+                            styles.flex_basis = Some(parts[2].to_string());
+                        }
+                    }
+                },
                 "min-width" => styles.min_width = Some(clean_value),
                 "min-height" => styles.min_height = Some(clean_value),
                 "max-width" => styles.max_width = Some(clean_value),
@@ -1670,12 +2007,217 @@ impl CssProcessor {
                 "word-spacing" => styles.word_spacing = Some(clean_value),
                 "border-radius" => styles.border_radius = Some(clean_value),
                 "list-style-type" => styles.list_style_type = Some(clean_value),
+                "list-style" => {
+                    // list-style shorthand
+                    let v = clean_value.trim().to_string();
+                    if v == "none" || v.starts_with("none ") || v.contains(" none") {
+                        styles.list_style_type = Some("none".to_string());
+                    } else {
+                        for part in v.split_whitespace() {
+                            match part {
+                                "disc" | "circle" | "square" | "decimal"
+                                | "decimal-leading-zero" | "lower-roman" | "upper-roman"
+                                | "lower-alpha" | "upper-alpha" | "lower-latin"
+                                | "upper-latin" | "lower-greek" => {
+                                    styles.list_style_type = Some(part.to_string());
+                                    break;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                },
                 "cursor" => styles.cursor = Some(clean_value),
+                "grid-template-columns" => styles.grid_template_columns = Some(clean_value),
+                "grid-template-rows" => styles.grid_template_rows = Some(clean_value),
+                "grid-template-areas" => styles.grid_template_areas = Some(clean_value),
+                "grid-area" => styles.grid_area = Some(clean_value),
+                "grid-template" => {
+                    // grid-template shorthand: <rows> / <columns>
+                    // May also include area names: 'name name' <row-size> / <columns>
+                    // Extract the columns portion (everything after the last '/')
+                    if let Some(slash_pos) = clean_value.rfind('/') {
+                        let columns = clean_value[slash_pos + 1..].trim().to_string();
+                        if !columns.is_empty() {
+                            styles.grid_template_columns = Some(columns);
+                        }
+                        let rows_part = clean_value[..slash_pos].trim().to_string();
+                        if !rows_part.is_empty() {
+                            // The rows part may contain area names like 'name name' <size>
+                            // Extract area names (single-quoted strings) and row sizes
+                            let mut areas = Vec::new();
+                            let mut rows = Vec::new();
+                            // Tokenize: area names are in single or double quotes, row sizes are outside
+                            let mut in_quote = false;
+                            let mut quote_char = '\0';
+                            let mut current_area = String::new();
+                            let mut current_token = String::new();
+                            for ch in rows_part.chars() {
+                                if (ch == '\'' || ch == '"') && (!in_quote || ch == quote_char) {
+                                    if in_quote {
+                                        // End of area name
+                                        areas.push(current_area.clone());
+                                        current_area.clear();
+                                        in_quote = false;
+                                        quote_char = '\0';
+                                    } else {
+                                        // Start of area name — flush any accumulated row size token
+                                        let token = current_token.trim().to_string();
+                                        if !token.is_empty() {
+                                            rows.push(token);
+                                        }
+                                        current_token.clear();
+                                        in_quote = true;
+                                        quote_char = ch;
+                                    }
+                                } else if in_quote {
+                                    current_area.push(ch);
+                                } else {
+                                    current_token.push(ch);
+                                }
+                            }
+                            // Flush any remaining row size token
+                            let token = current_token.trim().to_string();
+                            if !token.is_empty() {
+                                rows.push(token);
+                            }
+                            if !areas.is_empty() {
+                                // Format areas as CSS grid-template-areas value:
+                                // "'name1 name2' 'name3 name4'"
+                                let areas_str = areas.iter()
+                                    .map(|a| format!("'{}'", a))
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                styles.grid_template_areas = Some(areas_str);
+                            }
+                            if !rows.is_empty() {
+                                styles.grid_template_rows = Some(rows.join(" "));
+                            }
+                        }
+                    }
+                }
+                "column-gap" => styles.gap = Some(clean_value),
+                "row-gap" => {
+                    // Only set gap if column-gap hasn't already set it
+                    if styles.gap.is_none() {
+                        styles.gap = Some(clean_value);
+                    }
+                }
                 _ => {
                     styles.other.insert(prop.clone(), clean_value);
                 }
             }
         }
+    }
+
+    /// Extract a color value from a CSS `background` shorthand.
+    ///
+    /// The background shorthand can contain: color, image (url/gradient), position, size,
+    /// repeat, origin, clip, attachment. lightningcss often serializes values like:
+    ///   `#eaecf0 none` or `#fff no-repeat` or `transparent url(...)` or `rgb(0, 0, 0) none`
+    ///
+    /// This extracts the color token by:
+    /// 1. If it's a single token with no spaces, return it directly (simple color value)
+    /// 2. If it starts with a color function (rgb/hsl/rgba/hsla), extract the full function call
+    /// 3. Scan tokens for hex colors, named colors, or 'transparent'/'inherit'
+    /// 4. Filter out known background-specific keywords (none, no-repeat, repeat, etc.)
+    fn extract_color_from_background(value: &str) -> Option<String> {
+        let v = value.trim();
+
+        // Empty
+        if v.is_empty() {
+            return None;
+        }
+
+        // url(...) backgrounds don't have a simple color to extract
+        if v.starts_with("url(") {
+            return None;
+        }
+
+        // Single token, no spaces: treat as a color directly
+        if !v.contains(' ') {
+            if v == "none" || v == "initial" || v == "unset" {
+                return None;
+            }
+            return Some(v.to_string());
+        }
+
+        // If it starts with rgb/hsl/rgba/hsla, extract the function call
+        if v.starts_with("rgb") || v.starts_with("hsl") {
+            // Find the matching closing paren
+            if let Some(open) = v.find('(') {
+                let mut depth = 0;
+                for (i, ch) in v[open..].char_indices() {
+                    match ch {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                return Some(v[..open + i + 1].to_string());
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            // Malformed but starts with color function — return entire value
+            return Some(v.to_string());
+        }
+
+        // Multi-token: scan for a color token
+        // Background-specific keywords to filter out
+        let bg_keywords = [
+            "none", "no-repeat", "repeat", "repeat-x", "repeat-y", "space", "round",
+            "scroll", "fixed", "local", "border-box", "padding-box", "content-box",
+            "cover", "contain", "center", "top", "bottom", "left", "right",
+            "initial", "unset",
+        ];
+
+        // Scan tokens — first token that looks like a color wins
+        for token in v.split_whitespace() {
+            // Skip background-specific keywords
+            if bg_keywords.contains(&token.to_lowercase().as_str()) {
+                continue;
+            }
+            // Skip url(...)
+            if token.starts_with("url(") {
+                return None; // url() background — no simple color
+            }
+            // Skip percentage/length values (position/size)
+            if token.ends_with('%') || token.ends_with("px") || token.ends_with("em")
+                || token.ends_with("rem") || token.ends_with("vw") || token.ends_with("vh")
+            {
+                continue;
+            }
+            // Skip bare numbers (e.g., "0 0" for position)
+            if token.parse::<f64>().is_ok() {
+                continue;
+            }
+            // Skip gradient functions
+            if token.starts_with("linear-gradient") || token.starts_with("radial-gradient")
+                || token.starts_with("conic-gradient") || token.starts_with("repeating-")
+            {
+                return None; // gradient background — no simple color
+            }
+
+            // Hex color
+            if token.starts_with('#') {
+                return Some(token.to_string());
+            }
+            // Named color or transparent/inherit/currentcolor
+            if token == "transparent" || token == "inherit" || token == "currentcolor"
+                || token == "currentColor"
+            {
+                return Some(token.to_string());
+            }
+            // Anything else that doesn't match bg keywords is likely a named color
+            // (e.g., "red", "white", "aliceblue")
+            if token.chars().all(|c| c.is_ascii_alphabetic()) {
+                return Some(token.to_string());
+            }
+        }
+
+        None
     }
 
     /// Parse shorthand box model values (margin/padding)

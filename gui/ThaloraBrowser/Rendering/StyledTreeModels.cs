@@ -195,6 +195,18 @@ internal class ResolvedStyles
 
     [JsonPropertyName("cursor")]
     public string? Cursor { get; set; }
+
+    [JsonPropertyName("grid_template_columns")]
+    public string? GridTemplateColumns { get; set; }
+
+    [JsonPropertyName("grid_template_rows")]
+    public string? GridTemplateRows { get; set; }
+
+    [JsonPropertyName("grid_template_areas")]
+    public string? GridTemplateAreas { get; set; }
+
+    [JsonPropertyName("grid_area")]
+    public string? GridArea { get; set; }
 }
 
 /// <summary>

@@ -116,7 +116,9 @@ internal static class StyleParser
             "xxx-large" => 48,
             "smaller" => parentFontSize * 0.833,
             "larger" => parentFontSize * 1.2,
-            _ => ParseLength(value, parentFontSize) ?? parentFontSize,
+            // For font-size, percentage values are relative to the parent's font size.
+            // Pass parentFontSize as both the em base AND the parentSize (for % resolution).
+            _ => ParseLength(value, parentFontSize, parentSize: parentFontSize) ?? parentFontSize,
         };
 
         // Avalonia crashes with ArgumentOutOfRangeException on FontSize = 0.

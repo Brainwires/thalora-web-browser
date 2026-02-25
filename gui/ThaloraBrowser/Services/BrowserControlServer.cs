@@ -5,6 +5,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ThaloraBrowser.Controls;
 using ThaloraBrowser.Rendering;
 using ThaloraBrowser.ViewModels;
@@ -238,9 +239,27 @@ public class BrowserControlServer : IDisposable
             if (bounds.Width < 1 || bounds.Height < 1)
                 return;
 
+            // Force a synchronous layout update before capture
+            _webContent.UpdateLayout();
+
             var pixelSize = new PixelSize((int)bounds.Width, (int)bounds.Height);
             var bitmap = new RenderTargetBitmap(pixelSize, new Vector(96, 96));
-            bitmap.Render(_webContent);
+
+            // Render from a child that's at (0,0) to avoid _webContent's Y offset
+            // (e.g. _webContent.Bounds.Y = 76 when below address bar, which offsets
+            // the render and wastes bitmap space). Find the ScrollViewer or first
+            // content child at (0,0).
+            Avalonia.Visual renderTarget = _webContent;
+            foreach (var child in _webContent.GetVisualChildren())
+            {
+                if (child.IsVisible && child.Bounds.Y == 0)
+                {
+                    renderTarget = child;
+                    break;
+                }
+            }
+
+            bitmap.Render(renderTarget);
 
             using var ms = new MemoryStream();
             bitmap.Save(ms);

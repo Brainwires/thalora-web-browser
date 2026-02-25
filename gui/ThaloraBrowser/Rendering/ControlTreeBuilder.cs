@@ -163,8 +163,33 @@ public class ControlTreeBuilder
         if (styles.Visibility == "hidden")
             return null;
 
+        // position: fixed/absolute elements are out-of-flow overlays.
+        // Without a proper positioning engine, rendering them in the normal flow
+        // creates incorrect spacing. Skip them — their content is usually
+        // duplicated in the normal flow or is non-essential (fixed nav, tooltips).
+        // Exception: grid-placed items (grid-area set) with position:absolute are
+        // still part of the grid layout — they use absolute positioning relative to
+        // their grid cell, not the viewport. Don't skip these.
+        if (styles.Position == "fixed" || styles.Position == "absolute")
+        {
+            if (!string.IsNullOrEmpty(styles.GridArea))
+            {
+                // Grid-placed element — keep it, just clear the absolute positioning
+                // so it renders normally within its grid cell
+                styles.Position = null;
+            }
+            else
+            {
+                return null;
+            }
+        }
+        // sticky elements participate in normal flow — render them normally
+        if (styles.Position == "sticky")
+            styles.Position = null;
+
         // Resolve font size for this element (used for em units in children)
         var fontSize = StyleParser.ParseFontSize(styles.FontSize, parentFontSize);
+
 
         // display:contents — don't generate a box, pass children to parent
         // This is used by frameworks like Astro (<astro-island>) and CSS grid layouts.
@@ -216,11 +241,119 @@ public class ControlTreeBuilder
         Control content;
         if (hasOnlyInlineChildren)
         {
-            // Build a SelectableTextBlock with Inlines for inline content
-            content = BuildInlineContent(element, fontSize);
+            // Check if this is a "simple link wrapper" — an element whose only non-whitespace
+            // content is a single <a> link (e.g., <li><a>Donations</a></li>).
+            // SelectableTextBlock with only Inlines (no .Text) doesn't measure properly
+            // in horizontal layout contexts (flex items, horizontal StackPanels).
+            // Build these as a plain TextBlock with .Text set directly.
+            var nonWhitespaceChildren = element.Children
+                .Where(c => !(c.Tag == "#text" && string.IsNullOrWhiteSpace(c.TextContent)))
+                .ToList();
+            var linkChild = (nonWhitespaceChildren.Count == 1 && nonWhitespaceChildren[0].Tag == "a")
+                ? nonWhitespaceChildren[0] : null;
+            if (linkChild != null)
+            {
+                var linkText = CollectInlineText(element).Trim();
+                if (!string.IsNullOrWhiteSpace(linkText))
+                {
+                    var linkStyles = linkChild.Styles;
+                    var linkColor = StyleParser.ParseBrush(linkStyles.Color)
+                        ?? new SolidColorBrush(Color.FromRgb(0, 81, 195));
+                    var tb = new TextBlock
+                    {
+                        Text = linkText,
+                        Foreground = linkColor,
+                        FontSize = fontSize,
+                        FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily ?? linkStyles.FontFamily),
+                        FontWeight = StyleParser.ParseFontWeight(styles.FontWeight ?? linkStyles.FontWeight),
+                        FontStyle = StyleParser.ParseFontStyle(styles.FontStyle ?? linkStyles.FontStyle),
+                        TextWrapping = TextWrapping.NoWrap,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    if (linkStyles.TextDecoration != null && linkStyles.TextDecoration != "none")
+                        tb.TextDecorations = TextDecorations.Underline;
+
+                    // Register link action for programmatic interaction
+                    if (!string.IsNullOrEmpty(linkChild.LinkHref))
+                    {
+                        var href = linkChild.LinkHref;
+                        _elementActions.Register(new ElementActionRegistry.ElementActions
+                        {
+                            ElementId = linkChild.Id,
+                            Tag = linkChild.Tag,
+                            TextContent = linkText,
+                            Href = href,
+                            HasHoverStyles = linkChild.HoverStyles != null,
+                            IsLink = true,
+                            OnHover = () => _onHoveredLinkChanged?.Invoke(href),
+                            OnUnhover = () => _onHoveredLinkChanged?.Invoke(null),
+                            OnClick = () =>
+                            {
+                                _onLinkClicked?.Invoke(href);
+                                DispatchDomEvent("click", linkChild.Id);
+                            },
+                        });
+                    }
+
+                    // Return the TextBlock directly — skip the Border wrapper entirely.
+                    // Avalonia's RenderTargetBitmap has a rendering issue where TextBlock
+                    // text inside deeply nested Borders (10+ levels) doesn't get painted.
+                    // By returning the TextBlock directly, we eliminate one layer of nesting
+                    // and bypass the Border rendering path. CSS margin is applied directly
+                    // to the TextBlock.
+                    if (styles.Margin != null)
+                    {
+                        bool leftAuto = StyleParser.IsAutoMargin(styles.Margin.Left);
+                        bool rightAuto = StyleParser.IsAutoMargin(styles.Margin.Right);
+                        if (leftAuto && rightAuto)
+                        {
+                            tb.HorizontalAlignment = HorizontalAlignment.Center;
+                            var top = Len(styles.Margin.Top, fontSize) ?? 0;
+                            var bottom = Len(styles.Margin.Bottom, fontSize) ?? 0;
+                            tb.Margin = new Thickness(0, top, 0, bottom);
+                        }
+                        else
+                        {
+                            tb.Margin = Box(styles.Margin, fontSize);
+                        }
+                    }
+
+                    // Apply link click via pointer events directly on the TextBlock
+                    if (!string.IsNullOrEmpty(linkChild.LinkHref))
+                    {
+                        var href = linkChild.LinkHref;
+                        tb.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+                        tb.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href);
+                        tb.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
+                        tb.PointerPressed += (_, e) =>
+                        {
+                            _onLinkClicked?.Invoke(href);
+                            DispatchDomEvent("click", linkChild.Id);
+                            e.Handled = true;
+                        };
+                    }
+
+                    return tb;
+                }
+                else
+                {
+                    content = BuildInlineContent(element, fontSize);
+                }
+            }
+            else
+            {
+                // Standard inline content — SelectableTextBlock with Inlines
+                content = BuildInlineContent(element, fontSize);
+            }
         }
         else if (element.Children.Count > 0)
         {
+            // Skip elements that have no visible content (no text, images, etc.)
+            // These are empty structural wrappers (Wiktionary TOC placeholder, etc.)
+            // that would create unwanted vertical gaps if rendered.
+            if (!HasVisibleContent(element))
+                return null;
+
             // Build a panel with child controls
             content = BuildBlockContent(element, fontSize, depth);
         }
@@ -231,7 +364,19 @@ public class ControlTreeBuilder
         }
         else
         {
-            // Empty element — still render the border/background
+            // Empty element — only render if it has a visible background, border, or explicit dimensions.
+            // Many empty divs are structural containers, spacers, or placeholders that shouldn't
+            // create visual space when they have no content.
+            bool hasVisualBackground = styles.BackgroundColor != null
+                && styles.BackgroundColor != "transparent"
+                && styles.BackgroundColor != "rgba(0, 0, 0, 0)";
+            bool hasBorder = styles.BorderWidth != null
+                && (styles.BorderStyle != null && styles.BorderStyle != "none");
+            bool hasExplicitSize = styles.Width != null || styles.Height != null;
+
+            if (!hasVisualBackground && !hasBorder && !hasExplicitSize)
+                return null;
+
             content = new Panel();
         }
 
@@ -318,15 +463,45 @@ public class ControlTreeBuilder
             }
         }
 
-        // Apply max-width (skip percentages — we don't know parent container size)
-        var maxWidth = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
+        // Apply max-width — resolve percentages against viewport width as approximation
+        double? maxWidth;
+        if (IsPercentage(styles.MaxWidth))
+        {
+            if (double.TryParse(styles.MaxWidth!.TrimEnd('%', ' '),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var pct))
+                maxWidth = pct / 100.0 * _viewportWidth;
+            else
+                maxWidth = null;
+        }
+        else
+        {
+            maxWidth = Len(styles.MaxWidth, fontSize);
+        }
         if (maxWidth.HasValue)
             border.MaxWidth = maxWidth.Value;
 
-        // Apply explicit width/height
-        // Skip percentage widths/heights — Avalonia's default Stretch behavior handles 100%,
-        // and we don't track parent sizes for other percentages.
-        var width = IsPercentage(styles.Width) ? null : Len(styles.Width, fontSize);
+        // Apply explicit width/height — resolve percentages against viewport width as approximation
+        double? width;
+        if (IsPercentage(styles.Width))
+        {
+            if (double.TryParse(styles.Width!.TrimEnd('%', ' '),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var wpct))
+            {
+                // Resolve all percentage widths against viewport width, including 100%.
+                // Setting explicit width ensures child StackPanels get constrained
+                // available space instead of infinity, which fixes text rendering in
+                // Avalonia's RenderTargetBitmap for deeply nested horizontal layouts.
+                width = wpct / 100.0 * _viewportWidth;
+            }
+            else
+                width = null;
+        }
+        else
+        {
+            width = Len(styles.Width, fontSize);
+        }
         if (width.HasValue)
             border.Width = width.Value;
 
@@ -366,13 +541,30 @@ public class ControlTreeBuilder
     {
         var styles = element.Styles;
         bool isFlex = styles.Display == "flex" || styles.Display == "inline-flex";
+        bool isGrid = styles.Display == "grid" || styles.Display == "inline-grid";
+
+        if (isGrid && (!string.IsNullOrEmpty(styles.GridTemplateColumns)
+            || !string.IsNullOrEmpty(styles.GridTemplateAreas)))
+        {
+            return BuildGridContent(element, fontSize, depth);
+        }
+
+        // Fix 5: Navigation menu detection — when a <ul>/<ol> has list-style-type:none
+        // AND is a direct child of <nav> (or the element itself is <nav> wrapping a list),
+        // it's almost certainly a horizontal navigation menu. Many sites rely on CSS rules
+        // like `.nav-list { display: flex; list-style: none }` that our selector engine
+        // may not match. Detect this pattern and treat as horizontal flex.
+        bool isNavList = !isFlex && !isGrid
+            && (element.Tag is "ul" or "ol")
+            && styles.ListStyleType == "none";
 
         Panel panel;
 
-        if (isFlex)
+        bool isRow = (isFlex || isNavList) && styles.FlexDirection != "column" && styles.FlexDirection != "column-reverse";
+        bool isWrap = (isFlex || isNavList) && (styles.FlexWrap == "wrap" || styles.FlexWrap == "wrap-reverse");
+
+        if (isFlex || isNavList)
         {
-            bool isRow = styles.FlexDirection != "column" && styles.FlexDirection != "column-reverse";
-            bool isWrap = styles.FlexWrap == "wrap" || styles.FlexWrap == "wrap-reverse";
 
             if (isWrap && isRow)
             {
@@ -383,11 +575,21 @@ public class ControlTreeBuilder
                 };
                 panel = wrapPanel;
             }
+            else if (isRow)
+            {
+                // Use Grid with Auto columns for horizontal flex. StackPanel gives
+                // children infinite available width which causes Avalonia's
+                // RenderTargetBitmap to skip rendering text in deeply nested layouts.
+                // Grid with Auto columns arranges children within a concrete width.
+                var grid = new Grid();
+                grid.HorizontalAlignment = HorizontalAlignment.Stretch;
+                panel = grid;
+            }
             else
             {
                 var stackPanel = new StackPanel
                 {
-                    Orientation = isRow ? Orientation.Horizontal : Orientation.Vertical,
+                    Orientation = Orientation.Vertical,
                 };
                 // Gap
                 var gap = Len(styles.Gap, fontSize);
@@ -396,7 +598,134 @@ public class ControlTreeBuilder
                 panel = stackPanel;
             }
 
-            // justify-content: center → center items along the main axis
+            // flex-grow: When any child has flex-grow, use Grid for flexible sizing.
+            // flex-grow takes priority over justify-content because growing children
+            // consume all available space, leaving nothing for justify-content to distribute.
+            if (isRow)
+            {
+                var visibleChildren = element.Children
+                    .Where(c => c.Styles.Display != "none")
+                    .ToList();
+
+                bool hasFlexGrow = visibleChildren.Any(c =>
+                    !string.IsNullOrEmpty(c.Styles.FlexGrow) && c.Styles.FlexGrow != "0");
+                bool isSpaceDist = styles.JustifyContent == "space-between"
+                    || styles.JustifyContent == "space-around"
+                    || styles.JustifyContent == "space-evenly";
+
+                if (hasFlexGrow || isSpaceDist)
+                {
+                    // Use Grid to handle flex-grow and space distribution.
+                    // flex-grow children get Star columns; others get Auto columns.
+                    var grid = new Grid();
+                    grid.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+                    // Give the Grid a concrete width so Star columns can distribute space.
+                    // Resolve percentage widths against viewport (best approximation
+                    // without parent layout info). 100% → viewport width.
+                    // Subtract padding since the Grid sits inside the Border's padding.
+                    double? gridWidth;
+                    if (IsPercentage(styles.Width))
+                    {
+                        if (double.TryParse(styles.Width!.TrimEnd('%', ' '),
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out var wpct))
+                        {
+                            var totalW = wpct / 100.0 * _viewportWidth;
+                            // Subtract horizontal padding (Grid is inside Border padding)
+                            if (styles.Padding != null)
+                            {
+                                var padL = Len(styles.Padding.Left, fontSize) ?? 0;
+                                var padR = Len(styles.Padding.Right, fontSize) ?? 0;
+                                totalW -= (padL + padR);
+                            }
+                            gridWidth = Math.Max(0, totalW);
+                        }
+                        else
+                            gridWidth = null;
+                    }
+                    else
+                    {
+                        gridWidth = Len(styles.Width, fontSize);
+                    }
+                    if (!gridWidth.HasValue)
+                        gridWidth = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
+                    if (gridWidth.HasValue)
+                        grid.Width = gridWidth.Value;
+
+                    // Apply cross-axis alignment
+                    if (styles.AlignItems == "center")
+                        grid.VerticalAlignment = VerticalAlignment.Center;
+
+                    // Gap between items
+                    var gap = Len(styles.Gap, fontSize);
+
+                    if (hasFlexGrow)
+                    {
+                        // flex-grow mode: each child gets a column.
+                        // Children with flex-grow > 0 get Star(N) columns.
+                        // Children without flex-grow get Auto columns.
+                        int col = 0;
+                        foreach (var child in visibleChildren)
+                        {
+                            double grow = 0;
+                            if (!string.IsNullOrEmpty(child.Styles.FlexGrow))
+                                double.TryParse(child.Styles.FlexGrow, out grow);
+
+                            if (grow > 0)
+                                grid.ColumnDefinitions.Add(new ColumnDefinition(grow, GridUnitType.Star));
+                            else
+                                grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+                            var childControl = BuildControl(child, fontSize, depth + 1);
+                            if (childControl != null)
+                            {
+                                if (styles.AlignItems == "center")
+                                    childControl.VerticalAlignment = VerticalAlignment.Center;
+                                // Apply gap as left margin (except first child)
+                                if (col > 0 && gap.HasValue)
+                                    childControl.Margin = new Thickness(gap.Value, 0, 0, 0);
+                                Grid.SetColumn(childControl, col);
+                                grid.Children.Add(childControl);
+                            }
+                            col++;
+                        }
+                    }
+                    else
+                    {
+                        // space-between/around/evenly mode (no flex-grow):
+                        // Auto columns for children, Star columns for spacers.
+                        bool isAround = styles.JustifyContent == "space-around"
+                            || styles.JustifyContent == "space-evenly";
+                        for (int i = 0; i < visibleChildren.Count; i++)
+                        {
+                            if (i > 0 || isAround)
+                                grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+                            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                        }
+                        if (isAround)
+                            grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+
+                        int col = isAround ? 1 : 0;
+                        foreach (var child in visibleChildren)
+                        {
+                            var childControl = BuildControl(child, fontSize, depth + 1);
+                            if (childControl != null)
+                            {
+                                if (styles.AlignItems == "center")
+                                    childControl.VerticalAlignment = VerticalAlignment.Center;
+                                Grid.SetColumn(childControl, col);
+                                grid.Children.Add(childControl);
+                            }
+                            col += 2;
+                        }
+                    }
+
+                    return grid;
+                }
+            }
+
+            // justify-content (only reached when no flex-grow and no space distribution)
             if (styles.JustifyContent == "center")
             {
                 if (isRow)
@@ -410,62 +739,6 @@ public class ControlTreeBuilder
                     panel.HorizontalAlignment = HorizontalAlignment.Right;
                 else
                     panel.VerticalAlignment = VerticalAlignment.Bottom;
-            }
-            else if (isRow && (styles.JustifyContent == "space-between" || styles.JustifyContent == "space-around"
-                || styles.JustifyContent == "space-evenly"))
-            {
-                // Use Grid to distribute space between items.
-                // Build all visible children, place them in Auto columns
-                // separated by Star columns that absorb remaining space.
-                // Star columns need a concrete width to distribute into, so if the
-                // element has a max-width or width, apply it to the Grid directly.
-                var grid = new Grid();
-                grid.HorizontalAlignment = HorizontalAlignment.Stretch;
-
-                // Give the Grid a concrete width so Star columns can distribute space.
-                // Check explicit width first, then max-width, then fall back to viewport.
-                var gridWidth = IsPercentage(styles.Width) ? null : Len(styles.Width, fontSize);
-                if (!gridWidth.HasValue)
-                    gridWidth = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
-                if (gridWidth.HasValue)
-                    grid.Width = gridWidth.Value;
-
-                // Apply cross-axis alignment
-                if (styles.AlignItems == "center")
-                    grid.VerticalAlignment = VerticalAlignment.Center;
-
-                var visibleChildren = element.Children
-                    .Where(c => c.Styles.Display != "none")
-                    .ToList();
-
-                // Build column definitions: Auto | Star | Auto | Star | ... | Auto
-                // For space-around: Star | Auto | Star | Auto | ... | Star
-                bool isAround = styles.JustifyContent == "space-around" || styles.JustifyContent == "space-evenly";
-                for (int i = 0; i < visibleChildren.Count; i++)
-                {
-                    if (i > 0 || isAround)
-                        grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
-                    grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-                }
-                if (isAround)
-                    grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
-
-                int col = isAround ? 1 : 0;
-                foreach (var child in visibleChildren)
-                {
-                    var childControl = BuildControl(child, fontSize, depth + 1);
-                    if (childControl != null)
-                    {
-                        // Apply cross-axis alignment to each item
-                        if (styles.AlignItems == "center")
-                            childControl.VerticalAlignment = VerticalAlignment.Center;
-                        Grid.SetColumn(childControl, col);
-                        grid.Children.Add(childControl);
-                    }
-                    col += 2; // skip spacer column
-                }
-
-                return grid;
             }
 
             // align-items → alignment along the cross axis
@@ -502,12 +775,21 @@ public class ControlTreeBuilder
         // regardless of their display property. So skip inline grouping for flex children.
         var inlineBuffer = new List<StyledElement>();
 
+        // Track list item counter for ordered lists
+        bool isList = element.Tag is "ul" or "ol";
+        int listItemIndex = 0;
+
+        // Track column index for horizontal flex Grid (default row flex without flex-grow)
+        bool isHorizFlexGrid = (isFlex || isNavList) && isRow && panel is Grid && !isWrap;
+        int flexGridCol = 0;
+        var flexGap = isHorizFlexGrid ? Len(styles.Gap, fontSize) : null;
+
         foreach (var child in element.Children)
         {
             if (child.Styles.Display == "none")
                 continue;
 
-            if (!isFlex && IsInlineElement(child))
+            if (!isFlex && !isNavList && IsInlineElement(child))
             {
                 inlineBuffer.Add(child);
             }
@@ -518,14 +800,43 @@ public class ControlTreeBuilder
                 {
                     var textBlock = BuildInlineGroup(inlineBuffer, fontSize, element);
                     if (textBlock != null)
+                    {
+                        if (isHorizFlexGrid)
+                        {
+                            ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                            Grid.SetColumn(textBlock, flexGridCol++);
+                        }
                         panel.Children.Add(textBlock);
+                    }
                     inlineBuffer.Clear();
                 }
 
                 // Build block child (or blockified flex item)
                 var childControl = BuildControl(child, fontSize, depth + 1);
                 if (childControl != null)
+                {
+                    // Wrap <li> children with list markers
+                    if (isList && child.Tag == "li"
+                        && child.Styles.ListStyleType != "none")
+                    {
+                        listItemIndex++;
+                        childControl = BuildListItemWithMarker(
+                            childControl, child, fontSize, listItemIndex);
+                    }
+
+                    if (isHorizFlexGrid)
+                    {
+                        // Add gap column before this item (if not first)
+                        if (flexGap.HasValue && flexGridCol > 0)
+                        {
+                            ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(new GridLength(flexGap.Value)));
+                            flexGridCol++;
+                        }
+                        ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                        Grid.SetColumn(childControl, flexGridCol++);
+                    }
                     panel.Children.Add(childControl);
+                }
             }
         }
 
@@ -534,10 +845,442 @@ public class ControlTreeBuilder
         {
             var textBlock = BuildInlineGroup(inlineBuffer, fontSize, element);
             if (textBlock != null)
+            {
+                if (isHorizFlexGrid)
+                {
+                    ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                    Grid.SetColumn(textBlock, flexGridCol++);
+                }
                 panel.Children.Add(textBlock);
+            }
         }
 
         return panel;
+    }
+
+    /// <summary>
+    /// Build an Avalonia Grid for a CSS Grid container (display: grid).
+    /// Handles grid-template-columns, grid-template-rows, grid-template-areas,
+    /// and child grid-area placement.
+    /// </summary>
+    private Control BuildGridContent(StyledElement element, double fontSize, int depth)
+    {
+        var styles = element.Styles;
+
+        Console.Error.WriteLine($"[GRID] id={element.Id} tag={element.Tag} cols={styles.GridTemplateColumns} rows={styles.GridTemplateRows} areas={styles.GridTemplateAreas?.Substring(0, Math.Min(80, styles.GridTemplateAreas?.Length ?? 0))}");
+
+        var grid = new Grid();
+        grid.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        // Apply width/max-width from CSS so Star columns can distribute space
+        var gridWidth = IsPercentage(styles.Width) ? null : Len(styles.Width, fontSize);
+        if (gridWidth.HasValue)
+            grid.Width = gridWidth.Value;
+        var gridMaxW = IsPercentage(styles.MaxWidth) ? null : Len(styles.MaxWidth, fontSize);
+        if (gridMaxW.HasValue)
+            grid.MaxWidth = gridMaxW.Value;
+
+        // Parse grid-template-columns into Avalonia ColumnDefinitions
+        if (!string.IsNullOrEmpty(styles.GridTemplateColumns))
+        {
+            var columnDefs = ParseGridTemplateColumns(styles.GridTemplateColumns, fontSize);
+            foreach (var colDef in columnDefs)
+                grid.ColumnDefinitions.Add(colDef);
+        }
+
+        // Parse grid-template-rows into Avalonia RowDefinitions
+        if (!string.IsNullOrEmpty(styles.GridTemplateRows))
+        {
+            var rowDefs = ParseGridTemplateRows(styles.GridTemplateRows, fontSize);
+            foreach (var rowDef in rowDefs)
+                grid.RowDefinitions.Add(rowDef);
+        }
+
+        int numCols = grid.ColumnDefinitions.Count;
+        if (numCols == 0)
+            numCols = 1; // fallback: single column
+
+        // Parse grid-template-areas into an area placement map
+        Dictionary<string, (int row, int col, int rowSpan, int colSpan)>? areaMap = null;
+        if (!string.IsNullOrEmpty(styles.GridTemplateAreas))
+        {
+            areaMap = ParseGridTemplateAreas(styles.GridTemplateAreas);
+            if (areaMap != null)
+                Console.Error.WriteLine($"[GRID] areaMap: {string.Join(", ", areaMap.Select(kv => $"{kv.Key}=({kv.Value.row},{kv.Value.col},{kv.Value.rowSpan},{kv.Value.colSpan})"))}");
+        }
+
+        // Apply gap via margin on children (Avalonia Grid doesn't have Spacing)
+        var gap = Len(styles.Gap, fontSize);
+
+        var visibleChildren = element.Children
+            .Where(c => c.Styles.Display != "none")
+            // Skip whitespace-only text nodes — they consume grid cells but render nothing
+            .Where(c => !(c.Tag == "#text" && string.IsNullOrWhiteSpace(c.TextContent)))
+            .ToList();
+
+        // Track next sequential position for children without grid-area
+        int seqCol = 0;
+        int seqRow = 0;
+
+        // Ensure we have at least one row if no row definitions were parsed
+        if (grid.RowDefinitions.Count == 0)
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        foreach (var child in visibleChildren)
+        {
+            int placedRow, placedCol, rowSpan = 1, colSpan = 1;
+            bool hasAreaPlacement = areaMap != null && !string.IsNullOrEmpty(child.Styles.GridArea)
+                && areaMap.TryGetValue(child.Styles.GridArea, out var placement);
+
+            // Determine placement BEFORE building — so sequential counter advances
+            // even if BuildControl returns null (position:absolute, etc.)
+            if (hasAreaPlacement)
+            {
+                areaMap!.TryGetValue(child.Styles.GridArea!, out var pl);
+                placedRow = pl.row;
+                placedCol = pl.col;
+                rowSpan = pl.rowSpan;
+                colSpan = pl.colSpan;
+            }
+            else
+            {
+                // Sequential placement: fill columns left-to-right, then wrap to next row
+                if (seqCol >= numCols)
+                {
+                    seqCol = 0;
+                    seqRow++;
+                }
+                placedRow = seqRow;
+                placedCol = seqCol;
+                seqCol++;
+            }
+
+            var childControl = BuildControl(child, fontSize, depth + 1);
+            if (childControl == null)
+            {
+                Console.Error.WriteLine($"[GRID-CHILD-SKIP] id={child.Id} tag={child.Tag} grid_area={child.Styles.GridArea} display={child.Styles.Display} position={child.Styles.Position} visibility={child.Styles.Visibility}");
+                continue;
+            }
+
+            Console.Error.WriteLine($"[GRID-CHILD] id={child.Id} tag={child.Tag} grid_area={child.Styles.GridArea} placed=({placedRow},{placedCol}) span=({rowSpan},{colSpan})");
+
+            // Ensure enough RowDefinitions exist for the placement
+            while (grid.RowDefinitions.Count <= placedRow + rowSpan - 1)
+                grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+            // Ensure enough ColumnDefinitions exist for the placement
+            while (grid.ColumnDefinitions.Count <= placedCol + colSpan - 1)
+                grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+
+            Grid.SetColumn(childControl, placedCol);
+            Grid.SetRow(childControl, placedRow);
+            if (colSpan > 1)
+                Grid.SetColumnSpan(childControl, colSpan);
+            if (rowSpan > 1)
+                Grid.SetRowSpan(childControl, rowSpan);
+
+            // Apply gap as margin on children
+            if (gap.HasValue)
+            {
+                var gapHalf = gap.Value / 2.0;
+                childControl.Margin = new Thickness(
+                    placedCol > 0 ? gapHalf : 0,
+                    placedRow > 0 ? gapHalf : 0,
+                    placedCol + colSpan < numCols ? gapHalf : 0,
+                    0
+                );
+            }
+
+            grid.Children.Add(childControl);
+        }
+
+
+        return grid;
+    }
+
+    /// <summary>
+    /// Parse a CSS grid-template-areas value into a map of area name → (row, col, rowSpan, colSpan).
+    /// Input format (single quotes): "'siteNotice siteNotice' 'columnStart pageContent' 'footer footer'"
+    /// Input format (double quotes from lightningcss): "\"siteNotice siteNotice\"\n\"columnStart pageContent\"\n\"footer footer\""
+    /// </summary>
+    private static Dictionary<string, (int row, int col, int rowSpan, int colSpan)> ParseGridTemplateAreas(string value)
+    {
+        var areaMap = new Dictionary<string, (int row, int col, int rowSpan, int colSpan)>();
+
+        // Parse rows: each row is enclosed in single OR double quotes
+        var rows = new List<string[]>();
+        var rowStart = -1;
+        char quoteChar = '\0';
+        for (int i = 0; i < value.Length; i++)
+        {
+            var ch = value[i];
+            if ((ch == '\'' || ch == '"') && (rowStart < 0 || ch == quoteChar))
+            {
+                if (rowStart < 0)
+                {
+                    rowStart = i + 1; // start of area names
+                    quoteChar = ch;
+                }
+                else
+                {
+                    // end of area names for this row
+                    var rowContent = value[rowStart..i].Trim();
+                    rows.Add(rowContent.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                    rowStart = -1;
+                    quoteChar = '\0';
+                }
+            }
+        }
+
+        if (rows.Count == 0)
+            return areaMap;
+
+        // Build area map: for each unique name, find its bounding rectangle
+        var areaNames = new HashSet<string>();
+        foreach (var row in rows)
+            foreach (var name in row)
+                if (name != ".")
+                    areaNames.Add(name);
+
+        foreach (var name in areaNames)
+        {
+            int minRow = int.MaxValue, maxRow = -1;
+            int minCol = int.MaxValue, maxCol = -1;
+
+            for (int r = 0; r < rows.Count; r++)
+            {
+                for (int c = 0; c < rows[r].Length; c++)
+                {
+                    if (rows[r][c] == name)
+                    {
+                        if (r < minRow) minRow = r;
+                        if (r > maxRow) maxRow = r;
+                        if (c < minCol) minCol = c;
+                        if (c > maxCol) maxCol = c;
+                    }
+                }
+            }
+
+            if (maxRow >= 0)
+            {
+                areaMap[name] = (minRow, minCol, maxRow - minRow + 1, maxCol - minCol + 1);
+            }
+        }
+
+        return areaMap;
+    }
+
+    /// <summary>
+    /// Parse a CSS grid-template-rows value into Avalonia RowDefinitions.
+    /// Handles: min-content → Auto, Nfr → Star, Npx → Pixel, auto → Auto
+    /// </summary>
+    private List<RowDefinition> ParseGridTemplateRows(string value, double fontSize)
+    {
+        var defs = new List<RowDefinition>();
+        var tokens = TokenizeGridTemplate(value);
+
+        foreach (var token in tokens)
+        {
+            var trimmed = token.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                continue;
+
+            if (trimmed == "auto" || trimmed == "min-content" || trimmed == "max-content")
+            {
+                defs.Add(new RowDefinition(GridLength.Auto));
+            }
+            else if (trimmed.EndsWith("fr"))
+            {
+                var numStr = trimmed[..^2];
+                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var fr))
+                    defs.Add(new RowDefinition(new GridLength(fr, GridUnitType.Star)));
+                else
+                    defs.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+            }
+            else if (trimmed.StartsWith("minmax(", StringComparison.OrdinalIgnoreCase))
+            {
+                // Parse minmax(min, max) — use the max part
+                var inner = trimmed[7..].TrimEnd(')');
+                var parts = inner.Split(',');
+                if (parts.Length == 2)
+                {
+                    var maxPart = parts[1].Trim();
+                    if (maxPart.EndsWith("fr"))
+                    {
+                        var frStr = maxPart[..^2];
+                        if (double.TryParse(frStr, System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out var fr))
+                            defs.Add(new RowDefinition(new GridLength(fr, GridUnitType.Star)));
+                        else
+                            defs.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+                    }
+                    else if (maxPart == "auto" || maxPart == "min-content" || maxPart == "max-content")
+                    {
+                        defs.Add(new RowDefinition(GridLength.Auto));
+                    }
+                    else
+                    {
+                        var px = Len(maxPart, fontSize);
+                        if (px.HasValue)
+                            defs.Add(new RowDefinition(new GridLength(px.Value, GridUnitType.Pixel)));
+                        else
+                            defs.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+                    }
+                }
+                else
+                {
+                    defs.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+                }
+            }
+            else
+            {
+                // Fixed length: px, rem, em, etc.
+                var px = Len(trimmed, fontSize);
+                if (px.HasValue)
+                    defs.Add(new RowDefinition(new GridLength(px.Value, GridUnitType.Pixel)));
+                else
+                    defs.Add(new RowDefinition(GridLength.Auto));
+            }
+        }
+
+        return defs;
+    }
+
+    /// <summary>
+    /// Parse a CSS grid-template-columns value into Avalonia ColumnDefinitions.
+    /// Handles: Npx, Nrem, Nem, Nfr, auto, minmax(min, max), and percentage values.
+    /// </summary>
+    private List<ColumnDefinition> ParseGridTemplateColumns(string value, double fontSize)
+    {
+        var defs = new List<ColumnDefinition>();
+        var tokens = TokenizeGridTemplate(value);
+
+        foreach (var token in tokens)
+        {
+            var trimmed = token.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                continue;
+
+            if (trimmed is "auto" or "min-content" or "max-content")
+            {
+                defs.Add(new ColumnDefinition(GridLength.Auto));
+            }
+            else if (trimmed.EndsWith("fr"))
+            {
+                var numStr = trimmed[..^2];
+                if (double.TryParse(numStr, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var fr))
+                    defs.Add(new ColumnDefinition(new GridLength(fr, GridUnitType.Star)));
+                else
+                    defs.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            }
+            else if (trimmed.StartsWith("minmax(", StringComparison.OrdinalIgnoreCase))
+            {
+                // Parse minmax(min, max) — extract the max part
+                var inner = trimmed[7..].TrimEnd(')');
+                var parts = inner.Split(',');
+                if (parts.Length == 2)
+                {
+                    var maxPart = parts[1].Trim();
+                    if (maxPart.EndsWith("fr"))
+                    {
+                        // minmax(X, Nfr) → Star column
+                        var frStr = maxPart[..^2];
+                        if (double.TryParse(frStr, System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture, out var fr))
+                            defs.Add(new ColumnDefinition(new GridLength(fr, GridUnitType.Star)));
+                        else
+                            defs.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+                    }
+                    else if (maxPart is "auto" or "min-content" or "max-content")
+                    {
+                        defs.Add(new ColumnDefinition(GridLength.Auto));
+                    }
+                    else
+                    {
+                        // minmax(X, Npx) → fixed pixel width from max
+                        var px = Len(maxPart, fontSize);
+                        if (px.HasValue)
+                            defs.Add(new ColumnDefinition(new GridLength(px.Value, GridUnitType.Pixel)));
+                        else
+                            defs.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+                    }
+                }
+                else
+                {
+                    defs.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+                }
+            }
+            else if (trimmed.EndsWith("%"))
+            {
+                // Percentage → resolve against viewport width
+                if (double.TryParse(trimmed.TrimEnd('%', ' '),
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var pct))
+                    defs.Add(new ColumnDefinition(new GridLength(pct / 100.0 * _viewportWidth, GridUnitType.Pixel)));
+                else
+                    defs.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            }
+            else
+            {
+                // Fixed length: px, rem, em, etc.
+                var px = Len(trimmed, fontSize);
+                if (px.HasValue)
+                    defs.Add(new ColumnDefinition(new GridLength(px.Value, GridUnitType.Pixel)));
+                else
+                    defs.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+            }
+        }
+
+        return defs;
+    }
+
+    /// <summary>
+    /// Tokenize a grid-template-columns value into individual column definitions.
+    /// Handles minmax() as a single token (doesn't split on commas inside parens).
+    /// </summary>
+    private static List<string> TokenizeGridTemplate(string value)
+    {
+        var tokens = new List<string>();
+        var current = new System.Text.StringBuilder();
+        int parenDepth = 0;
+
+        foreach (var ch in value)
+        {
+            if (ch == '(')
+            {
+                parenDepth++;
+                current.Append(ch);
+            }
+            else if (ch == ')')
+            {
+                parenDepth--;
+                current.Append(ch);
+                if (parenDepth == 0)
+                {
+                    tokens.Add(current.ToString().Trim());
+                    current.Clear();
+                }
+            }
+            else if (ch == ' ' && parenDepth == 0)
+            {
+                if (current.Length > 0)
+                {
+                    tokens.Add(current.ToString().Trim());
+                    current.Clear();
+                }
+            }
+            else
+            {
+                current.Append(ch);
+            }
+        }
+
+        if (current.Length > 0)
+            tokens.Add(current.ToString().Trim());
+
+        return tokens;
     }
 
     /// <summary>
@@ -707,10 +1450,10 @@ public class ControlTreeBuilder
                     return;
                 }
 
-                // Text link — use InlineUIContainer with Border+TextBlock so pointer events work.
-                // Avalonia's Span/Run inlines cannot receive pointer events at all,
-                // which means links rendered as Span+Run are completely non-interactive.
-                // InlineUIContainer wraps a real Control that participates in hit-testing.
+                // Text link — add a styled Run directly. This ensures the text participates
+                // in the SelectableTextBlock's text layout and measures correctly.
+                // Span wrapping or InlineUIContainer both cause measurement failures
+                // in certain contexts (horizontal StackPanels, flex items).
                 var linkText = CollectInlineText(element);
                 if (string.IsNullOrWhiteSpace(linkText))
                     return;
@@ -718,89 +1461,26 @@ public class ControlTreeBuilder
                 var linkColor = StyleParser.ParseBrush(styles.Color)
                     ?? new SolidColorBrush(Color.FromRgb(0, 81, 195)); // #0051C3
 
-                var linkTextBlock = new TextBlock
-                {
-                    Text = linkText,
-                    Foreground = linkColor,
-                    FontSize = fontSize,
-                    FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
-                    FontWeight = StyleParser.ParseFontWeight(styles.FontWeight),
-                    FontStyle = StyleParser.ParseFontStyle(styles.FontStyle),
-                    TextWrapping = TextWrapping.NoWrap,
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
+                var linkRun = new Run(linkText);
+                linkRun.Foreground = linkColor;
+                if (styles.FontWeight != null)
+                    linkRun.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
+                if (styles.FontStyle != null)
+                    linkRun.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
+                if (styles.FontFamily != null)
+                    linkRun.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                if (styles.FontSize != null)
+                    linkRun.FontSize = fontSize;
+                if (styles.TextDecoration != null && styles.TextDecoration != "none")
+                    linkRun.TextDecorations = TextDecorations.Underline;
 
-                if (styles.TextDecoration != "none")
-                    linkTextBlock.TextDecorations = TextDecorations.Underline;
-
-                var linkBorder = new Border
-                {
-                    Child = linkTextBlock,
-                    Background = Avalonia.Media.Brushes.Transparent,
-                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
-                };
-
-                // Build action closures for pointer events and programmatic invocation
-                var href = element.LinkHref ?? "";
-                Action onClick = () =>
-                {
-                    _onLinkClicked?.Invoke(href);
-                    DispatchDomEvent("click", element.Id);
-                };
-                Action onHover;
-                Action onUnhover;
-
-                // Hover style changes (foreground color, text decoration, background)
-                if (element.HoverStyles != null)
-                {
-                    var normalFg = linkColor;
-                    var normalTextDeco = linkTextBlock.TextDecorations;
-                    var normalBg = linkBorder.Background;
-                    var hoverFg = element.HoverStyles.Color != null
-                        ? StyleParser.ParseBrush(element.HoverStyles.Color) : null;
-                    var hoverBg = element.HoverStyles.BackgroundColor != null
-                        ? StyleParser.ParseBrush(element.HoverStyles.BackgroundColor) : null;
-                    TextDecorationCollection? hoverTextDeco = null;
-                    if (element.HoverStyles.TextDecoration != null)
-                    {
-                        hoverTextDeco = element.HoverStyles.TextDecoration.ToLowerInvariant() switch
-                        {
-                            "underline" => TextDecorations.Underline,
-                            "none" => null,
-                            "line-through" => TextDecorations.Strikethrough,
-                            _ => null,
-                        };
-                    }
-
-                    onHover = () =>
-                    {
-                        _onHoveredLinkChanged?.Invoke(href);
-                        if (hoverFg != null) linkTextBlock.Foreground = hoverFg;
-                        if (hoverBg != null) linkBorder.Background = hoverBg;
-                        if (element.HoverStyles!.TextDecoration != null) linkTextBlock.TextDecorations = hoverTextDeco;
-                    };
-                    onUnhover = () =>
-                    {
-                        _onHoveredLinkChanged?.Invoke(null);
-                        if (hoverFg != null) linkTextBlock.Foreground = normalFg;
-                        if (hoverBg != null) linkBorder.Background = normalBg;
-                        if (element.HoverStyles!.TextDecoration != null) linkTextBlock.TextDecorations = normalTextDeco;
-                    };
-                }
-                else
-                {
-                    onHover = () => _onHoveredLinkChanged?.Invoke(href);
-                    onUnhover = () => _onHoveredLinkChanged?.Invoke(null);
-                }
-
-                // Wire pointer events — single set of handlers
-                linkBorder.PointerPressed += (_, _) => onClick();
-                linkBorder.PointerEntered += (_, _) => onHover();
-                linkBorder.PointerExited += (_, _) => onUnhover();
+                inlines.Add(linkRun);
 
                 // Register in action registry for programmatic interaction
+                // (click events are dispatched by the parent Border's handler)
                 if (!string.IsNullOrEmpty(element.LinkHref))
                 {
+                    var href = element.LinkHref;
                     _elementActions.Register(new ElementActionRegistry.ElementActions
                     {
                         ElementId = element.Id,
@@ -809,13 +1489,16 @@ public class ControlTreeBuilder
                         Href = href,
                         HasHoverStyles = element.HoverStyles != null,
                         IsLink = true,
-                        OnHover = onHover,
-                        OnUnhover = onUnhover,
-                        OnClick = onClick,
+                        OnHover = () => _onHoveredLinkChanged?.Invoke(href),
+                        OnUnhover = () => _onHoveredLinkChanged?.Invoke(null),
+                        OnClick = () =>
+                        {
+                            _onLinkClicked?.Invoke(href);
+                            DispatchDomEvent("click", element.Id);
+                        },
                     });
                 }
 
-                inlines.Add(new InlineUIContainer { Child = linkBorder });
                 return;
             }
 
@@ -1071,6 +1754,97 @@ public class ControlTreeBuilder
     }
 
     /// <summary>
+    /// Wrap list item content with a marker (bullet, number, etc.)
+    /// Creates a horizontal DockPanel with the marker on the left and content filling the rest.
+    /// </summary>
+    private static Control BuildListItemWithMarker(Control content, StyledElement element, double fontSize, int ordinalIndex)
+    {
+        var listStyleType = element.Styles.ListStyleType ?? "disc";
+
+        // Determine marker text
+        string markerText;
+        switch (listStyleType)
+        {
+            case "disc":
+                markerText = "\u2022"; // bullet •
+                break;
+            case "circle":
+                markerText = "\u25E6"; // white bullet ◦
+                break;
+            case "square":
+                markerText = "\u25AA"; // black small square ▪
+                break;
+            case "decimal":
+                markerText = $"{ordinalIndex}.";
+                break;
+            case "decimal-leading-zero":
+                markerText = $"{ordinalIndex:D2}.";
+                break;
+            case "lower-alpha":
+            case "lower-latin":
+                markerText = $"{(char)('a' + (ordinalIndex - 1) % 26)}.";
+                break;
+            case "upper-alpha":
+            case "upper-latin":
+                markerText = $"{(char)('A' + (ordinalIndex - 1) % 26)}.";
+                break;
+            case "lower-roman":
+                markerText = $"{ToRoman(ordinalIndex).ToLowerInvariant()}.";
+                break;
+            case "upper-roman":
+                markerText = $"{ToRoman(ordinalIndex)}.";
+                break;
+            default:
+                markerText = "\u2022"; // fallback to bullet
+                break;
+        }
+
+        var marker = new TextBlock
+        {
+            Text = markerText,
+            FontSize = fontSize,
+            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            MinWidth = fontSize * 1.5,
+            TextAlignment = TextAlignment.Right,
+            Margin = new Thickness(0, 0, 6, 0),
+        };
+
+        if (element.Styles.Color != null)
+        {
+            var brush = StyleParser.ParseBrush(element.Styles.Color);
+            if (brush != null)
+                marker.Foreground = brush;
+        }
+
+        var dock = new DockPanel();
+        DockPanel.SetDock(marker, Dock.Left);
+        dock.Children.Add(marker);
+        dock.Children.Add(content); // fills remaining space (last child in DockPanel)
+
+        return dock;
+    }
+
+    /// <summary>
+    /// Convert an integer to a Roman numeral string.
+    /// </summary>
+    private static string ToRoman(int number)
+    {
+        if (number <= 0 || number > 3999)
+            return number.ToString();
+
+        string[] thousands = { "", "M", "MM", "MMM" };
+        string[] hundreds = { "", "C", "CC", "CCC", "CD", "D", "DC", "DCC", "DCCC", "CM" };
+        string[] tens = { "", "X", "XX", "XXX", "XL", "L", "LX", "LXX", "LXXX", "XC" };
+        string[] ones = { "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX" };
+
+        return thousands[number / 1000]
+            + hundreds[(number % 1000) / 100]
+            + tens[(number % 100) / 10]
+            + ones[number % 10];
+    }
+
+    /// <summary>
     /// Build an HR element — a thin horizontal line.
     /// </summary>
     private Control BuildHorizontalRule(StyledElement element, double fontSize)
@@ -1099,7 +1873,6 @@ public class ControlTreeBuilder
             Child = content,
         };
 
-        // Background
         var bg = StyleParser.ParseBrush(styles.BackgroundColor);
         if (bg != null)
             border.Background = bg;
@@ -1330,7 +2103,10 @@ public class ControlTreeBuilder
         // Explicit display overrides
         if (element.Styles.Display == "block" || element.Styles.Display == "flex"
             || element.Styles.Display == "grid" || element.Styles.Display == "list-item"
-            || element.Styles.Display == "table")
+            || element.Styles.Display == "table" || element.Styles.Display == "flow-root"
+            || element.Styles.Display == "table-row" || element.Styles.Display == "table-cell"
+            || element.Styles.Display == "table-row-group" || element.Styles.Display == "table-header-group"
+            || element.Styles.Display == "table-footer-group" || element.Styles.Display == "table-caption")
             return false;
 
         if (element.Styles.Display == "inline" || element.Styles.Display == "inline-block")
@@ -1341,6 +2117,50 @@ public class ControlTreeBuilder
             return false;
 
         return InlineTags.Contains(element.Tag);
+    }
+
+    /// <summary>
+    /// Check if an element has any visible content (non-whitespace text, images,
+    /// visible backgrounds, explicit dimensions). Used to skip empty structural containers
+    /// that would otherwise create unwanted vertical gaps.
+    /// </summary>
+    private static bool HasVisibleContent(StyledElement element, int depth = 0)
+    {
+        if (depth > 10) return false; // guard against deep recursion
+
+        // display:none is never visible
+        if (element.Styles.Display == "none" || element.Styles.Visibility == "hidden")
+            return false;
+
+        // Images are visible
+        if (element.Tag == "img" || element.Tag == "svg" || element.Tag == "video" || element.Tag == "canvas")
+            return true;
+
+        // Form elements are visible
+        if (element.Tag is "input" or "textarea" or "select" or "button")
+            return true;
+
+        // Non-whitespace text is visible
+        if (!string.IsNullOrWhiteSpace(element.TextContent))
+            return true;
+
+        // Element with visible background, border, or explicit dimensions
+        var s = element.Styles;
+        if (s.BackgroundColor != null && s.BackgroundColor != "transparent" && s.BackgroundColor != "rgba(0, 0, 0, 0)")
+            return true;
+        if (s.BorderWidth != null && s.BorderStyle != null && s.BorderStyle != "none")
+            return true;
+        if (s.Width != null || s.Height != null)
+            return true;
+
+        // Recursively check children
+        foreach (var child in element.Children)
+        {
+            if (HasVisibleContent(child, depth + 1))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

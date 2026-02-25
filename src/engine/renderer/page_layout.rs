@@ -322,9 +322,25 @@ pub fn compute_styled_tree_with_css(
     let document = Html::parse_document(html);
     eprintln!("[TIMING] HTML parse: {}ms ({} bytes)", parse_start.elapsed().as_millis(), html.len());
 
+    // Step 0: Extract html element's classes for CSS custom property scoping.
+    // Selectors like `html.skin-theme-clientpref-night` define dark-mode CSS variables
+    // that should only be stored when the <html> element actually has that class.
+    let html_classes: Vec<String> = {
+        let html_sel = Selector::parse("html").unwrap();
+        if let Some(html_el) = document.select(&html_sel).next() {
+            html_el.value().attr("class")
+                .map(|c| c.split_whitespace().map(|s| s.to_string()).collect())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        }
+    };
+    eprintln!("[DIAG] html classes: {:?}", &html_classes[..html_classes.len().min(5)]);
+
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
     let ext_css_start = Instant::now();
     let mut css_processor = CssProcessor::new_with_viewport(viewport_w);
+    css_processor.set_html_classes(html_classes);
     for css_text in external_css {
         if !css_text.trim().is_empty() {
             if let Err(e) = css_processor.parse(css_text) {
@@ -370,6 +386,15 @@ pub fn compute_styled_tree_with_css(
     );
     eprintln!("[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)", walk_start.elapsed().as_millis(), id_counter);
 
+    // Diagnostic: log html/body background colors and element count cap
+    if id_counter >= MAX_ELEMENT_COUNT {
+        eprintln!("[DIAG] MAX_ELEMENT_COUNT ({}) reached — page tree was truncated!", MAX_ELEMENT_COUNT);
+    }
+    eprintln!("[DIAG] html background_color={:?}", root.styles.background_color);
+    if let Some(body) = root.children.iter().find(|c| c.tag == "body") {
+        eprintln!("[DIAG] body background_color={:?}", body.styles.background_color);
+    }
+
     let selectors = if element_selectors.is_empty() {
         None
     } else {
@@ -387,9 +412,10 @@ pub fn compute_styled_tree_with_css(
 }
 
 /// Maximum number of elements to process before stopping.
-/// Prevents extremely large pages (Wikipedia: 3700+ elements) from taking minutes.
-/// 2000 elements is enough to render the meaningful content of any page.
-const MAX_ELEMENT_COUNT: u32 = 2000;
+/// Prevents extremely large pages from taking too long.
+/// With the indexed rule lookup (compile_selectors + RuleIndex), CSS matching is
+/// O(relevant_rules) per element, so 5000 elements is safe for performance.
+const MAX_ELEMENT_COUNT: u32 = 5000;
 
 /// Maximum recursion depth for DOM tree traversal.
 /// Prevents stack overflow on deeply nested pages (Wikipedia/Wiktionary can nest 200+ levels).
@@ -540,6 +566,9 @@ fn build_styled_element_from_dom(
     for child_node in element_ref.children() {
         // Stop processing if we've hit the element cap
         if *id_counter >= MAX_ELEMENT_COUNT {
+            if *id_counter == MAX_ELEMENT_COUNT {
+                eprintln!("[DIAG] Hit MAX_ELEMENT_COUNT={} during tree walk, truncating remaining children", MAX_ELEMENT_COUNT);
+            }
             break;
         }
 
@@ -735,6 +764,10 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         z_index: styles.z_index,
         list_style_type: styles.list_style_type.clone(),
         cursor: styles.cursor.clone(),
+        grid_template_columns: styles.grid_template_columns.clone(),
+        grid_template_rows: styles.grid_template_rows.clone(),
+        grid_template_areas: styles.grid_template_areas.clone(),
+        grid_area: styles.grid_area.clone(),
     }
 }
 
@@ -873,9 +906,12 @@ fn inherit_properties(child: &mut ComputedStyles, parent: &ComputedStyles) {
     if child.color.is_none() {
         child.color = parent.color.clone();
     }
-    if child.font_size.is_none() {
-        child.font_size = parent.font_size.clone();
-    }
+    // NOTE: font_size is NOT inherited here. CSS font-size inheritance copies the
+    // COMPUTED value (e.g., 28.8px), not the specified value (e.g., 1.8em).
+    // Since we store font_size as a raw CSS string, inheriting it would cause
+    // relative units (em, %) to compound at each level (1.8em * 1.8em * 16 = 51.84px
+    // instead of 1.8em * 16 = 28.8px). The C# side handles font-size inheritance
+    // correctly via the parentFontSize parameter chain in BuildControl/ParseFontSize.
     if child.font_family.is_none() {
         child.font_family = parent.font_family.clone();
     }
@@ -1331,6 +1367,10 @@ fn merge_styles(dest: &mut ComputedStyles, source: &ComputedStyles) {
     if source.border_radius.is_some() { dest.border_radius = source.border_radius.clone(); }
     if source.list_style_type.is_some() { dest.list_style_type = source.list_style_type.clone(); }
     if source.cursor.is_some() { dest.cursor = source.cursor.clone(); }
+    if source.grid_template_columns.is_some() { dest.grid_template_columns = source.grid_template_columns.clone(); }
+    if source.grid_template_rows.is_some() { dest.grid_template_rows = source.grid_template_rows.clone(); }
+    if source.grid_template_areas.is_some() { dest.grid_template_areas = source.grid_template_areas.clone(); }
+    if source.grid_area.is_some() { dest.grid_area = source.grid_area.clone(); }
     for (k, v) in &source.other {
         dest.other.insert(k.clone(), v.clone());
     }
@@ -1845,5 +1885,68 @@ mod tests {
         assert!(!navs.is_empty(), "Should find at least one nav");
         assert_eq!(navs[0].1.as_deref(), Some("none"),
             "First nav should be display:none at 1280px (dn-l media query)");
+    }
+
+    #[test]
+    fn test_grid_template_areas_parsing() {
+        // Verify grid-template shorthand, grid-template-areas, grid-area, and column-gap
+        // all flow through correctly from CSS to the styled tree
+        let html = r#"
+        <html>
+        <head><style>
+            .grid-container {
+                display: grid;
+                column-gap: 24px;
+                grid-template: min-content 1fr min-content / 12.25rem minmax(0,1fr);
+                grid-template-areas: 'siteNotice siteNotice' 'columnStart pageContent' 'footer footer';
+            }
+            .child1 { grid-area: siteNotice; }
+            .child2 { grid-area: columnStart; }
+            .child3 { grid-area: pageContent; }
+            .child4 { grid-area: footer; }
+        </style></head>
+        <body>
+            <div class="grid-container">
+                <div class="child1">Notice</div>
+                <div class="child2">Sidebar</div>
+                <div class="child3">Content</div>
+                <div class="child4">Footer</div>
+            </div>
+        </body>
+        </html>
+        "#;
+
+        let result = compute_styled_tree(html, 1280.0, 800.0).unwrap();
+
+        // Find the grid container
+        fn find_grid<'a>(el: &'a StyledElement) -> Option<&'a StyledElement> {
+            if el.styles.display.as_deref() == Some("grid") { return Some(el); }
+            for child in &el.children {
+                if let Some(found) = find_grid(child) { return Some(found); }
+            }
+            None
+        }
+
+        let grid = find_grid(&result.root).expect("Should find grid container");
+
+        // Grid container should have columns, rows, areas, and gap
+        assert!(grid.styles.grid_template_columns.is_some(), "Should have grid-template-columns");
+        assert!(grid.styles.grid_template_rows.is_some(), "Should have grid-template-rows");
+        assert!(grid.styles.grid_template_areas.is_some(), "Should have grid-template-areas");
+        assert_eq!(grid.styles.gap.as_deref(), Some("24px"), "Should have gap from column-gap");
+
+        // Children should have grid-area properties
+        let children_with_area: Vec<_> = grid.children.iter()
+            .filter(|c| c.styles.grid_area.is_some())
+            .collect();
+        assert_eq!(children_with_area.len(), 4, "Should have 4 children with grid-area");
+
+        let area_names: Vec<&str> = children_with_area.iter()
+            .map(|c| c.styles.grid_area.as_deref().unwrap())
+            .collect();
+        assert!(area_names.contains(&"siteNotice"));
+        assert!(area_names.contains(&"columnStart"));
+        assert!(area_names.contains(&"pageContent"));
+        assert!(area_names.contains(&"footer"));
     }
 }

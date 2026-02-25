@@ -218,6 +218,18 @@ pub struct ResolvedStyles {
     /// Cursor style
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
+    /// Grid template columns (e.g., "1fr 3fr", "200px 1fr 200px")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grid_template_columns: Option<String>,
+    /// Grid template rows (e.g., "min-content 1fr min-content")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grid_template_rows: Option<String>,
+    /// Grid template areas (e.g., "'header header' 'sidebar content' 'footer footer'")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grid_template_areas: Option<String>,
+    /// Grid area name for child placement (e.g., "pageContent", "sidebar")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grid_area: Option<String>,
 }
 
 /// Box model sides with CSS string values (not yet parsed to pixels).
