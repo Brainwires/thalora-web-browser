@@ -109,6 +109,13 @@ pub struct ComputedStyles {
     /// Grid area name for child placement (e.g., "pageContent", "sidebar")
     pub grid_area: Option<String>,
 
+    /// Per-side border overrides (from border-top, border-right, border-bottom, border-left)
+    /// These take precedence over the `border` shorthand for the respective side.
+    pub border_top: Option<BorderStyles>,
+    pub border_right: Option<BorderStyles>,
+    pub border_bottom: Option<BorderStyles>,
+    pub border_left: Option<BorderStyles>,
+
     /// All other properties as key-value pairs
     #[serde(flatten)]
     pub other: HashMap<String, String>,
@@ -583,6 +590,105 @@ impl CssProcessor {
                     "letter-spacing" => styles.letter_spacing = Some(value),
                     "word-spacing" => styles.word_spacing = Some(value),
                     "border-radius" => styles.border_radius = Some(value),
+                    // Border shorthand: border: <width> <style> <color>
+                    "border" => {
+                        if value.trim() == "none" || value.trim() == "0" {
+                            styles.border = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        } else {
+                            styles.border = Some(Self::parse_border_shorthand(&value));
+                        }
+                    }
+                    // Per-side border shorthands: border-top/right/bottom/left
+                    "border-top" => {
+                        if value.trim() == "none" || value.trim() == "0" {
+                            styles.border_top = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        } else {
+                            styles.border_top = Some(Self::parse_border_shorthand(&value));
+                        }
+                    }
+                    "border-right" => {
+                        if value.trim() == "none" || value.trim() == "0" {
+                            styles.border_right = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        } else {
+                            styles.border_right = Some(Self::parse_border_shorthand(&value));
+                        }
+                    }
+                    "border-bottom" => {
+                        if value.trim() == "none" || value.trim() == "0" {
+                            styles.border_bottom = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        } else {
+                            styles.border_bottom = Some(Self::parse_border_shorthand(&value));
+                        }
+                    }
+                    "border-left" => {
+                        if value.trim() == "none" || value.trim() == "0" {
+                            styles.border_left = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        } else {
+                            styles.border_left = Some(Self::parse_border_shorthand(&value));
+                        }
+                    }
+                    // Individual longhand border properties
+                    "border-width" => {
+                        let b = styles.border.get_or_insert_with(BorderStyles::default);
+                        b.width = value;
+                    }
+                    "border-style" => {
+                        let b = styles.border.get_or_insert_with(BorderStyles::default);
+                        b.style = value;
+                    }
+                    "border-color" => {
+                        let b = styles.border.get_or_insert_with(BorderStyles::default);
+                        b.color = value;
+                    }
+                    // Per-side longhand properties
+                    "border-top-width" => {
+                        let b = styles.border_top.get_or_insert_with(BorderStyles::default);
+                        b.width = value;
+                    }
+                    "border-top-style" => {
+                        let b = styles.border_top.get_or_insert_with(BorderStyles::default);
+                        b.style = value;
+                    }
+                    "border-top-color" => {
+                        let b = styles.border_top.get_or_insert_with(BorderStyles::default);
+                        b.color = value;
+                    }
+                    "border-right-width" => {
+                        let b = styles.border_right.get_or_insert_with(BorderStyles::default);
+                        b.width = value;
+                    }
+                    "border-right-style" => {
+                        let b = styles.border_right.get_or_insert_with(BorderStyles::default);
+                        b.style = value;
+                    }
+                    "border-right-color" => {
+                        let b = styles.border_right.get_or_insert_with(BorderStyles::default);
+                        b.color = value;
+                    }
+                    "border-bottom-width" => {
+                        let b = styles.border_bottom.get_or_insert_with(BorderStyles::default);
+                        b.width = value;
+                    }
+                    "border-bottom-style" => {
+                        let b = styles.border_bottom.get_or_insert_with(BorderStyles::default);
+                        b.style = value;
+                    }
+                    "border-bottom-color" => {
+                        let b = styles.border_bottom.get_or_insert_with(BorderStyles::default);
+                        b.color = value;
+                    }
+                    "border-left-width" => {
+                        let b = styles.border_left.get_or_insert_with(BorderStyles::default);
+                        b.width = value;
+                    }
+                    "border-left-style" => {
+                        let b = styles.border_left.get_or_insert_with(BorderStyles::default);
+                        b.style = value;
+                    }
+                    "border-left-color" => {
+                        let b = styles.border_left.get_or_insert_with(BorderStyles::default);
+                        b.color = value;
+                    }
                     "list-style-type" => styles.list_style_type = Some(value),
                     "list-style" => {
                         // list-style shorthand: <type> || <position> || <image>
@@ -2006,6 +2112,68 @@ impl CssProcessor {
                 "letter-spacing" => styles.letter_spacing = Some(clean_value),
                 "word-spacing" => styles.word_spacing = Some(clean_value),
                 "border-radius" => styles.border_radius = Some(clean_value),
+                // Border shorthand: border: <width> <style> <color>
+                "border" => {
+                    if clean_value.trim() == "none" || clean_value.trim() == "0" {
+                        styles.border = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                    } else {
+                        styles.border = Some(Self::parse_border_shorthand(&clean_value));
+                    }
+                }
+                // Per-side border shorthands
+                "border-top" => {
+                    if clean_value.trim() == "none" || clean_value.trim() == "0" {
+                        styles.border_top = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                    } else {
+                        styles.border_top = Some(Self::parse_border_shorthand(&clean_value));
+                    }
+                }
+                "border-right" => {
+                    if clean_value.trim() == "none" || clean_value.trim() == "0" {
+                        styles.border_right = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                    } else {
+                        styles.border_right = Some(Self::parse_border_shorthand(&clean_value));
+                    }
+                }
+                "border-bottom" => {
+                    if clean_value.trim() == "none" || clean_value.trim() == "0" {
+                        styles.border_bottom = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                    } else {
+                        styles.border_bottom = Some(Self::parse_border_shorthand(&clean_value));
+                    }
+                }
+                "border-left" => {
+                    if clean_value.trim() == "none" || clean_value.trim() == "0" {
+                        styles.border_left = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                    } else {
+                        styles.border_left = Some(Self::parse_border_shorthand(&clean_value));
+                    }
+                }
+                // Individual longhand border properties
+                "border-width" => {
+                    let b = styles.border.get_or_insert_with(BorderStyles::default);
+                    b.width = clean_value;
+                }
+                "border-style" => {
+                    let b = styles.border.get_or_insert_with(BorderStyles::default);
+                    b.style = clean_value;
+                }
+                "border-color" => {
+                    let b = styles.border.get_or_insert_with(BorderStyles::default);
+                    b.color = clean_value;
+                }
+                "border-top-width" => { styles.border_top.get_or_insert_with(BorderStyles::default).width = clean_value; }
+                "border-top-style" => { styles.border_top.get_or_insert_with(BorderStyles::default).style = clean_value; }
+                "border-top-color" => { styles.border_top.get_or_insert_with(BorderStyles::default).color = clean_value; }
+                "border-right-width" => { styles.border_right.get_or_insert_with(BorderStyles::default).width = clean_value; }
+                "border-right-style" => { styles.border_right.get_or_insert_with(BorderStyles::default).style = clean_value; }
+                "border-right-color" => { styles.border_right.get_or_insert_with(BorderStyles::default).color = clean_value; }
+                "border-bottom-width" => { styles.border_bottom.get_or_insert_with(BorderStyles::default).width = clean_value; }
+                "border-bottom-style" => { styles.border_bottom.get_or_insert_with(BorderStyles::default).style = clean_value; }
+                "border-bottom-color" => { styles.border_bottom.get_or_insert_with(BorderStyles::default).color = clean_value; }
+                "border-left-width" => { styles.border_left.get_or_insert_with(BorderStyles::default).width = clean_value; }
+                "border-left-style" => { styles.border_left.get_or_insert_with(BorderStyles::default).style = clean_value; }
+                "border-left-color" => { styles.border_left.get_or_insert_with(BorderStyles::default).color = clean_value; }
                 "list-style-type" => styles.list_style_type = Some(clean_value),
                 "list-style" => {
                     // list-style shorthand
@@ -2250,6 +2418,71 @@ impl CssProcessor {
             },
             _ => BoxModel::default(),
         }
+    }
+
+    /// Parse a CSS border shorthand value into a BorderStyles struct.
+    /// Format: `<width> <style> <color>` — e.g., "1px solid #a2a9b1"
+    /// Parts can appear in any order. Missing parts get defaults.
+    fn parse_border_shorthand(value: &str) -> BorderStyles {
+        let border_style_keywords = [
+            "none", "hidden", "dotted", "dashed", "solid", "double",
+            "groove", "ridge", "inset", "outset",
+        ];
+
+        let mut width = String::new();
+        let mut style = String::new();
+        let mut color_parts: Vec<String> = Vec::new();
+        let mut in_paren = 0;
+        let mut current = String::new();
+
+        // Tokenize respecting parentheses (for rgb(), var(), etc.)
+        for ch in value.chars() {
+            match ch {
+                '(' => { in_paren += 1; current.push(ch); }
+                ')' => { in_paren -= 1; current.push(ch); }
+                ' ' | '\t' if in_paren == 0 => {
+                    if !current.is_empty() {
+                        let token = current.trim().to_string();
+                        current.clear();
+                        if border_style_keywords.contains(&token.to_lowercase().as_str()) {
+                            style = token;
+                        } else if Self::looks_like_length(&token) {
+                            width = token;
+                        } else {
+                            color_parts.push(token);
+                        }
+                    }
+                }
+                _ => { current.push(ch); }
+            }
+        }
+        if !current.is_empty() {
+            let token = current.trim().to_string();
+            if border_style_keywords.contains(&token.to_lowercase().as_str()) {
+                style = token;
+            } else if Self::looks_like_length(&token) {
+                width = token;
+            } else {
+                color_parts.push(token);
+            }
+        }
+
+        let color = if color_parts.is_empty() {
+            String::new()
+        } else {
+            color_parts.join(" ")
+        };
+
+        BorderStyles { width, style, color }
+    }
+
+    /// Check if a token looks like a CSS length value.
+    fn looks_like_length(token: &str) -> bool {
+        let t = token.to_lowercase();
+        t == "0" || t == "thin" || t == "medium" || t == "thick"
+            || t.ends_with("px") || t.ends_with("em") || t.ends_with("rem")
+            || t.ends_with("pt") || t.ends_with("vw") || t.ends_with("vh")
+            || t.ends_with("%")
     }
 }
 

@@ -741,21 +741,52 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         color: styles.color.clone(),
         background_color: styles.background_color.clone(),
 
-        border_width: styles.border.as_ref().map(|b| {
-            let w = b.width.clone();
-            StyleBoxSides {
-                top: w.clone(),
-                right: w.clone(),
-                bottom: w.clone(),
-                left: w,
+        // Merge border shorthand + per-side overrides into StyleBoxSides.
+        // Shorthand `border` sets all sides; `border-top/right/bottom/left` override individually.
+        border_width: {
+            let has_shorthand = styles.border.is_some();
+            let has_sides = styles.border_top.is_some() || styles.border_right.is_some()
+                || styles.border_bottom.is_some() || styles.border_left.is_some();
+            if has_shorthand || has_sides {
+                let default_w = styles.border.as_ref().map(|b| b.width.clone()).unwrap_or_default();
+                Some(StyleBoxSides {
+                    top: styles.border_top.as_ref().map(|b| b.width.clone())
+                        .unwrap_or_else(|| default_w.clone()),
+                    right: styles.border_right.as_ref().map(|b| b.width.clone())
+                        .unwrap_or_else(|| default_w.clone()),
+                    bottom: styles.border_bottom.as_ref().map(|b| b.width.clone())
+                        .unwrap_or_else(|| default_w.clone()),
+                    left: styles.border_left.as_ref().map(|b| b.width.clone())
+                        .unwrap_or(default_w),
+                })
+            } else {
+                None
             }
-        }),
-        border_color: styles.border.as_ref().and_then(|b| {
-            if b.color.is_empty() { None } else { Some(b.color.clone()) }
-        }),
-        border_style: styles.border.as_ref().and_then(|b| {
-            if b.style.is_empty() { None } else { Some(b.style.clone()) }
-        }),
+        },
+        // For border color: use the first non-empty color found (shorthand or any side).
+        // CSS allows different colors per side, but our C# model uses a single BorderBrush,
+        // so we pick the most relevant one.
+        border_color: {
+            let colors: Vec<&str> = [
+                styles.border.as_ref().map(|b| b.color.as_str()),
+                styles.border_top.as_ref().map(|b| b.color.as_str()),
+                styles.border_right.as_ref().map(|b| b.color.as_str()),
+                styles.border_bottom.as_ref().map(|b| b.color.as_str()),
+                styles.border_left.as_ref().map(|b| b.color.as_str()),
+            ].into_iter().flatten().filter(|c| !c.is_empty()).collect();
+            colors.first().map(|c| c.to_string())
+        },
+        // For border style: same approach — pick the first non-empty style.
+        border_style: {
+            let border_styles: Vec<&str> = [
+                styles.border.as_ref().map(|b| b.style.as_str()),
+                styles.border_top.as_ref().map(|b| b.style.as_str()),
+                styles.border_right.as_ref().map(|b| b.style.as_str()),
+                styles.border_bottom.as_ref().map(|b| b.style.as_str()),
+                styles.border_left.as_ref().map(|b| b.style.as_str()),
+            ].into_iter().flatten().filter(|s| !s.is_empty()).collect();
+            border_styles.first().map(|s| s.to_string())
+        },
         border_radius: styles.border_radius.clone(),
 
         opacity: styles.opacity,
@@ -1346,6 +1377,10 @@ fn merge_styles(dest: &mut ComputedStyles, source: &ComputedStyles) {
     if source.margin.is_some() { dest.margin = source.margin.clone(); }
     if source.padding.is_some() { dest.padding = source.padding.clone(); }
     if source.border.is_some() { dest.border = source.border.clone(); }
+    if source.border_top.is_some() { dest.border_top = source.border_top.clone(); }
+    if source.border_right.is_some() { dest.border_right = source.border_right.clone(); }
+    if source.border_bottom.is_some() { dest.border_bottom = source.border_bottom.clone(); }
+    if source.border_left.is_some() { dest.border_left = source.border_left.clone(); }
     // Promoted properties
     if source.flex_wrap.is_some() { dest.flex_wrap = source.flex_wrap.clone(); }
     if source.align_self.is_some() { dest.align_self = source.align_self.clone(); }
