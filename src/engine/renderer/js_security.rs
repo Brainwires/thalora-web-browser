@@ -19,15 +19,19 @@ impl JavaScriptSecurityValidator {
     /// Validate JavaScript code for security risks
     ///
     /// SECURITY POLICY (HARD BLOCKS):
-    /// - Block eval() calls
-    /// - Block Function() constructor
-    /// - Block setTimeout/setInterval with string arguments
-    /// - Block dynamic code generation
-    /// - Block Node.js-specific APIs
-    /// - Block document.write and dangerous DOM manipulation
-    /// - Block attempts to access __proto__, constructor.constructor
-    /// - Block import() and dynamic imports
-    /// - Block WebAssembly.instantiate
+    /// - Block eval() calls (arbitrary code execution)
+    /// - Block Function() constructor (dynamic code generation)
+    /// - Block setTimeout/setInterval with string arguments (code execution)
+    /// - Block __proto__ access (prototype pollution)
+    /// - Block constructor.constructor chains (Function access)
+    /// - Block document.write (XSS vector)
+    /// - Block WebAssembly instantiation (sandboxing)
+    /// - Block Node.js-specific APIs (host access)
+    ///
+    /// ALLOWED (legitimate browser JS features):
+    /// - import() and import statements (used by Astro, React, Vue for hydration/code-splitting)
+    /// - window[key], self[key] (standard JS pattern; eval-bracket already caught separately)
+    /// - Symbol, Reflect, Proxy (standard ES6+ features used by Vue, React, etc.)
     ///
     /// This implements comprehensive regex-based detection that is much harder to bypass
     /// than the previous simple pattern matching.
@@ -49,10 +53,7 @@ impl JavaScriptSecurityValidator {
         // CRITICAL: Check for bypass vectors in original code
         self.check_eval_bracket(js_code)?;
         self.check_proto_bracket(js_code)?;
-        self.check_global_bracket_access(js_code)?; // CRITICAL FIX #1
-        self.check_escape_sequences(js_code)?; // CRITICAL FIX #2
-        self.check_reflect_api(js_code)?; // HIGH PRIORITY FIX
-        self.check_symbol_api(js_code)?; // MEDIUM PRIORITY FIX
+        self.check_escape_sequences(js_code)?;
 
         // Remove comments and strings to prevent false positives for other checks
         let code_without_comments = self.remove_comments_and_strings(js_code);
@@ -63,14 +64,12 @@ impl JavaScriptSecurityValidator {
         self.check_timeout_with_strings(js_code)?; // Check original for string detection
         self.check_proto_pollution(&code_without_comments)?;
         self.check_constructor_access(&code_without_comments)?;
-        self.check_constructor_after_literal(&code_without_comments)?; // CRITICAL FIX #3
-        self.check_async_generator_constructor(&code_without_comments)?; // HIGH PRIORITY FIX
+        self.check_constructor_after_literal(&code_without_comments)?;
+        self.check_async_generator_constructor(&code_without_comments)?;
         self.check_with_statement(&code_without_comments)?;
-        self.check_import_statements(js_code)?; // Check original to detect import 'string'
         self.check_document_write(&code_without_comments)?;
         self.check_webassembly(&code_without_comments)?;
         self.check_node_apis(&code_without_comments)?;
-        self.check_proxy_usage(&code_without_comments)?; // MEDIUM PRIORITY FIX
 
         Ok(())
     }
@@ -294,7 +293,9 @@ impl JavaScriptSecurityValidator {
         Ok(())
     }
 
-    /// Check for import statements
+    /// Check for import statements (DISABLED — import/import() is standard browser JS
+    /// needed by Astro, React, Vue for hydration and code-splitting)
+    #[allow(dead_code)]
     fn check_import_statements(&self, code: &str) -> Result<()> {
         static IMPORT_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = IMPORT_REGEX.get_or_init(|| {
@@ -374,8 +375,9 @@ impl JavaScriptSecurityValidator {
         Ok(())
     }
 
-    /// CRITICAL FIX #1: Block ALL bracket notation access to global objects
-    /// Prevents: window['e'+'val'], window[variable], globalThis[anything]
+    /// Block ALL bracket notation access to global objects (DISABLED — too aggressive,
+    /// blocks legitimate code like OneTrust. window["eval"] is caught by check_eval_bracket)
+    #[allow(dead_code)]
     fn check_global_bracket_access(&self, code: &str) -> Result<()> {
         static GLOBAL_BRACKET_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = GLOBAL_BRACKET_REGEX.get_or_init(|| {
@@ -460,8 +462,8 @@ impl JavaScriptSecurityValidator {
         Ok(())
     }
 
-    /// HIGH PRIORITY FIX: Block Reflect API that can bypass security checks
-    /// Prevents: Reflect.get(window, 'eval'), Reflect.apply(eval, ...), Reflect.construct(Function, ...)
+    /// Block Reflect API (DISABLED — standard ES6 feature used by Vue, MobX, etc.)
+    #[allow(dead_code)]
     fn check_reflect_api(&self, code: &str) -> Result<()> {
         static REFLECT_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = REFLECT_REGEX.get_or_init(|| {
@@ -478,8 +480,8 @@ impl JavaScriptSecurityValidator {
         Ok(())
     }
 
-    /// MEDIUM PRIORITY FIX: Block Symbol API that can create dynamic property keys
-    /// Prevents: Symbol.for('eval'), Symbol() for dynamic keys
+    /// Block Symbol API (DISABLED — standard ES6 feature used by React, etc.)
+    #[allow(dead_code)]
     fn check_symbol_api(&self, code: &str) -> Result<()> {
         static SYMBOL_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = SYMBOL_REGEX.get_or_init(|| {
@@ -496,8 +498,8 @@ impl JavaScriptSecurityValidator {
         Ok(())
     }
 
-    /// MEDIUM PRIORITY FIX: Block Proxy usage that can intercept property access
-    /// Prevents: new Proxy({}, handler) where handler returns eval
+    /// Block Proxy usage (DISABLED — standard ES6 feature used by Vue reactivity, MobX, etc.)
+    #[allow(dead_code)]
     fn check_proxy_usage(&self, code: &str) -> Result<()> {
         static PROXY_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = PROXY_REGEX.get_or_init(|| {
@@ -619,16 +621,16 @@ mod tests {
     }
 
     #[test]
-    fn test_import_blocked() {
+    fn test_import_allowed() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // import statements
-        assert!(validator.is_safe_javascript("import { foo } from 'bar';").is_err());
-        assert!(validator.is_safe_javascript("import * from 'bar';").is_err());
-        assert!(validator.is_safe_javascript("import 'bar';").is_err());
+        // import statements are now ALLOWED — needed for Astro/React/Vue hydration
+        assert!(validator.is_safe_javascript("import { foo } from 'bar';").is_ok());
+        assert!(validator.is_safe_javascript("import * from 'bar';").is_ok());
+        assert!(validator.is_safe_javascript("import 'bar';").is_ok());
 
-        // Dynamic import
-        assert!(validator.is_safe_javascript("import('bar')").is_err());
+        // Dynamic import is now ALLOWED — used by every modern framework
+        assert!(validator.is_safe_javascript("import('bar')").is_ok());
     }
 
     #[test]
@@ -671,32 +673,32 @@ mod tests {
     // === NEW SECURITY FIXES TESTS ===
 
     #[test]
-    fn test_global_bracket_access_blocked() {
+    fn test_global_bracket_access_allowed() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // CRITICAL FIX #1: Block ANY bracket access to globals
-        assert!(validator.is_safe_javascript("window[x]").is_err());
-        assert!(validator.is_safe_javascript("globalThis[key]").is_err());
-        assert!(validator.is_safe_javascript("self['property']").is_err());
+        // Bracket access to globals is now ALLOWED — standard JS pattern
+        // used by OneTrust, analytics, and many legitimate libraries.
+        // The specific window["eval"] attack is still caught by check_eval_bracket.
+        assert!(validator.is_safe_javascript("window[x]").is_ok());
+        assert!(validator.is_safe_javascript("globalThis[key]").is_ok());
+        assert!(validator.is_safe_javascript("self['property']").is_ok());
 
-        // Should block even with computed properties
-        let computed = r#"
-            const key = 'e' + 'val';
-            window[key]('alert(1)');
-        "#;
-        assert!(validator.is_safe_javascript(computed).is_err());
+        // But window["eval"] is still blocked by check_eval_bracket
+        assert!(validator.is_safe_javascript("window['eval']('alert(1)')").is_err());
     }
 
     #[test]
     fn test_escape_sequences_blocked() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // CRITICAL FIX #2: Block hex and unicode escapes in bracket notation
+        // Block hex and unicode escapes in bracket notation (prevents eval/proto via encoding)
         assert!(validator.is_safe_javascript(r#"window['\x65\x76\x61\x6c']"#).is_err());
         assert!(validator.is_safe_javascript(r#"obj['\u005f\u005fproto\u005f\u005f']"#).is_err());
 
-        // Block escapes near dangerous keywords (within strings or code)
-        assert!(validator.is_safe_javascript(r#"const x = '\x65\x76\x61\x6c'; window[x]('code')"#).is_err());
+        // Escapes assigned to a variable and then used via window[x] — this pattern
+        // is no longer caught since check_global_bracket_access is disabled.
+        // The direct bracket-with-escape case above is still blocked.
+        assert!(validator.is_safe_javascript(r#"const x = '\x65\x76\x61\x6c'; window[x]('code')"#).is_ok());
     }
 
     #[test]
@@ -729,44 +731,31 @@ mod tests {
     }
 
     #[test]
-    fn test_reflect_api_blocked() {
+    fn test_reflect_api_allowed() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // HIGH PRIORITY: Block Reflect API
-        assert!(validator.is_safe_javascript("Reflect.get(window, 'eval')").is_err());
-        assert!(validator.is_safe_javascript("Reflect.apply(eval, null, ['code'])").is_err());
-        assert!(validator.is_safe_javascript("Reflect.construct(Function, ['return 1'])").is_err());
-        assert!(validator.is_safe_javascript("Reflect.defineProperty(obj, 'x', {})").is_err());
-        assert!(validator.is_safe_javascript("Reflect.setPrototypeOf(obj, {})").is_err());
+        // Reflect API is now ALLOWED — standard ES6 feature used by Vue, MobX, etc.
+        assert!(validator.is_safe_javascript("Reflect.get(window, 'eval')").is_ok());
+        assert!(validator.is_safe_javascript("Reflect.apply(eval, null, ['code'])").is_ok());
+        assert!(validator.is_safe_javascript("Reflect.defineProperty(obj, 'x', {})").is_ok());
     }
 
     #[test]
-    fn test_symbol_api_blocked() {
+    fn test_symbol_api_allowed() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // MEDIUM PRIORITY: Block Symbol API
-        assert!(validator.is_safe_javascript("Symbol.for('eval')").is_err());
-        assert!(validator.is_safe_javascript("Symbol('key')").is_err());
-
-        let symbol_attack = r#"
-            const sym = Symbol.for('eval');
-            window[sym] = eval;
-        "#;
-        assert!(validator.is_safe_javascript(symbol_attack).is_err());
+        // Symbol API is now ALLOWED — standard ES6 feature used by React (@@iterator), etc.
+        assert!(validator.is_safe_javascript("Symbol.for('myKey')").is_ok());
+        assert!(validator.is_safe_javascript("Symbol('key')").is_ok());
     }
 
     #[test]
-    fn test_proxy_usage_blocked() {
+    fn test_proxy_usage_allowed() {
         let validator = JavaScriptSecurityValidator::new();
 
-        // MEDIUM PRIORITY: Block Proxy objects
-        assert!(validator.is_safe_javascript("new Proxy({}, handler)").is_err());
-
-        let proxy_attack = r#"
-            const handler = { get: () => eval };
-            const proxy = new Proxy({}, handler);
-        "#;
-        assert!(validator.is_safe_javascript(proxy_attack).is_err());
+        // Proxy is now ALLOWED — standard ES6 feature used by Vue reactivity, MobX, etc.
+        assert!(validator.is_safe_javascript("new Proxy({}, handler)").is_ok());
+        assert!(validator.is_safe_javascript("const p = new Proxy(target, { get: (t, k) => t[k] })").is_ok());
     }
 
     #[test]

@@ -32,15 +32,24 @@ pub extern "C" fn thalora_navigate(
         }
     };
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.navigate_to_with_js_option(url_str, true, true).await
-    });
+    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
+    // (undefined behavior). thalora_compute_styled_tree already does this.
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        inst.runtime.block_on(async {
+            let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+            browser.navigate_to_with_js_option(url_str, true, true).await
+        })
+    }));
 
     match result {
-        Ok(html) => rust_string_to_c(html),
-        Err(e) => {
+        Ok(Ok(html)) => rust_string_to_c(html),
+        Ok(Err(e)) => {
             inst.set_error(format!("Navigation failed: {}", e));
+            ptr::null_mut()
+        }
+        Err(_) => {
+            eprintln!("[ERROR] FFI thalora_navigate panicked! Returning null.");
+            inst.set_error("Navigation panicked (internal error)".into());
             ptr::null_mut()
         }
     }
@@ -106,19 +115,27 @@ pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
     let inst = unsafe { &*instance };
     inst.clear_error();
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.go_back().await
-    });
+    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        inst.runtime.block_on(async {
+            let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+            browser.go_back().await
+        })
+    }));
 
     match result {
-        Ok(Some(_)) => 0,
-        Ok(None) => {
+        Ok(Ok(Some(_))) => 0,
+        Ok(Ok(None)) => {
             inst.set_error("Already at beginning of history".into());
             -1
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             inst.set_error(format!("Go back failed: {}", e));
+            -1
+        }
+        Err(_) => {
+            eprintln!("[ERROR] FFI thalora_go_back panicked! Returning -1.");
+            inst.set_error("Go back panicked (internal error)".into());
             -1
         }
     }
@@ -134,19 +151,27 @@ pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
     let inst = unsafe { &*instance };
     inst.clear_error();
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.go_forward().await
-    });
+    // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        inst.runtime.block_on(async {
+            let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+            browser.go_forward().await
+        })
+    }));
 
     match result {
-        Ok(Some(_)) => 0,
-        Ok(None) => {
+        Ok(Ok(Some(_))) => 0,
+        Ok(Ok(None)) => {
             inst.set_error("Already at end of history".into());
             -1
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             inst.set_error(format!("Go forward failed: {}", e));
+            -1
+        }
+        Err(_) => {
+            eprintln!("[ERROR] FFI thalora_go_forward panicked! Returning -1.");
+            inst.set_error("Go forward panicked (internal error)".into());
             -1
         }
     }

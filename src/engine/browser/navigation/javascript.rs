@@ -50,10 +50,14 @@ impl super::super::HeadlessWebBrowser {
         // Store HTML content for form parsing when needed
         eprintln!("🔍 DEBUG: HTML content available for form parsing: {} characters", content.len());
 
-        // Update document HTML in the renderer if available
+        // Update document HTML in the renderer if available.
+        // Non-fatal: the page content is already loaded; a renderer update failure
+        // shouldn't abort navigation.
         if let Some(ref mut renderer) = self.renderer {
             eprintln!("🔍 DEBUG: Updating document HTML via renderer");
-            renderer.update_document_html(&content)?;
+            if let Err(e) = renderer.update_document_html(&content) {
+                eprintln!("WARNING: Failed to update document HTML: {} (continuing)", e);
+            }
         }
 
         // Add human-like navigation delays only in Stealth mode (MCP/headless)
@@ -503,9 +507,13 @@ impl super::super::HeadlessWebBrowser {
         self.external_stylesheets = external_css;
         eprintln!("🔍 DEBUG: navigate_internal - stored {} external stylesheets", self.external_stylesheets.len());
 
-        // Update document HTML in the renderer if available
+        // Update document HTML in the renderer if available.
+        // Non-fatal: the page content is already loaded; a renderer update failure
+        // shouldn't abort navigation.
         if let Some(ref mut renderer) = self.renderer {
-            renderer.update_document_html(&content)?;
+            if let Err(e) = renderer.update_document_html(&content) {
+                eprintln!("WARNING: Failed to update document HTML (navigate_internal): {} (continuing)", e);
+            }
         }
 
         // Analyze forms for target="_blank" detection

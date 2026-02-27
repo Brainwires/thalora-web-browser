@@ -216,31 +216,39 @@ impl RustRenderer {
 
         self.in_update = true;
 
-        match self.engine_type {
-            EngineType::Boa => {
-                if let Some(ctx) = &mut self.js_context {
-                    // Get the global document object
-                    let global = ctx.global_object().clone();
-                    if let Ok(document_value) = global.get(js_string!("document"), ctx) {
-                        if let Some(document_obj) = document_value.as_object() {
-                            // Check if this is a Document object with our DocumentData
-                            if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
-                                document_data.set_html_content(html_content);
-                                document_data.set_ready_state("complete");
+        // Wrap in catch_unwind to guarantee in_update is reset even if code panics.
+        // Without this, a panic after setting in_update=true would leave it stuck,
+        // silently blocking all future DOM updates.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            match self.engine_type {
+                EngineType::Boa => {
+                    if let Some(ctx) = &mut self.js_context {
+                        // Get the global document object
+                        let global = ctx.global_object().clone();
+                        if let Ok(document_value) = global.get(js_string!("document"), ctx) {
+                            if let Some(document_obj) = document_value.as_object() {
+                                // Check if this is a Document object with our DocumentData
+                                if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
+                                    document_data.set_html_content(html_content);
+                                    document_data.set_ready_state("complete");
+                                }
                             }
                         }
                     }
                 }
+                EngineType::V8 => {
+                    // V8 DOM handling - for now, just acknowledge the HTML content
+                    // TODO: Implement V8 DOM manipulation
+                }
             }
-            EngineType::V8 => {
-                // V8 DOM handling - for now, just acknowledge the HTML content
-                // TODO: Implement V8 DOM manipulation
-            }
+        }));
+
+        self.in_update = false; // Always reset, even after panic
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(_) => Err(anyhow::anyhow!("Panic in update_document_html")),
         }
-
-        self.in_update = false;
-
-        Ok(())
     }
 
     /// TEMPORARY: Get debugging information from Bing debug polyfill

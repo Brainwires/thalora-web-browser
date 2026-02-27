@@ -3,7 +3,7 @@ use crate::engine::renderer::js_security::JavaScriptSecurityValidator;
 use anyhow::Result;
 
 impl RustRenderer {
-    /// Validate JavaScript code for security risks using AST-based analysis
+    /// Validate JavaScript code for security risks using regex-based analysis
     ///
     /// SECURITY POLICY (HARD BLOCKS - No feature flags):
     /// - eval() calls are BLOCKED
@@ -12,10 +12,14 @@ impl RustRenderer {
     /// - __proto__ access is BLOCKED (prototype pollution)
     /// - constructor.constructor is BLOCKED (Function access)
     /// - with statements are BLOCKED
-    /// - import statements are BLOCKED
     /// - document.write is BLOCKED
     /// - WebAssembly instantiation is BLOCKED
     /// - Node.js APIs are BLOCKED
+    ///
+    /// ALLOWED (legitimate browser features):
+    /// - import/import() — needed for Astro/React/Vue hydration
+    /// - window[key]/self[key] — standard JS (eval-bracket caught separately)
+    /// - Symbol, Reflect, Proxy — standard ES6+ APIs
     ///
     /// This is a HARD BLOCK implementation - no environment variables can override.
     /// For AI automation use cases that require dangerous operations, use dedicated

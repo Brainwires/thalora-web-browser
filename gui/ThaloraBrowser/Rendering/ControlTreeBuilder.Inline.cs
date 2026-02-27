@@ -290,6 +290,8 @@ public partial class ControlTreeBuilder
                     span.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
                 if (styles.FontFamily != null)
                     span.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                if (styles.FontSize != null)
+                    span.FontSize = fontSize;
 
                 foreach (var child in element.Children)
                     AddInlineContent(span.Inlines, child, fontSize);

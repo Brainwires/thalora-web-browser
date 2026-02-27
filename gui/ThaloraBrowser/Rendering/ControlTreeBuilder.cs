@@ -210,7 +210,10 @@ public partial class ControlTreeBuilder
             return panel;
         }
 
-        // Special handling by tag
+        // Special handling by tag — self-contained elements return early,
+        // form elements set specialContent and fall through to Border wrapping
+        // so they get CSS border, padding, margin, dimensions applied.
+        Control? specialContent = null;
         switch (element.Tag)
         {
             case "#text":
@@ -228,16 +231,21 @@ public partial class ControlTreeBuilder
                 return null; // Handled inline as line breaks
 
             case "input":
-                return BuildInputElement(element, fontSize);
+                specialContent = BuildInputElement(element, fontSize);
+                if (specialContent == null) return null; // hidden input
+                break;
 
             case "button":
-                return BuildButtonElement(element, fontSize);
+                specialContent = BuildButtonElement(element, fontSize);
+                break;
 
             case "select":
-                return BuildSelectElement(element, fontSize);
+                specialContent = BuildSelectElement(element, fontSize);
+                break;
 
             case "textarea":
-                return BuildTextareaElement(element, fontSize);
+                specialContent = BuildTextareaElement(element, fontSize);
+                break;
 
             case "svg":
                 // Inline SVG: create a sized placeholder panel
@@ -254,7 +262,11 @@ public partial class ControlTreeBuilder
 
         // Build the appropriate control
         Control content;
-        if (hasOnlyInlineChildren)
+        if (specialContent != null)
+        {
+            content = specialContent;
+        }
+        else if (hasOnlyInlineChildren)
         {
             // Check if this is a "simple link wrapper" — an element whose only non-whitespace
             // content is a single <a> link (e.g., <li><a>Donations</a></li>).

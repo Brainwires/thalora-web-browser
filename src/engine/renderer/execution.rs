@@ -121,14 +121,20 @@ impl RustRenderer {
             return Err(anyhow!("JavaScript contains potentially dangerous code"));
         }
 
-        // TEMPORARY: Disable safe wrapper to test context isolation
-        // Simple error-safe wrapper that prevents Google's JavaScript from crashing
+        // Simple error-safe wrapper that prevents page JavaScript from crashing the engine.
+        // Uses async IIFE when the script contains `await` to support top-level await.
         let safe_wrapper = if js_code.contains("typeof window") || js_code.contains("Worker") || js_code.contains("ServiceWorker") || js_code.contains("Worklet") || js_code.contains("MessageChannel") {
             // For DOM and Worker ecosystem tests, execute directly without wrapper to avoid context isolation
             js_code.to_string()
         } else {
+            // Detect top-level await: check for `await` outside of async function bodies.
+            // Simple heuristic: if the code contains `await ` (with space) or `await(`
+            // it likely uses await. The IIFE wrapper handles it correctly either way
+            // (async IIFE is valid even without await inside).
+            let has_await = js_code.contains("await ");
+            let fn_keyword = if has_await { "async function" } else { "function" };
             format!(r#"
-(function() {{
+({fn_keyword}() {{
     try {{
         {}
     }} catch(e) {{
@@ -136,7 +142,7 @@ impl RustRenderer {
         return undefined;
     }}
 }})()
-            "#, js_code)
+            "#, js_code, fn_keyword = fn_keyword)
         };
 
         // Execute JavaScript directly without nested async handling

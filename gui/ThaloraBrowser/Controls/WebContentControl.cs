@@ -216,6 +216,11 @@ public class WebContentControl : UserControl
             {
                 Console.Error.WriteLine($"[WebContentControl] Styled tree JSON received: {styledTreeJson.Length} chars");
 
+                // Clear stale state before rebuilding — if BuildFromJson throws,
+                // we don't want leftover selectors/actions from the previous page.
+                _elementSelectors = null;
+                _elementActions = null;
+
                 // Build Avalonia control tree from the styled element tree
                 var builder = new ControlTreeBuilder(
                     BaseUrl,

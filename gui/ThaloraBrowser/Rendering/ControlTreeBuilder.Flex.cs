@@ -147,6 +147,8 @@ public partial class ControlTreeBuilder
                         // flex-grow mode: each child gets a column.
                         // Children with flex-grow > 0 get Star(N) columns.
                         // Children without flex-grow get Auto columns.
+                        // Exception: children with width >= 100% also get Star columns
+                        // (CSS width:100% = fill parent, but Auto columns constrain to content).
                         int col = 0;
                         foreach (var child in visibleChildren)
                         {
@@ -156,6 +158,8 @@ public partial class ControlTreeBuilder
 
                             if (grow > 0)
                                 grid.ColumnDefinitions.Add(new ColumnDefinition(grow, GridUnitType.Star));
+                            else if (IsChildFullWidth(child))
+                                grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
                             else
                                 grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
@@ -177,13 +181,19 @@ public partial class ControlTreeBuilder
                     {
                         // space-between/around/evenly mode (no flex-grow):
                         // Auto columns for children, Star columns for spacers.
+                        // Exception: children with width >= 100% get Star columns so they
+                        // can stretch to fill the parent (CSS width:100% in Auto columns
+                        // constrains to content width, breaking inner justify-content).
                         bool isAround = styles.JustifyContent == "space-around"
                             || styles.JustifyContent == "space-evenly";
                         for (int i = 0; i < visibleChildren.Count; i++)
                         {
                             if (i > 0 || isAround)
                                 grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
-                            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                            if (IsChildFullWidth(visibleChildren[i]))
+                                grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+                            else
+                                grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
                         }
                         if (isAround)
                             grid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
@@ -342,7 +352,10 @@ public partial class ControlTreeBuilder
                             if (childControl is Border childBorder)
                             {
                                 childBorder.Width = resolvedWidth;
-                                childBorder.HorizontalAlignment = HorizontalAlignment.Left;
+                                // Don't hardcode HorizontalAlignment.Left here — the explicit
+                                // Width is sufficient for WrapPanel row-breaking. Leave default
+                                // (Stretch) so the child's internal alignment properties
+                                // (text-align:right, justify-content:flex-end) work correctly.
                             }
                             else
                             {
@@ -368,7 +381,13 @@ public partial class ControlTreeBuilder
                             ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(new GridLength(flexGap.Value)));
                             flexGridCol++;
                         }
-                        ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+                        // CSS width:100% on a flex child means "fill the parent".
+                        // In an Auto column, HorizontalAlignment.Stretch = content width (wrong).
+                        // Use Star column so the child can actually stretch to fill available space.
+                        if (IsChildFullWidth(child))
+                            ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+                        else
+                            ((Grid)panel).ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
                         Grid.SetColumn(childControl, flexGridCol++);
                     }
                     panel.Children.Add(childControl);

@@ -441,6 +441,10 @@ public partial class ControlTreeBuilder
             default:
             {
                 // text, search, email, password, url, tel, number, etc.
+                // Width, background, border, padding, and dimensions are now handled
+                // by the outer Border wrapper (WrapInBorder) in BuildControl.
+                // Set BorderThickness=0 to prevent Avalonia's default TextBox border
+                // from doubling up with the CSS border on the outer Border.
                 var textBox = new TextBox
                 {
                     Text = value,
@@ -448,25 +452,14 @@ public partial class ControlTreeBuilder
                     FontSize = fontSize,
                     FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Padding = new Thickness(4, 2),
+                    BorderThickness = new Thickness(0),
+                    MinWidth = 120,
                 };
-
-                // Apply width from CSS or a reasonable default
-                var w = Len(styles.Width, fontSize);
-                if (w.HasValue)
-                    textBox.Width = w.Value;
-                else
-                    textBox.MinWidth = 120;
 
                 if (!string.IsNullOrEmpty(styles.Color))
                 {
                     var brush = StyleParser.ParseBrush(styles.Color);
                     if (brush != null) textBox.Foreground = brush;
-                }
-                if (!string.IsNullOrEmpty(styles.BackgroundColor))
-                {
-                    var bgBrush = StyleParser.ParseBrush(styles.BackgroundColor);
-                    if (bgBrush != null) textBox.Background = bgBrush;
                 }
 
                 return textBox;
@@ -480,13 +473,10 @@ public partial class ControlTreeBuilder
     private Control BuildButtonElement(StyledElement element, double fontSize)
     {
         var styles = element.Styles;
-        var text = CollectInlineText(element).Trim();
-        if (string.IsNullOrEmpty(text))
-            text = "Button";
 
+        // Background is now handled by the outer Border wrapper.
         var btn = new Button
         {
-            Content = text,
             FontSize = fontSize,
             FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
             Padding = new Thickness(8, 4),
@@ -498,11 +488,30 @@ public partial class ControlTreeBuilder
             var brush = StyleParser.ParseBrush(styles.Color);
             if (brush != null) btn.Foreground = brush;
         }
-        if (!string.IsNullOrEmpty(styles.BackgroundColor))
+
+        // If the button has children with inline content, build a TextBlock with
+        // styled Runs as the button content. This preserves per-child font-size,
+        // color, etc. — e.g., a 6px caret icon inside a 12px button.
+        if (element.Children.Count > 0)
         {
-            var bgBrush = StyleParser.ParseBrush(styles.BackgroundColor);
-            if (bgBrush != null) btn.Background = bgBrush;
+            var textBlock = new SelectableTextBlock();
+            ApplyTextProperties(textBlock, styles, fontSize);
+            foreach (var child in element.Children)
+                AddInlineContent(textBlock.Inlines!, child, fontSize);
+
+            // If the textblock has content, use it; otherwise fall back to flat text
+            if (textBlock.Inlines!.Count > 0)
+            {
+                btn.Content = textBlock;
+                return btn;
+            }
         }
+
+        // Simple button with flat text content
+        var text = CollectInlineText(element).Trim();
+        if (string.IsNullOrEmpty(text))
+            text = "Button";
+        btn.Content = text;
 
         return btn;
     }
@@ -567,6 +576,8 @@ public partial class ControlTreeBuilder
         var styles = element.Styles;
         var text = CollectInlineText(element);
 
+        // Width, height, border, padding are now handled by the outer Border wrapper.
+        // Set BorderThickness=0 to prevent double-border.
         var textBox = new TextBox
         {
             Text = text,
@@ -576,14 +587,8 @@ public partial class ControlTreeBuilder
             MinHeight = 60,
             MinWidth = 200,
             TextWrapping = TextWrapping.Wrap,
-            Padding = new Thickness(4, 2),
+            BorderThickness = new Thickness(0),
         };
-
-        var w = Len(styles.Width, fontSize);
-        if (w.HasValue) textBox.Width = w.Value;
-
-        var h = Len(styles.Height, fontSize);
-        if (h.HasValue) textBox.Height = h.Value;
 
         return textBox;
     }

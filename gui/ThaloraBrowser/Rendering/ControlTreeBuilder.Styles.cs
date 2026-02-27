@@ -217,6 +217,13 @@ public partial class ControlTreeBuilder
     /// </summary>
     private static bool IsInlineElement(StyledElement element)
     {
+        // Form controls: always treat as block — they require special rendering
+        // (TextBox, CheckBox, Button, etc.) that can't be done as Span/Run inside
+        // SelectableTextBlock. Even when CSS says display:inline-block, these must
+        // go through BuildControl's tag-specific handlers.
+        if (element.Tag is "input" or "button" or "select" or "textarea")
+            return false;
+
         // Images: treat as block when they're likely content images
         if (element.Tag == "img")
         {
@@ -254,6 +261,27 @@ public partial class ControlTreeBuilder
     /// </summary>
     private static bool IsPercentage(string? value)
         => value != null && value.TrimEnd().EndsWith('%');
+
+    /// <summary>
+    /// Check if a flex child has CSS width >= 100%, meaning it wants to fill its parent.
+    /// In horizontal flex Grids, these children need Star columns instead of Auto
+    /// because BuildControl translates width:100% to HorizontalAlignment.Stretch
+    /// (no explicit pixel width), and Stretch in an Auto column = content width.
+    /// </summary>
+    private static bool IsChildFullWidth(StyledElement child)
+    {
+        var w = child.Styles.Width?.TrimEnd();
+        if (w == null || !w.EndsWith('%'))
+            return false;
+        if (double.TryParse(w.TrimEnd('%', ' '),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var pct))
+        {
+            return pct >= 100;
+        }
+        return false;
+    }
 
     /// <summary>
     /// Parse a CSS length with viewport unit support. Shorthand for passing viewport dims.
