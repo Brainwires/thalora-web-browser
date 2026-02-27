@@ -20,14 +20,29 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
 
     /// <summary>
     /// Navigate to a URL and return the page HTML.
+    /// Uses a dedicated thread with 8MB stack to handle deeply nested HTML parsing
+    /// and Boa JS execution without stack overflow.
     /// </summary>
     public Task<string?> NavigateAsync(string url)
-        => Task.Run(() =>
+    {
+        var tcs = new TaskCompletionSource<string?>();
+        var thread = new Thread(() =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_navigate(_instance, url);
-            return ConsumeRustString(ptr);
-        });
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_navigate(_instance, url);
+                tcs.SetResult(ConsumeRustString(ptr));
+            }
+            catch (Exception ex)
+            {
+                tcs.SetException(ex);
+            }
+        }, 8 * 1024 * 1024); // 8MB stack for Boa JS parser + scraper HTML parsing
+        thread.IsBackground = true;
+        thread.Start();
+        return tcs.Task;
+    }
 
     /// <summary>
     /// Get the current URL.

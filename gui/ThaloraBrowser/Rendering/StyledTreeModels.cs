@@ -49,6 +49,9 @@ internal class StyledElement
     [JsonPropertyName("link_href")]
     public string? LinkHref { get; set; }
 
+    [JsonPropertyName("attributes")]
+    public Dictionary<string, string>? Attributes { get; set; }
+
     [JsonPropertyName("styles")]
     public ResolvedStyles Styles { get; set; } = new();
 

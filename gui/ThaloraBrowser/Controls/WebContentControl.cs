@@ -259,11 +259,16 @@ public class WebContentControl : UserControl
             {
                 var lastError = engine.GetLastError();
                 Console.Error.WriteLine($"[WebContentControl] Styled tree returned null. Rust error: {lastError ?? "(none)"}");
+                // Surface error to the GUI status bar so the user can see it
+                if (DataContext is ThaloraBrowser.ViewModels.BrowserTabViewModel vm)
+                    vm.StatusText = $"Render error: {lastError ?? "styled tree returned null"}";
             }
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[WebContentControl] Error in OnHtmlContentChanged: {ex}");
+            if (DataContext is ThaloraBrowser.ViewModels.BrowserTabViewModel vm2)
+                vm2.StatusText = $"Render error: {ex.Message}";
         }
         finally
         {

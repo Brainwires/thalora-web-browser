@@ -347,8 +347,6 @@ impl DocumentData {
 
     pub fn set_html_content(&self, html: &str) {
         *self.html_content.lock().unwrap() = html.to_string();
-
-        // Process all forms in the HTML and prepare them for DOM access
         self.process_forms_in_html(html);
     }
 
@@ -2268,11 +2266,27 @@ fn get_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context
     if let Some(html) = document.get_element("html") {
         Ok(html.into())
     } else {
-        // Create a new html element
+        // Create a new html element and populate it from stored HTML content
         let element_constructor = context.intrinsics().constructors().element().constructor();
         let html_element = element_constructor.construct(&[], None, context)?;
         if let Some(elem_data) = html_element.downcast_ref::<crate::dom::element::ElementData>() {
             elem_data.set_tag_name("HTML".to_string());
+
+            // Populate from stored HTML content so outerHTML has real data
+            let html_content = document.get_html_content();
+            if !html_content.is_empty() {
+                if let Ok(sel) = scraper::Selector::parse("html") {
+                    let parsed = scraper::Html::parse_document(&html_content);
+                    if let Some(html_el) = parsed.select(&sel).next() {
+                        // Extract <html> attributes (class, lang, dir, etc.)
+                        for (name, value) in html_el.value().attrs() {
+                            elem_data.set_attribute(name.to_string(), value.to_string());
+                        }
+                        // Set inner_html to the content between <html> and </html>
+                        elem_data.set_inner_html_raw(html_el.inner_html());
+                    }
+                }
+            }
         }
         document.add_element("html".to_string(), html_element.clone());
         Ok(html_element.into())

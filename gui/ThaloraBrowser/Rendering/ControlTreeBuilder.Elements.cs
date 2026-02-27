@@ -172,9 +172,12 @@ public partial class ControlTreeBuilder
     {
         try
         {
-            // Skip SVG images — Avalonia Bitmap doesn't support SVG format
+            // SVG images — load via Svg.Skia and convert to Avalonia bitmap
             if (src.Contains(".svg", StringComparison.OrdinalIgnoreCase))
+            {
+                await LoadSvgImageAsync(imageControl, src);
                 return;
+            }
 
             var bitmap = await _imageCache.GetImageAsync(src, _baseUrl);
             if (bitmap != null)
@@ -188,6 +191,66 @@ public partial class ControlTreeBuilder
         catch
         {
             // Image load failed — leave blank
+        }
+    }
+
+    /// <summary>
+    /// Load an SVG image via Svg.Skia library, rasterize to bitmap, and display in Image control.
+    /// </summary>
+    private async Task LoadSvgImageAsync(Avalonia.Controls.Image imageControl, string src)
+    {
+        try
+        {
+            // Resolve URL — handle relative paths (/static/...), protocol-relative (//...), etc.
+            var resolvedUrl = src;
+            if (!src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_baseUrl != null && Uri.TryCreate(new Uri(_baseUrl), src, out var fullUri))
+                    resolvedUrl = fullUri.ToString();
+                else if (src.StartsWith("//"))
+                    resolvedUrl = "https:" + src;
+            }
+
+            // Download SVG bytes — must set User-Agent or Wikimedia returns 403
+            using var httpClient = new System.Net.Http.HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+            httpClient.DefaultRequestHeaders.Add("User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            var svgBytes = await httpClient.GetByteArrayAsync(resolvedUrl);
+
+            // Parse SVG with Svg.Skia
+            var svg = new Svg.Skia.SKSvg();
+            using var stream = new System.IO.MemoryStream(svgBytes);
+            var picture = svg.Load(stream);
+            if (picture == null) return;
+
+            // Determine render size
+            var bounds = picture.CullRect;
+            int width = Math.Max((int)bounds.Width, 1);
+            int height = Math.Max((int)bounds.Height, 1);
+
+            // Rasterize to SkiaSharp bitmap
+            using var skBitmap = new SkiaSharp.SKBitmap(width, height);
+            using var canvas = new SkiaSharp.SKCanvas(skBitmap);
+            canvas.Clear(SkiaSharp.SKColors.Transparent);
+            canvas.DrawPicture(picture);
+            canvas.Flush();
+
+            // Convert to Avalonia bitmap
+            using var skImage = SkiaSharp.SKImage.FromBitmap(skBitmap);
+            using var data = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using var memStream = new System.IO.MemoryStream(data.ToArray());
+
+            var avBitmap = new Bitmap(memStream);
+
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                imageControl.Source = avBitmap;
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[SVG] Failed to load SVG {src}: {ex.Message}");
         }
     }
 
@@ -298,6 +361,267 @@ public partial class ControlTreeBuilder
             Background = bgColor,
             Margin = Box(styles.Margin, fontSize),
             HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+    }
+
+    /// <summary>
+    /// Helper to get an HTML attribute from StyledElement.
+    /// </summary>
+    private static string? GetAttr(StyledElement element, string name)
+    {
+        if (element.Attributes == null) return null;
+        return element.Attributes.TryGetValue(name, out var val) ? val : null;
+    }
+
+    /// <summary>
+    /// Build an &lt;input&gt; element. Maps to various Avalonia controls based on type attribute.
+    /// </summary>
+    private Control? BuildInputElement(StyledElement element, double fontSize)
+    {
+        var inputType = GetAttr(element, "type")?.ToLowerInvariant() ?? "text";
+        var placeholder = GetAttr(element, "placeholder");
+        var value = GetAttr(element, "value") ?? "";
+        var styles = element.Styles;
+
+        switch (inputType)
+        {
+            case "hidden":
+                return null;
+
+            case "checkbox":
+            {
+                var cb = new CheckBox
+                {
+                    IsChecked = GetAttr(element, "checked") != null,
+                    FontSize = fontSize,
+                };
+                if (!string.IsNullOrEmpty(styles.Color))
+                {
+                    var brush = StyleParser.ParseBrush(styles.Color);
+                    if (brush != null) cb.Foreground = brush;
+                }
+                return cb;
+            }
+
+            case "radio":
+            {
+                var rb = new RadioButton
+                {
+                    IsChecked = GetAttr(element, "checked") != null,
+                    FontSize = fontSize,
+                };
+                if (!string.IsNullOrEmpty(styles.Color))
+                {
+                    var brush = StyleParser.ParseBrush(styles.Color);
+                    if (brush != null) rb.Foreground = brush;
+                }
+                return rb;
+            }
+
+            case "submit":
+            case "button":
+            case "reset":
+            {
+                var buttonText = value;
+                if (string.IsNullOrEmpty(buttonText))
+                {
+                    buttonText = inputType == "submit" ? "Submit"
+                        : inputType == "reset" ? "Reset" : "Button";
+                }
+                var btn = new Button
+                {
+                    Content = buttonText,
+                    FontSize = fontSize,
+                    Padding = new Thickness(8, 4),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                return btn;
+            }
+
+            default:
+            {
+                // text, search, email, password, url, tel, number, etc.
+                var textBox = new TextBox
+                {
+                    Text = value,
+                    Watermark = placeholder,
+                    FontSize = fontSize,
+                    FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(4, 2),
+                };
+
+                // Apply width from CSS or a reasonable default
+                var w = Len(styles.Width, fontSize);
+                if (w.HasValue)
+                    textBox.Width = w.Value;
+                else
+                    textBox.MinWidth = 120;
+
+                if (!string.IsNullOrEmpty(styles.Color))
+                {
+                    var brush = StyleParser.ParseBrush(styles.Color);
+                    if (brush != null) textBox.Foreground = brush;
+                }
+                if (!string.IsNullOrEmpty(styles.BackgroundColor))
+                {
+                    var bgBrush = StyleParser.ParseBrush(styles.BackgroundColor);
+                    if (bgBrush != null) textBox.Background = bgBrush;
+                }
+
+                return textBox;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Build a &lt;button&gt; element → Avalonia Button.
+    /// </summary>
+    private Control BuildButtonElement(StyledElement element, double fontSize)
+    {
+        var styles = element.Styles;
+        var text = CollectInlineText(element).Trim();
+        if (string.IsNullOrEmpty(text))
+            text = "Button";
+
+        var btn = new Button
+        {
+            Content = text,
+            FontSize = fontSize,
+            FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+            Padding = new Thickness(8, 4),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        if (!string.IsNullOrEmpty(styles.Color))
+        {
+            var brush = StyleParser.ParseBrush(styles.Color);
+            if (brush != null) btn.Foreground = brush;
+        }
+        if (!string.IsNullOrEmpty(styles.BackgroundColor))
+        {
+            var bgBrush = StyleParser.ParseBrush(styles.BackgroundColor);
+            if (bgBrush != null) btn.Background = bgBrush;
+        }
+
+        return btn;
+    }
+
+    /// <summary>
+    /// Build a &lt;select&gt; element → Avalonia ComboBox.
+    /// </summary>
+    private Control BuildSelectElement(StyledElement element, double fontSize)
+    {
+        var styles = element.Styles;
+        var comboBox = new ComboBox
+        {
+            FontSize = fontSize,
+            FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 80,
+        };
+
+        // Extract <option> children as items
+        int selectedIndex = 0;
+        int idx = 0;
+        foreach (var child in element.Children)
+        {
+            if (child.Tag == "option")
+            {
+                var optionText = CollectInlineText(child).Trim();
+                if (string.IsNullOrEmpty(optionText))
+                    optionText = GetAttr(child, "value") ?? "";
+
+                comboBox.Items.Add(optionText);
+
+                if (GetAttr(child, "selected") != null)
+                    selectedIndex = idx;
+                idx++;
+            }
+            else if (child.Tag == "optgroup")
+            {
+                // Flatten optgroup children into the combo box
+                foreach (var optChild in child.Children)
+                {
+                    if (optChild.Tag == "option")
+                    {
+                        var optText = CollectInlineText(optChild).Trim();
+                        comboBox.Items.Add(optText);
+                        idx++;
+                    }
+                }
+            }
+        }
+
+        if (comboBox.Items.Count > 0)
+            comboBox.SelectedIndex = selectedIndex;
+
+        return comboBox;
+    }
+
+    /// <summary>
+    /// Build a &lt;textarea&gt; element → Avalonia TextBox with AcceptsReturn.
+    /// </summary>
+    private Control BuildTextareaElement(StyledElement element, double fontSize)
+    {
+        var styles = element.Styles;
+        var text = CollectInlineText(element);
+
+        var textBox = new TextBox
+        {
+            Text = text,
+            AcceptsReturn = true,
+            FontSize = fontSize,
+            FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily),
+            MinHeight = 60,
+            MinWidth = 200,
+            TextWrapping = TextWrapping.Wrap,
+            Padding = new Thickness(4, 2),
+        };
+
+        var w = Len(styles.Width, fontSize);
+        if (w.HasValue) textBox.Width = w.Value;
+
+        var h = Len(styles.Height, fontSize);
+        if (h.HasValue) textBox.Height = h.Value;
+
+        return textBox;
+    }
+
+    /// <summary>
+    /// Build a placeholder control for &lt;audio&gt; elements.
+    /// Renders a simple play button with "Audio" label. Full playback is future work.
+    /// </summary>
+    private Control BuildAudioPlaceholder(StyledElement element, double fontSize)
+    {
+        var playButton = new Button
+        {
+            Content = "\u25B6 Audio",
+            FontSize = fontSize,
+            Padding = new Thickness(8, 4),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsEnabled = false, // Placeholder — no playback yet
+        };
+
+        return playButton;
+    }
+
+    /// <summary>
+    /// Build a placeholder panel for inline &lt;svg&gt; elements.
+    /// Uses the SVG's declared width/height for sizing.
+    /// </summary>
+    private Control? BuildInlineSvgPlaceholder(StyledElement element, double fontSize)
+    {
+        var styles = element.Styles;
+        var w = Len(styles.Width, fontSize) ?? 24;
+        var h = Len(styles.Height, fontSize) ?? 24;
+
+        return new Panel
+        {
+            Width = w,
+            Height = h,
+            MinWidth = 1,
+            MinHeight = 1,
         };
     }
 }

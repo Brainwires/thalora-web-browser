@@ -91,7 +91,11 @@ public partial class ControlTreeBuilder
                     || styles.JustifyContent == "space-around"
                     || styles.JustifyContent == "space-evenly";
 
-                if (hasFlexGrow || isSpaceDist)
+                // When flex-wrap is enabled, don't use the single-row Grid shortcut.
+                // Wrapping containers need WrapPanel to flow items onto multiple rows
+                // when children exceed the container width (e.g., first child width:100%
+                // takes a full row, remaining children wrap to the next row).
+                if (!isWrap && (hasFlexGrow || isSpaceDist))
                 {
                     // Use Grid to handle flex-grow and space distribution.
                     // flex-grow children get Star columns; others get Auto columns.
@@ -247,6 +251,25 @@ public partial class ControlTreeBuilder
             panel = new StackPanel { Orientation = Orientation.Vertical };
         }
 
+        // For flex-wrap containers, compute the effective inner width so we can
+        // resolve percentage widths on children correctly. In a WrapPanel, children
+        // with width:100% need an explicit pixel width (not HorizontalAlignment.Stretch)
+        // to ensure they fill the row and force subsequent children to wrap.
+        double wrapContainerWidth = 0;
+        if (isWrap && isRow)
+        {
+            var mw = IsPercentage(styles.MaxWidth) ? (double?)null : Len(styles.MaxWidth, fontSize);
+            var w = IsPercentage(styles.Width) ? (double?)null : Len(styles.Width, fontSize);
+            wrapContainerWidth = mw ?? w ?? _viewportWidth;
+            if (styles.Padding != null)
+            {
+                var padL = Len(styles.Padding.Left, fontSize) ?? 0;
+                var padR = Len(styles.Padding.Right, fontSize) ?? 0;
+                wrapContainerWidth -= (padL + padR);
+            }
+            wrapContainerWidth = Math.Max(0, wrapContainerWidth);
+        }
+
         // Process children: group consecutive inline children into text blocks,
         // and add block children directly.
         // CSS spec: In flex containers, ALL direct children are blockified (become flex items),
@@ -265,13 +288,6 @@ public partial class ControlTreeBuilder
         foreach (var child in element.Children)
         {
             if (child.Styles.Display == "none")
-                continue;
-
-            // Skip out-of-flow elements early — position:absolute/fixed are removed
-            // from normal flow and should not enter inline buffers or flex grids.
-            // BuildControl would also skip them, but catching them here prevents
-            // absolute-positioned <input> elements from polluting inline groups.
-            if (child.Styles.Position is "absolute" or "fixed")
                 continue;
 
             // CSS spec: In flex containers, whitespace-only text nodes are collapsed
@@ -307,6 +323,34 @@ public partial class ControlTreeBuilder
                 var childControl = BuildControl(child, fontSize, depth + 1);
                 if (childControl != null)
                 {
+                    // For flex-wrap children, override percentage widths to resolve
+                    // against the container's effective width instead of the viewport.
+                    // BuildControl resolves width:100% as HorizontalAlignment.Stretch
+                    // (no explicit pixel width), but WrapPanel needs explicit widths
+                    // to determine which row each child belongs to.
+                    if (isWrap && isRow && wrapContainerWidth > 0
+                        && child.Styles.Width != null)
+                    {
+                        var wStr = child.Styles.Width.TrimEnd();
+                        if (wStr.EndsWith('%')
+                            && double.TryParse(wStr.TrimEnd('%', ' '),
+                                System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture,
+                                out var wpct))
+                        {
+                            var resolvedWidth = wpct / 100.0 * wrapContainerWidth;
+                            if (childControl is Border childBorder)
+                            {
+                                childBorder.Width = resolvedWidth;
+                                childBorder.HorizontalAlignment = HorizontalAlignment.Left;
+                            }
+                            else
+                            {
+                                childControl.Width = resolvedWidth;
+                            }
+                        }
+                    }
+
                     // Wrap <li> children with list markers
                     if (isList && child.Tag == "li"
                         && child.Styles.ListStyleType != "none")

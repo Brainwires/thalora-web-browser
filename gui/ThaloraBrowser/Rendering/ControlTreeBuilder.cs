@@ -171,25 +171,13 @@ public partial class ControlTreeBuilder
             return null;
 
         // position: fixed/absolute elements are out-of-flow overlays.
-        // Without a proper positioning engine, rendering them in the normal flow
-        // creates incorrect spacing. Skip them — their content is usually
-        // duplicated in the normal flow or is non-essential (fixed nav, tooltips).
-        // Exception: grid-placed items (grid-area set) with position:absolute are
-        // still part of the grid layout — they use absolute positioning relative to
-        // their grid cell, not the viewport. Don't skip these.
+        // Without a proper positioning engine we can't position them correctly,
+        // but dropping them entirely loses important content (e.g. site headers).
+        // Render them in normal flow instead — at scroll=0 this is approximately
+        // correct, and elements that should truly be hidden already have
+        // display:none or visibility:hidden.
         if (styles.Position == "fixed" || styles.Position == "absolute")
-        {
-            if (!string.IsNullOrEmpty(styles.GridArea))
-            {
-                // Grid-placed element — keep it, just clear the absolute positioning
-                // so it renders normally within its grid cell
-                styles.Position = null;
-            }
-            else
-            {
-                return null;
-            }
-        }
+            styles.Position = null;
         // sticky elements participate in normal flow — render them normally
         if (styles.Position == "sticky")
             styles.Position = null;
@@ -238,6 +226,26 @@ public partial class ControlTreeBuilder
 
             case "br":
                 return null; // Handled inline as line breaks
+
+            case "input":
+                return BuildInputElement(element, fontSize);
+
+            case "button":
+                return BuildButtonElement(element, fontSize);
+
+            case "select":
+                return BuildSelectElement(element, fontSize);
+
+            case "textarea":
+                return BuildTextareaElement(element, fontSize);
+
+            case "svg":
+                // Inline SVG: create a sized placeholder panel
+                return BuildInlineSvgPlaceholder(element, fontSize);
+
+            case "audio":
+                // Audio element: render a placeholder play button
+                return BuildAudioPlaceholder(element, fontSize);
         }
 
         // Determine if this element has only inline children

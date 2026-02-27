@@ -52,6 +52,11 @@ pub struct StyledElement {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link_href: Option<String>,
 
+    /// HTML attributes for form elements and semantic info
+    /// (type, placeholder, value, name, checked, selected, role, aria-label, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<HashMap<String, String>>,
+
     /// Resolved CSS styles
     pub styles: ResolvedStyles,
 

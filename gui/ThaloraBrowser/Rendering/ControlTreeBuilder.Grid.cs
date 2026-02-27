@@ -106,7 +106,11 @@ public partial class ControlTreeBuilder
 
             var childControl = BuildControl(child, fontSize, depth + 1);
             if (childControl == null)
-                continue;
+            {
+                // Insert an invisible placeholder so the grid cell still occupies space.
+                // Without this, Avalonia Grid skips the column entirely.
+                childControl = new Panel { MinWidth = 0, MinHeight = 0 };
+            }
 
             // Ensure enough RowDefinitions exist for the placement
             while (grid.RowDefinitions.Count <= placedRow + rowSpan - 1)

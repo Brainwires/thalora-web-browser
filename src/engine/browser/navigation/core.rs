@@ -10,9 +10,11 @@ impl super::super::HeadlessWebBrowser {
         self.navigate_to_with_options(url, false).await
     }
 
-    /// Navigate to URL with options for JavaScript execution
-    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_load: bool) -> Result<String> {
-        self.navigate_to_with_js_option(url, wait_for_load, false).await
+    /// Navigate to URL with options for JavaScript execution.
+    /// `wait_for_js` controls whether page scripts are executed after loading.
+    /// `wait_for_load` is always true (we always want to wait for the HTTP response).
+    pub async fn navigate_to_with_options(&mut self, url: &str, wait_for_js: bool) -> Result<String> {
+        self.navigate_to_with_js_option(url, true, wait_for_js).await
     }
 
     /// Extract page title from HTML

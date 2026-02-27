@@ -34,7 +34,7 @@ pub extern "C" fn thalora_navigate(
 
     let result = inst.runtime.block_on(async {
         let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.navigate_to(url_str).await
+        browser.navigate_to_with_js_option(url_str, true, true).await
     });
 
     match result {

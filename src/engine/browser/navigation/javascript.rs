@@ -105,10 +105,39 @@ impl super::super::HeadlessWebBrowser {
             // Execute deferred scripts AFTER DOMContentLoaded
             self.execute_page_scripts(&content, true).await?;
 
-            // Wait for JavaScript execution to complete
-            match self.wait_for_js_execution(10000).await {
+            // Wait for JavaScript execution to settle.
+            // Use a short timeout in Interactive mode (GUI) to keep page loads fast.
+            // Stealth mode (MCP/headless) can afford a longer wait.
+            let js_timeout = if self.navigation_mode == NavigationMode::Stealth { 5000 } else { 2000 };
+            match self.wait_for_js_execution(js_timeout).await {
                 Ok(_) => eprintln!("🔍 DEBUG: JavaScript execution completed successfully"),
                 Err(e) => eprintln!("🔍 DEBUG: JavaScript execution timeout (non-fatal): {}", e),
+            }
+
+            // After JS execution, capture the modified DOM back into current_content.
+            // JavaScript may have added/removed elements (e.g., sidebar TOC, UI panels).
+            // This ensures thalora_compute_styled_tree() gets the JS-modified DOM.
+            match self.execute_javascript("document.documentElement.outerHTML").await {
+                Ok(html) if !html.is_empty() && html.len() > 100 => {
+                    let original_len = self.current_content.len();
+                    let full_html = if html.starts_with("<!") {
+                        html.clone()
+                    } else if html.starts_with("<html") {
+                        format!("<!DOCTYPE html>{}", html)
+                    } else {
+                        format!("<!DOCTYPE html><html>{}</html>", html)
+                    };
+                    self.current_content = full_html;
+                    eprintln!("🔍 DEBUG: Updated current_content with JS-modified DOM ({} → {} bytes)",
+                        original_len, self.current_content.len());
+                }
+                Ok(html) => {
+                    eprintln!("🔍 DEBUG: outerHTML too short ({}), keeping original content", html.len());
+                }
+                Err(e) => {
+                    eprintln!("⚠️  WARNING: Failed to serialize JS-modified DOM: {}", e);
+                    // Keep original content — JS may not have modified the DOM
+                }
             }
         } else {
             eprintln!("🔍 DEBUG: wait_for_js disabled, ready for direct DOM interaction");
@@ -130,6 +159,7 @@ impl super::super::HeadlessWebBrowser {
         let script_selector = scraper::Selector::parse("script").unwrap();
 
         let mut scripts_executed = 0;
+        let mut scripts_failed = 0;
         let mut external_scripts_fetched = 0;
 
         // Get the current URL to resolve relative script paths
@@ -189,12 +219,14 @@ impl super::super::HeadlessWebBrowser {
                                 eprintln!("🔍 DEBUG: External script executed successfully");
                             }
                             Err(e) => {
+                                scripts_failed += 1;
                                 eprintln!("⚠️  WARNING: External script execution failed: {}", e);
                                 // Continue with other scripts even if one fails
                             }
                         }
                     }
                     Err(e) => {
+                        scripts_failed += 1;
                         eprintln!("⚠️  WARNING: Failed to fetch external script {}: {}", script_url, e);
                         // Continue with other scripts
                     }
@@ -216,6 +248,7 @@ impl super::super::HeadlessWebBrowser {
                         eprintln!("🔍 DEBUG: Inline script executed successfully");
                     }
                     Err(e) => {
+                        scripts_failed += 1;
                         eprintln!("⚠️  WARNING: Inline script execution failed: {}", e);
                         // Continue with other scripts even if one fails
                     }
@@ -223,7 +256,8 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        eprintln!("🔍 DEBUG: Fetched {} external scripts, executed {} total scripts", external_scripts_fetched, scripts_executed);
+        eprintln!("[JS] {} scripts: {} executed, {} failed, {} external fetched",
+            mode, scripts_executed, scripts_failed, external_scripts_fetched);
 
         // Give scripts time to settle after execution
         sleep(Duration::from_millis(100)).await;

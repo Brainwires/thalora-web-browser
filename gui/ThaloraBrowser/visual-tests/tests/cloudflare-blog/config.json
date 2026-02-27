@@ -1,0 +1,34 @@
+{
+    "name": "cloudflare-blog",
+    "description": "Cloudflare blog article page — verifies header, navigation, and content rendering",
+    "url": "https://blog.cloudflare.com/markdown-for-agents/",
+    "wait_after_load_ms": 5000,
+    "expected_elements": [
+        {
+            "description": "Cloudflare logo link in header",
+            "criteria": { "tag": "a", "href": "https://www.cloudflare.com" }
+        },
+        {
+            "description": "The Cloudflare Blog title link",
+            "criteria": { "tag": "a", "text": "The Cloudflare Blog" }
+        },
+        {
+            "description": "AI nav link in header",
+            "criteria": { "tag": "a", "text": "AI" }
+        },
+        {
+            "description": "Developers nav link in header",
+            "criteria": { "tag": "a", "text": "Developers" }
+        },
+        {
+            "description": "Article title on page",
+            "criteria": { "tag": "h1" }
+        }
+    ],
+    "screenshot_comparison": {
+        "enabled": true,
+        "threshold": 0.70,
+        "reference_dir": "../../references/cloudflare-blog",
+        "reference_file": "page-01.png"
+    }
+}

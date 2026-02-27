@@ -283,10 +283,8 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
 const SKIP_TAGS: &[&str] = &[
     // Metadata / invisible
     "script", "style", "link", "meta", "head", "title", "noscript", "template",
-    // SVG (can't render, often has deep subtrees with path/rect/circle/g elements)
-    "svg",
-    // Embedded content we don't render
-    "canvas", "video", "audio", "source", "track", "embed", "object", "param", "iframe",
+    // Embedded content we don't render (svg and audio handled specially below)
+    "canvas", "video", "source", "track", "embed", "object", "param", "iframe",
     // Form internals not individually visible
     "datalist",
     // Table column styling (not visual elements themselves)
@@ -481,6 +479,7 @@ fn build_styled_element_from_dom(
             img_src: None,
             img_alt: None,
             link_href: None,
+            attributes: None,
             styles: resolved,
             hover_styles: None,
             children: Vec::new(),
@@ -498,6 +497,72 @@ fn build_styled_element_from_dom(
             img_src: None,
             img_alt: None,
             link_href: None,
+            attributes: None,
+            styles: resolved,
+            hover_styles: None,
+            children: Vec::new(),
+        };
+    }
+
+    // Inline SVG: extract dimensions but don't recurse into SVG children
+    // (path, rect, circle, g, etc. aren't HTML elements we can render).
+    // Create a sized placeholder that C# renders as a Panel.
+    if tag == "svg" {
+        let (w, h) = extract_svg_dimensions(el);
+        let mut svg_styles = computed_to_resolved(&styles);
+        if svg_styles.width.is_none() {
+            svg_styles.width = Some(format!("{}px", w));
+        }
+        if svg_styles.height.is_none() {
+            svg_styles.height = Some(format!("{}px", h));
+        }
+        return StyledElement {
+            id: elem_id,
+            tag,
+            text_content: None,
+            img_src: None,
+            img_alt: None,
+            link_href: None,
+            attributes: None,
+            styles: svg_styles,
+            hover_styles: None,
+            children: Vec::new(),
+        };
+    }
+
+    // Audio element: create a placeholder with source URL extracted from <source> children.
+    // C# renders this as a minimal audio widget placeholder.
+    if tag == "audio" {
+        let mut audio_src = el.attr("src").map(|s| s.to_string());
+        // If no src on <audio>, look for <source> children
+        if audio_src.is_none() {
+            for child_node in element_ref.children() {
+                if let Some(child_el_ref) = ElementRef::wrap(child_node) {
+                    if child_el_ref.value().name().eq_ignore_ascii_case("source") {
+                        if let Some(src) = child_el_ref.value().attr("src") {
+                            audio_src = Some(src.to_string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        let mut attrs = HashMap::new();
+        if let Some(src) = audio_src {
+            attrs.insert("src".to_string(), src);
+        }
+        if el.attr("controls").is_some() {
+            attrs.insert("controls".to_string(), "true".to_string());
+        }
+        let resolved = computed_to_resolved(&styles);
+        return StyledElement {
+            id: elem_id,
+            tag,
+            text_content: None,
+            img_src: None,
+            img_alt: None,
+            link_href: None,
+            attributes: if attrs.is_empty() { None } else { Some(attrs) },
             styles: resolved,
             hover_styles: None,
             children: Vec::new(),
@@ -541,6 +606,38 @@ fn build_styled_element_from_dom(
         el.attr("alt").map(|a| a.to_string())
     } else {
         None
+    };
+
+    // Extract HTML attributes for form elements and semantic elements.
+    // These are needed by C# to render <input>, <button>, <select>, <textarea>, etc.
+    let attributes = {
+        const FORM_TAGS: &[&str] = &["input", "button", "select", "textarea", "option", "label", "form", "fieldset"];
+        const ATTR_NAMES: &[&str] = &[
+            "type", "placeholder", "value", "name", "checked", "selected",
+            "disabled", "readonly", "required", "multiple", "size", "maxlength",
+            "min", "max", "step", "pattern", "autocomplete", "autofocus",
+            "for", "action", "method", "enctype",
+            "role", "aria-label", "aria-hidden", "aria-expanded",
+            "title", "tabindex",
+        ];
+        if FORM_TAGS.contains(&tag.as_str()) {
+            let mut attrs = HashMap::new();
+            for &name in ATTR_NAMES {
+                if let Some(val) = el.attr(name) {
+                    attrs.insert(name.to_string(), val.to_string());
+                }
+            }
+            // For boolean attributes (checked, selected, disabled, etc.),
+            // the attribute's presence means true
+            for &name in &["checked", "selected", "disabled", "readonly", "required", "multiple", "autofocus"] {
+                if el.attr(name).is_some() && !attrs.contains_key(name) {
+                    attrs.insert(name.to_string(), "true".to_string());
+                }
+            }
+            if attrs.is_empty() { None } else { Some(attrs) }
+        } else {
+            None
+        }
     };
 
     // Capture width/height attributes for img if not set by CSS
@@ -633,6 +730,7 @@ fn build_styled_element_from_dom(
                     img_src: None,
                     img_alt: None,
                     link_href: None,
+                    attributes: None,
                     styles: text_resolved,
                     hover_styles: None,
                     children: Vec::new(),
@@ -685,6 +783,7 @@ fn build_styled_element_from_dom(
         img_src,
         img_alt,
         link_href,
+        attributes,
         styles: resolved,
         hover_styles,
         children,
@@ -837,6 +936,7 @@ fn convert_to_styled_element(element: &LayoutElement) -> StyledElement {
         img_src,
         img_alt,
         link_href,
+        attributes: None, // Old pipeline doesn't extract attributes
         styles: resolved,
         hover_styles: None, // Old pipeline doesn't compute hover styles
         children,
@@ -1454,6 +1554,47 @@ fn build_element_selector(element_ref: &ElementRef) -> String {
     }
 
     selector
+}
+
+/// Extract width and height from an SVG element's attributes.
+/// Checks `width`/`height` attributes first, then falls back to `viewBox`.
+/// Returns (width, height) in pixels, defaulting to 20×20 for icons.
+fn extract_svg_dimensions(el: &scraper::node::Element) -> (f32, f32) {
+    // Try explicit width/height attributes
+    let w_attr = el.attr("width").and_then(|v| {
+        let v = v.trim().trim_end_matches("px");
+        v.parse::<f32>().ok()
+    });
+    let h_attr = el.attr("height").and_then(|v| {
+        let v = v.trim().trim_end_matches("px");
+        v.parse::<f32>().ok()
+    });
+
+    if let (Some(w), Some(h)) = (w_attr, h_attr) {
+        return (w, h);
+    }
+
+    // Fall back to viewBox="minX minY width height"
+    if let Some(vb) = el.attr("viewBox") {
+        let parts: Vec<f32> = vb.split_whitespace()
+            .filter_map(|p| p.parse::<f32>().ok())
+            .collect();
+        if parts.len() >= 4 {
+            let vb_w = parts[2];
+            let vb_h = parts[3];
+            // If one explicit dimension is set, scale the other from viewBox aspect ratio
+            if let Some(w) = w_attr {
+                return (w, w * vb_h / vb_w.max(1.0));
+            }
+            if let Some(h) = h_attr {
+                return (h * vb_w / vb_h.max(1.0), h);
+            }
+            return (vb_w, vb_h);
+        }
+    }
+
+    // Default for icon SVGs (most Wiktionary/Wikipedia inline SVGs are 20×20)
+    (w_attr.unwrap_or(20.0), h_attr.unwrap_or(20.0))
 }
 
 /// Check if a tag is a block-level element

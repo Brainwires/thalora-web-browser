@@ -1,2 +1,6 @@
 # Captured screenshots (regenerated from scripts)
 captures/
+tests/*/captures/
+
+# Python virtual environment for image comparison
+.venv/

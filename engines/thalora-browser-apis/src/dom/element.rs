@@ -568,7 +568,8 @@ impl ElementData {
     }
 
     pub fn set_id(&self, id: String) {
-        *self.id.lock().unwrap() = id;
+        *self.id.lock().unwrap() = id.clone();
+        self.attributes.lock().unwrap().insert("id".to_string(), id);
     }
 
     pub fn get_class_name(&self) -> String {
@@ -576,11 +577,19 @@ impl ElementData {
     }
 
     pub fn set_class_name(&self, class_name: String) {
-        *self.class_name.lock().unwrap() = class_name;
+        *self.class_name.lock().unwrap() = class_name.clone();
+        self.attributes.lock().unwrap().insert("class".to_string(), class_name);
     }
 
     pub fn get_inner_html(&self) -> String {
         self.inner_html.lock().unwrap().clone()
+    }
+
+    /// Set inner_html without triggering child parsing or document sync.
+    /// Used when initializing an element's content from a known-good HTML source
+    /// (e.g., populating the <html> element from the initial page HTML).
+    pub fn set_inner_html_raw(&self, html: String) {
+        *self.inner_html.lock().unwrap() = html;
     }
 
     pub fn set_inner_html(&self, html: String) {
@@ -710,20 +719,79 @@ impl ElementData {
         // We don't need to rebuild the entire document HTML for individual element changes.
     }
 
-    /// Serialize this element and all children to HTML string
+    /// Serialize this element and all children to HTML string.
+    /// Recursively walks the children vector to capture dynamically added elements
+    /// (via appendChild, insertBefore, etc.) that aren't in the cached inner_html string.
     fn serialize_to_html(&self) -> String {
         let tag_name = self.get_tag_name();
+
+        // Void elements (self-closing) — no children, no closing tag
+        const VOID_ELEMENTS: &[&str] = &[
+            "area", "base", "br", "col", "embed", "hr", "img", "input",
+            "link", "meta", "param", "source", "track", "wbr",
+        ];
+        let tag_lower = tag_name.to_lowercase();
+
         let mut html = format!("<{}", tag_name);
 
-        // Add attributes
+        // Add attributes, ensuring class and id from dedicated fields are included
+        // even if they were only set via property setters and not synced to the HashMap.
         let attributes = self.attributes.lock().unwrap();
+        let has_class = attributes.contains_key("class");
+        let has_id = attributes.contains_key("id");
         for (name, value) in attributes.iter() {
-            html.push_str(&format!(" {}=\"{}\"", name, value));
+            // Escape attribute values for proper HTML serialization
+            let escaped = value.replace('&', "&amp;").replace('"', "&quot;");
+            html.push_str(&format!(" {}=\"{}\"", name, escaped));
         }
+        drop(attributes);
+
+        // Defense-in-depth: if class/id were not in the attributes HashMap,
+        // serialize them from the dedicated fields
+        if !has_class {
+            let cn = self.class_name.lock().unwrap();
+            if !cn.is_empty() {
+                let escaped = cn.replace('&', "&amp;").replace('"', "&quot;");
+                html.push_str(&format!(" class=\"{}\"", escaped));
+            }
+        }
+        if !has_id {
+            let id = self.id.lock().unwrap();
+            if !id.is_empty() {
+                let escaped = id.replace('&', "&amp;").replace('"', "&quot;");
+                html.push_str(&format!(" id=\"{}\"", escaped));
+            }
+        }
+
+        if VOID_ELEMENTS.contains(&tag_lower.as_str()) {
+            html.push('>');
+            return html;
+        }
+
         html.push('>');
 
-        // Add inner HTML
-        html.push_str(&self.get_inner_html());
+        // Check if we have dynamically managed children
+        let children = self.children.lock().unwrap();
+        if !children.is_empty() {
+            // Recursively serialize each child element
+            for child in children.iter() {
+                if let Some(child_data) = child.downcast_ref::<ElementData>() {
+                    let child_tag = child_data.get_tag_name();
+                    if child_tag == "#text" {
+                        // Text nodes — output text content directly
+                        html.push_str(&child_data.get_text_content());
+                    } else {
+                        // Element nodes — recursively serialize
+                        html.push_str(&child_data.serialize_to_html());
+                    }
+                }
+            }
+        } else {
+            // No dynamic children — fall back to cached inner_html string.
+            // This handles elements whose content was set via innerHTML assignment
+            // and never modified further via DOM manipulation.
+            html.push_str(&self.get_inner_html());
+        }
 
         html.push_str(&format!("</{}>", tag_name));
         html
@@ -742,6 +810,12 @@ impl ElementData {
     }
 
     pub fn set_attribute(&self, name: String, value: String) {
+        // Keep className/id fields in sync when attributes are set directly
+        if name == "class" {
+            *self.class_name.lock().unwrap() = value.clone();
+        } else if name == "id" {
+            *self.id.lock().unwrap() = value.clone();
+        }
         self.attributes.lock().unwrap().insert(name, value);
     }
 
