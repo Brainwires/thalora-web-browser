@@ -137,5 +137,22 @@ impl HeadlessWebBrowser {
     }
 }
 
+/// Types submodule for WASM builds - provides types that match core browser::types
+pub mod types {
+    use serde::{Deserialize, Serialize};
+
+    /// Events emitted by the JavaScript History API for GUI synchronization.
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[serde(tag = "type")]
+    pub enum HistoryEvent {
+        #[serde(rename = "pushState")]
+        PushState { url: String, state_json: Option<String> },
+        #[serde(rename = "replaceState")]
+        ReplaceState { url: String, state_json: Option<String> },
+        #[serde(rename = "popstate")]
+        PopState { url: String, state_json: Option<String>, delta: i32 },
+    }
+}
+
 // Re-export for module compatibility
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
