@@ -2,7 +2,3 @@
 	path = engines/boa
 	url = https://github.com/nightness/boa-whatwg.git
 	branch = main
-[submodule "engines/v8/v8-source"]
-	path = engines/v8/v8-source
-	url = https://github.com/nightness/v8.git
-	branch = main
