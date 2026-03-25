@@ -2,21 +2,30 @@ use anyhow::Result;
 use scraper::{Html, Selector};
 
 use crate::protocols::mcp_server::scraping::types::{SearchResult, SearchResults};
-use crate::protocols::mcp_server::scraping::utils::{extract_generic_snippet, extract_generic_title, extract_generic_url};
+use crate::protocols::mcp_server::scraping::utils::{
+    extract_generic_snippet, extract_generic_title, extract_generic_url,
+};
 
 pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
-    let search_url = format!("https://www.startpage.com/do/search?query={}", urlencoding::encode(query));
+    let search_url = format!(
+        "https://www.startpage.com/do/search?query={}",
+        urlencoding::encode(query)
+    );
 
     // Create temporary browser for stateless search
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
     {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.navigate_to_with_options(&search_url, true).await?;
     }
 
     let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.get_current_content()
     };
 

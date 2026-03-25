@@ -1,4 +1,4 @@
-use cosmic_text::{FontSystem, Buffer, Metrics, Attrs, Family, Weight, Shaping};
+use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 use parking_lot::Mutex;
 use std::sync::OnceLock;
 
@@ -43,7 +43,11 @@ fn load_bundled_fonts(fs: &mut FontSystem) {
                     }
                 }
             }
-            eprintln!("[text_measure] Loaded {} fonts from {}", count, dir.display());
+            eprintln!(
+                "[text_measure] Loaded {} fonts from {}",
+                count,
+                dir.display()
+            );
             return; // Found a valid fonts directory, stop searching
         }
     }
@@ -108,7 +112,11 @@ pub fn measure_text(
         num_lines = 1;
     }
 
-    TextMeasurement { width: max_width, height: total_height, num_lines }
+    TextMeasurement {
+        width: max_width,
+        height: total_height,
+        num_lines,
+    }
 }
 
 /// Parse CSS font-family string to cosmic-text Family.
@@ -132,16 +140,16 @@ fn parse_font_family(css: &str) -> Family<'static> {
             "noto serif" => return Family::Name("Noto Serif"),
             "fira mono" | "fira code" => return Family::Name("Fira Mono"),
             // Common web fonts → map to our bundled equivalents
-            "arial" | "helvetica" | "helvetica neue" | "segoe ui"
-            | "roboto" | "open sans" | "inter" | "lato" | "poppins"
-            | "-apple-system" | "system-ui" | "blinkmacsystemfont" => {
+            "arial" | "helvetica" | "helvetica neue" | "segoe ui" | "roboto" | "open sans"
+            | "inter" | "lato" | "poppins" | "-apple-system" | "system-ui"
+            | "blinkmacsystemfont" => {
                 return Family::Name("Noto Sans");
             }
             "times new roman" | "times" | "georgia" | "palatino" | "garamond" | "cambria" => {
                 return Family::Name("Noto Serif");
             }
-            "courier new" | "courier" | "consolas" | "menlo" | "monaco"
-            | "source code pro" | "sf mono" => {
+            "courier new" | "courier" | "consolas" | "menlo" | "monaco" | "source code pro"
+            | "sf mono" => {
                 return Family::Name("Fira Mono");
             }
             _ => {}

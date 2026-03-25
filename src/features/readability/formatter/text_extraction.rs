@@ -1,7 +1,7 @@
 // Text extraction, whitespace normalization
 
-use scraper::{Html, Selector, ElementRef};
 use anyhow::Result;
+use scraper::{ElementRef, Html, Selector};
 
 /// Convert HTML to plain text
 pub(super) fn to_text(html: &Html) -> Result<String> {
@@ -45,7 +45,7 @@ pub(super) fn get_text_with_spacing(element: &ElementRef) -> String {
                     if !result.ends_with(' ') {
                         result.push(' ');
                     }
-                },
+                }
                 _ => {
                     result.push_str(&get_text_with_spacing(&child_element));
                 }
@@ -60,9 +60,7 @@ pub(super) fn get_text_with_spacing(element: &ElementRef) -> String {
 
 /// Normalize whitespace in text
 pub(super) fn normalize_whitespace(text: &str) -> String {
-    text.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Remove excessive newlines from text

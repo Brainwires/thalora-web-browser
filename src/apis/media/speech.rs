@@ -1,10 +1,15 @@
-use anyhow::Result;
-use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
-use std::sync::{Arc, Mutex};
 use super::types::*;
+use anyhow::Result;
+use std::sync::{Arc, Mutex};
+use thalora_browser_apis::boa_engine::{
+    Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute,
+};
 
 impl MediaManager {
-    pub fn setup_speech_apis(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    pub fn setup_speech_apis(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let speech_synthesis = Arc::clone(&self.speech_synthesis);
 
         // Real speechSynthesis global object
@@ -28,13 +33,24 @@ impl MediaManager {
             NativeFunction::from_closure(|_, _args, context| {
                 // Return a simple object with start/stop placeholders
                 let obj = JsObject::default(&context.intrinsics());
-                obj.set(js_string!("start"), JsValue::from(native_fn_stub(context)?), true, context)?;
-                obj.set(js_string!("stop"), JsValue::from(native_fn_stub(context)?), true, context)?;
+                obj.set(
+                    js_string!("start"),
+                    JsValue::from(native_fn_stub(context)?),
+                    true,
+                    context,
+                )?;
+                obj.set(
+                    js_string!("stop"),
+                    JsValue::from(native_fn_stub(context)?),
+                    true,
+                    context,
+                )?;
                 Ok(JsValue::from(obj))
             })
         };
 
-        let speech_recognition_value = JsValue::from(speech_recognition_constructor.to_js_function(context.realm()));
+        let speech_recognition_value =
+            JsValue::from(speech_recognition_constructor.to_js_function(context.realm()));
 
         context.register_global_property(
             js_string!("SpeechRecognition"),
@@ -118,7 +134,10 @@ impl MediaManager {
         Ok(())
     }
 
-    fn setup_speech_utterance_constructor(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    fn setup_speech_utterance_constructor(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real SpeechSynthesisUtterance constructor
         let speech_utterance_constructor = unsafe {
             NativeFunction::from_closure(|_, args, context| {
@@ -171,7 +190,9 @@ impl MediaManager {
 }
 
 // Helper to create a no-op native function wrapped as JsValue
-fn native_fn_stub(context: &mut Context) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
+fn native_fn_stub(
+    context: &mut Context,
+) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
     let f = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
     Ok(JsValue::from(f.to_js_function(context.realm())))
 }

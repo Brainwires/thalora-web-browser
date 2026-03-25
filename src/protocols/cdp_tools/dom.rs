@@ -1,6 +1,6 @@
-use serde_json::Value;
+use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
 use crate::protocols::mcp::McpResponse;
-use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
+use serde_json::Value;
 
 /// DOM domain - DOM queries, manipulation, and CSS inspection
 pub struct DomTools;
@@ -38,24 +38,20 @@ impl DomTools {
                     }
                 }
             }
-            Ok(_) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "CDP DOM domain enabled"
-                    })],
-                    is_error: false,
-                }
-            }
-            Err(e) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("CDP DOM domain enable error: {}", e)
-                    })],
-                    is_error: true,
-                }
-            }
+            Ok(_) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": "CDP DOM domain enabled"
+                })],
+                is_error: false,
+            },
+            Err(e) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("CDP DOM domain enable error: {}", e)
+                })],
+                is_error: true,
+            },
         }
     }
 
@@ -99,24 +95,20 @@ impl DomTools {
                     }
                 }
             }
-            Ok(_) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "CDP DOM document retrieved"
-                    })],
-                    is_error: false,
-                }
-            }
-            Err(e) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("CDP DOM document retrieval error: {}", e)
-                    })],
-                    is_error: true,
-                }
-            }
+            Ok(_) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": "CDP DOM document retrieved"
+                })],
+                is_error: false,
+            },
+            Err(e) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("CDP DOM document retrieval error: {}", e)
+                })],
+                is_error: true,
+            },
         }
     }
 
@@ -187,7 +179,7 @@ impl DomTools {
                     "text": format!("CDP query selector error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 
@@ -255,11 +247,15 @@ impl DomTools {
                     "text": format!("CDP get attributes error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 
-    pub async fn get_computed_style(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_computed_style(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         let node_id = match args.get("node_id").and_then(|v| v.as_i64()) {
             Some(id) => id,
             None => {
@@ -323,7 +319,7 @@ impl DomTools {
                     "text": format!("CDP get computed style error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 }

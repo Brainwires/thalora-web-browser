@@ -3,11 +3,10 @@ use base64::Engine as Base64Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use serde_json::Value;
 use std::time::Instant;
-use wasmtime::{Module, Instance, Linker};
+use wasmtime::{Instance, Linker, Module};
 
 use super::state::{
-    WasmDebugState, LoadedModule, FuelState,
-    MAX_WASM_BINARY_SIZE, DEFAULT_FUEL, validate_module_id,
+    DEFAULT_FUEL, FuelState, LoadedModule, MAX_WASM_BINARY_SIZE, WasmDebugState, validate_module_id,
 };
 
 impl WasmDebugState {
@@ -22,7 +21,8 @@ impl WasmDebugState {
     ) -> Result<Value> {
         // Parse the binary from either base64 or WAT
         let binary = if let Some(b64) = wasm_base64 {
-            let bytes = BASE64.decode(b64)
+            let bytes = BASE64
+                .decode(b64)
                 .map_err(|e| anyhow!("Invalid base64: {}", e))?;
             if bytes.len() > MAX_WASM_BINARY_SIZE {
                 return Err(anyhow!(
@@ -33,8 +33,7 @@ impl WasmDebugState {
             }
             bytes
         } else if let Some(wat) = wat_text {
-            let bytes = wat::parse_str(wat)
-                .map_err(|e| anyhow!("Failed to parse WAT: {}", e))?;
+            let bytes = wat::parse_str(wat).map_err(|e| anyhow!("Failed to parse WAT: {}", e))?;
             if bytes.len() > MAX_WASM_BINARY_SIZE {
                 return Err(anyhow!(
                     "Compiled WASM binary too large: {} bytes (max {})",
@@ -51,12 +50,18 @@ impl WasmDebugState {
         let id = if let Some(mid) = module_id {
             validate_module_id(mid)?;
             if self.has_module(mid) {
-                return Err(anyhow!("Module '{}' is already loaded. Unload it first.", mid));
+                return Err(anyhow!(
+                    "Module '{}' is already loaded. Unload it first.",
+                    mid
+                ));
             }
             mid.to_string()
         } else {
             // Auto-generate ID
-            let id = format!("module_{}", uuid::Uuid::new_v4().to_string().replace('-', "")[..12].to_string());
+            let id = format!(
+                "module_{}",
+                uuid::Uuid::new_v4().to_string().replace('-', "")[..12].to_string()
+            );
             id
         };
 
@@ -141,7 +146,8 @@ impl WasmDebugState {
         wat_text: Option<&str>,
     ) -> Result<Value> {
         let binary = if let Some(b64) = wasm_base64 {
-            let bytes = BASE64.decode(b64)
+            let bytes = BASE64
+                .decode(b64)
                 .map_err(|e| anyhow!("Invalid base64: {}", e))?;
             if bytes.len() > MAX_WASM_BINARY_SIZE {
                 return Err(anyhow!(
@@ -189,13 +195,11 @@ impl WasmDebugState {
                     "exports_count": exports_count,
                 }))
             }
-            Err(e) => {
-                Ok(serde_json::json!({
-                    "valid": false,
-                    "error": format!("Validation error: {}", e),
-                    "binary_size": binary.len()
-                }))
-            }
+            Err(e) => Ok(serde_json::json!({
+                "valid": false,
+                "error": format!("Validation error: {}", e),
+                "binary_size": binary.len()
+            })),
         }
     }
 }

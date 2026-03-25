@@ -22,7 +22,10 @@ fn test_all_apis_available() {
     let result = context.eval(Source::from_bytes(script));
     assert!(result.is_ok());
     let type_str = result.unwrap().to_string(&mut context).unwrap();
-    assert_eq!(type_str.to_std_string_escaped(), "function,function,function,function");
+    assert_eq!(
+        type_str.to_std_string_escaped(),
+        "function,function,function,function"
+    );
 }
 
 #[test]
@@ -142,7 +145,10 @@ fn test_xmlhttprequest_methods() {
     let result = context.eval(Source::from_bytes(script));
     assert!(result.is_ok());
     let methods = result.unwrap().to_string(&mut context).unwrap();
-    assert_eq!(methods.to_std_string_escaped(), "function,function,function,function,function,function");
+    assert_eq!(
+        methods.to_std_string_escaped(),
+        "function,function,function,function,function,function"
+    );
 }
 
 #[test]
@@ -173,7 +179,10 @@ fn test_observer_apis_methods() {
     let result = context.eval(Source::from_bytes(script));
     assert!(result.is_ok());
     let methods = result.unwrap().to_string(&mut context).unwrap();
-    assert_eq!(methods.to_std_string_escaped(), "function,function,function,function,function,function,function,function,function,function");
+    assert_eq!(
+        methods.to_std_string_escaped(),
+        "function,function,function,function,function,function,function,function,function,function"
+    );
 }
 
 #[test]

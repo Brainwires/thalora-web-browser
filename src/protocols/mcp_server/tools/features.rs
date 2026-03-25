@@ -4,8 +4,8 @@ use std::env;
 
 /// Check if sessions are enabled (either directly or through CDP dependency)
 pub(super) fn is_sessions_enabled() -> bool {
-    env::var("THALORA_ENABLE_SESSIONS").unwrap_or_else(|_| "false".to_string()) == "true" ||
-    env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "false".to_string()) == "true"
+    env::var("THALORA_ENABLE_SESSIONS").unwrap_or_else(|_| "false".to_string()) == "true"
+        || env::var("THALORA_ENABLE_CDP").unwrap_or_else(|_| "false".to_string()) == "true"
 }
 
 /// Check if AI memory tools are enabled

@@ -16,7 +16,10 @@ pub(super) fn store_research(
 }
 
 /// Get research entry by key
-pub(super) fn get_research<'a>(memory_data: &'a MemoryData, key: &str) -> Option<&'a ResearchEntry> {
+pub(super) fn get_research<'a>(
+    memory_data: &'a MemoryData,
+    key: &str,
+) -> Option<&'a ResearchEntry> {
     memory_data.research.get(key)
 }
 
@@ -116,9 +119,7 @@ pub(super) fn start_session(
         status: SessionStatus::Active,
     };
 
-    memory_data
-        .sessions
-        .insert(session_id.to_string(), session);
+    memory_data.sessions.insert(session_id.to_string(), session);
     Ok(())
 }
 
@@ -253,8 +254,7 @@ pub(super) fn cleanup_old_entries(
         .sessions
         .iter()
         .filter(|(_, session)| {
-            session.last_activity < cutoff_date
-                && !matches!(session.status, SessionStatus::Active)
+            session.last_activity < cutoff_date && !matches!(session.status, SessionStatus::Active)
         })
         .map(|(key, _)| key.clone())
         .collect();

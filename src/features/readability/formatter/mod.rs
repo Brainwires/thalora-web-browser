@@ -5,15 +5,15 @@
 // - Plain text: Simple text with paragraph breaks
 // - Structured JSON: Hierarchical data with metadata
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
 use scraper::Html;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 mod html_processing;
-mod text_extraction;
 mod markdown;
 mod metadata;
+mod text_extraction;
 
 // Re-export public types
 pub use metadata::ContentMetadata;
@@ -47,7 +47,12 @@ impl ContentFormatter {
     }
 
     /// Format content according to the specified format
-    pub fn format(&self, html: &Html, format: &OutputFormat, include_metadata: bool) -> Result<FormattedContent> {
+    pub fn format(
+        &self,
+        html: &Html,
+        format: &OutputFormat,
+        include_metadata: bool,
+    ) -> Result<FormattedContent> {
         let mut metadata = if include_metadata {
             self.extract_metadata(html)?
         } else {
@@ -104,10 +109,8 @@ pub(crate) fn resolve_url(url: &str, base_url: &str) -> Result<String> {
     if url.starts_with("http://") || url.starts_with("https://") {
         Ok(url.to_string())
     } else {
-        let base = Url::parse(base_url)
-            .context("Failed to parse base URL")?;
-        let resolved = base.join(url)
-            .context("Failed to resolve relative URL")?;
+        let base = Url::parse(base_url).context("Failed to parse base URL")?;
+        let resolved = base.join(url).context("Failed to resolve relative URL")?;
         Ok(resolved.to_string())
     }
 }

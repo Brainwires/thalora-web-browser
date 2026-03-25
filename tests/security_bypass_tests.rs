@@ -250,7 +250,7 @@ mod mitigation_tests {
             "window[anything]",
             "globalThis[x]",
             "self[key]",
-            "window['safe']",  // Even 'safe' properties should be blocked
+            "window['safe']", // Even 'safe' properties should be blocked
         ];
 
         // TODO: Implement this check
@@ -265,7 +265,7 @@ mod mitigation_tests {
         let dangerous_patterns = vec![
             r#"window['\x65\x76\x61\x6c']"#,
             r#"obj['\u005f\u005f']"#,
-            r#"x['\\x41']"#,  // Escaped backslash + escape
+            r#"x['\\x41']"#, // Escaped backslash + escape
         ];
 
         // TODO: Implement this check
@@ -301,11 +301,7 @@ mod mitigation_tests {
     #[test]
     fn test_block_symbol_api() {
         // Recommended fix: Block Symbol.for and Symbol() in security-sensitive contexts
-        let dangerous_patterns = vec![
-            "Symbol.for(",
-            "Symbol(",
-            "Symbol.iterator",
-        ];
+        let dangerous_patterns = vec!["Symbol.for(", "Symbol(", "Symbol.iterator"];
 
         // TODO: Implement this check
     }
@@ -314,14 +310,14 @@ mod mitigation_tests {
     fn test_whitelist_approach_for_brackets() {
         // Alternative approach: Only allow specific safe bracket patterns
         let safe_patterns = vec![
-            "array[0]",       // Numeric index
-            "array[i]",       // Variable index
-            "obj['length']",  // Whitelisted property
+            "array[0]",      // Numeric index
+            "array[i]",      // Variable index
+            "obj['length']", // Whitelisted property
         ];
 
         let unsafe_patterns = vec![
-            "window[x]",      // Global object
-            "obj[computed]",  // Computed property
+            "window[x]",     // Global object
+            "obj[computed]", // Computed property
         ];
 
         // TODO: Implement whitelist approach

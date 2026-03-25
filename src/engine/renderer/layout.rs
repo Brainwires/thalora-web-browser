@@ -3,13 +3,13 @@
 //! Provides CSS-compliant layout computation using the taffy layout library.
 //! Supports flexbox, grid, and block layout modes.
 
-use anyhow::{Result, Context as AnyhowContext};
+use anyhow::{Context as AnyhowContext, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use taffy::prelude::*;
 use taffy::style::{
-    AlignContent, AlignItems, AlignSelf, Display, FlexDirection, FlexWrap,
-    JustifyContent, JustifyItems, JustifySelf, Position,
+    AlignContent, AlignItems, AlignSelf, Display, FlexDirection, FlexWrap, JustifyContent,
+    JustifyItems, JustifySelf, Position,
 };
 
 use super::css::{ComputedStyles, CssProcessor};
@@ -69,7 +69,6 @@ pub struct ElementLayout {
     pub children: Vec<ElementLayout>,
 
     // --- Visual properties for painting ---
-
     /// Text content of this element (direct text nodes combined)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_content: Option<String>,
@@ -151,9 +150,15 @@ pub struct ElementLayout {
 }
 
 /// Helper for serde skip
-fn is_false(v: &bool) -> bool { !v }
-fn is_true(v: &bool) -> bool { *v }
-fn default_true() -> bool { true }
+fn is_false(v: &bool) -> bool {
+    !v
+}
+fn is_true(v: &bool) -> bool {
+    *v
+}
+fn default_true() -> bool {
+    true
+}
 
 /// Box model sides (padding/margin/border) with values in px
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -223,7 +228,8 @@ impl LayoutEngine {
             height: AvailableSpace::Definite(self.viewport_height),
         };
 
-        self.tree.compute_layout(root_node, available_space)
+        self.tree
+            .compute_layout(root_node, available_space)
             .context("Failed to compute layout")?;
 
         // Extract layout results
@@ -241,22 +247,29 @@ impl LayoutEngine {
         let style = self.styles_to_taffy(&element.styles);
 
         // Build children first
-        let children: Vec<NodeId> = element.children.iter()
+        let children: Vec<NodeId> = element
+            .children
+            .iter()
             .map(|child| self.build_node(child))
             .collect::<Result<Vec<_>>>()?;
 
         // Create node with children
-        let node = self.tree.new_with_children(
-            style,
-            &children,
-        ).context("Failed to create taffy node")?;
+        let node = self
+            .tree
+            .new_with_children(style, &children)
+            .context("Failed to create taffy node")?;
 
         // Store node data
-        self.tree.set_node_context(node, Some(LayoutNodeData {
-            id: element.id.clone(),
-            tag: element.tag.clone(),
-            styles: element.styles.clone(),
-        })).context("Failed to set node context")?;
+        self.tree
+            .set_node_context(
+                node,
+                Some(LayoutNodeData {
+                    id: element.id.clone(),
+                    tag: element.tag.clone(),
+                    styles: element.styles.clone(),
+                }),
+            )
+            .context("Failed to set node context")?;
 
         self.node_map.insert(element.id.clone(), node);
 
@@ -270,7 +283,9 @@ impl LayoutEngine {
         let vh = self.viewport_height;
 
         // Extract font-size first so em units can be resolved in other properties
-        let font_size_px = styles.font_size.as_ref()
+        let font_size_px = styles
+            .font_size
+            .as_ref()
             .and_then(|s| resolve_css_length_vp(s, ROOT_FONT_SIZE, vw, vh))
             .unwrap_or(ROOT_FONT_SIZE) as f32;
 
@@ -301,12 +316,15 @@ impl LayoutEngine {
             let mut dim = parse_dimension(width, font_size_px, vw, vh);
             if let Dimension::Length(ref mut px) = dim {
                 if let Some(ref p) = styles.padding {
-                    let pl = resolve_css_length_vp(&p.left, font_size_px as f64, vw, vh).unwrap_or(0.0) as f32;
-                    let pr = resolve_css_length_vp(&p.right, font_size_px as f64, vw, vh).unwrap_or(0.0) as f32;
+                    let pl = resolve_css_length_vp(&p.left, font_size_px as f64, vw, vh)
+                        .unwrap_or(0.0) as f32;
+                    let pr = resolve_css_length_vp(&p.right, font_size_px as f64, vw, vh)
+                        .unwrap_or(0.0) as f32;
                     *px += pl + pr;
                 }
                 if let Some(ref b) = styles.border {
-                    let bw = resolve_css_length_vp(&b.width, font_size_px as f64, vw, vh).unwrap_or(0.0) as f32;
+                    let bw = resolve_css_length_vp(&b.width, font_size_px as f64, vw, vh)
+                        .unwrap_or(0.0) as f32;
                     *px += 2.0 * bw;
                 }
             }
@@ -318,12 +336,15 @@ impl LayoutEngine {
             let mut dim = parse_dimension(height, font_size_px, vw, vh);
             if let Dimension::Length(ref mut px) = dim {
                 if let Some(ref p) = styles.padding {
-                    let pt = resolve_css_length_vp(&p.top, font_size_px as f64, vw, vh).unwrap_or(0.0) as f32;
-                    let pb = resolve_css_length_vp(&p.bottom, font_size_px as f64, vw, vh).unwrap_or(0.0) as f32;
+                    let pt = resolve_css_length_vp(&p.top, font_size_px as f64, vw, vh)
+                        .unwrap_or(0.0) as f32;
+                    let pb = resolve_css_length_vp(&p.bottom, font_size_px as f64, vw, vh)
+                        .unwrap_or(0.0) as f32;
                     *px += pt + pb;
                 }
                 if let Some(ref b) = styles.border {
-                    let bw = resolve_css_length_vp(&b.width, font_size_px as f64, vw, vh).unwrap_or(0.0) as f32;
+                    let bw = resolve_css_length_vp(&b.width, font_size_px as f64, vw, vh)
+                        .unwrap_or(0.0) as f32;
                     *px += 2.0 * bw;
                 }
             }
@@ -369,7 +390,10 @@ impl LayoutEngine {
         // Gap
         if let Some(ref gap) = styles.gap {
             let gap_value = parse_length_percentage(gap, font_size_px, vw, vh);
-            taffy_style.gap = Size { width: gap_value, height: gap_value };
+            taffy_style.gap = Size {
+                width: gap_value,
+                height: gap_value,
+            };
         }
 
         // Margin
@@ -438,7 +462,6 @@ impl LayoutEngine {
 
         taffy_style
     }
-
 }
 
 /// Parse a CSS dimension (px, em, rem, %, vw, vh, auto, etc.) to taffy Dimension
@@ -480,7 +503,12 @@ fn parse_length_percentage(value: &str, font_size_px: f32, vw: f32, vh: f32) -> 
 }
 
 /// Parse a CSS length/percentage/auto value (px, em, rem, %, vw, vh, auto)
-fn parse_length_percentage_auto(value: &str, font_size_px: f32, vw: f32, vh: f32) -> LengthPercentageAuto {
+fn parse_length_percentage_auto(
+    value: &str,
+    font_size_px: f32,
+    vw: f32,
+    vh: f32,
+) -> LengthPercentageAuto {
     let value = value.trim();
 
     if value == "auto" || value.is_empty() {
@@ -502,11 +530,20 @@ fn parse_length_percentage_auto(value: &str, font_size_px: f32, vw: f32, vh: f32
 
 impl LayoutEngine {
     /// Extract layout results from the computed taffy tree
-    fn extract_layout(&self, node: NodeId, parent_x: f64, parent_y: f64) -> Result<Vec<ElementLayout>> {
-        let layout = self.tree.layout(node)
+    fn extract_layout(
+        &self,
+        node: NodeId,
+        parent_x: f64,
+        parent_y: f64,
+    ) -> Result<Vec<ElementLayout>> {
+        let layout = self
+            .tree
+            .layout(node)
             .context("Failed to get layout for node")?;
 
-        let node_data = self.tree.get_node_context(node)
+        let node_data = self
+            .tree
+            .get_node_context(node)
             .context("Failed to get node context")?;
 
         let x = parent_x + layout.location.x as f64;
@@ -517,10 +554,10 @@ impl LayoutEngine {
         let vh = self.viewport_height;
 
         // Get children layouts
-        let children_ids = self.tree.children(node)
-            .context("Failed to get children")?;
+        let children_ids = self.tree.children(node).context("Failed to get children")?;
 
-        let children: Vec<ElementLayout> = children_ids.iter()
+        let children: Vec<ElementLayout> = children_ids
+            .iter()
             .flat_map(|&child_id| self.extract_layout(child_id, x, y).unwrap_or_default())
             .collect();
 
@@ -528,15 +565,25 @@ impl LayoutEngine {
         let content_box = Some(ContentBox {
             x: x + layout.border.left as f64 + layout.padding.left as f64,
             y: y + layout.border.top as f64 + layout.padding.top as f64,
-            width: width - (layout.border.left + layout.padding.left + layout.padding.right + layout.border.right) as f64,
-            height: height - (layout.border.top + layout.padding.top + layout.padding.bottom + layout.border.bottom) as f64,
+            width: width
+                - (layout.border.left
+                    + layout.padding.left
+                    + layout.padding.right
+                    + layout.border.right) as f64,
+            height: height
+                - (layout.border.top
+                    + layout.padding.top
+                    + layout.padding.bottom
+                    + layout.border.bottom) as f64,
         });
 
         // Extract visual properties from computed styles
         let styles = &node_data.styles;
 
         // Resolve font-size for em unit conversion in output properties
-        let font_size_px = styles.font_size.as_ref()
+        let font_size_px = styles
+            .font_size
+            .as_ref()
             .and_then(|s| resolve_css_length_vp(s, ROOT_FONT_SIZE, vw, vh))
             .unwrap_or(ROOT_FONT_SIZE);
 
@@ -561,16 +608,32 @@ impl LayoutEngine {
             font_style: styles.font_style.clone(),
             text_align: styles.text_align.clone(),
             text_decoration: styles.text_decoration.clone(),
-            line_height: styles.line_height.as_ref().and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh).or_else(|| s.parse::<f64>().ok())),
+            line_height: styles.line_height.as_ref().and_then(|s| {
+                resolve_css_length_vp(s, font_size_px, vw, vh).or_else(|| s.parse::<f64>().ok())
+            }),
             white_space: styles.white_space.clone(),
-            border_radius: styles.border_radius.as_ref().and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh)),
-            border_width: styles.border.as_ref().and_then(|b| resolve_css_length_vp(&b.width, font_size_px, vw, vh)),
+            border_radius: styles
+                .border_radius
+                .as_ref()
+                .and_then(|s| resolve_css_length_vp(s, font_size_px, vw, vh)),
+            border_width: styles
+                .border
+                .as_ref()
+                .and_then(|b| resolve_css_length_vp(&b.width, font_size_px, vw, vh)),
             border_color: styles.border.as_ref().map(|b| b.color.clone()),
             opacity: styles.opacity,
             overflow: styles.overflow.clone(),
             list_style_type: styles.list_style_type.clone(),
-            margin_left_auto: styles.margin.as_ref().map(|m| m.left == "auto").unwrap_or(false),
-            margin_right_auto: styles.margin.as_ref().map(|m| m.right == "auto").unwrap_or(false),
+            margin_left_auto: styles
+                .margin
+                .as_ref()
+                .map(|m| m.left == "auto")
+                .unwrap_or(false),
+            margin_right_auto: styles
+                .margin
+                .as_ref()
+                .map(|m| m.right == "auto")
+                .unwrap_or(false),
             padding: styles.padding.as_ref().map(|p| BoxModelSides {
                 top: resolve_css_length_vp(&p.top, font_size_px, vw, vh).unwrap_or(0.0),
                 right: resolve_css_length_vp(&p.right, font_size_px, vw, vh).unwrap_or(0.0),
@@ -585,11 +648,18 @@ impl LayoutEngine {
             }),
             border_sides: styles.border.as_ref().and_then(|b| {
                 resolve_css_length_vp(&b.width, font_size_px, vw, vh).map(|w| BoxModelSides {
-                    top: w, right: w, bottom: w, left: w,
+                    top: w,
+                    right: w,
+                    bottom: w,
+                    left: w,
                 })
             }),
             display: styles.display.clone(),
-            is_visible: styles.visibility.as_ref().map(|v| v != "hidden" && v != "collapse").unwrap_or(true)
+            is_visible: styles
+                .visibility
+                .as_ref()
+                .map(|v| v != "hidden" && v != "collapse")
+                .unwrap_or(true)
                 && styles.display.as_ref().map(|d| d != "none").unwrap_or(true),
         }])
     }
@@ -621,7 +691,8 @@ impl LayoutEngine {
 
     /// Get layout for a specific element by ID
     pub fn get_element_layout(&self, element_id: &str) -> Option<&Layout> {
-        self.node_map.get(element_id)
+        self.node_map
+            .get(element_id)
             .and_then(|node_id| self.tree.layout(*node_id).ok())
     }
 }
@@ -650,7 +721,12 @@ pub fn resolve_css_length(value: &str, font_size_px: f64) -> Option<f64> {
 }
 
 /// Like `resolve_css_length` but with viewport dimensions for vw/vh/vmin/vmax resolution.
-pub fn resolve_css_length_vp(value: &str, font_size_px: f64, viewport_w: f32, viewport_h: f32) -> Option<f64> {
+pub fn resolve_css_length_vp(
+    value: &str,
+    font_size_px: f64,
+    viewport_w: f32,
+    viewport_h: f32,
+) -> Option<f64> {
     let v = value.trim();
     if v.is_empty() || v == "auto" || v == "none" || v == "initial" || v == "inherit" {
         return None;
@@ -661,43 +737,72 @@ pub fn resolve_css_length_vp(value: &str, font_size_px: f64, viewport_w: f32, vi
     }
 
     if v.ends_with("rem") {
-        return v.trim_end_matches("rem").parse::<f64>().ok()
+        return v
+            .trim_end_matches("rem")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * ROOT_FONT_SIZE);
     }
 
     if v.ends_with("em") {
-        return v.trim_end_matches("em").parse::<f64>().ok()
+        return v
+            .trim_end_matches("em")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * font_size_px);
     }
 
     if v.ends_with("pt") {
-        return v.trim_end_matches("pt").parse::<f64>().ok()
+        return v
+            .trim_end_matches("pt")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * 1.333);
     }
 
     if v.ends_with("vmin") {
-        if viewport_w <= 0.0 && viewport_h <= 0.0 { return None; }
+        if viewport_w <= 0.0 && viewport_h <= 0.0 {
+            return None;
+        }
         let vmin = (viewport_w as f64).min(viewport_h as f64);
-        return v.trim_end_matches("vmin").parse::<f64>().ok()
+        return v
+            .trim_end_matches("vmin")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * vmin / 100.0);
     }
 
     if v.ends_with("vmax") {
-        if viewport_w <= 0.0 && viewport_h <= 0.0 { return None; }
+        if viewport_w <= 0.0 && viewport_h <= 0.0 {
+            return None;
+        }
         let vmax = (viewport_w as f64).max(viewport_h as f64);
-        return v.trim_end_matches("vmax").parse::<f64>().ok()
+        return v
+            .trim_end_matches("vmax")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * vmax / 100.0);
     }
 
     if v.ends_with("vw") {
-        if viewport_w <= 0.0 { return None; }
-        return v.trim_end_matches("vw").parse::<f64>().ok()
+        if viewport_w <= 0.0 {
+            return None;
+        }
+        return v
+            .trim_end_matches("vw")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * viewport_w as f64 / 100.0);
     }
 
     if v.ends_with("vh") {
-        if viewport_h <= 0.0 { return None; }
-        return v.trim_end_matches("vh").parse::<f64>().ok()
+        if viewport_h <= 0.0 {
+            return None;
+        }
+        return v
+            .trim_end_matches("vh")
+            .parse::<f64>()
+            .ok()
             .map(|n| n * viewport_h as f64 / 100.0);
     }
 
@@ -785,7 +890,9 @@ mod tests {
                     id: "content".to_string(),
                     tag: "main".to_string(),
                     styles: ComputedStyles {
-                        other: [("flex-grow".to_string(), "1".to_string())].into_iter().collect(),
+                        other: [("flex-grow".to_string(), "1".to_string())]
+                            .into_iter()
+                            .collect(),
                         ..Default::default()
                     },
                     children: vec![],
@@ -853,24 +960,39 @@ mod tests {
     #[test]
     fn test_parse_dimensions() {
         // Test px
-        assert!(matches!(super::parse_dimension("100px", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 100.0).abs() < 0.01));
+        assert!(
+            matches!(super::parse_dimension("100px", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 100.0).abs() < 0.01)
+        );
 
         // Test percent
-        assert!(matches!(super::parse_dimension("50%", 16.0, 1024.0, 768.0), Dimension::Percent(v) if (v - 0.5).abs() < 0.01));
+        assert!(
+            matches!(super::parse_dimension("50%", 16.0, 1024.0, 768.0), Dimension::Percent(v) if (v - 0.5).abs() < 0.01)
+        );
 
         // Test auto
-        assert!(matches!(super::parse_dimension("auto", 16.0, 1024.0, 768.0), Dimension::Auto));
+        assert!(matches!(
+            super::parse_dimension("auto", 16.0, 1024.0, 768.0),
+            Dimension::Auto
+        ));
 
         // Test em
-        assert!(matches!(super::parse_dimension("2em", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 32.0).abs() < 0.01));
+        assert!(
+            matches!(super::parse_dimension("2em", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 32.0).abs() < 0.01)
+        );
 
         // Test rem
-        assert!(matches!(super::parse_dimension("1.5rem", 24.0, 1024.0, 768.0), Dimension::Length(v) if (v - 24.0).abs() < 0.01));
+        assert!(
+            matches!(super::parse_dimension("1.5rem", 24.0, 1024.0, 768.0), Dimension::Length(v) if (v - 24.0).abs() < 0.01)
+        );
 
         // Test vw
-        assert!(matches!(super::parse_dimension("60vw", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 614.4).abs() < 0.1));
+        assert!(
+            matches!(super::parse_dimension("60vw", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 614.4).abs() < 0.1)
+        );
 
         // Test vh
-        assert!(matches!(super::parse_dimension("15vh", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 115.2).abs() < 0.1));
+        assert!(
+            matches!(super::parse_dimension("15vh", 16.0, 1024.0, 768.0), Dimension::Length(v) if (v - 115.2).abs() < 0.1)
+        );
     }
 }

@@ -1,6 +1,6 @@
-use serde_json::Value;
+use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
 use crate::protocols::mcp::McpResponse;
-use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
+use serde_json::Value;
 
 /// Page domain - Page reload, screenshots, navigation, and lifecycle events
 pub struct PageTools;
@@ -10,10 +10,17 @@ impl PageTools {
         Self
     }
 
-    pub async fn take_screenshot(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn take_screenshot(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         let format = args.get("format").and_then(|v| v.as_str()).unwrap_or("png");
         let quality = args.get("quality").and_then(|v| v.as_i64()).unwrap_or(80);
-        let full_page = args.get("full_page").and_then(|v| v.as_bool()).unwrap_or(false);
+        let full_page = args
+            .get("full_page")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let mut params = serde_json::json!({
             "format": format
@@ -86,12 +93,15 @@ impl PageTools {
                     "text": format!("CDP screenshot error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 
     pub async fn reload_page(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
-        let ignore_cache = args.get("ignore_cache").and_then(|v| v.as_bool()).unwrap_or(false);
+        let ignore_cache = args
+            .get("ignore_cache")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let command = CdpCommand {
             id: 18,
@@ -113,7 +123,11 @@ impl PageTools {
                         is_error: true,
                     }
                 } else {
-                    let cache_msg = if ignore_cache { " (ignoring cache)" } else { "" };
+                    let cache_msg = if ignore_cache {
+                        " (ignoring cache)"
+                    } else {
+                        ""
+                    };
                     McpResponse::ToolResult {
                         content: vec![serde_json::json!({
                             "type": "text",
@@ -136,7 +150,7 @@ impl PageTools {
                     "text": format!("CDP page reload error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 }

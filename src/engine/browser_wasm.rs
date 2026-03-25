@@ -3,10 +3,10 @@
 //! In WASM builds, the browser functionality is handled by the host browser environment.
 //! This module provides placeholder types for API compatibility.
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// Authentication context for requests
 #[derive(Debug, Clone, Default)]
@@ -96,16 +96,22 @@ impl HeadlessWebBrowser {
         }))
     }
 
-    pub fn new_with_engine(_engine_type: crate::engine::engine_trait::EngineType) -> Arc<Mutex<Self>> {
+    pub fn new_with_engine(
+        _engine_type: crate::engine::engine_trait::EngineType,
+    ) -> Arc<Mutex<Self>> {
         Self::new()
     }
 
     pub async fn navigate(&mut self, _url: &str) -> Result<ScrapedData> {
-        Err(anyhow::anyhow!("HeadlessWebBrowser.navigate() is not available in WASM. Use web-sys fetch instead."))
+        Err(anyhow::anyhow!(
+            "HeadlessWebBrowser.navigate() is not available in WASM. Use web-sys fetch instead."
+        ))
     }
 
     pub async fn scrape(&self) -> Result<ScrapedData> {
-        Err(anyhow::anyhow!("HeadlessWebBrowser.scrape() is not available in WASM."))
+        Err(anyhow::anyhow!(
+            "HeadlessWebBrowser.scrape() is not available in WASM."
+        ))
     }
 
     pub fn get_current_url(&self) -> Option<&str> {
@@ -113,7 +119,9 @@ impl HeadlessWebBrowser {
     }
 
     pub fn set_cookie(&mut self, name: &str, value: &str) {
-        self.auth_context.cookies.insert(name.to_string(), value.to_string());
+        self.auth_context
+            .cookies
+            .insert(name.to_string(), value.to_string());
     }
 
     pub fn get_cookie(&self, name: &str) -> Option<&str> {
@@ -121,7 +129,9 @@ impl HeadlessWebBrowser {
     }
 
     pub fn set_local_storage(&mut self, key: &str, value: &str) {
-        self.storage.local.insert(key.to_string(), value.to_string());
+        self.storage
+            .local
+            .insert(key.to_string(), value.to_string());
     }
 
     pub fn get_local_storage(&self, key: &str) -> Option<&str> {
@@ -129,7 +139,9 @@ impl HeadlessWebBrowser {
     }
 
     pub fn set_session_storage(&mut self, key: &str, value: &str) {
-        self.storage.session.insert(key.to_string(), value.to_string());
+        self.storage
+            .session
+            .insert(key.to_string(), value.to_string());
     }
 
     pub fn get_session_storage(&self, key: &str) -> Option<&str> {

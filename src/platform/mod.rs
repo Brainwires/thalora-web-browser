@@ -96,7 +96,8 @@ impl HttpRequest {
 
     pub fn json_body(mut self, json: &str) -> Self {
         self.body = Some(json.as_bytes().to_vec());
-        self.headers.insert("Content-Type".to_string(), "application/json".to_string());
+        self.headers
+            .insert("Content-Type".to_string(), "application/json".to_string());
         self
     }
 
@@ -159,12 +160,18 @@ impl std::error::Error for HttpError {}
 /// On WASM, these bounds are relaxed since WASM is single-threaded.
 #[cfg(feature = "core")]
 pub trait HttpClient: Send + Sync {
-    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>>;
+    fn request(
+        &self,
+        request: HttpRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>>;
 }
 
 #[cfg(feature = "wasm")]
 pub trait HttpClient {
-    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + '_>>;
+    fn request(
+        &self,
+        request: HttpRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + '_>>;
 }
 
 /// WebSocket message types
@@ -186,8 +193,14 @@ pub type WsCallback = Box<dyn Fn(WsMessage)>;
 /// Platform WebSocket trait
 #[cfg(feature = "core")]
 pub trait WebSocketClient: Send + Sync {
-    fn connect(&mut self, url: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
-    fn send(&mut self, message: WsMessage) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
+    fn connect(
+        &mut self,
+        url: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
+    fn send(
+        &mut self,
+        message: WsMessage,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
     fn close(&mut self) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + '_>>;
     fn on_message(&mut self, callback: WsCallback);
 }
@@ -195,7 +208,10 @@ pub trait WebSocketClient: Send + Sync {
 #[cfg(feature = "wasm")]
 pub trait WebSocketClient {
     fn connect(&mut self, url: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
-    fn send(&mut self, message: WsMessage) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
+    fn send(
+        &mut self,
+        message: WsMessage,
+    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
     fn close(&mut self) -> Pin<Box<dyn Future<Output = Result<(), String>> + '_>>;
     fn on_message(&mut self, callback: WsCallback);
 }

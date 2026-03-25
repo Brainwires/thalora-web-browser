@@ -46,18 +46,14 @@ impl CdpDomain for PageDomain {
             }
             "navigate" => {
                 let params = params.unwrap_or_default();
-                let _url = params.get("url")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let _url = params.get("url").and_then(|v| v.as_str()).unwrap_or("");
 
                 Ok(serde_json::json!({
                     "frameId": "main_frame",
                     "loaderId": "loader_1"
                 }))
             }
-            "reload" => {
-                Ok(serde_json::json!({}))
-            }
+            "reload" => Ok(serde_json::json!({})),
             "captureScreenshot" => {
                 // Return a minimal base64 encoded 1x1 PNG
                 Ok(serde_json::json!({
@@ -68,20 +64,22 @@ impl CdpDomain for PageDomain {
                 let params = params.unwrap_or_default();
 
                 // Parse screencast parameters
-                self.screencast_format = params.get("format")
+                self.screencast_format = params
+                    .get("format")
                     .and_then(|v| v.as_str())
                     .unwrap_or("png")
                     .to_string();
 
-                self.screencast_quality = params.get("quality")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(80) as i32;
+                self.screencast_quality =
+                    params.get("quality").and_then(|v| v.as_i64()).unwrap_or(80) as i32;
 
-                self.screencast_max_width = params.get("maxWidth")
+                self.screencast_max_width = params
+                    .get("maxWidth")
                     .and_then(|v| v.as_i64())
                     .map(|v| v as i32);
 
-                self.screencast_max_height = params.get("maxHeight")
+                self.screencast_max_height = params
+                    .get("maxHeight")
                     .and_then(|v| v.as_i64())
                     .map(|v| v as i32);
 
@@ -105,14 +103,15 @@ impl CdpDomain for PageDomain {
             }
             "screencastFrameAck" => {
                 let params = params.unwrap_or_default();
-                let _session_id = params.get("sessionId")
+                let _session_id = params
+                    .get("sessionId")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0);
 
                 // Frame acknowledged by client, can send next frame
                 Ok(serde_json::json!({}))
             }
-            _ => Err(anyhow::anyhow!("Unknown Page method: {}", method))
+            _ => Err(anyhow::anyhow!("Unknown Page method: {}", method)),
         }
     }
 

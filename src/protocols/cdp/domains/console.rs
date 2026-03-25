@@ -30,10 +30,8 @@ impl CdpDomain for ConsoleDomain {
                 self.enabled = false;
                 Ok(serde_json::json!({}))
             }
-            "clearMessages" => {
-                Ok(serde_json::json!({}))
-            }
-            _ => Err(anyhow::anyhow!("Unknown Console method: {}", method))
+            "clearMessages" => Ok(serde_json::json!({})),
+            _ => Err(anyhow::anyhow!("Unknown Console method: {}", method)),
         }
     }
 

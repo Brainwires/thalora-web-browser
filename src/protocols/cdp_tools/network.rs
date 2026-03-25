@@ -1,7 +1,7 @@
-use serde_json::Value;
+use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
 use crate::protocols::mcp::McpResponse;
-use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
 use crate::protocols::security::validate_cookie;
+use serde_json::Value;
 
 /// Network domain - Network monitoring, cookies, and request/response inspection
 pub struct NetworkTools;
@@ -11,7 +11,11 @@ impl NetworkTools {
         Self
     }
 
-    pub async fn enable_network(&mut self, _args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn enable_network(
+        &mut self,
+        _args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         let command = CdpCommand {
             id: 7,
             method: "Network.enable".to_string(),
@@ -39,28 +43,28 @@ impl NetworkTools {
                     }
                 }
             }
-            Ok(_) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "CDP Network domain enabled"
-                    })],
-                    is_error: false,
-                }
-            }
-            Err(e) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("CDP Network domain enable error: {}", e)
-                    })],
-                    is_error: true,
-                }
-            }
+            Ok(_) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": "CDP Network domain enabled"
+                })],
+                is_error: false,
+            },
+            Err(e) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("CDP Network domain enable error: {}", e)
+                })],
+                is_error: true,
+            },
         }
     }
 
-    pub async fn get_response_body(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_response_body(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         let request_id = match args.get("request_id").and_then(|v| v.as_str()) {
             Some(id) => id,
             None => {
@@ -111,29 +115,26 @@ impl NetworkTools {
                     }
                 }
             }
-            Ok(_) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("CDP Response body for request {} retrieved", request_id)
-                    })],
-                    is_error: false,
-                }
-            }
-            Err(e) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("CDP Response body retrieval error: {}", e)
-                    })],
-                    is_error: true,
-                }
-            }
+            Ok(_) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("CDP Response body for request {} retrieved", request_id)
+                })],
+                is_error: false,
+            },
+            Err(e) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("CDP Response body retrieval error: {}", e)
+                })],
+                is_error: true,
+            },
         }
     }
 
     pub async fn get_cookies(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
-        let urls = args.get("urls")
+        let urls = args
+            .get("urls")
             .and_then(|v| v.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>());
 
@@ -189,7 +190,7 @@ impl NetworkTools {
                     "text": format!("CDP get cookies error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 
@@ -233,8 +234,14 @@ impl NetworkTools {
 
         let domain = args.get("domain").and_then(|v| v.as_str());
         let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("/");
-        let secure = args.get("secure").and_then(|v| v.as_bool()).unwrap_or(false);
-        let http_only = args.get("http_only").and_then(|v| v.as_bool()).unwrap_or(false);
+        let secure = args
+            .get("secure")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let http_only = args
+            .get("http_only")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let mut cookie_params = serde_json::json!({
             "name": name,
@@ -288,7 +295,7 @@ impl NetworkTools {
                     "text": format!("CDP set cookie error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 }

@@ -108,10 +108,19 @@ impl BrowserFingerprint {
         let mut accept_headers = HashMap::new();
         accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".to_string());
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
 
         let mut browser_headers = HashMap::new();
-        browser_headers.insert("sec-ch-ua".to_string(), format!(r#""Google Chrome";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#, version, version));
+        browser_headers.insert(
+            "sec-ch-ua".to_string(),
+            format!(
+                r#""Google Chrome";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#,
+                version, version
+            ),
+        );
         browser_headers.insert("sec-ch-ua-mobile".to_string(), "?0".to_string());
         browser_headers.insert("sec-ch-ua-platform".to_string(), r#""Windows""#.to_string());
 
@@ -137,9 +146,16 @@ impl BrowserFingerprint {
         );
 
         let mut accept_headers = HashMap::new();
-        accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8".to_string());
+        accept_headers.insert(
+            "Accept".to_string(),
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                .to_string(),
+        );
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.5".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
 
         Self {
             user_agent,
@@ -164,9 +180,15 @@ impl BrowserFingerprint {
         );
 
         let mut accept_headers = HashMap::new();
-        accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".to_string());
+        accept_headers.insert(
+            "Accept".to_string(),
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".to_string(),
+        );
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
 
         Self {
             user_agent,
@@ -200,10 +222,19 @@ impl BrowserFingerprint {
         let mut accept_headers = HashMap::new();
         accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".to_string());
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
 
         let mut browser_headers = HashMap::new();
-        browser_headers.insert("sec-ch-ua".to_string(), format!(r#""Microsoft Edge";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#, version, version));
+        browser_headers.insert(
+            "sec-ch-ua".to_string(),
+            format!(
+                r#""Microsoft Edge";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#,
+                version, version
+            ),
+        );
         browser_headers.insert("sec-ch-ua-mobile".to_string(), "?0".to_string());
         browser_headers.insert("sec-ch-ua-platform".to_string(), r#""Windows""#.to_string());
 
@@ -326,7 +357,11 @@ impl BrowserFingerprint {
 
     fn generate_common_screen() -> ScreenInfo {
         let screens = vec![
-            (1920, 1080), (1366, 768), (1440, 900), (1536, 864), (1280, 720)
+            (1920, 1080),
+            (1366, 768),
+            (1440, 900),
+            (1536, 864),
+            (1280, 720),
         ];
         let mut rng = rand::thread_rng();
         let (width, height) = screens[rng.gen_range(0..screens.len())];

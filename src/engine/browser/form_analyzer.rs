@@ -114,7 +114,9 @@ impl FormAnalyzer {
 
     /// Find all submit buttons within a form
     fn find_submit_buttons(&self, form_element: scraper::ElementRef) -> Result<Vec<String>> {
-        let submit_selector = Selector::parse(r#"input[type="submit"], button[type="submit"], button:not([type])"#).unwrap();
+        let submit_selector =
+            Selector::parse(r#"input[type="submit"], button[type="submit"], button:not([type])"#)
+                .unwrap();
         let mut buttons = Vec::new();
 
         for (index, button_element) in form_element.select(&submit_selector).enumerate() {
@@ -126,7 +128,12 @@ impl FormAnalyzer {
                 // Create a selector based on button position and type
                 let tag_name = button_element.value().name();
                 let type_attr = button_element.value().attr("type").unwrap_or("submit");
-                format!(r#"{}[type="{}"]:nth-of-type({})"#, tag_name, type_attr, index + 1)
+                format!(
+                    r#"{}[type="{}"]:nth-of-type({})"#,
+                    tag_name,
+                    type_attr,
+                    index + 1
+                )
             };
             buttons.push(button_selector);
         }
@@ -164,17 +171,25 @@ impl FormAnalyzer {
     /// Get forms that will open new windows
     pub fn get_new_window_forms(&self, html_content: &str) -> Result<Vec<FormInfo>> {
         let all_forms = self.analyze_forms(html_content)?;
-        Ok(all_forms.into_iter().filter(|form| form.opens_new_window).collect())
+        Ok(all_forms
+            .into_iter()
+            .filter(|form| form.opens_new_window)
+            .collect())
     }
 
     /// Find form information by submit button selector
-    pub fn find_form_by_submit_button(&self, html_content: &str, button_selector: &str) -> Result<Option<FormInfo>> {
+    pub fn find_form_by_submit_button(
+        &self,
+        html_content: &str,
+        button_selector: &str,
+    ) -> Result<Option<FormInfo>> {
         let all_forms = self.analyze_forms(html_content)?;
 
         for form in all_forms {
             for submit_button in &form.submit_buttons {
-                if submit_button == button_selector ||
-                   button_selector.contains(&submit_button.replace(r#"""#, "")) {
+                if submit_button == button_selector
+                    || button_selector.contains(&submit_button.replace(r#"""#, ""))
+                {
                     return Ok(Some(form));
                 }
             }
@@ -201,7 +216,8 @@ mod tests {
         </html>
         "#;
 
-        let analyzer = FormAnalyzer::new().with_base_url("https://www.twologs.com/en/resources/formtest.asp".to_string());
+        let analyzer = FormAnalyzer::new()
+            .with_base_url("https://www.twologs.com/en/resources/formtest.asp".to_string());
         let forms = analyzer.analyze_forms(html).unwrap();
 
         assert_eq!(forms.len(), 1);
@@ -211,7 +227,10 @@ mod tests {
         assert_eq!(form.method, "POST");
         assert!(form.opens_new_window);
         assert!(form.predicted_url.is_some());
-        assert_eq!(form.predicted_url.as_ref().unwrap(), "https://www.twologs.com/en/resources/formtest_result.asp");
+        assert_eq!(
+            form.predicted_url.as_ref().unwrap(),
+            "https://www.twologs.com/en/resources/formtest_result.asp"
+        );
     }
 
     #[test]
@@ -223,7 +242,9 @@ mod tests {
         "#;
 
         let analyzer = FormAnalyzer::new();
-        let form = analyzer.find_form_by_submit_button(html, r#"input[name="continue"]"#).unwrap();
+        let form = analyzer
+            .find_form_by_submit_button(html, r#"input[name="continue"]"#)
+            .unwrap();
 
         assert!(form.is_some());
         let form_info = form.unwrap();

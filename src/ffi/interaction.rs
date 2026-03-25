@@ -31,7 +31,10 @@ pub extern "C" fn thalora_execute_js(
     };
 
     let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let mut browser = inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
         browser.execute_javascript(&code_str).await
     });
 
@@ -66,12 +69,21 @@ pub extern "C" fn thalora_click_element(
     };
 
     let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let mut browser = inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
         browser.click_element(&sel_str).await
     });
 
     match result {
-        Ok(response) => if response.success { 0 } else { -1 },
+        Ok(response) => {
+            if response.success {
+                0
+            } else {
+                -1
+            }
+        }
         Err(e) => {
             inst.set_error(format!("Click failed: {}", e));
             -1
@@ -114,12 +126,23 @@ pub extern "C" fn thalora_type_text(
     let clear = clear_first != 0;
 
     let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.type_text_into_element(&sel_str, &text_str, clear).await
+        let mut browser = inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        browser
+            .type_text_into_element(&sel_str, &text_str, clear)
+            .await
     });
 
     match result {
-        Ok(response) => if response.success { 0 } else { -1 },
+        Ok(response) => {
+            if response.success {
+                0
+            } else {
+                -1
+            }
+        }
         Err(e) => {
             inst.set_error(format!("Type text failed: {}", e));
             -1
@@ -152,27 +175,42 @@ pub extern "C" fn thalora_submit_form(
     };
 
     // Parse optional JSON data into field name→value pairs
-    let field_data: Option<std::collections::HashMap<String, String>> = unsafe { c_str_to_rust(json_data) }
-        .and_then(|json_str| serde_json::from_str(json_str).ok());
+    let field_data: Option<std::collections::HashMap<String, String>> =
+        unsafe { c_str_to_rust(json_data) }
+            .and_then(|json_str| serde_json::from_str(json_str).ok());
 
     let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let mut browser = inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
 
         // First fill in any form data if provided
         if let Some(fields) = &field_data {
             for (name, value) in fields {
                 let field_selector = format!("{} [name=\"{}\"]", sel_str, name);
-                browser.type_text_into_element(&field_selector, value, true).await?;
+                browser
+                    .type_text_into_element(&field_selector, value, true)
+                    .await?;
             }
         }
 
         // Then click the submit button within the form
-        let submit_selector = format!("{} [type=\"submit\"], {} button[type=\"submit\"], {} button:not([type])", sel_str, sel_str, sel_str);
+        let submit_selector = format!(
+            "{} [type=\"submit\"], {} button[type=\"submit\"], {} button:not([type])",
+            sel_str, sel_str, sel_str
+        );
         browser.click_element(&submit_selector).await
     });
 
     match result {
-        Ok(response) => if response.success { 0 } else { -1 },
+        Ok(response) => {
+            if response.success {
+                0
+            } else {
+                -1
+            }
+        }
         Err(e) => {
             inst.set_error(format!("Form submission failed: {}", e));
             -1

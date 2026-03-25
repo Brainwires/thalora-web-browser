@@ -23,8 +23,10 @@ mod crypto_security {
         // (Cannot actually call encrypt_password here without importing the module,
         // but we verify the master password requirement exists)
 
-        assert!(env::var("THALORA_MASTER_PASSWORD").is_err(),
-            "Master password should not be set initially");
+        assert!(
+            env::var("THALORA_MASTER_PASSWORD").is_err(),
+            "Master password should not be set initially"
+        );
     }
 
     /// Test 2: Master password is required for encryption
@@ -47,7 +49,12 @@ mod crypto_security {
     fn test_aes_gcm_format() {
         // Set strong master password
         // SAFETY: Tests run sequentially with --test-threads=1 or isolated
-        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure!") };
+        unsafe {
+            env::set_var(
+                "THALORA_MASTER_PASSWORD",
+                "test_master_password_min_32chars_secure!",
+            )
+        };
 
         // Encrypted data should have v2 format: v2:salt:nonce:ciphertext
         // This is verified in crypto.rs unit tests
@@ -182,10 +189,10 @@ mod ssrf_prevention {
     #[test]
     fn test_private_ips_blocked() {
         let blocked_ips = vec![
-            "http://10.0.0.1",         // 10.0.0.0/8
-            "http://172.16.0.1",       // 172.16.0.0/12
-            "http://192.168.1.1",      // 192.168.0.0/16
-            "http://169.254.169.254",  // Link-local (AWS metadata)
+            "http://10.0.0.1",        // 10.0.0.0/8
+            "http://172.16.0.1",      // 172.16.0.0/12
+            "http://192.168.1.1",     // 192.168.0.0/16
+            "http://169.254.169.254", // Link-local (AWS metadata)
         ];
 
         for ip in blocked_ips {
@@ -329,7 +336,10 @@ mod cookie_security {
         let cookie_has_secure_flag = true;
 
         if is_https {
-            assert!(cookie_has_secure_flag, "Cookies on HTTPS must have Secure flag");
+            assert!(
+                cookie_has_secure_flag,
+                "Cookies on HTTPS must have Secure flag"
+            );
         }
     }
 
@@ -341,7 +351,10 @@ mod cookie_security {
         let accessible_via_js = false;
 
         if cookie_has_httponly {
-            assert!(!accessible_via_js, "HttpOnly cookies must not be accessible via JavaScript");
+            assert!(
+                !accessible_via_js,
+                "HttpOnly cookies must not be accessible via JavaScript"
+            );
         }
     }
 
@@ -403,7 +416,12 @@ fn test_security_remediation_complete() {
 
     // Priority 1: Encryption
     // SAFETY: Tests run sequentially with --test-threads=1 or isolated
-    unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure!") };
+    unsafe {
+        env::set_var(
+            "THALORA_MASTER_PASSWORD",
+            "test_master_password_min_32chars_secure!",
+        )
+    };
     assert!(env::var("THALORA_MASTER_PASSWORD").is_ok());
     // SAFETY: Tests run sequentially with --test-threads=1 or isolated
     unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };

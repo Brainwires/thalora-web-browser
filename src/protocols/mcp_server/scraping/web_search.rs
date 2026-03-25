@@ -3,17 +3,23 @@ use std::error::Error;
 
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
-use crate::protocols::security::{limit_input_length, MAX_QUERY_LENGTH};
+use crate::protocols::security::{MAX_QUERY_LENGTH, limit_input_length};
 
 use super::search;
 
 impl McpServer {
-    pub(in crate::protocols::mcp_server) async fn web_search(&mut self, arguments: Value) -> McpResponse {
+    pub(in crate::protocols::mcp_server) async fn web_search(
+        &mut self,
+        arguments: Value,
+    ) -> McpResponse {
         eprintln!("🔍 DEBUG: Starting web_search function");
         let query = arguments["query"].as_str().unwrap_or("");
         let num_results = arguments["num_results"].as_u64().unwrap_or(10) as usize;
         let search_engine = arguments["search_engine"].as_str().unwrap_or("duckduckgo");
-        eprintln!("🔍 DEBUG: Parameters - query: {}, num_results: {}, engine: {}", query, num_results, search_engine);
+        eprintln!(
+            "🔍 DEBUG: Parameters - query: {}, num_results: {}, engine: {}",
+            query, num_results, search_engine
+        );
 
         if query.is_empty() {
             return McpResponse::error(-1, "Query parameter is required".to_string());
@@ -34,7 +40,10 @@ impl McpServer {
 
         match search_result {
             Ok(results) => {
-                eprintln!("🔍 DEBUG: perform_web_search succeeded with {} results", results.results.len());
+                eprintln!(
+                    "🔍 DEBUG: perform_web_search succeeded with {} results",
+                    results.results.len()
+                );
                 // Wrap result in MCP text content format
                 let results_json = serde_json::to_value(&results).unwrap_or_default();
                 let mcp_content = serde_json::json!({
@@ -42,7 +51,7 @@ impl McpServer {
                     "text": serde_json::to_string_pretty(&results_json).unwrap_or_else(|_| "[]".to_string())
                 });
                 McpResponse::success(mcp_content)
-            },
+            }
             Err(e) => {
                 // Provide detailed error information
                 let error_chain = format_error_chain(&e);

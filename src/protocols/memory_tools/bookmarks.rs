@@ -1,8 +1,10 @@
 use serde_json::Value;
 
-use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::security::{limit_input_length, MAX_KEY_LENGTH, MAX_URL_LENGTH, MAX_CONTENT_LENGTH};
+use crate::protocols::mcp::McpResponse;
+use crate::protocols::security::{
+    MAX_CONTENT_LENGTH, MAX_KEY_LENGTH, MAX_URL_LENGTH, limit_input_length,
+};
 
 /// Handle storing a bookmark in AI memory
 pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -78,8 +80,14 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
         };
     }
 
-    let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("");
-    let content_preview = args.get("content_preview").and_then(|v| v.as_str()).unwrap_or("");
+    let description = args
+        .get("description")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let content_preview = args
+        .get("content_preview")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     // SECURITY: Validate optional fields
     if let Err(e) = limit_input_length(description, MAX_CONTENT_LENGTH, "Description") {
@@ -101,9 +109,14 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
         };
     }
 
-    let tags = args.get("tags")
+    let tags = args
+        .get("tags")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_else(Vec::new);
 
     match ai_memory.store_bookmark(key, url, title, description, content_preview, tags) {
@@ -120,6 +133,6 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 "text": format!("Failed to store bookmark: {}", e)
             })],
             is_error: true,
-        }
+        },
     }
 }

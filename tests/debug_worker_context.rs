@@ -10,14 +10,20 @@ fn debug_worker_availability_in_contexts() {
     let result = default_context.eval(Source::from_bytes("typeof Worker"));
     match result {
         Ok(value) => {
-            let type_str = value.to_string(&mut default_context).unwrap().to_std_string_escaped();
+            let type_str = value
+                .to_string(&mut default_context)
+                .unwrap()
+                .to_std_string_escaped();
             println!("   Worker type in default context: '{}'", type_str);
-            assert_eq!(type_str, "function", "Worker should be available in default context");
-        },
+            assert_eq!(
+                type_str, "function",
+                "Worker should be available in default context"
+            );
+        }
         Err(e) => {
             println!("   Error in default context: {:?}", e);
             panic!("Worker should be available in default context");
-        },
+        }
     }
 
     // Test 2: Builder Context (what Thalora uses)
@@ -26,10 +32,13 @@ fn debug_worker_availability_in_contexts() {
     let result = builder_context.eval(Source::from_bytes("typeof Worker"));
     match result {
         Ok(value) => {
-            let type_str = value.to_string(&mut builder_context).unwrap().to_std_string_escaped();
+            let type_str = value
+                .to_string(&mut builder_context)
+                .unwrap()
+                .to_std_string_escaped();
             println!("   Worker type in builder context: '{}'", type_str);
             // This should be "function" but might be "undefined" - that's the bug we're investigating
-        },
+        }
         Err(e) => println!("   Error in builder context: {:?}", e),
     }
 
@@ -45,9 +54,12 @@ fn debug_worker_availability_in_contexts() {
     let result = builder_context3.eval(Source::from_bytes("typeof WebSocket"));
     match result {
         Ok(value) => {
-            let type_str = value.to_string(&mut builder_context3).unwrap().to_std_string_escaped();
+            let type_str = value
+                .to_string(&mut builder_context3)
+                .unwrap()
+                .to_std_string_escaped();
             println!("   WebSocket type in builder context: '{}'", type_str);
-        },
+        }
         Err(e) => println!("   Error checking WebSocket: {:?}", e),
     }
 

@@ -1,9 +1,9 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 // MCP Protocol Tests - Core JSON-RPC protocol compliance tests
-use std::time::Duration;
-use serde_json::{json, Value};
 use anyhow::Result;
+use serde_json::{Value, json};
+use std::time::Duration;
 
 use super::mcp_harness::*;
 
@@ -14,20 +14,41 @@ fn test_mcp_initialization() {
     let response = harness.initialize().expect("Initialization should succeed");
 
     // Verify protocol version
-    assert!(response.get("protocolVersion").is_some(), "Should have protocolVersion");
+    assert!(
+        response.get("protocolVersion").is_some(),
+        "Should have protocolVersion"
+    );
     let protocol_version = response.get("protocolVersion").unwrap().as_str().unwrap();
-    assert_eq!(protocol_version, "2024-11-05", "Should use correct protocol version");
+    assert_eq!(
+        protocol_version, "2024-11-05",
+        "Should use correct protocol version"
+    );
 
     // Verify capabilities
-    assert!(response.get("capabilities").is_some(), "Should have capabilities");
+    assert!(
+        response.get("capabilities").is_some(),
+        "Should have capabilities"
+    );
     let capabilities = response.get("capabilities").unwrap();
-    assert!(capabilities.get("tools").is_some(), "Should support tools capability");
+    assert!(
+        capabilities.get("tools").is_some(),
+        "Should support tools capability"
+    );
 
     // Verify server info
-    assert!(response.get("serverInfo").is_some(), "Should have serverInfo");
+    assert!(
+        response.get("serverInfo").is_some(),
+        "Should have serverInfo"
+    );
     let server_info = response.get("serverInfo").unwrap();
-    assert_eq!(server_info.get("name").unwrap().as_str().unwrap(), "thalora-mcp-server");
-    assert_eq!(server_info.get("version").unwrap().as_str().unwrap(), "1.0.0");
+    assert_eq!(
+        server_info.get("name").unwrap().as_str().unwrap(),
+        "thalora-mcp-server"
+    );
+    assert_eq!(
+        server_info.get("version").unwrap().as_str().unwrap(),
+        "1.0.0"
+    );
 }
 
 #[test]
@@ -37,13 +58,25 @@ fn test_tools_list_structure() {
     let tools = harness.list_tools().expect("Should be able to list tools");
 
     // Should have multiple tools
-    assert!(tools.len() >= 10, "Should have at least 10 tools, got {}", tools.len());
+    assert!(
+        tools.len() >= 10,
+        "Should have at least 10 tools, got {}",
+        tools.len()
+    );
 
     // Verify each tool has required fields
     for (i, tool) in tools.iter().enumerate() {
         assert!(tool.get("name").is_some(), "Tool {} should have name", i);
-        assert!(tool.get("description").is_some(), "Tool {} should have description", i);
-        assert!(tool.get("inputSchema").is_some(), "Tool {} should have inputSchema", i);
+        assert!(
+            tool.get("description").is_some(),
+            "Tool {} should have description",
+            i
+        );
+        assert!(
+            tool.get("inputSchema").is_some(),
+            "Tool {} should have inputSchema",
+            i
+        );
 
         let name = tool.get("name").unwrap().as_str().unwrap();
         let description = tool.get("description").unwrap().as_str().unwrap();
@@ -51,17 +84,35 @@ fn test_tools_list_structure() {
 
         // Validate tool name format
         assert!(!name.is_empty(), "Tool name should not be empty");
-        assert!(!name.contains(' '), "Tool name should not contain spaces: {}", name);
+        assert!(
+            !name.contains(' '),
+            "Tool name should not contain spaces: {}",
+            name
+        );
 
         // Validate description
-        assert!(!description.is_empty(), "Tool description should not be empty");
-        assert!(description.len() > 10, "Tool description should be descriptive: {}", description);
+        assert!(
+            !description.is_empty(),
+            "Tool description should not be empty"
+        );
+        assert!(
+            description.len() > 10,
+            "Tool description should be descriptive: {}",
+            description
+        );
 
         // Validate input schema structure
-        assert_eq!(input_schema.get("type").unwrap().as_str().unwrap(), "object",
-                  "Input schema should be object type for tool: {}", name);
-        assert!(input_schema.get("properties").is_some(),
-               "Input schema should have properties for tool: {}", name);
+        assert_eq!(
+            input_schema.get("type").unwrap().as_str().unwrap(),
+            "object",
+            "Input schema should be object type for tool: {}",
+            name
+        );
+        assert!(
+            input_schema.get("properties").is_some(),
+            "Input schema should have properties for tool: {}",
+            name
+        );
     }
 }
 
@@ -70,33 +121,50 @@ fn test_expected_tools_present() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
-    let tool_names: Vec<String> = tools.iter()
+    let tool_names: Vec<String> = tools
+        .iter()
         .map(|t| t.get("name").unwrap().as_str().unwrap().to_string())
         .collect();
 
     // Core AI Memory tools
-    assert!(tool_names.contains(&"ai_memory_store_research".to_string()),
-           "Should have ai_memory_store_research tool");
-    assert!(tool_names.contains(&"ai_memory_get_research".to_string()),
-           "Should have ai_memory_get_research tool");
-    assert!(tool_names.contains(&"ai_memory_search_research".to_string()),
-           "Should have ai_memory_search_research tool");
+    assert!(
+        tool_names.contains(&"ai_memory_store_research".to_string()),
+        "Should have ai_memory_store_research tool"
+    );
+    assert!(
+        tool_names.contains(&"ai_memory_get_research".to_string()),
+        "Should have ai_memory_get_research tool"
+    );
+    assert!(
+        tool_names.contains(&"ai_memory_search_research".to_string()),
+        "Should have ai_memory_search_research tool"
+    );
 
     // Web snapshot tools
-    assert!(tool_names.contains(&"snapshot_url".to_string()),
-           "Should have snapshot_url tool");
-    assert!(tool_names.contains(&"web_search".to_string()),
-           "Should have web_search tool");
+    assert!(
+        tool_names.contains(&"snapshot_url".to_string()),
+        "Should have snapshot_url tool"
+    );
+    assert!(
+        tool_names.contains(&"web_search".to_string()),
+        "Should have web_search tool"
+    );
 
     // Browser automation tools
-    assert!(tool_names.contains(&"browser_click_element".to_string()),
-           "Should have browser_click_element tool");
+    assert!(
+        tool_names.contains(&"browser_click_element".to_string()),
+        "Should have browser_click_element tool"
+    );
 
     // CDP tools
-    assert!(tool_names.contains(&"cdp_runtime_evaluate".to_string()),
-           "Should have cdp_runtime_evaluate tool");
-    assert!(tool_names.contains(&"cdp_dom_get_document".to_string()),
-           "Should have cdp_dom_get_document tool");
+    assert!(
+        tool_names.contains(&"cdp_runtime_evaluate".to_string()),
+        "Should have cdp_runtime_evaluate tool"
+    );
+    assert!(
+        tool_names.contains(&"cdp_dom_get_document".to_string()),
+        "Should have cdp_dom_get_document tool"
+    );
 
     println!("Found {} tools: {:?}", tool_names.len(), tool_names);
 }
@@ -116,7 +184,10 @@ fn test_invalid_method_error() {
     assert!(result.is_err(), "Invalid method should return error");
 
     let error_msg = result.err().unwrap().to_string();
-    assert!(error_msg.contains("error"), "Error message should mention error");
+    assert!(
+        error_msg.contains("error"),
+        "Error message should mention error"
+    );
 }
 
 #[test]
@@ -137,18 +208,26 @@ fn test_malformed_json_handling() {
     std::thread::sleep(Duration::from_millis(300));
 
     // The server should still be running
-    assert!(harness.is_running(), "Server should still be running after malformed JSON");
+    assert!(
+        harness.is_running(),
+        "Server should still be running after malformed JSON"
+    );
 
     // In the test harness environment, the server may return an error response
     // but manual testing confirms the actual behavior is correct
     // For now, we'll accept this test environment limitation
     let response = harness.initialize();
     if response.is_err() {
-        eprintln!("Note: Test harness shows error but manual testing confirms server handles malformed JSON correctly");
+        eprintln!(
+            "Note: Test harness shows error but manual testing confirms server handles malformed JSON correctly"
+        );
         return; // Test passes - known harness vs manual testing difference
     }
 
-    assert!(response.is_ok(), "Should be able to initialize after malformed JSON");
+    assert!(
+        response.is_ok(),
+        "Should be able to initialize after malformed JSON"
+    );
 }
 
 #[test]
@@ -159,10 +238,13 @@ fn test_tool_call_with_invalid_tool() {
     assert!(result.is_err(), "Calling nonexistent tool should fail");
 
     let error_msg = result.err().unwrap().to_string();
-    assert!(error_msg.to_lowercase().contains("error") ||
-           error_msg.to_lowercase().contains("unknown") ||
-           error_msg.to_lowercase().contains("not found"),
-           "Error should indicate unknown tool: {}", error_msg);
+    assert!(
+        error_msg.to_lowercase().contains("error")
+            || error_msg.to_lowercase().contains("unknown")
+            || error_msg.to_lowercase().contains("not found"),
+        "Error should indicate unknown tool: {}",
+        error_msg
+    );
 }
 
 #[test]
@@ -174,7 +256,10 @@ fn test_tool_call_with_invalid_arguments() {
 
     // This should either fail during call or return an error response
     if let Ok(response) = result {
-        assert!(response.is_error, "Should return error for missing required parameters");
+        assert!(
+            response.is_error,
+            "Should return error for missing required parameters"
+        );
     }
     // If it fails during call, that's also acceptable
 }
@@ -195,10 +280,16 @@ fn test_concurrent_requests() {
     }
 
     let duration = start.elapsed();
-    assert!(duration < Duration::from_secs(10), "5 requests should complete within 10 seconds");
+    assert!(
+        duration < Duration::from_secs(10),
+        "5 requests should complete within 10 seconds"
+    );
 
     // Server should still be responsive
-    assert!(harness.is_running(), "Server should still be running after concurrent requests");
+    assert!(
+        harness.is_running(),
+        "Server should still be running after concurrent requests"
+    );
 }
 
 #[test]
@@ -207,10 +298,7 @@ fn test_json_rpc_id_handling() {
 
     // Test with different ID types
     // Note: null ID is omitted because JSON-RPC servers may treat it as a notification (no response)
-    let test_cases = vec![
-        json!(1),
-        json!("string-id"),
-    ];
+    let test_cases = vec![json!(1), json!("string-id")];
 
     for (i, id) in test_cases.into_iter().enumerate() {
         let request = json!({
@@ -221,7 +309,12 @@ fn test_json_rpc_id_handling() {
         });
 
         let response = harness.send_request_raw(request);
-        assert!(response.is_ok(), "Request {} with ID {:?} should succeed", i, id);
+        assert!(
+            response.is_ok(),
+            "Request {} with ID {:?} should succeed",
+            i,
+            id
+        );
     }
 }
 
@@ -245,10 +338,16 @@ fn test_protocol_version_validation() {
     });
 
     let response = harness.send_request_raw(request);
-    assert!(response.is_ok(), "Initialization with correct protocol version should succeed");
+    assert!(
+        response.is_ok(),
+        "Initialization with correct protocol version should succeed"
+    );
 
     let response = response.unwrap();
-    assert_eq!(response.get("protocolVersion").unwrap().as_str().unwrap(), "2024-11-05");
+    assert_eq!(
+        response.get("protocolVersion").unwrap().as_str().unwrap(),
+        "2024-11-05"
+    );
 }
 
 #[test]
@@ -269,16 +368,30 @@ fn test_server_stability_under_load() {
 
         // Check server is still running every few requests
         if i % 5 == 0 {
-            assert!(harness.is_running(), "Server should still be running at request {}", i);
+            assert!(
+                harness.is_running(),
+                "Server should still be running at request {}",
+                i
+            );
         }
     }
 
     // Should have high success rate
     let success_rate = successful_requests as f64 / num_requests as f64;
-    assert!(success_rate >= 0.9, "Should have at least 90% success rate, got {:.1}%", success_rate * 100.0);
+    assert!(
+        success_rate >= 0.9,
+        "Should have at least 90% success rate, got {:.1}%",
+        success_rate * 100.0
+    );
 
     // Final server health check
-    assert!(harness.is_running(), "Server should still be running after load test");
+    assert!(
+        harness.is_running(),
+        "Server should still be running after load test"
+    );
     let final_response = harness.list_tools();
-    assert!(final_response.is_ok(), "Server should still be responsive after load test");
+    assert!(
+        final_response.is_ok(),
+        "Server should still be responsive after load test"
+    );
 }

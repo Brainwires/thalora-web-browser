@@ -1,7 +1,7 @@
+use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::time::Instant;
-use anyhow::{Result, anyhow};
-use wasmtime::{Engine, Module, Store, Instance, Linker, Config};
+use wasmtime::{Config, Engine, Instance, Linker, Module, Store};
 
 /// Maximum number of simultaneously loaded WASM modules
 pub const MAX_LOADED_MODULES: usize = 32;
@@ -69,8 +69,8 @@ impl WasmDebugState {
         config.consume_fuel(true);
         config.epoch_interruption(true);
 
-        let engine = Engine::new(&config)
-            .map_err(|e| anyhow!("Failed to create wasmtime engine: {}", e))?;
+        let engine =
+            Engine::new(&config).map_err(|e| anyhow!("Failed to create wasmtime engine: {}", e))?;
 
         Ok(Self {
             engine,
@@ -166,7 +166,10 @@ pub fn validate_module_id(module_id: &str) -> Result<()> {
             MAX_MODULE_ID_LENGTH
         ));
     }
-    if !module_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !module_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err(anyhow!(
             "Module ID contains invalid characters: '{}'. Only alphanumeric, hyphens, and underscores are allowed",
             module_id

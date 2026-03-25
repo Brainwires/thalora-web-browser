@@ -1,15 +1,17 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
-use crate::protocols::security::{sanitize_session_id, limit_input_length, MAX_SELECTOR_LENGTH};
+use crate::protocols::mcp::McpResponse;
+use crate::protocols::security::{MAX_SELECTOR_LENGTH, limit_input_length, sanitize_session_id};
 
 impl BrowserTools {
     pub async fn handle_prepare_form_submission(&self, params: Value) -> McpResponse {
         let form_selector = params["form_selector"].as_str().unwrap_or("");
-        let submit_button_selector = params.get("submit_button_selector")
+        let submit_button_selector = params
+            .get("submit_button_selector")
             .and_then(|v| v.as_str());
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -22,7 +24,9 @@ impl BrowserTools {
             return McpResponse::error(-32602, format!("Input validation failed: {}", e));
         }
         if let Some(btn_sel) = submit_button_selector {
-            if let Err(e) = limit_input_length(btn_sel, MAX_SELECTOR_LENGTH, "Submit button selector") {
+            if let Err(e) =
+                limit_input_length(btn_sel, MAX_SELECTOR_LENGTH, "Submit button selector")
+            {
                 return McpResponse::error(-32602, format!("Input validation failed: {}", e));
             }
         }
@@ -38,7 +42,11 @@ impl BrowserTools {
             match lock_res {
                 Ok(browser_guard) => {
                     // Find forms that match the selector and open new windows
-                    let new_window_forms: Vec<_> = browser_guard.get_new_window_forms().into_iter().cloned().collect();
+                    let new_window_forms: Vec<_> = browser_guard
+                        .get_new_window_forms()
+                        .into_iter()
+                        .cloned()
+                        .collect();
 
                     let matching_form = new_window_forms.iter().find(|form| {
                         // Check if the form selector matches
@@ -53,15 +61,23 @@ impl BrowserTools {
                     if let Some(form_info) = matching_form {
                         if let Some(ref predicted_url) = form_info.predicted_url {
                             // Create predictive session for the form submission
-                            let predictive_session_id = format!("predictive_{}_{}",
+                            let predictive_session_id = format!(
+                                "predictive_{}_{}",
                                 session_id,
-                                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_millis()
                             );
 
-                            eprintln!("🔍 DEBUG: Creating predictive session for form preparation: {}", predictive_session_id);
+                            eprintln!(
+                                "🔍 DEBUG: Creating predictive session for form preparation: {}",
+                                predictive_session_id
+                            );
 
                             // Create the predictive session
-                            let _predictive_browser = self.get_or_create_session(&predictive_session_id, false);
+                            let _predictive_browser =
+                                self.get_or_create_session(&predictive_session_id, false);
 
                             response = McpResponse::success(json!({
                                 "success": true,
@@ -78,7 +94,10 @@ impl BrowserTools {
                                 "ready_for_submission": true
                             }));
                         } else {
-                            response = McpResponse::error(-1, "Form found but no predicted URL available".to_string());
+                            response = McpResponse::error(
+                                -1,
+                                "Form found but no predicted URL available".to_string(),
+                            );
                         }
                     } else {
                         // Check if any form matches the selector but doesn't open new windows
@@ -95,11 +114,14 @@ impl BrowserTools {
                                 "form_opens_new_window": false
                             }));
                         } else {
-                            response = McpResponse::error(-1, format!("No form found matching selector: {}", form_selector));
+                            response = McpResponse::error(
+                                -1,
+                                format!("No form found matching selector: {}", form_selector),
+                            );
                         }
                     }
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response

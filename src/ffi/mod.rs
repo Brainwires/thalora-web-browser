@@ -4,9 +4,9 @@
 //! or any other language that supports C FFI.
 
 mod instance;
-mod navigation;
 mod interaction;
+mod navigation;
 
 pub use instance::*;
-pub use navigation::*;
 pub use interaction::*;
+pub use navigation::*;

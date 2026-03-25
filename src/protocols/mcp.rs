@@ -80,12 +80,18 @@ impl McpResponse {
         if value.is_array() {
             // from_value consumes, so clone to preserve original for fallback.
             if let Ok(vec) = serde_json::from_value::<Vec<Value>>(value.clone()) {
-                return McpResponse::ToolResult { content: vec, is_error: false };
+                return McpResponse::ToolResult {
+                    content: vec,
+                    is_error: false,
+                };
             }
         }
 
         // Otherwise wrap the single value into a ToolResult.content
-        McpResponse::ToolResult { content: vec![value], is_error: false }
+        McpResponse::ToolResult {
+            content: vec![value],
+            is_error: false,
+        }
     }
 
     /// Construct an error response. The code is currently ignored by the enum shape
@@ -147,7 +153,9 @@ impl Serialize for McpMessage {
             }
             McpMessageContent::Request(_) => {
                 // Requests use flatten normally
-                return Err(serde::ser::Error::custom("Cannot serialize requests in McpMessage"));
+                return Err(serde::ser::Error::custom(
+                    "Cannot serialize requests in McpMessage",
+                ));
             }
         }
 

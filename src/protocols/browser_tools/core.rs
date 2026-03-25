@@ -1,13 +1,14 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::browser_tools::session::BrowserSession;
 
 #[allow(dead_code)]
 pub struct BrowserTools {
-    pub(super) sessions: Arc<Mutex<HashMap<String, (Arc<Mutex<HeadlessWebBrowser>>, BrowserSession)>>>,
+    pub(super) sessions:
+        Arc<Mutex<HashMap<String, (Arc<Mutex<HeadlessWebBrowser>>, BrowserSession)>>>,
     pub(super) persistent_session_path: Option<PathBuf>,
 }
 
@@ -19,31 +20,47 @@ impl BrowserTools {
         }
     }
 
-    pub fn get_or_create_session(&self, session_id: &str, persistent: bool) -> Arc<Mutex<HeadlessWebBrowser>> {
+    pub fn get_or_create_session(
+        &self,
+        session_id: &str,
+        persistent: bool,
+    ) -> Arc<Mutex<HeadlessWebBrowser>> {
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
-            eprintln!("🔍 DEBUG: get_or_create_session - FOUND existing session: {}", session_id);
+            eprintln!(
+                "🔍 DEBUG: get_or_create_session - FOUND existing session: {}",
+                session_id
+            );
             session.update_last_accessed();
             // Debug browser state
             if let Ok(browser_guard) = browser.try_lock() {
-                eprintln!("🔍 DEBUG: get_or_create_session - existing browser content length: {}", browser_guard.get_current_content().len());
-                eprintln!("🔍 DEBUG: get_or_create_session - existing browser URL: {:?}", browser_guard.get_current_url());
+                eprintln!(
+                    "🔍 DEBUG: get_or_create_session - existing browser content length: {}",
+                    browser_guard.get_current_content().len()
+                );
+                eprintln!(
+                    "🔍 DEBUG: get_or_create_session - existing browser URL: {:?}",
+                    browser_guard.get_current_url()
+                );
             }
             // Return existing browser with preserved state
             browser.clone()
         } else {
-            eprintln!("🔍 DEBUG: get_or_create_session - CREATING new session: {}", session_id);
+            eprintln!(
+                "🔍 DEBUG: get_or_create_session - CREATING new session: {}",
+                session_id
+            );
             let browser = HeadlessWebBrowser::new();
             let session = BrowserSession::new(session_id.to_string(), persistent);
 
             // Set persistent data path for session storage
             if persistent {
                 if let Ok(mut browser_guard) = browser.lock() {
-                    browser_guard.get_storage_mut().session_storage.insert(
-                        "_session_id".to_string(),
-                        session_id.to_string()
-                    );
+                    browser_guard
+                        .get_storage_mut()
+                        .session_storage
+                        .insert("_session_id".to_string(), session_id.to_string());
                 }
             }
 
@@ -76,7 +93,10 @@ impl BrowserTools {
 
     pub fn list_sessions(&self) -> Vec<BrowserSession> {
         let sessions = self.sessions.lock().unwrap();
-        sessions.values().map(|(_, session)| session.clone()).collect()
+        sessions
+            .values()
+            .map(|(_, session)| session.clone())
+            .collect()
     }
 
     pub fn close_session(&self, session_id: &str) -> bool {

@@ -4,9 +4,9 @@ pub mod types;
 #[cfg(feature = "core")]
 pub mod core;
 
-pub mod scraper;
-pub mod navigation;
 pub mod form_analyzer;
+pub mod navigation;
+pub mod scraper;
 
 // Re-export shared constants
 pub use thalora_constants::USER_AGENT;

@@ -4,21 +4,27 @@ use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
 use crate::protocols::security::{
-    validate_url_for_navigation, sanitize_session_id, limit_input_length,
-    MAX_URL_LENGTH, MAX_SELECTOR_LENGTH,
+    MAX_SELECTOR_LENGTH, MAX_URL_LENGTH, limit_input_length, sanitize_session_id,
+    validate_url_for_navigation,
 };
 
 use super::extraction;
 
 impl McpServer {
     /// Capture a point-in-time snapshot of a web page with all extraction capabilities
-    pub(in crate::protocols::mcp_server) async fn handle_snapshot_url(&mut self, arguments: Value) -> McpResponse {
+    pub(in crate::protocols::mcp_server) async fn handle_snapshot_url(
+        &mut self,
+        arguments: Value,
+    ) -> McpResponse {
         let url = arguments["url"].as_str();
         let session_id = arguments.get("session_id").and_then(|v| v.as_str());
 
         // Validate that we have either URL or session_id
         if url.is_none() && session_id.is_none() {
-            return McpResponse::error(-1, "Either 'url' or 'session_id' parameter is required".to_string());
+            return McpResponse::error(
+                -1,
+                "Either 'url' or 'session_id' parameter is required".to_string(),
+            );
         }
 
         // SECURITY: Validate input lengths to prevent DoS attacks
@@ -34,35 +40,73 @@ impl McpServer {
         }
 
         // Session & Navigation options
-        let wait_for_js = arguments.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
-        let _wait_timeout = arguments.get("wait_timeout").and_then(|v| v.as_u64()).unwrap_or(5000);
+        let wait_for_js = arguments
+            .get("wait_for_js")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let _wait_timeout = arguments
+            .get("wait_timeout")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(5000);
 
         // What to extract (all default to true for comprehensive extraction)
-        let extract_basic = arguments.get("extract_basic").and_then(|v| v.as_bool()).unwrap_or(true);
-        let extract_readable = arguments.get("extract_readable").and_then(|v| v.as_bool()).unwrap_or(false);
-        let extract_structured = arguments.get("extract_structured").and_then(|v| v.as_bool()).unwrap_or(false);
-        let extract_by_selectors = arguments.get("selectors").and_then(|v| v.as_object()).cloned();
+        let extract_basic = arguments
+            .get("extract_basic")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let extract_readable = arguments
+            .get("extract_readable")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let extract_structured = arguments
+            .get("extract_structured")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let extract_by_selectors = arguments
+            .get("selectors")
+            .and_then(|v| v.as_object())
+            .cloned();
 
         // Readability options
-        let readability_format = arguments.get("format").and_then(|v| v.as_str()).unwrap_or("markdown");
-        let include_images = arguments.get("include_images").and_then(|v| v.as_bool()).unwrap_or(true);
-        let include_metadata = arguments.get("include_metadata").and_then(|v| v.as_bool()).unwrap_or(true);
-        let min_content_score = arguments.get("min_content_score").and_then(|v| v.as_f64()).unwrap_or(0.3) as f32;
+        let readability_format = arguments
+            .get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("markdown");
+        let include_images = arguments
+            .get("include_images")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let include_metadata = arguments
+            .get("include_metadata")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let min_content_score = arguments
+            .get("min_content_score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.3) as f32;
 
         // Structured content options
-        let content_types = arguments.get("content_types")
+        let content_types = arguments
+            .get("content_types")
             .and_then(|v| v.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_else(|| vec!["tables", "lists", "code_blocks", "metadata"]);
 
         // Output size limit
-        let max_output_size = arguments.get("max_output_size")
+        let max_output_size = arguments
+            .get("max_output_size")
             .and_then(|v| v.as_u64())
             .unwrap_or(50_000) as usize;
 
         // Pagination options (for future implementation)
-        let _follow_pagination = arguments.get("follow_pagination").and_then(|v| v.as_bool()).unwrap_or(false);
-        let _max_pages = arguments.get("max_pages").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+        let _follow_pagination = arguments
+            .get("follow_pagination")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let _max_pages = arguments
+            .get("max_pages")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10) as usize;
 
         // Navigate to URL if provided (or use existing session)
         let html_content = if let Some(url_str) = url {
@@ -76,10 +120,16 @@ impl McpServer {
             let temp_browser = if let Some(sid) = session_id {
                 // Try to get existing session browser
                 if let Some(session_browser) = self.browser_tools.get_session_browser(sid) {
-                    eprintln!("🔍 SNAPSHOT: Using existing session browser for session: {}", sid);
+                    eprintln!(
+                        "🔍 SNAPSHOT: Using existing session browser for session: {}",
+                        sid
+                    );
                     session_browser
                 } else {
-                    eprintln!("🔍 SNAPSHOT: Session {} not found, creating new browser", sid);
+                    eprintln!(
+                        "🔍 SNAPSHOT: Session {} not found, creating new browser",
+                        sid
+                    );
                     crate::engine::browser::HeadlessWebBrowser::new()
                 }
             } else {
@@ -99,7 +149,10 @@ impl McpServer {
                     }
                     Err(_) => {
                         eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock");
-                        return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire browser lock".to_string(),
+                        );
                     }
                 };
 
@@ -107,7 +160,7 @@ impl McpServer {
                 match browser.navigate_to_with_options(url_str, wait_for_js).await {
                     Ok(_) => {
                         eprintln!("🔍 SNAPSHOT: Navigation successful");
-                    },
+                    }
                     Err(e) => {
                         eprintln!("🔍 SNAPSHOT: Navigation failed: {}", e);
                         return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e));
@@ -122,7 +175,10 @@ impl McpServer {
                     Ok(b) => b,
                     Err(_) => {
                         eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock for content");
-                        return McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire browser lock".to_string(),
+                        );
                     }
                 };
                 browser.get_current_content()
@@ -137,31 +193,41 @@ impl McpServer {
         } else {
             // Get content from existing session
             let session_id_str = session_id.unwrap(); // We know it exists from earlier check
-            eprintln!("🔍 SNAPSHOT: Getting content from session: {}", session_id_str);
+            eprintln!(
+                "🔍 SNAPSHOT: Getting content from session: {}",
+                session_id_str
+            );
 
             match self.browser_tools.get_session_browser(session_id_str) {
-                Some(browser) => {
-                    match browser.lock() {
-                        Ok(browser_guard) => {
-                            let content = browser_guard.get_current_content();
-                            if content.is_empty() {
-                                return McpResponse::error(
-                                    -1,
-                                    format!("Session '{}' has no content. Navigate to a URL first.", session_id_str)
-                                );
-                            }
-                            eprintln!("🔍 SNAPSHOT: Got {} chars from session", content.len());
-                            content
+                Some(browser) => match browser.lock() {
+                    Ok(browser_guard) => {
+                        let content = browser_guard.get_current_content();
+                        if content.is_empty() {
+                            return McpResponse::error(
+                                -1,
+                                format!(
+                                    "Session '{}' has no content. Navigate to a URL first.",
+                                    session_id_str
+                                ),
+                            );
                         }
-                        Err(_) => {
-                            return McpResponse::error(-1, "Failed to acquire session browser lock".to_string());
-                        }
+                        eprintln!("🔍 SNAPSHOT: Got {} chars from session", content.len());
+                        content
                     }
-                }
+                    Err(_) => {
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire session browser lock".to_string(),
+                        );
+                    }
+                },
                 None => {
                     return McpResponse::error(
                         -1,
-                        format!("Session '{}' not found. Create a session first using browser_session_management.", session_id_str)
+                        format!(
+                            "Session '{}' not found. Create a session first using browser_session_management.",
+                            session_id_str
+                        ),
                     );
                 }
             }
@@ -187,7 +253,12 @@ impl McpServer {
             if let Ok(link_selector) = Selector::parse("a[href]") {
                 for element in document.select(&link_selector) {
                     if let Some(href) = element.value().attr("href") {
-                        let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                        let text = element
+                            .text()
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                            .trim()
+                            .to_string();
                         links.push(serde_json::json!({
                             "href": href,
                             "text": text
@@ -228,24 +299,29 @@ impl McpServer {
             for (name, selector_str) in selectors {
                 if let Some(selector_str) = selector_str.as_str() {
                     // SECURITY: Validate selector length
-                    if let Err(e) = limit_input_length(selector_str, MAX_SELECTOR_LENGTH, "CSS selector") {
-                        selector_results.insert(
-                            name,
-                            Value::String(format!("Selector rejected: {}", e))
-                        );
+                    if let Err(e) =
+                        limit_input_length(selector_str, MAX_SELECTOR_LENGTH, "CSS selector")
+                    {
+                        selector_results
+                            .insert(name, Value::String(format!("Selector rejected: {}", e)));
                         continue;
                     }
                     if let Ok(selector) = Selector::parse(selector_str) {
                         let mut matches = Vec::new();
                         for element in document.select(&selector) {
-                            let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                            let text = element
+                                .text()
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                                .trim()
+                                .to_string();
                             matches.push(Value::String(text));
                         }
                         selector_results.insert(name, Value::Array(matches));
                     } else {
                         selector_results.insert(
                             name,
-                            Value::String(format!("Invalid selector: {}", selector_str))
+                            Value::String(format!("Invalid selector: {}", selector_str)),
                         );
                     }
                 }
@@ -275,19 +351,19 @@ impl McpServer {
                     "tables" => {
                         let tables = extraction::extract_tables(&html_content);
                         structured["tables"] = Value::Array(tables);
-                    },
+                    }
                     "lists" => {
                         let lists = extraction::extract_lists(&html_content);
                         structured["lists"] = Value::Array(lists);
-                    },
+                    }
                     "code_blocks" => {
                         let code_blocks = extraction::extract_code_blocks(&html_content);
                         structured["code_blocks"] = Value::Array(code_blocks);
-                    },
+                    }
                     "metadata" => {
                         let metadata = extraction::extract_metadata(&html_content);
                         structured["metadata"] = metadata;
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -312,7 +388,8 @@ impl McpServer {
                     summary["total_lists"] = Value::Number(serde_json::Number::from(lists.len()));
                 }
                 if let Some(code_blocks) = structured["code_blocks"].as_array() {
-                    summary["total_code_blocks"] = Value::Number(serde_json::Number::from(code_blocks.len()));
+                    summary["total_code_blocks"] =
+                        Value::Number(serde_json::Number::from(code_blocks.len()));
                 }
                 if let Some(metadata) = structured["metadata"].as_object() {
                     summary["has_metadata"] = Value::Bool(!metadata.is_empty());
@@ -371,7 +448,7 @@ impl McpServer {
                         });
                         readability_succeeded = true;
                     }
-                },
+                }
                 Err(_) => {
                     if is_plain_text_content {
                         // Fallback: for plain text/code content, return raw text
@@ -389,8 +466,7 @@ impl McpServer {
             // Fallback: synthesize readable content from structured data if readability failed
             if !readability_succeeded {
                 if let Some(ref structured) = structured_data {
-                    let metadata_val = result.get("basic")
-                        .and_then(|b| b.get("metadata"));
+                    let metadata_val = result.get("basic").and_then(|b| b.get("metadata"));
                     let synthesized = Self::synthesize_readable_from_structured(
                         structured,
                         metadata_val,
@@ -452,13 +528,35 @@ impl McpServer {
 
         // If content starts with common code patterns, it's likely plain text
         let code_indicators = [
-            "import ", "export ", "const ", "let ", "var ", "function ", "class ",
-            "use ", "mod ", "pub ", "fn ", "struct ", "impl ", "enum ",  // Rust
-            "#include", "#define", "int ", "void ", "char ",  // C/C++
-            "package ", "interface ",  // Go/Java
-            "def ", "from ", "class ",  // Python
-            "<?php", "<?=",  // PHP
-            "#!/", "#!", "---",  // Shell/YAML
+            "import ",
+            "export ",
+            "const ",
+            "let ",
+            "var ",
+            "function ",
+            "class ",
+            "use ",
+            "mod ",
+            "pub ",
+            "fn ",
+            "struct ",
+            "impl ",
+            "enum ", // Rust
+            "#include",
+            "#define",
+            "int ",
+            "void ",
+            "char ", // C/C++
+            "package ",
+            "interface ", // Go/Java
+            "def ",
+            "from ",
+            "class ", // Python
+            "<?php",
+            "<?=", // PHP
+            "#!/",
+            "#!",
+            "---", // Shell/YAML
         ];
 
         for indicator in &code_indicators {
@@ -468,8 +566,10 @@ impl McpServer {
         }
 
         // Count HTML-specific tags
-        let html_tags = ["<html", "<body", "<div", "<p>", "<article", "<section",
-                         "<main", "<header", "<footer", "<nav", "<aside"];
+        let html_tags = [
+            "<html", "<body", "<div", "<p>", "<article", "<section", "<main", "<header", "<footer",
+            "<nav", "<aside",
+        ];
 
         let mut html_tag_count = 0;
         for tag in &html_tags {
@@ -529,16 +629,16 @@ impl McpServer {
 
                 // Headers
                 if let Some(headers) = table.get("headers").and_then(|v| v.as_array()) {
-                    let header_strs: Vec<&str> = headers.iter()
-                        .filter_map(|h| h.as_str())
-                        .collect();
+                    let header_strs: Vec<&str> =
+                        headers.iter().filter_map(|h| h.as_str()).collect();
                     if !header_strs.is_empty() {
                         match format {
                             "markdown" => {
                                 table_lines.push(format!("| {} |", header_strs.join(" | ")));
-                                let separator: Vec<&str> = header_strs.iter().map(|_| "---").collect();
+                                let separator: Vec<&str> =
+                                    header_strs.iter().map(|_| "---").collect();
                                 table_lines.push(format!("| {} |", separator.join(" | ")));
-                            },
+                            }
                             _ => {
                                 table_lines.push(header_strs.join("\t"));
                             }
@@ -550,13 +650,12 @@ impl McpServer {
                 if let Some(rows) = table.get("rows").and_then(|v| v.as_array()) {
                     for row in rows {
                         if let Some(cells) = row.as_array() {
-                            let cell_strs: Vec<&str> = cells.iter()
-                                .filter_map(|c| c.as_str())
-                                .collect();
+                            let cell_strs: Vec<&str> =
+                                cells.iter().filter_map(|c| c.as_str()).collect();
                             match format {
                                 "markdown" => {
                                     table_lines.push(format!("| {} |", cell_strs.join(" | ")));
-                                },
+                                }
                                 _ => {
                                     table_lines.push(cell_strs.join("\t"));
                                 }
@@ -680,7 +779,11 @@ impl McpServer {
 
         // Tier 3: Truncate readable content at paragraph/sentence boundary
         if let Some(readable) = result.get_mut("readable") {
-            if let Some(content) = readable.get_mut("content").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+            if let Some(content) = readable
+                .get_mut("content")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+            {
                 let target_len = max_size / 2; // Use roughly half the budget for readable content
                 if content.len() > target_len {
                     let truncated = Self::truncate_at_boundary(&content, target_len);

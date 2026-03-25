@@ -1,10 +1,13 @@
-use anyhow::Result;
-use thalora_browser_apis::boa_engine::{js_string, Context, JsObject, JsValue, NativeFunction};
-use std::sync::{Arc, Mutex};
 use super::types::*;
+use anyhow::Result;
+use std::sync::{Arc, Mutex};
+use thalora_browser_apis::boa_engine::{Context, JsObject, JsValue, NativeFunction, js_string};
 
 impl MediaManager {
-    pub fn setup_audio_element_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    pub fn setup_audio_element_api(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let audio_elements = Arc::clone(&self.audio_elements);
 
         // Real Audio constructor with actual file loading
@@ -77,29 +80,32 @@ impl MediaManager {
         // Real play method - actually plays audio
         let audio_elements_play = Arc::clone(audio_elements);
         let audio_id_play = audio_id.to_string();
-        let play_fn = unsafe { NativeFunction::from_closure(move |_, _args, ctx| {
-            let promise_obj = JsObject::default(&ctx.intrinsics());
+        let play_fn = unsafe {
+            NativeFunction::from_closure(move |_, _args, ctx| {
+                let promise_obj = JsObject::default(&ctx.intrinsics());
 
-            // In real implementation, would load and play audio file
-            if let Ok(mut elements) = audio_elements_play.lock() {
-                if let Some(audio_elem) = elements.get_mut(&audio_id_play) {
-                    audio_elem.paused = false;
+                // In real implementation, would load and play audio file
+                if let Ok(mut elements) = audio_elements_play.lock() {
+                    if let Some(audio_elem) = elements.get_mut(&audio_id_play) {
+                        audio_elem.paused = false;
 
-                    // Real audio playback would happen here
-                    // For demo, simulate successful playback
+                        // Real audio playback would happen here
+                        // For demo, simulate successful playback
+                    }
                 }
-            }
 
-            let then_fn = NativeFunction::from_closure(|_, _args, _ctx| Ok(JsValue::undefined()));
-            promise_obj.set(
-                js_string!("then"),
-                JsValue::from(then_fn.to_js_function(ctx.realm())),
-                false,
-                ctx,
-            )?;
+                let then_fn =
+                    NativeFunction::from_closure(|_, _args, _ctx| Ok(JsValue::undefined()));
+                promise_obj.set(
+                    js_string!("then"),
+                    JsValue::from(then_fn.to_js_function(ctx.realm())),
+                    false,
+                    ctx,
+                )?;
 
-            Ok(JsValue::from(promise_obj))
-    }) };
+                Ok(JsValue::from(promise_obj))
+            })
+        };
         audio.set(
             js_string!("play"),
             JsValue::from(play_fn.to_js_function(context.realm())),
@@ -107,7 +113,7 @@ impl MediaManager {
             context,
         )?;
 
-    let pause_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+        let pause_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         audio.set(
             js_string!("pause"),
             JsValue::from(pause_fn.to_js_function(context.realm())),

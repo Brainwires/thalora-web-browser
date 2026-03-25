@@ -2,7 +2,8 @@ use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 /// Setup security-related polyfills and protections
 pub fn setup_security_apis(context: &mut Context) -> JsResult<()> {
-    context.eval(Source::from_bytes(r#"
+    context.eval(Source::from_bytes(
+        r#"
         // Content Security Policy helpers (Chrome 133)
         if (typeof SecurityPolicyViolationEvent === 'undefined') {
             var SecurityPolicyViolationEvent = function(type, init) {
@@ -37,7 +38,8 @@ pub fn setup_security_apis(context: &mut Context) -> JsResult<()> {
                 console.log('PermissionsPolicyViolationEvent created:', this.type);
             };
         }
-    "#))?;
+    "#,
+    ))?;
 
     Ok(())
 }

@@ -1,12 +1,14 @@
-use anyhow::{anyhow, Result};
-use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
+use anyhow::{Result, anyhow};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use vfs::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+use thalora_browser_apis::boa_engine::{
+    Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute,
+};
+use vfs::fs;
 
 /// Real Service Worker implementation for PWA support and modern web app compatibility
 pub struct ServiceWorkerManager {
@@ -369,7 +371,10 @@ impl ServiceWorkerManager {
     }
 
     /// Setup Cache API for Service Workers
-    fn setup_cache_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    fn setup_cache_api(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let caches_obj = JsObject::default(&context.intrinsics());
 
         // caches.open(cacheName)
@@ -555,7 +560,10 @@ impl ServiceWorkerManager {
     }
 
     /// Setup Push API for notifications
-    fn setup_push_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    fn setup_push_api(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Setup PushManager
         let push_manager_obj = JsObject::default(&context.intrinsics());
 
@@ -601,7 +609,7 @@ impl ServiceWorkerManager {
                         endpoint: "https://fcm.googleapis.com/fcm/send/mock-endpoint".to_string(), // MOCK
                         keys: PushKeys {
                             p256dh: "mock-p256dh-key".to_string(), // MOCK
-                            auth: "mock-auth-key".to_string(), // MOCK
+                            auth: "mock-auth-key".to_string(),     // MOCK
                         },
                         created_at: SystemTime::now()
                             .duration_since(UNIX_EPOCH)

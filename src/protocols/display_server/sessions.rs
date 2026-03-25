@@ -1,7 +1,6 @@
 /// Session management for display server clients
 ///
 /// Tracks connected clients, their browser sessions, and manages lifecycle.
-
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -41,7 +40,10 @@ impl ClientRegistry {
 
     /// Check if any clients are using a session
     pub fn has_clients_for_session(&self, session_id: &str) -> bool {
-        self.clients.read().values().any(|c| c.session_id == session_id)
+        self.clients
+            .read()
+            .values()
+            .any(|c| c.session_id == session_id)
     }
 
     /// Get the number of connected clients

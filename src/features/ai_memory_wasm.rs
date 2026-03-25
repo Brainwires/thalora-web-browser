@@ -12,9 +12,8 @@ use std::collections::HashMap;
 
 // Re-export public types
 pub use types::{
-    BookmarkEntry, CredentialEntry, MemoryData, MemoryMetadata, MemorySearchCriteria,
-    MemorySortBy, MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData,
-    SessionStatus,
+    BookmarkEntry, CredentialEntry, MemoryData, MemoryMetadata, MemorySearchCriteria, MemorySortBy,
+    MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData, SessionStatus,
 };
 
 mod types {
@@ -191,23 +190,21 @@ impl AiMemoryHeap {
         let storage_key = "thalora_ai_memory".to_string();
 
         // Try to load existing data from localStorage
-        let memory_data = Self::load_from_storage(&storage_key).unwrap_or_else(|_| {
-            MemoryData {
-                research: HashMap::new(),
-                credentials: HashMap::new(),
-                sessions: HashMap::new(),
-                bookmarks: HashMap::new(),
-                notes: HashMap::new(),
-                metadata: MemoryMetadata {
-                    version: "1.0.0".to_string(),
-                    created_at: Utc::now(),
-                    last_updated: Utc::now(),
-                    total_entries: 0,
-                    total_size_bytes: 0,
-                    compression_count: 0,
-                    last_cleanup: None,
-                },
-            }
+        let memory_data = Self::load_from_storage(&storage_key).unwrap_or_else(|_| MemoryData {
+            research: HashMap::new(),
+            credentials: HashMap::new(),
+            sessions: HashMap::new(),
+            bookmarks: HashMap::new(),
+            notes: HashMap::new(),
+            metadata: MemoryMetadata {
+                version: "1.0.0".to_string(),
+                created_at: Utc::now(),
+                last_updated: Utc::now(),
+                total_entries: 0,
+                total_size_bytes: 0,
+                compression_count: 0,
+                last_cleanup: None,
+            },
         });
 
         Ok(Self {
@@ -223,8 +220,8 @@ impl AiMemoryHeap {
 
     /// Load memory data from localStorage
     fn load_from_storage(key: &str) -> Result<MemoryData> {
-        let window = web_sys::window()
-            .ok_or_else(|| anyhow::anyhow!("No window object available"))?;
+        let window =
+            web_sys::window().ok_or_else(|| anyhow::anyhow!("No window object available"))?;
         let storage = window
             .local_storage()
             .map_err(|_| anyhow::anyhow!("Failed to access localStorage"))?
@@ -247,8 +244,8 @@ impl AiMemoryHeap {
         let json = serde_json::to_string(&self.memory_data)?;
         self.memory_data.metadata.total_size_bytes = json.len() as u64;
 
-        let window = web_sys::window()
-            .ok_or_else(|| anyhow::anyhow!("No window object available"))?;
+        let window =
+            web_sys::window().ok_or_else(|| anyhow::anyhow!("No window object available"))?;
         let storage = window
             .local_storage()
             .map_err(|_| anyhow::anyhow!("Failed to access localStorage"))?

@@ -35,32 +35,31 @@ impl CdpDomain for DomDomain {
                 self.enabled = false;
                 Ok(serde_json::json!({}))
             }
-            "getDocument" => {
-                Ok(serde_json::json!({
-                    "root": {
-                        "nodeId": 1,
-                        "backendNodeId": 1,
-                        "nodeType": 9,
-                        "nodeName": "#document",
-                        "localName": "",
+            "getDocument" => Ok(serde_json::json!({
+                "root": {
+                    "nodeId": 1,
+                    "backendNodeId": 1,
+                    "nodeType": 9,
+                    "nodeName": "#document",
+                    "localName": "",
+                    "nodeValue": "",
+                    "childNodeCount": 1,
+                    "children": [{
+                        "nodeId": 2,
+                        "backendNodeId": 2,
+                        "nodeType": 1,
+                        "nodeName": "HTML",
+                        "localName": "html",
                         "nodeValue": "",
-                        "childNodeCount": 1,
-                        "children": [{
-                            "nodeId": 2,
-                            "backendNodeId": 2,
-                            "nodeType": 1,
-                            "nodeName": "HTML",
-                            "localName": "html",
-                            "nodeValue": "",
-                            "childNodeCount": 2,
-                            "attributes": []
-                        }]
-                    }
-                }))
-            }
+                        "childNodeCount": 2,
+                        "attributes": []
+                    }]
+                }
+            })),
             "querySelector" => {
                 let params = params.unwrap_or_default();
-                let _selector = params.get("selector")
+                let _selector = params
+                    .get("selector")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
@@ -70,7 +69,8 @@ impl CdpDomain for DomDomain {
             }
             "querySelectorAll" => {
                 let params = params.unwrap_or_default();
-                let _selector = params.get("selector")
+                let _selector = params
+                    .get("selector")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
@@ -80,15 +80,13 @@ impl CdpDomain for DomDomain {
             }
             "getAttributes" => {
                 let params = params.unwrap_or_default();
-                let _node_id = params.get("nodeId")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(1);
+                let _node_id = params.get("nodeId").and_then(|v| v.as_i64()).unwrap_or(1);
 
                 Ok(serde_json::json!({
                     "attributes": ["id", "test-element", "class", "example", "data-value", "123"]
                 }))
             }
-            _ => Err(anyhow::anyhow!("Unknown DOM method: {}", method))
+            _ => Err(anyhow::anyhow!("Unknown DOM method: {}", method)),
         }
     }
 

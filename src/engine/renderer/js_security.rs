@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -162,7 +162,10 @@ impl JavaScriptSecurityValidator {
         static EVAL_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = EVAL_REGEX.get_or_init(|| {
             // Match: eval(, window.eval(, globalThis.eval(, this.eval(
-            Regex::new(r"(?:^|[^a-zA-Z0-9_$])(?:window\s*\.\s*|globalThis\s*\.\s*|this\s*\.\s*)?eval\s*\(").unwrap()
+            Regex::new(
+                r"(?:^|[^a-zA-Z0-9_$])(?:window\s*\.\s*|globalThis\s*\.\s*|this\s*\.\s*)?eval\s*\(",
+            )
+            .unwrap()
         });
 
         if regex.is_match(code) {
@@ -311,9 +314,8 @@ impl JavaScriptSecurityValidator {
 
         // Also check for dynamic import()
         static DYNAMIC_IMPORT_REGEX: OnceLock<Regex> = OnceLock::new();
-        let dynamic_regex = DYNAMIC_IMPORT_REGEX.get_or_init(|| {
-            Regex::new(r"(?:^|[^a-zA-Z0-9_$])import\s*\(").unwrap()
-        });
+        let dynamic_regex = DYNAMIC_IMPORT_REGEX
+            .get_or_init(|| Regex::new(r"(?:^|[^a-zA-Z0-9_$])import\s*\(").unwrap());
 
         if dynamic_regex.is_match(code) {
             return Err(anyhow!(
@@ -363,7 +365,8 @@ impl JavaScriptSecurityValidator {
         static NODE_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = NODE_REGEX.get_or_init(|| {
             // Match: require(, process., child_process, fs.
-            Regex::new(r"(?:^|[^a-zA-Z0-9_$])(?:require\s*\(|process\s*\.|child_process|fs\s*\.)").unwrap()
+            Regex::new(r"(?:^|[^a-zA-Z0-9_$])(?:require\s*\(|process\s*\.|child_process|fs\s*\.)")
+                .unwrap()
         });
 
         if regex.is_match(code) {
@@ -450,7 +453,8 @@ impl JavaScriptSecurityValidator {
         static ASYNC_GENERATOR_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = ASYNC_GENERATOR_REGEX.get_or_init(|| {
             // Match: async function patterns or generator patterns followed by .constructor
-            Regex::new(r"(?:async\s+function|function\s*\*)[^}]*\}\s*\)\s*\.\s*constructor").unwrap()
+            Regex::new(r"(?:async\s+function|function\s*\*)[^}]*\}\s*\)\s*\.\s*constructor")
+                .unwrap()
         });
 
         if regex.is_match(code) {
@@ -533,9 +537,21 @@ mod tests {
 
         // Safe code examples
         assert!(validator.is_safe_javascript("const x = 1 + 2;").is_ok());
-        assert!(validator.is_safe_javascript("function add(a, b) { return a + b; }").is_ok());
-        assert!(validator.is_safe_javascript("const arr = [1, 2, 3]; arr.map(x => x * 2);").is_ok());
-        assert!(validator.is_safe_javascript("console.log('Hello, world!');").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("function add(a, b) { return a + b; }")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("const arr = [1, 2, 3]; arr.map(x => x * 2);")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("console.log('Hello, world!');")
+                .is_ok()
+        );
     }
 
     #[test]
@@ -546,11 +562,23 @@ mod tests {
         assert!(validator.is_safe_javascript("eval('alert(1)')").is_err());
 
         // Indirect eval
-        assert!(validator.is_safe_javascript("window.eval('alert(1)')").is_err());
-        assert!(validator.is_safe_javascript("globalThis.eval('alert(1)')").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("window.eval('alert(1)')")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("globalThis.eval('alert(1)')")
+                .is_err()
+        );
 
         // Bracket notation
-        assert!(validator.is_safe_javascript("window['eval']('alert(1)')").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("window['eval']('alert(1)')")
+                .is_err()
+        );
     }
 
     #[test]
@@ -558,8 +586,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // eval in comment should be allowed
-        assert!(validator.is_safe_javascript("// This is eval in comment\nconst x = 1;").is_ok());
-        assert!(validator.is_safe_javascript("/* eval */ const x = 1;").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("// This is eval in comment\nconst x = 1;")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("/* eval */ const x = 1;")
+                .is_ok()
+        );
     }
 
     #[test]
@@ -568,7 +604,11 @@ mod tests {
 
         // eval in string should be allowed
         assert!(validator.is_safe_javascript("const x = 'eval';").is_ok());
-        assert!(validator.is_safe_javascript("console.log(\"eval is dangerous\");").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("console.log(\"eval is dangerous\");")
+                .is_ok()
+        );
     }
 
     #[test]
@@ -576,9 +616,21 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Function constructor
-        assert!(validator.is_safe_javascript("Function('return 1')()").is_err());
-        assert!(validator.is_safe_javascript("new Function('return 1')()").is_err());
-        assert!(validator.is_safe_javascript("window.Function('return 1')()").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("Function('return 1')()")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("new Function('return 1')()")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("window.Function('return 1')()")
+                .is_err()
+        );
     }
 
     #[test]
@@ -586,12 +638,28 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // setTimeout with string (code execution)
-        assert!(validator.is_safe_javascript("setTimeout('alert(1)', 1000)").is_err());
-        assert!(validator.is_safe_javascript("setInterval(\"alert(1)\", 1000)").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("setTimeout('alert(1)', 1000)")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("setInterval(\"alert(1)\", 1000)")
+                .is_err()
+        );
 
         // setTimeout with function is OK
-        assert!(validator.is_safe_javascript("setTimeout(() => console.log('ok'), 1000)").is_ok());
-        assert!(validator.is_safe_javascript("setTimeout(function() { console.log('ok'); }, 1000)").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("setTimeout(() => console.log('ok'), 1000)")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("setTimeout(function() { console.log('ok'); }, 1000)")
+                .is_ok()
+        );
     }
 
     #[test]
@@ -600,8 +668,16 @@ mod tests {
 
         // __proto__ access
         assert!(validator.is_safe_javascript("obj.__proto__ = {}").is_err());
-        assert!(validator.is_safe_javascript("obj['__proto__'] = {}").is_err());
-        assert!(validator.is_safe_javascript("obj[\"__proto__\"] = {}").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("obj['__proto__'] = {}")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("obj[\"__proto__\"] = {}")
+                .is_err()
+        );
     }
 
     #[test]
@@ -609,7 +685,11 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // constructor.constructor access
-        assert!(validator.is_safe_javascript("obj.constructor.constructor('return 1')()").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("obj.constructor.constructor('return 1')()")
+                .is_err()
+        );
     }
 
     #[test]
@@ -617,7 +697,11 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // with statement
-        assert!(validator.is_safe_javascript("with (obj) { x = 1; }").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("with (obj) { x = 1; }")
+                .is_err()
+        );
     }
 
     #[test]
@@ -625,7 +709,11 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // import statements are now ALLOWED — needed for Astro/React/Vue hydration
-        assert!(validator.is_safe_javascript("import { foo } from 'bar';").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("import { foo } from 'bar';")
+                .is_ok()
+        );
         assert!(validator.is_safe_javascript("import * from 'bar';").is_ok());
         assert!(validator.is_safe_javascript("import 'bar';").is_ok());
 
@@ -638,8 +726,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // document.write
-        assert!(validator.is_safe_javascript("document.write('<script>alert(1)</script>')").is_err());
-        assert!(validator.is_safe_javascript("document.writeln('text')").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("document.write('<script>alert(1)</script>')")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("document.writeln('text')")
+                .is_err()
+        );
     }
 
     #[test]
@@ -647,8 +743,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // WebAssembly instantiation
-        assert!(validator.is_safe_javascript("WebAssembly.instantiate(buffer)").is_err());
-        assert!(validator.is_safe_javascript("new WebAssembly.Module(buffer)").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("WebAssembly.instantiate(buffer)")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("new WebAssembly.Module(buffer)")
+                .is_err()
+        );
     }
 
     #[test]
@@ -684,7 +788,11 @@ mod tests {
         assert!(validator.is_safe_javascript("self['property']").is_ok());
 
         // But window["eval"] is still blocked by check_eval_bracket
-        assert!(validator.is_safe_javascript("window['eval']('alert(1)')").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("window['eval']('alert(1)')")
+                .is_err()
+        );
     }
 
     #[test]
@@ -692,13 +800,25 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Block hex and unicode escapes in bracket notation (prevents eval/proto via encoding)
-        assert!(validator.is_safe_javascript(r#"window['\x65\x76\x61\x6c']"#).is_err());
-        assert!(validator.is_safe_javascript(r#"obj['\u005f\u005fproto\u005f\u005f']"#).is_err());
+        assert!(
+            validator
+                .is_safe_javascript(r#"window['\x65\x76\x61\x6c']"#)
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript(r#"obj['\u005f\u005fproto\u005f\u005f']"#)
+                .is_err()
+        );
 
         // Escapes assigned to a variable and then used via window[x] — this pattern
         // is no longer caught since check_global_bracket_access is disabled.
         // The direct bracket-with-escape case above is still blocked.
-        assert!(validator.is_safe_javascript(r#"const x = '\x65\x76\x61\x6c'; window[x]('code')"#).is_ok());
+        assert!(
+            validator
+                .is_safe_javascript(r#"const x = '\x65\x76\x61\x6c'; window[x]('code')"#)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -706,10 +826,26 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // CRITICAL FIX #3: Block constructor chain via literals
-        assert!(validator.is_safe_javascript("(0).constructor.constructor").is_err());
-        assert!(validator.is_safe_javascript("[].constructor.constructor").is_err());
-        assert!(validator.is_safe_javascript("({}).constructor.constructor").is_err());
-        assert!(validator.is_safe_javascript("(function(){}).constructor").is_err());
+        assert!(
+            validator
+                .is_safe_javascript("(0).constructor.constructor")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("[].constructor.constructor")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("({}).constructor.constructor")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("(function(){}).constructor")
+                .is_err()
+        );
     }
 
     #[test]
@@ -735,9 +871,21 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Reflect API is now ALLOWED — standard ES6 feature used by Vue, MobX, etc.
-        assert!(validator.is_safe_javascript("Reflect.get(window, 'eval')").is_ok());
-        assert!(validator.is_safe_javascript("Reflect.apply(eval, null, ['code'])").is_ok());
-        assert!(validator.is_safe_javascript("Reflect.defineProperty(obj, 'x', {})").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("Reflect.get(window, 'eval')")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("Reflect.apply(eval, null, ['code'])")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("Reflect.defineProperty(obj, 'x', {})")
+                .is_ok()
+        );
     }
 
     #[test]
@@ -754,8 +902,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Proxy is now ALLOWED — standard ES6 feature used by Vue reactivity, MobX, etc.
-        assert!(validator.is_safe_javascript("new Proxy({}, handler)").is_ok());
-        assert!(validator.is_safe_javascript("const p = new Proxy(target, { get: (t, k) => t[k] })").is_ok());
+        assert!(
+            validator
+                .is_safe_javascript("new Proxy({}, handler)")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_javascript("const p = new Proxy(target, { get: (t, k) => t[k] })")
+                .is_ok()
+        );
     }
 
     #[test]

@@ -36,8 +36,13 @@ pub extern "C" fn thalora_navigate(
     // (undefined behavior). thalora_compute_styled_tree already does this.
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         inst.runtime.block_on(async {
-            let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-            browser.navigate_to_with_js_option(url_str, true, true).await
+            let mut browser = inst
+                .browser
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+            browser
+                .navigate_to_with_js_option(url_str, true, true)
+                .await
         })
     }));
 
@@ -118,7 +123,10 @@ pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
     // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         inst.runtime.block_on(async {
-            let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+            let mut browser = inst
+                .browser
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
             browser.go_back().await
         })
     }));
@@ -154,7 +162,10 @@ pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
     // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         inst.runtime.block_on(async {
-            let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+            let mut browser = inst
+                .browser
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
             browser.go_forward().await
         })
     }));
@@ -188,7 +199,10 @@ pub extern "C" fn thalora_reload(instance: *mut ThalorInstance) -> *mut c_char {
     inst.clear_error();
 
     let result = inst.runtime.block_on(async {
-        let mut browser = inst.browser.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+        let mut browser = inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
         browser.reload().await
     });
 
@@ -211,7 +225,13 @@ pub extern "C" fn thalora_can_go_back(instance: *const ThalorInstance) -> i32 {
     let inst = unsafe { &*instance };
 
     match inst.browser.lock() {
-        Ok(browser) => if browser.can_go_back() { 1 } else { 0 },
+        Ok(browser) => {
+            if browser.can_go_back() {
+                1
+            } else {
+                0
+            }
+        }
         Err(_) => 0,
     }
 }
@@ -226,7 +246,13 @@ pub extern "C" fn thalora_can_go_forward(instance: *const ThalorInstance) -> i32
     let inst = unsafe { &*instance };
 
     match inst.browser.lock() {
-        Ok(browser) => if browser.can_go_forward() { 1 } else { 0 },
+        Ok(browser) => {
+            if browser.can_go_forward() {
+                1
+            } else {
+                0
+            }
+        }
         Err(_) => 0,
     }
 }
@@ -267,15 +293,13 @@ pub extern "C" fn thalora_compute_layout(
     drop(browser);
 
     match crate::engine::renderer::compute_page_layout(&content, viewport_w, viewport_h) {
-        Ok(layout_result) => {
-            match serde_json::to_string(&layout_result) {
-                Ok(json) => rust_string_to_c(json),
-                Err(e) => {
-                    inst.set_error(format!("Failed to serialize layout: {}", e));
-                    ptr::null_mut()
-                }
+        Ok(layout_result) => match serde_json::to_string(&layout_result) {
+            Ok(json) => rust_string_to_c(json),
+            Err(e) => {
+                inst.set_error(format!("Failed to serialize layout: {}", e));
+                ptr::null_mut()
             }
-        }
+        },
         Err(e) => {
             inst.set_error(format!("Layout computation failed: {}", e));
             ptr::null_mut()
@@ -325,7 +349,12 @@ pub extern "C" fn thalora_compute_styled_tree(
 
     // Drop the lock before computing (which can take time)
     drop(browser);
-    eprintln!("[TIMING] FFI get_current_content: {}ms ({} bytes, {} external CSS)", content_start.elapsed().as_millis(), content.len(), external_css.len());
+    eprintln!(
+        "[TIMING] FFI get_current_content: {}ms ({} bytes, {} external CSS)",
+        content_start.elapsed().as_millis(),
+        content.len(),
+        external_css.len()
+    );
 
     let compute_start = Instant::now();
 
@@ -333,18 +362,33 @@ pub extern "C" fn thalora_compute_styled_tree(
     // (undefined behavior). Note: catch_unwind does NOT catch stack overflows —
     // that's handled by MAX_RECURSION_DEPTH in build_styled_element_from_dom().
     let compute_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        crate::engine::renderer::compute_styled_tree_with_css(&content, viewport_w, viewport_h, &external_css)
+        crate::engine::renderer::compute_styled_tree_with_css(
+            &content,
+            viewport_w,
+            viewport_h,
+            &external_css,
+        )
     }));
 
     match compute_result {
         Ok(Ok(styled_tree)) => {
-            eprintln!("[TIMING] FFI compute_styled_tree_with_css: {}ms", compute_start.elapsed().as_millis());
+            eprintln!(
+                "[TIMING] FFI compute_styled_tree_with_css: {}ms",
+                compute_start.elapsed().as_millis()
+            );
 
             let serialize_start = Instant::now();
             match serde_json::to_string(&styled_tree) {
                 Ok(json) => {
-                    eprintln!("[TIMING] FFI serde_json::to_string: {}ms ({} bytes output)", serialize_start.elapsed().as_millis(), json.len());
-                    eprintln!("[TIMING] FFI Total styled tree: {}ms", ffi_start.elapsed().as_millis());
+                    eprintln!(
+                        "[TIMING] FFI serde_json::to_string: {}ms ({} bytes output)",
+                        serialize_start.elapsed().as_millis(),
+                        json.len()
+                    );
+                    eprintln!(
+                        "[TIMING] FFI Total styled tree: {}ms",
+                        ffi_start.elapsed().as_millis()
+                    );
                     rust_string_to_c(json)
                 }
                 Err(e) => {
@@ -407,7 +451,10 @@ pub extern "C" fn thalora_set_navigation_mode(instance: *mut ThalorInstance, mod
         0 => NavigationMode::Interactive,
         1 => NavigationMode::Stealth,
         _ => {
-            inst.set_error(format!("Invalid navigation mode: {} (expected 0=Interactive, 1=Stealth)", mode));
+            inst.set_error(format!(
+                "Invalid navigation mode: {} (expected 0=Interactive, 1=Stealth)",
+                mode
+            ));
             return -1;
         }
     };

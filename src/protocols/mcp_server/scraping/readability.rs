@@ -6,23 +6,44 @@ use crate::protocols::mcp_server::core::McpServer;
 impl McpServer {
     /// Extract readable content using readability algorithm
     /// This is a dedicated method for the browse_readable_content MCP tool
-    pub(in crate::protocols::mcp_server) async fn browse_readable_content(&mut self, arguments: Value) -> McpResponse {
+    pub(in crate::protocols::mcp_server) async fn browse_readable_content(
+        &mut self,
+        arguments: Value,
+    ) -> McpResponse {
         let url = arguments["url"].as_str();
         let session_id = arguments.get("session_id").and_then(|v| v.as_str());
 
         // Validate that we have either URL or session_id
         if url.is_none() && session_id.is_none() {
-            return McpResponse::error(-1, "Either 'url' or 'session_id' parameter is required".to_string());
+            return McpResponse::error(
+                -1,
+                "Either 'url' or 'session_id' parameter is required".to_string(),
+            );
         }
 
         // Navigation options
-        let wait_for_js = arguments.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
+        let wait_for_js = arguments
+            .get("wait_for_js")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         // Readability options
-        let format = arguments.get("format").and_then(|v| v.as_str()).unwrap_or("markdown");
-        let include_images = arguments.get("include_images").and_then(|v| v.as_bool()).unwrap_or(true);
-        let include_metadata = arguments.get("include_metadata").and_then(|v| v.as_bool()).unwrap_or(true);
-        let min_content_score = arguments.get("min_content_score").and_then(|v| v.as_f64()).unwrap_or(0.3) as f32;
+        let format = arguments
+            .get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("markdown");
+        let include_images = arguments
+            .get("include_images")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let include_metadata = arguments
+            .get("include_metadata")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let min_content_score = arguments
+            .get("min_content_score")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.3) as f32;
 
         // Navigate to URL if provided (or use existing session)
         let html_content = if let Some(url_str) = url {
@@ -33,12 +54,19 @@ impl McpServer {
             {
                 let mut browser = match temp_browser.lock() {
                     Ok(b) => b,
-                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                    Err(_) => {
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire browser lock".to_string(),
+                        );
+                    }
                 };
 
                 match browser.navigate_to_with_options(url_str, wait_for_js).await {
-                    Ok(_) => {},
-                    Err(e) => return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+                    Ok(_) => {}
+                    Err(e) => {
+                        return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e));
+                    }
                 }
             }
 
@@ -46,7 +74,12 @@ impl McpServer {
             let html = {
                 let browser = match temp_browser.lock() {
                     Ok(b) => b,
-                    Err(_) => return McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                    Err(_) => {
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire browser lock".to_string(),
+                        );
+                    }
                 };
                 browser.get_current_content()
             };
@@ -60,27 +93,34 @@ impl McpServer {
             let session_id_str = session_id.unwrap(); // We know it exists from earlier check
 
             match self.browser_tools.get_session_browser(session_id_str) {
-                Some(browser) => {
-                    match browser.lock() {
-                        Ok(browser_guard) => {
-                            let content = browser_guard.get_current_content();
-                            if content.is_empty() {
-                                return McpResponse::error(
-                                    -1,
-                                    format!("Session '{}' has no content. Navigate to a URL first.", session_id_str)
-                                );
-                            }
-                            content
+                Some(browser) => match browser.lock() {
+                    Ok(browser_guard) => {
+                        let content = browser_guard.get_current_content();
+                        if content.is_empty() {
+                            return McpResponse::error(
+                                -1,
+                                format!(
+                                    "Session '{}' has no content. Navigate to a URL first.",
+                                    session_id_str
+                                ),
+                            );
                         }
-                        Err(_) => {
-                            return McpResponse::error(-1, "Failed to acquire session browser lock".to_string());
-                        }
+                        content
                     }
-                }
+                    Err(_) => {
+                        return McpResponse::error(
+                            -1,
+                            "Failed to acquire session browser lock".to_string(),
+                        );
+                    }
+                },
                 None => {
                     return McpResponse::error(
                         -1,
-                        format!("Session '{}' not found. Create a session first.", session_id_str)
+                        format!(
+                            "Session '{}' not found. Create a session first.",
+                            session_id_str
+                        ),
                     );
                 }
             }
@@ -121,12 +161,15 @@ impl McpServer {
                     });
                     McpResponse::success(result)
                 } else {
-                    McpResponse::error(-1, extraction_result.error.unwrap_or("Extraction failed".to_string()))
+                    McpResponse::error(
+                        -1,
+                        extraction_result
+                            .error
+                            .unwrap_or("Extraction failed".to_string()),
+                    )
                 }
-            },
-            Err(e) => {
-                McpResponse::error(-1, format!("Readability extraction failed: {}", e))
             }
+            Err(e) => McpResponse::error(-1, format!("Readability extraction failed: {}", e)),
         }
     }
 }

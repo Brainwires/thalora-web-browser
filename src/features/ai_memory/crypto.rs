@@ -1,13 +1,13 @@
-use anyhow::{anyhow, Context, Result};
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, OsRng},
 };
+use anyhow::{Context, Result, anyhow};
 use argon2::{
-    password_hash::{PasswordHasher, SaltString},
     Argon2, ParamsBuilder,
+    password_hash::{PasswordHasher, SaltString},
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use std::env;
 use zeroize::Zeroizing;
 
@@ -31,7 +31,7 @@ fn get_master_password() -> Result<Zeroizing<String>> {
         .map(Zeroizing::new)
         .context(
             "THALORA_MASTER_PASSWORD environment variable not set. \
-            Please set a strong master password (min 32 characters) to encrypt credentials."
+            Please set a strong master password (min 32 characters) to encrypt credentials.",
         )
 }
 
@@ -39,7 +39,11 @@ fn get_master_password() -> Result<Zeroizing<String>> {
 /// SECURITY: Returns Zeroizing<[u8; KEY_SIZE]> to ensure key is zeroed from memory when dropped
 fn derive_key(master_password: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_SIZE]>> {
     if salt.len() != SALT_SIZE {
-        return Err(anyhow!("Invalid salt size: expected {}, got {}", SALT_SIZE, salt.len()));
+        return Err(anyhow!(
+            "Invalid salt size: expected {}, got {}",
+            SALT_SIZE,
+            salt.len()
+        ));
     }
 
     // Configure Argon2id with secure parameters
@@ -48,21 +52,17 @@ fn derive_key(master_password: &str, salt: &[u8]) -> Result<Zeroizing<[u8; KEY_S
     // - Parallelism: 4 threads
     let params = ParamsBuilder::new()
         .m_cost(65536) // 64 MB
-        .t_cost(3)     // 3 iterations
-        .p_cost(4)     // 4 parallel threads
+        .t_cost(3) // 3 iterations
+        .p_cost(4) // 4 parallel threads
         .output_len(KEY_SIZE)
         .build()
         .context("Failed to build Argon2 parameters")?;
 
-    let argon2 = Argon2::new(
-        argon2::Algorithm::Argon2id,
-        argon2::Version::V0x13,
-        params,
-    );
+    let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     // Derive key using Argon2id
-    let salt_string = SaltString::encode_b64(salt)
-        .map_err(|e| anyhow!("Failed to encode salt: {}", e))?;
+    let salt_string =
+        SaltString::encode_b64(salt).map_err(|e| anyhow!("Failed to encode salt: {}", e))?;
 
     let password_hash = argon2
         .hash_password(master_password.as_bytes(), &salt_string)
@@ -117,8 +117,8 @@ pub fn encrypt_password(password: &str) -> Result<String> {
     let key = derive_key(&master_password, &salt)?;
 
     // Create AES-256-GCM cipher (key is automatically zeroed when 'key' goes out of scope)
-    let cipher = Aes256Gcm::new_from_slice(&*key)
-        .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&*key).map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
 
     // Generate random nonce (12 bytes)
     let mut nonce_bytes = [0u8; NONCE_SIZE];
@@ -169,7 +169,10 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
     // Parse format: v2:salt:nonce:ciphertext
     let parts: Vec<&str> = encrypted.split(':').collect();
     if parts.len() != 4 {
-        return Err(anyhow!("Invalid encrypted format: expected 4 parts, got {}", parts.len()));
+        return Err(anyhow!(
+            "Invalid encrypted format: expected 4 parts, got {}",
+            parts.len()
+        ));
     }
 
     if parts[0] != VERSION_V2 {
@@ -182,7 +185,11 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
         .context("Failed to decode salt")?;
 
     if salt.len() != SALT_SIZE {
-        return Err(anyhow!("Invalid salt size: expected {}, got {}", SALT_SIZE, salt.len()));
+        return Err(anyhow!(
+            "Invalid salt size: expected {}, got {}",
+            SALT_SIZE,
+            salt.len()
+        ));
     }
 
     // Decode nonce
@@ -191,7 +198,11 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
         .context("Failed to decode nonce")?;
 
     if nonce_bytes.len() != NONCE_SIZE {
-        return Err(anyhow!("Invalid nonce size: expected {}, got {}", NONCE_SIZE, nonce_bytes.len()));
+        return Err(anyhow!(
+            "Invalid nonce size: expected {}, got {}",
+            NONCE_SIZE,
+            nonce_bytes.len()
+        ));
     }
 
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -205,20 +216,19 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
     let key = derive_key(&master_password, &salt)?;
 
     // Create cipher (key is automatically zeroed when 'key' goes out of scope)
-    let cipher = Aes256Gcm::new_from_slice(&*key)
-        .map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&*key).map_err(|e| anyhow!("Failed to create cipher: {}", e))?;
 
     // Decrypt and verify authentication tag
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| anyhow!(
+    let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|_| {
+        anyhow!(
             "Decryption failed: either the master password is incorrect, \
             or the ciphertext has been tampered with"
-        ))?;
+        )
+    })?;
 
     // Convert to string
-    String::from_utf8(plaintext)
-        .context("Decrypted data is not valid UTF-8")
+    String::from_utf8(plaintext).context("Decrypted data is not valid UTF-8")
 }
 
 #[cfg(test)]
@@ -229,7 +239,12 @@ mod tests {
     fn setup_test_password() {
         // Set a test master password (minimum 32 characters)
         // SAFETY: Tests run sequentially with --test-threads=1 or isolated
-        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "test_master_password_min_32chars_secure") };
+        unsafe {
+            env::set_var(
+                "THALORA_MASTER_PASSWORD",
+                "test_master_password_min_32chars_secure",
+            )
+        };
     }
 
     #[test]
@@ -300,7 +315,12 @@ mod tests {
 
         // Change master password
         // SAFETY: Tests run sequentially with --test-threads=1 or isolated
-        unsafe { env::set_var("THALORA_MASTER_PASSWORD", "wrong_password_min_32chars_wrong!") };
+        unsafe {
+            env::set_var(
+                "THALORA_MASTER_PASSWORD",
+                "wrong_password_min_32chars_wrong!",
+            )
+        };
 
         // Should fail to decrypt
         let result = decrypt_password(&encrypted);
@@ -340,7 +360,12 @@ mod tests {
         let result = encrypt_password(password);
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("THALORA_MASTER_PASSWORD"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("THALORA_MASTER_PASSWORD")
+        );
     }
 
     #[test]

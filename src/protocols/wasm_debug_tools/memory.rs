@@ -4,7 +4,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use serde_json::Value;
 use wasmtime::Memory;
 
-use super::state::{WasmDebugState, validate_module_id, MAX_MEMORY_READ_SIZE};
+use super::state::{MAX_MEMORY_READ_SIZE, WasmDebugState, validate_module_id};
 
 impl WasmDebugState {
     /// Read from a module's linear memory
@@ -18,10 +18,12 @@ impl WasmDebugState {
         count: usize,
     ) -> Result<Value> {
         validate_module_id(module_id)?;
-        let loaded = self.get_module_mut(module_id)
+        let loaded = self
+            .get_module_mut(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
-        let instance = loaded.instance
+        let instance = loaded
+            .instance
             .ok_or_else(|| anyhow!("Module '{}' is not instantiated", module_id))?;
 
         // Get the memory export
@@ -98,10 +100,12 @@ impl WasmDebugState {
         utf8_string: Option<&str>,
     ) -> Result<Value> {
         validate_module_id(module_id)?;
-        let loaded = self.get_module_mut(module_id)
+        let loaded = self
+            .get_module_mut(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
-        let instance = loaded.instance
+        let instance = loaded
+            .instance
             .ok_or_else(|| anyhow!("Module '{}' is not instantiated", module_id))?;
 
         let memory = get_memory_by_index(&instance, &mut loaded.store, memory_index)?;
@@ -112,7 +116,8 @@ impl WasmDebugState {
         let bytes_to_write = if let Some(hex) = hex_data {
             parse_hex_string(hex)?
         } else if let Some(b64) = base64_data {
-            BASE64.decode(b64)
+            BASE64
+                .decode(b64)
                 .map_err(|e| anyhow!("Invalid base64 data: {}", e))?
         } else if let Some(values) = typed_values {
             let fmt = typed_format.unwrap_or("i32");
@@ -120,7 +125,9 @@ impl WasmDebugState {
         } else if let Some(s) = utf8_string {
             s.as_bytes().to_vec()
         } else {
-            return Err(anyhow!("No write data provided. Provide one of: hex_data, base64_data, typed_values, utf8_string"));
+            return Err(anyhow!(
+                "No write data provided. Provide one of: hex_data, base64_data, typed_values, utf8_string"
+            ));
         };
 
         // Bounds check
@@ -149,18 +156,23 @@ impl WasmDebugState {
 }
 
 /// Get a Memory export by index from an instance
-fn get_memory_by_index(instance: &wasmtime::Instance, store: &mut wasmtime::Store<super::state::FuelState>, memory_index: u32) -> Result<Memory> {
-    let memories: Vec<Memory> = instance.exports(&mut *store)
+fn get_memory_by_index(
+    instance: &wasmtime::Instance,
+    store: &mut wasmtime::Store<super::state::FuelState>,
+    memory_index: u32,
+) -> Result<Memory> {
+    let memories: Vec<Memory> = instance
+        .exports(&mut *store)
         .filter_map(|export| export.into_memory())
         .collect();
 
-    memories.get(memory_index as usize)
-        .copied()
-        .ok_or_else(|| anyhow!(
+    memories.get(memory_index as usize).copied().ok_or_else(|| {
+        anyhow!(
             "Memory index {} not found (module has {} memories)",
             memory_index,
             memories.len()
-        ))
+        )
+    })
 }
 
 /// Format data as a hex dump with ASCII sidebar
@@ -169,16 +181,28 @@ fn format_hex_dump(data: &[u8], base_offset: usize) -> Value {
 
     for (i, chunk) in data.chunks(16).enumerate() {
         let addr = base_offset + i * 16;
-        let hex_part: String = chunk.iter()
+        let hex_part: String = chunk
+            .iter()
             .enumerate()
             .map(|(j, b)| {
-                if j == 8 { format!(" {:02x}", b) } else { format!("{:02x}", b) }
+                if j == 8 {
+                    format!(" {:02x}", b)
+                } else {
+                    format!("{:02x}", b)
+                }
             })
             .collect::<Vec<_>>()
             .join(" ");
 
-        let ascii_part: String = chunk.iter()
-            .map(|&b| if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' })
+        let ascii_part: String = chunk
+            .iter()
+            .map(|&b| {
+                if b.is_ascii_graphic() || b == b' ' {
+                    b as char
+                } else {
+                    '.'
+                }
+            })
             .collect();
 
         // Pad hex part to fixed width
@@ -306,38 +330,50 @@ fn encode_typed_values(values: &[Value], format: &str) -> Result<Vec<u8>> {
     for val in values {
         match format {
             "i32" => {
-                let v = val.as_i64()
-                    .ok_or_else(|| anyhow!("Expected integer value, got {:?}", val))? as i32;
+                let v = val
+                    .as_i64()
+                    .ok_or_else(|| anyhow!("Expected integer value, got {:?}", val))?
+                    as i32;
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
             "i64" => {
-                let v = val.as_i64()
+                let v = val
+                    .as_i64()
                     .ok_or_else(|| anyhow!("Expected integer value, got {:?}", val))?;
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
             "f32" => {
-                let v = val.as_f64()
-                    .ok_or_else(|| anyhow!("Expected float value, got {:?}", val))? as f32;
+                let v = val
+                    .as_f64()
+                    .ok_or_else(|| anyhow!("Expected float value, got {:?}", val))?
+                    as f32;
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
             "f64" => {
-                let v = val.as_f64()
+                let v = val
+                    .as_f64()
                     .ok_or_else(|| anyhow!("Expected float value, got {:?}", val))?;
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
             "u8" => {
-                let v = val.as_u64()
-                    .ok_or_else(|| anyhow!("Expected unsigned integer value, got {:?}", val))? as u8;
+                let v = val
+                    .as_u64()
+                    .ok_or_else(|| anyhow!("Expected unsigned integer value, got {:?}", val))?
+                    as u8;
                 bytes.push(v);
             }
             "u16" => {
-                let v = val.as_u64()
-                    .ok_or_else(|| anyhow!("Expected unsigned integer value, got {:?}", val))? as u16;
+                let v = val
+                    .as_u64()
+                    .ok_or_else(|| anyhow!("Expected unsigned integer value, got {:?}", val))?
+                    as u16;
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
             "u32" => {
-                let v = val.as_u64()
-                    .ok_or_else(|| anyhow!("Expected unsigned integer value, got {:?}", val))? as u32;
+                let v = val
+                    .as_u64()
+                    .ok_or_else(|| anyhow!("Expected unsigned integer value, got {:?}", val))?
+                    as u32;
                 bytes.extend_from_slice(&v.to_le_bytes());
             }
             _ => return Err(anyhow!("Unsupported typed format: {}", format)),

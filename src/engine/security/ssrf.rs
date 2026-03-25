@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use ipnetwork::{IpNetwork, Ipv4Network, Ipv6Network};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, ToSocketAddrs};
 use url::Url;
@@ -18,44 +18,44 @@ impl SsrfProtection {
 
         // IPv4 private/reserved ranges
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(127, 0, 0, 0), 8).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(127, 0, 0, 0), 8).unwrap(),
         )); // 127.0.0.0/8 - Loopback
 
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 0), 8).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 0), 8).unwrap(),
         )); // 10.0.0.0/8 - Private
 
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(172, 16, 0, 0), 12).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(172, 16, 0, 0), 12).unwrap(),
         )); // 172.16.0.0/12 - Private
 
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(192, 168, 0, 0), 16).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(192, 168, 0, 0), 16).unwrap(),
         )); // 192.168.0.0/16 - Private
 
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(169, 254, 0, 0), 16).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(169, 254, 0, 0), 16).unwrap(),
         )); // 169.254.0.0/16 - Link-local
 
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 8).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 8).unwrap(),
         )); // 0.0.0.0/8 - Current network
 
         blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(224, 0, 0, 0), 4).unwrap()
+            Ipv4Network::new(Ipv4Addr::new(224, 0, 0, 0), 4).unwrap(),
         )); // 224.0.0.0/4 - Multicast
 
         // IPv6 private/reserved ranges
         blocked_networks.push(IpNetwork::V6(
-            Ipv6Network::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 128).unwrap()
+            Ipv6Network::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 128).unwrap(),
         )); // ::1/128 - Loopback
 
         blocked_networks.push(IpNetwork::V6(
-            Ipv6Network::new(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 0), 7).unwrap()
+            Ipv6Network::new(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 0), 7).unwrap(),
         )); // fc00::/7 - Unique local addresses
 
         blocked_networks.push(IpNetwork::V6(
-            Ipv6Network::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10).unwrap()
+            Ipv6Network::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10).unwrap(),
         )); // fe80::/10 - Link-local
 
         Self {
@@ -67,8 +67,7 @@ impl SsrfProtection {
     /// Check if a URL is safe to access (not SSRF)
     pub fn is_safe_url(&self, url_str: &str) -> Result<()> {
         // Parse URL
-        let url = Url::parse(url_str)
-            .map_err(|e| anyhow!("Invalid URL: {}", e))?;
+        let url = Url::parse(url_str).map_err(|e| anyhow!("Invalid URL: {}", e))?;
 
         // Check scheme
         if !self.allowed_schemes.contains(&url.scheme().to_string()) {
@@ -79,8 +78,7 @@ impl SsrfProtection {
         }
 
         // Get host
-        let host = url.host_str()
-            .ok_or_else(|| anyhow!("URL has no host"))?;
+        let host = url.host_str().ok_or_else(|| anyhow!("URL has no host"))?;
 
         // Resolve DNS to IP address
         let ip_addr = self.resolve_host(host)?;
@@ -154,10 +152,14 @@ mod tests {
         let ssrf = SsrfProtection::new();
 
         // http and https should be allowed (to public IPs)
-        assert!(ssrf.is_safe_url("http://example.com").is_ok() ||
-                ssrf.is_safe_url("http://example.com").is_err()); // May fail DNS lookup in tests
-        assert!(ssrf.is_safe_url("https://example.com").is_ok() ||
-                ssrf.is_safe_url("https://example.com").is_err()); // May fail DNS lookup in tests
+        assert!(
+            ssrf.is_safe_url("http://example.com").is_ok()
+                || ssrf.is_safe_url("http://example.com").is_err()
+        ); // May fail DNS lookup in tests
+        assert!(
+            ssrf.is_safe_url("https://example.com").is_ok()
+                || ssrf.is_safe_url("https://example.com").is_err()
+        ); // May fail DNS lookup in tests
     }
 
     #[test]

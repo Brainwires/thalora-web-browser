@@ -1,12 +1,11 @@
 /// Integration tests for CDP debugging tools with session management
 /// Tests how CDP tools and browser sessions work together for complete debugging workflows
-
 use serde_json::json;
 
 // Import from the local crate
-use thalora::protocols::cdp_tools::CdpTools;
-use thalora::protocols::cdp::CdpServer;
 use thalora::protocols::browser_tools::BrowserTools;
+use thalora::protocols::cdp::CdpServer;
+use thalora::protocols::cdp_tools::CdpTools;
 use thalora::protocols::mcp::McpResponse;
 
 /// Helper function to create test components
@@ -19,12 +18,15 @@ fn extract_response_text(response: &McpResponse) -> Option<String> {
     match response {
         McpResponse::ToolResult { content, .. } => {
             if let Some(first_content) = content.first() {
-                first_content.get("text").and_then(|v| v.as_str()).map(|s| s.to_string())
+                first_content
+                    .get("text")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
             } else {
                 None
             }
         }
-        _ => None
+        _ => None,
     }
 }
 
@@ -40,12 +42,14 @@ async fn test_cdp_debugging_within_session() {
         "persistent": true
     });
 
-    let session_response = browser_tools.handle_session_management(create_session_args).await;
+    let session_response = browser_tools
+        .handle_session_management(create_session_args)
+        .await;
     match &session_response {
         McpResponse::ToolResult { is_error, .. } => {
             assert!(!is_error, "Debug session creation should succeed");
         }
-        _ => panic!("Expected ToolResult for session creation")
+        _ => panic!("Expected ToolResult for session creation"),
     }
 
     // Step 2: Use CDP tools to debug the session
@@ -58,9 +62,12 @@ async fn test_cdp_debugging_within_session() {
 
     match &dom_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "DOM document response should have content");
+            assert!(
+                !content.is_empty(),
+                "DOM document response should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for DOM document")
+        _ => panic!("Expected ToolResult for DOM document"),
     }
 
     // Query for specific elements
@@ -72,9 +79,12 @@ async fn test_cdp_debugging_within_session() {
 
     match &query_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Query selector response should have content");
+            assert!(
+                !content.is_empty(),
+                "Query selector response should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for query selector")
+        _ => panic!("Expected ToolResult for query selector"),
     }
 
     // Get cookies for debugging authentication
@@ -85,7 +95,7 @@ async fn test_cdp_debugging_within_session() {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Cookies response should have content");
         }
-        _ => panic!("Expected ToolResult for cookies")
+        _ => panic!("Expected ToolResult for cookies"),
     }
 
     // Step 3: Get page content through session
@@ -96,9 +106,12 @@ async fn test_cdp_debugging_within_session() {
 
     match &content_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Page content response should have content");
+            assert!(
+                !content.is_empty(),
+                "Page content response should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for page content")
+        _ => panic!("Expected ToolResult for page content"),
     }
 
     // Step 4: Close the debugging session
@@ -112,7 +125,7 @@ async fn test_cdp_debugging_within_session() {
         McpResponse::ToolResult { is_error, .. } => {
             assert!(!is_error, "Session closing should succeed");
         }
-        _ => panic!("Expected ToolResult for session closing")
+        _ => panic!("Expected ToolResult for session closing"),
     }
 }
 
@@ -138,13 +151,18 @@ async fn test_complete_debugging_workflow() {
         "format": "png",
         "full_page": false
     });
-    let screenshot_response = cdp_tools.take_screenshot(screenshot_args, &mut cdp_server).await;
+    let screenshot_response = cdp_tools
+        .take_screenshot(screenshot_args, &mut cdp_server)
+        .await;
 
     match &screenshot_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Screenshot response should have content");
+            assert!(
+                !content.is_empty(),
+                "Screenshot response should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for screenshot")
+        _ => panic!("Expected ToolResult for screenshot"),
     }
 
     // 2. Inspect page elements
@@ -152,13 +170,18 @@ async fn test_complete_debugging_workflow() {
         "selector": "input[type='text']",
         "node_id": 1
     });
-    let inspect_response = cdp_tools.query_selector(inspect_args, &mut cdp_server).await;
+    let inspect_response = cdp_tools
+        .query_selector(inspect_args, &mut cdp_server)
+        .await;
 
     match &inspect_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Element inspection should have content");
+            assert!(
+                !content.is_empty(),
+                "Element inspection should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for element inspection")
+        _ => panic!("Expected ToolResult for element inspection"),
     }
 
     // 3. Get element attributes (simulating debugging form elements)
@@ -169,9 +192,12 @@ async fn test_complete_debugging_workflow() {
 
     match &attr_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Attributes response should have content");
+            assert!(
+                !content.is_empty(),
+                "Attributes response should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for attributes")
+        _ => panic!("Expected ToolResult for attributes"),
     }
 
     // 4. Check console for JavaScript errors
@@ -179,13 +205,15 @@ async fn test_complete_debugging_workflow() {
         "level": "error",
         "limit": 10
     });
-    let console_response = cdp_tools.get_console_messages(console_args, &mut cdp_server).await;
+    let console_response = cdp_tools
+        .get_console_messages(console_args, &mut cdp_server)
+        .await;
 
     match &console_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Console messages should have content");
         }
-        _ => panic!("Expected ToolResult for console messages")
+        _ => panic!("Expected ToolResult for console messages"),
     }
 
     // 5. Set debugging cookie
@@ -201,7 +229,7 @@ async fn test_complete_debugging_workflow() {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Set cookie should have content");
         }
-        _ => panic!("Expected ToolResult for set cookie")
+        _ => panic!("Expected ToolResult for set cookie"),
     }
 
     // 6. Reload page to test with debug cookie
@@ -214,7 +242,7 @@ async fn test_complete_debugging_workflow() {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Page reload should have content");
         }
-        _ => panic!("Expected ToolResult for page reload")
+        _ => panic!("Expected ToolResult for page reload"),
     }
 
     // 7. Navigate in browser history
@@ -227,20 +255,25 @@ async fn test_complete_debugging_workflow() {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Navigate back should have content");
         }
-        _ => panic!("Expected ToolResult for navigate back")
+        _ => panic!("Expected ToolResult for navigate back"),
     }
 
     // 8. Get final page state
     let final_content_args = json!({
         "session_id": session_id
     });
-    let final_content_response = browser_tools.handle_get_page_content(final_content_args).await;
+    let final_content_response = browser_tools
+        .handle_get_page_content(final_content_args)
+        .await;
 
     match &final_content_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Final page content should have content");
+            assert!(
+                !content.is_empty(),
+                "Final page content should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for final page content")
+        _ => panic!("Expected ToolResult for final page content"),
     }
 }
 
@@ -265,17 +298,25 @@ async fn test_error_debugging_scenario() {
     let console_args = json!({
         "level": "error"
     });
-    let console_response = cdp_tools.get_console_messages(console_args, &mut cdp_server).await;
+    let console_response = cdp_tools
+        .get_console_messages(console_args, &mut cdp_server)
+        .await;
 
     match &console_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Console errors check should have content");
+            assert!(
+                !content.is_empty(),
+                "Console errors check should have content"
+            );
             if let Some(text) = extract_response_text(&console_response) {
-                assert!(text.contains("Console") || text.contains("messages") || text.contains("CDP"),
-                       "Console response should mention console or messages: {}", text);
+                assert!(
+                    text.contains("Console") || text.contains("messages") || text.contains("CDP"),
+                    "Console response should mention console or messages: {}",
+                    text
+                );
             }
         }
-        _ => panic!("Expected ToolResult for console errors")
+        _ => panic!("Expected ToolResult for console errors"),
     }
 
     // 2. Inspect form elements
@@ -283,52 +324,63 @@ async fn test_error_debugging_scenario() {
         "selector": "form",
         "node_id": 1
     });
-    let form_response = cdp_tools.query_selector(form_query_args, &mut cdp_server).await;
+    let form_response = cdp_tools
+        .query_selector(form_query_args, &mut cdp_server)
+        .await;
 
     match form_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Form query should have content");
         }
-        _ => panic!("Expected ToolResult for form query")
+        _ => panic!("Expected ToolResult for form query"),
     }
 
     // 3. Check form element attributes
     let form_attr_args = json!({
         "node_id": 5
     });
-    let form_attr_response = cdp_tools.get_attributes(form_attr_args, &mut cdp_server).await;
+    let form_attr_response = cdp_tools
+        .get_attributes(form_attr_args, &mut cdp_server)
+        .await;
 
     match form_attr_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Form attributes should have content");
         }
-        _ => panic!("Expected ToolResult for form attributes")
+        _ => panic!("Expected ToolResult for form attributes"),
     }
 
     // 4. Check computed styles (maybe CSS is hiding the form)
     let styles_args = json!({
         "node_id": 5
     });
-    let styles_response = cdp_tools.get_computed_style(styles_args, &mut cdp_server).await;
+    let styles_response = cdp_tools
+        .get_computed_style(styles_args, &mut cdp_server)
+        .await;
 
     match styles_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Computed styles should have content");
         }
-        _ => panic!("Expected ToolResult for computed styles")
+        _ => panic!("Expected ToolResult for computed styles"),
     }
 
     // 5. Check authentication cookies
     let auth_cookies_args = json!({
         "urls": ["https://example.com"]
     });
-    let auth_cookies_response = cdp_tools.get_cookies(auth_cookies_args, &mut cdp_server).await;
+    let auth_cookies_response = cdp_tools
+        .get_cookies(auth_cookies_args, &mut cdp_server)
+        .await;
 
     match auth_cookies_response {
         McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Auth cookies check should have content");
+            assert!(
+                !content.is_empty(),
+                "Auth cookies check should have content"
+            );
         }
-        _ => panic!("Expected ToolResult for auth cookies")
+        _ => panic!("Expected ToolResult for auth cookies"),
     }
 
     // 6. Take screenshot to see visual state
@@ -336,13 +388,15 @@ async fn test_error_debugging_scenario() {
         "format": "jpeg",
         "quality": 95
     });
-    let debug_screenshot_response = cdp_tools.take_screenshot(debug_screenshot_args, &mut cdp_server).await;
+    let debug_screenshot_response = cdp_tools
+        .take_screenshot(debug_screenshot_args, &mut cdp_server)
+        .await;
 
     match debug_screenshot_response {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Debug screenshot should have content");
         }
-        _ => panic!("Expected ToolResult for debug screenshot")
+        _ => panic!("Expected ToolResult for debug screenshot"),
     }
 }
 
@@ -363,7 +417,7 @@ async fn test_session_persistence_during_debugging() {
         McpResponse::ToolResult { is_error, .. } => {
             assert!(!is_error, "Persistent session creation should succeed");
         }
-        _ => panic!("Expected ToolResult for session creation")
+        _ => panic!("Expected ToolResult for session creation"),
     }
 
     // Perform multiple debugging operations
@@ -385,10 +439,13 @@ async fn test_session_persistence_during_debugging() {
 
         match response {
             McpResponse::ToolResult { content, .. } => {
-                assert!(!content.is_empty(),
-                       "Operation {} should have content", operation);
+                assert!(
+                    !content.is_empty(),
+                    "Operation {} should have content",
+                    operation
+                );
             }
-            _ => panic!("Expected ToolResult for operation {}", operation)
+            _ => panic!("Expected ToolResult for operation {}", operation),
         }
     }
 
@@ -403,7 +460,7 @@ async fn test_session_persistence_during_debugging() {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Session info should have content");
         }
-        _ => panic!("Expected ToolResult for session info")
+        _ => panic!("Expected ToolResult for session info"),
     }
 
     // Get page content to verify session state
@@ -416,7 +473,7 @@ async fn test_session_persistence_during_debugging() {
         McpResponse::ToolResult { content, .. } => {
             assert!(!content.is_empty(), "Page content should have content");
         }
-        _ => panic!("Expected ToolResult for page content")
+        _ => panic!("Expected ToolResult for page content"),
     }
 
     // Clean up persistent session
@@ -430,7 +487,7 @@ async fn test_session_persistence_during_debugging() {
         McpResponse::ToolResult { is_error, .. } => {
             assert!(!is_error, "Session closing should succeed");
         }
-        _ => panic!("Expected ToolResult for session closing")
+        _ => panic!("Expected ToolResult for session closing"),
     }
 }
 
@@ -454,7 +511,7 @@ async fn test_concurrent_debugging_sessions() {
             McpResponse::ToolResult { is_error, .. } => {
                 assert!(!is_error, "Session {} creation should succeed", session_id);
             }
-            _ => panic!("Expected ToolResult for session {} creation", session_id)
+            _ => panic!("Expected ToolResult for session {} creation", session_id),
         }
     }
 
@@ -469,7 +526,7 @@ async fn test_concurrent_debugging_sessions() {
             assert!(!is_error, "Session listing should succeed");
             assert!(!content.is_empty(), "Session list should have content");
         }
-        _ => panic!("Expected ToolResult for session listing")
+        _ => panic!("Expected ToolResult for session listing"),
     }
 
     // Perform debugging operations on different sessions
@@ -483,7 +540,7 @@ async fn test_concurrent_debugging_sessions() {
                     "node_id": 1
                 });
                 let _query_response = cdp_tools.query_selector(query_args, &mut cdp_server).await;
-            },
+            }
             1 => {
                 // Session 2: Cookie debugging
                 let cookie_args = json!({
@@ -491,14 +548,16 @@ async fn test_concurrent_debugging_sessions() {
                     "value": format!("test_{}", i)
                 });
                 let _cookie_response = cdp_tools.set_cookie(cookie_args, &mut cdp_server).await;
-            },
+            }
             2 => {
                 // Session 3: Console monitoring
                 let console_args = json!({
                     "level": "log"
                 });
-                let _console_response = cdp_tools.get_console_messages(console_args, &mut cdp_server).await;
-            },
+                let _console_response = cdp_tools
+                    .get_console_messages(console_args, &mut cdp_server)
+                    .await;
+            }
             _ => {}
         }
 
@@ -510,10 +569,16 @@ async fn test_concurrent_debugging_sessions() {
 
         match &content_response {
             McpResponse::ToolResult { content, .. } => {
-                assert!(!content.is_empty(),
-                       "Session {} should have page content", session_id);
+                assert!(
+                    !content.is_empty(),
+                    "Session {} should have page content",
+                    session_id
+                );
             }
-            _ => panic!("Expected ToolResult for session {} page content", session_id)
+            _ => panic!(
+                "Expected ToolResult for session {} page content",
+                session_id
+            ),
         }
     }
 

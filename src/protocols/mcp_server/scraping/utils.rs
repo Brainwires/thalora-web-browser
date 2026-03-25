@@ -6,7 +6,12 @@ pub fn extract_generic_title(element: &ElementRef, selectors: &[&str]) -> String
     for selector_str in selectors {
         if let Ok(selector) = Selector::parse(selector_str) {
             if let Some(title_element) = element.select(&selector).next() {
-                let title = title_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                let title = title_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string();
                 if !title.is_empty() && title.len() > 3 {
                     return title;
                 }
@@ -19,7 +24,12 @@ pub fn extract_generic_title(element: &ElementRef, selectors: &[&str]) -> String
     for selector_str in &fallback_selectors {
         if let Ok(selector) = Selector::parse(selector_str) {
             if let Some(title_element) = element.select(&selector).next() {
-                let title = title_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                let title = title_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string();
                 if !title.is_empty() && title.len() > 3 {
                     return title;
                 }
@@ -65,7 +75,12 @@ pub fn extract_generic_snippet(element: &ElementRef, selectors: &[&str]) -> Stri
     for selector_str in selectors {
         if let Ok(selector) = Selector::parse(selector_str) {
             if let Some(snippet_element) = element.select(&selector).next() {
-                let snippet = snippet_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                let snippet = snippet_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string();
                 if !snippet.is_empty() && snippet.len() > 10 && snippet.len() < 500 {
                     return snippet;
                 }
@@ -76,7 +91,12 @@ pub fn extract_generic_snippet(element: &ElementRef, selectors: &[&str]) -> Stri
     // Fallback: look for paragraph text
     if let Ok(selector) = Selector::parse("p") {
         if let Some(snippet_element) = element.select(&selector).next() {
-            let snippet = snippet_element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+            let snippet = snippet_element
+                .text()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string();
             if !snippet.is_empty() && snippet.len() > 10 && snippet.len() < 500 {
                 return snippet;
             }

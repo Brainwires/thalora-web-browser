@@ -50,22 +50,30 @@ impl CdpDomain for DebuggerDomain {
             }
             "setBreakpointByUrl" => {
                 let params = params.unwrap_or_default();
-                let line_number = params.get("lineNumber")
+                let line_number = params
+                    .get("lineNumber")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0) as i32;
-                let _url = params.get("url")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let _url = params.get("url").and_then(|v| v.as_str()).unwrap_or("");
 
                 let breakpoint_id = format!("bp_{}", self.next_breakpoint_id);
                 self.next_breakpoint_id += 1;
 
-                self.breakpoints.insert(breakpoint_id.clone(), BreakpointInfo {
-                    id: breakpoint_id.clone(),
-                    line_number,
-                    column_number: params.get("columnNumber").and_then(|v| v.as_i64()).map(|v| v as i32),
-                    condition: params.get("condition").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                });
+                self.breakpoints.insert(
+                    breakpoint_id.clone(),
+                    BreakpointInfo {
+                        id: breakpoint_id.clone(),
+                        line_number,
+                        column_number: params
+                            .get("columnNumber")
+                            .and_then(|v| v.as_i64())
+                            .map(|v| v as i32),
+                        condition: params
+                            .get("condition")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                    },
+                );
 
                 Ok(serde_json::json!({
                     "breakpointId": breakpoint_id,
@@ -78,26 +86,19 @@ impl CdpDomain for DebuggerDomain {
             }
             "removeBreakpoint" => {
                 let params = params.unwrap_or_default();
-                let breakpoint_id = params.get("breakpointId")
+                let breakpoint_id = params
+                    .get("breakpointId")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
                 self.breakpoints.remove(breakpoint_id);
                 Ok(serde_json::json!({}))
             }
-            "resume" => {
-                Ok(serde_json::json!({}))
-            }
-            "stepOver" => {
-                Ok(serde_json::json!({}))
-            }
-            "stepInto" => {
-                Ok(serde_json::json!({}))
-            }
-            "stepOut" => {
-                Ok(serde_json::json!({}))
-            }
-            _ => Err(anyhow::anyhow!("Unknown Debugger method: {}", method))
+            "resume" => Ok(serde_json::json!({})),
+            "stepOver" => Ok(serde_json::json!({})),
+            "stepInto" => Ok(serde_json::json!({})),
+            "stepOut" => Ok(serde_json::json!({})),
+            _ => Err(anyhow::anyhow!("Unknown Debugger method: {}", method)),
         }
     }
 

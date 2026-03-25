@@ -1,13 +1,20 @@
 use anyhow::Result;
 use scraper::{Html, Selector};
 
-use crate::protocols::mcp_server::scraping::types::{SearchResult, SearchResults, ImageSearchResult, ImageSearchResults};
-use crate::protocols::mcp_server::scraping::utils::{extract_generic_snippet, extract_generic_title, extract_generic_url};
+use crate::protocols::mcp_server::scraping::types::{
+    ImageSearchResult, ImageSearchResults, SearchResult, SearchResults,
+};
+use crate::protocols::mcp_server::scraping::utils::{
+    extract_generic_snippet, extract_generic_title, extract_generic_url,
+};
 
 pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     eprintln!("🔍 DEBUG: search_google started");
-    let search_url = format!("https://www.google.com/search?q={}&num={}&hl=en&gl=us",
-                            urlencoding::encode(query), num_results);
+    let search_url = format!(
+        "https://www.google.com/search?q={}&num={}&hl=en&gl=us",
+        urlencoding::encode(query),
+        num_results
+    );
     eprintln!("🔍 DEBUG: Google search URL: {}", search_url);
 
     // Create temporary browser for stateless search
@@ -18,19 +25,27 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     // Navigate using the browser's full navigation system which includes stealth features
     // Google requires JavaScript execution to display search results
     {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_js_option(&search_url, true, true).await?;
+        let mut browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        browser
+            .navigate_to_with_js_option(&search_url, true, true)
+            .await?;
     }
     eprintln!("🔍 DEBUG: Navigation completed, getting content");
 
     let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.get_current_content()
     };
     eprintln!("🔍 DEBUG: Content retrieved");
 
     // Check for Google's bot detection challenges
-    if html.contains("Our systems have detected unusual traffic") || html.contains("why did this happen") {
+    if html.contains("Our systems have detected unusual traffic")
+        || html.contains("why did this happen")
+    {
         return Err(anyhow::anyhow!("Google returned bot detection challenge"));
     }
 
@@ -40,8 +55,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     }
 
     // Check for JavaScript challenge/enablejs redirect - but let's try to proceed anyway
-    if html.contains("/httpservice/retry/enablejs") || (html.contains("<style>table,div,span,p{display:none}</style>") && html.contains("refresh")) {
-        eprintln!("🔍 DEBUG: Google returned JavaScript challenge page, but attempting to parse anyway");
+    if html.contains("/httpservice/retry/enablejs")
+        || (html.contains("<style>table,div,span,p{display:none}</style>")
+            && html.contains("refresh"))
+    {
+        eprintln!(
+            "🔍 DEBUG: Google returned JavaScript challenge page, but attempting to parse anyway"
+        );
         eprintln!("🔍 DEBUG: Challenge page length: {} chars", html.len());
         // Instead of failing, let's try to follow the redirect or parse what we can
 
@@ -66,18 +86,33 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
                         // Reuse the existing browser to follow the redirect (avoid IndexedDB lock conflict)
                         {
-                            let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
-                            browser.navigate_to_with_js_option(&full_redirect_url, true, true).await?;
+                            let mut browser = temp_browser.lock().map_err(|_| {
+                                anyhow::anyhow!("Failed to acquire browser lock for redirect")
+                            })?;
+                            browser
+                                .navigate_to_with_js_option(&full_redirect_url, true, true)
+                                .await?;
                         }
 
                         let redirect_html = {
-                            let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock for redirect"))?;
+                            let browser = temp_browser.lock().map_err(|_| {
+                                anyhow::anyhow!("Failed to acquire browser lock for redirect")
+                            })?;
                             browser.get_current_content()
                         };
 
-                        eprintln!("🔍 DEBUG: Redirect response length: {} chars", redirect_html.len());
-                        eprintln!("🔍 DEBUG: Redirect response preview: {}",
-                            if redirect_html.len() > 500 { &redirect_html[..500] } else { &redirect_html });
+                        eprintln!(
+                            "🔍 DEBUG: Redirect response length: {} chars",
+                            redirect_html.len()
+                        );
+                        eprintln!(
+                            "🔍 DEBUG: Redirect response preview: {}",
+                            if redirect_html.len() > 500 {
+                                &redirect_html[..500]
+                            } else {
+                                &redirect_html
+                            }
+                        );
 
                         // Explicitly drop browser to ensure cleanup
                         drop(temp_browser);
@@ -95,8 +130,18 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
     // Let's also check if we got valid search results
     if !html.contains("</html>") || html.len() < 1000 {
-        eprintln!("🔍 DEBUG: Got incomplete HTML response: {} chars", html.len());
-        eprintln!("🔍 DEBUG: HTML content: {}", if html.len() > 500 { &html[..500] } else { &html });
+        eprintln!(
+            "🔍 DEBUG: Got incomplete HTML response: {} chars",
+            html.len()
+        );
+        eprintln!(
+            "🔍 DEBUG: HTML content: {}",
+            if html.len() > 500 {
+                &html[..500]
+            } else {
+                &html
+            }
+        );
     }
 
     // Explicitly drop browser to ensure cleanup
@@ -107,19 +152,28 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
 pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
     eprintln!("🔍 DEBUG: Google HTML length: {}", html.len());
-    eprintln!("🔍 DEBUG: Google HTML contains .g class: {}", html.contains("class=\"g\""));
-    eprintln!("🔍 DEBUG: Google HTML contains .tF2Cxc: {}", html.contains("tF2Cxc"));
-    eprintln!("🔍 DEBUG: First 500 chars: {}", &html[..html.len().min(500)]);
+    eprintln!(
+        "🔍 DEBUG: Google HTML contains .g class: {}",
+        html.contains("class=\"g\"")
+    );
+    eprintln!(
+        "🔍 DEBUG: Google HTML contains .tF2Cxc: {}",
+        html.contains("tF2Cxc")
+    );
+    eprintln!(
+        "🔍 DEBUG: First 500 chars: {}",
+        &html[..html.len().min(500)]
+    );
 
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 
     // Google result selectors - multiple approaches since Google changes frequently
     let main_selectors = [
-        ".g",                    // Classic Google result container
+        ".g",                       // Classic Google result container
         "[data-sokoban-container]", // Modern Google result container
-        ".tF2Cxc",              // Current Google search result container
-        ".rc",                  // Legacy Google result container
+        ".tF2Cxc",                  // Current Google search result container
+        ".rc",                      // Legacy Google result container
     ];
 
     for selector_str in &main_selectors {
@@ -136,25 +190,14 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                     ".DKV0Md",
                     "a h3",
                     ".r h3 a",
-                    ".yuRUbf h3 a"
+                    ".yuRUbf h3 a",
                 ];
 
                 // Google URL selectors
-                let url_selectors = [
-                    "a[href]",
-                    ".yuRUbf a",
-                    ".r a",
-                    "h3 a"
-                ];
+                let url_selectors = ["a[href]", ".yuRUbf a", ".r a", "h3 a"];
 
                 // Google snippet selectors
-                let snippet_selectors = [
-                    ".VwiC3b",
-                    ".s",
-                    ".st",
-                    ".IsZvec",
-                    "span[data-ved]"
-                ];
+                let snippet_selectors = [".VwiC3b", ".s", ".st", ".IsZvec", "span[data-ved]"];
 
                 let title = extract_generic_title(&element, &title_selectors);
                 let mut url = extract_generic_url(&element, &url_selectors);
@@ -164,7 +207,9 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                 if url.starts_with("/url?q=") {
                     if let Some(actual_url) = url.strip_prefix("/url?q=") {
                         if let Some(clean_url) = actual_url.split('&').next() {
-                            url = urlencoding::decode(clean_url).unwrap_or_default().to_string();
+                            url = urlencoding::decode(clean_url)
+                                .unwrap_or_default()
+                                .to_string();
                         }
                     }
                 }
@@ -175,9 +220,13 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                 }
 
                 // Only add if we have valid title and URL, and it's not a Google internal URL
-                if !title.is_empty() && !url.is_empty() && url.starts_with("http")
-                    && !url.contains("google.com") && !url.contains("youtube.com")
-                    && !results.iter().any(|r: &SearchResult| r.url == url) {
+                if !title.is_empty()
+                    && !url.is_empty()
+                    && url.starts_with("http")
+                    && !url.contains("google.com")
+                    && !url.contains("youtube.com")
+                    && !results.iter().any(|r: &SearchResult| r.url == url)
+                {
                     results.push(SearchResult {
                         title,
                         url,
@@ -208,17 +257,26 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
         "https://www.google.com/search?q={}&tbm=isch&hl=en&gl=us",
         urlencoding::encode(query)
     );
-    eprintln!("🔍🖼️ Google Images: Searching for '{}' at URL: {}", query, search_url);
+    eprintln!(
+        "🔍🖼️ Google Images: Searching for '{}' at URL: {}",
+        query, search_url
+    );
 
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
     {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_js_option(&search_url, true, true).await?;
+        let mut browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        browser
+            .navigate_to_with_js_option(&search_url, true, true)
+            .await?;
     }
 
     let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.get_current_content()
     };
 
@@ -227,7 +285,11 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
     parse_image_results(&html, query, num_results)
 }
 
-pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
+pub fn parse_image_results(
+    html: &str,
+    query: &str,
+    num_results: usize,
+) -> Result<ImageSearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 
@@ -246,7 +308,9 @@ pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Resul
                     break;
                 }
 
-                let image_url = element.value().attr("src")
+                let image_url = element
+                    .value()
+                    .attr("src")
                     .or_else(|| element.value().attr("data-src"))
                     .unwrap_or("");
 
@@ -258,13 +322,19 @@ pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Resul
                     continue;
                 }
 
-                let title = element.value().attr("alt")
+                let title = element
+                    .value()
+                    .attr("alt")
                     .or_else(|| element.value().attr("title"))
                     .unwrap_or("")
                     .to_string();
 
                 results.push(ImageSearchResult {
-                    title: if title.is_empty() { format!("Image {}", results.len() + 1) } else { title },
+                    title: if title.is_empty() {
+                        format!("Image {}", results.len() + 1)
+                    } else {
+                        title
+                    },
                     image_url: image_url.to_string(),
                     thumbnail_url: Some(image_url.to_string()),
                     source_url: String::new(),

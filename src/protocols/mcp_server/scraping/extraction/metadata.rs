@@ -14,12 +14,23 @@ pub fn extract(html: &str) -> Value {
     });
 
     // Extract title
-    if let Ok(title_selector) = Selector::parse("title, h1, .title, .article-title, [property='og:title'], [name='twitter:title']") {
+    if let Ok(title_selector) = Selector::parse(
+        "title, h1, .title, .article-title, [property='og:title'], [name='twitter:title']",
+    ) {
         if let Some(title_element) = document.select(&title_selector).next() {
             let title = if title_element.value().name() == "meta" {
-                title_element.value().attr("content").unwrap_or("").to_string()
+                title_element
+                    .value()
+                    .attr("content")
+                    .unwrap_or("")
+                    .to_string()
             } else {
-                title_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                title_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string()
             };
             if !title.is_empty() {
                 metadata["title"] = Value::String(title);
@@ -29,17 +40,31 @@ pub fn extract(html: &str) -> Value {
 
     // Extract author
     let author_selectors = [
-        "[name='author']", "[property='article:author']", "[rel='author']",
-        ".author", ".byline", ".article-author", ".post-author"
+        "[name='author']",
+        "[property='article:author']",
+        "[rel='author']",
+        ".author",
+        ".byline",
+        ".article-author",
+        ".post-author",
     ];
 
     for selector_str in &author_selectors {
         if let Ok(selector) = Selector::parse(selector_str) {
             if let Some(author_element) = document.select(&selector).next() {
                 let author = if author_element.value().name() == "meta" {
-                    author_element.value().attr("content").unwrap_or("").to_string()
+                    author_element
+                        .value()
+                        .attr("content")
+                        .unwrap_or("")
+                        .to_string()
                 } else {
-                    author_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    author_element
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string()
                 };
                 if !author.is_empty() {
                     metadata["author"] = Value::String(author);
@@ -51,9 +76,14 @@ pub fn extract(html: &str) -> Value {
 
     // Extract publish date
     let date_selectors = [
-        "[property='article:published_time']", "[name='publish_date']",
-        "[name='date']", "time[datetime]", ".publish-date", ".date",
-        ".article-date", ".post-date"
+        "[property='article:published_time']",
+        "[name='publish_date']",
+        "[name='date']",
+        "time[datetime]",
+        ".publish-date",
+        ".date",
+        ".article-date",
+        ".post-date",
     ];
 
     for selector_str in &date_selectors {
@@ -64,7 +94,12 @@ pub fn extract(html: &str) -> Value {
                 } else if let Some(content) = date_element.value().attr("content") {
                     content.to_string()
                 } else {
-                    date_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    date_element
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string()
                 };
                 if !date.is_empty() {
                     metadata["publish_date"] = Value::String(date);
@@ -76,8 +111,12 @@ pub fn extract(html: &str) -> Value {
 
     // Extract tags/keywords
     let tag_selectors = [
-        "[name='keywords']", "[property='article:tag']",
-        ".tags a", ".tag", ".article-tags a", ".post-tags a"
+        "[name='keywords']",
+        "[property='article:tag']",
+        ".tags a",
+        ".tag",
+        ".article-tags a",
+        ".post-tags a",
     ];
 
     let mut tags = Vec::new();
@@ -85,9 +124,18 @@ pub fn extract(html: &str) -> Value {
         if let Ok(selector) = Selector::parse(selector_str) {
             for tag_element in document.select(&selector) {
                 let tag = if tag_element.value().name() == "meta" {
-                    tag_element.value().attr("content").unwrap_or("").to_string()
+                    tag_element
+                        .value()
+                        .attr("content")
+                        .unwrap_or("")
+                        .to_string()
                 } else {
-                    tag_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    tag_element
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string()
                 };
 
                 if !tag.is_empty() {
@@ -108,24 +156,34 @@ pub fn extract(html: &str) -> Value {
     }
 
     if !tags.is_empty() {
-        metadata["tags"] = Value::Array(
-            tags.into_iter().map(Value::String).collect()
-        );
+        metadata["tags"] = Value::Array(tags.into_iter().map(Value::String).collect());
     }
 
     // Extract description
     let desc_selectors = [
-        "[name='description']", "[property='og:description']",
-        "[name='twitter:description']", ".description", ".summary"
+        "[name='description']",
+        "[property='og:description']",
+        "[name='twitter:description']",
+        ".description",
+        ".summary",
     ];
 
     for selector_str in &desc_selectors {
         if let Ok(selector) = Selector::parse(selector_str) {
             if let Some(desc_element) = document.select(&selector).next() {
                 let description = if desc_element.value().name() == "meta" {
-                    desc_element.value().attr("content").unwrap_or("").to_string()
+                    desc_element
+                        .value()
+                        .attr("content")
+                        .unwrap_or("")
+                        .to_string()
                 } else {
-                    desc_element.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    desc_element
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string()
                 };
                 if !description.is_empty() {
                     metadata["description"] = Value::String(description);

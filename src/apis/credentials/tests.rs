@@ -24,7 +24,10 @@ fn test_store_and_retrieve_credential() {
 
     let stored = manager.get_all_credentials();
     assert_eq!(stored.len(), 1);
-    assert_eq!(stored.get("test@example.com").unwrap().password, credential.password);
+    assert_eq!(
+        stored.get("test@example.com").unwrap().password,
+        credential.password
+    );
 }
 
 #[test]

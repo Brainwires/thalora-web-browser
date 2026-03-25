@@ -10,9 +10,8 @@ pub mod domains;
 
 // Re-export domain types
 pub use domains::{
-    RuntimeDomain, DebuggerDomain, DomDomain, NetworkDomain,
-    PageDomain, ConsoleDomain, PerformanceDomain, StorageDomain,
-    BreakpointInfo
+    BreakpointInfo, ConsoleDomain, DebuggerDomain, DomDomain, NetworkDomain, PageDomain,
+    PerformanceDomain, RuntimeDomain, StorageDomain,
 };
 
 /// Chrome DevTools Protocol implementation for Thalora
@@ -99,7 +98,10 @@ impl CdpServer {
         domains.insert("Network".to_string(), Box::new(NetworkDomain::new()));
         domains.insert("Console".to_string(), Box::new(ConsoleDomain::new()));
         domains.insert("Page".to_string(), Box::new(PageDomain::new()));
-        domains.insert("Performance".to_string(), Box::new(PerformanceDomain::new()));
+        domains.insert(
+            "Performance".to_string(),
+            Box::new(PerformanceDomain::new()),
+        );
         domains.insert("Storage".to_string(), Box::new(StorageDomain::new()));
     }
 

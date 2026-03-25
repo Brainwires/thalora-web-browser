@@ -1,11 +1,12 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::mcp::McpResponse;
 
 impl BrowserTools {
     pub async fn handle_get_page_content(&self, params: Value) -> McpResponse {
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -23,7 +24,7 @@ impl BrowserTools {
                         "session_id": session_id
                     }));
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response

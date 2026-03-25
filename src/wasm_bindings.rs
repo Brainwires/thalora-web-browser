@@ -3,9 +3,9 @@
 //! This module provides wasm-bindgen bindings to expose Thalora's browser
 //! functionality to JavaScript/TypeScript when compiled to WebAssembly.
 
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 
 // Set up panic hook for better error messages in WASM
 #[wasm_bindgen(start)]
@@ -384,13 +384,17 @@ impl WasmAIMemory {
     /// Search entries by keyword
     pub fn search(&self, query: String) -> Result<JsValue, JsValue> {
         let query_lower = query.to_lowercase();
-        let results: Vec<WasmMemoryEntry> = self.entries
+        let results: Vec<WasmMemoryEntry> = self
+            .entries
             .values()
             .filter_map(|json| serde_json::from_str::<WasmMemoryEntry>(json).ok())
             .filter(|entry| {
-                entry.title.to_lowercase().contains(&query_lower) ||
-                entry.content.to_lowercase().contains(&query_lower) ||
-                entry.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                entry.title.to_lowercase().contains(&query_lower)
+                    || entry.content.to_lowercase().contains(&query_lower)
+                    || entry
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query_lower))
             })
             .collect();
 
@@ -400,7 +404,8 @@ impl WasmAIMemory {
 
     /// List all entries
     pub fn list_all(&self) -> Result<JsValue, JsValue> {
-        let results: Vec<WasmMemoryEntry> = self.entries
+        let results: Vec<WasmMemoryEntry> = self
+            .entries
             .values()
             .filter_map(|json| serde_json::from_str(json).ok())
             .collect();
@@ -411,16 +416,32 @@ impl WasmAIMemory {
 
     /// Get statistics
     pub fn get_stats(&self) -> Result<JsValue, JsValue> {
-        let entries: Vec<WasmMemoryEntry> = self.entries
+        let entries: Vec<WasmMemoryEntry> = self
+            .entries
             .values()
             .filter_map(|json| serde_json::from_str(json).ok())
             .collect();
 
         let mut stats = HashMap::new();
         stats.insert("total", entries.len());
-        stats.insert("research", entries.iter().filter(|e| e.entry_type == "research").count());
-        stats.insert("bookmark", entries.iter().filter(|e| e.entry_type == "bookmark").count());
-        stats.insert("note", entries.iter().filter(|e| e.entry_type == "note").count());
+        stats.insert(
+            "research",
+            entries
+                .iter()
+                .filter(|e| e.entry_type == "research")
+                .count(),
+        );
+        stats.insert(
+            "bookmark",
+            entries
+                .iter()
+                .filter(|e| e.entry_type == "bookmark")
+                .count(),
+        );
+        stats.insert(
+            "note",
+            entries.iter().filter(|e| e.entry_type == "note").count(),
+        );
 
         serde_wasm_bindgen::to_value(&stats)
             .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
@@ -550,7 +571,8 @@ impl WasmFingerprint {
 
     /// Get JavaScript code to inject for fingerprint spoofing
     pub fn get_injection_script(&self) -> String {
-        format!(r#"
+        format!(
+            r#"
             Object.defineProperty(navigator, 'userAgent', {{ get: () => '{}' }});
             Object.defineProperty(navigator, 'platform', {{ get: () => '{}' }});
             Object.defineProperty(navigator, 'language', {{ get: () => '{}' }});
@@ -578,7 +600,7 @@ impl Default for WasmFingerprint {
 // DOM Utilities (using scraper/html5ever)
 // ============================================================================
 
-use scraper::{Html, Selector, ElementRef};
+use scraper::{ElementRef, Html, Selector};
 
 /// DOM element information
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -636,14 +658,26 @@ impl WasmDOM {
         }
 
         // Fallback: get all text
-        self.document.root_element().text().collect::<Vec<_>>().join(" ")
+        self.document
+            .root_element()
+            .text()
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     /// Extract text content from an element, excluding scripts and styles
-    fn extract_text_without_scripts(&self, element: ElementRef, script_selector: Option<&Selector>) -> String {
+    fn extract_text_without_scripts(
+        &self,
+        element: ElementRef,
+        script_selector: Option<&Selector>,
+    ) -> String {
         let mut text_parts = Vec::new();
 
-        fn collect_text(element: ElementRef, text_parts: &mut Vec<String>, script_selector: Option<&Selector>) {
+        fn collect_text(
+            element: ElementRef,
+            text_parts: &mut Vec<String>,
+            script_selector: Option<&Selector>,
+        ) {
             // Skip script/style elements
             if let Some(sel) = script_selector {
                 if element.value().name() == "script"
@@ -673,14 +707,18 @@ impl WasmDOM {
     /// Extract title
     pub fn get_title(&self) -> Option<String> {
         let selector = Selector::parse("title").ok()?;
-        self.document.select(&selector).next()
+        self.document
+            .select(&selector)
+            .next()
             .map(|e| e.text().collect::<String>().trim().to_string())
     }
 
     /// Extract meta description
     pub fn get_meta_description(&self) -> Option<String> {
         let selector = Selector::parse("meta[name='description']").ok()?;
-        self.document.select(&selector).next()
+        self.document
+            .select(&selector)
+            .next()
             .and_then(|e| e.value().attr("content").map(|s| s.to_string()))
     }
 
@@ -691,7 +729,9 @@ impl WasmDOM {
             Err(_) => return vec![],
         };
 
-        self.document.select(&selector).next()
+        self.document
+            .select(&selector)
+            .next()
             .and_then(|e| e.value().attr("content"))
             .map(|s| s.split(',').map(|k| k.trim().to_string()).collect())
             .unwrap_or_default()
@@ -701,7 +741,14 @@ impl WasmDOM {
     pub fn get_og_metadata(&self) -> Result<JsValue, JsValue> {
         let mut metadata = HashMap::new();
 
-        let og_properties = ["og:title", "og:description", "og:image", "og:url", "og:type", "og:site_name"];
+        let og_properties = [
+            "og:title",
+            "og:description",
+            "og:image",
+            "og:url",
+            "og:type",
+            "og:site_name",
+        ];
 
         for prop in og_properties {
             let selector_str = format!("meta[property='{}']", prop);
@@ -725,7 +772,10 @@ impl WasmDOM {
         let selector = Selector::parse(selector)
             .map_err(|e| JsValue::from_str(&format!("Invalid selector: {:?}", e)))?;
 
-        let element = self.document.select(&selector).next()
+        let element = self
+            .document
+            .select(&selector)
+            .next()
             .map(|e| self.element_to_wasm(e));
 
         serde_wasm_bindgen::to_value(&element)
@@ -737,7 +787,9 @@ impl WasmDOM {
         let selector = Selector::parse(selector)
             .map_err(|e| JsValue::from_str(&format!("Invalid selector: {:?}", e)))?;
 
-        let elements: Vec<WasmElement> = self.document.select(&selector)
+        let elements: Vec<WasmElement> = self
+            .document
+            .select(&selector)
             .map(|e| self.element_to_wasm(e))
             .collect();
 
@@ -749,7 +801,8 @@ impl WasmDOM {
     fn element_to_wasm(&self, element: ElementRef) -> WasmElement {
         let value = element.value();
 
-        let attributes: HashMap<String, String> = value.attrs()
+        let attributes: HashMap<String, String> = value
+            .attrs()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
@@ -768,7 +821,9 @@ impl WasmDOM {
         let selector = Selector::parse("a[href]")
             .map_err(|e| JsValue::from_str(&format!("Selector error: {:?}", e)))?;
 
-        let links: Vec<WasmLink> = self.document.select(&selector)
+        let links: Vec<WasmLink> = self
+            .document
+            .select(&selector)
             .filter_map(|e| {
                 let href = e.value().attr("href")?;
                 let text = e.text().collect::<String>().trim().to_string();
@@ -788,7 +843,9 @@ impl WasmDOM {
         let selector = Selector::parse("img[src]")
             .map_err(|e| JsValue::from_str(&format!("Selector error: {:?}", e)))?;
 
-        let images: Vec<WasmImage> = self.document.select(&selector)
+        let images: Vec<WasmImage> = self
+            .document
+            .select(&selector)
             .filter_map(|e| {
                 let src = e.value().attr("src")?;
                 let alt = e.value().attr("alt").unwrap_or("").to_string();
@@ -810,30 +867,58 @@ impl WasmDOM {
 
         let input_selector = Selector::parse("input, textarea, select, button").ok();
 
-        let forms: Vec<HashMap<String, serde_json::Value>> = self.document.select(&form_selector)
+        let forms: Vec<HashMap<String, serde_json::Value>> = self
+            .document
+            .select(&form_selector)
             .map(|form| {
                 let mut form_data = HashMap::new();
 
-                form_data.insert("action".to_string(),
-                    serde_json::Value::String(form.value().attr("action").unwrap_or("").to_string()));
-                form_data.insert("method".to_string(),
-                    serde_json::Value::String(form.value().attr("method").unwrap_or("GET").to_string()));
-                form_data.insert("id".to_string(),
-                    serde_json::Value::String(form.value().attr("id").unwrap_or("").to_string()));
+                form_data.insert(
+                    "action".to_string(),
+                    serde_json::Value::String(
+                        form.value().attr("action").unwrap_or("").to_string(),
+                    ),
+                );
+                form_data.insert(
+                    "method".to_string(),
+                    serde_json::Value::String(
+                        form.value().attr("method").unwrap_or("GET").to_string(),
+                    ),
+                );
+                form_data.insert(
+                    "id".to_string(),
+                    serde_json::Value::String(form.value().attr("id").unwrap_or("").to_string()),
+                );
 
                 // Get form fields
                 if let Some(ref input_sel) = input_selector {
-                    let fields: Vec<HashMap<String, String>> = form.select(input_sel)
+                    let fields: Vec<HashMap<String, String>> = form
+                        .select(input_sel)
                         .map(|input| {
                             let mut field = HashMap::new();
-                            field.insert("type".to_string(), input.value().attr("type").unwrap_or("text").to_string());
-                            field.insert("name".to_string(), input.value().attr("name").unwrap_or("").to_string());
-                            field.insert("id".to_string(), input.value().attr("id").unwrap_or("").to_string());
-                            field.insert("value".to_string(), input.value().attr("value").unwrap_or("").to_string());
+                            field.insert(
+                                "type".to_string(),
+                                input.value().attr("type").unwrap_or("text").to_string(),
+                            );
+                            field.insert(
+                                "name".to_string(),
+                                input.value().attr("name").unwrap_or("").to_string(),
+                            );
+                            field.insert(
+                                "id".to_string(),
+                                input.value().attr("id").unwrap_or("").to_string(),
+                            );
+                            field.insert(
+                                "value".to_string(),
+                                input.value().attr("value").unwrap_or("").to_string(),
+                            );
                             field
                         })
                         .collect();
-                    form_data.insert("fields".to_string(), serde_json::to_value(fields).unwrap_or_default());
+                    form_data.insert(
+                        "fields".to_string(),
+                        serde_json::to_value(fields).unwrap_or_default(),
+                    );
                 }
 
                 form_data
@@ -849,11 +934,16 @@ impl WasmDOM {
         let selector = Selector::parse("h1, h2, h3, h4, h5, h6")
             .map_err(|e| JsValue::from_str(&format!("Selector error: {:?}", e)))?;
 
-        let headings: Vec<HashMap<String, String>> = self.document.select(&selector)
+        let headings: Vec<HashMap<String, String>> = self
+            .document
+            .select(&selector)
             .map(|h| {
                 let mut heading = HashMap::new();
                 heading.insert("level".to_string(), h.value().name().to_string());
-                heading.insert("text".to_string(), h.text().collect::<String>().trim().to_string());
+                heading.insert(
+                    "text".to_string(),
+                    h.text().collect::<String>().trim().to_string(),
+                );
                 if let Some(id) = h.value().id() {
                     heading.insert("id".to_string(), id.to_string());
                 }
@@ -885,7 +975,8 @@ impl WasmDOM {
 
     /// Get attribute value for first matching element
     pub fn get_attribute(&self, selector: &str, attribute: &str) -> Option<String> {
-        Selector::parse(selector).ok()
+        Selector::parse(selector)
+            .ok()
             .and_then(|sel| self.document.select(&sel).next())
             .and_then(|e| e.value().attr(attribute).map(|s| s.to_string()))
     }
@@ -897,7 +988,8 @@ impl WasmDOM {
             Err(_) => return vec![],
         };
 
-        self.document.select(&selector)
+        self.document
+            .select(&selector)
             .filter_map(|e| e.value().attr("src").map(|s| s.to_string()))
             .collect()
     }
@@ -909,7 +1001,8 @@ impl WasmDOM {
             Err(_) => return vec![],
         };
 
-        self.document.select(&selector)
+        self.document
+            .select(&selector)
             .filter_map(|e| e.value().attr("href").map(|s| s.to_string()))
             .collect()
     }
@@ -919,7 +1012,9 @@ impl WasmDOM {
         let selector = Selector::parse("style")
             .map_err(|e| JsValue::from_str(&format!("Selector error: {:?}", e)))?;
 
-        let styles: Vec<String> = self.document.select(&selector)
+        let styles: Vec<String> = self
+            .document
+            .select(&selector)
             .map(|e| e.text().collect::<String>())
             .collect();
 
@@ -933,8 +1028,8 @@ impl WasmDOM {
 // ============================================================================
 
 use crate::features::readability::{
-    ReadabilityEngine, ReadabilityConfig, QualityMetrics as ReadabilityQuality,
-    ExtractionResult, OutputFormat,
+    ExtractionResult, OutputFormat, QualityMetrics as ReadabilityQuality, ReadabilityConfig,
+    ReadabilityEngine,
 };
 
 /// Readability extraction result for WASM
@@ -1044,7 +1139,9 @@ impl WasmReadability {
     ///
     /// Returns clean, formatted content suitable for reading or AI processing.
     pub fn extract(&mut self, html: &str, url: &str) -> Result<JsValue, JsValue> {
-        let result = self.engine.extract(html, url)
+        let result = self
+            .engine
+            .extract(html, url)
             .map_err(|e| JsValue::from_str(&format!("Extraction error: {}", e)))?;
 
         let wasm_result = WasmReadabilityResult {
@@ -1083,7 +1180,8 @@ impl WasmReadability {
         };
 
         let mut engine = ReadabilityEngine::with_config(config);
-        let result = engine.extract(html, url)
+        let result = engine
+            .extract(html, url)
             .map_err(|e| JsValue::from_str(&format!("Extraction error: {}", e)))?;
 
         if result.success {
@@ -1148,7 +1246,7 @@ impl Default for WasmReadability {
 // CSS Processor API
 // ============================================================================
 
-use crate::engine::renderer::css::{CssProcessor, ComputedStyles, ParsedRule, BoxModel};
+use crate::engine::renderer::css::{BoxModel, ComputedStyles, CssProcessor, ParsedRule};
 
 /// CSS processor for WASM
 ///
@@ -1170,7 +1268,8 @@ impl WasmCssProcessor {
 
     /// Parse CSS and add its rules to the processor
     pub fn parse(&mut self, css: &str) -> Result<(), JsValue> {
-        self.processor.parse(css)
+        self.processor
+            .parse(css)
             .map_err(|e| JsValue::from_str(&format!("CSS parse error: {}", e)))
     }
 
@@ -1188,13 +1287,15 @@ impl WasmCssProcessor {
 
     /// Minify CSS
     pub fn minify(&self, css: &str) -> Result<String, JsValue> {
-        self.processor.minify(css)
+        self.processor
+            .minify(css)
             .map_err(|e| JsValue::from_str(&format!("Minify error: {}", e)))
     }
 
     /// Process CSS (returns processed CSS)
     pub fn process(&self, css: &str) -> Result<String, JsValue> {
-        self.processor.process_css(css)
+        self.processor
+            .process_css(css)
             .map_err(|e| JsValue::from_str(&format!("Process error: {}", e)))
     }
 
@@ -1222,7 +1323,7 @@ impl Default for WasmCssProcessor {
 // ============================================================================
 
 use crate::engine::renderer::layout::{
-    LayoutEngine, LayoutResult, LayoutElement, ElementLayout, ContentBox, LayoutNodeData,
+    ContentBox, ElementLayout, LayoutElement, LayoutEngine, LayoutNodeData, LayoutResult,
 };
 
 /// Layout element for WASM input
@@ -1248,8 +1349,14 @@ impl From<WasmLayoutElement> for LayoutElement {
                 justify_content: elem.styles.get("justify-content").and_then(|s| s.clone()),
                 align_items: elem.styles.get("align-items").and_then(|s| s.clone()),
                 gap: elem.styles.get("gap").and_then(|s| s.clone()),
-                margin: elem.styles.get("margin").and_then(|s| s.as_ref().map(|_| BoxModel::default())),
-                padding: elem.styles.get("padding").and_then(|s| s.as_ref().map(|_| BoxModel::default())),
+                margin: elem
+                    .styles
+                    .get("margin")
+                    .and_then(|s| s.as_ref().map(|_| BoxModel::default())),
+                padding: elem
+                    .styles
+                    .get("padding")
+                    .and_then(|s| s.as_ref().map(|_| BoxModel::default())),
                 ..Default::default()
             },
             children: elem.children.into_iter().map(|c| c.into()).collect(),
@@ -1294,7 +1401,9 @@ impl WasmLayoutEngine {
 
         let layout_root: LayoutElement = wasm_root.into();
 
-        let result = self.engine.calculate_layout_from_elements(&layout_root)
+        let result = self
+            .engine
+            .calculate_layout_from_elements(&layout_root)
             .map_err(|e| JsValue::from_str(&format!("Layout calculation error: {}", e)))?;
 
         serde_wasm_bindgen::to_value(&result)
@@ -1342,10 +1451,14 @@ impl WasmJsEngine {
     /// Supports ES2025+ syntax including async/await, optional chaining,
     /// nullish coalescing, and more.
     pub async fn execute(&mut self, code: String) -> Result<JsValue, JsValue> {
-        let engine = self.engine.as_mut()
+        let engine = self
+            .engine
+            .as_mut()
             .ok_or_else(|| JsValue::from_str("Engine not initialized"))?;
 
-        let result = engine.execute_enhanced(&code).await
+        let result = engine
+            .execute_enhanced(&code)
+            .await
             .map_err(|e| JsValue::from_str(&format!("Execution error: {}", e)))?;
 
         // Convert Boa JsValue to wasm_bindgen JsValue
@@ -1355,13 +1468,14 @@ impl WasmJsEngine {
     /// Execute JavaScript code synchronously (for simpler scripts)
     /// Note: In WASM, this uses futures::executor::block_on which may have limitations
     pub fn execute_sync(&mut self, code: &str) -> Result<JsValue, JsValue> {
-        let engine = self.engine.as_mut()
+        let engine = self
+            .engine
+            .as_mut()
             .ok_or_else(|| JsValue::from_str("Engine not initialized"))?;
 
         // Use futures::executor::block_on for WASM compatibility
-        let result = futures::executor::block_on(async {
-            engine.execute_enhanced(code).await
-        }).map_err(|e| JsValue::from_str(&format!("Execution error: {}", e)))?;
+        let result = futures::executor::block_on(async { engine.execute_enhanced(code).await })
+            .map_err(|e| JsValue::from_str(&format!("Execution error: {}", e)))?;
 
         Self::convert_to_js_value_static(&result)
     }
@@ -1371,19 +1485,25 @@ impl WasmJsEngine {
         // First convert the value before borrowing engine mutably
         let boa_value = Self::convert_from_js_value_static(&value)?;
 
-        let engine = self.engine.as_mut()
+        let engine = self
+            .engine
+            .as_mut()
             .ok_or_else(|| JsValue::from_str("Engine not initialized"))?;
 
-        engine.set_global_object(name, boa_value)
+        engine
+            .set_global_object(name, boa_value)
             .map_err(|e| JsValue::from_str(&format!("Failed to set global: {}", e)))
     }
 
     /// Get a global variable from the JavaScript context
     pub fn get_global(&mut self, name: &str) -> Result<JsValue, JsValue> {
-        let engine = self.engine.as_mut()
+        let engine = self
+            .engine
+            .as_mut()
             .ok_or_else(|| JsValue::from_str("Engine not initialized"))?;
 
-        let result = engine.get_global_object(name)
+        let result = engine
+            .get_global_object(name)
             .map_err(|e| JsValue::from_str(&format!("Failed to get global: {}", e)))?;
 
         match result {
@@ -1394,10 +1514,13 @@ impl WasmJsEngine {
 
     /// Run pending microtasks (promises, etc.)
     pub fn run_jobs(&mut self) -> Result<(), JsValue> {
-        let engine = self.engine.as_mut()
+        let engine = self
+            .engine
+            .as_mut()
             .ok_or_else(|| JsValue::from_str("Engine not initialized"))?;
 
-        engine.run_jobs()
+        engine
+            .run_jobs()
             .map_err(|e| JsValue::from_str(&format!("Failed to run jobs: {}", e)))
     }
 
@@ -1410,7 +1533,9 @@ impl WasmJsEngine {
     }
 
     /// Convert Boa JsValue to wasm_bindgen JsValue (static method to avoid borrow issues)
-    fn convert_to_js_value_static(boa_value: &thalora_browser_apis::boa_engine::JsValue) -> Result<JsValue, JsValue> {
+    fn convert_to_js_value_static(
+        boa_value: &thalora_browser_apis::boa_engine::JsValue,
+    ) -> Result<JsValue, JsValue> {
         // Simple conversion - in practice we'd need more sophisticated handling
         if boa_value.is_undefined() {
             Ok(JsValue::UNDEFINED)
@@ -1429,7 +1554,9 @@ impl WasmJsEngine {
     }
 
     /// Convert wasm_bindgen JsValue to Boa JsValue (static method to avoid borrow issues)
-    fn convert_from_js_value_static(js_value: &JsValue) -> Result<thalora_browser_apis::boa_engine::JsValue, JsValue> {
+    fn convert_from_js_value_static(
+        js_value: &JsValue,
+    ) -> Result<thalora_browser_apis::boa_engine::JsValue, JsValue> {
         use thalora_browser_apis::boa_engine::JsValue as BoaValue;
 
         if js_value.is_undefined() {
@@ -1441,7 +1568,9 @@ impl WasmJsEngine {
         } else if let Some(n) = js_value.as_f64() {
             Ok(BoaValue::from(n))
         } else if let Some(s) = js_value.as_string() {
-            Ok(BoaValue::from(thalora_browser_apis::boa_engine::js_string!(s)))
+            Ok(BoaValue::from(
+                thalora_browser_apis::boa_engine::js_string!(s),
+            ))
         } else {
             // Default to undefined for complex objects
             Ok(BoaValue::undefined())
@@ -1517,37 +1646,43 @@ impl WasmPageProcessor {
         let text_content = dom.get_text();
 
         // Extract links and images
-        let links: Vec<WasmLink> = serde_wasm_bindgen::from_value(dom.get_links()?)
-            .unwrap_or_default();
-        let images: Vec<WasmImage> = serde_wasm_bindgen::from_value(dom.get_images()?)
-            .unwrap_or_default();
+        let links: Vec<WasmLink> =
+            serde_wasm_bindgen::from_value(dom.get_links()?).unwrap_or_default();
+        let images: Vec<WasmImage> =
+            serde_wasm_bindgen::from_value(dom.get_images()?).unwrap_or_default();
 
         // Extract metadata
-        let metadata: HashMap<String, String> = serde_wasm_bindgen::from_value(dom.get_og_metadata()?)
-            .unwrap_or_default();
+        let metadata: HashMap<String, String> =
+            serde_wasm_bindgen::from_value(dom.get_og_metadata()?).unwrap_or_default();
 
         // Extract readable content
         let readability_result = self.readability.extract(html, url);
-        let (readable_content, is_readable, readability_score, word_count) = match readability_result {
-            Ok(result) => {
-                let result: WasmReadabilityResult = serde_wasm_bindgen::from_value(result)
-                    .unwrap_or(WasmReadabilityResult {
-                        content: String::new(),
-                        format: "text".to_string(),
-                        title: String::new(),
-                        author: None,
-                        published_date: None,
-                        main_image: None,
-                        word_count: 0,
-                        reading_time_minutes: 0,
-                        readability_score: 0,
-                        success: false,
-                        error: None,
-                    });
-                (result.content, result.success, result.readability_score, result.word_count)
-            },
-            Err(_) => (String::new(), false, 0, 0),
-        };
+        let (readable_content, is_readable, readability_score, word_count) =
+            match readability_result {
+                Ok(result) => {
+                    let result: WasmReadabilityResult = serde_wasm_bindgen::from_value(result)
+                        .unwrap_or(WasmReadabilityResult {
+                            content: String::new(),
+                            format: "text".to_string(),
+                            title: String::new(),
+                            author: None,
+                            published_date: None,
+                            main_image: None,
+                            word_count: 0,
+                            reading_time_minutes: 0,
+                            readability_score: 0,
+                            success: false,
+                            error: None,
+                        });
+                    (
+                        result.content,
+                        result.success,
+                        result.readability_score,
+                        result.word_count,
+                    )
+                }
+                Err(_) => (String::new(), false, 0, 0),
+            };
 
         let processing_time_ms = (js_sys::Date::now() - start) as u32;
 

@@ -17,19 +17,22 @@ pub fn extract(html: &str) -> Vec<Value> {
 
             // Extract list items
             if let Ok(item_selector) = Selector::parse("li") {
-                let items: Vec<String> = list.select(&item_selector)
+                let items: Vec<String> = list
+                    .select(&item_selector)
                     .map(|li| {
                         // Get text content, handling nested lists
                         let mut text = String::new();
                         for node in li.children() {
                             if let Some(element) = node.value().as_element() {
                                 if element.name() != "ul" && element.name() != "ol" {
-                                    text.push_str(&scraper::ElementRef::wrap(node)
-                                        .unwrap()
-                                        .text()
-                                        .collect::<Vec<_>>()
-                                        .join(" ")
-                                        .trim());
+                                    text.push_str(
+                                        &scraper::ElementRef::wrap(node)
+                                            .unwrap()
+                                            .text()
+                                            .collect::<Vec<_>>()
+                                            .join(" ")
+                                            .trim(),
+                                    );
                                     text.push(' ');
                                 }
                             } else if let Some(text_node) = node.value().as_text() {
@@ -43,9 +46,8 @@ pub fn extract(html: &str) -> Vec<Value> {
                     .collect();
 
                 if !items.is_empty() {
-                    list_data["items"] = Value::Array(
-                        items.into_iter().map(Value::String).collect()
-                    );
+                    list_data["items"] =
+                        Value::Array(items.into_iter().map(Value::String).collect());
                     lists.push(list_data);
                 }
             }

@@ -5,10 +5,21 @@ use crate::engine::browser::InteractionResponse;
 
 impl super::super::HeadlessWebBrowser {
     /// Type text into a form input element identified by CSS selector
-    pub async fn type_text_into_element(&mut self, selector: &str, text: &str, clear_first: bool) -> Result<InteractionResponse> {
+    pub async fn type_text_into_element(
+        &mut self,
+        selector: &str,
+        text: &str,
+        clear_first: bool,
+    ) -> Result<InteractionResponse> {
         // Debug logging for session state
-        eprintln!("🔍 DEBUG: type_text_into_element - current_content length: {}", self.current_content.len());
-        eprintln!("🔍 DEBUG: type_text_into_element - current_url: {:?}", self.current_url);
+        eprintln!(
+            "🔍 DEBUG: type_text_into_element - current_content length: {}",
+            self.current_content.len()
+        );
+        eprintln!(
+            "🔍 DEBUG: type_text_into_element - current_url: {:?}",
+            self.current_url
+        );
 
         if self.current_content.is_empty() {
             return Err(anyhow!("No current page loaded"));
@@ -19,8 +30,8 @@ impl super::super::HeadlessWebBrowser {
         let escaped_selector = selector.replace("\"", "\\\"");
         let escaped_text = text.replace("\"", "\\\"");
 
-
-        let js_code = format!(r#"
+        let js_code = format!(
+            r#"
 (function() {{
     try {{
         // Check if document.querySelector is available
@@ -134,7 +145,14 @@ impl super::super::HeadlessWebBrowser {
         }});
     }}
 }})();
-"#, escaped_selector, if clear_first { "true" } else { "false" }, escaped_text, if clear_first { "true" } else { "false" }, escaped_text, escaped_selector);
+"#,
+            escaped_selector,
+            if clear_first { "true" } else { "false" },
+            escaped_text,
+            if clear_first { "true" } else { "false" },
+            escaped_text,
+            escaped_selector
+        );
 
         // Execute the JavaScript in the browser engine
         if let Some(ref mut renderer) = self.renderer {
@@ -142,8 +160,14 @@ impl super::super::HeadlessWebBrowser {
                 Ok(result) => {
                     // Try to parse the result as JSON
                     if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
-                        let success = json_result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
-                        let message = json_result.get("message").and_then(|v| v.as_str()).unwrap_or("Text entered");
+                        let success = json_result
+                            .get("success")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let message = json_result
+                            .get("message")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Text entered");
 
                         Ok(InteractionResponse {
                             success,
@@ -161,7 +185,7 @@ impl super::super::HeadlessWebBrowser {
                         })
                     }
                 }
-                Err(e) => Err(anyhow!("Failed to execute text input JavaScript: {}", e))
+                Err(e) => Err(anyhow!("Failed to execute text input JavaScript: {}", e)),
             }
         } else {
             Err(anyhow!("No JavaScript renderer available"))
@@ -169,7 +193,11 @@ impl super::super::HeadlessWebBrowser {
     }
 
     /// Submit a form with the provided field data
-    pub async fn submit_form(&mut self, form_selector: &str, form_data: HashMap<String, String>) -> Result<InteractionResponse> {
+    pub async fn submit_form(
+        &mut self,
+        form_selector: &str,
+        form_data: HashMap<String, String>,
+    ) -> Result<InteractionResponse> {
         if self.current_content.is_empty() {
             return Err(anyhow!("No current page loaded"));
         }
@@ -179,20 +207,35 @@ impl super::super::HeadlessWebBrowser {
         let form_selector = scraper::Selector::parse(form_selector)
             .map_err(|_| anyhow!("Invalid form selector"))?;
 
-        let form_element = document.select(&form_selector).next()
+        let form_element = document
+            .select(&form_selector)
+            .next()
             .ok_or_else(|| anyhow!("Form not found"))?;
 
         let action = form_element.value().attr("action").unwrap_or("");
-        let method = form_element.value().attr("method").unwrap_or("get").to_lowercase();
+        let method = form_element
+            .value()
+            .attr("method")
+            .unwrap_or("get")
+            .to_lowercase();
 
         let current_url = self.current_url.as_ref().unwrap();
         let form_url = if action.starts_with("http") {
             action.to_string()
         } else if action.starts_with('/') {
             let base_url = url::Url::parse(current_url)?;
-            format!("{}://{}{}", base_url.scheme(), base_url.host_str().unwrap_or(""), action)
+            format!(
+                "{}://{}{}",
+                base_url.scheme(),
+                base_url.host_str().unwrap_or(""),
+                action
+            )
         } else {
-            format!("{}/{}", current_url.trim_end_matches('/'), action.trim_start_matches('/'))
+            format!(
+                "{}/{}",
+                current_url.trim_end_matches('/'),
+                action.trim_start_matches('/')
+            )
         };
 
         // Build form data
@@ -203,9 +246,17 @@ impl super::super::HeadlessWebBrowser {
 
         // Submit the form
         let response = if method == "post" {
-            self.client.post(&form_url).form(&form_params).send().await?
+            self.client
+                .post(&form_url)
+                .form(&form_params)
+                .send()
+                .await?
         } else {
-            self.client.get(&form_url).query(&form_params).send().await?
+            self.client
+                .get(&form_url)
+                .query(&form_params)
+                .send()
+                .await?
         };
 
         let status_code = response.status();
@@ -245,8 +296,14 @@ impl super::super::HeadlessWebBrowser {
             return Err(anyhow!("No current page loaded"));
         }
 
-        eprintln!("🔍 DEBUG: click_element - attempting to click selector: {}", selector);
-        eprintln!("🔍 DEBUG: click_element - current_content length: {}", self.current_content.len());
+        eprintln!(
+            "🔍 DEBUG: click_element - attempting to click selector: {}",
+            selector
+        );
+        eprintln!(
+            "🔍 DEBUG: click_element - current_content length: {}",
+            self.current_content.len()
+        );
 
         // Wait for element to appear in DOM (5 second timeout)
         let element_found = self.wait_for_element(selector, 5000).await?;
@@ -258,7 +315,8 @@ impl super::super::HeadlessWebBrowser {
         // Escape quotes in CSS selector for proper JavaScript string interpolation
         let escaped_selector = selector.replace("\"", "\\\"");
 
-        let js_code = format!(r#"
+        let js_code = format!(
+            r#"
 (function() {{
     try {{
         var element = document.querySelector("{}");
@@ -432,7 +490,9 @@ impl super::super::HeadlessWebBrowser {
         }});
     }}
 }})();
-"#, escaped_selector, escaped_selector);
+"#,
+            escaped_selector, escaped_selector
+        );
 
         // Execute the JavaScript in the browser engine
         if let Some(ref mut renderer) = self.renderer {
@@ -443,13 +503,24 @@ impl super::super::HeadlessWebBrowser {
 
                     // Try to parse the result as JSON
                     if let Ok(json_result) = serde_json::from_str::<serde_json::Value>(&result) {
-                        let success = json_result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
-                        let message = json_result.get("message").and_then(|v| v.as_str()).unwrap_or("Element clicked");
-                        let submit_triggered = json_result.get("submit_triggered").and_then(|v| v.as_bool()).unwrap_or(false);
+                        let success = json_result
+                            .get("success")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let message = json_result
+                            .get("message")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Element clicked");
+                        let submit_triggered = json_result
+                            .get("submit_triggered")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
 
                         if success && submit_triggered {
                             // Handle form submission if submit button was clicked
-                            eprintln!("🔍 DEBUG: click_element - submit button triggered form submission");
+                            eprintln!(
+                                "🔍 DEBUG: click_element - submit button triggered form submission"
+                            );
                             // Note: In a real browser, this would navigate to the form action URL
                             // For now, we'll return the click result and let the caller handle navigation
                         }
@@ -471,7 +542,10 @@ impl super::super::HeadlessWebBrowser {
                     }
                 }
                 Err(e) => {
-                    eprintln!("🔍 DEBUG: click_element - JavaScript execution error: {}", e);
+                    eprintln!(
+                        "🔍 DEBUG: click_element - JavaScript execution error: {}",
+                        e
+                    );
                     Err(anyhow!("Failed to execute element click JavaScript: {}", e))
                 }
             }

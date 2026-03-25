@@ -1,9 +1,9 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::security::{limit_input_length, MAX_KEY_LENGTH, MAX_CONTENT_LENGTH};
+use crate::protocols::mcp::McpResponse;
+use crate::protocols::security::{MAX_CONTENT_LENGTH, MAX_KEY_LENGTH, limit_input_length};
 
 /// Handle storing credentials in AI memory
 pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -103,7 +103,8 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
         };
     }
 
-    let additional_data: HashMap<String, String> = args.get("additional_data")
+    let additional_data: HashMap<String, String> = args
+        .get("additional_data")
         .and_then(|v| v.as_object())
         .map(|obj| {
             obj.iter()
@@ -126,7 +127,7 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
                 "text": format!("Failed to store credentials: {}", e)
             })],
             is_error: true,
-        }
+        },
     }
 }
 
@@ -173,7 +174,7 @@ pub async fn handle_retrieve_credentials(args: Value, ai_memory: &mut AiMemoryHe
                 })],
                 is_error: false,
             }
-        },
+        }
         Ok(None) => McpResponse::ToolResult {
             content: vec![serde_json::json!({
                 "type": "text",
@@ -187,6 +188,6 @@ pub async fn handle_retrieve_credentials(args: Value, ai_memory: &mut AiMemoryHe
                 "text": format!("Failed to retrieve credentials: {}", e)
             })],
             is_error: true,
-        }
+        },
     }
 }

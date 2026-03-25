@@ -3,13 +3,15 @@
 //! In WASM builds, JavaScript execution happens in the browser's JS runtime.
 //! This module provides placeholder types for API compatibility.
 
-use anyhow::{anyhow, Result};
-use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string, module::IdleModuleLoader};
-use std::rc::Rc;
+use anyhow::{Result, anyhow};
+use parking_lot::Mutex;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
-use parking_lot::Mutex;
+use thalora_browser_apis::boa_engine::{
+    Context, JsValue, Source, js_string, module::IdleModuleLoader,
+};
 
 use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;
 
@@ -58,10 +60,14 @@ impl JavaScriptEngine {
     pub async fn execute_enhanced(&mut self, code: &str) -> Result<JsValue> {
         // Pre-process the code with complete ES2025+ support
         let processed_code = self.syntax_transformer.transform_latest(code)?;
-        let final_code = self.syntax_transformer.transform_modern_syntax(&processed_code)?;
+        let final_code = self
+            .syntax_transformer
+            .transform_modern_syntax(&processed_code)?;
 
         // Execute the processed code
-        let result = self.context.eval(Source::from_bytes(&final_code))
+        let result = self
+            .context
+            .eval(Source::from_bytes(&final_code))
             .map_err(|e| anyhow!("JavaScript execution error: {}", e))?;
 
         Ok(result)
@@ -73,7 +79,11 @@ impl JavaScriptEngine {
     }
 
     pub fn get_global_object(&mut self, name: &str) -> Result<Option<JsValue>> {
-        match self.context.global_object().get(js_string!(name), &mut self.context) {
+        match self
+            .context
+            .global_object()
+            .get(js_string!(name), &mut self.context)
+        {
             Ok(value) if !value.is_undefined() => Ok(Some(value)),
             Ok(_) => Ok(None),
             Err(_) => Ok(None),
@@ -81,7 +91,8 @@ impl JavaScriptEngine {
     }
 
     pub fn set_global_object(&mut self, name: &str, value: JsValue) -> Result<()> {
-        self.context.global_object()
+        self.context
+            .global_object()
             .set(js_string!(name), value, true, &mut self.context)
             .map_err(|e| anyhow!("Failed to set global object: {}", e))?;
         Ok(())

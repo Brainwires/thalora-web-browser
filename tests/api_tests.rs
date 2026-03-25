@@ -1,8 +1,8 @@
 // API Integration Tests
 // This file runs all web API tests for native Boa implementations
 
-use thalora::{HeadlessWebBrowser, apis::WebApis};
 use boa_engine::{Context, Source};
+use thalora::{HeadlessWebBrowser, apis::WebApis};
 
 // NOTE: WebSocket and other APIs are now natively implemented in Boa engine
 // Testing through JavaScript execution instead of shim-based tests
@@ -12,7 +12,11 @@ async fn test_native_websocket_api() {
     let browser = HeadlessWebBrowser::new();
 
     // Test WebSocket constructor exists
-    let result = browser.lock().unwrap().execute_javascript("typeof WebSocket").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof WebSocket")
+        .await;
     assert!(result.is_ok(), "WebSocket should be available");
 
     // Test WebSocket constants
@@ -25,7 +29,11 @@ async fn test_native_fetch_api() {
     let browser = HeadlessWebBrowser::new();
 
     // Test fetch function exists
-    let result = browser.lock().unwrap().execute_javascript("typeof fetch").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof fetch")
+        .await;
     assert!(result.is_ok(), "fetch should be available");
 }
 
@@ -34,7 +42,13 @@ async fn test_native_storage_apis() {
     let browser = HeadlessWebBrowser::new();
 
     // Test localStorage and sessionStorage
-    let result = browser.lock().unwrap().execute_javascript("typeof localStorage === 'object' && typeof sessionStorage === 'object'").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript(
+            "typeof localStorage === 'object' && typeof sessionStorage === 'object'",
+        )
+        .await;
     assert!(result.is_ok(), "Storage APIs should be available");
 }
 
@@ -43,7 +57,11 @@ async fn test_native_timer_apis() {
     let browser = HeadlessWebBrowser::new();
 
     // Test setTimeout and setInterval
-    let result = browser.lock().unwrap().execute_javascript("typeof setTimeout === 'function' && typeof setInterval === 'function'").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof setTimeout === 'function' && typeof setInterval === 'function'")
+        .await;
     assert!(result.is_ok(), "Timer APIs should be available");
 }
 
@@ -52,7 +70,11 @@ async fn test_native_event_apis() {
     let browser = HeadlessWebBrowser::new();
 
     // Test Event constructors
-    let result = browser.lock().unwrap().execute_javascript("typeof Event === 'function' && typeof CustomEvent === 'function'").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof Event === 'function' && typeof CustomEvent === 'function'")
+        .await;
     assert!(result.is_ok(), "Event APIs should be available");
 }
 

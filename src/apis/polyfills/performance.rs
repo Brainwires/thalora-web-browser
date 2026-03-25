@@ -6,7 +6,8 @@ use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 /// Mock implementations have been removed to avoid conflicts with native implementations.
 pub fn setup_performance_apis(context: &mut Context) -> JsResult<()> {
     // Performance API mock implementation removed - use native Boa implementation when available
-    context.eval(Source::from_bytes(r#"
+    context.eval(Source::from_bytes(
+        r#"
         // Performance APIs removed - waiting for native Boa implementation
 
         // PressureObserver API (Chrome 125 - Compute Pressure)
@@ -54,7 +55,8 @@ pub fn setup_performance_apis(context: &mut Context) -> JsResult<()> {
             // Static method to check if source is supported
             PressureObserver.knownSources = ['cpu'];
         }
-    "#))?;
+    "#,
+    ))?;
 
     Ok(())
 }

@@ -1,13 +1,19 @@
+use crate::engine::browser::scraper::WebScraper;
+use crate::engine::browser::types::{
+    AuthContext, BrowserStorage, HistoryEntry, HistoryEvent, NavigationHistory, NavigationMode,
+    ResourceCache,
+};
+use crate::engine::browser::{FormAnalyzer, FormInfo};
+use crate::engine::renderer::RustRenderer;
 use anyhow::Result;
+use reqwest::header::{
+    ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, HeaderMap, HeaderValue, UPGRADE_INSECURE_REQUESTS,
+    USER_AGENT,
+};
+use reqwest_cookie_store::CookieStoreMutex;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, ACCEPT, ACCEPT_LANGUAGE, ACCEPT_ENCODING, UPGRADE_INSECURE_REQUESTS};
-use reqwest_cookie_store::CookieStoreMutex;
-use crate::engine::renderer::RustRenderer;
-use crate::engine::browser::types::{AuthContext, BrowserStorage, NavigationHistory, HistoryEntry, NavigationMode, ResourceCache, HistoryEvent};
-use crate::engine::browser::scraper::WebScraper;
-use crate::engine::browser::{FormAnalyzer, FormInfo};
 
 #[allow(dead_code)]
 pub struct HeadlessWebBrowser {
@@ -39,10 +45,12 @@ impl HeadlessWebBrowser {
         Self::new_with_engine(crate::engine::engine_trait::EngineType::Boa)
     }
 
-    pub fn new_with_engine(engine_type: crate::engine::engine_trait::EngineType) -> Arc<Mutex<Self>> {
+    pub fn new_with_engine(
+        engine_type: crate::engine::engine_trait::EngineType,
+    ) -> Arc<Mutex<Self>> {
         // Create shared cookie store for cookie management
         let cookie_store = Arc::new(CookieStoreMutex::new(
-            reqwest_cookie_store::CookieStore::default()
+            reqwest_cookie_store::CookieStore::default(),
         ));
 
         // Configure client with enhanced stealth capabilities
@@ -61,7 +69,7 @@ impl HeadlessWebBrowser {
             .build()
             .expect("Failed to create HTTP client");
 
-    let renderer = RustRenderer::new_with_engine(engine_type);
+        let renderer = RustRenderer::new_with_engine(engine_type);
 
         let auth_context = AuthContext {
             cookies: HashMap::new(),
@@ -101,7 +109,7 @@ impl HeadlessWebBrowser {
         let browser_arc = Arc::new(Mutex::new(browser));
 
         // Setup history API with reference to browser
-    let _ = Self::setup_history_api(browser_arc.clone());
+        let _ = Self::setup_history_api(browser_arc.clone());
 
         browser_arc
     }
@@ -131,7 +139,10 @@ impl HeadlessWebBrowser {
     }
 
     pub fn get_storage_data(&self) -> (HashMap<String, String>, HashMap<String, String>) {
-        (self.storage.local_storage.clone(), self.storage.session_storage.clone())
+        (
+            self.storage.local_storage.clone(),
+            self.storage.session_storage.clone(),
+        )
     }
 
     pub fn get_chrome_headers(&self, url: &str) -> reqwest::header::HeaderMap {
@@ -149,7 +160,10 @@ impl HeadlessWebBrowser {
 
     /// Get forms that open new windows
     pub fn get_new_window_forms(&self) -> Vec<&FormInfo> {
-        self.analyzed_forms.iter().filter(|f| f.opens_new_window).collect()
+        self.analyzed_forms
+            .iter()
+            .filter(|f| f.opens_new_window)
+            .collect()
     }
 
     /// Get external stylesheets fetched from <link rel="stylesheet"> tags
@@ -190,7 +204,10 @@ impl HeadlessWebBrowser {
 
     /// Find form information by submit button selector
     pub fn find_form_by_submit_button(&self, button_selector: &str) -> Option<FormInfo> {
-        self.form_analyzer.find_form_by_submit_button(&self.current_content, button_selector).ok().flatten()
+        self.form_analyzer
+            .find_form_by_submit_button(&self.current_content, button_selector)
+            .ok()
+            .flatten()
     }
 
     pub(super) fn add_to_history(&mut self, url: String, title: String) {
@@ -201,7 +218,9 @@ impl HeadlessWebBrowser {
         };
 
         // Remove any entries after current index (when navigating back then to a new page)
-        self.history.entries.truncate(self.history.current_index + 1);
+        self.history
+            .entries
+            .truncate(self.history.current_index + 1);
         self.history.entries.push(entry);
         self.history.current_index = self.history.entries.len() - 1;
     }
@@ -240,12 +259,21 @@ impl HeadlessWebBrowser {
         headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
 
         // Chrome compression support
-        headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip, deflate, br"));
+        headers.insert(
+            ACCEPT_ENCODING,
+            HeaderValue::from_static("gzip, deflate, br"),
+        );
 
         // Chrome sends client hints - add them for Chrome fingerprint consistency
-        headers.insert("sec-ch-ua", HeaderValue::from_static("\"Chromium\";v=\"120\", \"Not A(Brand\";v=\"99\""));
+        headers.insert(
+            "sec-ch-ua",
+            HeaderValue::from_static("\"Chromium\";v=\"120\", \"Not A(Brand\";v=\"99\""),
+        );
         headers.insert("sec-ch-ua-mobile", HeaderValue::from_static("?0"));
-        headers.insert("sec-ch-ua-platform", HeaderValue::from_static("\"Windows\""));
+        headers.insert(
+            "sec-ch-ua-platform",
+            HeaderValue::from_static("\"Windows\""),
+        );
 
         // Proper fetch metadata for Chrome
         if url.starts_with("https://www.google.com") {
@@ -289,10 +317,14 @@ impl HeadlessWebBrowser {
     pub async fn dispatch_pageswap_event(&mut self, target_url: &str) -> anyhow::Result<()> {
         if let Some(ref mut renderer) = self.renderer {
             // Create NavigationActivation data
-            let current_url = self.current_url.clone().unwrap_or_else(|| "about:blank".to_string());
+            let current_url = self
+                .current_url
+                .clone()
+                .unwrap_or_else(|| "about:blank".to_string());
 
             // Create navigation activation object with current and target URLs
-            let activation_script = format!(r#"
+            let activation_script = format!(
+                r#"
                 (function() {{
                     try {{
                         return {{
@@ -305,7 +337,9 @@ impl HeadlessWebBrowser {
                         return null;
                     }}
                 }})()
-            "#, target_url, current_url);
+            "#,
+                target_url, current_url
+            );
 
             let activation_value = match renderer.eval_js(&activation_script) {
                 Ok(val) => Some(val),
@@ -353,7 +387,10 @@ impl HeadlessWebBrowser {
                             renderer.js_value_to_string(activation)
                         );
                         if let Ok(call_res) = renderer.eval_js(&call_script) {
-                            eprintln!("🔍 DEBUG: PageSwap event with activation result: {}", renderer.js_value_to_string(call_res));
+                            eprintln!(
+                                "🔍 DEBUG: PageSwap event with activation result: {}",
+                                renderer.js_value_to_string(call_res)
+                            );
                         }
                     }
                 }

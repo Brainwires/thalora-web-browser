@@ -1,4 +1,4 @@
-use thalora_browser_apis::boa_engine::{Context, Source, JsResult};
+use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 /// Extended polyfills for the renderer engine
 pub fn setup_extended_polyfills(context: &mut Context) -> JsResult<()> {

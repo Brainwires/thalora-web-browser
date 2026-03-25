@@ -5,17 +5,17 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::panic;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Core modules organized by functionality
-pub mod engine;
 pub mod apis;
+pub mod engine;
 pub mod features;
 pub mod protocols;
 
+use engine::{EngineConfig, EngineFactory, EngineType};
 use protocols::mcp_server::McpServer;
-use engine::{EngineType, EngineFactory, EngineConfig};
 
 /// Global flag to signal shutdown
 static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -36,7 +36,8 @@ fn install_panic_hook() {
     let default_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
         // Log the panic to stderr with full details
-        let location = panic_info.location()
+        let location = panic_info
+            .location()
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
             .unwrap_or_else(|| "unknown location".to_string());
 
@@ -70,7 +71,10 @@ struct Cli {
     command: Option<Commands>,
 
     /// Use V8 JavaScript engine instead of the default Boa engine
-    #[arg(long = "use-v8-engine", help = "Use V8 JavaScript engine for execution")]
+    #[arg(
+        long = "use-v8-engine",
+        help = "Use V8 JavaScript engine for execution"
+    )]
     use_v8_engine: bool,
 }
 
@@ -114,7 +118,7 @@ async fn main() -> Result<()> {
 
     // Determine which engine to use based on CLI flags or default
     let use_v8 = if cli.use_v8_engine {
-        true  // Override to use V8
+        true // Override to use V8
     } else {
         // No flags specified, use the default from EngineFactory
         EngineFactory::default_engine() == EngineType::V8
@@ -146,7 +150,11 @@ async fn main() -> Result<()> {
     let shutdown_signal = setup_signal_handler();
 
     match cli.command {
-        Some(Commands::Session { session_id, socket_path, persistent }) => {
+        Some(Commands::Session {
+            session_id,
+            socket_path,
+            persistent,
+        }) => {
             // Run as browser session process with signal handling
             tokio::select! {
                 result = run_browser_session(session_id, socket_path, persistent, engine_config) => result,
@@ -182,7 +190,8 @@ async fn main() -> Result<()> {
         }
         None => {
             // Run as MCP server (default mode - minimal unless THALORA_MCP_MODE is set)
-            let mcp_mode = std::env::var("THALORA_MCP_MODE").unwrap_or_else(|_| "minimal".to_string());
+            let mcp_mode =
+                std::env::var("THALORA_MCP_MODE").unwrap_or_else(|_| "minimal".to_string());
             // SAFETY: This is called at program startup before any threads are spawned
             unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
             eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
@@ -210,14 +219,12 @@ async fn setup_signal_handler() {
 
     #[cfg(unix)]
     {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{SignalKind, signal};
 
-        let mut sigterm = signal(SignalKind::terminate())
-            .expect("Failed to set up SIGTERM handler");
-        let mut sigint = signal(SignalKind::interrupt())
-            .expect("Failed to set up SIGINT handler");
-        let mut sighup = signal(SignalKind::hangup())
-            .expect("Failed to set up SIGHUP handler");
+        let mut sigterm =
+            signal(SignalKind::terminate()).expect("Failed to set up SIGTERM handler");
+        let mut sigint = signal(SignalKind::interrupt()).expect("Failed to set up SIGINT handler");
+        let mut sighup = signal(SignalKind::hangup()).expect("Failed to set up SIGHUP handler");
 
         tokio::select! {
             _ = sigterm.recv() => {
@@ -235,20 +242,27 @@ async fn setup_signal_handler() {
     #[cfg(not(unix))]
     {
         // On non-Unix systems, just wait for Ctrl+C
-        signal::ctrl_c().await.expect("Failed to set up Ctrl+C handler");
+        signal::ctrl_c()
+            .await
+            .expect("Failed to set up Ctrl+C handler");
         eprintln!("📡 Received Ctrl+C");
     }
 }
 
 /// Run as browser session process
-async fn run_browser_session(session_id: String, socket_path: String, persistent: bool, engine_config: EngineConfig) -> Result<()> {
+async fn run_browser_session(
+    session_id: String,
+    socket_path: String,
+    persistent: bool,
+    engine_config: EngineConfig,
+) -> Result<()> {
+    use anyhow::Context;
+    use engine::browser::HeadlessWebBrowser;
     use protocols::session_manager::{BrowserCommand, BrowserResponse};
     use std::sync::{Arc, Mutex};
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, split};
     use tokio::net::{UnixListener, UnixStream};
-    use tracing::{info, error, debug};
-    use anyhow::Context;
-    use engine::browser::HeadlessWebBrowser;
+    use tracing::{debug, error, info};
 
     /// Browser session handler (moved from separate binary)
     struct BrowserSessionHandler {
@@ -275,72 +289,64 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
             debug!("Handling command: {:?}", command);
 
             match command {
-                BrowserCommand::Navigate { url } => {
-                    match self.navigate(&url).await {
-                        Ok(content) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "content": content,
-                                "url": url
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to navigate to {}: {}", url, e)
-                        }
-                    }
+                BrowserCommand::Navigate { url } => match self.navigate(&url).await {
+                    Ok(content) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "content": content,
+                            "url": url
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to navigate to {}: {}", url, e),
+                    },
                 },
 
-                BrowserCommand::NavigateBack => {
-                    match self.go_back().await {
-                        Ok(Some(url)) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "navigated": true,
-                                "url": url
-                            })
-                        },
-                        Ok(None) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "navigated": false,
-                                "reason": "At beginning of history"
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to navigate back: {}", e)
-                        }
-                    }
+                BrowserCommand::NavigateBack => match self.go_back().await {
+                    Ok(Some(url)) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "navigated": true,
+                            "url": url
+                        }),
+                    },
+                    Ok(None) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "navigated": false,
+                            "reason": "At beginning of history"
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to navigate back: {}", e),
+                    },
                 },
 
-                BrowserCommand::NavigateForward => {
-                    match self.go_forward().await {
-                        Ok(Some(url)) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "navigated": true,
-                                "url": url
-                            })
-                        },
-                        Ok(None) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "navigated": false,
-                                "reason": "At end of history"
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to navigate forward: {}", e)
-                        }
-                    }
+                BrowserCommand::NavigateForward => match self.go_forward().await {
+                    Ok(Some(url)) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "navigated": true,
+                            "url": url
+                        }),
+                    },
+                    Ok(None) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "navigated": false,
+                            "reason": "At end of history"
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to navigate forward: {}", e),
+                    },
                 },
 
-                BrowserCommand::Reload => {
-                    match self.reload().await {
-                        Ok(content) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "reloaded": true,
-                                "content_length": content.len()
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to reload page: {}", e)
-                        }
-                    }
+                BrowserCommand::Reload => match self.reload().await {
+                    Ok(content) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "reloaded": true,
+                            "content_length": content.len()
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to reload page: {}", e),
+                    },
                 },
 
                 BrowserCommand::Stop => {
@@ -349,48 +355,42 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
                     BrowserResponse::Success {
                         data: serde_json::json!({
                             "stopped": true
-                        })
+                        }),
                     }
+                }
+
+                BrowserCommand::ExecuteJs { code } => match self.execute_javascript(&code).await {
+                    Ok(result) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "result": result
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to execute JavaScript: {}", e),
+                    },
                 },
 
-                BrowserCommand::ExecuteJs { code } => {
-                    match self.execute_javascript(&code).await {
-                        Ok(result) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "result": result
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to execute JavaScript: {}", e)
-                        }
-                    }
+                BrowserCommand::GetContent => match self.get_page_content().await {
+                    Ok(content) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "content": content
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to get page content: {}", e),
+                    },
                 },
 
-                BrowserCommand::GetContent => {
-                    match self.get_page_content().await {
-                        Ok(content) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "content": content
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to get page content: {}", e)
-                        }
-                    }
-                },
-
-                BrowserCommand::Click { selector } => {
-                    match self.click_element(&selector).await {
-                        Ok(success) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "clicked": success,
-                                "selector": selector
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to click element {}: {}", selector, e)
-                        }
-                    }
+                BrowserCommand::Click { selector } => match self.click_element(&selector).await {
+                    Ok(success) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "clicked": success,
+                            "selector": selector
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to click element {}: {}", selector, e),
+                    },
                 },
 
                 BrowserCommand::Fill { selector, value } => {
@@ -400,47 +400,41 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
                                 "filled": success,
                                 "selector": selector,
                                 "value": value
-                            })
+                            }),
                         },
                         Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to fill element {}: {}", selector, e)
-                        }
+                            message: format!("Failed to fill element {}: {}", selector, e),
+                        },
                     }
+                }
+
+                BrowserCommand::Screenshot => BrowserResponse::Success {
+                    data: serde_json::json!({
+                        "screenshot": "Not implemented yet",
+                        "note": "Screenshot functionality will be implemented in a future update"
+                    }),
                 },
 
-                BrowserCommand::Screenshot => {
-                    BrowserResponse::Success {
+                BrowserCommand::GetCookies => match self.get_cookies().await {
+                    Ok(cookies) => BrowserResponse::Success {
                         data: serde_json::json!({
-                            "screenshot": "Not implemented yet",
-                            "note": "Screenshot functionality will be implemented in a future update"
-                        })
-                    }
+                            "cookies": cookies
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to get cookies: {}", e),
+                    },
                 },
 
-                BrowserCommand::GetCookies => {
-                    match self.get_cookies().await {
-                        Ok(cookies) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "cookies": cookies
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to get cookies: {}", e)
-                        }
-                    }
-                },
-
-                BrowserCommand::SetCookies { cookies } => {
-                    match self.set_cookies(cookies).await {
-                        Ok(count) => BrowserResponse::Success {
-                            data: serde_json::json!({
-                                "set_count": count
-                            })
-                        },
-                        Err(e) => BrowserResponse::Error {
-                            message: format!("Failed to set cookies: {}", e)
-                        }
-                    }
+                BrowserCommand::SetCookies { cookies } => match self.set_cookies(cookies).await {
+                    Ok(count) => BrowserResponse::Success {
+                        data: serde_json::json!({
+                            "set_count": count
+                        }),
+                    },
+                    Err(e) => BrowserResponse::Error {
+                        message: format!("Failed to set cookies: {}", e),
+                    },
                 },
 
                 BrowserCommand::Close => {
@@ -449,38 +443,34 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
                         data: serde_json::json!({
                             "closed": true,
                             "session_id": self.session_id
-                        })
+                        }),
                     }
-                },
+                }
             }
         }
 
         /// Navigate to a URL
         async fn navigate(&self, url: &str) -> Result<String> {
             let mut browser = self.browser.lock().unwrap();
-            browser.navigate_to(url).await
-                .context("Failed to navigate")
+            browser.navigate_to(url).await.context("Failed to navigate")
         }
 
         /// Go back in navigation history
         async fn go_back(&self) -> Result<Option<String>> {
             let mut browser = self.browser.lock().unwrap();
-            browser.go_back().await
-                .context("Failed to go back")
+            browser.go_back().await.context("Failed to go back")
         }
 
         /// Go forward in navigation history
         async fn go_forward(&self) -> Result<Option<String>> {
             let mut browser = self.browser.lock().unwrap();
-            browser.go_forward().await
-                .context("Failed to go forward")
+            browser.go_forward().await.context("Failed to go forward")
         }
 
         /// Reload the current page
         async fn reload(&self) -> Result<String> {
             let mut browser = self.browser.lock().unwrap();
-            browser.reload().await
-                .context("Failed to reload")
+            browser.reload().await.context("Failed to reload")
         }
 
         /// Execute JavaScript
@@ -587,9 +577,13 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
                             let response_json = serde_json::to_string(&response)
                                 .context("Failed to serialize response")?;
 
-                            writer.write_all(response_json.as_bytes()).await
+                            writer
+                                .write_all(response_json.as_bytes())
+                                .await
                                 .context("Failed to write response")?;
-                            writer.write_all(b"\n").await
+                            writer
+                                .write_all(b"\n")
+                                .await
                                 .context("Failed to write newline")?;
 
                             // Exit if close command was received
@@ -607,9 +601,13 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
                             let response_json = serde_json::to_string(&error_response)
                                 .context("Failed to serialize error response")?;
 
-                            writer.write_all(response_json.as_bytes()).await
+                            writer
+                                .write_all(response_json.as_bytes())
+                                .await
                                 .context("Failed to write error response")?;
-                            writer.write_all(b"\n").await
+                            writer
+                                .write_all(b"\n")
+                                .await
                                 .context("Failed to write newline")?;
                         }
                     }
@@ -637,13 +635,11 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
 
     // Remove existing socket file if it exists
     if std::path::Path::new(&socket_path).exists() {
-        std::fs::remove_file(&socket_path)
-            .context("Failed to remove existing socket file")?;
+        std::fs::remove_file(&socket_path).context("Failed to remove existing socket file")?;
     }
 
     // Create Unix socket listener
-    let listener = UnixListener::bind(&socket_path)
-        .context("Failed to bind Unix socket")?;
+    let listener = UnixListener::bind(&socket_path).context("Failed to bind Unix socket")?;
 
     info!("Browser session listening on socket: {}", socket_path);
 
@@ -652,7 +648,10 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
         match listener.accept().await {
             Ok((stream, _)) => {
                 if let Err(e) = handle_connection(stream, handler.clone()).await {
-                    error!("Error handling connection for session {}: {}", session_id, e);
+                    error!(
+                        "Error handling connection for session {}: {}",
+                        session_id, e
+                    );
                 }
             }
             Err(e) => {
@@ -668,11 +667,11 @@ async fn run_browser_session(session_id: String, socket_path: String, persistent
 
 /// Run as display server for remote browser UI
 async fn run_display_server(host: String, port: u16) -> Result<()> {
+    use anyhow::Context;
     use protocols::{DisplayServer, SessionManager};
     use std::net::SocketAddr;
     use std::sync::Arc;
     use tracing::info;
-    use anyhow::Context;
 
     info!("Starting Thalora Display Server");
     info!("Listening on {}:{}", host, port);

@@ -25,7 +25,7 @@ impl Default for RateLimitConfig {
 struct TokenBucket {
     tokens: f64,
     max_tokens: f64,
-    refill_rate: f64,  // tokens per second
+    refill_rate: f64, // tokens per second
     last_refill: Instant,
 }
 
@@ -35,7 +35,7 @@ impl TokenBucket {
         let refill_rate = config.requests_per_minute as f64 / 60.0;
 
         Self {
-            tokens: max_tokens,  // Start full
+            tokens: max_tokens, // Start full
             max_tokens,
             refill_rate,
             last_refill: Instant::now(),
@@ -77,52 +77,76 @@ impl RateLimiter {
         let mut configs = HashMap::new();
 
         // Navigation tools - most expensive (HTTP requests)
-        configs.insert("navigation".to_string(), RateLimitConfig {
-            requests_per_minute: 10,
-            burst_size: 3,
-        });
+        configs.insert(
+            "navigation".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 10,
+                burst_size: 3,
+            },
+        );
 
         // Search tools - external API calls
-        configs.insert("search".to_string(), RateLimitConfig {
-            requests_per_minute: 30,
-            burst_size: 5,
-        });
+        configs.insert(
+            "search".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 30,
+                burst_size: 5,
+            },
+        );
 
         // JavaScript execution - CPU intensive
-        configs.insert("javascript".to_string(), RateLimitConfig {
-            requests_per_minute: 20,
-            burst_size: 5,
-        });
+        configs.insert(
+            "javascript".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 20,
+                burst_size: 5,
+            },
+        );
 
         // Memory tools - filesystem I/O
-        configs.insert("memory".to_string(), RateLimitConfig {
-            requests_per_minute: 60,
-            burst_size: 10,
-        });
+        configs.insert(
+            "memory".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 60,
+                burst_size: 10,
+            },
+        );
 
         // Snapshot tools - HTTP + processing
-        configs.insert("snapshot_url".to_string(), RateLimitConfig {
-            requests_per_minute: 20,
-            burst_size: 5,
-        });
+        configs.insert(
+            "snapshot_url".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 20,
+                burst_size: 5,
+            },
+        );
 
         // Session management - lighter operations
-        configs.insert("session".to_string(), RateLimitConfig {
-            requests_per_minute: 60,
-            burst_size: 10,
-        });
+        configs.insert(
+            "session".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 60,
+                burst_size: 10,
+            },
+        );
 
         // CDP tools - moderate usage
-        configs.insert("cdp".to_string(), RateLimitConfig {
-            requests_per_minute: 30,
-            burst_size: 5,
-        });
+        configs.insert(
+            "cdp".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 30,
+                burst_size: 5,
+            },
+        );
 
         // WASM debug tools - moderate usage
-        configs.insert("wasm_debug".to_string(), RateLimitConfig {
-            requests_per_minute: 30,
-            burst_size: 5,
-        });
+        configs.insert(
+            "wasm_debug".to_string(),
+            RateLimitConfig {
+                requests_per_minute: 30,
+                burst_size: 5,
+            },
+        );
 
         // Default fallback
         configs.insert("default".to_string(), RateLimitConfig::default());
@@ -136,14 +160,17 @@ impl RateLimiter {
     /// Check if a request is allowed for the given category
     /// Returns Ok(()) if allowed, Err(wait_duration) if rate limited
     pub fn check(&self, category: &str) -> Result<(), Duration> {
-        let config = self.configs.get(category)
+        let config = self
+            .configs
+            .get(category)
             .or_else(|| self.configs.get("default"))
             .copied()
             .unwrap_or_default();
 
         let mut buckets = self.buckets.lock().unwrap();
 
-        let bucket = buckets.entry(category.to_string())
+        let bucket = buckets
+            .entry(category.to_string())
             .or_insert_with(|| TokenBucket::new(config));
 
         bucket.try_consume()
@@ -153,7 +180,9 @@ impl RateLimiter {
     pub fn tool_to_category(tool_name: &str) -> &'static str {
         match tool_name {
             // Navigation tools
-            "browser_navigate_to" | "browser_navigate_back" | "browser_navigate_forward"
+            "browser_navigate_to"
+            | "browser_navigate_back"
+            | "browser_navigate_forward"
             | "browser_refresh_page" => "navigation",
 
             // Search tools
@@ -164,32 +193,53 @@ impl RateLimiter {
             "cdp_runtime_evaluate" => "javascript",
 
             // Memory tools
-            "ai_memory_store_research" | "ai_memory_get_research" | "ai_memory_search_research"
-            | "ai_memory_store_credentials" | "ai_memory_get_credentials"
-            | "ai_memory_store_bookmark" | "ai_memory_get_bookmarks"
-            | "ai_memory_store_note" | "ai_memory_get_notes" => "memory",
+            "ai_memory_store_research"
+            | "ai_memory_get_research"
+            | "ai_memory_search_research"
+            | "ai_memory_store_credentials"
+            | "ai_memory_get_credentials"
+            | "ai_memory_store_bookmark"
+            | "ai_memory_get_bookmarks"
+            | "ai_memory_store_note"
+            | "ai_memory_get_notes" => "memory",
 
             // Snapshot/scraping tools
-            "snapshot_url" | "browse_readable_content"
-            | "browser_get_page_content" => "snapshot_url",
+            "snapshot_url" | "browse_readable_content" | "browser_get_page_content" => {
+                "snapshot_url"
+            }
 
             // Session management
             "browser_session_management" | "browser_validate_session" => "session",
 
             // CDP tools
-            "cdp_dom_get_document" | "cdp_dom_query_selector" | "cdp_dom_get_attributes"
-            | "cdp_dom_get_computed_style" | "cdp_network_get_cookies" | "cdp_network_set_cookie"
-            | "cdp_console_get_messages" | "cdp_page_screenshot" | "cdp_page_reload" => "cdp",
+            "cdp_dom_get_document"
+            | "cdp_dom_query_selector"
+            | "cdp_dom_get_attributes"
+            | "cdp_dom_get_computed_style"
+            | "cdp_network_get_cookies"
+            | "cdp_network_set_cookie"
+            | "cdp_console_get_messages"
+            | "cdp_page_screenshot"
+            | "cdp_page_reload" => "cdp",
 
             // Browser automation - treated as navigation (HTTP requests)
-            "browser_click_element" | "browser_type_text" | "browser_fill_form"
-            | "browser_wait_for_element" | "browser_prepare_form_submission" => "navigation",
+            "browser_click_element"
+            | "browser_type_text"
+            | "browser_fill_form"
+            | "browser_wait_for_element"
+            | "browser_prepare_form_submission" => "navigation",
 
             // WASM debug tools
-            "wasm_debug_load_module" | "wasm_debug_unload_module" | "wasm_debug_list_modules"
-            | "wasm_debug_validate" | "wasm_debug_inspect" | "wasm_debug_disassemble"
-            | "wasm_debug_read_memory" | "wasm_debug_write_memory"
-            | "wasm_debug_call_function" | "wasm_debug_profile_function" => "wasm_debug",
+            "wasm_debug_load_module"
+            | "wasm_debug_unload_module"
+            | "wasm_debug_list_modules"
+            | "wasm_debug_validate"
+            | "wasm_debug_inspect"
+            | "wasm_debug_disassemble"
+            | "wasm_debug_read_memory"
+            | "wasm_debug_write_memory"
+            | "wasm_debug_call_function"
+            | "wasm_debug_profile_function" => "wasm_debug",
 
             // Default for unknown tools
             _ => "default",
@@ -248,8 +298,14 @@ mod tests {
     #[test]
     fn test_tool_to_category() {
         assert_eq!(RateLimiter::tool_to_category("web_search"), "search");
-        assert_eq!(RateLimiter::tool_to_category("browser_navigate_to"), "navigation");
-        assert_eq!(RateLimiter::tool_to_category("ai_memory_store_research"), "memory");
+        assert_eq!(
+            RateLimiter::tool_to_category("browser_navigate_to"),
+            "navigation"
+        );
+        assert_eq!(
+            RateLimiter::tool_to_category("ai_memory_store_research"),
+            "memory"
+        );
         assert_eq!(RateLimiter::tool_to_category("unknown_tool"), "default");
     }
 }

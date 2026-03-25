@@ -16,8 +16,10 @@ impl super::super::HeadlessWebBrowser {
         let entry = &self.history.entries[self.history.current_index];
         let url = entry.url.clone();
 
-        eprintln!("🔍 DEBUG: go_back - navigating to history entry {}: {}",
-            self.history.current_index, url);
+        eprintln!(
+            "🔍 DEBUG: go_back - navigating to history entry {}: {}",
+            self.history.current_index, url
+        );
 
         // Navigate without adding to history
         self.navigate_internal(&url).await?;
@@ -40,8 +42,10 @@ impl super::super::HeadlessWebBrowser {
         let entry = &self.history.entries[self.history.current_index];
         let url = entry.url.clone();
 
-        eprintln!("🔍 DEBUG: go_forward - navigating to history entry {}: {}",
-            self.history.current_index, url);
+        eprintln!(
+            "🔍 DEBUG: go_forward - navigating to history entry {}: {}",
+            self.history.current_index, url
+        );
 
         // Navigate without adding to history
         self.navigate_internal(&url).await?;
@@ -61,7 +65,8 @@ impl super::super::HeadlessWebBrowser {
 
     /// Get history entries as a list of (url, title) tuples
     pub fn get_history_entries(&self) -> Vec<(String, String)> {
-        self.history.entries
+        self.history
+            .entries
             .iter()
             .map(|e| (e.url.clone(), e.title.clone()))
             .collect()

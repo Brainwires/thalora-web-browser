@@ -7,10 +7,10 @@
 // - cookies: Cookie management (placeholder)
 // - state: Session and page state management
 
-mod core;
-mod javascript;
-mod forms;
 mod cookies;
+mod core;
+mod forms;
+mod javascript;
 mod state;
 
 // Re-export all public navigation methods

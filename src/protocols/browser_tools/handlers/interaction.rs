@@ -1,17 +1,18 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
-use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{
-    sanitize_session_id, limit_input_length,
-    MAX_SELECTOR_LENGTH, MAX_TEXT_INPUT_LENGTH, MAX_FORM_VALUE_LENGTH,
+    MAX_FORM_VALUE_LENGTH, MAX_SELECTOR_LENGTH, MAX_TEXT_INPUT_LENGTH, limit_input_length,
+    sanitize_session_id,
 };
 
 impl BrowserTools {
     pub async fn handle_click_element(&self, params: Value) -> McpResponse {
         let selector = params["selector"].as_str().unwrap_or("");
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -38,20 +39,33 @@ impl BrowserTools {
                     // Check if this is a submit button for a form that opens new windows
                     if let Some(form_info) = browser_guard.find_form_by_submit_button(selector) {
                         if form_info.opens_new_window {
-                            eprintln!("🔍 DEBUG: Click on submit button for new window form detected");
-                            eprintln!("🔍 DEBUG: Form target: {}, action: {}", form_info.target, form_info.action);
+                            eprintln!(
+                                "🔍 DEBUG: Click on submit button for new window form detected"
+                            );
+                            eprintln!(
+                                "🔍 DEBUG: Form target: {}, action: {}",
+                                form_info.target, form_info.action
+                            );
 
                             // Create predictive session for the new window
                             if let Some(ref predicted_url) = form_info.predicted_url {
-                                let predictive_session_id = format!("predictive_{}_{}",
+                                let predictive_session_id = format!(
+                                    "predictive_{}_{}",
                                     session_id,
-                                    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()
+                                    std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis()
                                 );
 
-                                eprintln!("🔍 DEBUG: Creating predictive session: {} for URL: {}", predictive_session_id, predicted_url);
+                                eprintln!(
+                                    "🔍 DEBUG: Creating predictive session: {} for URL: {}",
+                                    predictive_session_id, predicted_url
+                                );
 
                                 // Create the predictive session (persistent=false for temporary use)
-                                let _predictive_browser = self.get_or_create_session(&predictive_session_id, false);
+                                let _predictive_browser =
+                                    self.get_or_create_session(&predictive_session_id, false);
 
                                 potential_new_window_info = Some(json!({
                                     "will_open_new_window": true,
@@ -75,13 +89,18 @@ impl BrowserTools {
                                 }
                                 response = McpResponse::success(resp_json);
                             } else {
-                                response = McpResponse::success(serde_json::to_value(resp).unwrap_or_default());
+                                response = McpResponse::success(
+                                    serde_json::to_value(resp).unwrap_or_default(),
+                                );
                             }
                         }
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to click element: {}", e)),
+                        Err(e) => {
+                            response =
+                                McpResponse::error(-1, format!("Failed to click element: {}", e))
+                        }
                     }
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response
@@ -90,8 +109,12 @@ impl BrowserTools {
     pub async fn handle_type_text(&self, params: Value) -> McpResponse {
         let selector = params["selector"].as_str().unwrap_or("");
         let text = params["text"].as_str().unwrap_or("");
-        let clear_first = params.get("clear_first").and_then(|v| v.as_bool()).unwrap_or(true);
-        let session_id = params.get("session_id")
+        let clear_first = params
+            .get("clear_first")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -121,12 +144,20 @@ impl BrowserTools {
             match lock_res {
                 Ok(mut browser_guard) => {
                     // Use the browser's text input functionality
-                    match browser_guard.type_text_into_element(selector, text, clear_first).await {
-                        Ok(resp) => response = McpResponse::success(serde_json::to_value(resp).unwrap_or_default()),
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to type text: {}", e)),
+                    match browser_guard
+                        .type_text_into_element(selector, text, clear_first)
+                        .await
+                    {
+                        Ok(resp) => {
+                            response =
+                                McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
+                        }
+                        Err(e) => {
+                            response = McpResponse::error(-1, format!("Failed to type text: {}", e))
+                        }
                     }
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response
@@ -134,10 +165,12 @@ impl BrowserTools {
 
     pub async fn handle_fill_form(&self, params: Value) -> McpResponse {
         let form_data = params["form_data"].as_object();
-        let form_selector = params.get("form_selector")
+        let form_selector = params
+            .get("form_selector")
             .and_then(|v| v.as_str())
             .unwrap_or("form");
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -159,8 +192,13 @@ impl BrowserTools {
         for (key, value) in form_data {
             if let Some(string_value) = value.as_str() {
                 // SECURITY: Validate form field values
-                if let Err(e) = limit_input_length(string_value, MAX_FORM_VALUE_LENGTH, "Form field value") {
-                    return McpResponse::error(-32602, format!("Input validation failed for field '{}': {}", key, e));
+                if let Err(e) =
+                    limit_input_length(string_value, MAX_FORM_VALUE_LENGTH, "Form field value")
+                {
+                    return McpResponse::error(
+                        -32602,
+                        format!("Input validation failed for field '{}': {}", key, e),
+                    );
                 }
                 form_map.insert(key.clone(), string_value.to_string());
             }
@@ -201,10 +239,13 @@ impl BrowserTools {
                             }
                             response = McpResponse::success(resp_json);
                         }
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to submit form: {}", e)),
+                        Err(e) => {
+                            response =
+                                McpResponse::error(-1, format!("Failed to submit form: {}", e))
+                        }
                     }
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response
@@ -212,8 +253,12 @@ impl BrowserTools {
 
     pub async fn handle_wait_for_element(&self, params: Value) -> McpResponse {
         let selector = params["selector"].as_str().unwrap_or("");
-        let timeout = params.get("timeout").and_then(|v| v.as_u64()).unwrap_or(10000);
-        let session_id = params.get("session_id")
+        let timeout = params
+            .get("timeout")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(10000);
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -237,20 +282,25 @@ impl BrowserTools {
             match lock_res {
                 Ok(mut browser_guard) => {
                     match browser_guard.wait_for_element(selector, timeout).await {
-                        Ok(found) => response = McpResponse::success(json!({
-                            "found": found,
-                            "selector": selector,
-                            "timeout_ms": timeout,
-                            "message": if found {
-                                format!("Element found: {}", selector)
-                            } else {
-                                format!("Element not found after {}ms: {}", timeout, selector)
-                            }
-                        })),
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to wait for element: {}", e)),
+                        Ok(found) => {
+                            response = McpResponse::success(json!({
+                                "found": found,
+                                "selector": selector,
+                                "timeout_ms": timeout,
+                                "message": if found {
+                                    format!("Element found: {}", selector)
+                                } else {
+                                    format!("Element not found after {}ms: {}", timeout, selector)
+                                }
+                            }))
+                        }
+                        Err(e) => {
+                            response =
+                                McpResponse::error(-1, format!("Failed to wait for element: {}", e))
+                        }
                     }
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response

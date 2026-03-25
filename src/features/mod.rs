@@ -23,9 +23,15 @@ pub mod readability;
 
 // Re-exports for clean API
 #[cfg(feature = "core")]
-pub use fingerprinting::{BrowserFingerprint, FingerprintManager, BrowserType};
+pub use fingerprinting::{BrowserFingerprint, BrowserType, FingerprintManager};
 pub use webgl::WebGLManager;
 // webassembly types are now handled by Boa engine
 #[cfg(feature = "core")]
-pub use ai_memory::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
-pub use readability::{ReadabilityEngine, ReadabilityConfig, QualityMetrics, ExtractionResult, ExtractionOptions, OutputFormat};
+pub use ai_memory::{
+    AiMemoryHeap, BookmarkEntry, CredentialEntry, MemoryData, MemorySearchCriteria, MemorySortBy,
+    MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData, SessionStatus,
+};
+pub use readability::{
+    ExtractionOptions, ExtractionResult, OutputFormat, QualityMetrics, ReadabilityConfig,
+    ReadabilityEngine,
+};

@@ -1,7 +1,6 @@
 /// WebSocket server core for display connections
 ///
 /// Handles WebSocket lifecycle: accept connections, upgrade, message routing.
-
 use anyhow::{Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use std::net::SocketAddr;
@@ -12,10 +11,10 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use crate::protocols::session_manager::{BrowserCommand, BrowserResponse, SessionManager};
-use super::handlers::{processing, CommandHandler};
-use super::messages::{current_timestamp, DisplayCommand, DisplayMessage};
+use super::handlers::{CommandHandler, processing};
+use super::messages::{DisplayCommand, DisplayMessage, current_timestamp};
 use super::sessions::{ClientRegistry, DisplayClient};
+use crate::protocols::session_manager::{BrowserCommand, BrowserResponse, SessionManager};
 
 /// WebSocket connection handler
 pub struct WebSocketServer {
@@ -86,24 +85,27 @@ impl WebSocketServer {
                         let session_id = format!("display-{}", client_id);
 
                         // Create new browser session
-                        self.session_manager.get_or_create_session(
-                            &session_id,
-                            true, // persistent
-                        ).await?;
+                        self.session_manager
+                            .get_or_create_session(
+                                &session_id,
+                                true, // persistent
+                            )
+                            .await?;
 
                         // Navigate to URL
-                        let _response = self.session_manager.send_command(
-                            &session_id,
-                            BrowserCommand::Navigate {
-                                url: url.clone(),
-                            },
-                        ).await?;
+                        let _response = self
+                            .session_manager
+                            .send_command(
+                                &session_id,
+                                BrowserCommand::Navigate { url: url.clone() },
+                            )
+                            .await?;
 
                         // Get content after navigation
-                        let content_response = self.session_manager.send_command(
-                            &session_id,
-                            BrowserCommand::GetContent,
-                        ).await?;
+                        let content_response = self
+                            .session_manager
+                            .send_command(&session_id, BrowserCommand::GetContent)
+                            .await?;
 
                         // Send initial HTML
                         if let BrowserResponse::Success { data } = content_response {
@@ -151,7 +153,10 @@ impl WebSocketServer {
 
         self.client_registry.register(client);
 
-        info!("Display client {} connected with session {}", client_id, session_id);
+        info!(
+            "Display client {} connected with session {}",
+            client_id, session_id
+        );
 
         // Send connected message
         let connected_msg = DisplayMessage::Connected {
@@ -159,7 +164,9 @@ impl WebSocketServer {
             timestamp: current_timestamp(),
         };
 
-        ws_sender.send(Message::Text(serde_json::to_string(&connected_msg)?)).await?;
+        ws_sender
+            .send(Message::Text(serde_json::to_string(&connected_msg)?))
+            .await?;
 
         // Subscribe to broadcast messages
         let mut broadcast_rx = self.broadcast_tx.subscribe();

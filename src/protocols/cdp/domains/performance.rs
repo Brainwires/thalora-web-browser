@@ -30,25 +30,23 @@ impl CdpDomain for PerformanceDomain {
                 self.enabled = false;
                 Ok(serde_json::json!({}))
             }
-            "getMetrics" => {
-                Ok(serde_json::json!({
-                    "metrics": [
-                        {
-                            "name": "Timestamp",
-                            "value": chrono::Utc::now().timestamp_millis() as f64 / 1000.0
-                        },
-                        {
-                            "name": "Documents",
-                            "value": 1
-                        },
-                        {
-                            "name": "Frames",
-                            "value": 1
-                        }
-                    ]
-                }))
-            }
-            _ => Err(anyhow::anyhow!("Unknown Performance method: {}", method))
+            "getMetrics" => Ok(serde_json::json!({
+                "metrics": [
+                    {
+                        "name": "Timestamp",
+                        "value": chrono::Utc::now().timestamp_millis() as f64 / 1000.0
+                    },
+                    {
+                        "name": "Documents",
+                        "value": 1
+                    },
+                    {
+                        "name": "Frames",
+                        "value": 1
+                    }
+                ]
+            })),
+            _ => Err(anyhow::anyhow!("Unknown Performance method: {}", method)),
         }
     }
 

@@ -4,15 +4,15 @@
 // HTML cleaning, content scoring, and output formatting to produce
 // clean, readable content from web pages.
 
-use anyhow::{Result, Context};
-use scraper::{Html, ElementRef};
+use anyhow::{Context, Result};
+use scraper::{ElementRef, Html};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
-use super::cleaner::HtmlCleaner;
-use super::scorer::{ContentScorer, ContentScore, ScoringMetrics};
-use super::formatter::{ContentFormatter, OutputFormat, FormattedContent, ContentMetadata};
 use super::QualityMetrics;
+use super::cleaner::HtmlCleaner;
+use super::formatter::{ContentFormatter, ContentMetadata, FormattedContent, OutputFormat};
+use super::scorer::{ContentScore, ContentScorer, ScoringMetrics};
 
 /// Options for content extraction
 #[derive(Debug, Clone)]
@@ -53,10 +53,10 @@ pub struct ExtractionResult {
 /// Content extraction confidence levels
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExtractionConfidence {
-    High,    // >0.7 score, clear article structure
-    Medium,  // 0.4-0.7 score, some content found
-    Low,     // 0.2-0.4 score, minimal content
-    Failed,  // <0.2 score, no viable content
+    High,   // >0.7 score, clear article structure
+    Medium, // 0.4-0.7 score, some content found
+    Low,    // 0.2-0.4 score, minimal content
+    Failed, // <0.2 score, no viable content
 }
 
 /// Main readability extractor
@@ -75,7 +75,11 @@ impl ReadabilityExtractor {
     }
 
     /// Extract readable content from HTML document
-    pub fn extract(&mut self, document: &Html, options: &ExtractionOptions) -> Result<ExtractionResult> {
+    pub fn extract(
+        &mut self,
+        document: &Html,
+        options: &ExtractionOptions,
+    ) -> Result<ExtractionResult> {
         let start_time = Instant::now();
 
         // Step 1: Score content nodes to find the best content on original document
@@ -136,18 +140,16 @@ impl ReadabilityExtractor {
 
         // Step 5: Format the content according to options
         let formatter = ContentFormatter::new(&options.base_url);
-        let formatted_content = formatter.format(
-            &content_document,
-            &options.output_format,
-            options.include_metadata
-        ).context("Failed to format content")?;
+        let formatted_content = formatter
+            .format(
+                &content_document,
+                &options.output_format,
+                options.include_metadata,
+            )
+            .context("Failed to format content")?;
 
         // Step 4: Calculate quality metrics
-        let quality = Self::calculate_quality_metrics(
-            &best_score,
-            &formatted_content,
-            document
-        );
+        let quality = Self::calculate_quality_metrics(&best_score, &formatted_content, document);
 
         let scoring = self.scorer.get_metrics(document);
         let processing_time = start_time.elapsed().as_millis() as u32;
@@ -166,7 +168,7 @@ impl ReadabilityExtractor {
     fn meets_quality_requirements(
         element: &ElementRef,
         score: &ContentScore,
-        options: &ExtractionOptions
+        options: &ExtractionOptions,
     ) -> bool {
         // Check minimum score threshold
         if score.final_score < options.min_content_score {
@@ -239,7 +241,10 @@ impl ReadabilityExtractor {
         }
 
         // Include content-like elements
-        if matches!(tag_name, "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "blockquote" | "div") {
+        if matches!(
+            tag_name,
+            "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "blockquote" | "div"
+        ) {
             let text_content = element.text().collect::<String>();
             let text_length = text_content.trim().len();
 
@@ -248,8 +253,11 @@ impl ReadabilityExtractor {
                 // Check if it's not navigation or ads
                 if let Some(class) = element.value().attr("class") {
                     let class_lower = class.to_lowercase();
-                    if class_lower.contains("nav") || class_lower.contains("ad") ||
-                       class_lower.contains("sidebar") || class_lower.contains("footer") {
+                    if class_lower.contains("nav")
+                        || class_lower.contains("ad")
+                        || class_lower.contains("sidebar")
+                        || class_lower.contains("footer")
+                    {
                         return false;
                     }
                 }
@@ -265,7 +273,7 @@ impl ReadabilityExtractor {
     fn calculate_quality_metrics(
         score: &ContentScore,
         content: &FormattedContent,
-        original_document: &Html
+        original_document: &Html,
     ) -> QualityMetrics {
         // Basic readability score from content scoring
         let readability_score = (score.final_score * 100.0) as u32;

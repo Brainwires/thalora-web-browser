@@ -28,13 +28,11 @@ impl super::super::HeadlessWebBrowser {
 
         // Lock the cookie store and get matching cookies
         match self.cookie_store.lock() {
-            Ok(store) => {
-                store
-                    .matches(&url)
-                    .iter()
-                    .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
-                    .collect()
-            }
+            Ok(store) => store
+                .matches(&url)
+                .iter()
+                .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
+                .collect(),
             Err(_) => {
                 tracing::warn!("Failed to acquire cookie store lock");
                 vec![]
@@ -45,18 +43,16 @@ impl super::super::HeadlessWebBrowser {
     /// Get all cookies as "name=value" pairs, optionally filtered by domain
     pub fn get_all_cookies(&self) -> Vec<(String, String, String)> {
         match self.cookie_store.lock() {
-            Ok(store) => {
-                store
-                    .iter_any()
-                    .map(|cookie| {
-                        (
-                            cookie.domain().unwrap_or("").to_string(),
-                            cookie.name().to_string(),
-                            cookie.value().to_string(),
-                        )
-                    })
-                    .collect()
-            }
+            Ok(store) => store
+                .iter_any()
+                .map(|cookie| {
+                    (
+                        cookie.domain().unwrap_or("").to_string(),
+                        cookie.name().to_string(),
+                        cookie.value().to_string(),
+                    )
+                })
+                .collect(),
             Err(_) => {
                 tracing::warn!("Failed to acquire cookie store lock");
                 vec![]
@@ -72,10 +68,13 @@ impl super::super::HeadlessWebBrowser {
             .map_err(|e| anyhow::anyhow!("Invalid domain '{}': {}", domain, e))?;
 
         // Lock the store and parse+insert the cookie
-        let mut store = self.cookie_store.lock()
+        let mut store = self
+            .cookie_store
+            .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
-        store.parse(cookie_str, &url)
+        store
+            .parse(cookie_str, &url)
             .map_err(|e| anyhow::anyhow!("Failed to parse/insert cookie: {}", e))?;
 
         Ok(())
@@ -86,11 +85,17 @@ impl super::super::HeadlessWebBrowser {
         let url = Url::parse(&format!("https://{}/", domain))
             .map_err(|e| anyhow::anyhow!("Invalid domain '{}': {}", domain, e))?;
 
-        let mut store = self.cookie_store.lock()
+        let mut store = self
+            .cookie_store
+            .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         // Parse each cookie in the header
-        for cookie_str in header_value.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        for cookie_str in header_value
+            .split(';')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
             if let Err(e) = store.parse(cookie_str, &url) {
                 tracing::warn!("Failed to insert cookie '{}': {}", cookie_str, e);
             }
@@ -101,7 +106,9 @@ impl super::super::HeadlessWebBrowser {
 
     /// Clear all cookies
     pub fn clear_cookies(&mut self) -> Result<()> {
-        let mut store = self.cookie_store.lock()
+        let mut store = self
+            .cookie_store
+            .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         store.clear();
@@ -113,18 +120,22 @@ impl super::super::HeadlessWebBrowser {
         let url = Url::parse(&format!("https://{}/", domain))
             .map_err(|e| anyhow::anyhow!("Invalid domain '{}': {}", domain, e))?;
 
-        let mut store = self.cookie_store.lock()
+        let mut store = self
+            .cookie_store
+            .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire cookie store lock"))?;
 
         // Get cookies matching the domain and remove them
         let cookies_to_remove: Vec<(String, String, String)> = store
             .matches(&url)
             .iter()
-            .map(|c| (
-                c.domain().unwrap_or("").to_string(),
-                c.name().to_string(),
-                c.path().unwrap_or("/").to_string()
-            ))
+            .map(|c| {
+                (
+                    c.domain().unwrap_or("").to_string(),
+                    c.name().to_string(),
+                    c.path().unwrap_or("/").to_string(),
+                )
+            })
             .collect();
 
         let count = cookies_to_remove.len();

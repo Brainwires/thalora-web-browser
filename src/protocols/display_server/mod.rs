@@ -7,7 +7,6 @@
 /// ```
 /// User Browser ←→ WebSocket ←→ Display Server ←→ Browser Session
 /// ```
-
 use anyhow::Result;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,15 +14,15 @@ use std::sync::Arc;
 use crate::protocols::session_manager::SessionManager;
 
 // Module declarations
-mod messages;
-mod sessions;
 mod handlers;
+mod messages;
 mod server;
+mod sessions;
 
 // Public exports
 pub use messages::{DisplayCommand, DisplayMessage, ScreencastFrameMetadata, current_timestamp};
-pub use sessions::ClientRegistry;
 pub use server::WebSocketServer;
+pub use sessions::ClientRegistry;
 
 /// Display server main struct
 pub struct DisplayServer {

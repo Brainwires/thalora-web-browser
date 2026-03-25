@@ -5,23 +5,25 @@
 //! and returns a LayoutResult with full visual properties suitable for JSON serialization
 //! and consumption by the C# GUI layer.
 
-use anyhow::{Result, Context};
-use scraper::{Html, Selector, Node, ElementRef};
+use anyhow::{Context, Result};
+use scraper::{ElementRef, Html, Node, Selector};
 use std::collections::HashMap;
 use std::time::Instant;
 
-use super::css::{CssProcessor, ComputedStyles, BoxModel, BorderStyles};
+use super::css::{BorderStyles, BoxModel, ComputedStyles, CssProcessor};
 use super::layout::{
-    LayoutEngine, LayoutElement, LayoutResult, ElementLayout, BoxModelSides, parse_px_value,
+    BoxModelSides, ElementLayout, LayoutElement, LayoutEngine, LayoutResult, parse_px_value,
 };
-use super::styled_tree::{StyledTreeResult, StyledElement, ResolvedStyles, StyleBoxSides};
+use super::styled_tree::{ResolvedStyles, StyleBoxSides, StyledElement, StyledTreeResult};
 
 /// User-agent default styles for block-level elements.
 /// These mirror the CSS 2.1 spec defaults that browsers apply.
 fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
     match tag {
         "html" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
             // CSS spec: the html element's background is transparent by default.
             // When html has no background, the body's background propagates to the canvas.
             // We do NOT set a default background here — the C# side handles canvas background
@@ -32,7 +34,9 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "body" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
                     top: "8px".to_string(),
@@ -43,138 +47,218 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "h1" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_size.is_none() { styles.font_size = Some("32px".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_size.is_none() {
+                styles.font_size = Some("32px".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "21.44px".to_string(), right: "0px".to_string(),
-                    bottom: "21.44px".to_string(), left: "0px".to_string(),
+                    top: "21.44px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "21.44px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
         "h2" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_size.is_none() { styles.font_size = Some("24px".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_size.is_none() {
+                styles.font_size = Some("24px".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "19.92px".to_string(), right: "0px".to_string(),
-                    bottom: "19.92px".to_string(), left: "0px".to_string(),
+                    top: "19.92px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "19.92px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
         "h3" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_size.is_none() { styles.font_size = Some("18.72px".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_size.is_none() {
+                styles.font_size = Some("18.72px".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "18.72px".to_string(), right: "0px".to_string(),
-                    bottom: "18.72px".to_string(), left: "0px".to_string(),
+                    top: "18.72px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "18.72px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
         "h4" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_size.is_none() { styles.font_size = Some("16px".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_size.is_none() {
+                styles.font_size = Some("16px".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "21.28px".to_string(), right: "0px".to_string(),
-                    bottom: "21.28px".to_string(), left: "0px".to_string(),
+                    top: "21.28px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "21.28px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
         "h5" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_size.is_none() { styles.font_size = Some("13.28px".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_size.is_none() {
+                styles.font_size = Some("13.28px".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "22.18px".to_string(), right: "0px".to_string(),
-                    bottom: "22.18px".to_string(), left: "0px".to_string(),
+                    top: "22.18px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "22.18px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
         "h6" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_size.is_none() { styles.font_size = Some("10.72px".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_size.is_none() {
+                styles.font_size = Some("10.72px".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "24.97px".to_string(), right: "0px".to_string(),
-                    bottom: "24.97px".to_string(), left: "0px".to_string(),
+                    top: "24.97px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "24.97px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
         "p" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "16px".to_string(), right: "0px".to_string(),
-                    bottom: "16px".to_string(), left: "0px".to_string(),
+                    top: "16px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "16px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
         }
-        "div" | "section" | "article" | "header" | "footer" | "main" | "nav" | "aside"
-        | "form" | "figure" | "figcaption" | "details" | "summary" | "dialog" | "address"
-        | "fieldset" | "legend" => {
+        "div" | "section" | "article" | "header" | "footer" | "main" | "nav" | "aside" | "form"
+        | "figure" | "figcaption" | "details" | "summary" | "dialog" | "address" | "fieldset"
+        | "legend" => {
             if styles.display.is_none() {
                 styles.display = Some("block".to_string());
             }
         }
         "blockquote" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "16px".to_string(), right: "40px".to_string(),
-                    bottom: "16px".to_string(), left: "40px".to_string(),
+                    top: "16px".to_string(),
+                    right: "40px".to_string(),
+                    bottom: "16px".to_string(),
+                    left: "40px".to_string(),
                 });
             }
         }
         "pre" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
-            if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
-            if styles.white_space.is_none() { styles.white_space = Some("pre".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
+            if styles.font_family.is_none() {
+                styles.font_family = Some("monospace".to_string());
+            }
+            if styles.white_space.is_none() {
+                styles.white_space = Some("pre".to_string());
+            }
             if styles.background_color.is_none() {
                 styles.background_color = Some("#f4f4f4".to_string());
             }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
-                    top: "16px".to_string(), right: "16px".to_string(),
-                    bottom: "16px".to_string(), left: "16px".to_string(),
+                    top: "16px".to_string(),
+                    right: "16px".to_string(),
+                    bottom: "16px".to_string(),
+                    left: "16px".to_string(),
                 });
             }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "16px".to_string(), right: "0px".to_string(),
-                    bottom: "16px".to_string(), left: "0px".to_string(),
+                    top: "16px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "16px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
-            if styles.overflow.is_none() { styles.overflow = Some("hidden".to_string()); }
-            if styles.border_radius.is_none() { styles.border_radius = Some("4px".to_string()); }
+            if styles.overflow.is_none() {
+                styles.overflow = Some("hidden".to_string());
+            }
+            if styles.border_radius.is_none() {
+                styles.border_radius = Some("4px".to_string());
+            }
         }
         "code" => {
-            if styles.font_family.is_none() { styles.font_family = Some("monospace".to_string()); }
+            if styles.font_family.is_none() {
+                styles.font_family = Some("monospace".to_string());
+            }
             // Inline code gets subtle background (not inside <pre> — parent handles that)
             if styles.background_color.is_none() {
                 styles.background_color = Some("#f0f0f0".to_string());
             }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
-                    top: "2px".to_string(), right: "4px".to_string(),
-                    bottom: "2px".to_string(), left: "4px".to_string(),
+                    top: "2px".to_string(),
+                    right: "4px".to_string(),
+                    bottom: "2px".to_string(),
+                    left: "4px".to_string(),
                 });
             }
-            if styles.border_radius.is_none() { styles.border_radius = Some("3px".to_string()); }
+            if styles.border_radius.is_none() {
+                styles.border_radius = Some("3px".to_string());
+            }
         }
         "hr" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "8px".to_string(), right: "0px".to_string(),
-                    bottom: "8px".to_string(), left: "0px".to_string(),
+                    top: "8px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "8px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
             if styles.border.is_none() {
@@ -186,49 +270,77 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "ul" | "ol" => {
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "16px".to_string(), right: "0px".to_string(),
-                    bottom: "16px".to_string(), left: "0px".to_string(),
+                    top: "16px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "16px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
-                    top: "0px".to_string(), right: "0px".to_string(),
-                    bottom: "0px".to_string(), left: "40px".to_string(),
+                    top: "0px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "0px".to_string(),
+                    left: "40px".to_string(),
                 });
             }
         }
         "li" => {
-            if styles.display.is_none() { styles.display = Some("list-item".to_string()); }
-            if styles.list_style_type.is_none() { styles.list_style_type = Some("disc".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("list-item".to_string());
+            }
+            if styles.list_style_type.is_none() {
+                styles.list_style_type = Some("disc".to_string());
+            }
         }
         "a" => {
-            if styles.color.is_none() { styles.color = Some("#0051C3".to_string()); }
-            if styles.text_decoration.is_none() { styles.text_decoration = Some("underline".to_string()); }
+            if styles.color.is_none() {
+                styles.color = Some("#0051C3".to_string());
+            }
+            if styles.text_decoration.is_none() {
+                styles.text_decoration = Some("underline".to_string());
+            }
         }
         "strong" | "b" => {
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
         }
         "em" | "i" => {
-            if styles.font_style.is_none() { styles.font_style = Some("italic".to_string()); }
+            if styles.font_style.is_none() {
+                styles.font_style = Some("italic".to_string());
+            }
         }
         "span" | "label" => {
-            if styles.display.is_none() { styles.display = Some("inline".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("inline".to_string());
+            }
         }
         "img" | "input" | "textarea" | "select" => {
-            if styles.display.is_none() { styles.display = Some("inline-block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("inline-block".to_string());
+            }
         }
         "br" => {
-            if styles.display.is_none() { styles.display = Some("inline".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("inline".to_string());
+            }
         }
         "table" => {
-            if styles.display.is_none() { styles.display = Some("table".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("table".to_string());
+            }
             if styles.margin.is_none() {
                 styles.margin = Some(BoxModel {
-                    top: "16px".to_string(), right: "0px".to_string(),
-                    bottom: "16px".to_string(), left: "0px".to_string(),
+                    top: "16px".to_string(),
+                    right: "0px".to_string(),
+                    bottom: "16px".to_string(),
+                    left: "0px".to_string(),
                 });
             }
             if styles.border.is_none() {
@@ -240,39 +352,57 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
             }
         }
         "tr" => {
-            if styles.display.is_none() { styles.display = Some("table-row".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("table-row".to_string());
+            }
         }
         "td" => {
-            if styles.display.is_none() { styles.display = Some("table-cell".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("table-cell".to_string());
+            }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
-                    top: "4px".to_string(), right: "8px".to_string(),
-                    bottom: "4px".to_string(), left: "8px".to_string(),
+                    top: "4px".to_string(),
+                    right: "8px".to_string(),
+                    bottom: "4px".to_string(),
+                    left: "8px".to_string(),
                 });
             }
         }
         "th" => {
-            if styles.display.is_none() { styles.display = Some("table-cell".to_string()); }
-            if styles.font_weight.is_none() { styles.font_weight = Some("bold".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("table-cell".to_string());
+            }
+            if styles.font_weight.is_none() {
+                styles.font_weight = Some("bold".to_string());
+            }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
-                    top: "4px".to_string(), right: "8px".to_string(),
-                    bottom: "4px".to_string(), left: "8px".to_string(),
+                    top: "4px".to_string(),
+                    right: "8px".to_string(),
+                    bottom: "4px".to_string(),
+                    left: "8px".to_string(),
                 });
             }
         }
         "button" => {
-            if styles.display.is_none() { styles.display = Some("inline-block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("inline-block".to_string());
+            }
             if styles.padding.is_none() {
                 styles.padding = Some(BoxModel {
-                    top: "4px".to_string(), right: "8px".to_string(),
-                    bottom: "4px".to_string(), left: "8px".to_string(),
+                    top: "4px".to_string(),
+                    right: "8px".to_string(),
+                    bottom: "4px".to_string(),
+                    left: "8px".to_string(),
                 });
             }
         }
         "progress" | "meter" => {
             // Replaced elements: render as visible blocks with their specified dimensions
-            if styles.display.is_none() { styles.display = Some("block".to_string()); }
+            if styles.display.is_none() {
+                styles.display = Some("block".to_string());
+            }
         }
         _ => {}
     }
@@ -286,10 +416,8 @@ const SKIP_TAGS: &[&str] = &[
     // Embedded content we don't render (svg and audio handled specially below)
     "canvas", "video", "source", "track", "embed", "object", "param", "iframe",
     // Form internals not individually visible
-    "datalist",
-    // Table column styling (not visual elements themselves)
-    "colgroup", "col",
-    // Image maps
+    "datalist", // Table column styling (not visual elements themselves)
+    "colgroup", "col", // Image maps
     "map", "area",
 ];
 
@@ -303,7 +431,11 @@ const SKIP_TAGS: &[&str] = &[
 ///
 /// The resulting StyledTreeResult is serialized to JSON and sent to C#,
 /// where Avalonia handles layout and rendering using native controls.
-pub fn compute_styled_tree(html: &str, viewport_w: f32, viewport_h: f32) -> Result<StyledTreeResult> {
+pub fn compute_styled_tree(
+    html: &str,
+    viewport_w: f32,
+    viewport_h: f32,
+) -> Result<StyledTreeResult> {
     compute_styled_tree_with_css(html, viewport_w, viewport_h, &[])
 }
 
@@ -318,7 +450,11 @@ pub fn compute_styled_tree_with_css(
 
     let parse_start = Instant::now();
     let document = Html::parse_document(html);
-    eprintln!("[TIMING] HTML parse: {}ms ({} bytes)", parse_start.elapsed().as_millis(), html.len());
+    eprintln!(
+        "[TIMING] HTML parse: {}ms ({} bytes)",
+        parse_start.elapsed().as_millis(),
+        html.len()
+    );
 
     // Step 0: Extract html element's classes for CSS custom property scoping.
     // Selectors like `html.skin-theme-clientpref-night` define dark-mode CSS variables
@@ -326,14 +462,19 @@ pub fn compute_styled_tree_with_css(
     let html_classes: Vec<String> = {
         let html_sel = Selector::parse("html").unwrap();
         if let Some(html_el) = document.select(&html_sel).next() {
-            html_el.value().attr("class")
+            html_el
+                .value()
+                .attr("class")
                 .map(|c| c.split_whitespace().map(|s| s.to_string()).collect())
                 .unwrap_or_default()
         } else {
             Vec::new()
         }
     };
-    eprintln!("[DIAG] html classes: {:?}", &html_classes[..html_classes.len().min(5)]);
+    eprintln!(
+        "[DIAG] html classes: {:?}",
+        &html_classes[..html_classes.len().min(5)]
+    );
 
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
     let ext_css_start = Instant::now();
@@ -346,7 +487,11 @@ pub fn compute_styled_tree_with_css(
             }
         }
     }
-    eprintln!("[TIMING] External CSS parse: {}ms ({} stylesheets)", ext_css_start.elapsed().as_millis(), external_css.len());
+    eprintln!(
+        "[TIMING] External CSS parse: {}ms ({} stylesheets)",
+        ext_css_start.elapsed().as_millis(),
+        external_css.len()
+    );
 
     // Step 1b: Then parse <style> blocks (higher source-order precedence)
     let inline_css_start = Instant::now();
@@ -361,7 +506,11 @@ pub fn compute_styled_tree_with_css(
             }
         }
     }
-    eprintln!("[TIMING] Inline CSS parse: {}ms ({} style blocks)", inline_css_start.elapsed().as_millis(), style_block_count);
+    eprintln!(
+        "[TIMING] Inline CSS parse: {}ms ({} style blocks)",
+        inline_css_start.elapsed().as_millis(),
+        style_block_count
+    );
 
     // Step 1c: Pre-compile all selectors for fast matching
     css_processor.compile_selectors();
@@ -382,15 +531,28 @@ pub fn compute_styled_tree_with_css(
         &mut element_selectors,
         0,
     );
-    eprintln!("[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)", walk_start.elapsed().as_millis(), id_counter);
+    eprintln!(
+        "[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)",
+        walk_start.elapsed().as_millis(),
+        id_counter
+    );
 
     // Diagnostic: log html/body background colors and element count cap
     if id_counter >= MAX_ELEMENT_COUNT {
-        eprintln!("[DIAG] MAX_ELEMENT_COUNT ({}) reached — page tree was truncated!", MAX_ELEMENT_COUNT);
+        eprintln!(
+            "[DIAG] MAX_ELEMENT_COUNT ({}) reached — page tree was truncated!",
+            MAX_ELEMENT_COUNT
+        );
     }
-    eprintln!("[DIAG] html background_color={:?}", root.styles.background_color);
+    eprintln!(
+        "[DIAG] html background_color={:?}",
+        root.styles.background_color
+    );
     if let Some(body) = root.children.iter().find(|c| c.tag == "body") {
-        eprintln!("[DIAG] body background_color={:?}", body.styles.background_color);
+        eprintln!(
+            "[DIAG] body background_color={:?}",
+            body.styles.background_color
+        );
     }
 
     let selectors = if element_selectors.is_empty() {
@@ -399,7 +561,10 @@ pub fn compute_styled_tree_with_css(
         Some(element_selectors)
     };
 
-    eprintln!("[TIMING] Total compute_styled_tree_with_css: {}ms", total_start.elapsed().as_millis());
+    eprintln!(
+        "[TIMING] Total compute_styled_tree_with_css: {}ms",
+        total_start.elapsed().as_millis()
+    );
 
     Ok(StyledTreeResult {
         root,
@@ -465,7 +630,14 @@ fn build_styled_element_from_dom(
 
     // Default display for elements if not set
     if styles.display.is_none() {
-        styles.display = Some(if is_block_element(&tag) { "block" } else { "inline" }.to_string());
+        styles.display = Some(
+            if is_block_element(&tag) {
+                "block"
+            } else {
+                "inline"
+            }
+            .to_string(),
+        );
     }
 
     // Early exit for display:none — skip entire subtree (children, hover, selectors).
@@ -572,7 +744,9 @@ fn build_styled_element_from_dom(
     // Compute hover styles only for interactive elements (links, buttons, etc.)
     // This saves significant time on large pages — hover matching iterates all CSS rules.
     let hover_styles = if HOVER_INTERACTIVE_TAGS.contains(&tag.as_str())
-        || el.attr("class").map_or(false, |c| c.contains("btn") || c.contains("button"))
+        || el
+            .attr("class")
+            .map_or(false, |c| c.contains("btn") || c.contains("button"))
     {
         let hover_computed = css_processor.compute_hover_style_for_element(element_ref);
         let hover_resolved = computed_to_resolved(&hover_computed);
@@ -611,14 +785,38 @@ fn build_styled_element_from_dom(
     // Extract HTML attributes for form elements and semantic elements.
     // These are needed by C# to render <input>, <button>, <select>, <textarea>, etc.
     let attributes = {
-        const FORM_TAGS: &[&str] = &["input", "button", "select", "textarea", "option", "label", "form", "fieldset"];
+        const FORM_TAGS: &[&str] = &[
+            "input", "button", "select", "textarea", "option", "label", "form", "fieldset",
+        ];
         const ATTR_NAMES: &[&str] = &[
-            "type", "placeholder", "value", "name", "checked", "selected",
-            "disabled", "readonly", "required", "multiple", "size", "maxlength",
-            "min", "max", "step", "pattern", "autocomplete", "autofocus",
-            "for", "action", "method", "enctype",
-            "role", "aria-label", "aria-hidden", "aria-expanded",
-            "title", "tabindex",
+            "type",
+            "placeholder",
+            "value",
+            "name",
+            "checked",
+            "selected",
+            "disabled",
+            "readonly",
+            "required",
+            "multiple",
+            "size",
+            "maxlength",
+            "min",
+            "max",
+            "step",
+            "pattern",
+            "autocomplete",
+            "autofocus",
+            "for",
+            "action",
+            "method",
+            "enctype",
+            "role",
+            "aria-label",
+            "aria-hidden",
+            "aria-expanded",
+            "title",
+            "tabindex",
         ];
         if FORM_TAGS.contains(&tag.as_str()) {
             let mut attrs = HashMap::new();
@@ -629,7 +827,15 @@ fn build_styled_element_from_dom(
             }
             // For boolean attributes (checked, selected, disabled, etc.),
             // the attribute's presence means true
-            for &name in &["checked", "selected", "disabled", "readonly", "required", "multiple", "autofocus"] {
+            for &name in &[
+                "checked",
+                "selected",
+                "disabled",
+                "readonly",
+                "required",
+                "multiple",
+                "autofocus",
+            ] {
                 if el.attr(name).is_some() && !attrs.contains_key(name) {
                     attrs.insert(name.to_string(), "true".to_string());
                 }
@@ -655,7 +861,10 @@ fn build_styled_element_from_dom(
     }
 
     // White-space mode for text collapsing
-    let ws = styles.white_space.clone().unwrap_or_else(|| "normal".to_string());
+    let ws = styles
+        .white_space
+        .clone()
+        .unwrap_or_else(|| "normal".to_string());
 
     // Build children — preserve ALL elements (inline and block) as children
     let mut children = Vec::new();
@@ -664,7 +873,10 @@ fn build_styled_element_from_dom(
         // Stop processing if we've hit the element cap
         if *id_counter >= MAX_ELEMENT_COUNT {
             if *id_counter == MAX_ELEMENT_COUNT {
-                eprintln!("[DIAG] Hit MAX_ELEMENT_COUNT={} during tree walk, truncating remaining children", MAX_ELEMENT_COUNT);
+                eprintln!(
+                    "[DIAG] Hit MAX_ELEMENT_COUNT={} during tree walk, truncating remaining children",
+                    MAX_ELEMENT_COUNT
+                );
             }
             break;
         }
@@ -844,18 +1056,36 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         // Shorthand `border` sets all sides; `border-top/right/bottom/left` override individually.
         border_width: {
             let has_shorthand = styles.border.is_some();
-            let has_sides = styles.border_top.is_some() || styles.border_right.is_some()
-                || styles.border_bottom.is_some() || styles.border_left.is_some();
+            let has_sides = styles.border_top.is_some()
+                || styles.border_right.is_some()
+                || styles.border_bottom.is_some()
+                || styles.border_left.is_some();
             if has_shorthand || has_sides {
-                let default_w = styles.border.as_ref().map(|b| b.width.clone()).unwrap_or_default();
+                let default_w = styles
+                    .border
+                    .as_ref()
+                    .map(|b| b.width.clone())
+                    .unwrap_or_default();
                 Some(StyleBoxSides {
-                    top: styles.border_top.as_ref().map(|b| b.width.clone())
+                    top: styles
+                        .border_top
+                        .as_ref()
+                        .map(|b| b.width.clone())
                         .unwrap_or_else(|| default_w.clone()),
-                    right: styles.border_right.as_ref().map(|b| b.width.clone())
+                    right: styles
+                        .border_right
+                        .as_ref()
+                        .map(|b| b.width.clone())
                         .unwrap_or_else(|| default_w.clone()),
-                    bottom: styles.border_bottom.as_ref().map(|b| b.width.clone())
+                    bottom: styles
+                        .border_bottom
+                        .as_ref()
+                        .map(|b| b.width.clone())
                         .unwrap_or_else(|| default_w.clone()),
-                    left: styles.border_left.as_ref().map(|b| b.width.clone())
+                    left: styles
+                        .border_left
+                        .as_ref()
+                        .map(|b| b.width.clone())
                         .unwrap_or(default_w),
                 })
             } else {
@@ -872,7 +1102,11 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
                 styles.border_right.as_ref().map(|b| b.color.as_str()),
                 styles.border_bottom.as_ref().map(|b| b.color.as_str()),
                 styles.border_left.as_ref().map(|b| b.color.as_str()),
-            ].into_iter().flatten().filter(|c| !c.is_empty()).collect();
+            ]
+            .into_iter()
+            .flatten()
+            .filter(|c| !c.is_empty())
+            .collect();
             colors.first().map(|c| c.to_string())
         },
         // For border style: same approach — pick the first non-empty style.
@@ -883,7 +1117,11 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
                 styles.border_right.as_ref().map(|b| b.style.as_str()),
                 styles.border_bottom.as_ref().map(|b| b.style.as_str()),
                 styles.border_left.as_ref().map(|b| b.style.as_str()),
-            ].into_iter().flatten().filter(|s| !s.is_empty()).collect();
+            ]
+            .into_iter()
+            .flatten()
+            .filter(|s| !s.is_empty())
+            .collect();
             border_styles.first().map(|s| s.to_string())
         },
         border_radius: styles.border_radius.clone(),
@@ -959,7 +1197,12 @@ pub fn compute_page_layout(html: &str, viewport_w: f32, viewport_h: f32) -> Resu
 ///
 /// External CSS is parsed first (lower specificity by source order), then
 /// inline `<style>` blocks are parsed (higher source order, so they override).
-pub fn compute_page_layout_with_css(html: &str, viewport_w: f32, viewport_h: f32, external_css: &[String]) -> Result<LayoutResult> {
+pub fn compute_page_layout_with_css(
+    html: &str,
+    viewport_w: f32,
+    viewport_h: f32,
+    external_css: &[String],
+) -> Result<LayoutResult> {
     let document = Html::parse_document(html);
 
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
@@ -1017,7 +1260,8 @@ pub fn compute_page_layout_with_css(html: &str, viewport_w: f32, viewport_h: f32
 
     // Step 3: Run taffy layout
     let mut engine = LayoutEngine::with_viewport(viewport_w, viewport_h);
-    let mut layout_result = engine.calculate_layout_from_elements(&layout_tree)
+    let mut layout_result = engine
+        .calculate_layout_from_elements(&layout_tree)
         .context("Failed to compute layout")?;
 
     // Step 4: Post-process — copy visual properties from the LayoutElement tree
@@ -1108,7 +1352,10 @@ fn build_layout_tree_from_dom(
 
     if let Some(inline_style) = el.attr("style") {
         let mut inline_processor = CssProcessor::new();
-        if inline_processor.parse_inline_style(inline_style, &elem_id).is_ok() {
+        if inline_processor
+            .parse_inline_style(inline_style, &elem_id)
+            .is_ok()
+        {
             let inline_styles = inline_processor.compute_style(&format!("#{}", elem_id));
             merge_styles(&mut styles, &inline_styles);
         }
@@ -1125,12 +1372,18 @@ fn build_layout_tree_from_dom(
     // Capture HTML attributes that affect rendering
     if tag == "img" {
         if let Some(src) = el.attr("src") {
-            styles.other.insert("__img_src".to_string(), src.to_string());
+            styles
+                .other
+                .insert("__img_src".to_string(), src.to_string());
         }
         // Use alt text as fallback display content and store separately for the styled tree
         if let Some(alt) = el.attr("alt") {
-            styles.other.insert("__text_content".to_string(), alt.to_string());
-            styles.other.insert("__img_alt".to_string(), alt.to_string());
+            styles
+                .other
+                .insert("__text_content".to_string(), alt.to_string());
+            styles
+                .other
+                .insert("__img_alt".to_string(), alt.to_string());
         }
         // Capture width/height attributes if not set by CSS
         if styles.width.is_none() {
@@ -1147,7 +1400,14 @@ fn build_layout_tree_from_dom(
 
     // Default display for block elements if not set
     if styles.display.is_none() {
-        styles.display = Some(if is_block_element(&tag) { "block" } else { "inline" }.to_string());
+        styles.display = Some(
+            if is_block_element(&tag) {
+                "block"
+            } else {
+                "inline"
+            }
+            .to_string(),
+        );
     }
 
     // Compute available width for children based on this element's styles
@@ -1158,7 +1418,9 @@ fn build_layout_tree_from_dom(
         let mut has_explicit_width = false;
         // If this element has an explicit width, use that instead
         if let Some(ref width_str) = styles.width {
-            let font_size = styles.font_size.as_ref()
+            let font_size = styles
+                .font_size
+                .as_ref()
                 .and_then(|s| super::layout::resolve_css_length(s, 16.0))
                 .unwrap_or(16.0);
             if width_str.ends_with('%') {
@@ -1166,7 +1428,12 @@ fn build_layout_tree_from_dom(
                     w = available_width * pct / 100.0;
                 }
                 has_explicit_width = true;
-            } else if let Some(px) = super::layout::resolve_css_length_vp(width_str, font_size, viewport_w, viewport_w * 9.0 / 16.0) {
+            } else if let Some(px) = super::layout::resolve_css_length_vp(
+                width_str,
+                font_size,
+                viewport_w,
+                viewport_w * 9.0 / 16.0,
+            ) {
                 w = px;
                 has_explicit_width = true;
             }
@@ -1176,11 +1443,25 @@ fn build_layout_tree_from_dom(
         // represent the content area, so padding is NOT subtracted.
         if !has_explicit_width {
             if let Some(ref padding) = styles.padding {
-                let fs = styles.font_size.as_ref()
+                let fs = styles
+                    .font_size
+                    .as_ref()
                     .and_then(|s| super::layout::resolve_css_length(s, 16.0))
                     .unwrap_or(16.0);
-                let pl = super::layout::resolve_css_length_vp(&padding.left, fs, viewport_w, viewport_w * 9.0 / 16.0).unwrap_or(0.0);
-                let pr = super::layout::resolve_css_length_vp(&padding.right, fs, viewport_w, viewport_w * 9.0 / 16.0).unwrap_or(0.0);
+                let pl = super::layout::resolve_css_length_vp(
+                    &padding.left,
+                    fs,
+                    viewport_w,
+                    viewport_w * 9.0 / 16.0,
+                )
+                .unwrap_or(0.0);
+                let pr = super::layout::resolve_css_length_vp(
+                    &padding.right,
+                    fs,
+                    viewport_w,
+                    viewport_w * 9.0 / 16.0,
+                )
+                .unwrap_or(0.0);
                 w -= pl + pr;
             }
         }
@@ -1199,9 +1480,15 @@ fn build_layout_tree_from_dom(
     // Phase 1: Classify children as inline or block segments.
     enum ChildSegment<'a> {
         /// Plain text content with optional link href (inherited from <a> parent)
-        InlineText { text: String, link_href: Option<String> },
+        InlineText {
+            text: String,
+            link_href: Option<String>,
+        },
         /// An inline element like <a>, <strong>, <em> — extract its text inline
-        InlineElement { element_ref: ElementRef<'a>, tag: String },
+        InlineElement {
+            element_ref: ElementRef<'a>,
+            tag: String,
+        },
         /// A block-level element — process recursively
         BlockElement { element_ref: ElementRef<'a> },
     }
@@ -1268,8 +1555,10 @@ fn build_layout_tree_from_dom(
                     let raw = t.text.as_ref();
                     if ws == "normal" || ws == "nowrap" {
                         let collapsed = raw.split_whitespace().collect::<Vec<_>>().join(" ");
-                        if !text.is_empty() && !collapsed.is_empty()
-                            && !text.ends_with(' ') && !collapsed.starts_with(' ')
+                        if !text.is_empty()
+                            && !collapsed.is_empty()
+                            && !text.ends_with(' ')
+                            && !collapsed.starts_with(' ')
                         {
                             text.push(' ');
                         }
@@ -1281,8 +1570,10 @@ fn build_layout_tree_from_dom(
                 scraper::Node::Element(_) => {
                     if let Some(child_el) = ElementRef::wrap(child) {
                         let inner = extract_inline_text(&child_el, ws);
-                        if !text.is_empty() && !inner.is_empty()
-                            && !text.ends_with(' ') && !inner.starts_with(' ')
+                        if !text.is_empty()
+                            && !inner.is_empty()
+                            && !text.ends_with(' ')
+                            && !inner.starts_with(' ')
                         {
                             text.push(' ');
                         }
@@ -1309,10 +1600,14 @@ fn build_layout_tree_from_dom(
             return;
         }
 
-        let font_size = styles.font_size.as_ref()
+        let font_size = styles
+            .font_size
+            .as_ref()
             .and_then(|s| super::layout::resolve_css_length(s, 16.0))
             .unwrap_or(16.0);
-        let line_height = styles.line_height.as_ref()
+        let line_height = styles
+            .line_height
+            .as_ref()
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(1.4);
         let font_family = styles.font_family.as_deref().unwrap_or("sans-serif");
@@ -1346,10 +1641,14 @@ fn build_layout_tree_from_dom(
         text_styles.white_space = styles.white_space.clone();
         text_styles.min_height = Some(format!("{}px", buffered_height));
         text_styles.display = Some("block".to_string());
-        text_styles.other.insert("__text_content".to_string(), combined_text.to_string());
+        text_styles
+            .other
+            .insert("__text_content".to_string(), combined_text.to_string());
 
         if let Some(href) = link_href {
-            text_styles.other.insert("__link_href".to_string(), href.clone());
+            text_styles
+                .other
+                .insert("__link_href".to_string(), href.clone());
         }
 
         children.push(LayoutElement {
@@ -1366,7 +1665,8 @@ fn build_layout_tree_from_dom(
         match &segments[i] {
             ChildSegment::InlineText { text, link_href: _ } => {
                 // Accumulate inline text
-                if !inline_buffer.is_empty() && !inline_buffer.ends_with(' ')
+                if !inline_buffer.is_empty()
+                    && !inline_buffer.ends_with(' ')
                     && !text.starts_with(' ')
                 {
                     inline_buffer.push(' ');
@@ -1374,11 +1674,15 @@ fn build_layout_tree_from_dom(
                 inline_buffer.push_str(text);
                 i += 1;
             }
-            ChildSegment::InlineElement { element_ref: inline_el, tag: _inline_tag } => {
+            ChildSegment::InlineElement {
+                element_ref: inline_el,
+                tag: _inline_tag,
+            } => {
                 // Extract text from the inline element and append to the buffer
                 let inline_text = extract_inline_text(inline_el, ws);
                 if !inline_text.is_empty() {
-                    if !inline_buffer.is_empty() && !inline_buffer.ends_with(' ')
+                    if !inline_buffer.is_empty()
+                        && !inline_buffer.ends_with(' ')
                         && !inline_text.starts_with(' ')
                     {
                         inline_buffer.push(' ');
@@ -1387,12 +1691,17 @@ fn build_layout_tree_from_dom(
                 }
                 i += 1;
             }
-            ChildSegment::BlockElement { element_ref: block_el } => {
+            ChildSegment::BlockElement {
+                element_ref: block_el,
+            } => {
                 // Flush any accumulated inline content first
                 if !inline_buffer.is_empty() {
                     flush_inline_run(
-                        &inline_buffer, &styles, id_counter,
-                        child_available_width, &link_href_from_parent,
+                        &inline_buffer,
+                        &styles,
+                        id_counter,
+                        child_available_width,
+                        &link_href_from_parent,
                         &mut children,
                     );
                     inline_buffer.clear();
@@ -1421,8 +1730,11 @@ fn build_layout_tree_from_dom(
     // Flush remaining inline content
     if !inline_buffer.is_empty() {
         flush_inline_run(
-            &inline_buffer, &styles, id_counter,
-            child_available_width, &link_href_from_parent,
+            &inline_buffer,
+            &styles,
+            id_counter,
+            child_available_width,
+            &link_href_from_parent,
             &mut children,
         );
     }
@@ -1457,55 +1769,151 @@ fn build_css_selector(el: &scraper::node::Element) -> String {
 
 /// Merge source styles into dest (source overrides dest for non-None fields)
 fn merge_styles(dest: &mut ComputedStyles, source: &ComputedStyles) {
-    if source.display.is_some() { dest.display = source.display.clone(); }
-    if source.position.is_some() { dest.position = source.position.clone(); }
-    if source.width.is_some() { dest.width = source.width.clone(); }
-    if source.height.is_some() { dest.height = source.height.clone(); }
-    if source.background_color.is_some() { dest.background_color = source.background_color.clone(); }
-    if source.color.is_some() { dest.color = source.color.clone(); }
-    if source.font_size.is_some() { dest.font_size = source.font_size.clone(); }
-    if source.font_family.is_some() { dest.font_family = source.font_family.clone(); }
-    if source.font_weight.is_some() { dest.font_weight = source.font_weight.clone(); }
-    if source.flex_direction.is_some() { dest.flex_direction = source.flex_direction.clone(); }
-    if source.justify_content.is_some() { dest.justify_content = source.justify_content.clone(); }
-    if source.align_items.is_some() { dest.align_items = source.align_items.clone(); }
-    if source.gap.is_some() { dest.gap = source.gap.clone(); }
-    if source.overflow.is_some() { dest.overflow = source.overflow.clone(); }
-    if source.visibility.is_some() { dest.visibility = source.visibility.clone(); }
-    if source.opacity.is_some() { dest.opacity = source.opacity; }
-    if source.z_index.is_some() { dest.z_index = source.z_index; }
-    if source.margin.is_some() { dest.margin = source.margin.clone(); }
-    if source.padding.is_some() { dest.padding = source.padding.clone(); }
-    if source.border.is_some() { dest.border = source.border.clone(); }
-    if source.border_top.is_some() { dest.border_top = source.border_top.clone(); }
-    if source.border_right.is_some() { dest.border_right = source.border_right.clone(); }
-    if source.border_bottom.is_some() { dest.border_bottom = source.border_bottom.clone(); }
-    if source.border_left.is_some() { dest.border_left = source.border_left.clone(); }
+    if source.display.is_some() {
+        dest.display = source.display.clone();
+    }
+    if source.position.is_some() {
+        dest.position = source.position.clone();
+    }
+    if source.width.is_some() {
+        dest.width = source.width.clone();
+    }
+    if source.height.is_some() {
+        dest.height = source.height.clone();
+    }
+    if source.background_color.is_some() {
+        dest.background_color = source.background_color.clone();
+    }
+    if source.color.is_some() {
+        dest.color = source.color.clone();
+    }
+    if source.font_size.is_some() {
+        dest.font_size = source.font_size.clone();
+    }
+    if source.font_family.is_some() {
+        dest.font_family = source.font_family.clone();
+    }
+    if source.font_weight.is_some() {
+        dest.font_weight = source.font_weight.clone();
+    }
+    if source.flex_direction.is_some() {
+        dest.flex_direction = source.flex_direction.clone();
+    }
+    if source.justify_content.is_some() {
+        dest.justify_content = source.justify_content.clone();
+    }
+    if source.align_items.is_some() {
+        dest.align_items = source.align_items.clone();
+    }
+    if source.gap.is_some() {
+        dest.gap = source.gap.clone();
+    }
+    if source.overflow.is_some() {
+        dest.overflow = source.overflow.clone();
+    }
+    if source.visibility.is_some() {
+        dest.visibility = source.visibility.clone();
+    }
+    if source.opacity.is_some() {
+        dest.opacity = source.opacity;
+    }
+    if source.z_index.is_some() {
+        dest.z_index = source.z_index;
+    }
+    if source.margin.is_some() {
+        dest.margin = source.margin.clone();
+    }
+    if source.padding.is_some() {
+        dest.padding = source.padding.clone();
+    }
+    if source.border.is_some() {
+        dest.border = source.border.clone();
+    }
+    if source.border_top.is_some() {
+        dest.border_top = source.border_top.clone();
+    }
+    if source.border_right.is_some() {
+        dest.border_right = source.border_right.clone();
+    }
+    if source.border_bottom.is_some() {
+        dest.border_bottom = source.border_bottom.clone();
+    }
+    if source.border_left.is_some() {
+        dest.border_left = source.border_left.clone();
+    }
     // Promoted properties
-    if source.flex_wrap.is_some() { dest.flex_wrap = source.flex_wrap.clone(); }
-    if source.align_self.is_some() { dest.align_self = source.align_self.clone(); }
-    if source.flex_grow.is_some() { dest.flex_grow = source.flex_grow.clone(); }
-    if source.flex_shrink.is_some() { dest.flex_shrink = source.flex_shrink.clone(); }
-    if source.flex_basis.is_some() { dest.flex_basis = source.flex_basis.clone(); }
-    if source.min_width.is_some() { dest.min_width = source.min_width.clone(); }
-    if source.min_height.is_some() { dest.min_height = source.min_height.clone(); }
-    if source.max_width.is_some() { dest.max_width = source.max_width.clone(); }
-    if source.max_height.is_some() { dest.max_height = source.max_height.clone(); }
-    if source.font_style.is_some() { dest.font_style = source.font_style.clone(); }
-    if source.line_height.is_some() { dest.line_height = source.line_height.clone(); }
-    if source.text_align.is_some() { dest.text_align = source.text_align.clone(); }
-    if source.text_decoration.is_some() { dest.text_decoration = source.text_decoration.clone(); }
-    if source.text_transform.is_some() { dest.text_transform = source.text_transform.clone(); }
-    if source.white_space.is_some() { dest.white_space = source.white_space.clone(); }
-    if source.letter_spacing.is_some() { dest.letter_spacing = source.letter_spacing.clone(); }
-    if source.word_spacing.is_some() { dest.word_spacing = source.word_spacing.clone(); }
-    if source.border_radius.is_some() { dest.border_radius = source.border_radius.clone(); }
-    if source.list_style_type.is_some() { dest.list_style_type = source.list_style_type.clone(); }
-    if source.cursor.is_some() { dest.cursor = source.cursor.clone(); }
-    if source.grid_template_columns.is_some() { dest.grid_template_columns = source.grid_template_columns.clone(); }
-    if source.grid_template_rows.is_some() { dest.grid_template_rows = source.grid_template_rows.clone(); }
-    if source.grid_template_areas.is_some() { dest.grid_template_areas = source.grid_template_areas.clone(); }
-    if source.grid_area.is_some() { dest.grid_area = source.grid_area.clone(); }
+    if source.flex_wrap.is_some() {
+        dest.flex_wrap = source.flex_wrap.clone();
+    }
+    if source.align_self.is_some() {
+        dest.align_self = source.align_self.clone();
+    }
+    if source.flex_grow.is_some() {
+        dest.flex_grow = source.flex_grow.clone();
+    }
+    if source.flex_shrink.is_some() {
+        dest.flex_shrink = source.flex_shrink.clone();
+    }
+    if source.flex_basis.is_some() {
+        dest.flex_basis = source.flex_basis.clone();
+    }
+    if source.min_width.is_some() {
+        dest.min_width = source.min_width.clone();
+    }
+    if source.min_height.is_some() {
+        dest.min_height = source.min_height.clone();
+    }
+    if source.max_width.is_some() {
+        dest.max_width = source.max_width.clone();
+    }
+    if source.max_height.is_some() {
+        dest.max_height = source.max_height.clone();
+    }
+    if source.font_style.is_some() {
+        dest.font_style = source.font_style.clone();
+    }
+    if source.line_height.is_some() {
+        dest.line_height = source.line_height.clone();
+    }
+    if source.text_align.is_some() {
+        dest.text_align = source.text_align.clone();
+    }
+    if source.text_decoration.is_some() {
+        dest.text_decoration = source.text_decoration.clone();
+    }
+    if source.text_transform.is_some() {
+        dest.text_transform = source.text_transform.clone();
+    }
+    if source.white_space.is_some() {
+        dest.white_space = source.white_space.clone();
+    }
+    if source.letter_spacing.is_some() {
+        dest.letter_spacing = source.letter_spacing.clone();
+    }
+    if source.word_spacing.is_some() {
+        dest.word_spacing = source.word_spacing.clone();
+    }
+    if source.border_radius.is_some() {
+        dest.border_radius = source.border_radius.clone();
+    }
+    if source.list_style_type.is_some() {
+        dest.list_style_type = source.list_style_type.clone();
+    }
+    if source.cursor.is_some() {
+        dest.cursor = source.cursor.clone();
+    }
+    if source.grid_template_columns.is_some() {
+        dest.grid_template_columns = source.grid_template_columns.clone();
+    }
+    if source.grid_template_rows.is_some() {
+        dest.grid_template_rows = source.grid_template_rows.clone();
+    }
+    if source.grid_template_areas.is_some() {
+        dest.grid_template_areas = source.grid_template_areas.clone();
+    }
+    if source.grid_area.is_some() {
+        dest.grid_area = source.grid_area.clone();
+    }
     for (k, v) in &source.other {
         dest.other.insert(k.clone(), v.clone());
     }
@@ -1576,7 +1984,8 @@ fn extract_svg_dimensions(el: &scraper::node::Element) -> (f32, f32) {
 
     // Fall back to viewBox="minX minY width height"
     if let Some(vb) = el.attr("viewBox") {
-        let parts: Vec<f32> = vb.split_whitespace()
+        let parts: Vec<f32> = vb
+            .split_whitespace()
             .filter_map(|p| p.parse::<f32>().ok())
             .collect();
         if parts.len() >= 4 {
@@ -1599,22 +2008,78 @@ fn extract_svg_dimensions(el: &scraper::node::Element) -> (f32, f32) {
 
 /// Check if a tag is a block-level element
 fn is_block_element(tag: &str) -> bool {
-    matches!(tag,
-        "html" | "body" | "div" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-        | "section" | "article" | "header" | "footer" | "main" | "nav" | "aside"
-        | "blockquote" | "pre" | "hr" | "ul" | "ol" | "li" | "table" | "form"
-        | "figure" | "figcaption" | "details" | "summary" | "dialog" | "address"
-        | "fieldset" | "legend"
+    matches!(
+        tag,
+        "html"
+            | "body"
+            | "div"
+            | "p"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "section"
+            | "article"
+            | "header"
+            | "footer"
+            | "main"
+            | "nav"
+            | "aside"
+            | "blockquote"
+            | "pre"
+            | "hr"
+            | "ul"
+            | "ol"
+            | "li"
+            | "table"
+            | "form"
+            | "figure"
+            | "figcaption"
+            | "details"
+            | "summary"
+            | "dialog"
+            | "address"
+            | "fieldset"
+            | "legend"
     )
 }
 
 /// Check if a tag is an inline-level element (flows with text).
 fn is_inline_element(tag: &str) -> bool {
-    matches!(tag,
-        "a" | "span" | "strong" | "b" | "em" | "i" | "u" | "s" | "strike"
-        | "code" | "kbd" | "samp" | "var" | "mark" | "small" | "big" | "sub" | "sup"
-        | "abbr" | "cite" | "dfn" | "q" | "time" | "data" | "ruby" | "bdo" | "bdi"
-        | "wbr" | "del" | "ins" | "label"
+    matches!(
+        tag,
+        "a" | "span"
+            | "strong"
+            | "b"
+            | "em"
+            | "i"
+            | "u"
+            | "s"
+            | "strike"
+            | "code"
+            | "kbd"
+            | "samp"
+            | "var"
+            | "mark"
+            | "small"
+            | "big"
+            | "sub"
+            | "sup"
+            | "abbr"
+            | "cite"
+            | "dfn"
+            | "q"
+            | "time"
+            | "data"
+            | "ruby"
+            | "bdo"
+            | "bdi"
+            | "wbr"
+            | "del"
+            | "ins"
+            | "label"
     )
 }
 
@@ -1642,12 +2107,15 @@ fn collect_visual_data(element: &LayoutElement, map: &mut HashMap<String, Visual
         None
     };
 
-    map.insert(element.id.clone(), VisualData {
-        text_content,
-        link_href,
-        img_src,
-        tag: element.tag.clone(),
-    });
+    map.insert(
+        element.id.clone(),
+        VisualData {
+            text_content,
+            link_href,
+            img_src,
+            tag: element.tag.clone(),
+        },
+    );
 
     for child in &element.children {
         collect_visual_data(child, map);
@@ -1794,7 +2262,10 @@ mod tests {
         }
 
         assert!(!texts.is_empty(), "Should find text content in layout");
-        assert!(texts.iter().any(|t| t.contains("Example Domain")), "Should contain 'Example Domain'");
+        assert!(
+            texts.iter().any(|t| t.contains("Example Domain")),
+            "Should contain 'Example Domain'"
+        );
     }
 
     #[test]
@@ -1841,7 +2312,9 @@ mod tests {
 
         // Find the container div
         fn find_by_tag<'a>(el: &'a StyledElement, tag: &str) -> Option<&'a StyledElement> {
-            if el.tag == tag { return Some(el); }
+            if el.tag == tag {
+                return Some(el);
+            }
             for child in &el.children {
                 if let Some(found) = find_by_tag(child, tag) {
                     return Some(found);
@@ -1875,7 +2348,9 @@ mod tests {
         let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
 
         fn find_by_tag<'a>(el: &'a StyledElement, tag: &str) -> Option<&'a StyledElement> {
-            if el.tag == tag { return Some(el); }
+            if el.tag == tag {
+                return Some(el);
+            }
             for child in &el.children {
                 if let Some(found) = find_by_tag(child, tag) {
                     return Some(found);
@@ -1908,7 +2383,9 @@ mod tests {
         let result = compute_styled_tree(html, 1024.0, 768.0).unwrap();
 
         fn find_text<'a>(el: &'a StyledElement) -> Option<&'a StyledElement> {
-            if el.text_content.is_some() { return Some(el); }
+            if el.text_content.is_some() {
+                return Some(el);
+            }
             for child in &el.children {
                 if let Some(found) = find_text(child) {
                     return Some(found);
@@ -1919,7 +2396,14 @@ mod tests {
 
         let text_el = find_text(&result.root);
         assert!(text_el.is_some(), "Should find element with text_content");
-        assert!(text_el.unwrap().text_content.as_ref().unwrap().contains("Hello world"));
+        assert!(
+            text_el
+                .unwrap()
+                .text_content
+                .as_ref()
+                .unwrap()
+                .contains("Hello world")
+        );
     }
 
     #[test]
@@ -1947,10 +2431,17 @@ mod tests {
         eprintln!("STYLED TREE JSON:\n{}", json);
 
         // Find the elements and check colors
-        fn find_text_elements(el: &StyledElement, results: &mut Vec<(String, Option<String>, Option<String>)>) {
+        fn find_text_elements(
+            el: &StyledElement,
+            results: &mut Vec<(String, Option<String>, Option<String>)>,
+        ) {
             if let Some(ref text) = el.text_content {
                 if !text.trim().is_empty() {
-                    results.push((text.clone(), el.styles.color.clone(), el.styles.background_color.clone()));
+                    results.push((
+                        text.clone(),
+                        el.styles.color.clone(),
+                        el.styles.background_color.clone(),
+                    ));
                 }
             }
             for child in &el.children {
@@ -1966,15 +2457,29 @@ mod tests {
         }
 
         // Red text should have color: red
-        let red_el = text_elements.iter().find(|(t, _, _)| t.contains("Red text")).expect("Should find 'Red text'");
-        assert!(red_el.1.is_some(), "Red text should have a color set: {:?}", red_el);
+        let red_el = text_elements
+            .iter()
+            .find(|(t, _, _)| t.contains("Red text"))
+            .expect("Should find 'Red text'");
+        assert!(
+            red_el.1.is_some(),
+            "Red text should have a color set: {:?}",
+            red_el
+        );
 
         // Blue bg: background-color doesn't inherit to #text children, it stays on parent
         // So the text element won't have it. This is correct CSS behavior.
 
         // Inherited color should have color from body
-        let inherited_el = text_elements.iter().find(|(t, _, _)| t.contains("Inherited")).expect("Should find 'Inherited color'");
-        assert!(inherited_el.1.is_some(), "Inherited color should have color from body: {:?}", inherited_el);
+        let inherited_el = text_elements
+            .iter()
+            .find(|(t, _, _)| t.contains("Inherited"))
+            .expect("Should find 'Inherited color'");
+        assert!(
+            inherited_el.1.is_some(),
+            "Inherited color should have color from body: {:?}",
+            inherited_el
+        );
     }
 
     #[test]
@@ -1991,10 +2496,17 @@ mod tests {
         </body></html>"#;
         let result = compute_styled_tree(html, 800.0, 600.0).unwrap();
 
-        fn find_text_elements(el: &StyledElement, results: &mut Vec<(String, Option<String>, Option<String>)>) {
+        fn find_text_elements(
+            el: &StyledElement,
+            results: &mut Vec<(String, Option<String>, Option<String>)>,
+        ) {
             if let Some(ref text) = el.text_content {
                 if !text.trim().is_empty() {
-                    results.push((text.clone(), el.styles.color.clone(), el.styles.background_color.clone()));
+                    results.push((
+                        text.clone(),
+                        el.styles.color.clone(),
+                        el.styles.background_color.clone(),
+                    ));
                 }
             }
             for child in &el.children {
@@ -2010,14 +2522,32 @@ mod tests {
         }
 
         // Body text should have resolved var(--text-color) → #1a1a1a
-        let body_el = text_elements.iter().find(|(t, _, _)| t.contains("Body text")).expect("Should find 'Body text'");
-        assert!(body_el.1.is_some(), "Body text should have color resolved from var(): {:?}", body_el);
-        assert!(!body_el.1.as_ref().unwrap().contains("var("), "Color should be resolved, not contain var(): {:?}", body_el.1);
+        let body_el = text_elements
+            .iter()
+            .find(|(t, _, _)| t.contains("Body text"))
+            .expect("Should find 'Body text'");
+        assert!(
+            body_el.1.is_some(),
+            "Body text should have color resolved from var(): {:?}",
+            body_el
+        );
+        assert!(
+            !body_el.1.as_ref().unwrap().contains("var("),
+            "Color should be resolved, not contain var(): {:?}",
+            body_el.1
+        );
 
         // Tailwind black — rgb(0 0 0 / var(--tw-text-opacity, 1))
-        let tw_el = text_elements.iter().find(|(t, _, _)| t.contains("Tailwind")).expect("Should find 'Tailwind black'");
+        let tw_el = text_elements
+            .iter()
+            .find(|(t, _, _)| t.contains("Tailwind"))
+            .expect("Should find 'Tailwind black'");
         eprintln!("  Tailwind black resolved color: {:?}", tw_el.1);
-        assert!(tw_el.1.is_some(), "Tailwind text should have a color: {:?}", tw_el);
+        assert!(
+            tw_el.1.is_some(),
+            "Tailwind text should have a color: {:?}",
+            tw_el
+        );
     }
 
     #[test]
@@ -2059,8 +2589,11 @@ mod tests {
 
         // The first nav (with class "db dn-l") should be display:none at 1280px
         assert!(!navs.is_empty(), "Should find at least one nav");
-        assert_eq!(navs[0].1.as_deref(), Some("none"),
-            "First nav should be display:none at 1280px (dn-l media query)");
+        assert_eq!(
+            navs[0].1.as_deref(),
+            Some("none"),
+            "First nav should be display:none at 1280px (dn-l media query)"
+        );
     }
 
     #[test]
@@ -2096,9 +2629,13 @@ mod tests {
 
         // Find the grid container
         fn find_grid<'a>(el: &'a StyledElement) -> Option<&'a StyledElement> {
-            if el.styles.display.as_deref() == Some("grid") { return Some(el); }
+            if el.styles.display.as_deref() == Some("grid") {
+                return Some(el);
+            }
             for child in &el.children {
-                if let Some(found) = find_grid(child) { return Some(found); }
+                if let Some(found) = find_grid(child) {
+                    return Some(found);
+                }
             }
             None
         }
@@ -2106,18 +2643,38 @@ mod tests {
         let grid = find_grid(&result.root).expect("Should find grid container");
 
         // Grid container should have columns, rows, areas, and gap
-        assert!(grid.styles.grid_template_columns.is_some(), "Should have grid-template-columns");
-        assert!(grid.styles.grid_template_rows.is_some(), "Should have grid-template-rows");
-        assert!(grid.styles.grid_template_areas.is_some(), "Should have grid-template-areas");
-        assert_eq!(grid.styles.gap.as_deref(), Some("24px"), "Should have gap from column-gap");
+        assert!(
+            grid.styles.grid_template_columns.is_some(),
+            "Should have grid-template-columns"
+        );
+        assert!(
+            grid.styles.grid_template_rows.is_some(),
+            "Should have grid-template-rows"
+        );
+        assert!(
+            grid.styles.grid_template_areas.is_some(),
+            "Should have grid-template-areas"
+        );
+        assert_eq!(
+            grid.styles.gap.as_deref(),
+            Some("24px"),
+            "Should have gap from column-gap"
+        );
 
         // Children should have grid-area properties
-        let children_with_area: Vec<_> = grid.children.iter()
+        let children_with_area: Vec<_> = grid
+            .children
+            .iter()
             .filter(|c| c.styles.grid_area.is_some())
             .collect();
-        assert_eq!(children_with_area.len(), 4, "Should have 4 children with grid-area");
+        assert_eq!(
+            children_with_area.len(),
+            4,
+            "Should have 4 children with grid-area"
+        );
 
-        let area_names: Vec<&str> = children_with_area.iter()
+        let area_names: Vec<&str> = children_with_area
+            .iter()
             .map(|c| c.styles.grid_area.as_deref().unwrap())
             .collect();
         assert!(area_names.contains(&"siteNotice"));

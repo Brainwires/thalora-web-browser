@@ -1,27 +1,29 @@
 use anyhow::Result;
 use futures::FutureExt;
+use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
+use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
 use tracing::{error, info, trace};
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 use vfs::VfsInstance;
 
-use crate::protocols::mcp::{McpRequest, McpNotification, McpResponse, McpMessage, McpMessageContent, InitializeResult};
 use crate::engine::browser::HeadlessWebBrowser;
+use crate::protocols::mcp::{
+    InitializeResult, McpMessage, McpMessageContent, McpNotification, McpRequest, McpResponse,
+};
 // websocket API is now natively implemented in Boa engine
 // DOM is now natively handled by Boa engine
+use crate::engine::EngineConfig;
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::cdp::CdpServer;
-use crate::protocols::memory_tools::MemoryTools;
-use crate::protocols::cdp_tools::CdpTools;
 use crate::protocols::browser_tools::BrowserTools;
-use crate::protocols::session_manager::SessionManager;
-use crate::protocols::security::sanitize_session_id;
+use crate::protocols::cdp::CdpServer;
+use crate::protocols::cdp_tools::CdpTools;
+use crate::protocols::memory_tools::MemoryTools;
 use crate::protocols::rate_limiter::RateLimiter;
+use crate::protocols::security::sanitize_session_id;
+use crate::protocols::session_manager::SessionManager;
 #[cfg(feature = "wasm-debug")]
 use crate::protocols::wasm_debug_tools::WasmDebugTools;
-use crate::engine::EngineConfig;
 
 #[allow(dead_code)]
 pub struct McpServer {
@@ -47,7 +49,9 @@ pub struct McpServer {
 impl McpServer {
     pub fn new() -> Self {
         // Default to Boa engine for backward compatibility
-        Self::new_with_engine(EngineConfig::new(false).unwrap_or(EngineConfig { engine_type: crate::engine::EngineType::Boa }))
+        Self::new_with_engine(EngineConfig::new(false).unwrap_or(EngineConfig {
+            engine_type: crate::engine::EngineType::Boa,
+        }))
     }
 
     pub fn new_with_engine(engine_config: EngineConfig) -> Self {
@@ -70,13 +74,14 @@ impl McpServer {
             })
         } else {
             // Create disabled AI memory (in-memory only, no persistence)
-            tracing::info!("AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage");
-            AiMemoryHeap::new("/dev/null")
-                .unwrap_or_else(|_| {
-                    // Fallback to temp file if /dev/null fails (Windows)
-                    AiMemoryHeap::new(std::env::temp_dir().join("thalora_disabled.json"))
-                        .expect("Failed to create disabled AI memory")
-                })
+            tracing::info!(
+                "AI memory disabled. Set THALORA_ENABLE_AI_MEMORY=1 to enable persistent storage"
+            );
+            AiMemoryHeap::new("/dev/null").unwrap_or_else(|_| {
+                // Fallback to temp file if /dev/null fails (Windows)
+                AiMemoryHeap::new(std::env::temp_dir().join("thalora_disabled.json"))
+                    .expect("Failed to create disabled AI memory")
+            })
         };
 
         let session_manager = SessionManager::new().unwrap_or_else(|e| {
@@ -129,7 +134,11 @@ impl McpServer {
     /// - The session_id is validated to prevent path traversal attacks (CWE-22).
     /// - Session data is encrypted at rest using ChaCha20-Poly1305.
     /// - Only alphanumeric characters, hyphens, and underscores are allowed.
-    pub fn get_or_create_session_vfs(&self, session_id: &str, backing_dir: Option<&std::path::Path>) -> Result<Arc<VfsInstance>> {
+    pub fn get_or_create_session_vfs(
+        &self,
+        session_id: &str,
+        backing_dir: Option<&std::path::Path>,
+    ) -> Result<Arc<VfsInstance>> {
         // SECURITY: Validate session_id to prevent path traversal attacks
         let safe_session_id = sanitize_session_id(session_id)?;
 
@@ -156,7 +165,9 @@ impl McpServer {
             Err(e) => {
                 // Log decryption failure but create fresh VFS
                 tracing::warn!("Failed to open encrypted session VFS: {}. Creating new.", e);
-                Arc::new(VfsInstance::new_temp_in_dir(std::env::temp_dir()).expect("create temp vfs"))
+                Arc::new(
+                    VfsInstance::new_temp_in_dir(std::env::temp_dir()).expect("create temp vfs"),
+                )
             }
         };
         guard.insert(safe_session_id, v.clone());
@@ -199,7 +210,10 @@ impl McpServer {
 
         let idle_timeout = std::time::Duration::from_secs(idle_timeout_secs);
 
-        trace!("MCP Server starting stdio loop (idle timeout: {}s)", idle_timeout_secs);
+        trace!(
+            "MCP Server starting stdio loop (idle timeout: {}s)",
+            idle_timeout_secs
+        );
 
         loop {
             trace!("Waiting for input...");
@@ -219,8 +233,14 @@ impl McpServer {
                 }
                 Err(_) => {
                     // Timeout occurred - no input received for idle_timeout duration
-                    trace!("Idle timeout reached ({}s with no input), shutting down", idle_timeout_secs);
-                    eprintln!("⏱️ MCP Server idle timeout reached ({}s), shutting down gracefully", idle_timeout_secs);
+                    trace!(
+                        "Idle timeout reached ({}s with no input), shutting down",
+                        idle_timeout_secs
+                    );
+                    eprintln!(
+                        "⏱️ MCP Server idle timeout reached ({}s), shutting down gracefully",
+                        idle_timeout_secs
+                    );
                     break;
                 }
                 Ok(Ok(n)) => {
@@ -266,7 +286,10 @@ impl McpServer {
                                             "unknown panic".to_string()
                                         };
                                         eprintln!("PANIC caught in request handler: {}", msg);
-                                        McpResponse::error(-32603, format!("Internal server error: {}", msg))
+                                        McpResponse::error(
+                                            -32603,
+                                            format!("Internal server error: {}", msg),
+                                        )
                                     });
                                 trace!("Handler returned, preparing response");
 
@@ -350,8 +373,8 @@ impl McpServer {
                 use crate::protocols::mcp::ListToolsResult;
                 McpResponse::ListTools {
                     result: ListToolsResult {
-                        tools: self.get_tool_definitions()
-                    }
+                        tools: self.get_tool_definitions(),
+                    },
                 }
             }
             McpRequest::CallTool { params } => {

@@ -2,8 +2,8 @@ use anyhow::{Result, anyhow};
 use serde_json::Value;
 use wasmtime::{Val, ValType};
 
-use super::state::{WasmDebugState, validate_module_id, DEFAULT_FUEL, MAX_FUEL};
 use super::execution::TypedArg;
+use super::state::{DEFAULT_FUEL, MAX_FUEL, WasmDebugState, validate_module_id};
 
 /// Maximum number of profiling iterations
 const MAX_ITERATIONS: u32 = 10_000;
@@ -28,14 +28,17 @@ impl WasmDebugState {
         let fuel_per_call = fuel_limit.unwrap_or(DEFAULT_FUEL).min(MAX_FUEL);
         let timeout = timeout_ms.unwrap_or(DEFAULT_PROFILE_TIMEOUT_MS);
 
-        let loaded = self.get_module_mut(module_id)
+        let loaded = self
+            .get_module_mut(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
-        let instance = loaded.instance
+        let instance = loaded
+            .instance
             .ok_or_else(|| anyhow!("Module '{}' is not instantiated", module_id))?;
 
         // Find the exported function
-        let func = instance.get_func(&mut loaded.store, function_name)
+        let func = instance
+            .get_func(&mut loaded.store, function_name)
             .ok_or_else(|| anyhow!("Function '{}' not found in module exports", function_name))?;
 
         let func_ty = func.ty(&loaded.store);
@@ -82,7 +85,8 @@ impl WasmDebugState {
             let fuel_before = loaded.store.get_fuel().unwrap_or(0);
 
             // Prepare result slots
-            let mut wasm_results: Vec<Val> = result_types.iter()
+            let mut wasm_results: Vec<Val> = result_types
+                .iter()
                 .map(|t| match t {
                     ValType::I32 => Val::I32(0),
                     ValType::I64 => Val::I64(0),
@@ -127,7 +131,11 @@ impl WasmDebugState {
                             &last_results,
                         ));
                     } else {
-                        return Err(anyhow!("Profiling failed at iteration {}: {}", completed_iterations, e));
+                        return Err(anyhow!(
+                            "Profiling failed at iteration {}: {}",
+                            completed_iterations,
+                            e
+                        ));
                     }
                 }
             }
@@ -186,7 +194,8 @@ fn build_profile_result(
     let timing_stats = compute_stats(timings_ns);
     let fuel_stats = compute_stats_u64(fuel_per_iter);
 
-    let last_result_values: Vec<Value> = last_results.iter()
+    let last_result_values: Vec<Value> = last_results
+        .iter()
         .map(|v| match v {
             Val::I32(x) => serde_json::json!(x),
             Val::I64(x) => serde_json::json!(x),
@@ -239,7 +248,13 @@ struct Stats {
 
 fn compute_stats(values: &[f64]) -> Stats {
     if values.is_empty() {
-        return Stats { sum: 0.0, avg: 0.0, min: 0.0, max: 0.0, stddev: 0.0 };
+        return Stats {
+            sum: 0.0,
+            avg: 0.0,
+            min: 0.0,
+            max: 0.0,
+            stddev: 0.0,
+        };
     }
 
     let sum: f64 = values.iter().sum();
@@ -254,7 +269,13 @@ fn compute_stats(values: &[f64]) -> Stats {
     };
     let stddev = variance.sqrt();
 
-    Stats { sum, avg, min, max, stddev }
+    Stats {
+        sum,
+        avg,
+        min,
+        max,
+        stddev,
+    }
 }
 
 fn compute_stats_u64(values: &[u64]) -> Stats {
@@ -263,9 +284,13 @@ fn compute_stats_u64(values: &[u64]) -> Stats {
 }
 
 /// Get memory pages for an instance
-fn get_memory_pages(instance: &wasmtime::Instance, store: &mut wasmtime::Store<super::state::FuelState>) -> Option<u64> {
+fn get_memory_pages(
+    instance: &wasmtime::Instance,
+    store: &mut wasmtime::Store<super::state::FuelState>,
+) -> Option<u64> {
     // Collect memory exports first to avoid borrow conflict
-    let memories: Vec<wasmtime::Memory> = instance.exports(&mut *store)
+    let memories: Vec<wasmtime::Memory> = instance
+        .exports(&mut *store)
         .filter_map(|export| export.into_memory())
         .collect();
 
@@ -273,28 +298,40 @@ fn get_memory_pages(instance: &wasmtime::Instance, store: &mut wasmtime::Store<s
 }
 
 /// Convert a JSON value to a wasmtime Val for profiling
-fn convert_to_wasm_val_for_profile(value: &Value, expected: &ValType, arg_index: usize) -> Result<Val> {
+fn convert_to_wasm_val_for_profile(
+    value: &Value,
+    expected: &ValType,
+    arg_index: usize,
+) -> Result<Val> {
     match expected {
         ValType::I32 => {
-            let v = value.as_i64()
+            let v = value
+                .as_i64()
                 .ok_or_else(|| anyhow!("Arg {}: expected integer", arg_index))?;
             Ok(Val::I32(v as i32))
         }
         ValType::I64 => {
-            let v = value.as_i64()
+            let v = value
+                .as_i64()
                 .ok_or_else(|| anyhow!("Arg {}: expected integer", arg_index))?;
             Ok(Val::I64(v))
         }
         ValType::F32 => {
-            let v = value.as_f64()
+            let v = value
+                .as_f64()
                 .ok_or_else(|| anyhow!("Arg {}: expected float", arg_index))?;
             Ok(Val::F32((v as f32).to_bits()))
         }
         ValType::F64 => {
-            let v = value.as_f64()
+            let v = value
+                .as_f64()
                 .ok_or_else(|| anyhow!("Arg {}: expected float", arg_index))?;
             Ok(Val::F64(v.to_bits()))
         }
-        _ => Err(anyhow!("Arg {}: unsupported type {:?}", arg_index, expected)),
+        _ => Err(anyhow!(
+            "Arg {}: unsupported type {:?}",
+            arg_index,
+            expected
+        )),
     }
 }

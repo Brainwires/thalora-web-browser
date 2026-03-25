@@ -1,11 +1,14 @@
-use anyhow::Result;
-use thalora_browser_apis::boa_engine::Context;
 use super::types::*;
+use anyhow::Result;
 use rodio::DeviceTrait;
+use thalora_browser_apis::boa_engine::Context;
 
 impl MediaManager {
     /// Setup real Media APIs in global scope
-    pub fn setup_media_apis(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    pub fn setup_media_apis(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         self.setup_audio_context_api(context)?;
         self.setup_audio_element_api(context)?;
         self.setup_media_recorder_api(context)?;
@@ -33,7 +36,10 @@ impl MediaManager {
             gain_nodes: std::collections::HashMap::new(),
         };
 
-        self.audio_contexts.lock().unwrap().insert(ctx_id.clone(), real_ctx);
+        self.audio_contexts
+            .lock()
+            .unwrap()
+            .insert(ctx_id.clone(), real_ctx);
         ctx_id
     }
 
@@ -54,13 +60,21 @@ impl MediaManager {
             sink: None,
         };
 
-        self.audio_elements.lock().unwrap().insert(audio_id.clone(), real_audio);
+        self.audio_elements
+            .lock()
+            .unwrap()
+            .insert(audio_id.clone(), real_audio);
         audio_id
     }
 
     /// Get all audio contexts
     pub fn get_all_audio_contexts(&self) -> Vec<String> {
-        self.audio_contexts.lock().unwrap().keys().cloned().collect()
+        self.audio_contexts
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Clean up audio resources
@@ -74,9 +88,15 @@ impl MediaManager {
 impl Default for MediaManager {
     fn default() -> Self {
         Self::new().unwrap_or_else(|_| MediaManager {
-            audio_contexts: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-            audio_elements: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-            media_recorders: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            audio_contexts: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            audio_elements: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            media_recorders: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
             speech_synthesis: std::sync::Arc::new(std::sync::Mutex::new(SpeechSynthesisReal {
                 speaking: false,
                 pending: false,

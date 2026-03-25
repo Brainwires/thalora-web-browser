@@ -39,12 +39,15 @@ pub mod protocols;
 pub mod debug_utils;
 
 // Re-export main components for clean public API
-#[cfg(feature = "core")]
-pub use engine::{HeadlessWebBrowser, ScrapedData, Link, Image, Form, FormField, InteractionResponse, BrowserStorage, AuthContext};
-pub use engine::{RustRenderer, CssProcessor, LayoutEngine, LayoutResult};
 #[cfg(any(feature = "core", feature = "wasm"))]
 pub use engine::JavaScriptEngine;
-pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
+#[cfg(feature = "core")]
+pub use engine::{
+    AuthContext, BrowserStorage, Form, FormField, HeadlessWebBrowser, Image, InteractionResponse,
+    Link, ScrapedData,
+};
+pub use engine::{CssProcessor, LayoutEngine, LayoutResult, RustRenderer};
+pub use engine::{EngineConfig, EngineFactory, EngineType, ThaloraBrowserEngine};
 // EventListener is now natively implemented in Boa engine
 
 // websocket API is now natively implemented in Boa engine
@@ -52,20 +55,25 @@ pub use engine::{EngineType, EngineFactory, ThaloraBrowserEngine, EngineConfig};
 // events API is now natively implemented in Boa engine
 
 #[cfg(feature = "core")]
-pub use features::{BrowserFingerprint, FingerprintManager, BrowserType};
+pub use features::{
+    AiMemoryHeap, BookmarkEntry, CredentialEntry, MemoryData, MemorySearchCriteria, MemorySortBy,
+    MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData, SessionStatus,
+};
 #[cfg(feature = "core")]
-pub use features::{AiMemoryHeap, MemoryData, ResearchEntry, CredentialEntry, SessionData, BookmarkEntry, NoteEntry, MemorySearchCriteria, MemorySortBy, SessionStatus, NotePriority, MemoryStatistics};
+pub use features::{BrowserFingerprint, BrowserType, FingerprintManager};
 
 // Web search re-exports for convenient access
 #[cfg(feature = "core")]
-pub use web_search::{perform_search, SearchResult, SearchResults};
+pub use web_search::{SearchResult, SearchResults, perform_search};
 
 // Protocol exports (requires core networking)
-#[cfg(feature = "core")]
-pub use protocols::{McpRequest, McpResponse, ToolCall, McpMessage, McpMessageContent, ToolResult};
-#[cfg(feature = "core")]
-pub use protocols::{CdpServer, CdpMessage, CdpCommand, CdpResponse, CdpEvent, CdpError, CdpDomain};
-#[cfg(feature = "core")]
-pub use protocols::{McpServer, MemoryTools};
 #[cfg(feature = "wasm-debug")]
 pub use protocols::wasm_debug_tools::WasmDebugTools;
+#[cfg(feature = "core")]
+pub use protocols::{
+    CdpCommand, CdpDomain, CdpError, CdpEvent, CdpMessage, CdpResponse, CdpServer,
+};
+#[cfg(feature = "core")]
+pub use protocols::{McpMessage, McpMessageContent, McpRequest, McpResponse, ToolCall, ToolResult};
+#[cfg(feature = "core")]
+pub use protocols::{McpServer, MemoryTools};

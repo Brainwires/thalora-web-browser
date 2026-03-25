@@ -11,15 +11,15 @@
 // - Multi-page article handling with session management
 // - Quality metrics and readability scoring
 
-pub mod extractor;
-pub mod scorer;
 pub mod cleaner;
+pub mod extractor;
 pub mod formatter;
+pub mod scorer;
 
 // Re-export main types for easy access
-pub use extractor::{ReadabilityExtractor, ExtractionResult, ExtractionOptions};
+pub use extractor::{ExtractionOptions, ExtractionResult, ReadabilityExtractor};
+pub use formatter::{FormattedContent, OutputFormat};
 pub use scorer::{ContentScore, ScoringMetrics};
-pub use formatter::{OutputFormat, FormattedContent};
 
 use anyhow::Result;
 use scraper::Html;

@@ -5,7 +5,11 @@ use thalora_constants::USER_AGENT;
 /// Setup URL and URLSearchParams API
 pub fn setup_url_api(context: &mut Context) -> Result<()> {
     // First inject the USER_AGENT as a global constant
-    context.eval(Source::from_bytes(&format!("const THALORA_USER_AGENT = '{}';", USER_AGENT)))
+    context
+        .eval(Source::from_bytes(&format!(
+            "const THALORA_USER_AGENT = '{}';",
+            USER_AGENT
+        )))
         .map_err(|e| anyhow::anyhow!("Failed to set USER_AGENT constant: {}", e))?;
 
     // Then run the polyfill which uses that constant

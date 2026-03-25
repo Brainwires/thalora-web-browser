@@ -1,9 +1,9 @@
-use anyhow::Result;
-use thalora_browser_apis::boa_engine::{Context, module::IdleModuleLoader};
-use std::sync::{Arc, Mutex};
-use std::rc::Rc;
 use crate::apis::WebApis;
 use crate::engine::engine_trait::EngineType;
+use anyhow::Result;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use thalora_browser_apis::boa_engine::{Context, module::IdleModuleLoader};
 // events API is now natively implemented in Boa engine
 // WebAssembly is now natively implemented in Boa engine
 
@@ -63,8 +63,9 @@ impl RustRenderer {
                 }
             }
             EngineType::V8 => {
-                let v8_engine = crate::engine::engine_trait::EngineFactory::create_engine(EngineType::V8)
-                    .expect("Failed to create V8 engine");
+                let v8_engine =
+                    crate::engine::engine_trait::EngineFactory::create_engine(EngineType::V8)
+                        .expect("Failed to create V8 engine");
 
                 let web_apis = WebApis::new();
 
@@ -90,9 +91,12 @@ impl RustRenderer {
         self.in_update = value;
     }
 
-    pub fn setup_history_api(&mut self, events_handle: Arc<Mutex<Vec<crate::engine::browser::types::HistoryEvent>>>) -> Result<()> {
-        use thalora_browser_apis::boa_engine::js_string;
+    pub fn setup_history_api(
+        &mut self,
+        events_handle: Arc<Mutex<Vec<crate::engine::browser::types::HistoryEvent>>>,
+    ) -> Result<()> {
         use crate::engine::browser::types::HistoryEvent;
+        use thalora_browser_apis::boa_engine::js_string;
 
         if self.engine_type == EngineType::Boa {
             if let Some(ctx) = &mut self.js_context {
@@ -139,9 +143,13 @@ impl RustRenderer {
         Ok(())
     }
 
-    pub fn js_value_to_string(&mut self, value: thalora_browser_apis::boa_engine::JsValue) -> String {
+    pub fn js_value_to_string(
+        &mut self,
+        value: thalora_browser_apis::boa_engine::JsValue,
+    ) -> String {
         if let Some(ctx) = &mut self.js_context {
-            value.to_string(ctx)
+            value
+                .to_string(ctx)
                 .map(|s| s.to_std_string_escaped())
                 .unwrap_or_else(|_| "undefined".to_string())
         } else {
@@ -154,8 +162,11 @@ impl RustRenderer {
         match self.engine_type {
             EngineType::Boa => {
                 if let Some(ctx) = &mut self.js_context {
-                    let result = ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(source))
-                        .map_err(|e| anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e)))?;
+                    let result = ctx
+                        .eval(thalora_browser_apis::boa_engine::Source::from_bytes(source))
+                        .map_err(|e| {
+                            anyhow::Error::msg(format!("JavaScript evaluation failed: {:?}", e))
+                        })?;
 
                     // Convert Boa JsValue to JSON
                     self.boa_value_to_json(result)
@@ -184,13 +195,18 @@ impl RustRenderer {
     }
 
     /// Helper to convert Boa JsValue to serde_json::Value
-    fn boa_value_to_json(&self, value: thalora_browser_apis::boa_engine::JsValue) -> Result<serde_json::Value> {
+    fn boa_value_to_json(
+        &self,
+        value: thalora_browser_apis::boa_engine::JsValue,
+    ) -> Result<serde_json::Value> {
         if value.is_undefined() || value.is_null() {
             Ok(serde_json::Value::Null)
         } else if value.is_boolean() {
             Ok(serde_json::Value::Bool(value.as_boolean().unwrap_or(false)))
         } else if value.is_string() {
-            let s = value.as_string().ok_or_else(|| anyhow::Error::msg("Failed to convert string"))?;
+            let s = value
+                .as_string()
+                .ok_or_else(|| anyhow::Error::msg("Failed to convert string"))?;
             Ok(serde_json::Value::String(s.to_std_string_lossy()))
         } else if value.is_number() {
             let n = value.as_number().unwrap_or(0.0);
@@ -210,7 +226,9 @@ impl RustRenderer {
         // Prevent re-entrant updates which could cause infinite recursion by
         // a JS getter calling back into document update.
         if self.in_update {
-            eprintln!("🔍 DEBUG: update_document_html re-entrant call detected - skipping to avoid recursion");
+            eprintln!(
+                "🔍 DEBUG: update_document_html re-entrant call detected - skipping to avoid recursion"
+            );
             return Ok(());
         }
 
@@ -268,9 +286,11 @@ impl RustRenderer {
         "#;
 
         if let Some(ctx) = &mut self.js_context {
-            match ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(debug_script)) {
+            match ctx.eval(thalora_browser_apis::boa_engine::Source::from_bytes(
+                debug_script,
+            )) {
                 Ok(value) => Ok(self.js_value_to_string(value)),
-                Err(_) => Ok("Failed to get debug info".to_string())
+                Err(_) => Ok("Failed to get debug info".to_string()),
             }
         } else {
             Ok("JavaScript context not available".to_string())

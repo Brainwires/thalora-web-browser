@@ -1,9 +1,9 @@
+use crate::engine::browser::types::{Form, FormField, Image, Link, ScrapedData};
 use anyhow::Result;
 use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use url::Url;
-use crate::engine::browser::types::{ScrapedData, Link, Image, FormField, Form};
 
 pub struct WebScraper;
 
@@ -17,7 +17,8 @@ impl WebScraper {
 
         // Extract title
         let title = if let Ok(title_selector) = Selector::parse("title") {
-            document.select(&title_selector)
+            document
+                .select(&title_selector)
                 .next()
                 .map(|el| el.text().collect::<Vec<_>>().join(" ").trim().to_string())
                 .filter(|t| !t.is_empty())
@@ -58,14 +59,15 @@ impl WebScraper {
             for element in document.select(&selector) {
                 if let Some(href) = element.value().attr("href") {
                     if let Ok(url) = self.resolve_url(base_url, href) {
-                        let text = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+                        let text = element
+                            .text()
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                            .trim()
+                            .to_string();
                         let title = element.value().attr("title").map(|s| s.to_string());
 
-                        links.push(Link {
-                            url,
-                            text,
-                            title,
-                        });
+                        links.push(Link { url, text, title });
                     }
                 }
             }
@@ -108,9 +110,13 @@ impl WebScraper {
                 // Handle different meta tag patterns
                 if let (Some(name), Some(content)) = (attrs.attr("name"), attrs.attr("content")) {
                     metadata.insert(name.to_string(), content.to_string());
-                } else if let (Some(property), Some(content)) = (attrs.attr("property"), attrs.attr("content")) {
+                } else if let (Some(property), Some(content)) =
+                    (attrs.attr("property"), attrs.attr("content"))
+                {
                     metadata.insert(property.to_string(), content.to_string());
-                } else if let (Some(http_equiv), Some(content)) = (attrs.attr("http-equiv"), attrs.attr("content")) {
+                } else if let (Some(http_equiv), Some(content)) =
+                    (attrs.attr("http-equiv"), attrs.attr("content"))
+                {
                     metadata.insert(format!("http-equiv:{}", http_equiv), content.to_string());
                 }
             }
@@ -143,7 +149,8 @@ impl WebScraper {
         }
 
         // Clean up whitespace
-        content.split_whitespace()
+        content
+            .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ")
             .trim()
@@ -167,8 +174,10 @@ impl WebScraper {
         let mut og_data = Map::new();
         if let Ok(og_selector) = Selector::parse(r#"meta[property^="og:"]"#) {
             for element in document.select(&og_selector) {
-                if let (Some(property), Some(content)) =
-                    (element.value().attr("property"), element.value().attr("content")) {
+                if let (Some(property), Some(content)) = (
+                    element.value().attr("property"),
+                    element.value().attr("content"),
+                ) {
                     og_data.insert(property.to_string(), Value::String(content.to_string()));
                 }
             }
@@ -181,8 +190,10 @@ impl WebScraper {
         let mut twitter_data = Map::new();
         if let Ok(twitter_selector) = Selector::parse(r#"meta[name^="twitter:"]"#) {
             for element in document.select(&twitter_selector) {
-                if let (Some(name), Some(content)) =
-                    (element.value().attr("name"), element.value().attr("content")) {
+                if let (Some(name), Some(content)) = (
+                    element.value().attr("name"),
+                    element.value().attr("content"),
+                ) {
                     twitter_data.insert(name.to_string(), Value::String(content.to_string()));
                 }
             }
@@ -203,11 +214,18 @@ impl WebScraper {
 
         if let Ok(form_selector) = Selector::parse("form") {
             for form_element in document.select(&form_selector) {
-                let action = form_element.value().attr("action")
-                    .map(|a| self.resolve_url(base_url, a).unwrap_or_else(|_| a.to_string()))
+                let action = form_element
+                    .value()
+                    .attr("action")
+                    .map(|a| {
+                        self.resolve_url(base_url, a)
+                            .unwrap_or_else(|_| a.to_string())
+                    })
                     .unwrap_or_else(|| base_url.to_string());
 
-                let method = form_element.value().attr("method")
+                let method = form_element
+                    .value()
+                    .attr("method")
                     .unwrap_or("GET")
                     .to_uppercase();
 
@@ -221,13 +239,13 @@ impl WebScraper {
                             continue;
                         }
 
-                        let field_type = input.value().attr("type")
-                            .unwrap_or_else(|| {
-                                match input.value().name() {
-                                    "textarea" => "textarea",
-                                    "select" => "select",
-                                    _ => "text",
-                                }
+                        let field_type = input
+                            .value()
+                            .attr("type")
+                            .unwrap_or_else(|| match input.value().name() {
+                                "textarea" => "textarea",
+                                "select" => "select",
+                                _ => "text",
                             })
                             .to_string();
 

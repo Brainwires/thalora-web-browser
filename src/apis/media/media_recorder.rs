@@ -1,10 +1,15 @@
-use anyhow::Result;
-use thalora_browser_apis::boa_engine::{js_string, property::Attribute, Context, JsObject, JsValue, NativeFunction};
-use std::sync::{Arc, Mutex};
 use super::types::*;
+use anyhow::Result;
+use std::sync::{Arc, Mutex};
+use thalora_browser_apis::boa_engine::{
+    Context, JsObject, JsValue, NativeFunction, js_string, property::Attribute,
+};
 
 impl MediaManager {
-    pub fn setup_media_recorder_api(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    pub fn setup_media_recorder_api(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         let media_recorders = Arc::clone(&self.media_recorders);
 
         // Real MediaRecorder constructor with actual recording
@@ -68,17 +73,19 @@ impl MediaManager {
         context: &mut Context,
     ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real start method - actually begins recording
-            let media_recorders_start = Arc::clone(media_recorders);
-            let recorder_id_start = recorder_id.to_string();
-            let start_fn = unsafe { NativeFunction::from_closure(move |_, _args, _ctx| {
-            if let Ok(mut recorders) = media_recorders_start.lock() {
-                if let Some(recorder) = recorders.get_mut(&recorder_id_start) {
-                    recorder.state = "recording".to_string();
-                    // Real recording would start here
+        let media_recorders_start = Arc::clone(media_recorders);
+        let recorder_id_start = recorder_id.to_string();
+        let start_fn = unsafe {
+            NativeFunction::from_closure(move |_, _args, _ctx| {
+                if let Ok(mut recorders) = media_recorders_start.lock() {
+                    if let Some(recorder) = recorders.get_mut(&recorder_id_start) {
+                        recorder.state = "recording".to_string();
+                        // Real recording would start here
+                    }
                 }
-            }
-            Ok(JsValue::undefined())
-            }) };
+                Ok(JsValue::undefined())
+            })
+        };
         recorder.set(
             js_string!("start"),
             JsValue::from(start_fn.to_js_function(context.realm())),
@@ -86,7 +93,7 @@ impl MediaManager {
             context,
         )?;
 
-    let stop_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+        let stop_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         recorder.set(
             js_string!("stop"),
             JsValue::from(stop_fn.to_js_function(context.realm())),
@@ -94,7 +101,7 @@ impl MediaManager {
             context,
         )?;
 
-    let pause_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+        let pause_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         recorder.set(
             js_string!("pause"),
             JsValue::from(pause_fn.to_js_function(context.realm())),
@@ -102,7 +109,7 @@ impl MediaManager {
             context,
         )?;
 
-    let resume_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
+        let resume_fn = unsafe { NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())) };
         recorder.set(
             js_string!("resume"),
             JsValue::from(resume_fn.to_js_function(context.realm())),
@@ -123,7 +130,10 @@ impl MediaManager {
         Ok(())
     }
 
-    fn setup_media_recorder_static_methods(&self, context: &mut Context) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
+    fn setup_media_recorder_static_methods(
+        &self,
+        context: &mut Context,
+    ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Real MediaRecorder.isTypeSupported static method
         let is_type_supported_fn = unsafe {
             NativeFunction::from_closure(|_, args, _context| {

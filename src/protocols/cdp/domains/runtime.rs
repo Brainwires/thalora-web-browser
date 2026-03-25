@@ -51,12 +51,11 @@ impl CdpDomain for RuntimeDomain {
                 // Enable runtime notifications
                 Ok(serde_json::json!({}))
             }
-            "disable" => {
-                Ok(serde_json::json!({}))
-            }
+            "disable" => Ok(serde_json::json!({})),
             "evaluate" => {
                 let params = params.unwrap_or_default();
-                let expression = params.get("expression")
+                let expression = params
+                    .get("expression")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
@@ -85,7 +84,8 @@ impl CdpDomain for RuntimeDomain {
             }
             "getProperties" => {
                 let params = params.unwrap_or_default();
-                let _object_id = params.get("objectId")
+                let _object_id = params
+                    .get("objectId")
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
 
@@ -93,17 +93,13 @@ impl CdpDomain for RuntimeDomain {
                     "result": []
                 }))
             }
-            "compileScript" => {
-                Ok(serde_json::json!({
-                    "scriptId": "script_1"
-                }))
-            }
-            "getExecutionContexts" => {
-                Ok(serde_json::json!({
-                    "contexts": self.execution_contexts
-                }))
-            }
-            _ => Err(anyhow::anyhow!("Unknown Runtime method: {}", method))
+            "compileScript" => Ok(serde_json::json!({
+                "scriptId": "script_1"
+            })),
+            "getExecutionContexts" => Ok(serde_json::json!({
+                "contexts": self.execution_contexts
+            })),
+            _ => Err(anyhow::anyhow!("Unknown Runtime method: {}", method)),
         }
     }
 

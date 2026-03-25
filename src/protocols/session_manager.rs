@@ -1,14 +1,14 @@
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
-use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command as TokioCommand;
-use tracing::{info, warn, error, debug};
+use tokio::sync::Mutex;
+use tracing::{debug, error, info, warn};
 
 use crate::protocols::security::sanitize_session_id;
 
@@ -73,11 +73,10 @@ pub struct SessionManager {
 impl SessionManager {
     pub fn new() -> Result<Self> {
         let socket_dir = std::env::temp_dir().join("thalora_sessions");
-        std::fs::create_dir_all(&socket_dir)
-            .context("Failed to create socket directory")?;
+        std::fs::create_dir_all(&socket_dir).context("Failed to create socket directory")?;
 
-        let browser_executable = std::env::current_exe()
-            .context("Failed to get current executable path")?;
+        let browser_executable =
+            std::env::current_exe().context("Failed to get current executable path")?;
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -91,10 +90,14 @@ impl SessionManager {
     /// # Security
     /// The session_id is validated to prevent path traversal attacks (CWE-22).
     /// Only alphanumeric characters, hyphens, and underscores are allowed.
-    pub async fn get_or_create_session(&self, session_id: &str, persistent: bool) -> Result<SessionInfo> {
+    pub async fn get_or_create_session(
+        &self,
+        session_id: &str,
+        persistent: bool,
+    ) -> Result<SessionInfo> {
         // SECURITY: Validate session_id to prevent path traversal attacks
-        let safe_session_id = sanitize_session_id(session_id)
-            .context("Invalid session_id format")?;
+        let safe_session_id =
+            sanitize_session_id(session_id).context("Invalid session_id format")?;
 
         let mut sessions = self.sessions.lock().await;
 
@@ -111,7 +114,10 @@ impl SessionManager {
         let socket_path = self.socket_dir.join(format!("{}.sock", safe_session_id));
         let socket_path_str = socket_path.to_string_lossy().to_string();
 
-        info!("Spawning new browser process for session: {}", safe_session_id);
+        info!(
+            "Spawning new browser process for session: {}",
+            safe_session_id
+        );
 
         // Spawn background browser process using session subcommand
         let mut cmd = Command::new(&self.browser_executable);
@@ -131,7 +137,12 @@ impl SessionManager {
             .stdout(Stdio::piped()) // Capture output for debugging
             .stderr(Stdio::piped()) // Capture errors for debugging
             .spawn()
-            .with_context(|| format!("Failed to spawn browser process: {:?}", self.browser_executable))?;
+            .with_context(|| {
+                format!(
+                    "Failed to spawn browser process: {:?}",
+                    self.browser_executable
+                )
+            })?;
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -159,44 +170,66 @@ impl SessionManager {
     ///
     /// # Security
     /// The session_id is validated to prevent path traversal attacks.
-    pub async fn send_command(&self, session_id: &str, command: BrowserCommand) -> Result<BrowserResponse> {
+    pub async fn send_command(
+        &self,
+        session_id: &str,
+        command: BrowserCommand,
+    ) -> Result<BrowserResponse> {
         // SECURITY: Validate session_id
-        let safe_session_id = sanitize_session_id(session_id)
-            .context("Invalid session_id format")?;
+        let safe_session_id =
+            sanitize_session_id(session_id).context("Invalid session_id format")?;
 
         let session_info = {
             let sessions = self.sessions.lock().await;
-            sessions.get(&safe_session_id)
+            sessions
+                .get(&safe_session_id)
                 .map(|(info, _)| info.clone())
                 .context("Session not found")?
         };
 
-        debug!("Sending command to session {}: {:?}", safe_session_id, command);
+        debug!(
+            "Sending command to session {}: {:?}",
+            safe_session_id, command
+        );
 
         // Connect to the Unix socket
         let mut stream = UnixStream::connect(&session_info.socket_path)
             .await
-            .with_context(|| format!("Failed to connect to session socket: {}", session_info.socket_path))?;
+            .with_context(|| {
+                format!(
+                    "Failed to connect to session socket: {}",
+                    session_info.socket_path
+                )
+            })?;
 
         // Send command
-        let command_json = serde_json::to_string(&command)
-            .context("Failed to serialize command")?;
+        let command_json =
+            serde_json::to_string(&command).context("Failed to serialize command")?;
 
-        stream.write_all(command_json.as_bytes()).await
+        stream
+            .write_all(command_json.as_bytes())
+            .await
             .context("Failed to write command to socket")?;
-        stream.write_all(b"\n").await
+        stream
+            .write_all(b"\n")
+            .await
             .context("Failed to write newline to socket")?;
 
         // Read response
         let mut reader = BufReader::new(stream);
         let mut response_line = String::new();
-        reader.read_line(&mut response_line).await
+        reader
+            .read_line(&mut response_line)
+            .await
             .context("Failed to read response from socket")?;
 
         let response: BrowserResponse = serde_json::from_str(&response_line.trim())
             .context("Failed to deserialize response")?;
 
-        debug!("Received response from session {}: {:?}", safe_session_id, response);
+        debug!(
+            "Received response from session {}: {:?}",
+            safe_session_id, response
+        );
         Ok(response)
     }
 
@@ -212,8 +245,8 @@ impl SessionManager {
     /// The session_id is validated to prevent path traversal attacks.
     pub async fn close_session(&self, session_id: &str) -> Result<bool> {
         // SECURITY: Validate session_id
-        let safe_session_id = sanitize_session_id(session_id)
-            .context("Invalid session_id format")?;
+        let safe_session_id =
+            sanitize_session_id(session_id).context("Invalid session_id format")?;
 
         let mut sessions = self.sessions.lock().await;
 
@@ -222,12 +255,18 @@ impl SessionManager {
 
             // Try to gracefully terminate the process
             if let Err(e) = process.kill() {
-                warn!("Failed to kill browser process for session {}: {}", safe_session_id, e);
+                warn!(
+                    "Failed to kill browser process for session {}: {}",
+                    safe_session_id, e
+                );
             }
 
             // Clean up socket file
             if let Err(e) = std::fs::remove_file(&session_info.socket_path) {
-                warn!("Failed to remove socket file {}: {}", session_info.socket_path, e);
+                warn!(
+                    "Failed to remove socket file {}: {}",
+                    session_info.socket_path, e
+                );
             }
 
             Ok(true)
@@ -274,7 +313,10 @@ impl SessionManager {
 
             for session_id in session_ids {
                 if let Err(e) = self.close_session(&session_id).await {
-                    error!("Failed to close session {} during shutdown: {}", session_id, e);
+                    error!(
+                        "Failed to close session {} during shutdown: {}",
+                        session_id, e
+                    );
                 }
             }
         }
@@ -292,10 +334,16 @@ impl Drop for SessionManager {
             let mut sessions = sessions.blocking_lock();
             for (session_id, (session_info, mut process)) in sessions.drain() {
                 if let Err(e) = process.kill() {
-                    eprintln!("Failed to kill browser process for session {}: {}", session_id, e);
+                    eprintln!(
+                        "Failed to kill browser process for session {}: {}",
+                        session_id, e
+                    );
                 }
                 if let Err(e) = std::fs::remove_file(&session_info.socket_path) {
-                    eprintln!("Failed to remove socket file {}: {}", session_info.socket_path, e);
+                    eprintln!(
+                        "Failed to remove socket file {}: {}",
+                        session_info.socket_path, e
+                    );
                 }
             }
 

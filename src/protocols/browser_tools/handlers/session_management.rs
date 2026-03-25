@@ -1,8 +1,8 @@
-use serde_json::{json, Value};
 use rand;
+use serde_json::{Value, json};
 
-use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::mcp::McpResponse;
 
 impl BrowserTools {
     pub async fn handle_session_management(&self, params: Value) -> McpResponse {
@@ -10,10 +10,17 @@ impl BrowserTools {
 
         match action {
             "create" => {
-                let persistent = params.get("persistent").and_then(|v| v.as_bool()).unwrap_or(false);
+                let persistent = params
+                    .get("persistent")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
                 // Generate a unique session ID using timestamp and random component
-                let session_id = format!("session_{}_{}",
-                    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(),
+                let session_id = format!(
+                    "session_{}_{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis(),
                     rand::random::<u32>()
                 );
                 let _browser = self.get_or_create_session(&session_id, persistent);
@@ -24,8 +31,7 @@ impl BrowserTools {
                 }))
             }
             "info" => {
-                let session_id = params.get("session_id")
-                    .and_then(|v| v.as_str());
+                let session_id = params.get("session_id").and_then(|v| v.as_str());
                 if let Some(session_id) = session_id {
                     if let Some(session) = self.get_session_info(session_id) {
                         McpResponse::success(serde_json::to_value(session).unwrap_or_default())
@@ -41,8 +47,7 @@ impl BrowserTools {
                 McpResponse::success(json!({"sessions": sessions}))
             }
             "close" => {
-                let session_id = params.get("session_id")
-                    .and_then(|v| v.as_str());
+                let session_id = params.get("session_id").and_then(|v| v.as_str());
                 if let Some(session_id) = session_id {
                     let closed = self.close_session(session_id);
                     McpResponse::success(json!({
@@ -54,23 +59,23 @@ impl BrowserTools {
                 }
             }
             "cleanup" => {
-                let max_age = params.get("max_age_seconds")
+                let max_age = params
+                    .get("max_age_seconds")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(3600); // Default 1 hour
                 self.cleanup_expired_sessions(max_age);
                 McpResponse::success(json!({"cleaned_up": true}))
             }
-            _ => McpResponse::error(-1, format!("Unknown action: {}", action))
+            _ => McpResponse::error(-1, format!("Unknown action: {}", action)),
         }
     }
 
     pub async fn handle_validate_session(&self, params: Value) -> McpResponse {
         let session_id = params["session_id"].as_str().unwrap_or("");
-        let expected_url_pattern = params.get("expected_url_pattern")
-            .and_then(|v| v.as_str());
-        let expected_content = params.get("expected_content")
-            .and_then(|v| v.as_str());
-        let timeout = params.get("timeout")
+        let expected_url_pattern = params.get("expected_url_pattern").and_then(|v| v.as_str());
+        let expected_content = params.get("expected_content").and_then(|v| v.as_str());
+        let timeout = params
+            .get("timeout")
             .and_then(|v| v.as_u64())
             .unwrap_or(5000);
 
@@ -132,7 +137,10 @@ impl BrowserTools {
 
                 McpResponse::success(validation_result)
             } else {
-                McpResponse::error(-1, "Session exists but browser instance not found".to_string())
+                McpResponse::error(
+                    -1,
+                    "Session exists but browser instance not found".to_string(),
+                )
             }
         } else {
             McpResponse::success(json!({

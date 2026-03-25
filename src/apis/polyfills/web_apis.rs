@@ -2,9 +2,8 @@ use thalora_browser_apis::boa_engine::{Context, JsResult, Source};
 
 // Import the modular polyfill components
 use super::{
-    performance::setup_performance_apis,
+    chrome_features::setup_chrome_features, performance::setup_performance_apis,
     security::setup_security_apis,
-    chrome_features::setup_chrome_features,
 };
 
 /// Setup Web APIs polyfills

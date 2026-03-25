@@ -1,5 +1,5 @@
 use boa_engine::{Context, Source};
-use thalora::apis::{WebApis, polyfills, dom_native};
+use thalora::apis::{WebApis, dom_native, polyfills};
 
 #[test]
 fn debug_worker_availability_through_thalora_setup() {
@@ -18,7 +18,7 @@ fn debug_worker_availability_through_thalora_setup() {
                 let type_str = value.to_string(context).unwrap().to_std_string_escaped();
                 println!("   {} - Worker type: '{}'", step, type_str);
                 type_str == "function"
-            },
+            }
             Err(e) => {
                 println!("   {} - Error: {:?}", step, e);
                 false
@@ -48,12 +48,42 @@ fn debug_worker_availability_through_thalora_setup() {
 
     // Summary
     println!("\n🎯 Summary:");
-    println!("   Initial:       Worker = {}", if initial { "✅ function" } else { "❌ undefined" });
-    println!("   After polyfills:  Worker = {}", if after_polyfills { "✅ function" } else { "❌ undefined" });
-    println!("   After WebApis:    Worker = {}", if after_webapis { "✅ function" } else { "❌ undefined" });
-    println!("   After DOM setup:  Worker = {}", if after_dom { "✅ function" } else { "❌ undefined" });
+    println!(
+        "   Initial:       Worker = {}",
+        if initial {
+            "✅ function"
+        } else {
+            "❌ undefined"
+        }
+    );
+    println!(
+        "   After polyfills:  Worker = {}",
+        if after_polyfills {
+            "✅ function"
+        } else {
+            "❌ undefined"
+        }
+    );
+    println!(
+        "   After WebApis:    Worker = {}",
+        if after_webapis {
+            "✅ function"
+        } else {
+            "❌ undefined"
+        }
+    );
+    println!(
+        "   After DOM setup:  Worker = {}",
+        if after_dom {
+            "✅ function"
+        } else {
+            "❌ undefined"
+        }
+    );
 
     if !after_dom {
-        println!("\n🚨 FOUND THE CULPRIT: setup_native_dom_globals is breaking Worker availability!");
+        println!(
+            "\n🚨 FOUND THE CULPRIT: setup_native_dom_globals is breaking Worker availability!"
+        );
     }
 }

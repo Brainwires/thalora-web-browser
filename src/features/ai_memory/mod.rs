@@ -13,9 +13,8 @@ mod types;
 
 // Re-export public types
 pub use types::{
-    BookmarkEntry, CredentialEntry, MemoryData, MemoryMetadata, MemorySearchCriteria,
-    MemorySortBy, MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData,
-    SessionStatus,
+    BookmarkEntry, CredentialEntry, MemoryData, MemoryMetadata, MemorySearchCriteria, MemorySortBy,
+    MemoryStatistics, NoteEntry, NotePriority, ResearchEntry, SessionData, SessionStatus,
 };
 
 /// AI Memory Heap - Persistent cache system for AI agents
@@ -102,10 +101,9 @@ impl AiMemoryHeap {
         ];
 
         // Use checked_add for safe accumulation, saturate at u64::MAX on overflow
-        counts.iter()
-            .try_fold(0u64, |acc, &count| {
-                acc.checked_add(count as u64)
-            })
+        counts
+            .iter()
+            .try_fold(0u64, |acc, &count| acc.checked_add(count as u64))
             .unwrap_or(u64::MAX)
     }
 
@@ -306,7 +304,10 @@ impl AiMemoryHeap {
     }
 
     /// Search notes
-    pub fn search_notes<'a>(&'a self, criteria: &'a MemorySearchCriteria) -> Vec<(&'a String, &'a NoteEntry)> {
+    pub fn search_notes<'a>(
+        &'a self,
+        criteria: &'a MemorySearchCriteria,
+    ) -> Vec<(&'a String, &'a NoteEntry)> {
         search::search_notes(&self.memory_data, criteria)
     }
 

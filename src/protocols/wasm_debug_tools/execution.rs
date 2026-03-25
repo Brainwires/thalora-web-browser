@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
 use serde_json::Value;
-use wasmtime::{Val, ValType, Func};
+use wasmtime::{Func, Val, ValType};
 
-use super::state::{WasmDebugState, validate_module_id, DEFAULT_FUEL};
+use super::state::{DEFAULT_FUEL, WasmDebugState, validate_module_id};
 
 /// Maximum timeout for function execution (30 seconds)
 const MAX_TIMEOUT_MS: u64 = 30_000;
@@ -28,19 +28,20 @@ impl WasmDebugState {
     ) -> Result<Value> {
         validate_module_id(module_id)?;
 
-        let timeout = timeout_ms
-            .unwrap_or(DEFAULT_TIMEOUT_MS)
-            .min(MAX_TIMEOUT_MS);
+        let timeout = timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS).min(MAX_TIMEOUT_MS);
 
         // Get the module and find the function
-        let loaded = self.get_module_mut(module_id)
+        let loaded = self
+            .get_module_mut(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
-        let instance = loaded.instance
+        let instance = loaded
+            .instance
             .ok_or_else(|| anyhow!("Module '{}' is not instantiated", module_id))?;
 
         // Find the exported function
-        let func = instance.get_func(&mut loaded.store, function_name)
+        let func = instance
+            .get_func(&mut loaded.store, function_name)
             .ok_or_else(|| anyhow!("Function '{}' not found in module exports", function_name))?;
 
         let func_ty = func.ty(&loaded.store);
@@ -67,7 +68,8 @@ impl WasmDebugState {
         }
 
         // Prepare result slots
-        let mut wasm_results: Vec<Val> = result_types.iter()
+        let mut wasm_results: Vec<Val> = result_types
+            .iter()
             .map(|t| match t {
                 ValType::I32 => Val::I32(0),
                 ValType::I64 => Val::I64(0),
@@ -107,13 +109,11 @@ impl WasmDebugState {
         match call_result {
             Ok(()) => {
                 // Convert results to JSON
-                let results: Vec<Value> = wasm_results.iter()
-                    .map(|v| wasm_val_to_json(v))
-                    .collect();
+                let results: Vec<Value> =
+                    wasm_results.iter().map(|v| wasm_val_to_json(v)).collect();
 
-                let result_types_str: Vec<String> = result_types.iter()
-                    .map(|t| format!("{:?}", t))
-                    .collect();
+                let result_types_str: Vec<String> =
+                    result_types.iter().map(|t| format!("{:?}", t)).collect();
 
                 Ok(serde_json::json!({
                     "module_id": module_id,
@@ -149,31 +149,62 @@ impl WasmDebugState {
 }
 
 /// Convert a JSON value + type hint to a wasmtime Val
-fn convert_to_wasm_val(value: &Value, type_hint: &str, expected: &ValType, arg_index: usize) -> Result<Val> {
+fn convert_to_wasm_val(
+    value: &Value,
+    type_hint: &str,
+    expected: &ValType,
+    arg_index: usize,
+) -> Result<Val> {
     match expected {
         ValType::I32 => {
-            let v = value.as_i64()
-                .ok_or_else(|| anyhow!("Argument {} ({}): expected integer, got {:?}", arg_index, type_hint, value))?;
+            let v = value.as_i64().ok_or_else(|| {
+                anyhow!(
+                    "Argument {} ({}): expected integer, got {:?}",
+                    arg_index,
+                    type_hint,
+                    value
+                )
+            })?;
             Ok(Val::I32(v as i32))
         }
         ValType::I64 => {
-            let v = value.as_i64()
-                .ok_or_else(|| anyhow!("Argument {} ({}): expected integer, got {:?}", arg_index, type_hint, value))?;
+            let v = value.as_i64().ok_or_else(|| {
+                anyhow!(
+                    "Argument {} ({}): expected integer, got {:?}",
+                    arg_index,
+                    type_hint,
+                    value
+                )
+            })?;
             Ok(Val::I64(v))
         }
         ValType::F32 => {
-            let v = value.as_f64()
-                .ok_or_else(|| anyhow!("Argument {} ({}): expected float, got {:?}", arg_index, type_hint, value))?;
+            let v = value.as_f64().ok_or_else(|| {
+                anyhow!(
+                    "Argument {} ({}): expected float, got {:?}",
+                    arg_index,
+                    type_hint,
+                    value
+                )
+            })?;
             Ok(Val::F32((v as f32).to_bits()))
         }
         ValType::F64 => {
-            let v = value.as_f64()
-                .ok_or_else(|| anyhow!("Argument {} ({}): expected float, got {:?}", arg_index, type_hint, value))?;
+            let v = value.as_f64().ok_or_else(|| {
+                anyhow!(
+                    "Argument {} ({}): expected float, got {:?}",
+                    arg_index,
+                    type_hint,
+                    value
+                )
+            })?;
             Ok(Val::F64(v.to_bits()))
         }
         _ => Err(anyhow!(
             "Argument {} ({}): unsupported parameter type {:?}",
-            arg_index, type_hint, expected
+            arg_index,
+            type_hint,
+            expected
         )),
     }
 }

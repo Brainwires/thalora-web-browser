@@ -9,13 +9,20 @@ async fn test_complete_native_networking_implementation() {
     println!("\n--- Testing WebSocket ---");
 
     // Test WebSocket constructor
-    let result = browser.lock().unwrap().execute_javascript("typeof WebSocket").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof WebSocket")
+        .await;
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            assert!(value_str.contains("function"), "WebSocket constructor should exist");
+            assert!(
+                value_str.contains("function"),
+                "WebSocket constructor should exist"
+            );
             println!("✅ WebSocket constructor exists");
-        },
+        }
         Err(e) => panic!("WebSocket constructor test failed: {:?}", e),
     }
 
@@ -24,35 +31,49 @@ async fn test_complete_native_networking_implementation() {
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            assert!(value_str.contains("0,1,2,3"), "WebSocket constants should be 0,1,2,3");
+            assert!(
+                value_str.contains("0,1,2,3"),
+                "WebSocket constants should be 0,1,2,3"
+            );
             println!("✅ WebSocket constants properly defined");
-        },
+        }
         Err(e) => panic!("WebSocket constants test failed: {:?}", e),
     }
 
     println!("\n--- Testing Fetch API ---");
 
     // Test fetch function
-    let result = browser.lock().unwrap().execute_javascript("typeof fetch").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof fetch")
+        .await;
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
             // Fetch may not be fully implemented yet, so we just check existence
             println!("🔍 fetch function result: {}", value_str);
-        },
+        }
         Err(e) => println!("🔍 fetch function test: {:?}", e),
     }
 
     println!("\n--- Testing ReadableStream ---");
 
     // Test ReadableStream constructor
-    let result = browser.lock().unwrap().execute_javascript("typeof ReadableStream").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof ReadableStream")
+        .await;
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
-            assert!(value_str.contains("function"), "ReadableStream constructor should exist");
+            assert!(
+                value_str.contains("function"),
+                "ReadableStream constructor should exist"
+            );
             println!("✅ ReadableStream constructor exists");
-        },
+        }
         Err(e) => panic!("ReadableStream constructor test failed: {:?}", e),
     }
 
@@ -75,14 +96,18 @@ async fn test_complete_native_networking_implementation() {
             } else {
                 println!("🔍 ReadableStream instance result: {}", value_str);
             }
-        },
+        }
         Err(e) => println!("🔍 ReadableStream instance test: {:?}", e),
     }
 
     println!("\n--- Testing Symbol.asyncIterator Support ---");
 
     // Test Symbol.asyncIterator
-    let result = browser.lock().unwrap().execute_javascript("typeof Symbol.asyncIterator").await;
+    let result = browser
+        .lock()
+        .unwrap()
+        .execute_javascript("typeof Symbol.asyncIterator")
+        .await;
     match result {
         Ok(value) => {
             let value_str = format!("{:?}", value);
@@ -91,7 +116,7 @@ async fn test_complete_native_networking_implementation() {
             } else {
                 println!("🔍 Symbol.asyncIterator result: {}", value_str);
             }
-        },
+        }
         Err(e) => println!("🔍 Symbol.asyncIterator test: {:?}", e),
     }
 

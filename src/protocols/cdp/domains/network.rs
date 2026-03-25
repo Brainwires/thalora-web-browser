@@ -30,16 +30,12 @@ impl CdpDomain for NetworkDomain {
                 self.enabled = false;
                 Ok(serde_json::json!({}))
             }
-            "getAllCookies" => {
-                Ok(serde_json::json!({
-                    "cookies": []
-                }))
-            }
-            "getCookies" => {
-                Ok(serde_json::json!({
-                    "cookies": []
-                }))
-            }
+            "getAllCookies" => Ok(serde_json::json!({
+                "cookies": []
+            })),
+            "getCookies" => Ok(serde_json::json!({
+                "cookies": []
+            })),
             "setCookie" => {
                 let params = params.unwrap_or_default();
                 let _name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -49,7 +45,7 @@ impl CdpDomain for NetworkDomain {
                     "success": true
                 }))
             }
-            _ => Err(anyhow::anyhow!("Unknown Network method: {}", method))
+            _ => Err(anyhow::anyhow!("Unknown Network method: {}", method)),
         }
     }
 

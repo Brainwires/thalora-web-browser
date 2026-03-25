@@ -95,7 +95,7 @@ impl BrowserFingerprint {
         let mut rng = rand::thread_rng();
         let version = rng.gen_range(115..121); // Recent Chrome versions
         let build = rng.gen_range(1000..9999);
-        
+
         let user_agent = format!(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{}.0.{}.88 Safari/537.36",
             version, build
@@ -104,7 +104,10 @@ impl BrowserFingerprint {
         let mut accept_headers = HashMap::new();
         accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".to_string());
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
         accept_headers.insert("Sec-Fetch-Dest".to_string(), "document".to_string());
         accept_headers.insert("Sec-Fetch-Mode".to_string(), "navigate".to_string());
         accept_headers.insert("Sec-Fetch-Site".to_string(), "none".to_string());
@@ -112,7 +115,13 @@ impl BrowserFingerprint {
         accept_headers.insert("Upgrade-Insecure-Requests".to_string(), "1".to_string());
 
         let mut browser_headers = HashMap::new();
-        browser_headers.insert("sec-ch-ua".to_string(), format!(r#""Google Chrome";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#, version, version));
+        browser_headers.insert(
+            "sec-ch-ua".to_string(),
+            format!(
+                r#""Google Chrome";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#,
+                version, version
+            ),
+        );
         browser_headers.insert("sec-ch-ua-mobile".to_string(), "?0".to_string());
         browser_headers.insert("sec-ch-ua-platform".to_string(), r#""Windows""#.to_string());
 
@@ -132,16 +141,23 @@ impl BrowserFingerprint {
     fn generate_firefox() -> Self {
         let mut rng = rand::thread_rng();
         let version = rng.gen_range(110..122); // Recent Firefox versions
-        
+
         let user_agent = format!(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:{}.0) Gecko/20100101 Firefox/{}.0",
             version, version
         );
 
         let mut accept_headers = HashMap::new();
-        accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8".to_string());
+        accept_headers.insert(
+            "Accept".to_string(),
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                .to_string(),
+        );
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.5".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
         accept_headers.insert("Upgrade-Insecure-Requests".to_string(), "1".to_string());
 
         Self {
@@ -161,16 +177,22 @@ impl BrowserFingerprint {
         let mut rng = rand::thread_rng();
         let version = rng.gen_range(14..17); // Recent Safari versions
         let build = rng.gen_range(600..700);
-        
+
         let user_agent = format!(
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/{}.1.15 (KHTML, like Gecko) Version/{}.1.2 Safari/{}.1.15",
             build, version, build
         );
 
         let mut accept_headers = HashMap::new();
-        accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".to_string());
+        accept_headers.insert(
+            "Accept".to_string(),
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".to_string(),
+        );
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
 
         Self {
             user_agent,
@@ -196,7 +218,7 @@ impl BrowserFingerprint {
         let mut rng = rand::thread_rng();
         let version = rng.gen_range(110..120); // Recent Edge versions
         let build = rng.gen_range(1000..9999);
-        
+
         let user_agent = format!(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{}.0.{}.88 Safari/537.36 Edg/{}.0.{}.62",
             version, build, version, build
@@ -205,10 +227,19 @@ impl BrowserFingerprint {
         let mut accept_headers = HashMap::new();
         accept_headers.insert("Accept".to_string(), "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".to_string());
         accept_headers.insert("Accept-Language".to_string(), "en-US,en;q=0.9".to_string());
-        accept_headers.insert("Accept-Encoding".to_string(), "gzip, deflate, br".to_string());
+        accept_headers.insert(
+            "Accept-Encoding".to_string(),
+            "gzip, deflate, br".to_string(),
+        );
 
         let mut browser_headers = HashMap::new();
-        browser_headers.insert("sec-ch-ua".to_string(), format!(r#""Microsoft Edge";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#, version, version));
+        browser_headers.insert(
+            "sec-ch-ua".to_string(),
+            format!(
+                r#""Microsoft Edge";v="{}", "Chromium";v="{}", "Not_A Brand";v="8""#,
+                version, version
+            ),
+        );
         browser_headers.insert("sec-ch-ua-mobile".to_string(), "?0".to_string());
         browser_headers.insert("sec-ch-ua-platform".to_string(), r#""Windows""#.to_string());
 
@@ -361,18 +392,33 @@ impl BrowserFingerprint {
     fn generate_chrome_webgl() -> HashMap<String, String> {
         let mut webgl = HashMap::new();
         webgl.insert("vendor".to_string(), "Google Inc. (NVIDIA)".to_string());
-        webgl.insert("renderer".to_string(), "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)".to_string());
-        webgl.insert("version".to_string(), "WebGL 1.0 (OpenGL ES 2.0 Chromium)".to_string());
-        webgl.insert("shading_language_version".to_string(), "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)".to_string());
+        webgl.insert(
+            "renderer".to_string(),
+            "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)".to_string(),
+        );
+        webgl.insert(
+            "version".to_string(),
+            "WebGL 1.0 (OpenGL ES 2.0 Chromium)".to_string(),
+        );
+        webgl.insert(
+            "shading_language_version".to_string(),
+            "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)".to_string(),
+        );
         webgl
     }
 
     fn generate_firefox_webgl() -> HashMap<String, String> {
         let mut webgl = HashMap::new();
         webgl.insert("vendor".to_string(), "Mozilla".to_string());
-        webgl.insert("renderer".to_string(), "Mozilla -- NVIDIA GeForce RTX 3080/PCIe/SSE2".to_string());
+        webgl.insert(
+            "renderer".to_string(),
+            "Mozilla -- NVIDIA GeForce RTX 3080/PCIe/SSE2".to_string(),
+        );
         webgl.insert("version".to_string(), "WebGL 1.0".to_string());
-        webgl.insert("shading_language_version".to_string(), "WebGL GLSL ES 1.0".to_string());
+        webgl.insert(
+            "shading_language_version".to_string(),
+            "WebGL GLSL ES 1.0".to_string(),
+        );
         webgl
     }
 
@@ -380,18 +426,28 @@ impl BrowserFingerprint {
         let mut webgl = HashMap::new();
         webgl.insert("vendor".to_string(), "Apple Inc.".to_string());
         webgl.insert("renderer".to_string(), "Apple GPU".to_string());
-        webgl.insert("version".to_string(), "WebGL 1.0 (OpenGL ES 2.0 Apple-1.0)".to_string());
-        webgl.insert("shading_language_version".to_string(), "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Apple-1.0)".to_string());
+        webgl.insert(
+            "version".to_string(),
+            "WebGL 1.0 (OpenGL ES 2.0 Apple-1.0)".to_string(),
+        );
+        webgl.insert(
+            "shading_language_version".to_string(),
+            "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Apple-1.0)".to_string(),
+        );
         webgl
     }
 
     fn generate_common_screen() -> ScreenInfo {
         let screens = vec![
-            (1920, 1080), (1366, 768), (1440, 900), (1536, 864), (1280, 720)
+            (1920, 1080),
+            (1366, 768),
+            (1440, 900),
+            (1536, 864),
+            (1280, 720),
         ];
         let mut rng = rand::thread_rng();
         let (width, height) = screens[rng.gen_range(0..screens.len())];
-        
+
         ScreenInfo {
             width,
             height,
@@ -403,9 +459,12 @@ impl BrowserFingerprint {
     }
 
     /// Apply fingerprint to reqwest client builder
-    pub fn apply_to_client_builder(&self, builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
+    pub fn apply_to_client_builder(
+        &self,
+        builder: reqwest::ClientBuilder,
+    ) -> reqwest::ClientBuilder {
         let mut default_headers = reqwest::header::HeaderMap::new();
-        
+
         // Add User-Agent
         default_headers.insert(
             reqwest::header::USER_AGENT,
@@ -416,7 +475,7 @@ impl BrowserFingerprint {
         for (key, value) in &self.accept_headers {
             if let (Ok(header_name), Ok(header_value)) = (
                 reqwest::header::HeaderName::from_lowercase(key.to_lowercase().as_bytes()),
-                reqwest::header::HeaderValue::from_str(value)
+                reqwest::header::HeaderValue::from_str(value),
             ) {
                 default_headers.insert(header_name, header_value);
             }
@@ -426,7 +485,7 @@ impl BrowserFingerprint {
         for (key, value) in &self.browser_headers {
             if let (Ok(header_name), Ok(header_value)) = (
                 reqwest::header::HeaderName::from_lowercase(key.to_lowercase().as_bytes()),
-                reqwest::header::HeaderValue::from_str(value)
+                reqwest::header::HeaderValue::from_str(value),
             ) {
                 default_headers.insert(header_name, header_value);
             }
@@ -466,8 +525,11 @@ impl FingerprintManager {
     /// Rotate to next fingerprint
     pub fn rotate(&mut self) -> &BrowserFingerprint {
         self.current_index = (self.current_index + 1) % self.fingerprints.len();
-        debug!("Rotated to fingerprint {}: {}", self.current_index, 
-               &self.fingerprints[self.current_index].user_agent[..50]);
+        debug!(
+            "Rotated to fingerprint {}: {}",
+            self.current_index,
+            &self.fingerprints[self.current_index].user_agent[..50]
+        );
         &self.fingerprints[self.current_index]
     }
 

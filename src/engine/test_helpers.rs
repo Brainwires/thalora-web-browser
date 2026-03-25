@@ -1,5 +1,5 @@
-use anyhow::Result;
 use super::{EngineFactory, EngineType, ThaloraBrowserEngine};
+use anyhow::Result;
 
 /// Test helper functions for engine selection
 ///

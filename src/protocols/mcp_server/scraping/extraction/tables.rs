@@ -40,7 +40,12 @@ fn extract_single_table(table: &ElementRef) -> Option<Value> {
             // Only consider direct child captions (not from nested tables)
             if is_direct_child_of_table(&caption, table) {
                 table_data["caption"] = Value::String(
-                    caption.text().collect::<Vec<_>>().join(" ").trim().to_string()
+                    caption
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string(),
                 );
                 break;
             }
@@ -74,7 +79,8 @@ fn extract_single_table(table: &ElementRef) -> Option<Value> {
 
     if header_rows > 0 {
         // Use the first header row as headers (flatten multiple header rows)
-        let headers: Vec<Value> = grid[0].iter()
+        let headers: Vec<Value> = grid[0]
+            .iter()
             .map(|cell| Value::String(cell.clone().unwrap_or_default()))
             .collect();
         table_data["headers"] = Value::Array(headers);
@@ -84,12 +90,16 @@ fn extract_single_table(table: &ElementRef) -> Option<Value> {
     let data_start = if header_rows > 0 { header_rows } else { 0 };
     let mut rows = Vec::new();
     for row in grid.iter().skip(data_start) {
-        let cells: Vec<Value> = row.iter()
+        let cells: Vec<Value> = row
+            .iter()
             .map(|cell| Value::String(cell.clone().unwrap_or_default()))
             .collect();
 
         // Skip entirely empty rows
-        if !cells.iter().all(|c| c.as_str().map_or(true, |s| s.is_empty())) {
+        if !cells
+            .iter()
+            .all(|c| c.as_str().map_or(true, |s| s.is_empty()))
+        {
             rows.push(Value::Array(cells));
         }
     }
@@ -98,7 +108,9 @@ fn extract_single_table(table: &ElementRef) -> Option<Value> {
 
     // Only include tables with meaningful content
     if table_data["rows"].as_array().map_or(true, |r| r.is_empty())
-        && table_data["headers"].as_array().map_or(true, |h| h.is_empty())
+        && table_data["headers"]
+            .as_array()
+            .map_or(true, |h| h.is_empty())
     {
         return None;
     }
@@ -159,7 +171,8 @@ fn detect_header_rows(table: &ElementRef, rows: &[ElementRef]) -> (usize, bool) 
             Ok(s) => s,
             Err(_) => return (0, true),
         };
-        let thead_row_count = table.select(&tr_selector)
+        let thead_row_count = table
+            .select(&tr_selector)
             .filter(|tr| is_direct_child_of_table(tr, table))
             .count();
         return (thead_row_count, true);

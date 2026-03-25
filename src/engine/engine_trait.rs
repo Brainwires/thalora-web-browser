@@ -28,7 +28,7 @@ impl EngineConfig {
 
 /// Common interface for JavaScript engines in Thalora
 /// This trait allows switching between Boa and V8 engines at runtime
-/// 
+///
 /// Note: Made synchronous because JavaScript engines are inherently single-threaded
 /// and Boa uses Rc/RefCell which are not Send/Sync. Async handling is done at higher levels.
 pub trait ThaloraBrowserEngine {
@@ -105,7 +105,9 @@ impl EngineFactory {
             }
             EngineType::V8 => {
                 // V8 engine removed - use Boa instead
-                Err(anyhow::anyhow!("V8 engine is not currently available. V8 subproject was removed. Use Boa engine instead."))
+                Err(anyhow::anyhow!(
+                    "V8 engine is not currently available. V8 subproject was removed. Use Boa engine instead."
+                ))
             }
         }
     }
@@ -195,13 +197,18 @@ impl ThaloraBrowserEngine for BoaEngineWrapper {
 impl BoaEngineWrapper {
     // Remove the helper methods since we're using a simpler approach
 
-    fn boa_to_json_value(&self, js_value: thalora_browser_apis::boa_engine::JsValue) -> Result<Value> {
+    fn boa_to_json_value(
+        &self,
+        js_value: thalora_browser_apis::boa_engine::JsValue,
+    ) -> Result<Value> {
         if js_value.is_undefined() || js_value.is_null() {
             Ok(Value::Null)
         } else if js_value.is_boolean() {
             Ok(Value::Bool(js_value.as_boolean().unwrap_or(false)))
         } else if js_value.is_string() {
-            let s = js_value.as_string().ok_or_else(|| anyhow::anyhow!("Failed to convert string"))?;
+            let s = js_value
+                .as_string()
+                .ok_or_else(|| anyhow::anyhow!("Failed to convert string"))?;
             Ok(Value::String(s.to_std_string_lossy()))
         } else if js_value.is_number() {
             let n = js_value.as_number().unwrap_or(0.0);
@@ -224,7 +231,7 @@ impl BoaEngineWrapper {
 
     fn json_to_boa_value(&self, value: Value) -> Result<thalora_browser_apis::boa_engine::JsValue> {
         use thalora_browser_apis::boa_engine::JsValue;
-        
+
         match value {
             Value::Null => Ok(JsValue::null()),
             Value::Bool(b) => Ok(JsValue::new(b)),

@@ -81,7 +81,10 @@ impl ContentScorer {
     }
 
     /// Score all potential content nodes in the document
-    pub fn score_nodes<'a>(&mut self, html: &'a Html) -> (Vec<(ElementRef<'a>, ContentScore)>, ScoringMetrics) {
+    pub fn score_nodes<'a>(
+        &mut self,
+        html: &'a Html,
+    ) -> (Vec<(ElementRef<'a>, ContentScore)>, ScoringMetrics) {
         let mut scored_nodes = Vec::new();
         let mut total_score = 0.0;
         let mut viable_count = 0;
@@ -92,7 +95,8 @@ impl ContentScorer {
             for element in html.select(&candidate_selector) {
                 let score = self.score_element(&element);
 
-                if score.final_score > 0.1 { // Minimum threshold
+                if score.final_score > 0.1 {
+                    // Minimum threshold
                     viable_count += 1;
                 }
 
@@ -104,7 +108,11 @@ impl ContentScorer {
         }
 
         let node_count = scored_nodes.len() as u32;
-        let average_score = if node_count > 0 { total_score / node_count as f32 } else { 0.0 };
+        let average_score = if node_count > 0 {
+            total_score / node_count as f32
+        } else {
+            0.0
+        };
 
         // Sort by score (highest first)
         scored_nodes.sort_by(|a, b| b.1.final_score.partial_cmp(&a.1.final_score).unwrap());
@@ -122,7 +130,8 @@ impl ContentScorer {
     /// Score a single element based on multiple factors
     fn score_element(&mut self, element: &ElementRef) -> ContentScore {
         // Generate cache key based on element position and tag
-        let cache_key = format!("{}_{}",
+        let cache_key = format!(
+            "{}_{}",
             element.value().name(),
             element.text().collect::<String>().len()
         );
@@ -154,13 +163,13 @@ impl ContentScorer {
         let class_weight = self.calculate_class_weight(element);
 
         // Combine scores with weights
-        let final_score = (
-            text_density * self.weights.text_density +
-            (paragraph_count as f32 / 10.0).min(1.0) * self.weights.paragraph_count +
-            link_density * self.weights.link_density +
-            semantic_weight * self.weights.semantic_weight +
-            class_weight * self.weights.class_weight
-        ).max(0.0).min(1.0);
+        let final_score = (text_density * self.weights.text_density
+            + (paragraph_count as f32 / 10.0).min(1.0) * self.weights.paragraph_count
+            + link_density * self.weights.link_density
+            + semantic_weight * self.weights.semantic_weight
+            + class_weight * self.weights.class_weight)
+            .max(0.0)
+            .min(1.0);
 
         let score = ContentScore {
             text_density,
@@ -237,7 +246,7 @@ impl ContentScorer {
                     }
                 }
                 0.2
-            },
+            }
             "aside" => 0.1, // Usually sidebar content
             "nav" => 0.0,   // Navigation
             "header" => 0.1,
@@ -269,16 +278,47 @@ impl ContentScorer {
 
         // Positive indicators (content)
         let positive_keywords = [
-            "content", "article", "main", "body", "text", "story", "post",
-            "entry", "description", "summary", "detail"
+            "content",
+            "article",
+            "main",
+            "body",
+            "text",
+            "story",
+            "post",
+            "entry",
+            "description",
+            "summary",
+            "detail",
         ];
 
         // Negative indicators (not content)
         let negative_keywords = [
-            "nav", "navigation", "menu", "sidebar", "aside", "footer", "header",
-            "ad", "ads", "advertisement", "banner", "popup", "modal", "overlay",
-            "comment", "social", "share", "related", "recommended", "widget",
-            "toolbar", "breadcrumb", "pagination", "tag", "category", "meta"
+            "nav",
+            "navigation",
+            "menu",
+            "sidebar",
+            "aside",
+            "footer",
+            "header",
+            "ad",
+            "ads",
+            "advertisement",
+            "banner",
+            "popup",
+            "modal",
+            "overlay",
+            "comment",
+            "social",
+            "share",
+            "related",
+            "recommended",
+            "widget",
+            "toolbar",
+            "breadcrumb",
+            "pagination",
+            "tag",
+            "category",
+            "meta",
         ];
 
         let mut score = 0.0;
@@ -302,14 +342,19 @@ impl ContentScorer {
     fn is_content_indicator(&self, value: &str) -> bool {
         let value_lower = value.to_lowercase();
         let content_indicators = [
-            "content", "article", "main", "body", "text", "story", "post", "entry"
+            "content", "article", "main", "body", "text", "story", "post", "entry",
         ];
 
-        content_indicators.iter().any(|&indicator| value_lower.contains(indicator))
+        content_indicators
+            .iter()
+            .any(|&indicator| value_lower.contains(indicator))
     }
 
     /// Find the best content node
-    pub fn find_best_content_node<'a>(&mut self, html: &'a Html) -> Option<(ElementRef<'a>, ContentScore)> {
+    pub fn find_best_content_node<'a>(
+        &mut self,
+        html: &'a Html,
+    ) -> Option<(ElementRef<'a>, ContentScore)> {
         let (scored_nodes, _) = self.score_nodes(html);
 
         if scored_nodes.is_empty() {
@@ -344,13 +389,13 @@ impl ContentScorer {
         let class_weight = self.calculate_class_weight(element);
 
         // Combine scores with weights
-        let final_score = (
-            text_density * self.weights.text_density +
-            (paragraph_count as f32 / 10.0).min(1.0) * self.weights.paragraph_count +
-            link_density * self.weights.link_density +
-            semantic_weight * self.weights.semantic_weight +
-            class_weight * self.weights.class_weight
-        ).max(0.0).min(1.0);
+        let final_score = (text_density * self.weights.text_density
+            + (paragraph_count as f32 / 10.0).min(1.0) * self.weights.paragraph_count
+            + link_density * self.weights.link_density
+            + semantic_weight * self.weights.semantic_weight
+            + class_weight * self.weights.class_weight)
+            .max(0.0)
+            .min(1.0);
 
         ContentScore {
             text_density,

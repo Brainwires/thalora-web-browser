@@ -5,8 +5,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_error_stack_trace_implementation() {
-    let _browser = HeadlessWebBrowser::new();
-    let mut js_engine = JavaScriptEngine::new().unwrap();
+        let _browser = HeadlessWebBrowser::new();
+        let mut js_engine = JavaScriptEngine::new().unwrap();
 
         // Test Error.stack property
         let stack_test = r#"
@@ -33,7 +33,7 @@ mod tests {
             'Complete'
         "#;
 
-    let result = js_engine.execute_enhanced(stack_test).await;
+        let result = js_engine.execute_enhanced(stack_test).await;
         println!("Error stack test result: {:?}", result);
 
         // The test should show Error.stack exists and Error.captureStackTrace works

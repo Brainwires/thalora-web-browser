@@ -12,8 +12,8 @@ pub mod service_worker;
 // events API is now natively implemented in Boa engine
 // timers API is now natively implemented in Boa engine
 // navigator API is now natively implemented in Boa engine
-pub mod dom_native;
 pub mod credentials;
+pub mod dom_native;
 
 // Full-featured browser APIs
 // webassembly API is now natively implemented in Boa engine
@@ -50,7 +50,9 @@ impl WebApis {
 
         // Setup Credential Management API
         let credential_manager = credentials::CredentialManager::new();
-        credential_manager.setup_credentials_api(context).map_err(|e| anyhow::Error::msg(format!("Credentials API setup failed: {:?}", e)))?;
+        credential_manager
+            .setup_credentials_api(context)
+            .map_err(|e| anyhow::Error::msg(format!("Credentials API setup failed: {:?}", e)))?;
 
         // Setup all Web API modules
         url_api::setup_url_api(context)?;
@@ -63,8 +65,12 @@ impl WebApis {
         // Service Worker setup (requires core networking)
         #[cfg(feature = "core")]
         {
-            let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e)))?;
-            sw_manager.setup_service_worker_api(context).map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;
+            let sw_manager = service_worker::ServiceWorkerManager::new().map_err(|e| {
+                anyhow::Error::msg(format!("Service worker manager creation failed: {:?}", e))
+            })?;
+            sw_manager
+                .setup_service_worker_api(context)
+                .map_err(|e| anyhow::Error::msg(format!("Service worker setup failed: {:?}", e)))?;
         }
 
         // Storage APIs (localStorage/sessionStorage) are now natively implemented in Boa engine
@@ -76,7 +82,9 @@ impl WebApis {
         #[cfg(feature = "native")]
         {
             let geo_manager = geolocation::GeolocationManager::new();
-            geo_manager.setup_geolocation_api(context).map_err(|e| anyhow::Error::msg(format!("Geolocation setup failed: {:?}", e)))?;
+            geo_manager
+                .setup_geolocation_api(context)
+                .map_err(|e| anyhow::Error::msg(format!("Geolocation setup failed: {:?}", e)))?;
         }
 
         // webrtc API is now natively implemented in Boa engine
@@ -84,8 +92,12 @@ impl WebApis {
         // Native-only: Media APIs setup
         #[cfg(feature = "native")]
         {
-            let media_manager = media::MediaManager::new().map_err(|e| anyhow::Error::msg(format!("Media manager creation failed: {:?}", e)))?;
-            media_manager.setup_media_apis(context).map_err(|e| anyhow::Error::msg(format!("Media APIs setup failed: {:?}", e)))?;
+            let media_manager = media::MediaManager::new().map_err(|e| {
+                anyhow::Error::msg(format!("Media manager creation failed: {:?}", e))
+            })?;
+            media_manager
+                .setup_media_apis(context)
+                .map_err(|e| anyhow::Error::msg(format!("Media APIs setup failed: {:?}", e)))?;
         }
 
         // events API (Event, EventTarget, CustomEvent) is now natively handled by Boa engine

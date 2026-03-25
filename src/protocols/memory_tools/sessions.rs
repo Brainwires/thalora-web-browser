@@ -1,7 +1,7 @@
 use serde_json::Value;
 
-use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::AiMemoryHeap;
+use crate::protocols::mcp::McpResponse;
 
 /// Handle starting a new session in AI memory
 pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -31,9 +31,14 @@ pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> 
         }
     };
 
-    let objectives = args.get("objectives")
+    let objectives = args
+        .get("objectives")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_else(Vec::new);
 
     match ai_memory.start_session(session_id, description, objectives) {
@@ -50,7 +55,7 @@ pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> 
                 "text": format!("Failed to start session: {}", e)
             })],
             is_error: true,
-        }
+        },
     }
 }
 
@@ -71,7 +76,11 @@ pub async fn handle_update_session(args: Value, ai_memory: &mut AiMemoryHeap) ->
 
     if let Some(progress_key) = args.get("progress_key").and_then(|v| v.as_str()) {
         if let Some(progress_value) = args.get("progress_value") {
-            match ai_memory.update_session_progress(session_id, progress_key, progress_value.clone()) {
+            match ai_memory.update_session_progress(
+                session_id,
+                progress_key,
+                progress_value.clone(),
+            ) {
                 Ok(_) => McpResponse::ToolResult {
                     content: vec![serde_json::json!({
                         "type": "text",
@@ -85,7 +94,7 @@ pub async fn handle_update_session(args: Value, ai_memory: &mut AiMemoryHeap) ->
                         "text": format!("Failed to update session progress: {}", e)
                     })],
                     is_error: true,
-                }
+                },
             }
         } else {
             McpResponse::ToolResult {

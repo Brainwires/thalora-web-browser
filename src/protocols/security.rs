@@ -83,7 +83,10 @@ pub fn sanitize_session_id(session_id: &str) -> Result<String> {
     }
 
     // Only allow safe characters: alphanumeric, hyphen, underscore
-    if !session_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !session_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return Err(anyhow!(
             "Session ID contains invalid characters: '{}'. Only alphanumeric, hyphens, and underscores are allowed",
             session_id
@@ -110,8 +113,7 @@ pub fn sanitize_session_id(session_id: &str) -> Result<String> {
 /// * `Err` - If the URL targets internal/private resources
 pub fn validate_url_for_navigation(url: &str) -> Result<()> {
     // Parse the URL
-    let parsed = url::Url::parse(url)
-        .map_err(|e| anyhow!("Invalid URL: {}", e))?;
+    let parsed = url::Url::parse(url).map_err(|e| anyhow!("Invalid URL: {}", e))?;
 
     // Only allow HTTP and HTTPS schemes
     match parsed.scheme() {
@@ -125,7 +127,8 @@ pub fn validate_url_for_navigation(url: &str) -> Result<()> {
     }
 
     // Get the host
-    let host = parsed.host_str()
+    let host = parsed
+        .host_str()
         .ok_or_else(|| anyhow!("URL has no host"))?;
 
     // Block localhost and loopback
@@ -270,7 +273,9 @@ pub fn validate_cookie(name: &str, value: &str) -> Result<()> {
     // Check value for injection characters
     // CRLF would allow HTTP header injection
     if value.contains('\r') || value.contains('\n') {
-        return Err(anyhow!("Cookie value contains CRLF (potential header injection)"));
+        return Err(anyhow!(
+            "Cookie value contains CRLF (potential header injection)"
+        ));
     }
 
     // Null bytes
@@ -281,14 +286,20 @@ pub fn validate_cookie(name: &str, value: &str) -> Result<()> {
     // Semicolons and commas can be used for cookie attribute injection
     // However, they're technically allowed in quoted values. We'll be strict here.
     if value.contains(';') {
-        return Err(anyhow!("Cookie value contains semicolon (potential attribute injection)"));
+        return Err(anyhow!(
+            "Cookie value contains semicolon (potential attribute injection)"
+        ));
     }
 
     Ok(())
 }
 
 /// Limit input length to prevent DoS attacks
-pub fn limit_input_length<'a>(input: &'a str, max_length: usize, field_name: &str) -> Result<&'a str> {
+pub fn limit_input_length<'a>(
+    input: &'a str,
+    max_length: usize,
+    field_name: &str,
+) -> Result<&'a str> {
     if input.len() > max_length {
         return Err(anyhow!(
             "{} too long: {} chars (max {})",

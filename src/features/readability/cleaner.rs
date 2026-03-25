@@ -4,8 +4,8 @@
 // This includes removing scripts, styles, ads, navigation, and other
 // non-content elements that would interfere with readability scoring.
 
-use anyhow::{Result, Context};
-use scraper::{Html, Selector, ElementRef};
+use anyhow::{Context, Result};
+use scraper::{ElementRef, Html, Selector};
 use std::collections::HashSet;
 
 /// HTML cleaner that removes unwanted elements and prepares content for extraction
@@ -26,7 +26,6 @@ impl HtmlCleaner {
             "script".to_string(),
             "style".to_string(),
             "noscript".to_string(),
-
             // Common unwanted elements
             "nav".to_string(),
             "header".to_string(),
@@ -43,14 +42,12 @@ impl HtmlCleaner {
             ".popup".to_string(),
             ".modal".to_string(),
             ".overlay".to_string(),
-
             // Social and sharing
             ".social".to_string(),
             ".share".to_string(),
             ".sharing".to_string(),
             ".comments".to_string(),
             ".comment".to_string(),
-
             // Navigation and metadata
             ".breadcrumb".to_string(),
             ".breadcrumbs".to_string(),
@@ -59,13 +56,11 @@ impl HtmlCleaner {
             ".tags".to_string(),
             ".categories".to_string(),
             ".metadata".to_string(),
-
             // Related content
             ".related".to_string(),
             ".recommended".to_string(),
             ".more-stories".to_string(),
             ".other-stories".to_string(),
-
             // Forms and interactive elements (unless they're part of content)
             "form".to_string(),
             ".search".to_string(),
@@ -75,28 +70,61 @@ impl HtmlCleaner {
 
         let unwanted_patterns = [
             // Advertisement patterns
-            "ad", "ads", "advertisement", "banner", "sponsored", "promo",
-
+            "ad",
+            "ads",
+            "advertisement",
+            "banner",
+            "sponsored",
+            "promo",
             // Navigation patterns
-            "nav", "navigation", "menu", "navbar", "sidebar", "aside",
-
+            "nav",
+            "navigation",
+            "menu",
+            "navbar",
+            "sidebar",
+            "aside",
             // Social patterns
-            "social", "share", "sharing", "tweet", "facebook", "twitter",
-            "linkedin", "pinterest", "instagram",
-
+            "social",
+            "share",
+            "sharing",
+            "tweet",
+            "facebook",
+            "twitter",
+            "linkedin",
+            "pinterest",
+            "instagram",
             // Comment patterns
-            "comment", "comments", "disqus", "livefyre",
-
+            "comment",
+            "comments",
+            "disqus",
+            "livefyre",
             // Utility patterns
-            "breadcrumb", "pagination", "pager", "tag", "category", "meta",
-            "widget", "popup", "modal", "overlay", "toolbar",
-
+            "breadcrumb",
+            "pagination",
+            "pager",
+            "tag",
+            "category",
+            "meta",
+            "widget",
+            "popup",
+            "modal",
+            "overlay",
+            "toolbar",
             // Related content patterns
-            "related", "recommended", "more", "other", "similar",
-
+            "related",
+            "recommended",
+            "more",
+            "other",
+            "similar",
             // Header/footer patterns
-            "header", "footer", "top", "bottom",
-        ].iter().map(|s| s.to_string()).collect();
+            "header",
+            "footer",
+            "top",
+            "bottom",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
 
         Self {
             remove_selectors,
@@ -167,7 +195,11 @@ impl HtmlCleaner {
     }
 
     /// Recursively process an element and its children, filtering unwanted content
-    fn process_element_for_cleaning(&self, element: &ElementRef, output: &mut Vec<String>) -> Result<()> {
+    fn process_element_for_cleaning(
+        &self,
+        element: &ElementRef,
+        output: &mut Vec<String>,
+    ) -> Result<()> {
         let tag_name = element.value().name();
 
         // Skip unwanted elements completely
@@ -186,7 +218,9 @@ impl HtmlCleaner {
 
         // Check if this element has enough text content to be worthwhile
         let text_content = element.text().collect::<String>();
-        if text_content.trim().len() < self.min_element_text && !self.is_structural_element(tag_name) {
+        if text_content.trim().len() < self.min_element_text
+            && !self.is_structural_element(tag_name)
+        {
             return Ok(());
         }
 
@@ -273,7 +307,8 @@ impl HtmlCleaner {
         let total_text = element.text().collect::<String>();
         if !total_text.is_empty() {
             if let Ok(link_selector) = Selector::parse("a") {
-                let link_text: String = element.select(&link_selector)
+                let link_text: String = element
+                    .select(&link_selector)
                     .map(|link| link.text().collect::<String>())
                     .collect();
 
@@ -291,9 +326,9 @@ impl HtmlCleaner {
     fn is_unwanted_attribute_value(&self, value: &str) -> bool {
         let value_lower = value.to_lowercase();
 
-        self.unwanted_patterns.iter().any(|pattern| {
-            value_lower.contains(pattern)
-        })
+        self.unwanted_patterns
+            .iter()
+            .any(|pattern| value_lower.contains(pattern))
     }
 
     /// Clean class attribute by removing unwanted classes
@@ -307,18 +342,50 @@ impl HtmlCleaner {
 
     /// Check if a tag is structural and should be preserved even with little text
     fn is_structural_element(&self, tag_name: &str) -> bool {
-        matches!(tag_name,
-            "html" | "head" | "body" | "div" | "section" | "article" | "main" |
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p" | "blockquote" |
-            "ul" | "ol" | "li" | "table" | "tr" | "td" | "th"
+        matches!(
+            tag_name,
+            "html"
+                | "head"
+                | "body"
+                | "div"
+                | "section"
+                | "article"
+                | "main"
+                | "h1"
+                | "h2"
+                | "h3"
+                | "h4"
+                | "h5"
+                | "h6"
+                | "p"
+                | "blockquote"
+                | "ul"
+                | "ol"
+                | "li"
+                | "table"
+                | "tr"
+                | "td"
+                | "th"
         )
     }
 
     /// Check if a tag is self-closing
     fn is_self_closing_tag(&self, tag_name: &str) -> bool {
-        matches!(tag_name,
-            "img" | "br" | "hr" | "input" | "meta" | "link" | "area" | "base" |
-            "col" | "embed" | "source" | "track" | "wbr"
+        matches!(
+            tag_name,
+            "img"
+                | "br"
+                | "hr"
+                | "input"
+                | "meta"
+                | "link"
+                | "area"
+                | "base"
+                | "col"
+                | "embed"
+                | "source"
+                | "track"
+                | "wbr"
         )
     }
 
@@ -377,8 +444,10 @@ impl HtmlCleaner {
         // Preserve title
         if let Ok(title_selector) = Selector::parse("title") {
             if let Some(title) = document.select(&title_selector).next() {
-                preserved_html.push_str(&format!("<title>{}</title>",
-                    title.text().collect::<String>()));
+                preserved_html.push_str(&format!(
+                    "<title>{}</title>",
+                    title.text().collect::<String>()
+                ));
             }
         }
 
@@ -387,7 +456,9 @@ impl HtmlCleaner {
             if let Some(meta) = document.select(&meta_selector).next() {
                 if let Some(content) = meta.value().attr("content") {
                     preserved_html.push_str(&format!(
-                        r#"<meta name="description" content="{}">"#, content));
+                        r#"<meta name="description" content="{}">"#,
+                        content
+                    ));
                 }
             }
         }

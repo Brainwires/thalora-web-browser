@@ -1,8 +1,8 @@
 // MCP Integration Tests - Complex workflows combining multiple tools
-use std::time::Duration;
 #[allow(unused_imports)]
 #[allow(unused_variables)]
-use serde_json::{json, Value};
+use serde_json::{Value, json};
+use std::time::Duration;
 
 use super::mcp_harness::*;
 
@@ -17,22 +17,34 @@ fn test_research_workflow() {
     // 4. Search memory for stored research
 
     // Step 1: Web search
-    let search_response = harness.call_tool("web_search", json!({
-        "query": "rust programming examples",
-        "num_results": 2
-    })).expect("Web search should succeed");
+    let search_response = harness
+        .call_tool(
+            "web_search",
+            json!({
+                "query": "rust programming examples",
+                "num_results": 2
+            }),
+        )
+        .expect("Web search should succeed");
 
     assert!(!search_response.is_error, "Search should not error");
-    assert_tool_success(&search_response, Duration::from_secs(30)).expect("Search should complete timely");
+    assert_tool_success(&search_response, Duration::from_secs(30))
+        .expect("Search should complete timely");
 
     // Step 2: Scrape a reliable test URL (since we can't depend on Google results)
-    let scrape_response = harness.call_tool("snapshot_url", json!({
-        "url": "https://httpbin.org/html",
-        "wait_for_js": false
-    })).expect("Scraping should succeed");
+    let scrape_response = harness
+        .call_tool(
+            "snapshot_url",
+            json!({
+                "url": "https://httpbin.org/html",
+                "wait_for_js": false
+            }),
+        )
+        .expect("Scraping should succeed");
 
     assert!(!scrape_response.is_error, "Scraping should not error");
-    assert_tool_success(&scrape_response, Duration::from_secs(30)).expect("Scraping should complete timely");
+    assert_tool_success(&scrape_response, Duration::from_secs(30))
+        .expect("Scraping should complete timely");
 
     // Step 3: Store research findings
     let timestamp = chrono::Utc::now().to_rfc3339();
@@ -54,22 +66,41 @@ fn test_research_workflow() {
     assert_tool_success(&store_response, Duration::from_secs(10)).expect("Storing should be fast");
 
     // Step 4: Search memory for our research
-    let memory_search_response = harness.call_tool("ai_memory_search_research", json!({
-        "tags": ["workflow"],
-        "limit": 5
-    })).expect("Memory search should succeed");
+    let memory_search_response = harness
+        .call_tool(
+            "ai_memory_search_research",
+            json!({
+                "tags": ["workflow"],
+                "limit": 5
+            }),
+        )
+        .expect("Memory search should succeed");
 
-    assert!(!memory_search_response.is_error, "Memory search should not error");
-    assert_tool_success(&memory_search_response, Duration::from_secs(10)).expect("Memory search should be fast");
+    assert!(
+        !memory_search_response.is_error,
+        "Memory search should not error"
+    );
+    assert_tool_success(&memory_search_response, Duration::from_secs(10))
+        .expect("Memory search should be fast");
 
     // Verify the workflow preserved our data
-    let search_result = memory_search_response.content[0].get("text").unwrap().as_str().unwrap();
-    assert!(search_result.contains("workflow_test_001") || search_result.contains("workflow"),
-           "Should find our stored research");
+    let search_result = memory_search_response.content[0]
+        .get("text")
+        .unwrap()
+        .as_str()
+        .unwrap();
+    assert!(
+        search_result.contains("workflow_test_001") || search_result.contains("workflow"),
+        "Should find our stored research"
+    );
 
-    println!("Research workflow completed successfully in total time: {:?}",
-             search_response.duration + scrape_response.duration +
-             store_response.duration + memory_search_response.duration);
+    println!(
+        "Research workflow completed successfully in total time: {:?}",
+        search_response.duration
+            + scrape_response.duration
+            + store_response.duration
+            + memory_search_response.duration
+    );
 }
 
 #[test]
@@ -92,23 +123,33 @@ fn test_browser_automation_workflow() {
     assert_tool_success(&js_response, Duration::from_secs(10)).expect("JavaScript should be fast");
 
     // Step 2: Get DOM document
-    let dom_response = harness.call_tool("cdp_dom_get_document", json!({
-        "depth": 3
-    })).expect("DOM retrieval should succeed");
+    let dom_response = harness
+        .call_tool(
+            "cdp_dom_get_document",
+            json!({
+                "depth": 3
+            }),
+        )
+        .expect("DOM retrieval should succeed");
 
     assert!(!dom_response.is_error, "DOM retrieval should not error");
-    assert_tool_success(&dom_response, Duration::from_secs(10)).expect("DOM retrieval should be fast");
+    assert_tool_success(&dom_response, Duration::from_secs(10))
+        .expect("DOM retrieval should be fast");
 
     // Step 3: Try to click the element we created
-    let click_response = harness.call_tool("browser_click_element", json!({
-        "selector": "#test-element"
-    }));
+    let click_response = harness.call_tool(
+        "browser_click_element",
+        json!({
+            "selector": "#test-element"
+        }),
+    );
 
     // Click might fail if element doesn't exist in the browser context, which is acceptable
     match click_response {
         Ok(response) => {
             if !response.is_error {
-                assert_tool_success(&response, Duration::from_secs(10)).expect("Click should be fast");
+                assert_tool_success(&response, Duration::from_secs(10))
+                    .expect("Click should be fast");
             }
         }
         Err(_) => {
@@ -131,7 +172,10 @@ fn test_browser_automation_workflow() {
         "tags": ["automation", "browser", "testing", "cdp"]
     })).expect("Storing automation results should succeed");
 
-    assert!(!store_response.is_error, "Storing automation results should not error");
+    assert!(
+        !store_response.is_error,
+        "Storing automation results should not error"
+    );
 
     println!("Browser automation workflow completed successfully");
 }
@@ -148,10 +192,22 @@ fn test_data_persistence_workflow() {
 
     let _base_timestamp = chrono::Utc::now();
     let test_datasets = vec![
-        ("dataset_001", json!({"type": "user_data", "user": "alice", "action": "login"})),
-        ("dataset_002", json!({"type": "user_data", "user": "bob", "action": "logout"})),
-        ("dataset_003", json!({"type": "system_data", "event": "backup_completed", "size": "1.2GB"})),
-        ("dataset_004", json!({"type": "user_data", "user": "alice", "action": "file_upload"})),
+        (
+            "dataset_001",
+            json!({"type": "user_data", "user": "alice", "action": "login"}),
+        ),
+        (
+            "dataset_002",
+            json!({"type": "user_data", "user": "bob", "action": "logout"}),
+        ),
+        (
+            "dataset_003",
+            json!({"type": "system_data", "event": "backup_completed", "size": "1.2GB"}),
+        ),
+        (
+            "dataset_004",
+            json!({"type": "user_data", "user": "alice", "action": "file_upload"}),
+        ),
     ];
 
     // Step 1: Store all datasets
@@ -172,26 +228,41 @@ fn test_data_persistence_workflow() {
 
     // Step 2: Retrieve each dataset individually
     for (key, expected_data) in &test_datasets {
-        let get_response = harness.call_tool("ai_memory_get_research", json!({
-            "key": key
-        })).expect(&format!("Get {} should succeed", key));
+        let get_response = harness
+            .call_tool(
+                "ai_memory_get_research",
+                json!({
+                    "key": key
+                }),
+            )
+            .expect(&format!("Get {} should succeed", key));
 
         assert!(!get_response.is_error, "Get {} should not error", key);
 
-        let response_text = get_response.content[0].get("text").unwrap().as_str().unwrap();
+        let response_text = get_response.content[0]
+            .get("text")
+            .unwrap()
+            .as_str()
+            .unwrap();
         if let Some(type_value) = expected_data.get("type") {
             let type_str = type_value.as_str().unwrap();
 
             // NOTE: Due to VFS being ephemeral, data doesn't persist between MCP tool calls
             // This is the same VFS limitation as other AI memory tests
             if !response_text.contains(type_str) {
-                eprintln!("INFO: Data persistence test skipped due to ephemeral VFS - data doesn't persist between MCP invocations");
+                eprintln!(
+                    "INFO: Data persistence test skipped due to ephemeral VFS - data doesn't persist between MCP invocations"
+                );
                 eprintln!("INFO: Store succeeded but retrieve fails due to VFS limitations");
                 return; // Skip the rest of the test - known VFS limitation
             }
 
-            assert!(response_text.contains(type_str),
-                   "Retrieved data for {} should contain type {}", key, type_str);
+            assert!(
+                response_text.contains(type_str),
+                "Retrieved data for {} should contain type {}",
+                key,
+                type_str
+            );
         }
     }
 
@@ -200,30 +271,56 @@ fn test_data_persistence_workflow() {
         (json!({"tags": ["user_data"], "limit": 10}), "user_data"),
         (json!({"tags": ["system_data"], "limit": 10}), "system_data"),
         (json!({"query": "alice", "limit": 10}), "alice"),
-        (json!({"tags": ["persistence_test"], "limit": 10}), "persistence_test"),
+        (
+            json!({"tags": ["persistence_test"], "limit": 10}),
+            "persistence_test",
+        ),
     ];
 
     for (search_params, expected_content) in search_tests {
-        let search_response = harness.call_tool("ai_memory_search_research", search_params)
+        let search_response = harness
+            .call_tool("ai_memory_search_research", search_params)
             .expect(&format!("Search for {} should succeed", expected_content));
 
-        assert!(!search_response.is_error, "Search for {} should not error", expected_content);
+        assert!(
+            !search_response.is_error,
+            "Search for {} should not error",
+            expected_content
+        );
 
-        let response_text = search_response.content[0].get("text").unwrap().as_str().unwrap();
-        assert!(response_text.contains(expected_content) || response_text.contains("results"),
-               "Search for {} should return relevant results", expected_content);
+        let response_text = search_response.content[0]
+            .get("text")
+            .unwrap()
+            .as_str()
+            .unwrap();
+        assert!(
+            response_text.contains(expected_content) || response_text.contains("results"),
+            "Search for {} should return relevant results",
+            expected_content
+        );
     }
 
     // Step 4: Verify data integrity with complex search
-    let complex_search_response = harness.call_tool("ai_memory_search_research", json!({
-        "query": "user",
-        "tags": ["persistence_test"],
-        "limit": 10
-    })).expect("Complex search should succeed");
+    let complex_search_response = harness
+        .call_tool(
+            "ai_memory_search_research",
+            json!({
+                "query": "user",
+                "tags": ["persistence_test"],
+                "limit": 10
+            }),
+        )
+        .expect("Complex search should succeed");
 
-    assert!(!complex_search_response.is_error, "Complex search should not error");
+    assert!(
+        !complex_search_response.is_error,
+        "Complex search should not error"
+    );
 
-    println!("Data persistence workflow completed successfully with {} datasets", test_datasets.len());
+    println!(
+        "Data persistence workflow completed successfully with {} datasets",
+        test_datasets.len()
+    );
 }
 
 #[test]
@@ -240,10 +337,26 @@ fn test_error_recovery_workflow() {
 
     // Step 1: Attempt potentially failing operations
     let error_prone_operations = vec![
-        ("scrape_invalid_url", "snapshot_url", json!({"url": "http://invalid-domain-12345.com"})),
-        ("eval_syntax_error", "cdp_runtime_evaluate", json!({"expression": "invalid javascript syntax !!!"})),
-        ("get_nonexistent_key", "ai_memory_get_research", json!({"key": "nonexistent_key_12345"})),
-        ("click_missing_element", "browser_click_element", json!({"selector": "#nonexistent-element-12345"})),
+        (
+            "scrape_invalid_url",
+            "snapshot_url",
+            json!({"url": "http://invalid-domain-12345.com"}),
+        ),
+        (
+            "eval_syntax_error",
+            "cdp_runtime_evaluate",
+            json!({"expression": "invalid javascript syntax !!!"}),
+        ),
+        (
+            "get_nonexistent_key",
+            "ai_memory_get_research",
+            json!({"key": "nonexistent_key_12345"}),
+        ),
+        (
+            "click_missing_element",
+            "browser_click_element",
+            json!({"selector": "#nonexistent-element-12345"}),
+        ),
     ];
 
     for (test_name, tool_name, args) in error_prone_operations {
@@ -263,19 +376,31 @@ fn test_error_recovery_workflow() {
         }
 
         // Verify server is still responsive after each potentially failing operation
-        assert!(harness.is_running(), "Server should still be running after {}", test_name);
+        assert!(
+            harness.is_running(),
+            "Server should still be running after {}",
+            test_name
+        );
 
         // Small delay between operations
         std::thread::sleep(Duration::from_millis(100));
     }
 
     // Step 2: Verify server stability with a known-good operation
-    let stability_test = harness.call_tool("ai_memory_search_research", json!({
-        "query": "test",
-        "limit": 1
-    })).expect("Stability test should succeed");
+    let stability_test = harness
+        .call_tool(
+            "ai_memory_search_research",
+            json!({
+                "query": "test",
+                "limit": 1
+            }),
+        )
+        .expect("Stability test should succeed");
 
-    assert!(!stability_test.is_error, "Server should be stable after error operations");
+    assert!(
+        !stability_test.is_error,
+        "Server should be stable after error operations"
+    );
 
     // Step 3: Store error handling results
     let error_results_data = json!({
@@ -292,9 +417,15 @@ fn test_error_recovery_workflow() {
         "tags": ["error_handling", "stability", "testing"]
     })).expect("Storing error results should succeed");
 
-    assert!(!store_response.is_error, "Storing error results should not error");
+    assert!(
+        !store_response.is_error,
+        "Storing error results should not error"
+    );
 
-    println!("Error recovery workflow completed successfully. Results: {:?}", results);
+    println!(
+        "Error recovery workflow completed successfully. Results: {:?}",
+        results
+    );
 }
 
 #[test]
@@ -313,7 +444,10 @@ fn test_concurrent_operations_workflow() {
         ("memory_search", json!({"query": "test", "limit": 1})),
         ("js_eval", json!({"expression": "Math.random()"})),
         ("memory_search2", json!({"tags": ["testing"], "limit": 1})),
-        ("js_eval2", json!({"expression": "new Date().toISOString()"})),
+        (
+            "js_eval2",
+            json!({"expression": "new Date().toISOString()"}),
+        ),
     ];
 
     for (op_name, args) in operations {
@@ -321,14 +455,12 @@ fn test_concurrent_operations_workflow() {
 
         let result = match op_name {
             "list_tools" => harness.list_tools().map(|_| "success".to_string()),
-            "memory_search" | "memory_search2" => {
-                harness.call_tool("ai_memory_search_research", args)
-                    .map(|r| if r.is_error { "error" } else { "success" }.to_string())
-            },
-            "js_eval" | "js_eval2" => {
-                harness.call_tool("cdp_runtime_evaluate", args)
-                    .map(|r| if r.is_error { "error" } else { "success" }.to_string())
-            },
+            "memory_search" | "memory_search2" => harness
+                .call_tool("ai_memory_search_research", args)
+                .map(|r| if r.is_error { "error" } else { "success" }.to_string()),
+            "js_eval" | "js_eval2" => harness
+                .call_tool("cdp_runtime_evaluate", args)
+                .map(|r| if r.is_error { "error" } else { "success" }.to_string()),
             _ => Ok("unknown".to_string()),
         };
 
@@ -342,12 +474,18 @@ fn test_concurrent_operations_workflow() {
     let total_duration = start_time.elapsed();
 
     // Verify all operations completed reasonably quickly
-    assert!(total_duration < Duration::from_secs(30),
-           "All operations should complete within 30 seconds, took {:?}", total_duration);
+    assert!(
+        total_duration < Duration::from_secs(30),
+        "All operations should complete within 30 seconds, took {:?}",
+        total_duration
+    );
 
     // Verify server is still responsive
     let final_test = harness.list_tools();
-    assert!(final_test.is_ok(), "Server should still be responsive after rapid operations");
+    assert!(
+        final_test.is_ok(),
+        "Server should still be responsive after rapid operations"
+    );
 
     // Store results
     let concurrent_data = json!({
@@ -364,10 +502,16 @@ fn test_concurrent_operations_workflow() {
         "tags": ["concurrency", "performance", "testing"]
     })).expect("Storing concurrent results should succeed");
 
-    assert!(!store_response.is_error, "Storing concurrent results should not error");
+    assert!(
+        !store_response.is_error,
+        "Storing concurrent results should not error"
+    );
 
-    println!("Concurrent operations workflow completed: {} operations in {:?}",
-             operation_results.len(), total_duration);
+    println!(
+        "Concurrent operations workflow completed: {} operations in {:?}",
+        operation_results.len(),
+        total_duration
+    );
 }
 
 #[test]
@@ -382,18 +526,28 @@ fn test_end_to_end_ai_simulation() {
     // 5. Search for related stored knowledge
 
     // Step 1: "AI decides to research Rust programming"
-    let search_response = harness.call_tool("web_search", json!({
-        "query": "rust programming language tutorial",
-        "num_results": 1
-    })).expect("AI search should succeed");
+    let search_response = harness
+        .call_tool(
+            "web_search",
+            json!({
+                "query": "rust programming language tutorial",
+                "num_results": 1
+            }),
+        )
+        .expect("AI search should succeed");
 
     assert!(!search_response.is_error, "AI search should not error");
 
     // Step 2: "AI scrapes a reference page"
-    let scrape_response = harness.call_tool("snapshot_url", json!({
-        "url": "https://httpbin.org/html",
-        "wait_for_js": false
-    })).expect("AI scraping should succeed");
+    let scrape_response = harness
+        .call_tool(
+            "snapshot_url",
+            json!({
+                "url": "https://httpbin.org/html",
+                "wait_for_js": false
+            }),
+        )
+        .expect("AI scraping should succeed");
 
     assert!(!scrape_response.is_error, "AI scraping should not error");
 
@@ -409,10 +563,15 @@ fn test_end_to_end_ai_simulation() {
         });
     "#;
 
-    let js_response = harness.call_tool("cdp_runtime_evaluate", json!({
-        "expression": analysis_js,
-        "await_promise": false
-    })).expect("AI analysis should succeed");
+    let js_response = harness
+        .call_tool(
+            "cdp_runtime_evaluate",
+            json!({
+                "expression": analysis_js,
+                "await_promise": false
+            }),
+        )
+        .expect("AI analysis should succeed");
 
     assert!(!js_response.is_error, "AI analysis should not error");
 
@@ -440,33 +599,60 @@ fn test_end_to_end_ai_simulation() {
     assert!(!store_response.is_error, "AI storing should not error");
 
     // Step 5: "AI searches for related knowledge"
-    let knowledge_search = harness.call_tool("ai_memory_search_research", json!({
-        "query": "programming",
-        "tags": ["research"],
-        "limit": 5
-    })).expect("AI knowledge search should succeed");
+    let knowledge_search = harness
+        .call_tool(
+            "ai_memory_search_research",
+            json!({
+                "query": "programming",
+                "tags": ["research"],
+                "limit": 5
+            }),
+        )
+        .expect("AI knowledge search should succeed");
 
-    assert!(!knowledge_search.is_error, "AI knowledge search should not error");
+    assert!(
+        !knowledge_search.is_error,
+        "AI knowledge search should not error"
+    );
 
     // Calculate total workflow time
-    let total_time = search_response.duration + scrape_response.duration +
-                    js_response.duration + store_response.duration +
-                    knowledge_search.duration;
+    let total_time = search_response.duration
+        + scrape_response.duration
+        + js_response.duration
+        + store_response.duration
+        + knowledge_search.duration;
 
     // Verify the AI simulation completed efficiently
-    assert!(total_time < Duration::from_secs(60),
-           "AI simulation should complete within 60 seconds, took {:?}", total_time);
+    assert!(
+        total_time < Duration::from_secs(60),
+        "AI simulation should complete within 60 seconds, took {:?}",
+        total_time
+    );
 
     // Final verification: retrieve the stored insights
-    let retrieve_response = harness.call_tool("ai_memory_get_research", json!({
-        "key": "ai_rust_research_001"
-    })).expect("AI retrieval should succeed");
+    let retrieve_response = harness
+        .call_tool(
+            "ai_memory_get_research",
+            json!({
+                "key": "ai_rust_research_001"
+            }),
+        )
+        .expect("AI retrieval should succeed");
 
     assert!(!retrieve_response.is_error, "AI retrieval should not error");
 
-    let retrieved_content = retrieve_response.content[0].get("text").unwrap().as_str().unwrap();
-    assert!(retrieved_content.contains("rust") || retrieved_content.contains("programming"),
-           "Retrieved content should contain research topic");
+    let retrieved_content = retrieve_response.content[0]
+        .get("text")
+        .unwrap()
+        .as_str()
+        .unwrap();
+    assert!(
+        retrieved_content.contains("rust") || retrieved_content.contains("programming"),
+        "Retrieved content should contain research topic"
+    );
 
-    println!("End-to-end AI simulation completed successfully in {:?}", total_time);
+    println!(
+        "End-to-end AI simulation completed successfully in {:?}",
+        total_time
+    );
 }

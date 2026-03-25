@@ -1,25 +1,36 @@
 use anyhow::Result;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use scraper::{Html, Selector};
 
-use crate::protocols::mcp_server::scraping::types::{SearchResult, SearchResults, ImageSearchResult, ImageSearchResults};
-use crate::protocols::mcp_server::scraping::utils::{extract_generic_snippet, extract_generic_title, extract_generic_url};
+use crate::protocols::mcp_server::scraping::types::{
+    ImageSearchResult, ImageSearchResults, SearchResult, SearchResults,
+};
+use crate::protocols::mcp_server::scraping::utils::{
+    extract_generic_snippet, extract_generic_title, extract_generic_url,
+};
 
 pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
-    let search_url = format!("https://www.bing.com/search?q={}&count={}&FORM=QBLH",
-                            urlencoding::encode(query), num_results);
+    let search_url = format!(
+        "https://www.bing.com/search?q={}&count={}&FORM=QBLH",
+        urlencoding::encode(query),
+        num_results
+    );
 
     // Create temporary browser for stateless search
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
     // Navigate using the browser's full navigation system which includes stealth features
     {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.navigate_to_with_options(&search_url, true).await?;
     }
 
     let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.get_current_content()
     };
 
@@ -28,7 +39,9 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
     // Check for actual Cloudflare challenge (not just JS that mentions cloudflare)
     if html.contains("challenges.cloudflare.com") && html.contains("cf-browser-verification") {
-        return Err(anyhow::anyhow!("Bing returned Cloudflare challenge - need enhanced stealth"));
+        return Err(anyhow::anyhow!(
+            "Bing returned Cloudflare challenge - need enhanced stealth"
+        ));
     }
 
     parse_results(&html, query, num_results)
@@ -36,19 +49,28 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
 pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<SearchResults> {
     eprintln!("🔍 DEBUG: Bing HTML length: {}", html.len());
-    eprintln!("🔍 DEBUG: Bing HTML contains .b_algo: {}", html.contains(".b_algo"));
-    eprintln!("🔍 DEBUG: Bing HTML contains cloudflare: {}", html.contains("cloudflare"));
-    eprintln!("🔍 DEBUG: First 500 chars: {}", &html[..html.len().min(500)]);
+    eprintln!(
+        "🔍 DEBUG: Bing HTML contains .b_algo: {}",
+        html.contains(".b_algo")
+    );
+    eprintln!(
+        "🔍 DEBUG: Bing HTML contains cloudflare: {}",
+        html.contains("cloudflare")
+    );
+    eprintln!(
+        "🔍 DEBUG: First 500 chars: {}",
+        &html[..html.len().min(500)]
+    );
 
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 
     // Modern Bing result selectors - updated for current Bing structure
     let main_selectors = [
-        ".b_algo",           // Main result container
-        ".b_algoSlug",       // Alternative result container
-        "li.b_algo",         // List item with class
-        "[data-feedback]",   // Modern Bing feedback-enabled results
+        ".b_algo",         // Main result container
+        ".b_algoSlug",     // Alternative result container
+        "li.b_algo",       // List item with class
+        "[data-feedback]", // Modern Bing feedback-enabled results
     ];
 
     for selector_str in &main_selectors {
@@ -65,7 +87,7 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                     ".b_algoheader a",
                     ".b_topTitle a",
                     "a[href] h2",
-                    "a[href] h3"
+                    "a[href] h3",
                 ];
 
                 let url_selectors = [
@@ -73,7 +95,7 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                     ".b_title a",
                     ".b_algoheader a",
                     ".b_topTitle a",
-                    "a[href]:first-of-type"
+                    "a[href]:first-of-type",
                 ];
 
                 let snippet_selectors = [
@@ -84,7 +106,7 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                     ".b_lineclamp2",
                     ".b_lineclamp3",
                     ".b_lineclamp4",
-                    "p"
+                    "p",
                 ];
 
                 let title = extract_generic_title(&element, &title_selectors);
@@ -94,8 +116,11 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                 // Clean up Bing redirect URLs
                 if url.starts_with("https://www.bing.com/ck/a?") || url.contains("&u=a1aHR0") {
                     // Extract actual URL from Bing redirect
-                        if let Some(u_param) = url.split("&u=a1").nth(1) {
-                        let param_value = u_param.chars().take_while(|&c| c != '&').collect::<String>();
+                    if let Some(u_param) = url.split("&u=a1").nth(1) {
+                        let param_value = u_param
+                            .chars()
+                            .take_while(|&c| c != '&')
+                            .collect::<String>();
                         if let Ok(decoded) = general_purpose::STANDARD.decode(&param_value) {
                             if let Ok(decoded_url) = String::from_utf8(decoded) {
                                 url = decoded_url;
@@ -105,9 +130,13 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                 }
 
                 // Only add if we have valid title and URL, and it's not a duplicate
-                if !title.is_empty() && !url.is_empty() && url.starts_with("http")
-                    && !url.contains("bing.com") && !url.contains("microsoft.com")
-                    && !results.iter().any(|r: &SearchResult| r.url == url) {
+                if !title.is_empty()
+                    && !url.is_empty()
+                    && url.starts_with("http")
+                    && !url.contains("bing.com")
+                    && !url.contains("microsoft.com")
+                    && !results.iter().any(|r: &SearchResult| r.url == url)
+                {
                     results.push(SearchResult {
                         title,
                         url,
@@ -136,19 +165,27 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
 pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearchResults> {
     let search_url = format!(
         "https://www.bing.com/images/search?q={}&first=1&count={}",
-        urlencoding::encode(query), num_results
+        urlencoding::encode(query),
+        num_results
     );
-    eprintln!("🔍🖼️ Bing Images: Searching for '{}' at URL: {}", query, search_url);
+    eprintln!(
+        "🔍🖼️ Bing Images: Searching for '{}' at URL: {}",
+        query, search_url
+    );
 
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
     {
-        let mut browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let mut browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.navigate_to_with_options(&search_url, true).await?;
     }
 
     let html = {
-        let browser = temp_browser.lock().map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+        let browser = temp_browser
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
         browser.get_current_content()
     };
 
@@ -157,7 +194,11 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
     parse_image_results(&html, query, num_results)
 }
 
-pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Result<ImageSearchResults> {
+pub fn parse_image_results(
+    html: &str,
+    query: &str,
+    num_results: usize,
+) -> Result<ImageSearchResults> {
     let document = Html::parse_document(html);
     let mut results = Vec::new();
 
@@ -177,7 +218,9 @@ pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Resul
                     break;
                 }
 
-                let image_url = element.value().attr("src")
+                let image_url = element
+                    .value()
+                    .attr("src")
                     .or_else(|| element.value().attr("data-src"))
                     .unwrap_or("");
 
@@ -189,13 +232,19 @@ pub fn parse_image_results(html: &str, query: &str, num_results: usize) -> Resul
                     continue;
                 }
 
-                let title = element.value().attr("alt")
+                let title = element
+                    .value()
+                    .attr("alt")
                     .or_else(|| element.value().attr("title"))
                     .unwrap_or("")
                     .to_string();
 
                 results.push(ImageSearchResult {
-                    title: if title.is_empty() { format!("Image {}", results.len() + 1) } else { title },
+                    title: if title.is_empty() {
+                        format!("Image {}", results.len() + 1)
+                    } else {
+                        title
+                    },
                     image_url: image_url.to_string(),
                     thumbnail_url: Some(image_url.to_string()),
                     source_url: String::new(),

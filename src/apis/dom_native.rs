@@ -1,6 +1,8 @@
 use anyhow::Result;
-use thalora_browser_apis::boa_engine::{Context, js_string, JsValue, JsObject, Source, JsResult, JsArgs};
 use thalora_browser_apis::boa_engine::builtins::BuiltInBuilder;
+use thalora_browser_apis::boa_engine::{
+    Context, JsArgs, JsObject, JsResult, JsValue, Source, js_string,
+};
 
 /// Setup native DOM globals using Boa's built-in implementations
 /// This replaces the polyfill-based DOM with real implementations
@@ -30,12 +32,22 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     // before instances are created.
     let element_constructor = context.intrinsics().constructors().element().constructor();
     let range_constructor = context.intrinsics().constructors().range().constructor();
-    let selection_constructor = context.intrinsics().constructors().selection().constructor();
+    let selection_constructor = context
+        .intrinsics()
+        .constructors()
+        .selection()
+        .constructor();
 
     // Call the constructors to create instances using construct
-    let document_obj = document_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create Document instance: {}", e)))?;
-    let window_obj = window_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create Window instance: {}", e)))?;
-    let history_obj = history_constructor.construct(&[], None, context).map_err(|e| anyhow::Error::msg(format!("Failed to create History instance: {}", e)))?;
+    let document_obj = document_constructor
+        .construct(&[], None, context)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to create Document instance: {}", e)))?;
+    let window_obj = window_constructor
+        .construct(&[], None, context)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to create Window instance: {}", e)))?;
+    let history_obj = history_constructor
+        .construct(&[], None, context)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to create History instance: {}", e)))?;
 
     // Convert to JsValue for setting as globals
     let document_value = JsValue::from(document_obj.clone());
@@ -46,27 +58,42 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     let global = context.global_object();
 
     // Helper function to set or update global property with better error reporting
-    fn set_global_property_helper(global: &JsObject, name: &str, value: JsValue, context: &mut Context) -> Result<()> {
-        eprintln!("🔍 DEBUG: Setting global property '{}' with value type: {:?}", name, value.get_type());
+    fn set_global_property_helper(
+        global: &JsObject,
+        name: &str,
+        value: JsValue,
+        context: &mut Context,
+    ) -> Result<()> {
+        eprintln!(
+            "🔍 DEBUG: Setting global property '{}' with value type: {:?}",
+            name,
+            value.get_type()
+        );
 
-        let result = if global.has_property(js_string!(name), context).unwrap_or(false) {
+        let result = if global
+            .has_property(js_string!(name), context)
+            .unwrap_or(false)
+        {
             // Property exists, just update its value
             eprintln!("🔍 DEBUG: Property '{}' exists, updating...", name);
-            global.set(js_string!(name), value, true, context)
+            global
+                .set(js_string!(name), value, true, context)
                 .map_err(|e| anyhow::Error::msg(format!("Failed to update {} global: {}", name, e)))
         } else {
             // Property doesn't exist, define it
             eprintln!("🔍 DEBUG: Property '{}' doesn't exist, defining...", name);
-            global.define_property_or_throw(
-                js_string!(name),
-                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(value)
-                    .build(),
-                context,
-            ).map_err(|e| anyhow::Error::msg(format!("Failed to set {} global: {}", name, e)))
+            global
+                .define_property_or_throw(
+                    js_string!(name),
+                    thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                        .configurable(true)
+                        .enumerable(true)
+                        .writable(true)
+                        .value(value)
+                        .build(),
+                    context,
+                )
+                .map_err(|e| anyhow::Error::msg(format!("Failed to set {} global: {}", name, e)))
         };
 
         match result {
@@ -99,208 +126,347 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     // Expose constructor functions on the global object (Document, Window, History,
     // Element, Range, Selection) so scripts can access constructors and prototypes
     // directly (e.g. `Document.parseHTMLUnsafe`, `Element.prototype`).
-    set_global_property_helper(&global, "Document", JsValue::from(document_constructor.clone()), context)?;
-    set_global_property_helper(&global, "Window", JsValue::from(window_constructor.clone()), context)?;
-    set_global_property_helper(&global, "History", JsValue::from(history_constructor.clone()), context)?;
-    set_global_property_helper(&global, "Element", JsValue::from(element_constructor.clone()), context)?;
-    set_global_property_helper(&global, "Range", JsValue::from(range_constructor.clone()), context)?;
-    set_global_property_helper(&global, "Selection", JsValue::from(selection_constructor.clone()), context)?;
+    set_global_property_helper(
+        &global,
+        "Document",
+        JsValue::from(document_constructor.clone()),
+        context,
+    )?;
+    set_global_property_helper(
+        &global,
+        "Window",
+        JsValue::from(window_constructor.clone()),
+        context,
+    )?;
+    set_global_property_helper(
+        &global,
+        "History",
+        JsValue::from(history_constructor.clone()),
+        context,
+    )?;
+    set_global_property_helper(
+        &global,
+        "Element",
+        JsValue::from(element_constructor.clone()),
+        context,
+    )?;
+    set_global_property_helper(
+        &global,
+        "Range",
+        JsValue::from(range_constructor.clone()),
+        context,
+    )?;
+    set_global_property_helper(
+        &global,
+        "Selection",
+        JsValue::from(selection_constructor.clone()),
+        context,
+    )?;
 
     // Setup native PageSwapEvent global constructor
-    let pageswap_event_constructor = context.intrinsics().constructors().pageswap_event().constructor();
-    set_global_property_helper(&global, "PageSwapEvent", JsValue::from(pageswap_event_constructor.clone()), context)?;
+    let pageswap_event_constructor = context
+        .intrinsics()
+        .constructors()
+        .pageswap_event()
+        .constructor();
+    set_global_property_helper(
+        &global,
+        "PageSwapEvent",
+        JsValue::from(pageswap_event_constructor.clone()),
+        context,
+    )?;
 
     // Set up the relationships between window, document, and history
     {
         // Set document on window
-        window_obj.define_property_or_throw(
-            js_string!("document"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(document_value.clone())
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.document: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("document"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(document_value.clone())
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.document: {}", e)))?;
 
         // Set history on window
-        window_obj.define_property_or_throw(
-            js_string!("history"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(history_value.clone())
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.history: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("history"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(history_value.clone())
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.history: {}", e)))?;
 
         // Set window as self-reference
-        window_obj.define_property_or_throw(
-            js_string!("window"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(window_value.clone())
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.window: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("window"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(window_value.clone())
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.window: {}", e)))?;
 
         // Set self as self-reference
-        window_obj.define_property_or_throw(
-            js_string!("self"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(window_value.clone())
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.self: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("self"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(window_value.clone())
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.self: {}", e)))?;
 
         // Add window.chrome object for Google detection bypass
         // Chrome/Chromium browsers have this object, headless browsers often don't
         let chrome_obj = thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
-            .property(js_string!("runtime"), JsValue::undefined(), thalora_browser_apis::boa_engine::property::Attribute::all())
+            .property(
+                js_string!("runtime"),
+                JsValue::undefined(),
+                thalora_browser_apis::boa_engine::property::Attribute::all(),
+            )
             .build();
 
-        window_obj.define_property_or_throw(
-            js_string!("chrome"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(true)
-                .value(chrome_obj)
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.chrome: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("chrome"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(true)
+                    .value(chrome_obj)
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.chrome: {}", e)))?;
 
         // Add window.outerWidth and outerHeight - viewport dimensions for legitimate browser
-        window_obj.define_property_or_throw(
-            js_string!("outerWidth"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(1920) // Standard desktop width
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.outerWidth: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("outerWidth"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(1920) // Standard desktop width
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.outerWidth: {}", e)))?;
 
-        window_obj.define_property_or_throw(
-            js_string!("outerHeight"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(1080) // Standard desktop height
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.outerHeight: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("outerHeight"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(1080) // Standard desktop height
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.outerHeight: {}", e)))?;
 
         // Add window.innerWidth and innerHeight - content area dimensions
-        window_obj.define_property_or_throw(
-            js_string!("innerWidth"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(1920)
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.innerWidth: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("innerWidth"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(1920)
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.innerWidth: {}", e)))?;
 
-        window_obj.define_property_or_throw(
-            js_string!("innerHeight"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(true)
-                .writable(false)
-                .value(1080)
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.innerHeight: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("innerHeight"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(1080)
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.innerHeight: {}", e)))?;
 
         // Add screen object - display information for legitimate browser
         let screen_obj = thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
-            .property(js_string!("width"), 1920, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-            .property(js_string!("height"), 1080, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-            .property(js_string!("availWidth"), 1920, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-            .property(js_string!("availHeight"), 1040, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-            .property(js_string!("colorDepth"), 24, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-            .property(js_string!("pixelDepth"), 24, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
+            .property(
+                js_string!("width"),
+                1920,
+                thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+            )
+            .property(
+                js_string!("height"),
+                1080,
+                thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+            )
+            .property(
+                js_string!("availWidth"),
+                1920,
+                thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+            )
+            .property(
+                js_string!("availHeight"),
+                1040,
+                thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+            )
+            .property(
+                js_string!("colorDepth"),
+                24,
+                thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+            )
+            .property(
+                js_string!("pixelDepth"),
+                24,
+                thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+            )
             .build();
 
-        window_obj.define_property_or_throw(
-            js_string!("screen"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(false)
-                .enumerable(true)
-                .writable(false)
-                .value(screen_obj.clone())
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.screen: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("screen"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(false)
+                    .enumerable(true)
+                    .writable(false)
+                    .value(screen_obj.clone())
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.screen: {}", e)))?;
 
         // Also expose screen globally
         set_global_property_helper(&global, "screen", JsValue::from(screen_obj), context)?;
 
         // Add Image constructor - HTMLImageElement constructor for legitimate browser
-        let image_constructor = BuiltInBuilder::callable(context.realm(), |_this: &JsValue, args: &[JsValue], context: &mut Context| -> JsResult<JsValue> {
-            eprintln!("🖼️ Image constructor called with {} args", args.len());
+        let image_constructor = BuiltInBuilder::callable(
+            context.realm(),
+            |_this: &JsValue, args: &[JsValue], context: &mut Context| -> JsResult<JsValue> {
+                eprintln!("🖼️ Image constructor called with {} args", args.len());
 
-            // Create a basic object that represents an image
-            let img_obj = thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
-                .property(js_string!("tagName"), js_string!("IMG"), thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-                .property(js_string!("src"), js_string!(""), thalora_browser_apis::boa_engine::property::Attribute::all())
-                .property(js_string!("alt"), js_string!(""), thalora_browser_apis::boa_engine::property::Attribute::all())
-                .property(js_string!("width"), 0, thalora_browser_apis::boa_engine::property::Attribute::all())
-                .property(js_string!("height"), 0, thalora_browser_apis::boa_engine::property::Attribute::all())
-                .property(js_string!("complete"), false, thalora_browser_apis::boa_engine::property::Attribute::all())
-                .property(js_string!("naturalWidth"), 0, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-                .property(js_string!("naturalHeight"), 0, thalora_browser_apis::boa_engine::property::Attribute::READONLY)
-                .build();
+                // Create a basic object that represents an image
+                let img_obj =
+                    thalora_browser_apis::boa_engine::object::ObjectInitializer::new(context)
+                        .property(
+                            js_string!("tagName"),
+                            js_string!("IMG"),
+                            thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+                        )
+                        .property(
+                            js_string!("src"),
+                            js_string!(""),
+                            thalora_browser_apis::boa_engine::property::Attribute::all(),
+                        )
+                        .property(
+                            js_string!("alt"),
+                            js_string!(""),
+                            thalora_browser_apis::boa_engine::property::Attribute::all(),
+                        )
+                        .property(
+                            js_string!("width"),
+                            0,
+                            thalora_browser_apis::boa_engine::property::Attribute::all(),
+                        )
+                        .property(
+                            js_string!("height"),
+                            0,
+                            thalora_browser_apis::boa_engine::property::Attribute::all(),
+                        )
+                        .property(
+                            js_string!("complete"),
+                            false,
+                            thalora_browser_apis::boa_engine::property::Attribute::all(),
+                        )
+                        .property(
+                            js_string!("naturalWidth"),
+                            0,
+                            thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+                        )
+                        .property(
+                            js_string!("naturalHeight"),
+                            0,
+                            thalora_browser_apis::boa_engine::property::Attribute::READONLY,
+                        )
+                        .build();
 
-            // If width/height arguments provided, set them
-            if let Some(width_arg) = args.get(0) {
-                if let Some(width) = width_arg.as_number() {
-                    img_obj.set(js_string!("width"), width as i32, false, context)?;
+                // If width/height arguments provided, set them
+                if let Some(width_arg) = args.get(0) {
+                    if let Some(width) = width_arg.as_number() {
+                        img_obj.set(js_string!("width"), width as i32, false, context)?;
+                    }
                 }
-            }
-            if let Some(height_arg) = args.get(1) {
-                if let Some(height) = height_arg.as_number() {
-                    img_obj.set(js_string!("height"), height as i32, false, context)?;
+                if let Some(height_arg) = args.get(1) {
+                    if let Some(height) = height_arg.as_number() {
+                        img_obj.set(js_string!("height"), height as i32, false, context)?;
+                    }
                 }
-            }
 
-            Ok(JsValue::from(img_obj))
-        })
+                Ok(JsValue::from(img_obj))
+            },
+        )
         .name(js_string!("Image"))
         .build();
 
-        window_obj.define_property_or_throw(
-            js_string!("Image"),
-            thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
-                .configurable(true)
-                .enumerable(false)
-                .writable(true)
-                .value(image_constructor.clone())
-                .build(),
-            context,
-        ).map_err(|e| anyhow::Error::msg(format!("Failed to set window.Image: {}", e)))?;
+        window_obj
+            .define_property_or_throw(
+                js_string!("Image"),
+                thalora_browser_apis::boa_engine::property::PropertyDescriptorBuilder::new()
+                    .configurable(true)
+                    .enumerable(false)
+                    .writable(true)
+                    .value(image_constructor.clone())
+                    .build(),
+                context,
+            )
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set window.Image: {}", e)))?;
 
         // Also expose Image globally
         set_global_property_helper(&global, "Image", JsValue::from(image_constructor), context)?;
 
         // Expose window's EventTarget methods globally (ensuring same function references)
         // This ensures that global addEventListener === window.addEventListener
-        if let Ok(add_event_listener_method) = window_obj.get(js_string!("addEventListener"), context) {
-            set_global_property_helper(&global, "addEventListener", add_event_listener_method, context)?;
+        if let Ok(add_event_listener_method) =
+            window_obj.get(js_string!("addEventListener"), context)
+        {
+            set_global_property_helper(
+                &global,
+                "addEventListener",
+                add_event_listener_method,
+                context,
+            )?;
         }
-        if let Ok(remove_event_listener_method) = window_obj.get(js_string!("removeEventListener"), context) {
-            set_global_property_helper(&global, "removeEventListener", remove_event_listener_method, context)?;
+        if let Ok(remove_event_listener_method) =
+            window_obj.get(js_string!("removeEventListener"), context)
+        {
+            set_global_property_helper(
+                &global,
+                "removeEventListener",
+                remove_event_listener_method,
+                context,
+            )?;
         }
         if let Ok(dispatch_event_method) = window_obj.get(js_string!("dispatchEvent"), context) {
             set_global_property_helper(&global, "dispatchEvent", dispatch_event_method, context)?;
@@ -310,17 +476,24 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
     // Initialize document state
     {
         // Set initial ready state
-        context.eval(Source::from_bytes("document.readyState = 'interactive'")).map_err(|e| anyhow::Error::msg(format!("Failed to set document.readyState: {}", e)))?;
+        context
+            .eval(Source::from_bytes("document.readyState = 'interactive'"))
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set document.readyState: {}", e)))?;
 
         // Set initial URL
-        context.eval(Source::from_bytes("document.URL = 'about:blank'")).map_err(|e| anyhow::Error::msg(format!("Failed to set document.URL: {}", e)))?;
+        context
+            .eval(Source::from_bytes("document.URL = 'about:blank'"))
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set document.URL: {}", e)))?;
 
         // Set initial title
-        context.eval(Source::from_bytes("document.title = ''")).map_err(|e| anyhow::Error::msg(format!("Failed to set document.title: {}", e)))?;
+        context
+            .eval(Source::from_bytes("document.title = ''"))
+            .map_err(|e| anyhow::Error::msg(format!("Failed to set document.title: {}", e)))?;
     }
 
     // Add parseHTMLUnsafe global function (needed for tests)
-    let parsehtml_source = Source::from_bytes(r#"
+    let parsehtml_source = Source::from_bytes(
+        r#"
         globalThis.parseHTMLUnsafe = function(input, options) {
             options = options || {};
             console.log('parseHTMLUnsafe called:', input.substring(0, 100));
@@ -336,11 +509,15 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
                 }
             };
         };
-    "#);
-    context.eval(parsehtml_source).map_err(|e| anyhow::Error::msg(format!("Failed to setup parseHTMLUnsafe: {}", e)))?;
+    "#,
+    );
+    context
+        .eval(parsehtml_source)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to setup parseHTMLUnsafe: {}", e)))?;
 
     // Also attach parseHTMLUnsafe to Document constructor if available
-    let document_parse_setup = Source::from_bytes(r#"
+    let document_parse_setup = Source::from_bytes(
+        r#"
         try {
             if (typeof Document !== 'undefined' && typeof Document.parseHTMLUnsafe === 'undefined') {
                 Document.parseHTMLUnsafe = function(input, options) {
@@ -371,11 +548,18 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
         } catch (e) {
             // ignore
         }
-    "#);
-    context.eval(document_parse_setup).map_err(|e| anyhow::Error::msg(format!("Failed to setup Document.parseHTMLUnsafe/Element.setHTMLUnsafe: {}", e)))?;
+    "#,
+    );
+    context.eval(document_parse_setup).map_err(|e| {
+        anyhow::Error::msg(format!(
+            "Failed to setup Document.parseHTMLUnsafe/Element.setHTMLUnsafe: {}",
+            e
+        ))
+    })?;
 
     // Setup native Selection API and getSelection functions (with fallback)
-    let selection_setup = Source::from_bytes(r#"
+    let selection_setup = Source::from_bytes(
+        r#"
         // Create a global selection instance with fallback
         if (typeof window !== 'undefined') {
             try {
@@ -419,15 +603,19 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
                 };
             }
         }
-    "#);
-    context.eval(selection_setup).map_err(|e| anyhow::Error::msg(format!("Failed to setup Selection API: {}", e)))?;
+    "#,
+    );
+    context
+        .eval(selection_setup)
+        .map_err(|e| anyhow::Error::msg(format!("Failed to setup Selection API: {}", e)))?;
 
     Ok(())
 }
 
 /// Setup native location object with proper URL handling
 pub fn setup_native_location(context: &mut Context, url: &str) -> Result<()> {
-    let location_setup = format!(r#"
+    let location_setup = format!(
+        r#"
         if (typeof window !== 'undefined' && window.location) {{
             window.location.href = '{}';
             window.location.protocol = '{}';
@@ -435,7 +623,13 @@ pub fn setup_native_location(context: &mut Context, url: &str) -> Result<()> {
         }}
     "#,
         url,
-        if url.starts_with("https:") { "https:" } else if url.starts_with("http:") { "http:" } else { "about:" },
+        if url.starts_with("https:") {
+            "https:"
+        } else if url.starts_with("http:") {
+            "http:"
+        } else {
+            "about:"
+        },
         if let Some(url_start) = url.find("://") {
             let after_protocol = &url[url_start + 3..];
             if let Some(slash_pos) = after_protocol.find('/') {
@@ -448,6 +642,8 @@ pub fn setup_native_location(context: &mut Context, url: &str) -> Result<()> {
         }
     );
 
-    context.eval(Source::from_bytes(&location_setup)).map_err(|e| anyhow::Error::msg(format!("Failed to setup location: {}", e)))?;
+    context
+        .eval(Source::from_bytes(&location_setup))
+        .map_err(|e| anyhow::Error::msg(format!("Failed to setup location: {}", e)))?;
     Ok(())
 }

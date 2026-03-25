@@ -1,8 +1,8 @@
 use serde_json::Value;
 
-use crate::protocols::mcp::McpResponse;
 use crate::features::ai_memory::{AiMemoryHeap, NotePriority};
-use crate::protocols::security::{limit_input_length, MAX_KEY_LENGTH, MAX_CONTENT_LENGTH};
+use crate::protocols::mcp::McpResponse;
+use crate::protocols::security::{MAX_CONTENT_LENGTH, MAX_KEY_LENGTH, limit_input_length};
 
 /// Handle storing a note in AI memory
 pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -78,14 +78,23 @@ pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> Mcp
         };
     }
 
-    let category = args.get("category").and_then(|v| v.as_str()).unwrap_or("general");
+    let category = args
+        .get("category")
+        .and_then(|v| v.as_str())
+        .unwrap_or("general");
 
-    let tags = args.get("tags")
+    let tags = args
+        .get("tags")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_else(Vec::new);
 
-    let priority = args.get("priority")
+    let priority = args
+        .get("priority")
         .and_then(|v| v.as_str())
         .and_then(|s| match s {
             "Low" => Some(NotePriority::Low),
@@ -110,6 +119,6 @@ pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> Mcp
                 "text": format!("Failed to store note: {}", e)
             })],
             is_error: true,
-        }
+        },
     }
 }

@@ -38,7 +38,6 @@ pub(crate) fn get_advanced_tool_definitions() -> Vec<Value> {
                 }
             }
         }),
-
         // Download File Tool
         serde_json::json!({
             "name": "download_file",
@@ -74,7 +73,6 @@ pub(crate) fn get_advanced_tool_definitions() -> Vec<Value> {
                 "required": ["url"]
             }
         }),
-
         // Network Request Interception Tool
         serde_json::json!({
             "name": "intercept_requests",
@@ -114,7 +112,6 @@ pub(crate) fn get_advanced_tool_definitions() -> Vec<Value> {
                 "required": ["session_id", "patterns"]
             }
         }),
-
         // Get Intercepted Requests Tool
         serde_json::json!({
             "name": "get_intercepted_requests",
@@ -143,7 +140,6 @@ pub(crate) fn get_advanced_tool_definitions() -> Vec<Value> {
                 "required": ["session_id"]
             }
         }),
-
         // Screenshot PDF Tool
         serde_json::json!({
             "name": "page_to_pdf",

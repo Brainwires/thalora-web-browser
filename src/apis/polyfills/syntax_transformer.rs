@@ -53,8 +53,10 @@ impl SyntaxTransformer {
         regex::Regex::new(r"(\w+)\s*\?\?\s*([^;]+)")
             .unwrap()
             .replace_all(code, |caps: &regex::Captures| {
-                format!("(({}) !== null && ({}) !== undefined) ? ({}) : ({})",
-                       &caps[1], &caps[1], &caps[1], &caps[2])
+                format!(
+                    "(({}) !== null && ({}) !== undefined) ? ({}) : ({})",
+                    &caps[1], &caps[1], &caps[1], &caps[2]
+                )
             })
             .to_string()
     }
@@ -64,8 +66,10 @@ impl SyntaxTransformer {
         regex::Regex::new(r"(\w+)\?\\.(\w+)")
             .unwrap()
             .replace_all(code, |caps: &regex::Captures| {
-                format!("(({}) !== null && ({}) !== undefined) ? ({}).{} : undefined",
-                       &caps[1], &caps[1], &caps[1], &caps[2])
+                format!(
+                    "(({}) !== null && ({}) !== undefined) ? ({}).{} : undefined",
+                    &caps[1], &caps[1], &caps[1], &caps[2]
+                )
             })
             .to_string()
     }
@@ -89,8 +93,10 @@ impl SyntaxTransformer {
         result = regex::Regex::new(r"(\w+)\s*\?\?=\s*([^;]+)")
             .unwrap()
             .replace_all(&result, |caps: &regex::Captures| {
-                format!("{} = ({} !== null && {} !== undefined) ? {} : ({})",
-                       &caps[1], &caps[1], &caps[1], &caps[1], &caps[2])
+                format!(
+                    "{} = ({} !== null && {} !== undefined) ? {} : ({})",
+                    &caps[1], &caps[1], &caps[1], &caps[1], &caps[2]
+                )
             })
             .to_string();
 
@@ -101,9 +107,7 @@ impl SyntaxTransformer {
         // Remove numeric separators: 1_000_000 -> 1000000
         regex::Regex::new(r"\b(\d+)(_\d+)+\b")
             .unwrap()
-            .replace_all(code, |caps: &regex::Captures| {
-                caps[0].replace("_", "")
-            })
+            .replace_all(code, |caps: &regex::Captures| caps[0].replace("_", ""))
             .to_string()
     }
 
@@ -130,8 +134,10 @@ impl SyntaxTransformer {
         regex::Regex::new(r"class\s+(\w+)\s*\{[^}]*(\w+)\s*=\s*([^;]+);")
             .unwrap()
             .replace_all(code, |caps: &regex::Captures| {
-                format!("class {} {{ constructor() {{ this.{} = {}; }} }}",
-                       &caps[1], &caps[2], &caps[3])
+                format!(
+                    "class {} {{ constructor() {{ this.{} = {}; }} }}",
+                    &caps[1], &caps[2], &caps[3]
+                )
             })
             .to_string()
     }
@@ -243,7 +249,10 @@ impl SyntaxTransformer {
         // Transform for...of loops to regular for loops
         regex::Regex::new(r"for\s*\(\s*var\s+(\w+)\s+of\s+([^)]+)\)")
             .unwrap()
-            .replace_all(code, "for (var __i = 0; __i < ($2).length; __i++) { var $1 = ($2)[__i];")
+            .replace_all(
+                code,
+                "for (var __i = 0; __i < ($2).length; __i++) { var $1 = ($2)[__i];",
+            )
             .to_string()
     }
 

@@ -6,7 +6,6 @@
 /// 3. Encrypted storage for localStorage/sessionStorage
 /// 4. Encrypted storage for IndexedDB
 /// 5. Session secret management (no hardcoded fallback)
-
 use std::path::Path;
 
 /// Tests for VFS path canonicalization and traversal prevention
@@ -52,7 +51,11 @@ mod vfs_path_security {
     /// Test that current directory (.) is handled correctly
     #[test]
     fn test_current_directory_normalization() {
-        let paths_with_dot = vec!["/data/./file.txt", "/./data/./file.txt", "./relative/./path"];
+        let paths_with_dot = vec![
+            "/data/./file.txt",
+            "/./data/./file.txt",
+            "./relative/./path",
+        ];
 
         for path in paths_with_dot {
             assert!(path.contains("./"), "Test path should contain ./ component");
@@ -339,14 +342,8 @@ mod indexeddb_encryption {
         // IndexedDB should use the same AES-256-GCM encryption as localStorage
 
         let algorithm = "AES-256-GCM";
-        assert!(
-            algorithm.contains("AES"),
-            "Should use AES encryption"
-        );
-        assert!(
-            algorithm.contains("256"),
-            "Should use 256-bit key"
-        );
+        assert!(algorithm.contains("AES"), "Should use AES encryption");
+        assert!(algorithm.contains("256"), "Should use 256-bit key");
         assert!(algorithm.contains("GCM"), "Should use GCM mode");
     }
 
@@ -360,10 +357,7 @@ mod indexeddb_encryption {
         let keys_encrypted = false;
         let values_encrypted = true;
 
-        assert!(
-            !keys_encrypted,
-            "Keys should not be encrypted for indexing"
-        );
+        assert!(!keys_encrypted, "Keys should not be encrypted for indexing");
         assert!(values_encrypted, "Values should be encrypted");
     }
 }
@@ -394,10 +388,7 @@ mod real_fs_protection {
 
         // This test doesn't enable it, just verifies the pattern
         let pattern_exists = true;
-        assert!(
-            pattern_exists,
-            "real_fs_acknowledged should be available"
-        );
+        assert!(pattern_exists, "real_fs_acknowledged should be available");
     }
 }
 

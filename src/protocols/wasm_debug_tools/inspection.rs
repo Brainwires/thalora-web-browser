@@ -25,13 +25,19 @@ impl WasmDebugState {
         include_signatures: bool,
     ) -> Result<Value> {
         validate_module_id(module_id)?;
-        let loaded = self.get_module(module_id)
+        let loaded = self
+            .get_module(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
         let want_all = sections.is_none()
-            || sections.as_ref().map_or(false, |s| s.iter().any(|x| x == "all"));
+            || sections
+                .as_ref()
+                .map_or(false, |s| s.iter().any(|x| x == "all"));
         let want = |name: &str| -> bool {
-            want_all || sections.as_ref().map_or(false, |s| s.iter().any(|x| x == name))
+            want_all
+                || sections
+                    .as_ref()
+                    .map_or(false, |s| s.iter().any(|x| x == name))
         };
 
         let mut result = serde_json::json!({
@@ -61,10 +67,14 @@ impl WasmDebugState {
                     for (i, ty) in reader.into_iter_err_on_gc_types().enumerate() {
                         match ty {
                             Ok(func_type) => {
-                                let params: Vec<String> = func_type.params().iter()
+                                let params: Vec<String> = func_type
+                                    .params()
+                                    .iter()
                                     .map(|p| valtype_to_string(p))
                                     .collect();
-                                let results: Vec<String> = func_type.results().iter()
+                                let results: Vec<String> = func_type
+                                    .results()
+                                    .iter()
                                     .map(|r| valtype_to_string(r))
                                     .collect();
                                 type_section.push(serde_json::json!({
@@ -247,10 +257,16 @@ impl WasmDebugState {
             map.insert("globals".to_string(), serde_json::json!(globals));
         }
         if want("custom_sections") {
-            map.insert("custom_sections".to_string(), serde_json::json!(custom_sections));
+            map.insert(
+                "custom_sections".to_string(),
+                serde_json::json!(custom_sections),
+            );
         }
         if want("start") {
-            map.insert("start_function".to_string(), serde_json::json!(start_function));
+            map.insert(
+                "start_function".to_string(),
+                serde_json::json!(start_function),
+            );
         }
 
         Ok(result)

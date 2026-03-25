@@ -14,7 +14,8 @@ impl WasmDebugState {
         _fold_expressions: bool,
     ) -> Result<Value> {
         validate_module_id(module_id)?;
-        let loaded = self.get_module(module_id)
+        let loaded = self
+            .get_module(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
         // Resolve function_name to function_index if provided
@@ -43,7 +44,8 @@ impl WasmDebugState {
 
     /// Resolve an export name to a function index
     fn resolve_export_func_index(&self, module_id: &str, name: &str) -> Result<Option<u32>> {
-        let loaded = self.get_module(module_id)
+        let loaded = self
+            .get_module(module_id)
             .ok_or_else(|| anyhow!("Module '{}' not found", module_id))?;
 
         let parser = Parser::new(0);
@@ -120,7 +122,8 @@ impl WasmDebugState {
         let func_marker = format!("(func (;{};)", target_func_idx);
         let func_marker_alt = format!("(func ${}", target_func_idx);
 
-        let func_wat = if let Some(start_pos) = full_wat.find(&func_marker)
+        let func_wat = if let Some(start_pos) = full_wat
+            .find(&func_marker)
             .or_else(|| full_wat.find(&func_marker_alt))
         {
             // Find the matching closing paren

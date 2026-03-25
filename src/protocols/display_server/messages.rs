@@ -2,7 +2,6 @@
 ///
 /// Defines all message types sent between Thalora and display clients,
 /// including serialization and deserialization.
-
 use serde::{Deserialize, Serialize};
 
 /// Message types sent from Thalora to display clients
@@ -10,10 +9,7 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DisplayMessage {
     /// Initial connection established
-    Connected {
-        session_id: String,
-        timestamp: u64,
-    },
+    Connected { session_id: String, timestamp: u64 },
 
     /// HTML content update
     HtmlUpdate {
@@ -24,10 +20,7 @@ pub enum DisplayMessage {
     },
 
     /// Navigation event
-    Navigation {
-        url: String,
-        timestamp: u64,
-    },
+    Navigation { url: String, timestamp: u64 },
 
     /// Console log message
     ConsoleLog {
@@ -53,15 +46,10 @@ pub enum DisplayMessage {
     },
 
     /// Error occurred
-    Error {
-        message: String,
-        timestamp: u64,
-    },
+    Error { message: String, timestamp: u64 },
 
     /// Heartbeat/keepalive
-    Ping {
-        timestamp: u64,
-    },
+    Ping { timestamp: u64 },
 
     /// CDP Screencast frame
     /// This is the efficient display streaming method used by services like Browserless
@@ -107,9 +95,7 @@ pub struct ScreencastFrameMetadata {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DisplayCommand {
     /// Navigate to URL
-    Navigate {
-        url: String,
-    },
+    Navigate { url: String },
 
     /// Go back in history
     Back,
@@ -124,25 +110,16 @@ pub enum DisplayCommand {
     Stop,
 
     /// Execute JavaScript
-    ExecuteScript {
-        script: String,
-    },
+    ExecuteScript { script: String },
 
     /// Click element
-    Click {
-        selector: String,
-    },
+    Click { selector: String },
 
     /// Type text
-    Type {
-        selector: String,
-        text: String,
-    },
+    Type { selector: String, text: String },
 
     /// Pong response to ping
-    Pong {
-        timestamp: u64,
-    },
+    Pong { timestamp: u64 },
 
     /// Start CDP screencast
     StartScreencast {
@@ -160,9 +137,7 @@ pub enum DisplayCommand {
     StopScreencast,
 
     /// Acknowledge screencast frame (required for next frame to be sent)
-    ScreencastFrameAck {
-        session_id: i32,
-    },
+    ScreencastFrameAck { session_id: i32 },
 }
 
 /// Get current timestamp in milliseconds

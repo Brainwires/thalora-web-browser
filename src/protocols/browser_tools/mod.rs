@@ -1,6 +1,6 @@
 pub mod core;
-pub mod session;
 pub mod handlers;
+pub mod session;
 
 // Re-export main types
 pub use core::BrowserTools;

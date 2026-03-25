@@ -1,20 +1,20 @@
+use crate::protocols::browser_tools::BrowserTools;
+use crate::protocols::cdp::CdpServer;
+use crate::protocols::mcp::McpResponse;
 use serde_json::Value;
 use std::sync::Arc;
-use crate::protocols::mcp::McpResponse;
-use crate::protocols::cdp::CdpServer;
-use crate::protocols::browser_tools::BrowserTools;
 
-mod runtime;
 mod debugger;
 mod dom;
 mod network;
 mod page;
+mod runtime;
 
-use runtime::RuntimeTools;
 use debugger::DebuggerTools;
 use dom::DomTools;
 use network::NetworkTools;
 use page::PageTools;
+use runtime::RuntimeTools;
 
 /// Chrome DevTools Protocol tools implementation
 /// Provides comprehensive CDP domain support for browser debugging and automation
@@ -48,16 +48,28 @@ impl CdpTools {
         self.runtime.enable_runtime(args, cdp_server).await
     }
 
-    pub async fn evaluate_javascript(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn evaluate_javascript(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         self.runtime.evaluate_javascript(args, cdp_server).await
     }
 
-    pub async fn get_console_messages(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_console_messages(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         self.runtime.get_console_messages(args, cdp_server).await
     }
 
     // Debugger domain methods
-    pub async fn enable_debugger(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn enable_debugger(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         self.debugger.enable_debugger(args, cdp_server).await
     }
 
@@ -82,7 +94,11 @@ impl CdpTools {
         self.dom.get_attributes(args, cdp_server).await
     }
 
-    pub async fn get_computed_style(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_computed_style(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         self.dom.get_computed_style(args, cdp_server).await
     }
 
@@ -91,7 +107,11 @@ impl CdpTools {
         self.network.enable_network(args, cdp_server).await
     }
 
-    pub async fn get_response_body(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_response_body(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         self.network.get_response_body(args, cdp_server).await
     }
 
@@ -104,7 +124,11 @@ impl CdpTools {
     }
 
     // Page domain methods
-    pub async fn take_screenshot(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn take_screenshot(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         self.page.take_screenshot(args, cdp_server).await
     }
 

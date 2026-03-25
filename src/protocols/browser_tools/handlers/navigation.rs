@@ -1,19 +1,25 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use url::Url;
 
-use crate::protocols::mcp::McpResponse;
 use crate::protocols::browser_tools::core::BrowserTools;
+use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{
-    validate_url_for_navigation, sanitize_session_id, limit_input_length,
-    MAX_URL_LENGTH,
+    MAX_URL_LENGTH, limit_input_length, sanitize_session_id, validate_url_for_navigation,
 };
 
 impl BrowserTools {
     pub async fn handle_navigate_to(&self, params: Value) -> McpResponse {
         let url = params["url"].as_str().unwrap_or("");
-        let wait_for_load = params.get("wait_for_load").and_then(|v| v.as_bool()).unwrap_or(true);
-        let wait_for_js = params.get("wait_for_js").and_then(|v| v.as_bool()).unwrap_or(false);
-        let session_id = params.get("session_id")
+        let wait_for_load = params
+            .get("wait_for_load")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let wait_for_js = params
+            .get("wait_for_js")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -45,24 +51,33 @@ impl BrowserTools {
             let lock_res = browser.lock();
             match lock_res {
                 Ok(mut browser_guard) => {
-                    match browser_guard.navigate_to_with_js_option(url, wait_for_load, wait_for_js).await {
-                        Ok(content) => response = McpResponse::success(json!({
-                            "success": true,
-                            "content": content,
-                            "url": browser_guard.get_current_url(),
-                            "message": format!("Successfully navigated to {}", url)
-                        })),
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate to URL: {}", e)),
+                    match browser_guard
+                        .navigate_to_with_js_option(url, wait_for_load, wait_for_js)
+                        .await
+                    {
+                        Ok(content) => {
+                            response = McpResponse::success(json!({
+                                "success": true,
+                                "content": content,
+                                "url": browser_guard.get_current_url(),
+                                "message": format!("Successfully navigated to {}", url)
+                            }))
+                        }
+                        Err(e) => {
+                            response =
+                                McpResponse::error(-1, format!("Failed to navigate to URL: {}", e))
+                        }
                     }
                 }
-                Err(_) => { }
+                Err(_) => {}
             }
         }
         response
     }
 
     pub async fn handle_navigate_back(&self, params: Value) -> McpResponse {
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -76,28 +91,33 @@ impl BrowserTools {
         {
             let lock_res = browser.lock();
             match lock_res {
-                Ok(mut browser_guard) => {
-                    match browser_guard.go_back().await {
-                        Ok(Some(content)) => response = McpResponse::success(json!({
+                Ok(mut browser_guard) => match browser_guard.go_back().await {
+                    Ok(Some(content)) => {
+                        response = McpResponse::success(json!({
                             "success": true,
                             "content": content,
                             "url": browser_guard.get_current_url()
-                        })),
-                        Ok(None) => response = McpResponse::success(json!({
+                        }))
+                    }
+                    Ok(None) => {
+                        response = McpResponse::success(json!({
                             "success": false,
                             "message": "Cannot go back further"
-                        })),
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate back: {}", e)),
+                        }))
                     }
-                }
-                Err(_) => { }
+                    Err(e) => {
+                        response = McpResponse::error(-1, format!("Failed to navigate back: {}", e))
+                    }
+                },
+                Err(_) => {}
             }
         }
         response
     }
 
     pub async fn handle_navigate_forward(&self, params: Value) -> McpResponse {
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -111,28 +131,34 @@ impl BrowserTools {
         {
             let lock_res = browser.lock();
             match lock_res {
-                Ok(mut browser_guard) => {
-                    match browser_guard.go_forward().await {
-                        Ok(Some(content)) => response = McpResponse::success(json!({
+                Ok(mut browser_guard) => match browser_guard.go_forward().await {
+                    Ok(Some(content)) => {
+                        response = McpResponse::success(json!({
                             "success": true,
                             "content": content,
                             "url": browser_guard.get_current_url()
-                        })),
-                        Ok(None) => response = McpResponse::success(json!({
+                        }))
+                    }
+                    Ok(None) => {
+                        response = McpResponse::success(json!({
                             "success": false,
                             "message": "Cannot go forward further"
-                        })),
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to navigate forward: {}", e)),
+                        }))
                     }
-                }
-                Err(_) => { }
+                    Err(e) => {
+                        response =
+                            McpResponse::error(-1, format!("Failed to navigate forward: {}", e))
+                    }
+                },
+                Err(_) => {}
             }
         }
         response
     }
 
     pub async fn handle_refresh_page(&self, params: Value) -> McpResponse {
-        let session_id = params.get("session_id")
+        let session_id = params
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("default");
 
@@ -146,18 +172,20 @@ impl BrowserTools {
         {
             let lock_res = browser.lock();
             match lock_res {
-                Ok(mut browser_guard) => {
-                    match browser_guard.reload().await {
-                        Ok(content) => response = McpResponse::success(json!({
+                Ok(mut browser_guard) => match browser_guard.reload().await {
+                    Ok(content) => {
+                        response = McpResponse::success(json!({
                             "success": true,
                             "content": content,
                             "url": browser_guard.get_current_url(),
                             "message": "Page refreshed successfully"
-                        })),
-                        Err(e) => response = McpResponse::error(-1, format!("Failed to refresh page: {}", e)),
+                        }))
                     }
-                }
-                Err(_) => { }
+                    Err(e) => {
+                        response = McpResponse::error(-1, format!("Failed to refresh page: {}", e))
+                    }
+                },
+                Err(_) => {}
             }
         }
         response

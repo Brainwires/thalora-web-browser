@@ -23,23 +23,17 @@ impl CdpDomain for StorageDomain {
 
     fn handle_command(&mut self, method: &str, _params: Option<Value>) -> Result<Value> {
         match method {
-            "clearDataForOrigin" => {
-                Ok(serde_json::json!({}))
-            }
-            "getStorageKeyForFrame" => {
-                Ok(serde_json::json!({
-                    "storageKey": "thalora://main"
-                }))
-            }
-            "getUsageAndQuota" => {
-                Ok(serde_json::json!({
-                    "usage": 0,
-                    "quota": 1073741824,
-                    "overrideActive": false,
-                    "usageBreakdown": []
-                }))
-            }
-            _ => Err(anyhow::anyhow!("Unknown Storage method: {}", method))
+            "clearDataForOrigin" => Ok(serde_json::json!({})),
+            "getStorageKeyForFrame" => Ok(serde_json::json!({
+                "storageKey": "thalora://main"
+            })),
+            "getUsageAndQuota" => Ok(serde_json::json!({
+                "usage": 0,
+                "quota": 1073741824,
+                "overrideActive": false,
+                "usageBreakdown": []
+            })),
+            _ => Err(anyhow::anyhow!("Unknown Storage method: {}", method)),
         }
     }
 

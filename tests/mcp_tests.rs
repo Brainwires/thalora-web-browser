@@ -24,12 +24,9 @@ mod protocols;
 
 // Re-export test modules for easy access
 pub use protocols::{
-    mcp_protocol_test,
-    mcp_tools_test,
-    mcp_integration_test,
-    mcp_performance_test,
     mcp_environment_test,
-    mcp_harness::{McpTestHarness, McpTestConfig, create_initialized_harness},
+    mcp_harness::{McpTestConfig, McpTestHarness, create_initialized_harness},
+    mcp_integration_test, mcp_performance_test, mcp_protocol_test, mcp_tools_test,
 };
 
 #[cfg(test)]
@@ -44,7 +41,11 @@ mod tests {
         if let Err(e) = &harness_result {
             eprintln!("Harness creation failed: {}", e);
         }
-        assert!(harness_result.is_ok(), "Test harness should initialize successfully: {:?}", harness_result.err());
+        assert!(
+            harness_result.is_ok(),
+            "Test harness should initialize successfully: {:?}",
+            harness_result.err()
+        );
 
         let mut harness = harness_result.unwrap();
         assert!(harness.is_running(), "MCP server should be running");
@@ -56,17 +57,22 @@ mod tests {
         let tools = tools_result.unwrap();
         assert!(!tools.is_empty(), "Should have at least one tool available");
 
-        eprintln!("Test harness verification successful - found {} tools", tools.len());
+        eprintln!(
+            "Test harness verification successful - found {} tools",
+            tools.len()
+        );
     }
 
     /// Integration test to verify end-to-end testing capability
     #[test]
     fn test_end_to_end_verification() {
-        let mut harness = create_initialized_harness()
-            .expect("Failed to create test harness");
+        let mut harness = create_initialized_harness().expect("Failed to create test harness");
 
         // Test the complete flow: store, retrieve, search
-        let test_key = format!("verification_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default());
+        let test_key = format!(
+            "verification_{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        );
         let test_data = serde_json::json!({
             "purpose": "end-to-end verification",
             "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -82,25 +88,48 @@ mod tests {
         })).expect("Store should succeed");
 
         assert!(!store_response.is_error, "Store should not return error");
-        assert!(store_response.duration < Duration::from_secs(10), "Store should be reasonably fast");
+        assert!(
+            store_response.duration < Duration::from_secs(10),
+            "Store should be reasonably fast"
+        );
 
         // Retrieve data
-        let get_response = harness.call_tool("ai_memory_get_research", serde_json::json!({
-            "key": &test_key
-        })).expect("Get should succeed");
+        let get_response = harness
+            .call_tool(
+                "ai_memory_get_research",
+                serde_json::json!({
+                    "key": &test_key
+                }),
+            )
+            .expect("Get should succeed");
 
         assert!(!get_response.is_error, "Get should not return error");
-        assert!(get_response.duration < Duration::from_secs(10), "Get should be reasonably fast");
+        assert!(
+            get_response.duration < Duration::from_secs(10),
+            "Get should be reasonably fast"
+        );
 
         // Verify content
-        let response_text = get_response.content[0].get("text").unwrap().as_str().unwrap();
-        assert!(response_text.contains("verification"), "Retrieved data should contain original content");
+        let response_text = get_response.content[0]
+            .get("text")
+            .unwrap()
+            .as_str()
+            .unwrap();
+        assert!(
+            response_text.contains("verification"),
+            "Retrieved data should contain original content"
+        );
 
         // Search for data
-        let search_response = harness.call_tool("ai_memory_search_research", serde_json::json!({
-            "tags": ["verification"],
-            "limit": 1
-        })).expect("Search should succeed");
+        let search_response = harness
+            .call_tool(
+                "ai_memory_search_research",
+                serde_json::json!({
+                    "tags": ["verification"],
+                    "limit": 1
+                }),
+            )
+            .expect("Search should succeed");
 
         assert!(!search_response.is_error, "Search should not return error");
 
@@ -110,27 +139,38 @@ mod tests {
     /// Quick smoke test for all major tool categories
     #[test]
     fn test_tool_categories_smoke() {
-        let mut harness = create_initialized_harness()
-            .expect("Failed to create test harness");
+        let mut harness = create_initialized_harness().expect("Failed to create test harness");
 
         // Memory tools
-        let memory_result = harness.call_tool("ai_memory_search_research", serde_json::json!({
-            "query": "smoke_test",
-            "limit": 1
-        }));
+        let memory_result = harness.call_tool(
+            "ai_memory_search_research",
+            serde_json::json!({
+                "query": "smoke_test",
+                "limit": 1
+            }),
+        );
         assert!(memory_result.is_ok(), "Memory tools should be functional");
 
         // JavaScript evaluation
-        let js_result = harness.call_tool("cdp_runtime_evaluate", serde_json::json!({
-            "expression": "1 + 1",
-            "await_promise": false
-        }));
-        assert!(js_result.is_ok(), "JavaScript evaluation should be functional");
+        let js_result = harness.call_tool(
+            "cdp_runtime_evaluate",
+            serde_json::json!({
+                "expression": "1 + 1",
+                "await_promise": false
+            }),
+        );
+        assert!(
+            js_result.is_ok(),
+            "JavaScript evaluation should be functional"
+        );
 
         // DOM tools
-        let dom_result = harness.call_tool("cdp_dom_get_document", serde_json::json!({
-            "depth": 1
-        }));
+        let dom_result = harness.call_tool(
+            "cdp_dom_get_document",
+            serde_json::json!({
+                "depth": 1
+            }),
+        );
         assert!(dom_result.is_ok(), "DOM tools should be functional");
 
         eprintln!("All major tool categories passed smoke test");

@@ -1,7 +1,7 @@
 // Markdown conversion and formatting
 
-use scraper::{Html, Selector};
 use anyhow::Result;
+use scraper::{Html, Selector};
 
 /// Convert HTML to markdown format
 pub(super) fn to_markdown(html: &Html, base_url: &str) -> Result<String> {
@@ -9,7 +9,9 @@ pub(super) fn to_markdown(html: &Html, base_url: &str) -> Result<String> {
 
     // Find the root content element (body or main content area)
     let root_element = if let Ok(body_selector) = Selector::parse("body") {
-        html.select(&body_selector).next().unwrap_or_else(|| html.root_element())
+        html.select(&body_selector)
+            .next()
+            .unwrap_or_else(|| html.root_element())
     } else {
         html.root_element()
     };

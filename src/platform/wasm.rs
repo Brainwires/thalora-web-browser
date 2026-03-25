@@ -3,7 +3,7 @@
 //! Uses web-sys fetch for HTTP, web-sys WebSocket for WebSocket,
 //! and web-sys localStorage/IndexedDB for storage.
 
-use super::{HttpClient, HttpRequest, HttpResponse, HttpError, HttpErrorKind, HttpMethod};
+use super::{HttpClient, HttpError, HttpErrorKind, HttpMethod, HttpRequest, HttpResponse};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -27,7 +27,10 @@ impl Default for WasmHttpClient {
 }
 
 impl HttpClient for WasmHttpClient {
-    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + '_>> {
+    fn request(
+        &self,
+        request: HttpRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + '_>> {
         Box::pin(async move {
             let window = web_sys::window().ok_or_else(|| HttpError {
                 message: "No window object available".to_string(),
@@ -45,10 +48,11 @@ impl HttpClient for WasmHttpClient {
             }
 
             // Create request
-            let req = Request::new_with_str_and_init(&request.url, &opts).map_err(|e| HttpError {
-                message: format!("Failed to create request: {:?}", e),
-                kind: HttpErrorKind::InvalidUrl,
-            })?;
+            let req =
+                Request::new_with_str_and_init(&request.url, &opts).map_err(|e| HttpError {
+                    message: format!("Failed to create request: {:?}", e),
+                    kind: HttpErrorKind::InvalidUrl,
+                })?;
 
             // Add headers
             let headers = req.headers();
@@ -143,13 +147,15 @@ impl super::Storage for WasmStorage {
         let storage = self.get_storage().ok_or("No storage available")?;
         // Encode as base64 for localStorage
         let encoded = base64_encode(value);
-        storage.set_item(&self.prefixed_key(key), &encoded)
+        storage
+            .set_item(&self.prefixed_key(key), &encoded)
             .map_err(|_| "Failed to set item".to_string())
     }
 
     fn delete(&mut self, key: &str) -> Result<(), String> {
         let storage = self.get_storage().ok_or("No storage available")?;
-        storage.remove_item(&self.prefixed_key(key))
+        storage
+            .remove_item(&self.prefixed_key(key))
             .map_err(|_| "Failed to remove item".to_string())
     }
 
@@ -158,7 +164,8 @@ impl super::Storage for WasmStorage {
         // Only clear items with our prefix
         let keys = self.keys();
         for key in keys {
-            storage.remove_item(&self.prefixed_key(&key))
+            storage
+                .remove_item(&self.prefixed_key(&key))
                 .map_err(|_| "Failed to remove item".to_string())?;
         }
         Ok(())
@@ -200,10 +207,12 @@ impl super::Timer for WasmTimer {
         };
 
         let closure = Closure::once(callback);
-        let id = window.set_timeout_with_callback_and_timeout_and_arguments_0(
-            closure.as_ref().unchecked_ref(),
-            delay_ms as i32,
-        ).unwrap_or(0);
+        let id = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                delay_ms as i32,
+            )
+            .unwrap_or(0);
 
         // Leak the closure to prevent it from being dropped
         closure.forget();
@@ -227,10 +236,12 @@ impl super::Timer for WasmTimer {
         };
 
         let closure = Closure::wrap(Box::new(callback) as Box<dyn Fn()>);
-        let id = window.set_interval_with_callback_and_timeout_and_arguments_0(
-            closure.as_ref().unchecked_ref(),
-            interval_ms as i32,
-        ).unwrap_or(0);
+        let id = window
+            .set_interval_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                interval_ms as i32,
+            )
+            .unwrap_or(0);
 
         // Leak the closure to prevent it from being dropped
         closure.forget();

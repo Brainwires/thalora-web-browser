@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
-use url::Url;
+use anyhow::{Result, anyhow};
 use std::fmt;
+use url::Url;
 
 /// Represents a web origin (scheme, host, port)
 /// Used for implementing Same-Origin Policy
@@ -14,11 +14,11 @@ pub struct Origin {
 impl Origin {
     /// Parse origin from URL string
     pub fn from_url(url_str: &str) -> Result<Self> {
-        let url = Url::parse(url_str)
-            .map_err(|e| anyhow!("Invalid URL: {}", e))?;
+        let url = Url::parse(url_str).map_err(|e| anyhow!("Invalid URL: {}", e))?;
 
         // Ensure URL has a host
-        let host = url.host_str()
+        let host = url
+            .host_str()
             .ok_or_else(|| anyhow!("URL has no host: {}", url_str))?
             .to_string();
 
@@ -31,9 +31,7 @@ impl Origin {
 
     /// Check if this origin matches another origin (Same-Origin Policy)
     pub fn matches(&self, other: &Origin) -> bool {
-        self.scheme == other.scheme
-            && self.host == other.host
-            && self.port == other.port
+        self.scheme == other.scheme && self.host == other.host && self.port == other.port
     }
 
     /// Get the canonical origin string (scheme://host:port)

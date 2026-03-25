@@ -1,11 +1,11 @@
 use anyhow::{Result, anyhow};
-use tokio::time::{sleep, Duration};
+use rand;
 use std::collections::HashMap;
 use std::error::Error;
-use rand;
+use tokio::time::{Duration, sleep};
 
-use crate::engine::security::SsrfProtection;
 use crate::engine::browser::types::NavigationMode;
+use crate::engine::security::SsrfProtection;
 
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
@@ -13,8 +13,16 @@ impl super::super::HeadlessWebBrowser {
     /// # Security
     /// This function validates URLs to prevent SSRF attacks (CWE-918).
     /// Access to private IPs, localhost, and cloud metadata endpoints is blocked.
-    pub async fn navigate_to_with_js_option(&mut self, url: &str, wait_for_load: bool, wait_for_js: bool) -> Result<String> {
-        eprintln!("🔍 DEBUG: navigate_to_with_js_option - URL: {}, wait_for_load: {}, wait_for_js: {}", url, wait_for_load, wait_for_js);
+    pub async fn navigate_to_with_js_option(
+        &mut self,
+        url: &str,
+        wait_for_load: bool,
+        wait_for_js: bool,
+    ) -> Result<String> {
+        eprintln!(
+            "🔍 DEBUG: navigate_to_with_js_option - URL: {}, wait_for_load: {}, wait_for_js: {}",
+            url, wait_for_load, wait_for_js
+        );
 
         // SECURITY: Validate URL to prevent SSRF attacks
         // Block access to private IPs, localhost, and cloud metadata endpoints
@@ -27,13 +35,19 @@ impl super::super::HeadlessWebBrowser {
         let headers = self.create_standard_browser_headers(url);
 
         // Fetch the page content with proper browser headers
-        let response = self.client.get(url).headers(headers).send().await.map_err(|e| {
-            eprintln!("🔍 DEBUG: HTTP request error details: {}", e);
-            if let Some(source) = e.source() {
-                eprintln!("🔍 DEBUG: Error source: {}", source);
-            }
-            e
-        })?;
+        let response = self
+            .client
+            .get(url)
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| {
+                eprintln!("🔍 DEBUG: HTTP request error details: {}", e);
+                if let Some(source) = e.source() {
+                    eprintln!("🔍 DEBUG: Error source: {}", source);
+                }
+                e
+            })?;
         let content = response.text().await?;
 
         // Store the current content and URL
@@ -45,10 +59,16 @@ impl super::super::HeadlessWebBrowser {
         // Fetch external stylesheets from <link rel="stylesheet"> tags
         let external_css = self.fetch_all_stylesheets().await;
         self.external_stylesheets = external_css;
-        eprintln!("🔍 DEBUG: Stored {} external stylesheets", self.external_stylesheets.len());
+        eprintln!(
+            "🔍 DEBUG: Stored {} external stylesheets",
+            self.external_stylesheets.len()
+        );
 
         // Store HTML content for form parsing when needed
-        eprintln!("🔍 DEBUG: HTML content available for form parsing: {} characters", content.len());
+        eprintln!(
+            "🔍 DEBUG: HTML content available for form parsing: {} characters",
+            content.len()
+        );
 
         // Update document HTML in the renderer if available.
         // Non-fatal: the page content is already loaded; a renderer update failure
@@ -56,18 +76,27 @@ impl super::super::HeadlessWebBrowser {
         if let Some(ref mut renderer) = self.renderer {
             eprintln!("🔍 DEBUG: Updating document HTML via renderer");
             if let Err(e) = renderer.update_document_html(&content) {
-                eprintln!("WARNING: Failed to update document HTML: {} (continuing)", e);
+                eprintln!(
+                    "WARNING: Failed to update document HTML: {} (continuing)",
+                    e
+                );
             }
         }
 
         // Add human-like navigation delays only in Stealth mode (MCP/headless)
         if self.navigation_mode == NavigationMode::Stealth {
             let navigation_delay = 1000 + (rand::random::<u64>() % 2000); // 1-3 seconds
-            eprintln!("🔍 DEBUG: Adding human-like navigation delay: {}ms", navigation_delay);
+            eprintln!(
+                "🔍 DEBUG: Adding human-like navigation delay: {}ms",
+                navigation_delay
+            );
             sleep(Duration::from_millis(navigation_delay)).await;
 
             let processing_delay = 500 + (rand::random::<u64>() % 1500); // 0.5-2 seconds
-            eprintln!("🔍 DEBUG: Adding page processing delay: {}ms", processing_delay);
+            eprintln!(
+                "🔍 DEBUG: Adding page processing delay: {}ms",
+                processing_delay
+            );
             sleep(Duration::from_millis(processing_delay)).await;
         } else {
             eprintln!("🔍 DEBUG: Interactive mode - skipping anti-bot delays");
@@ -78,11 +107,21 @@ impl super::super::HeadlessWebBrowser {
         match self.form_analyzer.analyze_forms(&content) {
             Ok(forms) => {
                 self.analyzed_forms = forms;
-                eprintln!("🔍 DEBUG: Analyzed {} forms on page", self.analyzed_forms.len());
+                eprintln!(
+                    "🔍 DEBUG: Analyzed {} forms on page",
+                    self.analyzed_forms.len()
+                );
 
-                let new_window_forms = self.analyzed_forms.iter().filter(|f| f.opens_new_window).count();
+                let new_window_forms = self
+                    .analyzed_forms
+                    .iter()
+                    .filter(|f| f.opens_new_window)
+                    .count();
                 if new_window_forms > 0 {
-                    eprintln!("🔍 DEBUG: Found {} forms that open new windows", new_window_forms);
+                    eprintln!(
+                        "🔍 DEBUG: Found {} forms that open new windows",
+                        new_window_forms
+                    );
                 }
             }
             Err(e) => eprintln!("🔍 DEBUG: Form analysis failed: {}", e),
@@ -92,7 +131,9 @@ impl super::super::HeadlessWebBrowser {
         eprintln!("🔍 DEBUG: HTML content loaded");
 
         // Add to navigation history
-        let title = self.extract_title(&content).unwrap_or_else(|| url.to_string());
+        let title = self
+            .extract_title(&content)
+            .unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
         // If wait_for_js is enabled, execute page scripts and wait for completion
@@ -112,7 +153,11 @@ impl super::super::HeadlessWebBrowser {
             // Wait for JavaScript execution to settle.
             // Use a short timeout in Interactive mode (GUI) to keep page loads fast.
             // Stealth mode (MCP/headless) can afford a longer wait.
-            let js_timeout = if self.navigation_mode == NavigationMode::Stealth { 5000 } else { 2000 };
+            let js_timeout = if self.navigation_mode == NavigationMode::Stealth {
+                5000
+            } else {
+                2000
+            };
             match self.wait_for_js_execution(js_timeout).await {
                 Ok(_) => eprintln!("🔍 DEBUG: JavaScript execution completed successfully"),
                 Err(e) => eprintln!("🔍 DEBUG: JavaScript execution timeout (non-fatal): {}", e),
@@ -121,7 +166,10 @@ impl super::super::HeadlessWebBrowser {
             // After JS execution, capture the modified DOM back into current_content.
             // JavaScript may have added/removed elements (e.g., sidebar TOC, UI panels).
             // This ensures thalora_compute_styled_tree() gets the JS-modified DOM.
-            match self.execute_javascript("document.documentElement.outerHTML").await {
+            match self
+                .execute_javascript("document.documentElement.outerHTML")
+                .await
+            {
                 Ok(html) if !html.is_empty() && html.len() > 100 => {
                     let original_len = self.current_content.len();
                     let full_html = if html.starts_with("<!") {
@@ -132,11 +180,17 @@ impl super::super::HeadlessWebBrowser {
                         format!("<!DOCTYPE html><html>{}</html>", html)
                     };
                     self.current_content = full_html;
-                    eprintln!("🔍 DEBUG: Updated current_content with JS-modified DOM ({} → {} bytes)",
-                        original_len, self.current_content.len());
+                    eprintln!(
+                        "🔍 DEBUG: Updated current_content with JS-modified DOM ({} → {} bytes)",
+                        original_len,
+                        self.current_content.len()
+                    );
                 }
                 Ok(html) => {
-                    eprintln!("🔍 DEBUG: outerHTML too short ({}), keeping original content", html.len());
+                    eprintln!(
+                        "🔍 DEBUG: outerHTML too short ({}), keeping original content",
+                        html.len()
+                    );
                 }
                 Err(e) => {
                     eprintln!("⚠️  WARNING: Failed to serialize JS-modified DOM: {}", e);
@@ -155,8 +209,15 @@ impl super::super::HeadlessWebBrowser {
 
     /// Execute JavaScript from <script> tags in the page HTML
     pub async fn execute_page_scripts(&mut self, html: &str, only_deferred: bool) -> Result<()> {
-        let mode = if only_deferred { "deferred" } else { "non-deferred" };
-        eprintln!("🔍 DEBUG: execute_page_scripts - extracting and executing {} scripts", mode);
+        let mode = if only_deferred {
+            "deferred"
+        } else {
+            "non-deferred"
+        };
+        eprintln!(
+            "🔍 DEBUG: execute_page_scripts - extracting and executing {} scripts",
+            mode
+        );
 
         // Parse HTML to extract script tags
         let document = scraper::Html::parse_document(html);
@@ -167,11 +228,17 @@ impl super::super::HeadlessWebBrowser {
         let mut external_scripts_fetched = 0;
 
         // Get the current URL to resolve relative script paths
-        let base_url = self.current_url.clone().unwrap_or_else(|| "https://example.com".to_string());
+        let base_url = self
+            .current_url
+            .clone()
+            .unwrap_or_else(|| "https://example.com".to_string());
 
         for script_element in document.select(&script_selector) {
             // Get the script type attribute
-            let script_type = script_element.value().attr("type").unwrap_or("text/javascript");
+            let script_type = script_element
+                .value()
+                .attr("type")
+                .unwrap_or("text/javascript");
 
             // Check if this is a Cloudflare Rocket Loader mangled script
             // Rocket Loader rewrites script types to random tokens ending in "-text/javascript"
@@ -183,7 +250,8 @@ impl super::super::HeadlessWebBrowser {
                 && script_type != "text/javascript"
                 && script_type != "application/javascript"
                 && !script_type.is_empty()
-                && script_type != "module" {
+                && script_type != "module"
+            {
                 eprintln!("🔍 DEBUG: Skipping script with type: {}", script_type);
                 continue;
             }
@@ -197,7 +265,9 @@ impl super::super::HeadlessWebBrowser {
                 continue; // Skip non-deferred scripts in deferred pass
             }
             if !only_deferred && is_defer {
-                eprintln!("🔍 DEBUG: Skipping deferred script (will execute after DOMContentLoaded)");
+                eprintln!(
+                    "🔍 DEBUG: Skipping deferred script (will execute after DOMContentLoaded)"
+                );
                 continue; // Skip deferred scripts in normal pass
             }
 
@@ -213,7 +283,10 @@ impl super::super::HeadlessWebBrowser {
                 // Fetch the external script
                 match self.fetch_external_script(&script_url).await {
                     Ok(script_content) => {
-                        eprintln!("🔍 DEBUG: Fetched external script ({} chars)", script_content.len());
+                        eprintln!(
+                            "🔍 DEBUG: Fetched external script ({} chars)",
+                            script_content.len()
+                        );
                         external_scripts_fetched += 1;
 
                         // Execute the fetched script
@@ -231,7 +304,10 @@ impl super::super::HeadlessWebBrowser {
                     }
                     Err(e) => {
                         scripts_failed += 1;
-                        eprintln!("⚠️  WARNING: Failed to fetch external script {}: {}", script_url, e);
+                        eprintln!(
+                            "⚠️  WARNING: Failed to fetch external script {}: {}",
+                            script_url, e
+                        );
                         // Continue with other scripts
                     }
                 }
@@ -243,7 +319,10 @@ impl super::super::HeadlessWebBrowser {
                     continue;
                 }
 
-                eprintln!("🔍 DEBUG: Executing inline script ({} chars)", script_content.len());
+                eprintln!(
+                    "🔍 DEBUG: Executing inline script ({} chars)",
+                    script_content.len()
+                );
 
                 // Execute the script through the JavaScript engine
                 match self.execute_javascript(&script_content).await {
@@ -260,8 +339,10 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        eprintln!("[JS] {} scripts: {} executed, {} failed, {} external fetched",
-            mode, scripts_executed, scripts_failed, external_scripts_fetched);
+        eprintln!(
+            "[JS] {} scripts: {} executed, {} failed, {} external fetched",
+            mode, scripts_executed, scripts_failed, external_scripts_fetched
+        );
 
         // Give scripts time to settle after execution
         sleep(Duration::from_millis(100)).await;
@@ -324,9 +405,13 @@ impl super::super::HeadlessWebBrowser {
 
     /// Wait for JavaScript execution to complete and DOM to stabilize using events
     pub async fn wait_for_js_execution(&mut self, timeout_ms: u64) -> Result<()> {
-        eprintln!("🔍 DEBUG: wait_for_js_execution - waiting for JS to complete (timeout: {}ms)", timeout_ms);
+        eprintln!(
+            "🔍 DEBUG: wait_for_js_execution - waiting for JS to complete (timeout: {}ms)",
+            timeout_ms
+        );
 
-        let js_code = format!(r#"
+        let js_code = format!(
+            r#"
         (function() {{
             return new Promise(function(resolve, reject) {{
                 var timeoutId = setTimeout(function() {{
@@ -397,7 +482,9 @@ impl super::super::HeadlessWebBrowser {
                 }});
             }});
         }})()
-        "#, timeout_ms);
+        "#,
+            timeout_ms
+        );
 
         match self.execute_javascript(&js_code).await {
             Ok(result) => {
@@ -419,12 +506,16 @@ impl super::super::HeadlessWebBrowser {
     /// Wait for an element to appear in the DOM using MutationObserver
     /// Returns true if element found, false if timeout reached
     pub async fn wait_for_element(&mut self, selector: &str, timeout_ms: u64) -> Result<bool> {
-        eprintln!("🔍 DEBUG: wait_for_element - waiting for selector: {} (timeout: {}ms)", selector, timeout_ms);
+        eprintln!(
+            "🔍 DEBUG: wait_for_element - waiting for selector: {} (timeout: {}ms)",
+            selector, timeout_ms
+        );
 
         let escaped_selector = selector.replace("\"", "\\\"").replace("'", "\\'");
 
         // Use MutationObserver to watch for element appearance
-        let js_code = format!(r#"
+        let js_code = format!(
+            r#"
         (function() {{
             return new Promise(function(resolve, reject) {{
                 // Check if element already exists
@@ -457,7 +548,9 @@ impl super::super::HeadlessWebBrowser {
                 }});
             }});
         }})()
-        "#, escaped_selector, timeout_ms, escaped_selector);
+        "#,
+            escaped_selector, timeout_ms, escaped_selector
+        );
 
         match self.execute_javascript(&js_code).await {
             Ok(result) => {
@@ -465,7 +558,10 @@ impl super::super::HeadlessWebBrowser {
                 if found {
                     eprintln!("🔍 DEBUG: wait_for_element - element found: {}", selector);
                 } else {
-                    eprintln!("🔍 DEBUG: wait_for_element - timeout reached, element not found: {}", selector);
+                    eprintln!(
+                        "🔍 DEBUG: wait_for_element - timeout reached, element not found: {}",
+                        selector
+                    );
                 }
                 Ok(found)
             }
@@ -482,7 +578,10 @@ impl super::super::HeadlessWebBrowser {
     /// # Security
     /// This function validates URLs to prevent SSRF attacks (CWE-918).
     pub(super) async fn navigate_internal(&mut self, url: &str) -> Result<String> {
-        eprintln!("🔍 DEBUG: navigate_internal - URL: {} (no history update)", url);
+        eprintln!(
+            "🔍 DEBUG: navigate_internal - URL: {} (no history update)",
+            url
+        );
 
         // SECURITY: Validate URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
@@ -505,14 +604,20 @@ impl super::super::HeadlessWebBrowser {
         // Previously fetched stylesheets will be cache hits, so this is fast.
         let external_css = self.fetch_all_stylesheets().await;
         self.external_stylesheets = external_css;
-        eprintln!("🔍 DEBUG: navigate_internal - stored {} external stylesheets", self.external_stylesheets.len());
+        eprintln!(
+            "🔍 DEBUG: navigate_internal - stored {} external stylesheets",
+            self.external_stylesheets.len()
+        );
 
         // Update document HTML in the renderer if available.
         // Non-fatal: the page content is already loaded; a renderer update failure
         // shouldn't abort navigation.
         if let Some(ref mut renderer) = self.renderer {
             if let Err(e) = renderer.update_document_html(&content) {
-                eprintln!("WARNING: Failed to update document HTML (navigate_internal): {} (continuing)", e);
+                eprintln!(
+                    "WARNING: Failed to update document HTML (navigate_internal): {} (continuing)",
+                    e
+                );
             }
         }
 
@@ -539,10 +644,10 @@ impl super::super::HeadlessWebBrowser {
         }
 
         // Handle relative URLs
-        let base = url::Url::parse(base_url)
-            .map_err(|e| anyhow!("Invalid base URL: {}", e))?;
+        let base = url::Url::parse(base_url).map_err(|e| anyhow!("Invalid base URL: {}", e))?;
 
-        let resolved = base.join(src)
+        let resolved = base
+            .join(src)
             .map_err(|e| anyhow!("Failed to resolve script URL: {}", e))?;
 
         Ok(resolved.to_string())
@@ -565,14 +670,23 @@ impl super::super::HeadlessWebBrowser {
         SsrfProtection::new().is_safe_url(url)?;
 
         eprintln!("🔍 DEBUG: CACHE MISS (stylesheet): {}", url);
-        let response = self.client.get(url).send().await
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
             .map_err(|e| anyhow!("Failed to fetch stylesheet: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(anyhow!("Stylesheet fetch failed with status: {}", response.status()));
+            return Err(anyhow!(
+                "Stylesheet fetch failed with status: {}",
+                response.status()
+            ));
         }
 
-        let content = response.text().await
+        let content = response
+            .text()
+            .await
             .map_err(|e| anyhow!("Failed to read stylesheet content: {}", e))?;
 
         // Insert into cache
@@ -586,7 +700,10 @@ impl super::super::HeadlessWebBrowser {
     /// ones concurrently using cloned HTTP clients.
     pub(super) async fn fetch_all_stylesheets(&mut self) -> Vec<String> {
         let html = self.current_content.clone();
-        let base_url = self.current_url.clone().unwrap_or_else(|| "https://example.com".to_string());
+        let base_url = self
+            .current_url
+            .clone()
+            .unwrap_or_else(|| "https://example.com".to_string());
 
         let document = scraper::Html::parse_document(&html);
         let link_selector = scraper::Selector::parse("link").unwrap();
@@ -596,7 +713,10 @@ impl super::super::HeadlessWebBrowser {
         for link_element in document.select(&link_selector) {
             // Only process <link rel="stylesheet"> elements
             let rel = link_element.value().attr("rel").unwrap_or("");
-            if !rel.split_whitespace().any(|r| r.eq_ignore_ascii_case("stylesheet")) {
+            if !rel
+                .split_whitespace()
+                .any(|r| r.eq_ignore_ascii_case("stylesheet"))
+            {
                 continue;
             }
 
@@ -608,7 +728,10 @@ impl super::super::HeadlessWebBrowser {
                         stylesheet_urls.push(resolved_url);
                     }
                     Err(e) => {
-                        eprintln!("⚠️  WARNING: Failed to resolve stylesheet URL '{}': {}", href, e);
+                        eprintln!(
+                            "⚠️  WARNING: Failed to resolve stylesheet URL '{}': {}",
+                            href, e
+                        );
                     }
                 }
             }
@@ -633,36 +756,55 @@ impl super::super::HeadlessWebBrowser {
             uncached.push((i, url.clone()));
         }
 
-        eprintln!("🔍 DEBUG: Stylesheets: {} cached, {} to fetch", cached_results.len(), uncached.len());
+        eprintln!(
+            "🔍 DEBUG: Stylesheets: {} cached, {} to fetch",
+            cached_results.len(),
+            uncached.len()
+        );
 
         // Fetch uncached stylesheets concurrently using cloned client (no &mut self borrow)
         if !uncached.is_empty() {
             let client = self.client.clone();
-            let fetch_futures: Vec<_> = uncached.iter().map(|(_, url)| {
-                let client = client.clone();
-                let url = url.clone();
-                async move {
-                    // Validate SSRF
-                    if let Err(e) = SsrfProtection::new().is_safe_url(&url) {
-                        return Err(anyhow!("SSRF blocked: {}", e));
+            let fetch_futures: Vec<_> = uncached
+                .iter()
+                .map(|(_, url)| {
+                    let client = client.clone();
+                    let url = url.clone();
+                    async move {
+                        // Validate SSRF
+                        if let Err(e) = SsrfProtection::new().is_safe_url(&url) {
+                            return Err(anyhow!("SSRF blocked: {}", e));
+                        }
+                        let response = client
+                            .get(&url)
+                            .send()
+                            .await
+                            .map_err(|e| anyhow!("Failed to fetch stylesheet: {}", e))?;
+                        if !response.status().is_success() {
+                            return Err(anyhow!(
+                                "Stylesheet fetch failed with status: {}",
+                                response.status()
+                            ));
+                        }
+                        let content = response
+                            .text()
+                            .await
+                            .map_err(|e| anyhow!("Failed to read stylesheet content: {}", e))?;
+                        Ok::<(String, String), anyhow::Error>((url, content))
                     }
-                    let response = client.get(&url).send().await
-                        .map_err(|e| anyhow!("Failed to fetch stylesheet: {}", e))?;
-                    if !response.status().is_success() {
-                        return Err(anyhow!("Stylesheet fetch failed with status: {}", response.status()));
-                    }
-                    let content = response.text().await
-                        .map_err(|e| anyhow!("Failed to read stylesheet content: {}", e))?;
-                    Ok::<(String, String), anyhow::Error>((url, content))
-                }
-            }).collect();
+                })
+                .collect();
 
             let results = futures::future::join_all(fetch_futures).await;
 
             for (result, (idx, url)) in results.into_iter().zip(uncached.iter()) {
                 match result {
                     Ok((fetched_url, content)) => {
-                        eprintln!("🔍 DEBUG: CACHE MISS (stylesheet) fetched: {} ({} chars)", fetched_url, content.len());
+                        eprintln!(
+                            "🔍 DEBUG: CACHE MISS (stylesheet) fetched: {} ({} chars)",
+                            fetched_url,
+                            content.len()
+                        );
                         self.resource_cache.insert(fetched_url, content.clone());
                         cached_results.insert(*idx, content);
                     }
@@ -681,7 +823,11 @@ impl super::super::HeadlessWebBrowser {
             }
         }
 
-        eprintln!("🔍 DEBUG: Successfully resolved {} of {} stylesheets", stylesheets.len(), stylesheet_urls.len());
+        eprintln!(
+            "🔍 DEBUG: Successfully resolved {} of {} stylesheets",
+            stylesheets.len(),
+            stylesheet_urls.len()
+        );
         stylesheets
     }
 
@@ -702,14 +848,23 @@ impl super::super::HeadlessWebBrowser {
         SsrfProtection::new().is_safe_url(url)?;
 
         eprintln!("🔍 DEBUG: CACHE MISS (script): {}", url);
-        let response = self.client.get(url).send().await
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
             .map_err(|e| anyhow!("Failed to fetch script: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(anyhow!("Script fetch failed with status: {}", response.status()));
+            return Err(anyhow!(
+                "Script fetch failed with status: {}",
+                response.status()
+            ));
         }
 
-        let content = response.text().await
+        let content = response
+            .text()
+            .await
             .map_err(|e| anyhow!("Failed to read script content: {}", e))?;
 
         // Insert into cache

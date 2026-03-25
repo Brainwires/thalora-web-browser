@@ -1,10 +1,10 @@
-use serde_json::Value;
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::mcp_server::core::McpServer;
 use crate::protocols::rate_limiter::RateLimiter;
+use serde_json::Value;
+use std::env;
 use std::sync::Arc;
 use vfs::{VfsInstance, set_current_vfs};
-use std::env;
 
 // Tool definition modules
 mod definitions;
@@ -100,17 +100,27 @@ impl McpServer {
     }
 
     pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
-        eprintln!("🔍 DEBUG: call_tool - Tool: {}, Arguments: {}", name, arguments);
+        eprintln!(
+            "🔍 DEBUG: call_tool - Tool: {}, Arguments: {}",
+            name, arguments
+        );
 
         // SECURITY: Check rate limit before executing tool (DoS prevention)
         let category = RateLimiter::tool_to_category(&name);
         if let Err(wait_duration) = self.rate_limiter.check(category) {
-            eprintln!("⚠️ Rate limit exceeded for tool {} (category: {}), retry after {:.1}s",
-                     name, category, wait_duration.as_secs_f64());
+            eprintln!(
+                "⚠️ Rate limit exceeded for tool {} (category: {}), retry after {:.1}s",
+                name,
+                category,
+                wait_duration.as_secs_f64()
+            );
             return McpResponse::error(
                 -32029,
-                format!("Rate limit exceeded for {} operations. Retry after {:.1} seconds.",
-                       category, wait_duration.as_secs_f64())
+                format!(
+                    "Rate limit exceeded for {} operations. Retry after {:.1} seconds.",
+                    category,
+                    wait_duration.as_secs_f64()
+                ),
             );
         }
 
@@ -131,7 +141,9 @@ impl McpServer {
             let tmp_dir = env::temp_dir();
             let v = match VfsInstance::new_temp_in_dir(&tmp_dir) {
                 Ok(v) => Arc::new(v),
-                Err(e) => return McpResponse::error(-32000, format!("Failed to create VFS: {}", e)),
+                Err(e) => {
+                    return McpResponse::error(-32000, format!("Failed to create VFS: {}", e));
+                }
             };
             prev_vfs = set_current_vfs(Some(v.clone()));
             vfs_instance = v;
@@ -148,11 +160,16 @@ impl McpServer {
         let resp = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
             self.route_tool_call(&name, args_for_call),
-        ).await {
+        )
+        .await
+        {
             Ok(response) => response,
             Err(_) => {
                 eprintln!("⚠️ Tool {} timed out after 60 seconds", name);
-                McpResponse::error(-32000, format!("Tool '{}' timed out after 60 seconds", name))
+                McpResponse::error(
+                    -32000,
+                    format!("Tool '{}' timed out after 60 seconds", name),
+                )
             }
         };
 
@@ -160,7 +177,12 @@ impl McpServer {
         eprintln!("🔧 Tool execution completed: {} (took {:?})", name, elapsed);
 
         // Log if the response indicates an error
-        if let McpResponse::ToolResult { is_error: true, content, .. } = &resp {
+        if let McpResponse::ToolResult {
+            is_error: true,
+            content,
+            ..
+        } = &resp
+        {
             eprintln!("⚠️ Tool {} returned error: {:?}", name, content);
         }
 
@@ -168,7 +190,10 @@ impl McpServer {
         // - If ephemeral (no session_id): persist if `persistent=true`, otherwise delete backing file.
         // - If session-scoped: if `persistent=true` persist the session backing file with encryption; otherwise keep it in-memory for the session.
         let session_id_opt = arguments.get("session_id").and_then(|v| v.as_str());
-        let should_persist = arguments.get("persistent").and_then(|v| v.as_bool()).unwrap_or(false);
+        let should_persist = arguments
+            .get("persistent")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         if let Some(session_id) = session_id_opt {
             if should_persist {
@@ -176,7 +201,10 @@ impl McpServer {
                 let key = vfs::derive_session_key(session_id);
                 if let Err(e) = vfs_instance.persist_encrypted(&*key) {
                     drop(set_current_vfs(prev_vfs));
-                    return McpResponse::error(-32001, format!("Failed to persist encrypted session VFS: {}", e));
+                    return McpResponse::error(
+                        -32001,
+                        format!("Failed to persist encrypted session VFS: {}", e),
+                    );
                 }
             }
             // for session VFS we keep the backing instance in `self.session_vfs` until explicit removal
@@ -185,7 +213,10 @@ impl McpServer {
                 // Ephemeral VFS uses unencrypted persistence (no session context)
                 if let Err(e) = vfs_instance.persist() {
                     drop(set_current_vfs(prev_vfs));
-                    return McpResponse::error(-32002, format!("Failed to persist ephemeral VFS: {}", e));
+                    return McpResponse::error(
+                        -32002,
+                        format!("Failed to persist ephemeral VFS: {}", e),
+                    );
                 }
             } else {
                 drop(vfs_instance.delete_backing_file());

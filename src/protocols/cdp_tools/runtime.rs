@@ -1,9 +1,9 @@
+use crate::protocols::browser_tools::BrowserTools;
+use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
+use crate::protocols::mcp::McpResponse;
+use crate::protocols::security::{MAX_JS_CODE_LENGTH, limit_input_length, sanitize_session_id};
 use serde_json::Value;
 use std::sync::Arc;
-use crate::protocols::mcp::McpResponse;
-use crate::protocols::cdp::{CdpServer, CdpCommand, CdpMessage};
-use crate::protocols::browser_tools::BrowserTools;
-use crate::protocols::security::{sanitize_session_id, limit_input_length, MAX_JS_CODE_LENGTH};
 
 /// Runtime domain - Script evaluation, exceptions, and runtime events
 pub struct RuntimeTools {
@@ -15,7 +15,11 @@ impl RuntimeTools {
         Self { browser_tools }
     }
 
-    pub async fn enable_runtime(&mut self, _args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn enable_runtime(
+        &mut self,
+        _args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         // Use the actual CDP server to enable the runtime domain
         let command = CdpCommand {
             id: 1,
@@ -44,28 +48,28 @@ impl RuntimeTools {
                     }
                 }
             }
-            Ok(_) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "CDP Runtime domain enabled (no response)"
-                    })],
-                    is_error: false,
-                }
-            }
-            Err(e) => {
-                McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("CDP Runtime domain enable error: {}", e)
-                    })],
-                    is_error: true,
-                }
-            }
+            Ok(_) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": "CDP Runtime domain enabled (no response)"
+                })],
+                is_error: false,
+            },
+            Err(e) => McpResponse::ToolResult {
+                content: vec![serde_json::json!({
+                    "type": "text",
+                    "text": format!("CDP Runtime domain enable error: {}", e)
+                })],
+                is_error: true,
+            },
         }
     }
 
-    pub async fn evaluate_javascript(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn evaluate_javascript(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         let expression = match args.get("expression").and_then(|v| v.as_str()) {
             Some(expr) => expr,
             None => {
@@ -80,12 +84,14 @@ impl RuntimeTools {
         };
 
         // Use session-managed browser for persistent CDP context
-        let session_id = args.get("session_id")
+        let session_id = args
+            .get("session_id")
             .and_then(|v| v.as_str())
             .unwrap_or("cdp_default");
 
         // SECURITY: Validate input lengths to prevent DoS attacks
-        if let Err(e) = limit_input_length(expression, MAX_JS_CODE_LENGTH, "JavaScript expression") {
+        if let Err(e) = limit_input_length(expression, MAX_JS_CODE_LENGTH, "JavaScript expression")
+        {
             return McpResponse::ToolResult {
                 content: vec![serde_json::json!({
                     "type": "text",
@@ -215,7 +221,11 @@ impl RuntimeTools {
         response
     }
 
-    pub async fn get_console_messages(&mut self, args: Value, cdp_server: &mut CdpServer) -> McpResponse {
+    pub async fn get_console_messages(
+        &mut self,
+        args: Value,
+        cdp_server: &mut CdpServer,
+    ) -> McpResponse {
         // Enable Console domain first
         let enable_command = CdpCommand {
             id: 15,
@@ -300,7 +310,7 @@ impl RuntimeTools {
                     "text": format!("CDP get console messages error: {}", err)
                 })],
                 is_error: true,
-            }
+            },
         }
     }
 }

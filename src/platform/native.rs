@@ -2,7 +2,7 @@
 //!
 //! Uses reqwest for HTTP, tokio-tungstenite for WebSocket, and sled for storage.
 
-use super::{HttpClient, HttpRequest, HttpResponse, HttpError, HttpErrorKind, HttpMethod};
+use super::{HttpClient, HttpError, HttpErrorKind, HttpMethod, HttpRequest, HttpResponse};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -42,7 +42,10 @@ impl Default for NativeHttpClient {
 }
 
 impl HttpClient for NativeHttpClient {
-    fn request(&self, request: HttpRequest) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>> {
+    fn request(
+        &self,
+        request: HttpRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HttpResponse, HttpError>> + Send + '_>> {
         Box::pin(async move {
             let method = match request.method {
                 HttpMethod::Get => reqwest::Method::GET,
@@ -103,10 +106,14 @@ impl HttpClient for NativeHttpClient {
             }
 
             // Get body
-            let body = response.bytes().await.map_err(|e| HttpError {
-                message: format!("Failed to read response body: {}", e),
-                kind: HttpErrorKind::InvalidResponse,
-            })?.to_vec();
+            let body = response
+                .bytes()
+                .await
+                .map_err(|e| HttpError {
+                    message: format!("Failed to read response body: {}", e),
+                    kind: HttpErrorKind::InvalidResponse,
+                })?
+                .to_vec();
 
             Ok(HttpResponse {
                 status,
@@ -189,7 +196,8 @@ impl super::Timer for NativeTimer {
     {
         let callback = Arc::new(callback);
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_millis(interval_ms as u64));
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_millis(interval_ms as u64));
             loop {
                 interval.tick().await;
                 (callback)();

@@ -1,7 +1,7 @@
 // HTML parsing, DOM traversal, tag handling
 
-use scraper::{Html, Selector, ElementRef};
 use anyhow::Result;
+use scraper::{ElementRef, Html, Selector};
 
 /// Convert HTML to structured JSON
 pub(super) fn to_structured(html: &Html, base_url: &str) -> Result<String> {
@@ -11,13 +11,20 @@ pub(super) fn to_structured(html: &Html, base_url: &str) -> Result<String> {
         for element in html.select(&selector) {
             match element.value().name() {
                 "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-                    let level = element.value().name().chars().nth(1).unwrap().to_digit(10).unwrap() as u8;
+                    let level = element
+                        .value()
+                        .name()
+                        .chars()
+                        .nth(1)
+                        .unwrap()
+                        .to_digit(10)
+                        .unwrap() as u8;
                     sections.push(serde_json::json!({
                         "type": "heading",
                         "level": level,
                         "content": super::text_extraction::get_text_content(&element)
                     }));
-                },
+                }
                 "p" => {
                     let content = super::text_extraction::get_text_content(&element);
                     if !content.trim().is_empty() {
@@ -26,13 +33,13 @@ pub(super) fn to_structured(html: &Html, base_url: &str) -> Result<String> {
                             "content": content
                         }));
                     }
-                },
+                }
                 "blockquote" => {
                     sections.push(serde_json::json!({
                         "type": "quote",
                         "content": super::text_extraction::get_text_content(&element)
                     }));
-                },
+                }
                 "img" => {
                     if let Some(src) = element.value().attr("src") {
                         if let Ok(resolved_url) = super::resolve_url(src, base_url) {
@@ -44,7 +51,7 @@ pub(super) fn to_structured(html: &Html, base_url: &str) -> Result<String> {
                             }));
                         }
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -59,7 +66,11 @@ pub(super) fn to_structured(html: &Html, base_url: &str) -> Result<String> {
 }
 
 /// Recursively process element tree to maintain proper document structure
-pub(super) fn process_element_tree(element: &ElementRef, output: &mut String, base_url: &str) -> Result<()> {
+pub(super) fn process_element_tree(
+    element: &ElementRef,
+    output: &mut String,
+    base_url: &str,
+) -> Result<()> {
     let tag_name = element.value().name();
 
     match tag_name {
@@ -68,60 +79,60 @@ pub(super) fn process_element_tree(element: &ElementRef, output: &mut String, ba
             if !content.trim().is_empty() {
                 output.push_str(&format!("# {}\n\n", content));
             }
-        },
+        }
         "h2" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("## {}\n\n", content));
             }
-        },
+        }
         "h3" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("### {}\n\n", content));
             }
-        },
+        }
         "h4" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("#### {}\n\n", content));
             }
-        },
+        }
         "h5" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("##### {}\n\n", content));
             }
-        },
+        }
         "h6" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("###### {}\n\n", content));
             }
-        },
+        }
         "p" => {
             let content = process_paragraph(element, base_url)?;
             if !content.trim().is_empty() {
                 output.push_str(&format!("{}\n\n", content));
             }
-        },
+        }
         "blockquote" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("> {}\n\n", content));
             }
-        },
+        }
         "pre" => {
             let content = super::text_extraction::get_text_content(element);
             if !content.trim().is_empty() {
                 output.push_str(&format!("```\n{}\n```\n\n", content));
             }
-        },
+        }
         "img" => {
             if let Some(img_md) = format_image(element, base_url)? {
                 output.push_str(&format!("{}\n\n", img_md));
             }
-        },
+        }
         "ul" => {
             for child in element.children() {
                 if let Some(child_element) = ElementRef::wrap(child) {
@@ -134,7 +145,7 @@ pub(super) fn process_element_tree(element: &ElementRef, output: &mut String, ba
                 }
             }
             output.push('\n');
-        },
+        }
         "ol" => {
             let mut counter = 1;
             for child in element.children() {
@@ -149,15 +160,16 @@ pub(super) fn process_element_tree(element: &ElementRef, output: &mut String, ba
                 }
             }
             output.push('\n');
-        },
+        }
         // For container elements, process children
-        "div" | "section" | "article" | "main" | "aside" | "nav" | "header" | "footer" | "body" | "html" => {
+        "div" | "section" | "article" | "main" | "aside" | "nav" | "header" | "footer" | "body"
+        | "html" => {
             for child in element.children() {
                 if let Some(child_element) = ElementRef::wrap(child) {
                     process_element_tree(&child_element, output, base_url)?;
                 }
             }
-        },
+        }
         // Skip other elements but don't process their children
         _ => {}
     }
@@ -185,17 +197,17 @@ fn process_inline_content(element: &ElementRef, output: &mut String, base_url: &
                     output.push_str("**");
                     process_inline_content(&child_element, output, base_url)?;
                     output.push_str("**");
-                },
+                }
                 "em" | "i" => {
                     output.push_str("*");
                     process_inline_content(&child_element, output, base_url)?;
                     output.push_str("*");
-                },
+                }
                 "code" => {
                     output.push('`');
                     output.push_str(&super::text_extraction::get_text_content(&child_element));
                     output.push('`');
-                },
+                }
                 "a" => {
                     let text = super::text_extraction::get_text_content(&child_element);
                     if let Some(href) = child_element.value().attr("href") {
@@ -207,14 +219,14 @@ fn process_inline_content(element: &ElementRef, output: &mut String, base_url: &
                     } else {
                         output.push_str(&text);
                     }
-                },
+                }
                 "br" => {
                     output.push(' ');
-                },
+                }
                 "span" | "div" => {
                     // Process content of span/div elements inline
                     process_inline_content(&child_element, output, base_url)?;
-                },
+                }
                 _ => {
                     // For other inline elements, just include the text content
                     output.push_str(&super::text_extraction::get_text_content(&child_element));

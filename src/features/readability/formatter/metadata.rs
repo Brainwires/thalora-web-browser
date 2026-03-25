@@ -1,8 +1,8 @@
 // Article metadata extraction (title, author, date)
 
-use scraper::{Html, Selector, ElementRef};
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use scraper::{ElementRef, Html, Selector};
+use serde::{Deserialize, Serialize};
 
 /// Metadata extracted from the content
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,7 +256,7 @@ fn get_text_with_spacing(element: &ElementRef) -> String {
                     if !result.ends_with(' ') {
                         result.push(' ');
                     }
-                },
+                }
                 _ => {
                     result.push_str(&get_text_with_spacing(&child_element));
                 }

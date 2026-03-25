@@ -3,14 +3,14 @@
 //! Provides CSS parsing, style computation, and minification using the
 //! lightningcss library for high-performance CSS processing.
 
-use anyhow::{Result, Context};
-use lightningcss::stylesheet::{StyleSheet, ParserOptions, MinifyOptions, PrinterOptions};
-use lightningcss::rules::CssRule;
-use lightningcss::properties::Property;
+use anyhow::{Context, Result};
 use lightningcss::declaration::DeclarationBlock;
-use lightningcss::selector::{Selector, Component};
-use lightningcss::traits::ToCss;
+use lightningcss::properties::Property;
+use lightningcss::rules::CssRule;
+use lightningcss::selector::{Component, Selector};
+use lightningcss::stylesheet::{MinifyOptions, ParserOptions, PrinterOptions, StyleSheet};
 use lightningcss::targets::{Browsers, Targets};
+use lightningcss::traits::ToCss;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -59,7 +59,6 @@ pub struct ComputedStyles {
     pub visibility: Option<String>,
 
     // --- Promoted from `other` HashMap for performance (direct field access, no hashing) ---
-
     /// Flex wrap: nowrap, wrap, wrap-reverse
     pub flex_wrap: Option<String>,
     /// Align self
@@ -257,7 +256,8 @@ impl CssProcessor {
         self.compiled_rules.reserve(self.rules.len());
 
         for (idx, rule) in self.rules.iter().enumerate() {
-            let selector_alternatives: Vec<&str> = rule.selector.split(',').map(|s| s.trim()).collect();
+            let selector_alternatives: Vec<&str> =
+                rule.selector.split(',').map(|s| s.trim()).collect();
             let mut compiled_selectors = Vec::with_capacity(selector_alternatives.len());
             let mut has_hover = false;
             let mut hover_base_selectors = Vec::new();
@@ -369,11 +369,22 @@ impl CssProcessor {
             }
         }
 
-        eprintln!("[TIMING] compile_selectors: {}ms ({} rules, {} universal, {} tag-indexed, {} class-indexed, {} id-indexed)",
-            start.elapsed().as_millis(), self.rules.len(), universal.len(),
-            by_tag.len(), by_class.len(), by_id.len());
+        eprintln!(
+            "[TIMING] compile_selectors: {}ms ({} rules, {} universal, {} tag-indexed, {} class-indexed, {} id-indexed)",
+            start.elapsed().as_millis(),
+            self.rules.len(),
+            universal.len(),
+            by_tag.len(),
+            by_class.len(),
+            by_id.len()
+        );
 
-        self.rule_index = Some(RuleIndex { by_tag, by_class, by_id, universal });
+        self.rule_index = Some(RuleIndex {
+            by_tag,
+            by_class,
+            by_id,
+            universal,
+        });
     }
 
     /// Extract the tag name from the rightmost simple selector of a CSS selector string.
@@ -507,8 +518,16 @@ impl CssProcessor {
                     "gap" => styles.gap = Some(value),
                     "overflow" => styles.overflow = Some(value),
                     "visibility" => styles.visibility = Some(value),
-                    "opacity" => { if let Ok(v) = value.parse::<f32>() { styles.opacity = Some(v); } },
-                    "z-index" => { if let Ok(v) = value.parse::<i32>() { styles.z_index = Some(v); } },
+                    "opacity" => {
+                        if let Ok(v) = value.parse::<f32>() {
+                            styles.opacity = Some(v);
+                        }
+                    }
+                    "z-index" => {
+                        if let Ok(v) = value.parse::<i32>() {
+                            styles.z_index = Some(v);
+                        }
+                    }
                     "margin" => {
                         let parts: Vec<&str> = value.split_whitespace().collect();
                         styles.margin = Some(Self::parse_shorthand_box(&parts));
@@ -576,7 +595,7 @@ impl CssProcessor {
                                 styles.flex_basis = Some(parts[2].to_string());
                             }
                         }
-                    },
+                    }
                     "min-width" => styles.min_width = Some(value),
                     "min-height" => styles.min_height = Some(value),
                     "max-width" => styles.max_width = Some(value),
@@ -593,7 +612,11 @@ impl CssProcessor {
                     // Border shorthand: border: <width> <style> <color>
                     "border" => {
                         if value.trim() == "none" || value.trim() == "0" {
-                            styles.border = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                            styles.border = Some(BorderStyles {
+                                width: "0".into(),
+                                style: "none".into(),
+                                color: String::new(),
+                            });
                         } else {
                             styles.border = Some(Self::parse_border_shorthand(&value));
                         }
@@ -601,28 +624,44 @@ impl CssProcessor {
                     // Per-side border shorthands: border-top/right/bottom/left
                     "border-top" => {
                         if value.trim() == "none" || value.trim() == "0" {
-                            styles.border_top = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                            styles.border_top = Some(BorderStyles {
+                                width: "0".into(),
+                                style: "none".into(),
+                                color: String::new(),
+                            });
                         } else {
                             styles.border_top = Some(Self::parse_border_shorthand(&value));
                         }
                     }
                     "border-right" => {
                         if value.trim() == "none" || value.trim() == "0" {
-                            styles.border_right = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                            styles.border_right = Some(BorderStyles {
+                                width: "0".into(),
+                                style: "none".into(),
+                                color: String::new(),
+                            });
                         } else {
                             styles.border_right = Some(Self::parse_border_shorthand(&value));
                         }
                     }
                     "border-bottom" => {
                         if value.trim() == "none" || value.trim() == "0" {
-                            styles.border_bottom = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                            styles.border_bottom = Some(BorderStyles {
+                                width: "0".into(),
+                                style: "none".into(),
+                                color: String::new(),
+                            });
                         } else {
                             styles.border_bottom = Some(Self::parse_border_shorthand(&value));
                         }
                     }
                     "border-left" => {
                         if value.trim() == "none" || value.trim() == "0" {
-                            styles.border_left = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                            styles.border_left = Some(BorderStyles {
+                                width: "0".into(),
+                                style: "none".into(),
+                                color: String::new(),
+                            });
                         } else {
                             styles.border_left = Some(Self::parse_border_shorthand(&value));
                         }
@@ -654,27 +693,39 @@ impl CssProcessor {
                         b.color = value;
                     }
                     "border-right-width" => {
-                        let b = styles.border_right.get_or_insert_with(BorderStyles::default);
+                        let b = styles
+                            .border_right
+                            .get_or_insert_with(BorderStyles::default);
                         b.width = value;
                     }
                     "border-right-style" => {
-                        let b = styles.border_right.get_or_insert_with(BorderStyles::default);
+                        let b = styles
+                            .border_right
+                            .get_or_insert_with(BorderStyles::default);
                         b.style = value;
                     }
                     "border-right-color" => {
-                        let b = styles.border_right.get_or_insert_with(BorderStyles::default);
+                        let b = styles
+                            .border_right
+                            .get_or_insert_with(BorderStyles::default);
                         b.color = value;
                     }
                     "border-bottom-width" => {
-                        let b = styles.border_bottom.get_or_insert_with(BorderStyles::default);
+                        let b = styles
+                            .border_bottom
+                            .get_or_insert_with(BorderStyles::default);
                         b.width = value;
                     }
                     "border-bottom-style" => {
-                        let b = styles.border_bottom.get_or_insert_with(BorderStyles::default);
+                        let b = styles
+                            .border_bottom
+                            .get_or_insert_with(BorderStyles::default);
                         b.style = value;
                     }
                     "border-bottom-color" => {
-                        let b = styles.border_bottom.get_or_insert_with(BorderStyles::default);
+                        let b = styles
+                            .border_bottom
+                            .get_or_insert_with(BorderStyles::default);
                         b.color = value;
                     }
                     "border-left-width" => {
@@ -700,10 +751,18 @@ impl CssProcessor {
                             // Extract the type keyword from the shorthand
                             for part in v.split_whitespace() {
                                 match part {
-                                    "disc" | "circle" | "square" | "decimal"
-                                    | "decimal-leading-zero" | "lower-roman" | "upper-roman"
-                                    | "lower-alpha" | "upper-alpha" | "lower-latin"
-                                    | "upper-latin" | "lower-greek" => {
+                                    "disc"
+                                    | "circle"
+                                    | "square"
+                                    | "decimal"
+                                    | "decimal-leading-zero"
+                                    | "lower-roman"
+                                    | "upper-roman"
+                                    | "lower-alpha"
+                                    | "upper-alpha"
+                                    | "lower-latin"
+                                    | "upper-latin"
+                                    | "lower-greek" => {
                                         styles.list_style_type = Some(part.to_string());
                                         break;
                                     }
@@ -711,7 +770,7 @@ impl CssProcessor {
                                 }
                             }
                         }
-                    },
+                    }
                     "cursor" => styles.cursor = Some(value),
                     "grid-template-columns" => styles.grid_template_columns = Some(value),
                     "grid-template-rows" => styles.grid_template_rows = Some(value),
@@ -733,7 +792,8 @@ impl CssProcessor {
                                 let mut current_area = String::new();
                                 let mut current_token = String::new();
                                 for ch in rows_part.chars() {
-                                    if (ch == '\'' || ch == '"') && (!in_quote || ch == quote_char) {
+                                    if (ch == '\'' || ch == '"') && (!in_quote || ch == quote_char)
+                                    {
                                         if in_quote {
                                             areas.push(current_area.clone());
                                             current_area.clear();
@@ -741,7 +801,9 @@ impl CssProcessor {
                                             quote_char = '\0';
                                         } else {
                                             let token = current_token.trim().to_string();
-                                            if !token.is_empty() { rows.push(token); }
+                                            if !token.is_empty() {
+                                                rows.push(token);
+                                            }
                                             current_token.clear();
                                             in_quote = true;
                                             quote_char = ch;
@@ -753,9 +815,12 @@ impl CssProcessor {
                                     }
                                 }
                                 let token = current_token.trim().to_string();
-                                if !token.is_empty() { rows.push(token); }
+                                if !token.is_empty() {
+                                    rows.push(token);
+                                }
                                 if !areas.is_empty() {
-                                    let areas_str = areas.iter()
+                                    let areas_str = areas
+                                        .iter()
                                         .map(|a| format!("'{}'", a))
                                         .collect::<Vec<_>>()
                                         .join(" ");
@@ -769,7 +834,9 @@ impl CssProcessor {
                     }
                     "column-gap" => styles.gap = Some(value),
                     "row-gap" => {
-                        if styles.gap.is_none() { styles.gap = Some(value); }
+                        if styles.gap.is_none() {
+                            styles.gap = Some(value);
+                        }
                     }
                     _ => {
                         // Store everything else in the 'other' map
@@ -785,20 +852,28 @@ impl CssProcessor {
     fn parse_shorthand_box(parts: &[&str]) -> BoxModel {
         match parts.len() {
             1 => BoxModel {
-                top: parts[0].to_string(), right: parts[0].to_string(),
-                bottom: parts[0].to_string(), left: parts[0].to_string(),
+                top: parts[0].to_string(),
+                right: parts[0].to_string(),
+                bottom: parts[0].to_string(),
+                left: parts[0].to_string(),
             },
             2 => BoxModel {
-                top: parts[0].to_string(), right: parts[1].to_string(),
-                bottom: parts[0].to_string(), left: parts[1].to_string(),
+                top: parts[0].to_string(),
+                right: parts[1].to_string(),
+                bottom: parts[0].to_string(),
+                left: parts[1].to_string(),
             },
             3 => BoxModel {
-                top: parts[0].to_string(), right: parts[1].to_string(),
-                bottom: parts[2].to_string(), left: parts[1].to_string(),
+                top: parts[0].to_string(),
+                right: parts[1].to_string(),
+                bottom: parts[2].to_string(),
+                left: parts[1].to_string(),
             },
             4 => BoxModel {
-                top: parts[0].to_string(), right: parts[1].to_string(),
-                bottom: parts[2].to_string(), left: parts[3].to_string(),
+                top: parts[0].to_string(),
+                right: parts[1].to_string(),
+                bottom: parts[2].to_string(),
+                left: parts[3].to_string(),
             },
             _ => BoxModel::default(),
         }
@@ -822,11 +897,15 @@ impl CssProcessor {
         }
 
         // Universal selectors always match
-        if s == ":root" || s == "html" || s == "*"
+        if s == ":root"
+            || s == "html"
+            || s == "*"
             || s == "*, :before, :after"
             || s == "*, ::before, ::after"
-            || s == ":before" || s == ":after"
-            || s == "::before" || s == "::after"
+            || s == ":before"
+            || s == ":after"
+            || s == "::before"
+            || s == "::after"
         {
             return true;
         }
@@ -874,7 +953,8 @@ impl CssProcessor {
 
         // Extract all class requirements (everything after each '.')
         for part in without_tag.split('.') {
-            let class_name = part.split(|c: char| c == ':' || c == '[' || c == '#')
+            let class_name = part
+                .split(|c: char| c == ':' || c == '[' || c == '#')
                 .next()
                 .unwrap_or("")
                 .trim();
@@ -902,7 +982,12 @@ impl CssProcessor {
             if bytes[i] == b'*' && i + 1 < len && bytes[i + 1].is_ascii_alphabetic() {
                 // Check if preceded by `{` or `;` (skipping whitespace)
                 let mut j = i.wrapping_sub(1);
-                while j < len && (bytes[j] == b' ' || bytes[j] == b'\n' || bytes[j] == b'\r' || bytes[j] == b'\t') {
+                while j < len
+                    && (bytes[j] == b' '
+                        || bytes[j] == b'\n'
+                        || bytes[j] == b'\r'
+                        || bytes[j] == b'\t')
+                {
                     j = j.wrapping_sub(1);
                 }
                 if j < len && (bytes[j] == b'{' || bytes[j] == b';') {
@@ -945,7 +1030,9 @@ impl CssProcessor {
             match rule {
                 CssRule::Style(style_rule) => {
                     // Get selector string
-                    let selector_str = style_rule.selectors.to_css_string(PrinterOptions::default())
+                    let selector_str = style_rule
+                        .selectors
+                        .to_css_string(PrinterOptions::default())
                         .unwrap_or_default();
 
                     // Calculate specificity
@@ -954,35 +1041,43 @@ impl CssProcessor {
                     // Extract declarations
                     let mut declarations = HashMap::new();
                     for decl in style_rule.declarations.declarations.iter() {
-                        let prop_name = decl.property_id().to_css_string(PrinterOptions::default())
+                        let prop_name = decl
+                            .property_id()
+                            .to_css_string(PrinterOptions::default())
                             .unwrap_or_default();
-                        let prop_value = decl.value_to_css_string(PrinterOptions::default())
+                        let prop_value = decl
+                            .value_to_css_string(PrinterOptions::default())
                             .unwrap_or_default();
                         declarations.insert(prop_name, prop_value);
                     }
 
                     // Also handle important declarations
                     for decl in style_rule.declarations.important_declarations.iter() {
-                        let prop_name = decl.property_id().to_css_string(PrinterOptions::default())
+                        let prop_name = decl
+                            .property_id()
+                            .to_css_string(PrinterOptions::default())
                             .unwrap_or_default();
-                        let prop_value = format!("{} !important",
-                            decl.value_to_css_string(PrinterOptions::default()).unwrap_or_default());
+                        let prop_value = format!(
+                            "{} !important",
+                            decl.value_to_css_string(PrinterOptions::default())
+                                .unwrap_or_default()
+                        );
                         declarations.insert(prop_name, prop_value);
                     }
 
                     // Collect custom properties from :root rules (or any rule)
-                    let is_root_selector = selector_str.split(',')
-                        .any(|s| {
-                            let s = s.trim();
-                            s == ":root" || s == "html" || s == ":root, html" || s == "html, :root"
-                        });
+                    let is_root_selector = selector_str.split(',').any(|s| {
+                        let s = s.trim();
+                        s == ":root" || s == "html" || s == ":root, html" || s == "html, :root"
+                    });
 
                     // Custom properties (CSS variables) need scoping:
                     // Only store them if at least one selector alternative would match
                     // the document root. Selectors like `html.skin-theme-clientpref-night`
                     // should only contribute their custom properties when the <html> element
                     // actually has that class.
-                    let should_store_vars = selector_str.split(',')
+                    let should_store_vars = selector_str
+                        .split(',')
                         .any(|alt| self.selector_matches_root(alt.trim()));
 
                     for (prop, value) in &declarations {
@@ -1007,7 +1102,9 @@ impl CssProcessor {
                 }
                 CssRule::Media(media_rule) => {
                     // Evaluate media query against viewport
-                    let media_str = media_rule.query.to_css_string(PrinterOptions::default())
+                    let media_str = media_rule
+                        .query
+                        .to_css_string(PrinterOptions::default())
                         .unwrap_or_default();
 
                     let matches = self.evaluate_media_query(&media_str);
@@ -1142,9 +1239,7 @@ impl CssProcessor {
                 // Default to light mode
                 value_str == "light"
             }
-            "prefers-reduced-motion" => {
-                value_str == "no-preference"
-            }
+            "prefers-reduced-motion" => value_str == "no-preference",
             _ => true, // Unknown features — assume match to be permissive
         }
     }
@@ -1161,7 +1256,12 @@ impl CssProcessor {
                 let right = feature[pos + op.len()..].trim();
 
                 // Determine which side is the property name
-                let (prop, value, reversed) = if left.chars().next().map(|c| c.is_alphabetic()).unwrap_or(false) {
+                let (prop, value, reversed) = if left
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic())
+                    .unwrap_or(false)
+                {
                     (left, right, false)
                 } else {
                     (right, left, true)
@@ -1206,13 +1306,16 @@ impl CssProcessor {
         let v = value.trim();
         // Handle calc() expressions: calc(640px - 1px) → 639
         if v.starts_with("calc(") && v.ends_with(")") {
-            return Self::evaluate_calc_expr(&v[5..v.len()-1]);
+            return Self::evaluate_calc_expr(&v[5..v.len() - 1]);
         }
         if v.ends_with("px") {
             v.trim_end_matches("px").parse::<f32>().ok()
         } else if v.ends_with("em") || v.ends_with("rem") {
             // 1em/rem = 16px for media queries (always relative to initial value)
-            v.trim_end_matches("em").trim_end_matches("r").parse::<f32>().ok()
+            v.trim_end_matches("em")
+                .trim_end_matches("r")
+                .parse::<f32>()
+                .ok()
                 .map(|n| n * 16.0)
         } else {
             v.parse::<f32>().ok()
@@ -1354,7 +1457,8 @@ impl CssProcessor {
 
     /// Get all rules that match a given selector
     pub fn get_matching_rules(&self, selector: &str) -> Vec<&ParsedRule> {
-        self.rules.iter()
+        self.rules
+            .iter()
             .filter(|rule| self.selectors_match(&rule.selector, selector))
             .collect()
     }
@@ -1365,13 +1469,16 @@ impl CssProcessor {
         let mut styles = ComputedStyles::default();
 
         // Collect all matching rules sorted by specificity
-        let mut matching_rules: Vec<&ParsedRule> = self.rules.iter()
+        let mut matching_rules: Vec<&ParsedRule> = self
+            .rules
+            .iter()
             .filter(|rule| self.selector_applies(&rule.selector, selector))
             .collect();
 
         // Sort by specificity then source order (lower first, so higher specificity overrides)
         matching_rules.sort_by(|a, b| {
-            a.specificity.cmp(&b.specificity)
+            a.specificity
+                .cmp(&b.specificity)
                 .then(a.source_order.cmp(&b.source_order))
         });
 
@@ -1443,7 +1550,8 @@ impl CssProcessor {
                         }
                     } else {
                         // Fallback: selector failed to compile, try pseudo-class fallback
-                        let raw_selectors: Vec<&str> = rule.selector.split(',').map(|s| s.trim()).collect();
+                        let raw_selectors: Vec<&str> =
+                            rule.selector.split(',').map(|s| s.trim()).collect();
                         if let Some(raw_sel) = raw_selectors.get(i) {
                             if Self::matches_pseudo_class_fallback(raw_sel, &tag_name, el) {
                                 matched = true;
@@ -1460,7 +1568,8 @@ impl CssProcessor {
 
             // Sort by specificity then source order
             matching_rules.sort_by(|a, b| {
-                a.0.specificity.cmp(&b.0.specificity)
+                a.0.specificity
+                    .cmp(&b.0.specificity)
                     .then(a.0.source_order.cmp(&b.0.source_order))
             });
 
@@ -1488,7 +1597,11 @@ impl CssProcessor {
                     .replace(":not(:focus)", "")
                     .replace(":not(:hover)", "")
                     .replace(":not(:active)", "");
-                let sel_slow = if preprocessed_slow.trim().is_empty() { raw_selector.to_string() } else { preprocessed_slow };
+                let sel_slow = if preprocessed_slow.trim().is_empty() {
+                    raw_selector.to_string()
+                } else {
+                    preprocessed_slow
+                };
                 let sel_slow = sel_slow.as_str();
                 if let Ok(parsed_selector) = scraper::Selector::parse(sel_slow) {
                     if parsed_selector.matches(element) {
@@ -1505,7 +1618,8 @@ impl CssProcessor {
         }
 
         matching_rules.sort_by(|a, b| {
-            a.0.specificity.cmp(&b.0.specificity)
+            a.0.specificity
+                .cmp(&b.0.specificity)
                 .then(a.0.source_order.cmp(&b.0.source_order))
         });
 
@@ -1572,7 +1686,8 @@ impl CssProcessor {
             }
 
             matching_rules.sort_by(|a, b| {
-                a.specificity.cmp(&b.specificity)
+                a.specificity
+                    .cmp(&b.specificity)
                     .then(a.source_order.cmp(&b.source_order))
             });
 
@@ -1616,7 +1731,8 @@ impl CssProcessor {
         }
 
         matching_rules.sort_by(|a, b| {
-            a.specificity.cmp(&b.specificity)
+            a.specificity
+                .cmp(&b.specificity)
                 .then(a.source_order.cmp(&b.source_order))
         });
 
@@ -1703,10 +1819,12 @@ impl CssProcessor {
         let stylesheet = StyleSheet::parse(css, ParserOptions::default())
             .map_err(|e| anyhow::anyhow!("CSS parse error: {:?}", e))?;
 
-        let minified = stylesheet.to_css(PrinterOptions {
-            minify: true,
-            ..Default::default()
-        }).map_err(|e| anyhow::anyhow!("CSS minify error: {:?}", e))?;
+        let minified = stylesheet
+            .to_css(PrinterOptions {
+                minify: true,
+                ..Default::default()
+            })
+            .map_err(|e| anyhow::anyhow!("CSS minify error: {:?}", e))?;
 
         Ok(minified.code)
     }
@@ -1719,11 +1837,13 @@ impl CssProcessor {
         // Use default browser targets - browserslist integration requires additional feature
         let targets = Targets::default();
 
-        let result = stylesheet.to_css(PrinterOptions {
-            minify: false,
-            targets,
-            ..Default::default()
-        }).map_err(|e| anyhow::anyhow!("CSS processing error: {:?}", e))?;
+        let result = stylesheet
+            .to_css(PrinterOptions {
+                minify: false,
+                targets,
+                ..Default::default()
+            })
+            .map_err(|e| anyhow::anyhow!("CSS processing error: {:?}", e))?;
 
         Ok(result.code)
     }
@@ -1733,11 +1853,13 @@ impl CssProcessor {
         let stylesheet = StyleSheet::parse(css, ParserOptions::default())
             .map_err(|e| anyhow::anyhow!("CSS parse error: {:?}", e))?;
 
-        let result = stylesheet.to_css(PrinterOptions {
-            minify: false,
-            targets: Targets::from(browsers),
-            ..Default::default()
-        }).map_err(|e| anyhow::anyhow!("CSS processing error: {:?}", e))?;
+        let result = stylesheet
+            .to_css(PrinterOptions {
+                minify: false,
+                targets: Targets::from(browsers),
+                ..Default::default()
+            })
+            .map_err(|e| anyhow::anyhow!("CSS processing error: {:?}", e))?;
 
         Ok(result.code)
     }
@@ -1781,15 +1903,23 @@ impl CssProcessor {
         }
 
         // Count element selectors (rough approximation)
-        let parts: Vec<&str> = selector.split(|c: char| c.is_whitespace() || c == '>' || c == '+' || c == '~')
+        let parts: Vec<&str> = selector
+            .split(|c: char| c.is_whitespace() || c == '>' || c == '+' || c == '~')
             .filter(|s| !s.is_empty())
             .collect();
 
         for part in parts {
             // Skip if starts with # or .
-            if !part.starts_with('#') && !part.starts_with('.') && !part.starts_with('[') && !part.starts_with(':') {
+            if !part.starts_with('#')
+                && !part.starts_with('.')
+                && !part.starts_with('[')
+                && !part.starts_with(':')
+            {
                 // It's an element selector
-                let elem_part = part.split(|c| c == '#' || c == '.' || c == '[' || c == ':').next().unwrap_or("");
+                let elem_part = part
+                    .split(|c| c == '#' || c == '.' || c == '[' || c == ':')
+                    .next()
+                    .unwrap_or("");
                 if !elem_part.is_empty() && elem_part != "*" {
                     elements += 1;
                 }
@@ -1844,13 +1974,26 @@ impl CssProcessor {
                 // Pseudo-elements create virtual elements inside the target — their styles
                 // must NOT apply to the element itself. Both CSS2 (single colon) and CSS3
                 // (double colon) syntax end up here because rfind(':') strips the last colon.
-                "before" | "after" | "first-letter" | "first-line" | "placeholder"
-                | "selection" | "marker" | "backdrop" | "cue" | "grammar-error"
-                | "spelling-error" | "target-text" | "file-selector-button"
-                | ":before" | ":after" | ":first-letter" | ":first-line"
-                | ":placeholder" | ":selection" | ":marker" => {
-                    false
-                }
+                "before"
+                | "after"
+                | "first-letter"
+                | "first-line"
+                | "placeholder"
+                | "selection"
+                | "marker"
+                | "backdrop"
+                | "cue"
+                | "grammar-error"
+                | "spelling-error"
+                | "target-text"
+                | "file-selector-button"
+                | ":before"
+                | ":after"
+                | ":first-letter"
+                | ":first-line"
+                | ":placeholder"
+                | ":selection"
+                | ":marker" => false,
                 _ => {
                     // Unknown pseudo-class — try stripping it and matching base
                     if base.is_empty() {
@@ -1866,7 +2009,11 @@ impl CssProcessor {
 
     /// Simple selector matching for fallback pseudo-class handling.
     /// Handles tag selectors, class selectors, and ID selectors.
-    fn simple_selector_matches(selector: &str, tag_name: &str, el: &scraper::node::Element) -> bool {
+    fn simple_selector_matches(
+        selector: &str,
+        tag_name: &str,
+        el: &scraper::node::Element,
+    ) -> bool {
         // Try scraper first (it handles complex selectors)
         if let Ok(parsed) = scraper::Selector::parse(selector) {
             // We can't use parsed.matches() without an ElementRef, so fall back to manual
@@ -1958,7 +2105,10 @@ impl CssProcessor {
             }
 
             // Check element match (e.g., "div" matches "div.container")
-            let elem = target.split(|c| c == '.' || c == '#' || c == '[').next().unwrap_or("");
+            let elem = target
+                .split(|c| c == '.' || c == '#' || c == '[')
+                .next()
+                .unwrap_or("");
             if selector == elem {
                 return true;
             }
@@ -1968,13 +2118,16 @@ impl CssProcessor {
     }
 
     /// Apply declarations to computed styles, resolving var() references
-    fn apply_declarations(&self, styles: &mut ComputedStyles, declarations: &HashMap<String, String>) {
+    fn apply_declarations(
+        &self,
+        styles: &mut ComputedStyles,
+        declarations: &HashMap<String, String>,
+    ) {
         for (prop, value) in declarations {
             // Skip custom properties (--*) — they're already collected
             if prop.starts_with("--") {
                 continue;
             }
-
 
             // Remove !important suffix for storage
             let raw_value = value.trim_end_matches(" !important").to_string();
@@ -1995,7 +2148,7 @@ impl CssProcessor {
                     } else {
                         styles.other.insert("background".to_string(), clean_value);
                     }
-                },
+                }
                 "color" => styles.color = Some(clean_value),
                 "font-size" => styles.font_size = Some(clean_value),
                 "font-family" => styles.font_family = Some(clean_value),
@@ -2010,58 +2163,58 @@ impl CssProcessor {
                     if let Ok(val) = clean_value.parse::<f32>() {
                         styles.opacity = Some(val);
                     }
-                },
+                }
                 "z-index" => {
                     if let Ok(val) = clean_value.parse::<i32>() {
                         styles.z_index = Some(val);
                     }
-                },
+                }
                 "margin" => {
                     styles.margin = Some(self.parse_box_model(&clean_value));
-                },
+                }
                 "margin-top" => {
                     let mut margin = styles.margin.clone().unwrap_or_default();
                     margin.top = clean_value;
                     styles.margin = Some(margin);
-                },
+                }
                 "margin-right" => {
                     let mut margin = styles.margin.clone().unwrap_or_default();
                     margin.right = clean_value;
                     styles.margin = Some(margin);
-                },
+                }
                 "margin-bottom" => {
                     let mut margin = styles.margin.clone().unwrap_or_default();
                     margin.bottom = clean_value;
                     styles.margin = Some(margin);
-                },
+                }
                 "margin-left" => {
                     let mut margin = styles.margin.clone().unwrap_or_default();
                     margin.left = clean_value;
                     styles.margin = Some(margin);
-                },
+                }
                 "padding" => {
                     styles.padding = Some(self.parse_box_model(&clean_value));
-                },
+                }
                 "padding-top" => {
                     let mut padding = styles.padding.clone().unwrap_or_default();
                     padding.top = clean_value;
                     styles.padding = Some(padding);
-                },
+                }
                 "padding-right" => {
                     let mut padding = styles.padding.clone().unwrap_or_default();
                     padding.right = clean_value;
                     styles.padding = Some(padding);
-                },
+                }
                 "padding-bottom" => {
                     let mut padding = styles.padding.clone().unwrap_or_default();
                     padding.bottom = clean_value;
                     styles.padding = Some(padding);
-                },
+                }
                 "padding-left" => {
                     let mut padding = styles.padding.clone().unwrap_or_default();
                     padding.left = clean_value;
                     styles.padding = Some(padding);
-                },
+                }
                 // Promoted properties (previously in `other` HashMap)
                 "flex-wrap" => styles.flex_wrap = Some(clean_value),
                 "align-self" => styles.align_self = Some(clean_value),
@@ -2098,7 +2251,7 @@ impl CssProcessor {
                             styles.flex_basis = Some(parts[2].to_string());
                         }
                     }
-                },
+                }
                 "min-width" => styles.min_width = Some(clean_value),
                 "min-height" => styles.min_height = Some(clean_value),
                 "max-width" => styles.max_width = Some(clean_value),
@@ -2115,7 +2268,11 @@ impl CssProcessor {
                 // Border shorthand: border: <width> <style> <color>
                 "border" => {
                     if clean_value.trim() == "none" || clean_value.trim() == "0" {
-                        styles.border = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        styles.border = Some(BorderStyles {
+                            width: "0".into(),
+                            style: "none".into(),
+                            color: String::new(),
+                        });
                     } else {
                         styles.border = Some(Self::parse_border_shorthand(&clean_value));
                     }
@@ -2123,28 +2280,44 @@ impl CssProcessor {
                 // Per-side border shorthands
                 "border-top" => {
                     if clean_value.trim() == "none" || clean_value.trim() == "0" {
-                        styles.border_top = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        styles.border_top = Some(BorderStyles {
+                            width: "0".into(),
+                            style: "none".into(),
+                            color: String::new(),
+                        });
                     } else {
                         styles.border_top = Some(Self::parse_border_shorthand(&clean_value));
                     }
                 }
                 "border-right" => {
                     if clean_value.trim() == "none" || clean_value.trim() == "0" {
-                        styles.border_right = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        styles.border_right = Some(BorderStyles {
+                            width: "0".into(),
+                            style: "none".into(),
+                            color: String::new(),
+                        });
                     } else {
                         styles.border_right = Some(Self::parse_border_shorthand(&clean_value));
                     }
                 }
                 "border-bottom" => {
                     if clean_value.trim() == "none" || clean_value.trim() == "0" {
-                        styles.border_bottom = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        styles.border_bottom = Some(BorderStyles {
+                            width: "0".into(),
+                            style: "none".into(),
+                            color: String::new(),
+                        });
                     } else {
                         styles.border_bottom = Some(Self::parse_border_shorthand(&clean_value));
                     }
                 }
                 "border-left" => {
                     if clean_value.trim() == "none" || clean_value.trim() == "0" {
-                        styles.border_left = Some(BorderStyles { width: "0".into(), style: "none".into(), color: String::new() });
+                        styles.border_left = Some(BorderStyles {
+                            width: "0".into(),
+                            style: "none".into(),
+                            color: String::new(),
+                        });
                     } else {
                         styles.border_left = Some(Self::parse_border_shorthand(&clean_value));
                     }
@@ -2162,18 +2335,78 @@ impl CssProcessor {
                     let b = styles.border.get_or_insert_with(BorderStyles::default);
                     b.color = clean_value;
                 }
-                "border-top-width" => { styles.border_top.get_or_insert_with(BorderStyles::default).width = clean_value; }
-                "border-top-style" => { styles.border_top.get_or_insert_with(BorderStyles::default).style = clean_value; }
-                "border-top-color" => { styles.border_top.get_or_insert_with(BorderStyles::default).color = clean_value; }
-                "border-right-width" => { styles.border_right.get_or_insert_with(BorderStyles::default).width = clean_value; }
-                "border-right-style" => { styles.border_right.get_or_insert_with(BorderStyles::default).style = clean_value; }
-                "border-right-color" => { styles.border_right.get_or_insert_with(BorderStyles::default).color = clean_value; }
-                "border-bottom-width" => { styles.border_bottom.get_or_insert_with(BorderStyles::default).width = clean_value; }
-                "border-bottom-style" => { styles.border_bottom.get_or_insert_with(BorderStyles::default).style = clean_value; }
-                "border-bottom-color" => { styles.border_bottom.get_or_insert_with(BorderStyles::default).color = clean_value; }
-                "border-left-width" => { styles.border_left.get_or_insert_with(BorderStyles::default).width = clean_value; }
-                "border-left-style" => { styles.border_left.get_or_insert_with(BorderStyles::default).style = clean_value; }
-                "border-left-color" => { styles.border_left.get_or_insert_with(BorderStyles::default).color = clean_value; }
+                "border-top-width" => {
+                    styles
+                        .border_top
+                        .get_or_insert_with(BorderStyles::default)
+                        .width = clean_value;
+                }
+                "border-top-style" => {
+                    styles
+                        .border_top
+                        .get_or_insert_with(BorderStyles::default)
+                        .style = clean_value;
+                }
+                "border-top-color" => {
+                    styles
+                        .border_top
+                        .get_or_insert_with(BorderStyles::default)
+                        .color = clean_value;
+                }
+                "border-right-width" => {
+                    styles
+                        .border_right
+                        .get_or_insert_with(BorderStyles::default)
+                        .width = clean_value;
+                }
+                "border-right-style" => {
+                    styles
+                        .border_right
+                        .get_or_insert_with(BorderStyles::default)
+                        .style = clean_value;
+                }
+                "border-right-color" => {
+                    styles
+                        .border_right
+                        .get_or_insert_with(BorderStyles::default)
+                        .color = clean_value;
+                }
+                "border-bottom-width" => {
+                    styles
+                        .border_bottom
+                        .get_or_insert_with(BorderStyles::default)
+                        .width = clean_value;
+                }
+                "border-bottom-style" => {
+                    styles
+                        .border_bottom
+                        .get_or_insert_with(BorderStyles::default)
+                        .style = clean_value;
+                }
+                "border-bottom-color" => {
+                    styles
+                        .border_bottom
+                        .get_or_insert_with(BorderStyles::default)
+                        .color = clean_value;
+                }
+                "border-left-width" => {
+                    styles
+                        .border_left
+                        .get_or_insert_with(BorderStyles::default)
+                        .width = clean_value;
+                }
+                "border-left-style" => {
+                    styles
+                        .border_left
+                        .get_or_insert_with(BorderStyles::default)
+                        .style = clean_value;
+                }
+                "border-left-color" => {
+                    styles
+                        .border_left
+                        .get_or_insert_with(BorderStyles::default)
+                        .color = clean_value;
+                }
                 "list-style-type" => styles.list_style_type = Some(clean_value),
                 "list-style" => {
                     // list-style shorthand
@@ -2183,10 +2416,18 @@ impl CssProcessor {
                     } else {
                         for part in v.split_whitespace() {
                             match part {
-                                "disc" | "circle" | "square" | "decimal"
-                                | "decimal-leading-zero" | "lower-roman" | "upper-roman"
-                                | "lower-alpha" | "upper-alpha" | "lower-latin"
-                                | "upper-latin" | "lower-greek" => {
+                                "disc"
+                                | "circle"
+                                | "square"
+                                | "decimal"
+                                | "decimal-leading-zero"
+                                | "lower-roman"
+                                | "upper-roman"
+                                | "lower-alpha"
+                                | "upper-alpha"
+                                | "lower-latin"
+                                | "upper-latin"
+                                | "lower-greek" => {
                                     styles.list_style_type = Some(part.to_string());
                                     break;
                                 }
@@ -2194,7 +2435,7 @@ impl CssProcessor {
                             }
                         }
                     }
-                },
+                }
                 "cursor" => styles.cursor = Some(clean_value),
                 "grid-template-columns" => styles.grid_template_columns = Some(clean_value),
                 "grid-template-rows" => styles.grid_template_rows = Some(clean_value),
@@ -2252,7 +2493,8 @@ impl CssProcessor {
                             if !areas.is_empty() {
                                 // Format areas as CSS grid-template-areas value:
                                 // "'name1 name2' 'name3 name4'"
-                                let areas_str = areas.iter()
+                                let areas_str = areas
+                                    .iter()
                                     .map(|a| format!("'{}'", a))
                                     .collect::<Vec<_>>()
                                     .join(" ");
@@ -2335,10 +2577,28 @@ impl CssProcessor {
         // Multi-token: scan for a color token
         // Background-specific keywords to filter out
         let bg_keywords = [
-            "none", "no-repeat", "repeat", "repeat-x", "repeat-y", "space", "round",
-            "scroll", "fixed", "local", "border-box", "padding-box", "content-box",
-            "cover", "contain", "center", "top", "bottom", "left", "right",
-            "initial", "unset",
+            "none",
+            "no-repeat",
+            "repeat",
+            "repeat-x",
+            "repeat-y",
+            "space",
+            "round",
+            "scroll",
+            "fixed",
+            "local",
+            "border-box",
+            "padding-box",
+            "content-box",
+            "cover",
+            "contain",
+            "center",
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "initial",
+            "unset",
         ];
 
         // Scan tokens — first token that looks like a color wins
@@ -2352,8 +2612,12 @@ impl CssProcessor {
                 return None; // url() background — no simple color
             }
             // Skip percentage/length values (position/size)
-            if token.ends_with('%') || token.ends_with("px") || token.ends_with("em")
-                || token.ends_with("rem") || token.ends_with("vw") || token.ends_with("vh")
+            if token.ends_with('%')
+                || token.ends_with("px")
+                || token.ends_with("em")
+                || token.ends_with("rem")
+                || token.ends_with("vw")
+                || token.ends_with("vh")
             {
                 continue;
             }
@@ -2362,8 +2626,10 @@ impl CssProcessor {
                 continue;
             }
             // Skip gradient functions
-            if token.starts_with("linear-gradient") || token.starts_with("radial-gradient")
-                || token.starts_with("conic-gradient") || token.starts_with("repeating-")
+            if token.starts_with("linear-gradient")
+                || token.starts_with("radial-gradient")
+                || token.starts_with("conic-gradient")
+                || token.starts_with("repeating-")
             {
                 return None; // gradient background — no simple color
             }
@@ -2373,7 +2639,9 @@ impl CssProcessor {
                 return Some(token.to_string());
             }
             // Named color or transparent/inherit/currentcolor
-            if token == "transparent" || token == "inherit" || token == "currentcolor"
+            if token == "transparent"
+                || token == "inherit"
+                || token == "currentcolor"
                 || token == "currentColor"
             {
                 return Some(token.to_string());
@@ -2425,8 +2693,8 @@ impl CssProcessor {
     /// Parts can appear in any order. Missing parts get defaults.
     fn parse_border_shorthand(value: &str) -> BorderStyles {
         let border_style_keywords = [
-            "none", "hidden", "dotted", "dashed", "solid", "double",
-            "groove", "ridge", "inset", "outset",
+            "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset",
+            "outset",
         ];
 
         let mut width = String::new();
@@ -2438,8 +2706,14 @@ impl CssProcessor {
         // Tokenize respecting parentheses (for rgb(), var(), etc.)
         for ch in value.chars() {
             match ch {
-                '(' => { in_paren += 1; current.push(ch); }
-                ')' => { in_paren -= 1; current.push(ch); }
+                '(' => {
+                    in_paren += 1;
+                    current.push(ch);
+                }
+                ')' => {
+                    in_paren -= 1;
+                    current.push(ch);
+                }
                 ' ' | '\t' if in_paren == 0 => {
                     if !current.is_empty() {
                         let token = current.trim().to_string();
@@ -2453,7 +2727,9 @@ impl CssProcessor {
                         }
                     }
                 }
-                _ => { current.push(ch); }
+                _ => {
+                    current.push(ch);
+                }
             }
         }
         if !current.is_empty() {
@@ -2473,15 +2749,26 @@ impl CssProcessor {
             color_parts.join(" ")
         };
 
-        BorderStyles { width, style, color }
+        BorderStyles {
+            width,
+            style,
+            color,
+        }
     }
 
     /// Check if a token looks like a CSS length value.
     fn looks_like_length(token: &str) -> bool {
         let t = token.to_lowercase();
-        t == "0" || t == "thin" || t == "medium" || t == "thick"
-            || t.ends_with("px") || t.ends_with("em") || t.ends_with("rem")
-            || t.ends_with("pt") || t.ends_with("vw") || t.ends_with("vh")
+        t == "0"
+            || t == "thin"
+            || t == "medium"
+            || t == "thick"
+            || t.ends_with("px")
+            || t.ends_with("em")
+            || t.ends_with("rem")
+            || t.ends_with("pt")
+            || t.ends_with("vw")
+            || t.ends_with("vh")
             || t.ends_with("%")
     }
 }
@@ -2524,7 +2811,9 @@ mod tests {
     #[test]
     fn test_compute_style() {
         let mut processor = CssProcessor::new();
-        processor.parse(".container { display: flex; width: 100%; }").unwrap();
+        processor
+            .parse(".container { display: flex; width: 100%; }")
+            .unwrap();
 
         let styles = processor.compute_style(".container");
         assert_eq!(styles.display, Some("flex".to_string()));
@@ -2545,7 +2834,10 @@ mod tests {
         assert_eq!(processor.calculate_specificity("#header"), (1, 0, 0));
 
         // Combined
-        assert_eq!(processor.calculate_specificity("div.container#main"), (1, 1, 1));
+        assert_eq!(
+            processor.calculate_specificity("div.container#main"),
+            (1, 1, 1)
+        );
     }
 
     #[test]
@@ -2655,12 +2947,22 @@ mod tests {
         let rules = processor.get_rules();
         eprintln!("Rules parsed: {} (expected >= 2)", rules.len());
         for rule in rules {
-            eprintln!("  selector='{}' declarations={:?}", rule.selector, rule.declarations);
+            eprintln!(
+                "  selector='{}' declarations={:?}",
+                rule.selector, rule.declarations
+            );
         }
-        assert!(rules.len() >= 2, "Expected at least 2 rules from @media screen and (min-width: 60em) at 1280px viewport");
+        assert!(
+            rules.len() >= 2,
+            "Expected at least 2 rules from @media screen and (min-width: 60em) at 1280px viewport"
+        );
 
         let styles = processor.compute_style(".dn-l");
-        assert_eq!(styles.display, Some("none".to_string()), "Expected .dn-l to have display:none");
+        assert_eq!(
+            styles.display,
+            Some("none".to_string()),
+            "Expected .dn-l to have display:none"
+        );
     }
 
     #[test]
@@ -2675,7 +2977,10 @@ mod tests {
         processor.parse(css).unwrap();
         let rules = processor.get_rules();
         eprintln!("Only screen rules: {}", rules.len());
-        assert!(rules.len() >= 1, "Expected rule from @media only screen and (min-width: 960px)");
+        assert!(
+            rules.len() >= 1,
+            "Expected rule from @media only screen and (min-width: 960px)"
+        );
     }
 
     #[test]
@@ -2696,8 +3001,10 @@ mod tests {
         let rules = processor.get_rules();
         eprintln!("All rules (count={}):", rules.len());
         for rule in rules {
-            eprintln!("  [order={}] selector='{}' spec={:?} decls={:?}",
-                rule.source_order, rule.selector, rule.specificity, rule.declarations);
+            eprintln!(
+                "  [order={}] selector='{}' spec={:?} decls={:?}",
+                rule.source_order, rule.selector, rule.specificity, rule.declarations
+            );
         }
 
         // Check: an element with class="db dn-l" should get display:none
@@ -2709,8 +3016,11 @@ mod tests {
 
         let styles = processor.compute_style_for_element(&nav);
         eprintln!("nav.db.dn-l display = {:?}", styles.display);
-        assert_eq!(styles.display, Some("none".to_string()),
-            "Expected .dn-l (media query, higher source order) to override .db");
+        assert_eq!(
+            styles.display,
+            Some("none".to_string()),
+            "Expected .dn-l (media query, higher source order) to override .db"
+        );
     }
 
     #[test]
@@ -2731,21 +3041,27 @@ mod tests {
         // Find .dn-l and .db rules specifically
         for rule in rules {
             if rule.selector.contains("dn-l") || rule.selector == ".db" {
-                eprintln!("  [order={}] '{}' spec={:?} decls={:?}",
-                    rule.source_order, rule.selector, rule.specificity, rule.declarations);
+                eprintln!(
+                    "  [order={}] '{}' spec={:?} decls={:?}",
+                    rule.source_order, rule.selector, rule.specificity, rule.declarations
+                );
             }
         }
 
         // Test against a simulated nav element with the actual Cloudflare classes
-        let html = r#"<html><body><nav class="bb b--black-10 db dn-l w-100 ph3">test</nav></body></html>"#;
+        let html =
+            r#"<html><body><nav class="bb b--black-10 db dn-l w-100 ph3">test</nav></body></html>"#;
         let document = scraper::Html::parse_document(html);
         let nav_sel = scraper::Selector::parse("nav").unwrap();
         let nav = document.select(&nav_sel).next().unwrap();
 
         let styles = processor.compute_style_for_element(&nav);
         eprintln!("nav display = {:?}", styles.display);
-        assert_eq!(styles.display, Some("none".to_string()),
-            "Expected .dn-l from @media screen and (min-width: 60em) to apply at 1280px viewport");
+        assert_eq!(
+            styles.display,
+            Some("none".to_string()),
+            "Expected .dn-l from @media screen and (min-width: 60em) to apply at 1280px viewport"
+        );
     }
 
     #[test]
@@ -2753,7 +3069,8 @@ mod tests {
         // Test with BOTH external CSS files in order, plus HTML style blocks
         let ashes_path = "/tmp/ashes_test.css";
         let index_path = "/tmp/cloudflare_test.css";
-        if !std::path::Path::new(ashes_path).exists() || !std::path::Path::new(index_path).exists() {
+        if !std::path::Path::new(ashes_path).exists() || !std::path::Path::new(index_path).exists()
+        {
             eprintln!("Skipping test: CSS files not found");
             return;
         }
@@ -2767,7 +3084,8 @@ mod tests {
         processor.parse(&index_css).unwrap();
 
         // Then parse inline <style> blocks from the actual page
-        let style_block_1 = ":root{--header-nav-height:60px;--footer-height:200px}body{margin:0;padding:0}";
+        let style_block_1 =
+            ":root{--header-nav-height:60px;--footer-height:200px}body{margin:0;padding:0}";
         let style_block_2 = "a{color:inherit}";
         processor.parse(style_block_1).unwrap();
         processor.parse(style_block_2).unwrap();
@@ -2790,14 +3108,18 @@ mod tests {
         eprintln!(".dn-l source orders: {:?}", dn_l_orders);
 
         // Test nav element
-        let html = r#"<html><body><nav class="bb b--black-10 db dn-l w-100 ph3">test</nav></body></html>"#;
+        let html =
+            r#"<html><body><nav class="bb b--black-10 db dn-l w-100 ph3">test</nav></body></html>"#;
         let document = scraper::Html::parse_document(html);
         let nav_sel = scraper::Selector::parse("nav").unwrap();
         let nav = document.select(&nav_sel).next().unwrap();
         let styles = processor.compute_style_for_element(&nav);
         eprintln!("nav display = {:?}", styles.display);
-        assert_eq!(styles.display, Some("none".to_string()),
-            "Expected .dn-l to override .db at 1280px viewport");
+        assert_eq!(
+            styles.display,
+            Some("none".to_string()),
+            "Expected .dn-l to override .db at 1280px viewport"
+        );
     }
 
     #[test]
@@ -2840,12 +3162,15 @@ mod tests {
 
     #[test]
     fn test_element_based_matching() {
-        let html = r#"<html><body><div class="container"><p class="text">Hello</p></div></body></html>"#;
+        let html =
+            r#"<html><body><div class="container"><p class="text">Hello</p></div></body></html>"#;
         let document = scraper::Html::parse_document(html);
 
         let mut processor = CssProcessor::new();
         // lightningcss normalizes named colors: blue → #00f
-        processor.parse(".container .text { color: blue; }").unwrap();
+        processor
+            .parse(".container .text { color: blue; }")
+            .unwrap();
         processor.parse("p { font-size: 14px; }").unwrap();
 
         let p_selector = scraper::Selector::parse("p.text").unwrap();

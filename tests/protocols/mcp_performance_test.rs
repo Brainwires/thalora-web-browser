@@ -1,9 +1,9 @@
 // MCP Performance Tests - Benchmarking and stress testing the MCP server
-use std::time::{Duration, Instant};
+use anyhow::Result;
 #[allow(unused_imports)]
 #[allow(unused_variables)]
-use serde_json::{json, Value};
-use anyhow::Result;
+use serde_json::{Value, json};
+use std::time::{Duration, Instant};
 
 use super::mcp_harness::*;
 
@@ -66,7 +66,10 @@ impl PerformanceMetrics {
         println!("Avg Duration: {:?}", self.avg_duration);
         if !self.errors.is_empty() {
             println!("Error Count: {}", self.errors.len());
-            println!("Sample Errors: {:?}", &self.errors[..self.errors.len().min(3)]);
+            println!(
+                "Sample Errors: {:?}",
+                &self.errors[..self.errors.len().min(3)]
+            );
         }
         println!("=====================================\n");
     }
@@ -83,7 +86,10 @@ where
     let mut metrics = PerformanceMetrics::new(test_name.to_string());
     let total_start = Instant::now();
 
-    println!("Running performance test: {} ({} iterations)", test_name, iterations);
+    println!(
+        "Running performance test: {} ({} iterations)",
+        test_name, iterations
+    );
 
     for i in 0..iterations {
         match operation() {
@@ -123,8 +129,14 @@ fn test_initialization_performance() {
     metrics.print_summary();
 
     // Performance assertions
-    assert!(metrics.success_rate >= 0.8, "Should have at least 80% success rate");
-    assert!(metrics.avg_duration < Duration::from_secs(5), "Average initialization should be under 5 seconds");
+    assert!(
+        metrics.success_rate >= 0.8,
+        "Should have at least 80% success rate"
+    );
+    assert!(
+        metrics.avg_duration < Duration::from_secs(5),
+        "Average initialization should be under 5 seconds"
+    );
 }
 
 #[test]
@@ -141,9 +153,18 @@ fn test_tools_list_performance() {
     metrics.print_summary();
 
     // Performance assertions
-    assert!(metrics.success_rate >= 0.95, "Tools list should have high success rate");
-    assert!(metrics.avg_duration < Duration::from_secs(1), "Tools list should be very fast");
-    assert!(metrics.max_duration < Duration::from_secs(5), "No tools list call should take more than 5 seconds");
+    assert!(
+        metrics.success_rate >= 0.95,
+        "Tools list should have high success rate"
+    );
+    assert!(
+        metrics.avg_duration < Duration::from_secs(1),
+        "Tools list should be very fast"
+    );
+    assert!(
+        metrics.max_duration < Duration::from_secs(5),
+        "No tools list call should take more than 5 seconds"
+    );
 }
 
 #[test]
@@ -157,7 +178,10 @@ fn test_ai_memory_performance() {
         let total_start = Instant::now();
 
         for i in 0..iterations {
-            let key = format!("perf_test_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default());
+            let key = format!(
+                "perf_test_{}",
+                chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+            );
             let _data = json!({
                 "test_data": "performance test data",
                 "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -165,17 +189,24 @@ fn test_ai_memory_performance() {
             });
 
             let start = Instant::now();
-            let result = harness.call_tool("ai_memory_store_research", json!({
-                "key": key,
-                "topic": "performance testing",
-                "summary": "Performance test data for AI memory benchmarking",
-                "tags": ["performance", "test"]
-            }));
+            let result = harness.call_tool(
+                "ai_memory_store_research",
+                json!({
+                    "key": key,
+                    "topic": "performance testing",
+                    "summary": "Performance test data for AI memory benchmarking",
+                    "tags": ["performance", "test"]
+                }),
+            );
 
             match result {
                 Ok(response) => {
                     if response.is_error {
-                        metrics.add_measurement(Duration::ZERO, false, Some("Store operation returned error".to_string()));
+                        metrics.add_measurement(
+                            Duration::ZERO,
+                            false,
+                            Some("Store operation returned error".to_string()),
+                        );
                     } else {
                         metrics.add_measurement(start.elapsed(), true, None);
                     }
@@ -206,15 +237,22 @@ fn test_ai_memory_performance() {
 
         for i in 0..iterations {
             let start = Instant::now();
-            let result = harness.call_tool("ai_memory_search_research", json!({
-                "tags": ["performance"],
-                "limit": 1
-            }));
+            let result = harness.call_tool(
+                "ai_memory_search_research",
+                json!({
+                    "tags": ["performance"],
+                    "limit": 1
+                }),
+            );
 
             match result {
                 Ok(response) => {
                     if response.is_error {
-                        metrics.add_measurement(Duration::ZERO, false, Some("Search operation returned error".to_string()));
+                        metrics.add_measurement(
+                            Duration::ZERO,
+                            false,
+                            Some("Search operation returned error".to_string()),
+                        );
                     } else {
                         metrics.add_measurement(start.elapsed(), true, None);
                     }
@@ -239,10 +277,22 @@ fn test_ai_memory_performance() {
     retrieve_metrics.print_summary();
 
     // Performance assertions
-    assert!(store_metrics.success_rate >= 0.9, "Store operations should have high success rate");
-    assert!(retrieve_metrics.success_rate >= 0.9, "Retrieve operations should have high success rate");
-    assert!(store_metrics.avg_duration < Duration::from_secs(2), "Store should be fast");
-    assert!(retrieve_metrics.avg_duration < Duration::from_secs(2), "Retrieve should be fast");
+    assert!(
+        store_metrics.success_rate >= 0.9,
+        "Store operations should have high success rate"
+    );
+    assert!(
+        retrieve_metrics.success_rate >= 0.9,
+        "Retrieve operations should have high success rate"
+    );
+    assert!(
+        store_metrics.avg_duration < Duration::from_secs(2),
+        "Store should be fast"
+    );
+    assert!(
+        retrieve_metrics.avg_duration < Duration::from_secs(2),
+        "Retrieve should be fast"
+    );
 }
 
 #[test]
@@ -263,10 +313,13 @@ fn test_javascript_evaluation_performance() {
         let expr = expressions[rand::random::<usize>() % expressions.len()];
         let start = Instant::now();
 
-        let response = harness.call_tool("cdp_runtime_evaluate", json!({
-            "expression": expr,
-            "await_promise": false
-        }))?;
+        let response = harness.call_tool(
+            "cdp_runtime_evaluate",
+            json!({
+                "expression": expr,
+                "await_promise": false
+            }),
+        )?;
 
         if response.is_error {
             anyhow::bail!("JavaScript evaluation returned error");
@@ -300,10 +353,13 @@ fn test_javascript_evaluation_performance() {
 
         let start = Instant::now();
 
-        let response = harness.call_tool("cdp_runtime_evaluate", json!({
-            "expression": complex_expr,
-            "await_promise": false
-        }))?;
+        let response = harness.call_tool(
+            "cdp_runtime_evaluate",
+            json!({
+                "expression": complex_expr,
+                "await_promise": false
+            }),
+        )?;
 
         if response.is_error {
             anyhow::bail!("Complex JavaScript evaluation returned error");
@@ -315,9 +371,18 @@ fn test_javascript_evaluation_performance() {
     complex_metrics.print_summary();
 
     // Performance assertions
-    assert!(simple_metrics.success_rate >= 0.9, "Simple JS should have high success rate");
-    assert!(simple_metrics.avg_duration < Duration::from_secs(1), "Simple JS should be very fast");
-    assert!(complex_metrics.avg_duration < Duration::from_secs(5), "Complex JS should complete within 5 seconds");
+    assert!(
+        simple_metrics.success_rate >= 0.9,
+        "Simple JS should have high success rate"
+    );
+    assert!(
+        simple_metrics.avg_duration < Duration::from_secs(1),
+        "Simple JS should be very fast"
+    );
+    assert!(
+        complex_metrics.avg_duration < Duration::from_secs(5),
+        "Complex JS should complete within 5 seconds"
+    );
 }
 
 #[test]
@@ -330,10 +395,13 @@ fn test_web_scraping_performance() {
 
     for i in 0..iterations {
         let start = Instant::now();
-        let result = harness.call_tool("snapshot_url", json!({
-            "url": "https://httpbin.org/html",
-            "wait_for_js": false
-        }));
+        let result = harness.call_tool(
+            "snapshot_url",
+            json!({
+                "url": "https://httpbin.org/html",
+                "wait_for_js": false
+            }),
+        );
 
         let duration = start.elapsed();
         total_duration += duration;
@@ -354,11 +422,21 @@ fn test_web_scraping_performance() {
     let success_rate = successful as f64 / iterations as f64;
     let avg_duration = total_duration / iterations as u32;
 
-    println!("Web Scraping Performance: {:.1}% success, {:?} avg", success_rate * 100.0, avg_duration);
+    println!(
+        "Web Scraping Performance: {:.1}% success, {:?} avg",
+        success_rate * 100.0,
+        avg_duration
+    );
 
     // Performance assertions (more lenient for network operations)
-    assert!(success_rate >= 0.6, "Scraping should have reasonable success rate");
-    assert!(avg_duration < Duration::from_secs(30), "Scraping should complete within 30 seconds");
+    assert!(
+        success_rate >= 0.6,
+        "Scraping should have reasonable success rate"
+    );
+    assert!(
+        avg_duration < Duration::from_secs(30),
+        "Scraping should complete within 30 seconds"
+    );
 }
 
 #[test]
@@ -379,10 +457,13 @@ fn test_google_search_performance() {
         let query = &queries[i % queries.len()];
         let start = Instant::now();
 
-        let result = harness.call_tool("google_search", json!({
-            "query": query,
-            "num_results": 1
-        }));
+        let result = harness.call_tool(
+            "google_search",
+            json!({
+                "query": query,
+                "num_results": 1
+            }),
+        );
 
         let duration = start.elapsed();
         total_duration += duration;
@@ -400,10 +481,16 @@ fn test_google_search_performance() {
     println!();
     let avg_duration = total_duration / iterations as u32;
 
-    println!("Google Search Performance: {}/{} successful, {:?} avg", successful, iterations, avg_duration);
+    println!(
+        "Google Search Performance: {}/{} successful, {:?} avg",
+        successful, iterations, avg_duration
+    );
 
     // Performance assertions (very lenient for search operations)
-    assert!(avg_duration < Duration::from_secs(45), "Search should complete within 45 seconds");
+    assert!(
+        avg_duration < Duration::from_secs(45),
+        "Search should complete within 45 seconds"
+    );
 }
 
 #[test]
@@ -460,11 +547,21 @@ fn test_mixed_workload_performance() {
     let success_rate = successful as f64 / iterations as f64;
     let avg_duration = total_duration / iterations as u32;
 
-    println!("Mixed Workload: {:.1}% success, {:?} avg", success_rate * 100.0, avg_duration);
+    println!(
+        "Mixed Workload: {:.1}% success, {:?} avg",
+        success_rate * 100.0,
+        avg_duration
+    );
 
     // Performance assertions
-    assert!(success_rate >= 0.8, "Mixed workload should have good success rate");
-    assert!(avg_duration < Duration::from_secs(3), "Mixed operations should be reasonably fast");
+    assert!(
+        success_rate >= 0.8,
+        "Mixed workload should have good success rate"
+    );
+    assert!(
+        avg_duration < Duration::from_secs(3),
+        "Mixed operations should be reasonably fast"
+    );
 }
 
 #[test]
@@ -486,18 +583,33 @@ fn test_stress_test_rapid_requests() {
         // Alternate between different operations
         let result = match i % 4 {
             0 => harness.list_tools().map(|_| ()),
-            1 => harness.call_tool("ai_memory_search_research", json!({
-                "query": "stress",
-                "limit": 1
-            })).map(|_| ()),
-            2 => harness.call_tool("cdp_runtime_evaluate", json!({
-                "expression": "Date.now()"
-            })).map(|_| ()),
-            _ => harness.call_tool("ai_memory_store_research", json!({
-                "key": format!("stress_{}", i),
-                "data": {"stress_test": i},
-                "tags": ["stress"]
-            })).map(|_| ()),
+            1 => harness
+                .call_tool(
+                    "ai_memory_search_research",
+                    json!({
+                        "query": "stress",
+                        "limit": 1
+                    }),
+                )
+                .map(|_| ()),
+            2 => harness
+                .call_tool(
+                    "cdp_runtime_evaluate",
+                    json!({
+                        "expression": "Date.now()"
+                    }),
+                )
+                .map(|_| ()),
+            _ => harness
+                .call_tool(
+                    "ai_memory_store_research",
+                    json!({
+                        "key": format!("stress_{}", i),
+                        "data": {"stress_test": i},
+                        "tags": ["stress"]
+                    }),
+                )
+                .map(|_| ()),
         };
 
         let op_duration = op_start.elapsed();
@@ -539,19 +651,31 @@ fn test_stress_test_rapid_requests() {
     println!("Failures: {}", failures);
     println!("Success Rate: {:.1}%", success_rate * 100.0);
     println!("Total Duration: {:?}", total_duration);
-    println!("Throughput: {:.1} ops/sec", (successes + failures) as f64 / total_duration.as_secs_f64());
+    println!(
+        "Throughput: {:.1} ops/sec",
+        (successes + failures) as f64 / total_duration.as_secs_f64()
+    );
     println!("Min Op Duration: {:?}", min_duration);
     println!("Max Op Duration: {:?}", max_duration);
     println!("Avg Op Duration: {:?}", avg_duration);
     println!("============================\n");
 
     // Assertions for stress test
-    assert!(success_rate >= 0.7, "Should maintain at least 70% success rate under stress");
-    assert!(harness.is_running(), "Server should still be running after stress test");
+    assert!(
+        success_rate >= 0.7,
+        "Should maintain at least 70% success rate under stress"
+    );
+    assert!(
+        harness.is_running(),
+        "Server should still be running after stress test"
+    );
 
     // Final health check
     let health_check = harness.list_tools();
-    assert!(health_check.is_ok(), "Server should still be responsive after stress test");
+    assert!(
+        health_check.is_ok(),
+        "Server should still be responsive after stress test"
+    );
 }
 
 #[test]
@@ -571,11 +695,14 @@ fn test_memory_usage_pattern() {
     for (size_name, data) in data_sizes {
         let start = Instant::now();
 
-        let result = harness.call_tool("ai_memory_store_research", json!({
-            "key": format!("memory_test_{}", size_name),
-            "data": data,
-            "tags": ["memory_test", size_name]
-        }));
+        let result = harness.call_tool(
+            "ai_memory_store_research",
+            json!({
+                "key": format!("memory_test_{}", size_name),
+                "data": data,
+                "tags": ["memory_test", size_name]
+            }),
+        );
 
         let duration = start.elapsed();
 
@@ -593,15 +720,22 @@ fn test_memory_usage_pattern() {
         }
 
         // Verify server is still responsive
-        assert!(harness.is_running(), "Server should still be running after storing {} data", size_name);
+        assert!(
+            harness.is_running(),
+            "Server should still be running after storing {} data",
+            size_name
+        );
 
         std::thread::sleep(Duration::from_millis(100));
     }
 
     // Test retrieval of large data
-    let retrieve_result = harness.call_tool("ai_memory_get_research", json!({
-        "key": "memory_test_large"
-    }));
+    let retrieve_result = harness.call_tool(
+        "ai_memory_get_research",
+        json!({
+            "key": "memory_test_large"
+        }),
+    );
 
     if let Ok(response) = retrieve_result {
         if !response.is_error {
@@ -621,11 +755,7 @@ fn test_performance_baseline() {
     let mut harness = create_initialized_harness().expect("Failed to create harness");
 
     // Establish baseline performance for each operation type
-    let baseline_tests = vec![
-        ("list_tools", 10),
-        ("simple_js", 10),
-        ("memory_search", 10),
-    ];
+    let baseline_tests = vec![("list_tools", 10), ("simple_js", 10), ("memory_search", 10)];
 
     println!("\n=== Performance Baseline ===");
 
@@ -638,13 +768,23 @@ fn test_performance_baseline() {
 
             let result = match test_name {
                 "list_tools" => harness.list_tools().map(|_| ()),
-                "simple_js" => harness.call_tool("cdp_runtime_evaluate", json!({
-                    "expression": "42"
-                })).map(|_| ()),
-                "memory_search" => harness.call_tool("ai_memory_search_research", json!({
-                    "query": "baseline",
-                    "limit": 1
-                })).map(|_| ()),
+                "simple_js" => harness
+                    .call_tool(
+                        "cdp_runtime_evaluate",
+                        json!({
+                            "expression": "42"
+                        }),
+                    )
+                    .map(|_| ()),
+                "memory_search" => harness
+                    .call_tool(
+                        "ai_memory_search_research",
+                        json!({
+                            "query": "baseline",
+                            "limit": 1
+                        }),
+                    )
+                    .map(|_| ()),
                 _ => Ok(()),
             };
 
@@ -656,20 +796,28 @@ fn test_performance_baseline() {
         let avg_duration = start.elapsed() / iterations as u32;
         let success_rate = successes as f64 / iterations as f64;
 
-        println!("{}: {:.1}% success, {:?} avg", test_name, success_rate * 100.0, avg_duration);
+        println!(
+            "{}: {:.1}% success, {:?} avg",
+            test_name,
+            success_rate * 100.0,
+            avg_duration
+        );
 
         // Store baseline in AI memory for reference
-        let _ = harness.call_tool("ai_memory_store_research", json!({
-            "key": format!("baseline_{}", test_name),
-            "data": {
-                "test_name": test_name,
-                "iterations": iterations,
-                "success_rate": success_rate,
-                "avg_duration_ms": avg_duration.as_millis(),
-                "timestamp": chrono::Utc::now().to_rfc3339()
-            },
-            "tags": ["baseline", "performance"]
-        }));
+        let _ = harness.call_tool(
+            "ai_memory_store_research",
+            json!({
+                "key": format!("baseline_{}", test_name),
+                "data": {
+                    "test_name": test_name,
+                    "iterations": iterations,
+                    "success_rate": success_rate,
+                    "avg_duration_ms": avg_duration.as_millis(),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                },
+                "tags": ["baseline", "performance"]
+            }),
+        );
     }
 
     println!("==============================\n");

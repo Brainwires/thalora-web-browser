@@ -38,7 +38,6 @@ pub struct StyledElement {
     pub tag: String,
 
     // --- Content ---
-
     /// Text content for text nodes
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_content: Option<String>,
@@ -80,7 +79,6 @@ pub struct StyledElement {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResolvedStyles {
     // --- Display & Layout ---
-
     /// CSS display value: block, flex, inline, inline-block, none, grid, table, list-item, etc.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<String>,
@@ -116,7 +114,6 @@ pub struct ResolvedStyles {
     pub flex_basis: Option<String>,
 
     // --- Box Model (CSS strings) ---
-
     /// Width (e.g., "100px", "50%", "auto")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<String>,
@@ -144,7 +141,6 @@ pub struct ResolvedStyles {
     pub padding: Option<StyleBoxSides>,
 
     // --- Typography ---
-
     /// Font size (e.g., "16px", "1.2em", "larger")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub font_size: Option<String>,
@@ -180,7 +176,6 @@ pub struct ResolvedStyles {
     pub word_spacing: Option<String>,
 
     // --- Colors & Visual ---
-
     /// Text color (CSS color string, e.g., "#333", "rgb(0,0,0)", "red")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
@@ -189,7 +184,6 @@ pub struct ResolvedStyles {
     pub background_color: Option<String>,
 
     // --- Borders ---
-
     /// Border width per side (in CSS strings)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub border_width: Option<StyleBoxSides>,
@@ -204,7 +198,6 @@ pub struct ResolvedStyles {
     pub border_radius: Option<String>,
 
     // --- Miscellaneous ---
-
     /// Opacity (0.0 to 1.0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opacity: Option<f32>,

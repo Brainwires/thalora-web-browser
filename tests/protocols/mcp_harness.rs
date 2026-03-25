@@ -1,9 +1,9 @@
 // MCP Test Harness - Utilities for testing the stdio-based MCP server
-use std::process::{Command, Stdio, Child};
-use std::io::{BufRead, BufReader, Write};
-use std::time::{Duration, Instant};
+use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
-use anyhow::{Result, Context, bail};
+use std::io::{BufRead, BufReader, Write};
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// Test harness for the MCP server subprocess
 pub struct McpTestHarness {
@@ -34,7 +34,7 @@ impl Default for McpTestConfig {
 
         Self {
             timeout: Duration::from_secs(30),
-            use_release_build: true,  // Use release builds by default for faster startup
+            use_release_build: true, // Use release builds by default for faster startup
             debug_output: false,
             env_vars,
         }
@@ -73,7 +73,7 @@ impl McpTestHarness {
             cmd
         };
 
-        cmd.env("THALORA_SILENT", "1");  // Suppress debug output for clean JSON responses
+        cmd.env("THALORA_SILENT", "1"); // Suppress debug output for clean JSON responses
 
         // Apply custom environment variables
         for (key, value) in &config.env_vars {
@@ -83,7 +83,11 @@ impl McpTestHarness {
         let mut process = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(if config.debug_output { Stdio::inherit() } else { Stdio::piped() })
+            .stderr(if config.debug_output {
+                Stdio::inherit()
+            } else {
+                Stdio::piped()
+            })
             .spawn()
             .context("Failed to spawn MCP server process")?;
 
@@ -92,7 +96,10 @@ impl McpTestHarness {
 
         // Check if process is still running
         if let Ok(Some(exit_status)) = process.try_wait() {
-            bail!("MCP server process exited immediately with status: {}", exit_status);
+            bail!(
+                "MCP server process exited immediately with status: {}",
+                exit_status
+            );
         }
 
         Ok(Self {
@@ -176,12 +183,14 @@ impl McpTestHarness {
         let duration = start_time.elapsed();
 
         // Parse the tool response
-        let content = response.get("content")
+        let content = response
+            .get("content")
             .and_then(|c| c.as_array())
             .unwrap_or(&vec![])
             .clone();
 
-        let is_error = response.get("isError")
+        let is_error = response
+            .get("isError")
             .and_then(|e| e.as_bool())
             .unwrap_or(false);
 
@@ -195,35 +204,39 @@ impl McpTestHarness {
 
     /// Send a raw JSON-RPC request and return the response
     pub fn send_request_raw(&mut self, request: Value) -> Result<Value> {
-        let request_str = serde_json::to_string(&request)
-            .context("Failed to serialize request")?;
+        let request_str = serde_json::to_string(&request).context("Failed to serialize request")?;
 
         // Send request
-        let stdin = self.process.stdin.as_mut()
+        let stdin = self
+            .process
+            .stdin
+            .as_mut()
             .context("Failed to get stdin handle")?;
 
-        writeln!(stdin, "{}", request_str)
-            .context("Failed to write request to stdin")?;
+        writeln!(stdin, "{}", request_str).context("Failed to write request to stdin")?;
 
-        stdin.flush()
-            .context("Failed to flush stdin")?;
+        stdin.flush().context("Failed to flush stdin")?;
 
         // Read response
-        let stdout = self.process.stdout.as_mut()
+        let stdout = self
+            .process
+            .stdout
+            .as_mut()
             .context("Failed to get stdout handle")?;
 
         let mut reader = BufReader::new(stdout);
         let mut response_line = String::new();
 
-        reader.read_line(&mut response_line)
+        reader
+            .read_line(&mut response_line)
             .context("Failed to read response from stdout")?;
 
         if response_line.trim().is_empty() {
             bail!("Received empty response from MCP server");
         }
 
-        let response: Value = serde_json::from_str(response_line.trim())
-            .context("Failed to parse JSON response")?;
+        let response: Value =
+            serde_json::from_str(response_line.trim()).context("Failed to parse JSON response")?;
 
         // Check for JSON-RPC error
         if let Some(error) = response.get("error") {
@@ -248,9 +261,9 @@ impl McpTestHarness {
     /// Check if the MCP server process is still running
     pub fn is_running(&mut self) -> bool {
         match self.process.try_wait() {
-            Ok(None) => true, // Still running
+            Ok(None) => true,     // Still running
             Ok(Some(_)) => false, // Exited
-            Err(_) => false, // Error checking status
+            Err(_) => false,      // Error checking status
         }
     }
 
@@ -306,7 +319,9 @@ pub fn create_release_harness() -> Result<McpTestHarness> {
 }
 
 /// Create a test harness with custom environment variables
-pub fn create_harness_with_env(env_vars: std::collections::HashMap<String, String>) -> Result<McpTestHarness> {
+pub fn create_harness_with_env(
+    env_vars: std::collections::HashMap<String, String>,
+) -> Result<McpTestHarness> {
     let config = McpTestConfig {
         env_vars,
         ..Default::default()
@@ -317,7 +332,9 @@ pub fn create_harness_with_env(env_vars: std::collections::HashMap<String, Strin
 }
 
 /// Create a test harness with specific tool categories disabled
-pub fn create_harness_with_disabled_categories(disabled_categories: &[&str]) -> Result<McpTestHarness> {
+pub fn create_harness_with_disabled_categories(
+    disabled_categories: &[&str],
+) -> Result<McpTestHarness> {
     let mut env_vars = std::collections::HashMap::new();
 
     // Start with all categories enabled
@@ -327,7 +344,7 @@ pub fn create_harness_with_disabled_categories(disabled_categories: &[&str]) -> 
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
         "THALORA_ENABLE_BROWSER_AUTOMATION",
-        "THALORA_ENABLE_SESSION_MANAGEMENT"
+        "THALORA_ENABLE_SESSION_MANAGEMENT",
     ];
 
     for category in all_categories {
@@ -351,7 +368,7 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
         "THALORA_ENABLE_BROWSER_AUTOMATION",
-        "THALORA_ENABLE_SESSION_MANAGEMENT"
+        "THALORA_ENABLE_SESSION_MANAGEMENT",
     ];
 
     for category in all_categories {
@@ -366,7 +383,10 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
 }
 
 /// Validate that a tool response contains expected fields
-pub fn validate_tool_response(response: &McpToolResponse, expected_content_type: &str) -> Result<()> {
+pub fn validate_tool_response(
+    response: &McpToolResponse,
+    expected_content_type: &str,
+) -> Result<()> {
     if response.is_error {
         bail!("Tool call returned error: {:?}", response.content);
     }
@@ -382,7 +402,10 @@ pub fn validate_tool_response(response: &McpToolResponse, expected_content_type:
                 bail!("Tool response text field is not a string: {:?}", text);
             }
         } else if expected_content_type == "text" {
-            bail!("Tool response missing expected text field: {:?}", first_content);
+            bail!(
+                "Tool response missing expected text field: {:?}",
+                first_content
+            );
         }
     }
 
@@ -396,7 +419,11 @@ pub fn assert_tool_success(response: &McpToolResponse, max_duration: Duration) -
     }
 
     if response.duration > max_duration {
-        bail!("Tool call took too long: {:?} > {:?}", response.duration, max_duration);
+        bail!(
+            "Tool call took too long: {:?} > {:?}",
+            response.duration,
+            max_duration
+        );
     }
 
     Ok(())
@@ -418,7 +445,11 @@ mod tests {
         assert!(harness.is_running(), "MCP server should be running");
 
         let init_response = harness.initialize();
-        assert!(init_response.is_ok(), "Initialization should succeed: {:?}", init_response.err());
+        assert!(
+            init_response.is_ok(),
+            "Initialization should succeed: {:?}",
+            init_response.err()
+        );
     }
 
     #[test]
@@ -426,16 +457,32 @@ mod tests {
         let mut harness = create_initialized_harness().expect("Failed to create harness");
 
         let tools = harness.list_tools();
-        assert!(tools.is_ok(), "Should be able to list tools: {:?}", tools.err());
+        assert!(
+            tools.is_ok(),
+            "Should be able to list tools: {:?}",
+            tools.err()
+        );
 
         let tools = tools.unwrap();
         assert!(!tools.is_empty(), "Should have at least one tool");
 
         // Verify tool structure
         for tool in &tools {
-            assert!(tool.get("name").is_some(), "Tool should have a name: {:?}", tool);
-            assert!(tool.get("description").is_some(), "Tool should have a description: {:?}", tool);
-            assert!(tool.get("inputSchema").is_some(), "Tool should have an input schema: {:?}", tool);
+            assert!(
+                tool.get("name").is_some(),
+                "Tool should have a name: {:?}",
+                tool
+            );
+            assert!(
+                tool.get("description").is_some(),
+                "Tool should have a description: {:?}",
+                tool
+            );
+            assert!(
+                tool.get("inputSchema").is_some(),
+                "Tool should have an input schema: {:?}",
+                tool
+            );
         }
     }
 }
