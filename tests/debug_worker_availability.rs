@@ -12,7 +12,7 @@ fn main() {
             let type_str = value.to_string(&mut default_context).unwrap().to_std_string_escaped();
             eprintln!("   Worker type in default context: '{}'", type_str);
         },
-        eErr(e) => eprintln!("   Error in default context: {:?}", e),
+        Err(e) => eprintln!("   Error in default context: {:?}", e),
     }
 
     // Test 2: Builder Context (what Thalora uses)
@@ -24,7 +24,7 @@ fn main() {
             let type_str = value.to_string(&mut builder_context).unwrap().to_std_string_escaped();
             eprintln!("   Worker type in builder context: '{}'", type_str);
         },
-        eErr(e) => eprintln!("   Error in builder context: {:?}", e),
+        Err(e) => eprintln!("   Error in builder context: {:?}", e),
     }
 
     // Test 3: Check if intrinsics have Worker
@@ -32,7 +32,7 @@ fn main() {
     let builder_context2 = Context::builder().build().unwrap();
     let worker_constructor = builder_context2.intrinsics().constructors().worker();
     eprintln!("   Worker constructor available in intrinsics: true");
-    eprintln!("   Worker constructor name: {:?}", worker_constructor.constructor().to_string(&mut Context::default()));
+    let _ = worker_constructor; // constructor object available
 
     // Test 4: Check WebSocket for comparison
     eprintln!("\n📋 Test 4: WebSocket comparison");
@@ -43,7 +43,7 @@ fn main() {
             let type_str = value.to_string(&mut builder_context3).unwrap().to_std_string_escaped();
             eprintln!("   WebSocket type in builder context: '{}'", type_str);
         },
-        eErr(e) => eprintln!("   Error checking WebSocket: {:?}", e),
+        Err(e) => eprintln!("   Error checking WebSocket: {:?}", e),
     }
 
     eprintln!("\n🎯 Analysis complete!");

@@ -175,20 +175,7 @@ pub fn setup_es2025_experimental(context: &mut Context) -> JsResult<()> {
             }
         }
 
-        // using declarations (Stage 3) - simplified implementation
-        if (typeof using === 'undefined') {
-            var using = function(resource) {
-                // Simplified using implementation
-                return {
-                    resource: resource,
-                    [Symbol.dispose]: function() {
-                        if (resource && typeof resource[Symbol.dispose] === 'function') {
-                            resource[Symbol.dispose]();
-                        }
-                    }
-                };
-            };
-        }
+        // using declarations (Stage 3) - now a native keyword in Boa, no polyfill needed
 
         // String.prototype.dedent (Stage 2)
         if (!String.prototype.dedent) {
