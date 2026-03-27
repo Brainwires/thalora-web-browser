@@ -1,0 +1,20 @@
+{
+  "known_flaky": [
+    {
+      "test_name": "test_encrypt_different_each_time",
+      "reason": "Pre-existing crypto test failure, known and accepted",
+      "since": "2026-02-22"
+    }
+  ],
+  "requires_network": [
+    "test_google_search_real_functionality",
+    "test_bing_search_real_functionality",
+    "test_duckduckgo_search_real_functionality",
+    "test_startpage_search_real_functionality",
+    "search_engines_live_test"
+  ],
+  "requires_release_build": [
+    "mcp_performance_test"
+  ],
+  "notes": "Tests listed here are excluded from AI fix attempts. Update as new flaky/external tests are identified."
+}

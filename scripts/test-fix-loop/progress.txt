@@ -1,0 +1,17 @@
+# Test-Fix Loop Progress Log
+
+## Codebase Patterns
+- Wasmtime compilation is slow — never use timeouts on cargo commands
+- Pre-existing known failure: test_encrypt_different_each_time (crypto test)
+- MCP tests use subprocess harness (McpTestHarness) — errors may be server-side
+- Feature flags: THALORA_ENABLE_* environment variables control feature gating
+- Test files under tests/protocols/ are compiled as part of tests/mcp_tests.rs binary
+- Boa JS engine is at engines/boa/ — modifying it triggers broad test impacts
+- Browser APIs at engines/thalora-browser-apis/ — modular JS API implementations
+- API tests (geolocation, workers, navigator) test JS execution via HeadlessWebBrowser
+
+## Needs Human Review
+(none yet)
+
+---
+
