@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 # Fix all McpResponse::ToolResult { content: ..., is_error: ... } to McpResponse::tool_result(..., ...)
 

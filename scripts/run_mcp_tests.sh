@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 # MCP Test Runner Script
 # Comprehensive testing script for the Thalora MCP server interface

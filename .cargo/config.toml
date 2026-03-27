@@ -6,6 +6,7 @@
 [alias]
 build-full = "build --release --features native"
 build-wasm = "build --release --no-default-features --features wasm --target wasm32-unknown-unknown --lib"
+xtask = "run --manifest-path xtask/Cargo.toml --"
 
 # WASM target configuration for getrandom
 [target.wasm32-unknown-unknown]

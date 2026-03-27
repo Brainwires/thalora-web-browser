@@ -1,6 +1,7 @@
 .DS_Store
 target/
 .fastembed_cache
+.boa_history
 
 # .NET build artifacts
 gui/**/bin/

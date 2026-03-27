@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 # Full Form Automation Demo - Complete Browser Session Management
 echo "🌐 COMPLETE FORM AUTOMATION Demo"

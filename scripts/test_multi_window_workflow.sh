@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 # Test script for multi-window form submission workflow
 export THALORA_ENABLE_SESSIONS=true

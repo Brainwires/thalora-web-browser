@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 # Test script to isolate which Event API is failing on complex forms
 export THALORA_ENABLE_SESSIONS=true

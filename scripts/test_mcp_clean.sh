@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")/.."
 
 # Test Thalora MCP functionality with clean output by redirecting stderr
 echo "🧪 Testing Thalora MCP with clean JSON output"

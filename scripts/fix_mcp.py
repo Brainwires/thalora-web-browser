@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import re
 import glob
+import os
+import sys
+
+# Run from project root regardless of where script is invoked
+os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 # Pattern to match McpResponse::ToolResult { content: ..., is_error: ... }
 # This handles multiline cases
