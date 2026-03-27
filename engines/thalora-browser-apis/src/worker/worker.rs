@@ -215,6 +215,13 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
         .to_string(context)?
         .to_std_string_escaped();
 
+    // Validate URL - must be a valid absolute URL per spec
+    if url::Url::parse(&script_url_str).is_err() {
+        return Err(JsNativeError::typ()
+            .with_message(format!("Invalid Worker script URL: {}", script_url_str))
+            .into());
+    }
+
     // Parse options (optional second argument)
     let options = if let Some(opts) = args.get(1) {
         Worker::parse_options(opts, context)?
@@ -227,6 +234,16 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
 
     // Create the JavaScript object
     let worker_obj = worker.create_js_object(context)?;
+
+    // Set scriptURL property on the worker instance (non-standard but widely supported)
+    worker_obj.set(
+        js_string!("scriptURL"),
+        JsValue::from(js_string!(worker_obj.downcast_ref::<Worker>()
+            .map(|w| w.script_url.clone())
+            .unwrap_or_default())),
+        false,
+        context,
+    )?;
 
     Ok(worker_obj.into())
 }
@@ -335,10 +352,16 @@ impl BuiltInConstructor for WorkerConstructor {
         StandardConstructors::worker;
 
     fn constructor(
-        _new_target: &JsValue,
+        new_target: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
+        // Per spec, Worker must be called with 'new'
+        if new_target.is_undefined() {
+            return Err(JsNativeError::typ()
+                .with_message("Worker requires 'new'")
+                .into());
+        }
         worker_constructor(args, context)
     }
 }

@@ -1,29 +1,10 @@
 #[tokio::test]
 async fn test_navigator_plugins_exists() {
-    use boa_engine::builtins::{IntrinsicObject, BuiltInConstructor};
-    use thalora_browser_apis::browser::navigator::Navigator;
-
     let mut context = Context::default();
-    let realm = context.realm().clone();
 
-    // Manually initialize just the Navigator (minimal test)
-    Navigator::init(&realm);
-
-    // Create a navigator instance using the constructor
-    let navigator_constructor = Navigator::get(context.intrinsics());
-    let navigator_instance = Navigator::constructor(
-        &navigator_constructor.clone().into(),
-        &[],
-        &mut context,
-    ).expect("Failed to create navigator instance");
-
-    // Set it as a global
-    context.global_object().set(
-        boa_engine::js_string!("navigator"),
-        navigator_instance,
-        false,
-        &mut context
-    ).expect("Failed to set global navigator");
+    // Use the standard browser API initialization which creates the navigator instance
+    thalora_browser_apis::initialize_browser_apis(&mut context)
+        .expect("Failed to initialize browser APIs");
 
     // Test navigator exists
     let result = context.eval(Source::from_bytes("typeof navigator")).unwrap();

@@ -58,15 +58,17 @@ impl McpTestHarness {
 
     /// Create a new MCP test harness with custom configuration
     pub fn with_config(config: McpTestConfig) -> Result<Self> {
-        let binary_path = if config.use_release_build {
-            "./target/release/thalora"
-        } else {
-            // For debug builds, we'll use cargo run
-            "cargo"
-        };
+        // Resolve the project root directory (tests run from project root)
+        let project_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let release_binary = project_root.join("target/release/thalora");
+        let debug_binary = project_root.join("target/debug/thalora");
 
-        let mut cmd = if config.use_release_build {
-            Command::new(binary_path)
+        // Auto-detect available binary: prefer release if requested and available,
+        // fall back to debug binary, then fall back to cargo run
+        let mut cmd = if config.use_release_build && release_binary.exists() {
+            Command::new(&release_binary)
+        } else if debug_binary.exists() {
+            Command::new(&debug_binary)
         } else {
             let mut cmd = Command::new("cargo");
             cmd.args(&["run", "--quiet", "--bin", "thalora"]);

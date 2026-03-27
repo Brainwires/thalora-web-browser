@@ -892,7 +892,33 @@ fn build_styled_element_from_dom(
                     let has_trailing_ws = raw_text.ends_with(char::is_whitespace);
                     let collapsed = raw_text.split_whitespace().collect::<Vec<_>>().join(" ");
                     if collapsed.is_empty() {
-                        // Whitespace-only text between inline elements → single space
+                        // Whitespace-only text nodes: per CSS 2.1 §9.2.1.1, if
+                        // the whitespace-only text is a child of a block container
+                        // and all its element siblings are block-level, suppress it
+                        // (inter-block whitespace). Otherwise collapse to single space.
+                        let all_siblings_block = element_ref.children().all(|sibling| {
+                            match sibling.value() {
+                                Node::Text(t) => {
+                                    // Other whitespace-only text nodes don't prevent suppression
+                                    t.text.as_ref().trim().is_empty()
+                                }
+                                Node::Element(el) => {
+                                    let sib_tag = el.name.local.as_ref();
+                                    matches!(sib_tag,
+                                        "div" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
+                                        | "ul" | "ol" | "li" | "dl" | "dt" | "dd"
+                                        | "article" | "aside" | "footer" | "header" | "main"
+                                        | "nav" | "section" | "blockquote" | "pre" | "figure"
+                                        | "figcaption" | "details" | "summary" | "hr" | "table"
+                                        | "form" | "fieldset" | "address"
+                                    )
+                                }
+                                _ => true,
+                            }
+                        });
+                        if all_siblings_block {
+                            continue;  // Suppress inter-block whitespace
+                        }
                         if has_leading_ws || has_trailing_ws {
                             " ".to_string()
                         } else {
