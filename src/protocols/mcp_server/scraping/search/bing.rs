@@ -173,25 +173,34 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
         query, search_url
     );
 
-    let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
+    let url = search_url.clone();
+    // Use spawn_blocking to ensure the browser is created and dropped outside
+    // the async runtime context, avoiding "Cannot drop a runtime" panics.
+    let html = tokio::task::spawn_blocking(move || -> Result<String> {
+        let rt = tokio::runtime::Handle::current();
+        let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
-    {
-        let mut browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_options(&search_url, true).await?;
-    }
+        {
+            let mut browser = temp_browser
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            rt.block_on(browser.navigate_to_with_options(&url, true))?;
+        }
 
-    let html = {
-        let browser = temp_browser
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.get_current_content()
-    };
+        let content = {
+            let browser = temp_browser
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
+            browser.get_current_content()
+        };
 
-    drop(temp_browser);
+        Ok(content)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Task join error: {}", e))??;
 
-    parse_image_results(&html, query, num_results)
+    let query_owned = query.to_string();
+    parse_image_results(&html, &query_owned, num_results)
 }
 
 pub fn parse_image_results(

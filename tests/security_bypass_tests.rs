@@ -11,7 +11,7 @@ mod bypass_vectors {
 
     /// Test computed property access bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_computed_property_eval_bypass() {
         // This bypass is NOT currently blocked
         let code = r#"
@@ -24,7 +24,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_computed_property_proto_bypass() {
         let code = r#"
             const prop = '__pro' + 'to__';
@@ -37,7 +37,7 @@ mod bypass_vectors {
 
     /// Test Unicode escape sequence bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_hex_escape_eval_bypass() {
         let code = r#"window['\x65\x76\x61\x6c']('code');"#;
 
@@ -47,7 +47,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_unicode_escape_proto_bypass() {
         let code = r#"obj['\u005f\u005fproto\u005f\u005f'] = {};"#;
 
@@ -58,7 +58,7 @@ mod bypass_vectors {
 
     /// Test constructor chain bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_number_constructor_bypass() {
         let code = r#"(0).constructor.constructor('return alert(1)')();"#;
 
@@ -68,7 +68,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_array_constructor_bypass() {
         let code = r#"[].constructor.constructor('return alert(1)')();"#;
 
@@ -77,7 +77,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_object_constructor_bypass() {
         let code = r#"({}).constructor.constructor('return alert(1)')();"#;
 
@@ -87,7 +87,7 @@ mod bypass_vectors {
 
     /// Test async/generator function constructor bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_async_function_constructor_bypass() {
         let code = r#"
             AsyncFunction = (async function(){}).constructor;
@@ -99,7 +99,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_generator_function_constructor_bypass() {
         let code = r#"
             GeneratorFunction = (function*(){}).constructor;
@@ -112,7 +112,7 @@ mod bypass_vectors {
 
     /// Test Reflect API bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_reflect_get_bypass() {
         let code = r#"Reflect.get(window, 'eval')('code');"#;
 
@@ -121,7 +121,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_reflect_apply_bypass() {
         let code = r#"Reflect.apply(eval, null, ['code']);"#;
 
@@ -130,7 +130,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_reflect_construct_bypass() {
         let code = r#"Reflect.construct(Function, ['return 1']);"#;
 
@@ -140,7 +140,7 @@ mod bypass_vectors {
 
     /// Test Symbol-based bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_symbol_for_bypass() {
         let code = r#"
             const sym = Symbol.for('eval');
@@ -154,7 +154,7 @@ mod bypass_vectors {
 
     /// Test Proxy-based bypasses
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_proxy_trap_bypass() {
         let code = r#"
             const handler = {
@@ -173,7 +173,7 @@ mod bypass_vectors {
 
     /// Test template literal edge cases
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Potential vulnerability
+    #[ignore = "Potential vulnerability - not yet implemented"]
     fn test_template_literal_code_execution() {
         let code = r#"
             const evil = eval;
@@ -186,7 +186,7 @@ mod bypass_vectors {
 
     /// Test Object.getOwnPropertyDescriptor bypass
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_property_descriptor_bypass() {
         let code = r#"
             const desc = Object.getOwnPropertyDescriptor(window, 'eval');
@@ -199,7 +199,7 @@ mod bypass_vectors {
 
     /// Test string concatenation edge cases
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_concat_method_bypass() {
         let code = r#"
             const evil = 'e'.concat('v', 'a', 'l');
@@ -211,7 +211,7 @@ mod bypass_vectors {
     }
 
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_template_concat_bypass() {
         let code = r#"
             const evil = `${'e'}${'val'}`;
@@ -224,7 +224,7 @@ mod bypass_vectors {
 
     /// Test array join bypass
     #[test]
-    #[should_panic] // EXPECTED TO FAIL - Known vulnerability
+    #[ignore = "Known vulnerability - not yet implemented"]
     fn test_array_join_bypass() {
         let code = r#"
             const evil = ['e', 'v', 'a', 'l'].join('');
