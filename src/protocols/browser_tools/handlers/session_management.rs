@@ -14,15 +14,21 @@ impl BrowserTools {
                     .get("persistent")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                // Generate a unique session ID using timestamp and random component
-                let session_id = format!(
-                    "session_{}_{}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis(),
-                    rand::random::<u32>()
-                );
+                // Use provided session_id or generate a unique one
+                let session_id = params
+                    .get("session_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| {
+                        format!(
+                            "session_{}_{}",
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis(),
+                            rand::random::<u32>()
+                        )
+                    });
                 let _browser = self.get_or_create_session(&session_id, persistent);
                 McpResponse::success(json!({
                     "session_id": session_id,

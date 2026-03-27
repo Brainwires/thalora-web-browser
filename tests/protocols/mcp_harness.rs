@@ -236,9 +236,14 @@ impl McpTestHarness {
             let _ = tx.send((result, line, stdout_back));
         });
 
-        let (read_result, response_line, stdout_back) =
-            rx.recv_timeout(Duration::from_secs(30))
-                .map_err(|_| anyhow::anyhow!("Timeout waiting for MCP server response (30s)"))?;
+        let (read_result, response_line, stdout_back) = match rx.recv_timeout(Duration::from_secs(30)) {
+            Ok(result) => result,
+            Err(_) => {
+                // Timeout: kill the subprocess to unblock the reader thread and clean up
+                let _ = self.process.kill();
+                bail!("Timeout waiting for MCP server response (30s)");
+            }
+        };
 
         // Restore stdout for future reads
         self.process.stdout = Some(stdout_back);
