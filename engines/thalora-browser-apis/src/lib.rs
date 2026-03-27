@@ -263,72 +263,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
-    // Register navigator instance (lowercase) - per spec, window.navigator is a
-    // Navigator instance with the Navigator prototype, not the constructor itself
-    {
-        let navigator_constructor = browser::navigator::Navigator::get(context.intrinsics());
-        let navigator_proto = navigator_constructor
-            .get(boa_engine::js_string!("prototype"), context)?
-            .as_object()
-            .map(|o| o.clone());
-        let navigator_instance = boa_engine::object::JsObject::from_proto_and_data(
-            navigator_proto,
-            browser::navigator::Navigator::new(),
-        );
-        global_object.define_property_or_throw(
-            boa_engine::js_string!("navigator"),
-            PropertyDescriptor::builder()
-                .value(navigator_instance.clone())
-                .writable(false)
-                .enumerable(true)
-                .configurable(false),
-            context,
-        )?;
-
-        // Per Geolocation API spec, navigator.geolocation must always exist.
-        // Set up via JS evaluation - provides standard interface with mock coordinates.
-        // The native feature's GeolocationManager can override with real data.
-        use boa_engine::Source;
-        context.eval(Source::from_bytes(r#"
-            (function() {
-                var _watchId = 0;
-                var _mockPosition = {
-                    coords: {
-                        latitude: 37.7749,
-                        longitude: -122.4194,
-                        accuracy: 100.0,
-                        altitude: null,
-                        altitudeAccuracy: null,
-                        heading: null,
-                        speed: null
-                    },
-                    timestamp: Date.now()
-                };
-                navigator.geolocation = {
-                    getCurrentPosition: function(successCallback, errorCallback, options) {
-                        if (typeof successCallback !== 'function') {
-                            throw new TypeError('getCurrentPosition requires a success callback');
-                        }
-                        _mockPosition.timestamp = Date.now();
-                        successCallback(_mockPosition);
-                    },
-                    watchPosition: function(successCallback, errorCallback, options) {
-                        if (typeof successCallback !== 'function') {
-                            throw new TypeError('watchPosition requires a success callback');
-                        }
-                        _watchId++;
-                        _mockPosition.timestamp = Date.now();
-                        successCallback(_mockPosition);
-                        return _watchId;
-                    },
-                    clearWatch: function(id) { /* no-op */ }
-                };
-            })();
-        "#)).map_err(|e| {
-            boa_engine::JsNativeError::typ()
-                .with_message(format!("Failed to initialize geolocation: {}", e))
-        })?;
-    }
+    // Navigator instance is created later (after Window) with storage/locks set up.
+    // The global `navigator` property is set at that point to ensure
+    // `window.navigator === navigator` holds true.
 
     // Event APIs
     global_object.define_property_or_throw(
@@ -1462,9 +1399,61 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         }
     }
 
-    // Also set as global navigator
-    global_object.set(boa_engine::js_string!("navigator"), navigator_instance.clone(), false, context)
-        .expect("failed to set global navigator");
+    // Set as global navigator (same object as window.navigator)
+    global_object.define_property_or_throw(
+        boa_engine::js_string!("navigator"),
+        boa_engine::property::PropertyDescriptor::builder()
+            .value(navigator_instance.clone())
+            .writable(false)
+            .enumerable(true)
+            .configurable(true),
+        context,
+    ).expect("failed to set global navigator");
+
+    // Per Geolocation API spec, navigator.geolocation must always exist.
+    // Set up via JS evaluation - provides standard interface with mock coordinates.
+    {
+        use boa_engine::Source;
+        context.eval(Source::from_bytes(r#"
+            (function() {
+                var _watchId = 0;
+                var _mockPosition = {
+                    coords: {
+                        latitude: 37.7749,
+                        longitude: -122.4194,
+                        accuracy: 100.0,
+                        altitude: null,
+                        altitudeAccuracy: null,
+                        heading: null,
+                        speed: null
+                    },
+                    timestamp: Date.now()
+                };
+                navigator.geolocation = {
+                    getCurrentPosition: function(successCallback, errorCallback, options) {
+                        if (typeof successCallback !== 'function') {
+                            throw new TypeError('getCurrentPosition requires a success callback');
+                        }
+                        _mockPosition.timestamp = Date.now();
+                        successCallback(_mockPosition);
+                    },
+                    watchPosition: function(successCallback, errorCallback, options) {
+                        if (typeof successCallback !== 'function') {
+                            throw new TypeError('watchPosition requires a success callback');
+                        }
+                        _watchId++;
+                        _mockPosition.timestamp = Date.now();
+                        successCallback(_mockPosition);
+                        return _watchId;
+                    },
+                    clearWatch: function(id) { /* no-op */ }
+                };
+            })();
+        "#)).map_err(|e| {
+            boa_engine::JsNativeError::typ()
+                .with_message(format!("Failed to initialize geolocation: {}", e))
+        })?;
+    }
 
     // Create and set global location object
     let location_constructor = context.intrinsics().constructors().location().constructor();
