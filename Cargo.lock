@@ -8244,6 +8244,8 @@ dependencies = [
  "base64 0.22.1",
  "boa_engine",
  "boa_gc",
+ "boa_macros",
+ "boa_parser",
  "bytes",
  "cbc",
  "cfg-if",
@@ -11266,6 +11268,13 @@ name = "xml-rs"
 version = "0.8.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
 
 [[package]]
 name = "y4m"

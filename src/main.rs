@@ -76,6 +76,12 @@ struct Cli {
         help = "Use V8 JavaScript engine for execution"
     )]
     use_v8_engine: bool,
+
+    /// Enable BrainClaw preset when running without a subcommand.
+    /// Enables scraping + search + sessions + CDP with agent-friendly aliases.
+    /// Equivalent to setting THALORA_PRESET=brainclaw.
+    #[arg(long = "brainclaw", help = "Enable BrainClaw preset (full feature set + agent-friendly aliases)")]
+    brainclaw: bool,
 }
 
 #[derive(Subcommand)]
@@ -85,6 +91,11 @@ enum Commands {
         /// MCP mode: 'minimal' for basic scraping (default), 'full' for all features
         #[arg(long, default_value = "minimal")]
         mcp_mode: String,
+
+        /// Enable BrainClaw preset: scraping + search + sessions + CDP with agent-friendly aliases.
+        /// Equivalent to setting THALORA_PRESET=brainclaw.
+        #[arg(long = "brainclaw", help = "Enable BrainClaw preset (scraping + search + sessions + CDP + agent-friendly aliases)")]
+        brainclaw: bool,
     },
     /// Run as browser session process
     Session {
@@ -168,11 +179,17 @@ async fn main() -> Result<()> {
             // Run as display server
             run_display_server(host, port).await
         }
-        Some(Commands::Server { mcp_mode }) => {
+        Some(Commands::Server { mcp_mode, brainclaw }) => {
             // Run as MCP server with specified mode
             // SAFETY: This is called at program startup before any threads are spawned
             unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
-            eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
+            if brainclaw {
+                // SAFETY: called at startup before any threads are spawned
+                unsafe { std::env::set_var("THALORA_PRESET", "brainclaw") };
+                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset]", mcp_mode);
+            } else {
+                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
+            }
 
             let mut server = McpServer::new_with_engine(engine_config);
 
@@ -194,7 +211,13 @@ async fn main() -> Result<()> {
                 std::env::var("THALORA_MCP_MODE").unwrap_or_else(|_| "minimal".to_string());
             // SAFETY: This is called at program startup before any threads are spawned
             unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
-            eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
+            if cli.brainclaw {
+                // SAFETY: called at startup before any threads are spawned
+                unsafe { std::env::set_var("THALORA_PRESET", "brainclaw") };
+                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset]", mcp_mode);
+            } else {
+                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
+            }
 
             let mut server = McpServer::new_with_engine(engine_config);
 

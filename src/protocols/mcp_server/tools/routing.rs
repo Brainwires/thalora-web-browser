@@ -167,6 +167,29 @@ impl McpServer {
             "browser_navigate_back" => self.browser_tools.handle_navigate_back(arguments).await,
             "browser_navigate_to" => self.browser_tools.handle_navigate_to(arguments).await,
 
+            // ── BrainClaw agent-friendly aliases ────────────────────────────────
+            // One-shot read: navigate + extract markdown in a single call
+            "browser_read_url" => self.handle_browser_read_url(arguments).await,
+            // Navigation
+            "browser_navigate" => self.browser_tools.handle_navigate_to(arguments).await,
+            // Interaction
+            "browser_click" => self.browser_tools.handle_click_element(arguments).await,
+            "browser_fill" => self.browser_tools.handle_fill_form(arguments).await,
+            // CDP
+            "browser_eval" => {
+                self.cdp_tools
+                    .evaluate_javascript(arguments, &mut self.cdp_server)
+                    .await
+            }
+            "browser_screenshot" => {
+                self.cdp_tools
+                    .take_screenshot(arguments, &mut self.cdp_server)
+                    .await
+            }
+            // Extraction / search
+            "browser_extract" => self.handle_snapshot_url(arguments).await,
+            "browser_search" => self.web_search(arguments).await,
+
             // WASM Debug tools
             #[cfg(feature = "wasm-debug")]
             "wasm_debug_load_module"
@@ -183,6 +206,22 @@ impl McpServer {
             // Unknown/Unhandled tool
             _ => McpResponse::error(-32601, format!("Tool not found: {}", name)),
         }
+    }
+
+    /// `browser_read_url` — navigate to a URL and return clean markdown in one shot.
+    ///
+    /// Forwards to `handle_snapshot_url` with `extract_readable=true` and `format="markdown"`
+    /// preset, while preserving any extra arguments the caller supplied.
+    async fn handle_browser_read_url(&mut self, mut arguments: serde_json::Value) -> McpResponse {
+        // Default to readable markdown extraction
+        if arguments.get("extract_readable").is_none() {
+            arguments["extract_readable"] = serde_json::json!(true);
+        }
+        if arguments.get("format").is_none() {
+            arguments["format"] = serde_json::json!("markdown");
+        }
+        // extract_basic true by default in snapshot_url already; keep that behaviour
+        self.handle_snapshot_url(arguments).await
     }
 
     /// Route WASM debug tool calls to the WasmDebugTools handler

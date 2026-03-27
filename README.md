@@ -538,20 +538,21 @@ Our compatibility tests run against:
 
 ## 🔮 **Roadmap**
 
-### Q1 2024
+### v0.2.0 (Released)
 - ✅ Core browser engine with JavaScript
 - ✅ Modern Web APIs implementation
-- ✅ AI memory system
+- ✅ AI memory system with AES-256-GCM encryption
 - ✅ MCP integration with 17+ tools
 - ✅ Chrome DevTools Protocol support
+- ✅ Security hardening (SSRF prevention, origin isolation, JS sandboxing)
 
-### Q2 2024
+### v0.3.0
 - 🔄 WebGPU implementation
 - 🔄 Advanced fingerprinting evasion
 - 🔄 Browser extensions support
 - 🔄 Performance optimizations
 
-### Q3 2024
+### v0.4.0
 - 📋 Multi-tab/window support
 - 📋 WebCodecs API
 - 📋 Advanced authentication flows
@@ -573,6 +574,6 @@ Built with excellent open-source projects:
 
 ---
 
-**Thalora v0.1.0** - The most advanced headless browser for AI agents, built entirely in Rust 🦀
+**Thalora v0.2.0** - The most advanced headless browser for AI agents, built entirely in Rust 🦀
 
 *Where artificial intelligence meets authentic web browsing* 🧠🌐

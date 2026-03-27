@@ -158,7 +158,6 @@ https://example.com     # ✅ ALLOWED (public IP)
 
 Run tests:
 ```bash
-cd rust/thalora-web-browser
 cargo test
 cargo test --test security_tests
 cargo clippy -- -D warnings

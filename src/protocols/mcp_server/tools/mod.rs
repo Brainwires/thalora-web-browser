@@ -16,6 +16,7 @@ mod routing;
 // Re-export for internal use
 use definitions::*;
 use features::*;
+pub(crate) use features::is_brainclaw_preset;
 
 /*
     Define the available tools for the MCP server, including AI memory management,
@@ -94,6 +95,11 @@ impl McpServer {
         #[cfg(feature = "wasm-debug")]
         if is_wasm_debug_enabled() {
             tools.extend(get_wasm_debug_tool_definitions());
+        }
+
+        // BrainClaw preset — add agent-friendly alias tools on top of the full toolset
+        if is_brainclaw_preset() {
+            tools.extend(get_brainclaw_alias_tool_definitions());
         }
 
         tools

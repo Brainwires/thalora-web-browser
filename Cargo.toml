@@ -1,6 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "engines/thalora-browser-apis",
+    "vfs",
+    "shared/thalora-constants",
+    "xtask",
+]
+# engines/boa is a self-contained workspace fork — keep it excluded so its own
+# [workspace] section and workspace.dependencies remain intact.
+exclude = ["engines/boa"]
+
 [package]
 name = "thalora"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Pure Rust headless browser for AI models - fast, secure web content extraction with MCP integration"
 authors = ["Brainwires Team"]

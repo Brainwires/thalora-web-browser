@@ -1,5 +1,6 @@
 // Tool definition modules - each containing schema definitions for different tool categories
 mod advanced;
+mod brainclaw;
 mod browser;
 mod cdp;
 mod memory;
@@ -10,6 +11,7 @@ mod wasm_debug;
 
 // Re-export all tool definition functions
 pub(crate) use advanced::get_advanced_tool_definitions;
+pub(crate) use brainclaw::get_brainclaw_alias_tool_definitions;
 pub(crate) use browser::get_browser_automation_tool_definitions;
 pub(crate) use cdp::get_cdp_tool_definitions;
 pub(crate) use memory::get_memory_tool_definitions;
