@@ -20,6 +20,7 @@ pub mod wasm_debug_tools_test;
 #[allow(unused_imports)]
 pub use mcp_harness::{
     McpTestConfig, McpTestHarness, McpToolResponse, create_harness_with_disabled_categories,
-    create_harness_with_env, create_harness_with_only_categories, create_initialized_harness,
+    create_harness_with_env, create_harness_with_only_categories, create_harness_with_raw_env,
+    create_initialized_harness,
     create_release_harness,
 };

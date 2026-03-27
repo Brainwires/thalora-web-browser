@@ -321,32 +321,49 @@ pub fn create_release_harness() -> Result<McpTestHarness> {
 }
 
 /// Create a test harness with custom environment variables
+/// Custom env vars are merged on top of the defaults (THALORA_MCP_MODE=full, etc.)
 pub fn create_harness_with_env(
     env_vars: std::collections::HashMap<String, String>,
 ) -> Result<McpTestHarness> {
-    let config = McpTestConfig {
-        env_vars,
-        ..Default::default()
-    };
+    let mut default_config = McpTestConfig::default();
+    // Merge custom env vars on top of defaults
+    for (key, value) in env_vars {
+        default_config.env_vars.insert(key, value);
+    }
+    let mut harness = McpTestHarness::with_config(default_config)?;
+    harness.initialize()?;
+    Ok(harness)
+}
+
+/// Create a test harness with raw environment variables (no defaults merged)
+/// Use this to test true default behavior without any THALORA_* env vars.
+pub fn create_harness_with_raw_env(
+    env_vars: std::collections::HashMap<String, String>,
+) -> Result<McpTestHarness> {
+    let mut config = McpTestConfig::default();
+    config.env_vars = env_vars; // Replace defaults entirely
     let mut harness = McpTestHarness::with_config(config)?;
     harness.initialize()?;
     Ok(harness)
 }
 
-/// Create a test harness with specific tool categories disabled
+/// Create a test harness with specific tool categories disabled.
+/// Uses explicit env vars without merging defaults.
 pub fn create_harness_with_disabled_categories(
     disabled_categories: &[&str],
 ) -> Result<McpTestHarness> {
     let mut env_vars = std::collections::HashMap::new();
 
-    // Start with all categories enabled
+    // Always use full mode for category-specific tests
+    env_vars.insert("THALORA_MCP_MODE".to_string(), "full".to_string());
+
+    // All actual server environment variables for tool categories
     let all_categories = [
         "THALORA_ENABLE_AI_MEMORY",
         "THALORA_ENABLE_CDP",
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
-        "THALORA_ENABLE_BROWSER_AUTOMATION",
-        "THALORA_ENABLE_SESSION_MANAGEMENT",
+        "THALORA_ENABLE_SESSIONS",
     ];
 
     for category in all_categories {
@@ -357,20 +374,23 @@ pub fn create_harness_with_disabled_categories(
         }
     }
 
-    create_harness_with_env(env_vars)
+    create_harness_with_raw_env(env_vars)
 }
 
 /// Create a test harness with only specific tool categories enabled
 pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Result<McpTestHarness> {
     let mut env_vars = std::collections::HashMap::new();
 
+    // Always use full mode for category-specific tests
+    env_vars.insert("THALORA_MCP_MODE".to_string(), "full".to_string());
+
+    // All actual server environment variables for tool categories
     let all_categories = [
         "THALORA_ENABLE_AI_MEMORY",
         "THALORA_ENABLE_CDP",
         "THALORA_ENABLE_SCRAPING",
         "THALORA_ENABLE_SEARCH",
-        "THALORA_ENABLE_BROWSER_AUTOMATION",
-        "THALORA_ENABLE_SESSION_MANAGEMENT",
+        "THALORA_ENABLE_SESSIONS",
     ];
 
     for category in all_categories {
@@ -381,7 +401,7 @@ pub fn create_harness_with_only_categories(enabled_categories: &[&str]) -> Resul
         }
     }
 
-    create_harness_with_env(env_vars)
+    create_harness_with_raw_env(env_vars)
 }
 
 /// Validate that a tool response contains expected fields

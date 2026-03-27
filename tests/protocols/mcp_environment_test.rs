@@ -30,9 +30,9 @@ fn test_all_tools_enabled_by_default() {
         "Should have CDP tools enabled by default"
     );
 
-    // Scraping tools
+    // Scraping tools (snapshot_url is the unified scraping tool)
     assert!(
-        tool_names.iter().any(|name| name.starts_with("scrape_")),
+        tool_names.iter().any(|name| name == "snapshot_url" || name == "snapshot_url" || name.starts_with("scrape_")),
         "Should have scraping tools enabled by default"
     );
 
@@ -91,7 +91,7 @@ fn test_ai_memory_tools_disabled() {
         "CDP tools should still be enabled"
     );
     assert!(
-        tool_names.iter().any(|name| name.starts_with("scrape_")),
+        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should still be enabled"
     );
 
@@ -126,7 +126,7 @@ fn test_cdp_tools_disabled() {
         "AI memory tools should still be enabled"
     );
     assert!(
-        tool_names.iter().any(|name| name.starts_with("scrape_")),
+        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should still be enabled"
     );
 
@@ -159,7 +159,7 @@ fn test_scraping_tools_disabled() {
 
     // Scraping tools should not be available
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("scrape_")),
+        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
 
@@ -219,7 +219,8 @@ fn test_search_tools_disabled() {
 // Test disabling sessions (browser automation + session management)
 #[test]
 fn test_sessions_tools_disabled() {
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_SESSIONS"])
+    // CDP implies sessions, so both must be disabled to truly disable browser tools
+    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_SESSIONS", "THALORA_ENABLE_CDP"])
         .expect("Failed to create harness with disabled sessions");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
@@ -254,9 +255,10 @@ fn test_sessions_tools_disabled() {
         tool_names.iter().any(|name| name.starts_with("ai_memory_")),
         "AI memory tools should still be enabled"
     );
+    // Note: CDP is also disabled since it implies sessions
     assert!(
-        tool_names.iter().any(|name| name.starts_with("cdp_")),
-        "CDP tools should still be enabled"
+        !tool_names.iter().any(|name| name.starts_with("cdp_")),
+        "CDP tools should be disabled (CDP implies sessions)"
     );
 
     eprintln!(
@@ -305,7 +307,7 @@ fn test_cdp_enables_sessions_automatically() {
         "AI memory tools should be disabled"
     );
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("scrape_")),
+        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
 
@@ -339,7 +341,7 @@ fn test_multiple_categories_disabled() {
         "AI memory tools should be disabled"
     );
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("scrape_")),
+        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
     assert!(
@@ -391,7 +393,7 @@ fn test_only_specific_categories_enabled() {
 
     // Disabled categories should not be available
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("scrape_")),
+        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
     assert!(
@@ -400,9 +402,10 @@ fn test_only_specific_categories_enabled() {
             .any(|name| name == "web_search" || name == "image_search"),
         "Search tools should be disabled"
     );
+    // Note: CDP implies sessions, so browser tools ARE available when CDP is enabled
     assert!(
-        !tool_names.iter().any(|name| name.starts_with("browser_")),
-        "Browser tools should be disabled"
+        tool_names.iter().any(|name| name.starts_with("browser_")),
+        "Browser tools should be enabled (CDP implies sessions)"
     );
 
     eprintln!(
@@ -495,7 +498,7 @@ fn test_all_categories_disabled() {
 fn test_default_behavior_no_env_vars() {
     // Create harness with empty environment variables to test true defaults
     let env_vars = std::collections::HashMap::new();
-    let mut harness = create_harness_with_env(env_vars)
+    let mut harness = create_harness_with_raw_env(env_vars)
         .expect("Failed to create harness with no environment variables");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
@@ -511,11 +514,12 @@ fn test_default_behavior_no_env_vars() {
         "Should have scraping tools available by default"
     );
     assert!(
-        tool_names.iter().any(|name| name.starts_with("scrape_")),
+        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Should have scraping tools enabled by default"
     );
 
-    // Other categories should be disabled
+    // In minimal mode (default), only scraping and search tools are available
+    // AI memory, CDP, and browser tools should be disabled
     assert!(
         !tool_names.iter().any(|name| name.starts_with("ai_memory_")),
         "AI memory tools should be disabled by default"
@@ -528,11 +532,12 @@ fn test_default_behavior_no_env_vars() {
         !tool_names.iter().any(|name| name.starts_with("browser_")),
         "Browser tools should be disabled by default"
     );
+    // Search tools are included in minimal mode alongside scraping
     assert!(
-        !tool_names
+        tool_names
             .iter()
-            .any(|name| name == "web_search" || name == "image_search"),
-        "Search tools should be disabled by default"
+            .any(|name| name == "web_search"),
+        "Search tools should be available in minimal mode"
     );
 
     eprintln!(
@@ -567,7 +572,7 @@ fn test_custom_environment_variables() {
         "AI memory tools should be enabled"
     );
     assert!(
-        tool_names.iter().any(|name| name.starts_with("scrape_")),
+        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be enabled"
     );
     assert!(
