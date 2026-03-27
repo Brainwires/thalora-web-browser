@@ -10,6 +10,10 @@ fn debug_worker_availability_through_thalora_setup() {
         .build()
         .expect("failed to build JS context");
 
+    // Initialize browser APIs (required for Worker availability)
+    thalora_browser_apis::initialize_browser_apis(&mut context)
+        .expect("Failed to initialize browser APIs");
+
     // Helper function to check Worker availability
     let check_worker = |context: &mut Context, step: &str| {
         let result = context.eval(Source::from_bytes("typeof Worker"));
@@ -26,9 +30,13 @@ fn debug_worker_availability_through_thalora_setup() {
         }
     };
 
-    // Check initial state (should be function from Boa's set_default_global_bindings)
-    let initial = check_worker(&mut context, "Initial Context");
-    assert!(initial, "Worker should be available initially");
+    // Check state after browser API initialization
+    // Worker requires the 'native' feature to be available
+    let initial = check_worker(&mut context, "After browser APIs");
+    #[cfg(feature = "native")]
+    assert!(initial, "Worker should be available with native feature");
+    #[cfg(not(feature = "native"))]
+    println!("   Worker not available without 'native' feature (expected)");
 
     // Step 1: setup_all_polyfills
     println!("\n📋 Step 1: Running setup_all_polyfills...");

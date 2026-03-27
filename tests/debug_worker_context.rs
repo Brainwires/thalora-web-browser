@@ -4,9 +4,11 @@ use boa_engine::{Context, Source};
 fn debug_worker_availability_in_contexts() {
     println!("🔍 Debugging Worker API availability in different contexts...");
 
-    // Test 1: Default Context (what Boa unit tests use)
-    println!("\n📋 Test 1: Context::default()");
+    // Test 1: Context with browser APIs initialized
+    println!("\n📋 Test 1: Context with initialize_browser_apis()");
     let mut default_context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut default_context)
+        .expect("Failed to initialize browser APIs");
     let result = default_context.eval(Source::from_bytes("typeof Worker"));
     match result {
         Ok(value) => {
@@ -14,15 +16,19 @@ fn debug_worker_availability_in_contexts() {
                 .to_string(&mut default_context)
                 .unwrap()
                 .to_std_string_escaped();
-            println!("   Worker type in default context: '{}'", type_str);
+            println!("   Worker type in initialized context: '{}'", type_str);
+            // Worker is only available with the 'native' feature
+            #[cfg(feature = "native")]
             assert_eq!(
                 type_str, "function",
-                "Worker should be available in default context"
+                "Worker should be available with native feature"
             );
+            #[cfg(not(feature = "native"))]
+            println!("   Worker not available without 'native' feature (expected)");
         }
         Err(e) => {
             println!("   Error in default context: {:?}", e);
-            panic!("Worker should be available in default context");
+            panic!("Eval should not fail");
         }
     }
 
