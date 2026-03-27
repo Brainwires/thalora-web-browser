@@ -219,19 +219,31 @@ impl McpTestHarness {
 
         stdin.flush().context("Failed to flush stdin")?;
 
-        // Read response
+        // Read response with timeout to prevent hanging indefinitely.
+        // Spawn a thread to do the blocking read, use a channel to get the result.
         let stdout = self
             .process
             .stdout
-            .as_mut()
+            .take()
             .context("Failed to get stdout handle")?;
 
-        let mut reader = BufReader::new(stdout);
-        let mut response_line = String::new();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
+            let result = reader.read_line(&mut line);
+            let stdout_back = reader.into_inner();
+            let _ = tx.send((result, line, stdout_back));
+        });
 
-        reader
-            .read_line(&mut response_line)
-            .context("Failed to read response from stdout")?;
+        let (read_result, response_line, stdout_back) =
+            rx.recv_timeout(Duration::from_secs(30))
+                .map_err(|_| anyhow::anyhow!("Timeout waiting for MCP server response (30s)"))?;
+
+        // Restore stdout for future reads
+        self.process.stdout = Some(stdout_back);
+
+        read_result.context("Failed to read response from stdout")?;
 
         if response_line.trim().is_empty() {
             bail!("Received empty response from MCP server");
