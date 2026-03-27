@@ -146,7 +146,7 @@ fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         if let Some(values) = data.entries.get(&name) {
-            let array = boa_engine::object::builtins::JsArray::new(context);
+            let array = boa_engine::object::builtins::JsArray::new(context)?;
             for value in values {
                 array.push(js_string!(value.clone()), context)?;
             }
@@ -154,7 +154,7 @@ fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         }
     }
 
-    Ok(boa_engine::object::builtins::JsArray::new(context).into())
+    Ok(boa_engine::object::builtins::JsArray::new(context)?.into())
 }
 
 fn has(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -191,7 +191,7 @@ fn keys(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<Js
         JsNativeError::typ().with_message("FormData.prototype.keys called on non-object")
     })?;
 
-    let array = boa_engine::object::builtins::JsArray::new(context);
+    let array = boa_engine::object::builtins::JsArray::new(context)?;
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         for key in data.entries.keys() {
@@ -207,7 +207,7 @@ fn values(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("FormData.prototype.values called on non-object")
     })?;
 
-    let array = boa_engine::object::builtins::JsArray::new(context);
+    let array = boa_engine::object::builtins::JsArray::new(context)?;
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         for values in data.entries.values() {
@@ -225,12 +225,12 @@ fn entries(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("FormData.prototype.entries called on non-object")
     })?;
 
-    let array = boa_engine::object::builtins::JsArray::new(context);
+    let array = boa_engine::object::builtins::JsArray::new(context)?;
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         for (key, values) in &data.entries {
             for value in values {
-                let entry = boa_engine::object::builtins::JsArray::new(context);
+                let entry = boa_engine::object::builtins::JsArray::new(context)?;
                 entry.push(js_string!(key.clone()), context)?;
                 entry.push(js_string!(value.clone()), context)?;
                 array.push(entry, context)?;

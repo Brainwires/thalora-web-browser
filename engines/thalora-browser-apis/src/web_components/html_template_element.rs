@@ -151,11 +151,11 @@ impl HTMLTemplateElement {
             .build();
 
         // Add childNodes array
-        let child_nodes = boa_engine::object::builtins::JsArray::new(context);
+        let child_nodes = boa_engine::object::builtins::JsArray::new(context)?;
         fragment.set(js_string!("childNodes"), child_nodes, false, context)?;
 
         // Add children array
-        let children = boa_engine::object::builtins::JsArray::new(context);
+        let children = boa_engine::object::builtins::JsArray::new(context)?;
         fragment.set(js_string!("children"), children, false, context)?;
 
         // Add basic methods
@@ -286,7 +286,7 @@ impl HTMLTemplateElement {
         context: &mut Context,
     ) -> JsResult<JsValue> {
         // Return empty NodeList
-        let array = boa_engine::object::builtins::JsArray::new(context);
+        let array = boa_engine::object::builtins::JsArray::new(context)?;
         Ok(array.into())
     }
 }

@@ -511,9 +511,9 @@ impl Response {
 
         // Create and return a resolved Promise with the body text
         if let Some(ref body) = response_data.body {
-            Ok(JsPromise::resolve(JsValue::from(js_string!(body.clone())), context).into())
+            Ok(JsPromise::resolve(JsValue::from(js_string!(body.clone())), context)?.into())
         } else {
-            Ok(JsPromise::resolve(JsValue::from(js_string!("")), context).into())
+            Ok(JsPromise::resolve(JsValue::from(js_string!("")), context)?.into())
         }
     }
 
@@ -530,17 +530,17 @@ impl Response {
         // Parse JSON from body text
         if let Some(ref body) = response_data.body {
             match Json::parse(&JsValue::undefined(), &[JsValue::from(js_string!(body.clone()))], context) {
-                Ok(json_value) => Ok(JsPromise::resolve(json_value, context).into()),
+                Ok(json_value) => Ok(JsPromise::resolve(json_value, context)?.into()),
                 Err(e) => {
                     let error = JsNativeError::syntax()
                         .with_message(format!("Failed to parse JSON: {}", e));
-                    Ok(JsPromise::reject(error, context).into())
+                    Ok(JsPromise::reject(error, context)?.into())
                 }
             }
         } else {
             let error = JsNativeError::typ()
                 .with_message("Response body is null");
-            Ok(JsPromise::reject(error, context).into())
+            Ok(JsPromise::reject(error, context)?.into())
         }
     }
 }

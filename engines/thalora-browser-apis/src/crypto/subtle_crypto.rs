@@ -108,7 +108,7 @@ impl SubtleCrypto {
         // Create ArrayBuffer with result
         let array_buffer = Self::create_array_buffer(&result, context)?;
 
-        let promise = JsPromise::resolve(array_buffer, context);
+        let promise = JsPromise::resolve(array_buffer, context)?;
         Ok(promise.into())
     }
 
@@ -164,7 +164,7 @@ impl SubtleCrypto {
 
         let result = Self::generate_key_sync(algorithm, extractable, usages, context)?;
 
-        let promise = JsPromise::resolve(result, context);
+        let promise = JsPromise::resolve(result, context)?;
         Ok(promise.into())
     }
 
@@ -462,7 +462,7 @@ impl SubtleCrypto {
         let result =
             Self::import_key_sync(&format, key_data, algorithm, extractable, usages, context)?;
 
-        let promise = JsPromise::resolve(result, context);
+        let promise = JsPromise::resolve(result, context)?;
         Ok(promise.into())
     }
 
@@ -570,7 +570,7 @@ impl SubtleCrypto {
 
         let result = Self::export_key_sync(&format, &key, context)?;
 
-        let promise = JsPromise::resolve(result, context);
+        let promise = JsPromise::resolve(result, context)?;
         Ok(promise.into())
     }
 
@@ -711,7 +711,7 @@ impl SubtleCrypto {
         let result = Self::encrypt_sync(algorithm_val, &key, &data, context)?;
 
         let array_buffer = Self::create_array_buffer(&result, context)?;
-        let promise = JsPromise::resolve(array_buffer, context);
+        let promise = JsPromise::resolve(array_buffer, context)?;
         Ok(promise.into())
     }
 
@@ -824,7 +824,7 @@ impl SubtleCrypto {
         let result = Self::decrypt_sync(algorithm_val, &key, &data, context)?;
 
         let array_buffer = Self::create_array_buffer(&result, context)?;
-        let promise = JsPromise::resolve(array_buffer, context);
+        let promise = JsPromise::resolve(array_buffer, context)?;
         Ok(promise.into())
     }
 
@@ -942,7 +942,7 @@ impl SubtleCrypto {
         let result = Self::sign_sync(algorithm_val, &key, &data, context)?;
 
         let array_buffer = Self::create_array_buffer(&result, context)?;
-        let promise = JsPromise::resolve(array_buffer, context);
+        let promise = JsPromise::resolve(array_buffer, context)?;
         Ok(promise.into())
     }
 
@@ -1066,7 +1066,7 @@ impl SubtleCrypto {
 
         let result = Self::verify_sync(algorithm_val, &key, &signature, &data, context)?;
 
-        let promise = JsPromise::resolve(JsValue::from(result), context);
+        let promise = JsPromise::resolve(JsValue::from(result), context)?;
         Ok(promise.into())
     }
 
@@ -1216,7 +1216,7 @@ impl SubtleCrypto {
             KeyMaterial::Symmetric(Arc::new(Zeroizing::new(derived_bits))),
         );
 
-        let promise = JsPromise::resolve(key_data.to_js_object(context)?, context);
+        let promise = JsPromise::resolve(key_data.to_js_object(context)?, context)?;
         Ok(promise.into())
     }
 
@@ -1235,7 +1235,7 @@ impl SubtleCrypto {
         let result = Self::derive_bits_sync(algorithm_val, &base_key, length, context)?;
 
         let array_buffer = Self::create_array_buffer(&result, context)?;
-        let promise = JsPromise::resolve(array_buffer, context);
+        let promise = JsPromise::resolve(array_buffer, context)?;
         Ok(promise.into())
     }
 
@@ -1432,7 +1432,7 @@ impl SubtleCrypto {
         let wrapped = Self::encrypt_sync(wrap_algorithm, &wrapping_key, &exported_bytes, context)?;
 
         let array_buffer = Self::create_array_buffer(&wrapped, context)?;
-        let promise = JsPromise::resolve(array_buffer, context);
+        let promise = JsPromise::resolve(array_buffer, context)?;
         Ok(promise.into())
     }
 
@@ -1472,7 +1472,7 @@ impl SubtleCrypto {
             context,
         )?;
 
-        let promise = JsPromise::resolve(result, context);
+        let promise = JsPromise::resolve(result, context)?;
         Ok(promise.into())
     }
 
@@ -1546,7 +1546,7 @@ impl SubtleCrypto {
         let uint8array_constructor = context.intrinsics().constructors().typed_uint8_array().constructor();
 
         // Create a JS array with the byte values
-        let js_array = boa_engine::object::builtins::JsArray::new(context);
+        let js_array = boa_engine::object::builtins::JsArray::new(context)?;
         for (i, val) in byte_values.into_iter().enumerate() {
             js_array.set(i as u32, val, false, context)?;
         }

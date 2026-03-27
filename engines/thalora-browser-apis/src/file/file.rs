@@ -494,7 +494,7 @@ fn create_uint8array_from_bytes(bytes: &[u8], context: &mut Context) -> JsResult
     let uint8array_constructor = context.intrinsics().constructors().typed_uint8_array().constructor();
 
     // Create a JS array with the byte values
-    let js_array = boa_engine::object::JsArray::new(context);
+    let js_array = boa_engine::object::JsArray::new(context)?;
     for (i, val) in byte_values.into_iter().enumerate() {
         js_array.set(i as u32, val, false, context)?;
     }

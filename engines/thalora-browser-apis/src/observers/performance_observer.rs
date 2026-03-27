@@ -105,7 +105,8 @@ impl PerformanceObserver {
             "first-input",
         ];
 
-        let array = boa_engine::object::builtins::JsArray::new(context);
+        let array = boa_engine::object::builtins::JsArray::new(context)
+            .expect("Failed to create array");
         for (i, entry_type) in entry_types.iter().enumerate() {
             array
                 .set(i as u32, js_string!(*entry_type), false, context)
@@ -138,14 +139,14 @@ impl PerformanceObserver {
         // Initialize internal state
         observer_obj.set(
             js_string!("__entryTypes__"),
-            boa_engine::object::builtins::JsArray::new(context),
+            boa_engine::object::builtins::JsArray::new(context)?,
             false,
             context,
         )?;
         observer_obj.set(js_string!("__isObserving__"), false, false, context)?;
         observer_obj.set(
             js_string!("__buffer__"),
-            boa_engine::object::builtins::JsArray::new(context),
+            boa_engine::object::builtins::JsArray::new(context)?,
             false,
             context,
         )?;
@@ -228,7 +229,7 @@ impl PerformanceObserver {
         }
 
         // Collect entry types
-        let types_array = boa_engine::object::builtins::JsArray::new(context);
+        let types_array = boa_engine::object::builtins::JsArray::new(context)?;
         let mut index = 0u32;
 
         if has_entry_types {
@@ -266,14 +267,14 @@ impl PerformanceObserver {
         // Clear observation state
         obj.set(
             js_string!("__entryTypes__"),
-            boa_engine::object::builtins::JsArray::new(context),
+            boa_engine::object::builtins::JsArray::new(context)?,
             false,
             context,
         )?;
         obj.set(js_string!("__isObserving__"), false, false, context)?;
         obj.set(
             js_string!("__buffer__"),
-            boa_engine::object::builtins::JsArray::new(context),
+            boa_engine::object::builtins::JsArray::new(context)?,
             false,
             context,
         )?;
@@ -291,13 +292,13 @@ impl PerformanceObserver {
         // Get buffered entries and clear buffer
         let buffer = obj.get(js_string!("__buffer__"), context)?;
         if buffer.is_undefined() {
-            return Ok(boa_engine::object::builtins::JsArray::new(context).into());
+            return Ok(boa_engine::object::builtins::JsArray::new(context)?.into());
         }
 
         // Clear buffer
         obj.set(
             js_string!("__buffer__"),
-            boa_engine::object::builtins::JsArray::new(context),
+            boa_engine::object::builtins::JsArray::new(context)?,
             false,
             context,
         )?;

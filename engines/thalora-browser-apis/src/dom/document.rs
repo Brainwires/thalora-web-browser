@@ -2227,7 +2227,7 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
             "WEBGL_debug_renderer_info"
         ];
 
-        let js_array = boa_engine::object::builtins::JsArray::new(context);
+        let js_array = boa_engine::object::builtins::JsArray::new(context)?;
         for (i, ext) in extensions.iter().enumerate() {
             js_array.set(i, js_string!(*ext), true, context).ok();
         }

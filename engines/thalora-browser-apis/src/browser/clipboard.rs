@@ -110,7 +110,7 @@ fn clipboard_read(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
     };
 
     // Create ClipboardItem array
-    let clipboard_items = boa_engine::object::JsArray::new(context);
+    let clipboard_items = boa_engine::object::JsArray::new(context)?;
 
     if !items.is_empty() {
         // Create a ClipboardItem with all the stored MIME types
@@ -181,7 +181,7 @@ fn clipboard_write(_this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 /// Create a ClipboardItem JavaScript object
 fn create_clipboard_item(items: &HashMap<String, Vec<u8>>, context: &mut Context) -> JsResult<JsObject> {
     // Create types array
-    let types_array = boa_engine::object::JsArray::new(context);
+    let types_array = boa_engine::object::JsArray::new(context)?;
     for (i, mime_type) in items.keys().enumerate() {
         types_array.set(i as u32, JsValue::from(js_string!(mime_type.clone())), false, context)?;
     }

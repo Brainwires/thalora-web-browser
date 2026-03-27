@@ -320,7 +320,7 @@ impl WorkerGlobalScope {
         let update_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return a resolved promise for now
-                Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
             }
         ).name(js_string!("update")).build();
         registration_obj.set(js_string!("update"), update_func, false, context)?;
@@ -329,7 +329,7 @@ impl WorkerGlobalScope {
         let unregister_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return a resolved promise with true
-                Ok(JsPromise::resolve(JsValue::from(true), context).into())
+                Ok(JsPromise::resolve(JsValue::from(true), context)?.into())
             }
         ).name(js_string!("unregister")).build();
         registration_obj.set(js_string!("unregister"), unregister_func, false, context)?;
@@ -343,7 +343,7 @@ impl WorkerGlobalScope {
         let clients_get_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return undefined (no client found) as resolved promise
-                Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
             }
         ).name(js_string!("get")).build();
         clients_obj.set(js_string!("get"), clients_get_func, false, context)?;
@@ -353,7 +353,7 @@ impl WorkerGlobalScope {
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return empty array as resolved promise
                 let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
-                Ok(JsPromise::resolve(empty_array, context).into())
+                Ok(JsPromise::resolve(empty_array, context)?.into())
             }
         ).name(js_string!("matchAll")).build();
         clients_obj.set(js_string!("matchAll"), clients_matchall_func, false, context)?;
@@ -361,7 +361,7 @@ impl WorkerGlobalScope {
         // clients.claim() - Take control of all clients
         let clients_claim_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
             }
         ).name(js_string!("claim")).build();
         clients_obj.set(js_string!("claim"), clients_claim_func, false, context)?;
@@ -370,7 +370,7 @@ impl WorkerGlobalScope {
         let clients_openwindow_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return null (no window opened) as resolved promise
-                Ok(JsPromise::resolve(JsValue::null(), context).into())
+                Ok(JsPromise::resolve(JsValue::null(), context)?.into())
             }
         ).name(js_string!("openWindow")).build();
         clients_obj.set(js_string!("openWindow"), clients_openwindow_func, false, context)?;
@@ -392,7 +392,7 @@ impl WorkerGlobalScope {
                 // Cache.match() method
                 let cache_match_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                        Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
                     }
                 ).name(js_string!("match")).build();
                 cache_obj.set(js_string!("match"), cache_match_func, false, context)?;
@@ -401,7 +401,7 @@ impl WorkerGlobalScope {
                 let cache_matchall_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
-                        Ok(JsPromise::resolve(empty_array, context).into())
+                        Ok(JsPromise::resolve(empty_array, context)?.into())
                     }
                 ).name(js_string!("matchAll")).build();
                 cache_obj.set(js_string!("matchAll"), cache_matchall_func, false, context)?;
@@ -409,7 +409,7 @@ impl WorkerGlobalScope {
                 // Cache.add() method
                 let cache_add_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                        Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
                     }
                 ).name(js_string!("add")).build();
                 cache_obj.set(js_string!("add"), cache_add_func, false, context)?;
@@ -417,7 +417,7 @@ impl WorkerGlobalScope {
                 // Cache.addAll() method
                 let cache_addall_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                        Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
                     }
                 ).name(js_string!("addAll")).build();
                 cache_obj.set(js_string!("addAll"), cache_addall_func, false, context)?;
@@ -425,7 +425,7 @@ impl WorkerGlobalScope {
                 // Cache.put() method
                 let cache_put_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                        Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
                     }
                 ).name(js_string!("put")).build();
                 cache_obj.set(js_string!("put"), cache_put_func, false, context)?;
@@ -433,7 +433,7 @@ impl WorkerGlobalScope {
                 // Cache.delete() method
                 let cache_delete_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        Ok(JsPromise::resolve(JsValue::from(false), context).into())
+                        Ok(JsPromise::resolve(JsValue::from(false), context)?.into())
                     }
                 ).name(js_string!("delete")).build();
                 cache_obj.set(js_string!("delete"), cache_delete_func, false, context)?;
@@ -442,12 +442,12 @@ impl WorkerGlobalScope {
                 let cache_keys_func = BuiltInBuilder::callable(context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
-                        Ok(JsPromise::resolve(empty_array, context).into())
+                        Ok(JsPromise::resolve(empty_array, context)?.into())
                     }
                 ).name(js_string!("keys")).build();
                 cache_obj.set(js_string!("keys"), cache_keys_func, false, context)?;
 
-                Ok(JsPromise::resolve(cache_obj, context).into())
+                Ok(JsPromise::resolve(cache_obj, context)?.into())
             }
         ).name(js_string!("open")).build();
         caches_obj.set(js_string!("open"), caches_open_func, false, context)?;
@@ -455,7 +455,7 @@ impl WorkerGlobalScope {
         // caches.match(request) - Search all caches
         let caches_match_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
             }
         ).name(js_string!("match")).build();
         caches_obj.set(js_string!("match"), caches_match_func, false, context)?;
@@ -463,7 +463,7 @@ impl WorkerGlobalScope {
         // caches.has(cacheName) - Check if cache exists
         let caches_has_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                Ok(JsPromise::resolve(JsValue::from(false), context).into())
+                Ok(JsPromise::resolve(JsValue::from(false), context)?.into())
             }
         ).name(js_string!("has")).build();
         caches_obj.set(js_string!("has"), caches_has_func, false, context)?;
@@ -471,7 +471,7 @@ impl WorkerGlobalScope {
         // caches.delete(cacheName) - Delete a cache
         let caches_delete_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                Ok(JsPromise::resolve(JsValue::from(false), context).into())
+                Ok(JsPromise::resolve(JsValue::from(false), context)?.into())
             }
         ).name(js_string!("delete")).build();
         caches_obj.set(js_string!("delete"), caches_delete_func, false, context)?;
@@ -480,7 +480,7 @@ impl WorkerGlobalScope {
         let caches_keys_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
-                Ok(JsPromise::resolve(empty_array, context).into())
+                Ok(JsPromise::resolve(empty_array, context)?.into())
             }
         ).name(js_string!("keys")).build();
         caches_obj.set(js_string!("keys"), caches_keys_func, false, context)?;
@@ -491,7 +491,7 @@ impl WorkerGlobalScope {
         let skip_waiting_func = BuiltInBuilder::callable(context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 eprintln!("ServiceWorker: skipWaiting() called");
-                Ok(JsPromise::resolve(JsValue::undefined(), context).into())
+                Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
             }
         ).name(js_string!("skipWaiting")).build();
         global.set(js_string!("skipWaiting"), skip_waiting_func, false, context)?;

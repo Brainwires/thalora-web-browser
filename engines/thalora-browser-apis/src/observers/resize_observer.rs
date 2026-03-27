@@ -287,7 +287,7 @@ impl ResizeObserver {
         }
 
         // Convert entries to JavaScript objects
-        let js_entries = boa_engine::object::JsArray::new(context);
+        let js_entries = boa_engine::object::JsArray::new(context)?;
         for (i, entry) in entries.iter().enumerate() {
             let entry_obj = create_resize_observer_entry(entry, context)?;
             js_entries.set(i as u32, JsValue::from(entry_obj), false, context)?;
@@ -405,7 +405,7 @@ fn create_resize_observer_entry(entry: &ResizeObserverEntry, context: &mut Conte
 
 /// Create an array of ResizeObserverSize objects
 fn create_size_array(sizes: &[ResizeObserverSize], context: &mut Context) -> JsResult<JsObject> {
-    let array = boa_engine::object::JsArray::new(context);
+    let array = boa_engine::object::JsArray::new(context)?;
 
     for (i, size) in sizes.iter().enumerate() {
         let size_obj = ObjectInitializer::new(context)

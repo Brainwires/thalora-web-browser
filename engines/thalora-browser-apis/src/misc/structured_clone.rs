@@ -606,7 +606,7 @@ impl StructuredClone {
         context: &mut Context,
         memory: &mut HashMap<usize, JsValue>,
     ) -> JsResult<JsValue> {
-        let js_array = JsArray::new(context);
+        let js_array = JsArray::new(context)?;
 
         for (index, element) in arr.iter().enumerate() {
             let deserialized_element = Self::internal_structured_deserialize(element, context, memory)?;
@@ -778,7 +778,7 @@ mod tests {
     fn test_clone_array() {
         let mut context = Context::default();
 
-        let array = JsArray::new(&mut context);
+        let array = JsArray::new(&mut context)?;
         array.push(JsValue::from(1), &mut context).unwrap();
         array.push(JsValue::from(2), &mut context).unwrap();
         array.push(JsValue::from(3), &mut context).unwrap();
@@ -841,7 +841,7 @@ mod tests {
     fn test_roundtrip_array() {
         let mut context = Context::default();
 
-        let array = JsArray::new(&mut context);
+        let array = JsArray::new(&mut context)?;
         array.push(JsValue::from(1), &mut context).unwrap();
         array.push(JsValue::from(2), &mut context).unwrap();
 

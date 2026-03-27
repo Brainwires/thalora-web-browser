@@ -456,7 +456,7 @@ impl ReadableStream {
         eprintln!("ReadableStream: tee() called - created two branch streams");
 
         // Return an array containing both streams
-        let array = JsArray::new(context);
+        let array = JsArray::new(context)?;
         array.set(0, JsValue::from(stream1), true, context)?;
         array.set(1, JsValue::from(stream2), true, context)?;
 

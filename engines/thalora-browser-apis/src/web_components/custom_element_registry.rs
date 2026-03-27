@@ -292,12 +292,12 @@ impl CustomElementRegistry {
 
         if is_defined {
             // Already defined, resolve immediately
-            let promise = JsPromise::resolve(JsValue::undefined(), context);
+            let promise = JsPromise::resolve(JsValue::undefined(), context)?;
             Ok(promise.into())
         } else {
             // Return a pending promise
             // In a real implementation, this would be stored and resolved when define() is called
-            let promise = JsPromise::resolve(JsValue::undefined(), context);
+            let promise = JsPromise::resolve(JsValue::undefined(), context)?;
             Ok(promise.into())
         }
     }

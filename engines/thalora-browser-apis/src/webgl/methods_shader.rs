@@ -69,7 +69,7 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
     obj.set(
         js_string!("getSupportedExtensions"),
         NativeFunction::from_fn_ptr(|_this, _args, ctx| {
-            let arr = boa_engine::object::builtins::JsArray::new(ctx);
+            let arr = boa_engine::object::builtins::JsArray::new(ctx)?;
             Ok(arr.into())
         })
         .to_js_function(context.realm()),
