@@ -229,6 +229,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     web_components::custom_element_registry::CustomElementRegistry::init(context);
     web_components::html_template_element::HTMLTemplateElement::init(context);
 
+    // Initialize WebRTC APIs
+    webrtc::rtc_peer_connection::RTCPeerConnectionBuiltin::init(&realm);
+
     // Initialize Worker APIs
     #[cfg(feature = "native")]
     worker::worker::WorkerConstructor::init(&realm);
@@ -1689,6 +1692,145 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
             .configurable(true),
         context,
     )?;
+
+    // Register RTCPeerConnection as global
+    global_object.define_property_or_throw(
+        webrtc::rtc_peer_connection::RTCPeerConnectionBuiltin::NAME,
+        PropertyDescriptor::builder()
+            .value(webrtc::rtc_peer_connection::RTCPeerConnectionBuiltin::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // Register WebAssembly, MediaRecorder, speechSynthesis, SpeechRecognition stubs
+    // Per Web standards, these should exist as globals even if the underlying platform
+    // features are not available (headless browser without hardware support).
+    use boa_engine::Source;
+    context.eval(Source::from_bytes(r#"
+        (function() {
+            // WebAssembly stub - per WebAssembly JS API spec
+            if (typeof WebAssembly === "undefined") {
+                var WebAssembly = {
+                    compile: function(bytes) { return Promise.reject(new Error("WebAssembly not supported in this environment")); },
+                    instantiate: function(bytes, imports) { return Promise.reject(new Error("WebAssembly not supported in this environment")); },
+                    validate: function(bytes) { return false; },
+                    Module: function() { throw new Error("WebAssembly.Module not supported"); },
+                    Instance: function() { throw new Error("WebAssembly.Instance not supported"); },
+                    Memory: function() { throw new Error("WebAssembly.Memory not supported"); },
+                    Table: function() { throw new Error("WebAssembly.Table not supported"); },
+                    CompileError: function(msg) { this.message = msg; this.name = "CompileError"; },
+                    LinkError: function(msg) { this.message = msg; this.name = "LinkError"; },
+                    RuntimeError: function(msg) { this.message = msg; this.name = "RuntimeError"; }
+                };
+                globalThis.WebAssembly = WebAssembly;
+            }
+
+            // MediaRecorder stub - per MediaStream Recording API spec
+            if (typeof MediaRecorder === "undefined") {
+                globalThis.MediaRecorder = function MediaRecorder(stream, options) {
+                    this.stream = stream;
+                    this.state = "inactive";
+                    this.mimeType = (options && options.mimeType) || "";
+                    this.ondataavailable = null;
+                    this.onerror = null;
+                    this.onstart = null;
+                    this.onstop = null;
+                    this.onpause = null;
+                    this.onresume = null;
+                };
+                MediaRecorder.prototype.start = function() { this.state = "recording"; };
+                MediaRecorder.prototype.stop = function() { this.state = "inactive"; };
+                MediaRecorder.prototype.pause = function() { this.state = "paused"; };
+                MediaRecorder.prototype.resume = function() { this.state = "recording"; };
+                MediaRecorder.isTypeSupported = function(type) { return false; };
+            }
+
+            // SpeechSynthesis stub - per Web Speech API spec
+            if (typeof speechSynthesis === "undefined") {
+                globalThis.speechSynthesis = {
+                    speaking: false,
+                    pending: false,
+                    paused: false,
+                    onvoiceschanged: null,
+                    speak: function(utterance) {},
+                    cancel: function() {},
+                    pause: function() {},
+                    resume: function() {},
+                    getVoices: function() { return []; }
+                };
+            }
+
+            // SpeechRecognition stub - per Web Speech API spec
+            if (typeof SpeechRecognition === "undefined") {
+                globalThis.SpeechRecognition = function SpeechRecognition() {
+                    this.continuous = false;
+                    this.interimResults = false;
+                    this.lang = "";
+                    this.maxAlternatives = 1;
+                    this.onresult = null;
+                    this.onerror = null;
+                    this.onstart = null;
+                    this.onend = null;
+                };
+                SpeechRecognition.prototype.start = function() {};
+                SpeechRecognition.prototype.stop = function() {};
+                SpeechRecognition.prototype.abort = function() {};
+            }
+
+            // WebMIDI stub - per Web MIDI API spec (Chrome 124+)
+            if (typeof navigator !== "undefined" && typeof navigator.requestMIDIAccess !== "function") {
+                navigator.requestMIDIAccess = function(options) {
+                    return Promise.resolve({
+                        inputs: new Map(),
+                        outputs: new Map(),
+                        onstatechange: null,
+                        sysexEnabled: !!(options && options.sysex)
+                    });
+                };
+            }
+
+            // DOM HTML unsafe methods - per HTML Sanitizer API (Chrome 124+)
+            if (typeof Element !== "undefined" && typeof Element.prototype.setHTMLUnsafe !== "function") {
+                Element.prototype.setHTMLUnsafe = function(html) {
+                    this.innerHTML = html;
+                };
+            }
+            if (typeof Document !== "undefined" && typeof Document.parseHTMLUnsafe !== "function") {
+                Document.parseHTMLUnsafe = function(html) {
+                    var parser = new DOMParser();
+                    return parser.parseFromString(html, "text/html");
+                };
+            }
+
+            // ReadableStream async iteration - per Streams API (Chrome 124+)
+            if (typeof ReadableStream !== "undefined" && typeof Symbol !== "undefined" && typeof Symbol.asyncIterator !== "undefined") {
+                if (typeof ReadableStream.prototype[Symbol.asyncIterator] !== "function") {
+                    ReadableStream.prototype[Symbol.asyncIterator] = function() {
+                        var reader = this.getReader();
+                        return {
+                            next: function() {
+                                return reader.read().then(function(result) {
+                                    if (result.done) {
+                                        reader.releaseLock();
+                                    }
+                                    return result;
+                                });
+                            },
+                            return: function() {
+                                reader.releaseLock();
+                                return Promise.resolve({ done: true, value: undefined });
+                            }
+                        };
+                    };
+                }
+            }
+        })();
+    "#)).map_err(|e| {
+        boa_engine::JsNativeError::typ()
+            .with_message(format!("Failed to initialize browser API stubs: {}", e))
+    })?;
 
     // Add 'self' reference to global scope (Worker/browser compatibility)
     global_object.set(js_string!("self"), global_object.clone(), false, context)?;

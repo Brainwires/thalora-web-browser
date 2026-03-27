@@ -22,6 +22,11 @@ async fn test_boa_engine_creation() -> Result<()> {
 
 #[tokio::test]
 async fn test_v8_engine_creation() -> Result<()> {
+    if !EngineFactory::available_engines().contains(&EngineType::V8) {
+        println!("V8 engine not available, skipping test");
+        return Ok(());
+    }
+
     let mut engine = EngineFactory::create_engine(EngineType::V8)?;
 
     // Test basic execution
@@ -55,17 +60,18 @@ async fn test_engine_compatibility() -> Result<()> {
     println!("Boa result: {:?}", boa_result);
 
     // Test with V8 if available
-    {
+    if EngineFactory::available_engines().contains(&EngineType::V8) {
         let mut v8_engine = EngineFactory::create_engine(EngineType::V8)?;
         let v8_result = v8_engine.execute(test_code)?;
         println!("V8 result: {:?}", v8_result);
 
         // Results should be equivalent
-        // Note: exact JSON representation might differ, but semantic value should be same
         println!(
             "Comparing results - Boa: {:?}, V8: {:?}",
             boa_result, v8_result
         );
+    } else {
+        println!("V8 engine not available, skipping comparison");
     }
 
     Ok(())
@@ -79,8 +85,12 @@ async fn test_available_engines() -> Result<()> {
     // Boa should always be available
     assert!(available.contains(&EngineType::Boa));
 
-    // V8 should be available since it's always compiled
-    assert!(available.contains(&EngineType::V8));
+    // V8 may or may not be available depending on build configuration
+    if available.contains(&EngineType::V8) {
+        println!("V8 engine is available");
+    } else {
+        println!("V8 engine not available (removed)");
+    }
 
     Ok(())
 }

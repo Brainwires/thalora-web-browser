@@ -7,6 +7,11 @@ use thalora::engine::{EngineFactory, EngineType, ThaloraBrowserEngine};
 async fn test_comprehensive_engine_comparison() -> Result<()> {
     println!("🔄 Starting comprehensive engine comparison...");
 
+    if !EngineFactory::available_engines().contains(&EngineType::V8) {
+        println!("V8 engine not available, skipping engine comparison test");
+        return Ok(());
+    }
+
     // Create both engines
     let mut boa_engine = EngineFactory::create_engine(EngineType::Boa)?;
     let mut v8_engine = EngineFactory::create_engine(EngineType::V8)?;
@@ -629,6 +634,11 @@ fn extract_web_api_list(value: &Value) -> Result<Vec<Map<String, Value>>> {
 #[tokio::test]
 async fn test_engine_consistency_basic() -> Result<()> {
     println!("🔄 Testing basic engine consistency...");
+
+    if !EngineFactory::available_engines().contains(&EngineType::V8) {
+        println!("V8 engine not available, skipping engine consistency test");
+        return Ok(());
+    }
 
     let mut boa_engine = EngineFactory::create_engine(EngineType::Boa)?;
     let mut v8_engine = EngineFactory::create_engine(EngineType::V8)?;

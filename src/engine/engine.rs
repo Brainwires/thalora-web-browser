@@ -38,7 +38,11 @@ impl JavaScriptEngine {
         let timers = Arc::new(Mutex::new(HashMap::new()));
         let next_timer_id = Arc::new(Mutex::new(1));
 
-        // Setup real Web APIs instead of browser globals
+        // Initialize all browser APIs (console, DOM, events, etc.)
+        thalora_browser_apis::initialize_browser_apis(&mut context)
+            .map_err(|e| anyhow!("Failed to initialize browser APIs: {}", e))?;
+
+        // Setup additional Web APIs (credentials, service workers, etc.)
         let web_apis = crate::apis::WebApis::new();
         web_apis.setup_all_apis(&mut context)?;
 

@@ -141,40 +141,12 @@ impl RustRenderer {
 
         // Simple error-safe wrapper that prevents page JavaScript from crashing the engine.
         // Uses async IIFE when the script contains `await` to support top-level await.
-        let safe_wrapper = if js_code.contains("typeof window")
-            || js_code.contains("Worker")
-            || js_code.contains("ServiceWorker")
-            || js_code.contains("Worklet")
-            || js_code.contains("MessageChannel")
-        {
-            // For DOM and Worker ecosystem tests, execute directly without wrapper to avoid context isolation
-            js_code.to_string()
-        } else {
-            // Detect top-level await: check for `await` outside of async function bodies.
-            // Simple heuristic: if the code contains `await ` (with space) or `await(`
-            // it likely uses await. The IIFE wrapper handles it correctly either way
-            // (async IIFE is valid even without await inside).
-            let has_await = js_code.contains("await ");
-            let fn_keyword = if has_await {
-                "async function"
-            } else {
-                "function"
-            };
-            format!(
-                r#"
-({fn_keyword}() {{
-    try {{
-        {}
-    }} catch(e) {{
-        console.log("🔍 DOM DEBUG: JavaScript error handled safely:", e.message);
-        return undefined;
-    }}
-}})()
-            "#,
-                js_code,
-                fn_keyword = fn_keyword
-            )
-        };
+        // Execute JavaScript directly without IIFE wrapper.
+        // The IIFE wrapper was causing issues because:
+        // 1. Expression results were lost (no `return` statement in IIFE)
+        // 2. try/catch completion values differ between eval and function scope
+        // Using eval() directly preserves expression return values correctly.
+        let safe_wrapper = js_code.to_string();
 
         // Execute JavaScript directly without nested async handling
         let source = Source::from_bytes(&safe_wrapper);

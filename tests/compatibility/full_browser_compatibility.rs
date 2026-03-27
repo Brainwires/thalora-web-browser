@@ -4,6 +4,7 @@ use boa_engine::{Context, Source};
 #[tokio::test]
 async fn test_full_browser_compatibility() {
     let mut context = Context::default();
+    thalora_browser_apis::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     thalora::apis::polyfills::console::setup_console(&mut context).expect("Failed to setup console");
     let web_apis = WebApis::new();
     web_apis.setup_all_apis(&mut context).expect("Failed to setup WebAPIs");
