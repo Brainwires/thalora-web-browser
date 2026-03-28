@@ -6,13 +6,14 @@
 //! This implements the complete IntersectionObserver interface for observing changes in element visibility
 
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string,
-    realm::Realm, JsData, JsString,
-    property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -36,9 +37,24 @@ impl IntrinsicObject for IntersectionObserver {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("root"), Some(root_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("rootMargin"), Some(root_margin_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("thresholds"), Some(thresholds_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("root"),
+                Some(root_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("rootMargin"),
+                Some(root_margin_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("thresholds"),
+                Some(thresholds_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(Self::observe, js_string!("observe"), 1)
             .method(Self::unobserve, js_string!("unobserve"), 1)
             .method(Self::disconnect, js_string!("disconnect"), 0)
@@ -99,7 +115,8 @@ impl BuiltInConstructor for IntersectionObserver {
             // Parse rootMargin option
             if let Ok(root_margin) = options_obj.get(js_string!("rootMargin"), context) {
                 if !root_margin.is_undefined() {
-                    config.root_margin = root_margin.to_string(context)
+                    config.root_margin = root_margin
+                        .to_string(context)
                         .map(|s| s.to_std_string_escaped())
                         .unwrap_or_else(|_| "0px".to_string());
                 }
@@ -123,7 +140,9 @@ impl BuiltInConstructor for IntersectionObserver {
                         }
                         if !thresholds.is_empty() {
                             // Sort thresholds as per spec
-                            thresholds.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            thresholds.sort_by(|a, b| {
+                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                            });
                             config.threshold = thresholds;
                         }
                     } else if let Ok(threshold_num) = threshold.to_number(context) {
@@ -154,7 +173,7 @@ impl BuiltInConstructor for IntersectionObserver {
         let observer_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             prototype,
-            observer_data
+            observer_data,
         );
 
         Ok(observer_obj.into())
@@ -218,7 +237,8 @@ impl IntersectionObserver {
     /// `IntersectionObserver.prototype.disconnect()` method
     fn disconnect(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let observer_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("IntersectionObserver.disconnect called on non-object")
+            JsNativeError::typ()
+                .with_message("IntersectionObserver.disconnect called on non-object")
         })?;
 
         if let Some(mut observer_data) = observer_obj.downcast_mut::<IntersectionObserverData>() {
@@ -233,23 +253,24 @@ impl IntersectionObserver {
     /// `IntersectionObserver.prototype.takeRecords()` method
     fn take_records(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let observer_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("IntersectionObserver.takeRecords called on non-object")
+            JsNativeError::typ()
+                .with_message("IntersectionObserver.takeRecords called on non-object")
         })?;
 
-        let mut observer_data = observer_obj.downcast_mut::<IntersectionObserverData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("IntersectionObserver.takeRecords called on non-IntersectionObserver object")
-        })?;
+        let mut observer_data = observer_obj
+            .downcast_mut::<IntersectionObserverData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "IntersectionObserver.takeRecords called on non-IntersectionObserver object",
+                )
+            })?;
 
         // Take records and clear the queue
         let records = std::mem::take(&mut observer_data.records);
 
         // Create JavaScript array of IntersectionObserverEntry objects
-        let records_array = boa_engine::builtins::array::Array::array_create(
-            records.len() as u64,
-            None,
-            context,
-        )?;
+        let records_array =
+            boa_engine::builtins::array::Array::array_create(records.len() as u64, None, context)?;
 
         for (index, record) in records.into_iter().enumerate() {
             let record_obj = record.to_js_object(context)?;
@@ -266,11 +287,19 @@ fn get_root(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
         JsNativeError::typ().with_message("IntersectionObserver getter called on non-object")
     })?;
 
-    let observer_data = observer_obj.downcast_ref::<IntersectionObserverData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("IntersectionObserver getter called on non-IntersectionObserver object")
-    })?;
+    let observer_data = observer_obj
+        .downcast_ref::<IntersectionObserverData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "IntersectionObserver getter called on non-IntersectionObserver object",
+            )
+        })?;
 
-    Ok(observer_data.config.root.clone().map_or(JsValue::null(), |r| r.into()))
+    Ok(observer_data
+        .config
+        .root
+        .clone()
+        .map_or(JsValue::null(), |r| r.into()))
 }
 
 fn get_root_margin(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -278,11 +307,17 @@ fn get_root_margin(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("IntersectionObserver getter called on non-object")
     })?;
 
-    let observer_data = observer_obj.downcast_ref::<IntersectionObserverData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("IntersectionObserver getter called on non-IntersectionObserver object")
-    })?;
+    let observer_data = observer_obj
+        .downcast_ref::<IntersectionObserverData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "IntersectionObserver getter called on non-IntersectionObserver object",
+            )
+        })?;
 
-    Ok(JsValue::from(js_string!(observer_data.config.root_margin.clone())))
+    Ok(JsValue::from(js_string!(
+        observer_data.config.root_margin.clone()
+    )))
 }
 
 fn get_thresholds(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
@@ -290,9 +325,13 @@ fn get_thresholds(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("IntersectionObserver getter called on non-object")
     })?;
 
-    let observer_data = observer_obj.downcast_ref::<IntersectionObserverData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("IntersectionObserver getter called on non-IntersectionObserver object")
-    })?;
+    let observer_data = observer_obj
+        .downcast_ref::<IntersectionObserverData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "IntersectionObserver getter called on non-IntersectionObserver object",
+            )
+        })?;
 
     // Create frozen array of thresholds
     let thresholds_array = boa_engine::builtins::array::Array::array_create(
@@ -442,12 +481,7 @@ impl IntersectionObserverEntryData {
         )?;
 
         // Set time
-        obj.set(
-            js_string!("time"),
-            self.time,
-            false,
-            context,
-        )?;
+        obj.set(js_string!("time"), self.time, false, context)?;
 
         // Set boundingClientRect
         obj.set(
@@ -468,9 +502,11 @@ impl IntersectionObserverEntryData {
         // Set rootBounds
         obj.set(
             js_string!("rootBounds"),
-            self.root_bounds.as_ref().map_or(Ok(JsValue::null()), |rb| {
-                rb.to_js_object(context).map(|o| o.into())
-            })?,
+            self.root_bounds
+                .as_ref()
+                .map_or(Ok(JsValue::null()), |rb| {
+                    rb.to_js_object(context).map(|o| o.into())
+                })?,
             false,
             context,
         )?;
@@ -490,7 +526,12 @@ pub struct DOMRectData {
 
 impl DOMRectData {
     pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     pub fn zero() -> Self {
@@ -528,9 +569,10 @@ impl IntrinsicObject for IntersectionObserverEntry {
             .name(js_string!("get target"))
             .build();
 
-        let intersection_ratio_getter = BuiltInBuilder::callable(realm, entry_get_intersection_ratio)
-            .name(js_string!("get intersectionRatio"))
-            .build();
+        let intersection_ratio_getter =
+            BuiltInBuilder::callable(realm, entry_get_intersection_ratio)
+                .name(js_string!("get intersectionRatio"))
+                .build();
 
         let is_intersecting_getter = BuiltInBuilder::callable(realm, entry_get_is_intersecting)
             .name(js_string!("get isIntersecting"))
@@ -540,9 +582,10 @@ impl IntrinsicObject for IntersectionObserverEntry {
             .name(js_string!("get time"))
             .build();
 
-        let bounding_client_rect_getter = BuiltInBuilder::callable(realm, entry_get_bounding_client_rect)
-            .name(js_string!("get boundingClientRect"))
-            .build();
+        let bounding_client_rect_getter =
+            BuiltInBuilder::callable(realm, entry_get_bounding_client_rect)
+                .name(js_string!("get boundingClientRect"))
+                .build();
 
         let intersection_rect_getter = BuiltInBuilder::callable(realm, entry_get_intersection_rect)
             .name(js_string!("get intersectionRect"))
@@ -553,13 +596,48 @@ impl IntrinsicObject for IntersectionObserverEntry {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("target"), Some(target_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("intersectionRatio"), Some(intersection_ratio_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("isIntersecting"), Some(is_intersecting_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("time"), Some(time_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("boundingClientRect"), Some(bounding_client_rect_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("intersectionRect"), Some(intersection_rect_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("rootBounds"), Some(root_bounds_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("target"),
+                Some(target_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("intersectionRatio"),
+                Some(intersection_ratio_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("isIntersecting"),
+                Some(is_intersecting_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("time"),
+                Some(time_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("boundingClientRect"),
+                Some(bounding_client_rect_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("intersectionRect"),
+                Some(intersection_rect_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("rootBounds"),
+                Some(root_bounds_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -600,14 +678,22 @@ fn entry_get_target(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsR
     obj.get(js_string!("target"), context)
 }
 
-fn entry_get_intersection_ratio(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn entry_get_intersection_ratio(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("IntersectionObserverEntry getter called on non-object")
     })?;
     obj.get(js_string!("intersectionRatio"), context)
 }
 
-fn entry_get_is_intersecting(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn entry_get_is_intersecting(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("IntersectionObserverEntry getter called on non-object")
     })?;
@@ -621,21 +707,33 @@ fn entry_get_time(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsRes
     obj.get(js_string!("time"), context)
 }
 
-fn entry_get_bounding_client_rect(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn entry_get_bounding_client_rect(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("IntersectionObserverEntry getter called on non-object")
     })?;
     obj.get(js_string!("boundingClientRect"), context)
 }
 
-fn entry_get_intersection_rect(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn entry_get_intersection_rect(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("IntersectionObserverEntry getter called on non-object")
     })?;
     obj.get(js_string!("intersectionRect"), context)
 }
 
-fn entry_get_root_bounds(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn entry_get_root_bounds(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("IntersectionObserverEntry getter called on non-object")
     })?;

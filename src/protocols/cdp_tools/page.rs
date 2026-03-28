@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 use serde_json::Value;
 
 /// Page domain - Page reload, screenshots, navigation, and lifecycle events

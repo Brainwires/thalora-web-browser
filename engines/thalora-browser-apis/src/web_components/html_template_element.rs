@@ -7,14 +7,17 @@
 //! https://html.spec.whatwg.org/multipage/scripting.html#the-template-element
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject, ObjectInitializer, FunctionObjectBuilder},
+    object::{
+        FunctionObjectBuilder, JsObject, ObjectInitializer,
+        internal_methods::get_prototype_from_constructor,
+    },
     property::Attribute,
     realm::Realm,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -83,11 +86,7 @@ impl HTMLTemplateElement {
     }
 
     /// Constructor function for HTMLTemplateElement
-    fn constructor(
-        _this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn constructor(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Create the template element object
         let template_obj = ObjectInitializer::new(context).build();
 
@@ -236,9 +235,9 @@ impl HTMLTemplateElement {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("appendChild called on non-object")
-        })?;
+        let obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("appendChild called on non-object"))?;
 
         let child = args.get_or_undefined(0);
 
@@ -258,9 +257,7 @@ impl HTMLTemplateElement {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let _deep = args
-            .get_or_undefined(0)
-            .to_boolean();
+        let _deep = args.get_or_undefined(0).to_boolean();
 
         // Create a new fragment
         let new_fragment = Self::create_document_fragment(context)?;

@@ -4,13 +4,15 @@
 //! https://wicg.github.io/navigation-api/#pageswapevent
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::{Attribute, PropertyDescriptorBuilder},
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder}
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -79,10 +81,7 @@ impl BuiltInConstructor for PageSwapEvent {
         // Validate event type
         let type_string = event_type.to_string(context)?;
 
-        let pageswap_data = PageSwapEventData::new(
-            type_string.to_std_string_escaped(),
-            event_init,
-        );
+        let pageswap_data = PageSwapEventData::new(type_string.to_std_string_escaped(), event_init);
 
         let pageswap_event = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -164,26 +163,39 @@ fn get_activation(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("PageSwapEvent.prototype.activation called on non-object")
     })?;
 
-    let pageswap_event = this_obj.downcast_ref::<PageSwapEventData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("PageSwapEvent.prototype.activation called on non-PageSwapEvent object")
-    })?;
+    let pageswap_event = this_obj
+        .downcast_ref::<PageSwapEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "PageSwapEvent.prototype.activation called on non-PageSwapEvent object",
+            )
+        })?;
 
     Ok(pageswap_event.get_activation().unwrap_or(JsValue::null()))
 }
 
 /// `PageSwapEvent.prototype.viewTransition` getter
-fn get_view_transition(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_view_transition(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("PageSwapEvent.prototype.viewTransition called on non-object")
-    })?;
-
-    let pageswap_event = this_obj.downcast_ref::<PageSwapEventData>().ok_or_else(|| {
         JsNativeError::typ()
-            .with_message("PageSwapEvent.prototype.viewTransition called on non-PageSwapEvent object")
+            .with_message("PageSwapEvent.prototype.viewTransition called on non-object")
     })?;
 
-    Ok(pageswap_event.get_view_transition().unwrap_or(JsValue::null()))
+    let pageswap_event = this_obj
+        .downcast_ref::<PageSwapEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "PageSwapEvent.prototype.viewTransition called on non-PageSwapEvent object",
+            )
+        })?;
+
+    Ok(pageswap_event
+        .get_view_transition()
+        .unwrap_or(JsValue::null()))
 }
 
 /// Navigation activation entry for PageSwap events

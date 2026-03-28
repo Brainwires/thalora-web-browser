@@ -165,7 +165,8 @@ mod tests {
             Some(IDBKey::Number(10.0)),
             false,
             false,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(range.includes(&IDBKey::Number(5.0)));
         assert!(range.includes(&IDBKey::Number(1.0)));
@@ -179,7 +180,8 @@ mod tests {
             Some(IDBKey::Number(10.0)),
             true,
             true,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(open_range.includes(&IDBKey::Number(5.0)));
         assert!(!open_range.includes(&IDBKey::Number(1.0)));
@@ -188,8 +190,8 @@ mod tests {
 
     #[test]
     fn test_memory_backend_operations() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
@@ -200,7 +202,9 @@ mod tests {
         assert_eq!(handle.version, 1);
 
         // Create object store
-        backend.create_object_store("testDB", "users", Some("id".to_string()), false).unwrap();
+        backend
+            .create_object_store("testDB", "users", Some("id".to_string()), false)
+            .unwrap();
 
         // Add data
         let key = IDBKey::Number(1.0);
@@ -219,16 +223,20 @@ mod tests {
 
     #[test]
     fn test_memory_backend_index_operations() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
 
         // Setup
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "users", Some("id".to_string()), false).unwrap();
-        backend.create_index("testDB", "users", "email_idx", "email", true, false).unwrap();
+        backend
+            .create_object_store("testDB", "users", Some("id".to_string()), false)
+            .unwrap();
+        backend
+            .create_index("testDB", "users", "email_idx", "email", true, false)
+            .unwrap();
 
         // Query by index (note: indexing values requires proper JSON structure in real usage)
         let index_key = IDBKey::String("test@example.com".to_string());
@@ -253,18 +261,21 @@ mod tests {
 
     #[test]
     fn test_sled_backend_persistence() {
-        use super::super::backend::sled_backend::SledBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::sled_backend::SledBackend;
         use super::super::key::IDBKey;
         use std::path::PathBuf;
 
-        let temp_dir = std::env::temp_dir().join(format!("thalora_idb_test_{}", std::process::id()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("thalora_idb_test_{}", std::process::id()));
 
         // Create backend and add data
         {
             let mut backend = SledBackend::new(temp_dir.clone()).unwrap();
             backend.open_database("persistDB", 1).unwrap();
-            backend.create_object_store("persistDB", "data", None, false).unwrap();
+            backend
+                .create_object_store("persistDB", "data", None, false)
+                .unwrap();
 
             let key = IDBKey::String("test".to_string());
             let value = b"persistent data";
@@ -285,17 +296,23 @@ mod tests {
 
     #[test]
     fn test_auto_increment_keys() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "items", None, true).unwrap();
+        backend
+            .create_object_store("testDB", "items", None, true)
+            .unwrap();
 
         // Add with auto-increment
-        let key1 = backend.add("testDB", "items", &IDBKey::Number(0.0), b"item1").unwrap();
-        let key2 = backend.add("testDB", "items", &IDBKey::Number(0.0), b"item2").unwrap();
+        let key1 = backend
+            .add("testDB", "items", &IDBKey::Number(0.0), b"item1")
+            .unwrap();
+        let key2 = backend
+            .add("testDB", "items", &IDBKey::Number(0.0), b"item2")
+            .unwrap();
 
         // Keys should be auto-incremented
         assert!(matches!(key1, IDBKey::Number(n) if n > 0.0));
@@ -307,18 +324,22 @@ mod tests {
 
     #[test]
     fn test_range_queries() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
         use super::super::key_range::IDBKeyRange;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "numbers", None, false).unwrap();
+        backend
+            .create_object_store("testDB", "numbers", None, false)
+            .unwrap();
 
         // Add data
         for i in 1..=10 {
-            backend.add("testDB", "numbers", &IDBKey::Number(i as f64), &[i]).unwrap();
+            backend
+                .add("testDB", "numbers", &IDBKey::Number(i as f64), &[i])
+                .unwrap();
         }
 
         // Query range [3, 7]
@@ -327,9 +348,12 @@ mod tests {
             Some(IDBKey::Number(7.0)),
             false,
             false,
-        ).unwrap();
+        )
+        .unwrap();
 
-        let results = backend.get_all("testDB", "numbers", Some(&range), None).unwrap();
+        let results = backend
+            .get_all("testDB", "numbers", Some(&range), None)
+            .unwrap();
         assert_eq!(results.len(), 5); // 3, 4, 5, 6, 7
     }
 
@@ -342,26 +366,32 @@ mod tests {
         backend.open_database("testDB", 1).unwrap();
 
         // Begin transaction
-        let tx = backend.begin_transaction(&["store1".to_string()], TransactionMode::ReadWrite).unwrap();
+        let tx = backend
+            .begin_transaction(&["store1".to_string()], TransactionMode::ReadWrite)
+            .unwrap();
         assert!(tx.id > 0);
 
         // Commit transaction
         backend.commit_transaction(tx.id).unwrap();
 
         // Begin another and abort
-        let tx2 = backend.begin_transaction(&["store2".to_string()], TransactionMode::ReadOnly).unwrap();
+        let tx2 = backend
+            .begin_transaction(&["store2".to_string()], TransactionMode::ReadOnly)
+            .unwrap();
         backend.abort_transaction(tx2.id).unwrap();
     }
 
     #[test]
     fn test_count_operations() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "items", None, false).unwrap();
+        backend
+            .create_object_store("testDB", "items", None, false)
+            .unwrap();
 
         // Initially empty
         let count = backend.count("testDB", "items", None).unwrap();
@@ -369,7 +399,9 @@ mod tests {
 
         // Add items
         for i in 1..=5 {
-            backend.add("testDB", "items", &IDBKey::Number(i as f64), &[i]).unwrap();
+            backend
+                .add("testDB", "items", &IDBKey::Number(i as f64), &[i])
+                .unwrap();
         }
 
         let count = backend.count("testDB", "items", None).unwrap();
@@ -401,13 +433,15 @@ mod tests {
 
     #[test]
     fn test_put_vs_add() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "store", None, false).unwrap();
+        backend
+            .create_object_store("testDB", "store", None, false)
+            .unwrap();
 
         let key = IDBKey::Number(1.0);
 
@@ -427,17 +461,21 @@ mod tests {
 
     #[test]
     fn test_clear_object_store() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "store", None, false).unwrap();
+        backend
+            .create_object_store("testDB", "store", None, false)
+            .unwrap();
 
         // Add multiple items
         for i in 1..=5 {
-            backend.add("testDB", "store", &IDBKey::Number(i as f64), &[i]).unwrap();
+            backend
+                .add("testDB", "store", &IDBKey::Number(i as f64), &[i])
+                .unwrap();
         }
 
         let count_before = backend.count("testDB", "store", None).unwrap();
@@ -452,17 +490,21 @@ mod tests {
 
     #[test]
     fn test_get_all_keys() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "store", None, false).unwrap();
+        backend
+            .create_object_store("testDB", "store", None, false)
+            .unwrap();
 
         // Add data
         for i in 1..=5 {
-            backend.add("testDB", "store", &IDBKey::Number(i as f64), &[i]).unwrap();
+            backend
+                .add("testDB", "store", &IDBKey::Number(i as f64), &[i])
+                .unwrap();
         }
 
         // Get all keys
@@ -477,16 +519,22 @@ mod tests {
 
     #[test]
     fn test_index_count() {
-        use super::super::backend::memory::MemoryBackend;
         use super::super::backend::StorageBackend;
+        use super::super::backend::memory::MemoryBackend;
         use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();
-        backend.create_object_store("testDB", "users", None, false).unwrap();
-        backend.create_index("testDB", "users", "age_idx", "age", false, false).unwrap();
+        backend
+            .create_object_store("testDB", "users", None, false)
+            .unwrap();
+        backend
+            .create_index("testDB", "users", "age_idx", "age", false, false)
+            .unwrap();
 
-        let count = backend.count_index("testDB", "users", "age_idx", None).unwrap();
+        let count = backend
+            .count_index("testDB", "users", "age_idx", None)
+            .unwrap();
         assert_eq!(count, 0); // No entries yet
     }
 }

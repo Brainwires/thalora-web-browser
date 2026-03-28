@@ -3,9 +3,9 @@
 //! This module provides a thread-local storage for JavaScript callbacks
 //! that can be referenced by ID from the event loop.
 
-use boa_engine::{Context, JsResult, JsValue, JsObject, JsNativeError};
-use std::collections::HashMap;
+use boa_engine::{Context, JsNativeError, JsObject, JsResult, JsValue};
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 thread_local! {
     /// Thread-local callback storage
@@ -38,12 +38,14 @@ pub fn remove_callback(callback_id: u32) {
 /// Execute a callback by ID
 pub fn execute_callback(callback_id: u32, context: &mut Context) -> JsResult<()> {
     // Get the callback
-    let (callback, args) = CALLBACKS.with(|callbacks| {
-        let map = callbacks.borrow();
-        map.get(&callback_id).cloned()
-    }).ok_or_else(|| {
-        JsNativeError::error().with_message(format!("Callback {} not found", callback_id))
-    })?;
+    let (callback, args) = CALLBACKS
+        .with(|callbacks| {
+            let map = callbacks.borrow();
+            map.get(&callback_id).cloned()
+        })
+        .ok_or_else(|| {
+            JsNativeError::error().with_message(format!("Callback {} not found", callback_id))
+        })?;
 
     // Execute it
     if callback.is_callable() {
@@ -75,9 +77,10 @@ mod tests {
         // Create a simple callback
         let callback_fn = FunctionObjectBuilder::new(
             context.realm(),
-            boa_engine::NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::from(42)))
-        ).build();
-        let callback = callback_fn.into();  // Convert JsFunction to JsObject
+            boa_engine::NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::from(42))),
+        )
+        .build();
+        let callback = callback_fn.into(); // Convert JsFunction to JsObject
 
         // Store it
         let id = store_callback(callback, vec![]);

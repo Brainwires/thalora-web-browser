@@ -4,18 +4,23 @@
 //! https://dom.spec.whatwg.org/#interface-element
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}};
 use std::sync::OnceLock;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU32, Ordering},
+};
 
 /// Global node ID counter for unique DOM node identification
 static NODE_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
@@ -256,7 +261,11 @@ impl IntrinsicObject for Element {
             .method(contains, js_string!("contains"), 1)
             .method(closest, js_string!("closest"), 1)
             .method(matches, js_string!("matches"), 1)
-            .method(get_bounding_client_rect, js_string!("getBoundingClientRect"), 0)
+            .method(
+                get_bounding_client_rect,
+                js_string!("getBoundingClientRect"),
+                0,
+            )
             .method(scroll_into_view, js_string!("scrollIntoView"), 1)
             .method(focus, js_string!("focus"), 0)
             .method(blur, js_string!("blur"), 0)
@@ -295,11 +304,8 @@ impl BuiltInConstructor for Element {
     ) -> JsResult<JsValue> {
         eprintln!("DEBUG: Element constructor called!");
 
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::element,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::element, context)?;
 
         let element_data = ElementData::new();
 
@@ -314,7 +320,10 @@ impl BuiltInConstructor for Element {
 
         // Check if dispatchEvent method exists on the created element
         if let Ok(dispatch_event) = element.get(js_string!("dispatchEvent"), context) {
-            eprintln!("DEBUG: dispatchEvent found on element: {:?}", dispatch_event.type_of());
+            eprintln!(
+                "DEBUG: dispatchEvent found on element: {:?}",
+                dispatch_event.type_of()
+            );
         } else {
             eprintln!("DEBUG: dispatchEvent NOT found on element!");
         }
@@ -410,19 +419,24 @@ impl CSSStyleDeclaration {
     }
 
     pub fn set_property(&mut self, property: &str, value: &str) {
-        self.properties.insert(property.to_string(), value.to_string());
+        self.properties
+            .insert(property.to_string(), value.to_string());
         self.compute_property(property, value);
     }
 
     pub fn get_property(&self, property: &str) -> Option<&String> {
-        self.computed.get(property).or_else(|| self.properties.get(property))
+        self.computed
+            .get(property)
+            .or_else(|| self.properties.get(property))
     }
 
     /// Iterate over all computed properties
     pub fn iter_properties(&self) -> impl Iterator<Item = (&String, &String)> {
         // Combine properties and computed, with computed taking precedence
         self.properties.iter().chain(
-            self.computed.iter().filter(|(k, _)| !self.properties.contains_key(*k))
+            self.computed
+                .iter()
+                .filter(|(k, _)| !self.properties.contains_key(*k)),
         )
     }
 
@@ -433,23 +447,25 @@ impl CSSStyleDeclaration {
                 // Handle different units (px, %, em, rem, vh, vw)
                 let computed_value = self.compute_length_value(value);
                 self.computed.insert(property.to_string(), computed_value);
-            },
+            }
             "color" | "background-color" => {
                 // Handle color values (hex, rgb, rgba, hsl, named colors)
                 let computed_color = self.compute_color_value(value);
                 self.computed.insert(property.to_string(), computed_color);
-            },
+            }
             "display" => {
                 // Validate display values
                 let valid_display = match value {
                     "block" | "inline" | "inline-block" | "flex" | "grid" | "none" => value,
-                    _ => "block" // Default fallback
+                    _ => "block", // Default fallback
                 };
-                self.computed.insert(property.to_string(), valid_display.to_string());
-            },
+                self.computed
+                    .insert(property.to_string(), valid_display.to_string());
+            }
             _ => {
                 // Store as-is for other properties
-                self.computed.insert(property.to_string(), value.to_string());
+                self.computed
+                    .insert(property.to_string(), value.to_string());
             }
         }
     }
@@ -485,7 +501,7 @@ impl CSSStyleDeclaration {
                 "blue" => "#0000ff".to_string(),
                 "black" => "#000000".to_string(),
                 "white" => "#ffffff".to_string(),
-                _ => value.to_string()
+                _ => value.to_string(),
             }
         }
     }
@@ -578,7 +594,10 @@ impl ElementData {
 
     pub fn set_class_name(&self, class_name: String) {
         *self.class_name.lock().unwrap() = class_name.clone();
-        self.attributes.lock().unwrap().insert("class".to_string(), class_name);
+        self.attributes
+            .lock()
+            .unwrap()
+            .insert("class".to_string(), class_name);
     }
 
     pub fn get_inner_html(&self) -> String {
@@ -627,7 +646,8 @@ impl ElementData {
                 if let Some(tag_end) = html[current_pos..].find('>') {
                     let tag_content = &html[current_pos + 1..current_pos + tag_end];
 
-                    if !tag_content.starts_with('/') { // Not a closing tag
+                    if !tag_content.starts_with('/') {
+                        // Not a closing tag
                         // Parse opening tag
                         let parts: Vec<&str> = tag_content.split_whitespace().collect();
                         if let Some(tag_name) = parts.first() {
@@ -639,7 +659,10 @@ impl ElementData {
                                 if let Some(eq_pos) = attr_part.find('=') {
                                     let attr_name = &attr_part[..eq_pos];
                                     let attr_value = &attr_part[eq_pos + 1..].trim_matches('"');
-                                    element_data.set_attribute(attr_name.to_string(), attr_value.to_string());
+                                    element_data.set_attribute(
+                                        attr_name.to_string(),
+                                        attr_value.to_string(),
+                                    );
                                 }
                             }
 
@@ -656,7 +679,10 @@ impl ElementData {
             } else {
                 // Text content - find next tag or end
                 let text_start = current_pos;
-                let text_end = html[current_pos..].find('<').map(|pos| current_pos + pos).unwrap_or(html.len());
+                let text_end = html[current_pos..]
+                    .find('<')
+                    .map(|pos| current_pos + pos)
+                    .unwrap_or(html.len());
 
                 let text_content = html[text_start..text_end].trim();
                 if !text_content.is_empty() {
@@ -713,7 +739,10 @@ impl ElementData {
         // This allows querySelector to continue working on the full document while
         // recognizing that individual elements may have been modified in memory.
 
-        eprintln!("DEBUG: Element {} content updated - document HTML preserved", self.get_tag_name());
+        eprintln!(
+            "DEBUG: Element {} content updated - document HTML preserved",
+            self.get_tag_name()
+        );
 
         // The key insight: querySelector works on the original HTML + in-memory element state.
         // We don't need to rebuild the entire document HTML for individual element changes.
@@ -727,8 +756,8 @@ impl ElementData {
 
         // Void elements (self-closing) — no children, no closing tag
         const VOID_ELEMENTS: &[&str] = &[
-            "area", "base", "br", "col", "embed", "hr", "img", "input",
-            "link", "meta", "param", "source", "track", "wbr",
+            "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+            "source", "track", "wbr",
         ];
         let tag_lower = tag_name.to_lowercase();
 
@@ -832,7 +861,10 @@ impl ElementData {
     }
 
     pub fn remove_child(&self, child: &JsObject) {
-        self.children.lock().unwrap().retain(|c| !JsObject::equals(c, child));
+        self.children
+            .lock()
+            .unwrap()
+            .retain(|c| !JsObject::equals(c, child));
     }
 
     pub fn get_children(&self) -> Vec<JsObject> {
@@ -872,7 +904,11 @@ impl ElementData {
     }
 
     /// Insert a child before a reference node
-    pub fn insert_before(&self, new_child: JsObject, reference_child: Option<&JsObject>) -> Option<JsObject> {
+    pub fn insert_before(
+        &self,
+        new_child: JsObject,
+        reference_child: Option<&JsObject>,
+    ) -> Option<JsObject> {
         let mut children = self.children.lock().unwrap();
 
         if let Some(ref_child) = reference_child {
@@ -1029,7 +1065,9 @@ impl ElementData {
 
     /// Add event listener to this element
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
-        self.event_listeners.lock().unwrap()
+        self.event_listeners
+            .lock()
+            .unwrap()
             .entry(event_type)
             .or_insert_with(Vec::new)
             .push(listener);
@@ -1044,7 +1082,9 @@ impl ElementData {
 
     /// Get event listeners for a specific event type
     pub fn get_event_listeners(&self, event_type: &str) -> Option<Vec<JsValue>> {
-        self.event_listeners.lock().unwrap()
+        self.event_listeners
+            .lock()
+            .unwrap()
             .get(event_type)
             .cloned()
     }
@@ -1084,7 +1124,12 @@ impl ElementData {
     }
 
     /// Dispatch event on this element
-    pub fn dispatch_event(&self, event_type: &str, event_data: &JsValue, context: &mut Context) -> JsResult<()> {
+    pub fn dispatch_event(
+        &self,
+        event_type: &str,
+        event_data: &JsValue,
+        context: &mut Context,
+    ) -> JsResult<()> {
         let listeners = self.event_listeners.lock().unwrap();
         if let Some(event_listeners) = listeners.get(event_type) {
             for listener in event_listeners {
@@ -1123,19 +1168,23 @@ impl ElementData {
         let mut rect = self.bounding_rect.lock().unwrap();
 
         // Get computed dimensions
-        let width = style.get_property("width")
+        let width = style
+            .get_property("width")
             .and_then(|w| self.parse_length_value(w))
             .unwrap_or(0.0);
 
-        let height = style.get_property("height")
+        let height = style
+            .get_property("height")
             .and_then(|h| self.parse_length_value(h))
             .unwrap_or(0.0);
 
-        let left = style.get_property("left")
+        let left = style
+            .get_property("left")
             .and_then(|l| self.parse_length_value(l))
             .unwrap_or(0.0);
 
-        let top = style.get_property("top")
+        let top = style
+            .get_property("top")
             .and_then(|t| self.parse_length_value(t))
             .unwrap_or(0.0);
 
@@ -1254,23 +1303,12 @@ fn get_tag_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
     })?;
 
     let value = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
             JsNativeError::typ()
-
-
                 .with_message("Element.prototype.tagName called on non-Element object")
-
-
         })?;
 
-
         element.get_tag_name()
-
-
     };
     Ok(JsString::from(value).into())
 }
@@ -1282,23 +1320,11 @@ fn get_id(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult
     })?;
 
     let value = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
-            JsNativeError::typ()
-
-
-                .with_message("Element.prototype.id called on non-Element object")
-
-
+            JsNativeError::typ().with_message("Element.prototype.id called on non-Element object")
         })?;
 
-
         element.get_id()
-
-
     };
     Ok(JsString::from(value).into())
 }
@@ -1329,23 +1355,12 @@ fn get_class_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
     })?;
 
     let value = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
             JsNativeError::typ()
-
-
                 .with_message("Element.prototype.className called on non-Element object")
-
-
         })?;
 
-
         element.get_class_name()
-
-
     };
     Ok(JsString::from(value).into())
 }
@@ -1376,30 +1391,18 @@ fn get_inner_html(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
     })?;
 
     let value = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
             JsNativeError::typ()
-
-
                 .with_message("Element.prototype.innerHTML called on non-Element object")
-
-
         })?;
 
-
         element.get_inner_html()
-
-
     };
     Ok(JsString::from(value).into())
 }
 
 /// `Element.prototype.innerHTML` setter
 fn set_inner_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.innerHTML setter called on non-object")
     })?;
@@ -1418,29 +1421,22 @@ fn set_inner_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 /// `Element.prototype.textContent` getter
-fn get_text_content(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_text_content(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.textContent called on non-object")
     })?;
 
     let value = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
             JsNativeError::typ()
-
-
                 .with_message("Element.prototype.textContent called on non-Element object")
-
-
         })?;
 
-
         element.get_text_content()
-
-
     };
     Ok(JsString::from(value).into())
 }
@@ -1448,7 +1444,8 @@ fn get_text_content(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
 /// `Element.prototype.textContent` setter
 fn set_text_content(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Element.prototype.textContent setter called on non-object")
+        JsNativeError::typ()
+            .with_message("Element.prototype.textContent setter called on non-object")
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
@@ -1471,23 +1468,12 @@ fn get_children(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
     })?;
 
     let children = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
             JsNativeError::typ()
-
-
                 .with_message("Element.prototype.children called on non-Element object")
-
-
         })?;
 
-
         element.get_children()
-
-
     };
 
     use boa_engine::builtins::array::Array;
@@ -1503,26 +1489,17 @@ fn get_parent_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
     })?;
 
     let parent_node = {
-
-
         let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-
-
             JsNativeError::typ()
-
-
                 .with_message("Element.prototype.parentNode called on non-Element object")
-
-
         })?;
 
-
         element.get_parent_node()
-
-
     };
 
-    Ok(parent_node.map(|parent| parent.into()).unwrap_or(JsValue::null()))
+    Ok(parent_node
+        .map(|parent| parent.into())
+        .unwrap_or(JsValue::null()))
 }
 
 /// `Element.prototype.style` getter
@@ -1545,8 +1522,20 @@ fn get_style(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     let style_obj = JsObject::default(context.intrinsics());
 
     // Add common CSS properties as dynamic getters/setters
-    let css_properties = ["width", "height", "color", "background-color", "display",
-                         "position", "left", "top", "right", "bottom", "margin", "padding"];
+    let css_properties = [
+        "width",
+        "height",
+        "color",
+        "background-color",
+        "display",
+        "position",
+        "left",
+        "top",
+        "right",
+        "bottom",
+        "margin",
+        "padding",
+    ];
 
     for property in css_properties {
         // Create getter for this property
@@ -1576,7 +1565,8 @@ fn get_class_list(this: &JsValue, _args: &[JsValue], context: &mut Context) -> J
     }
 
     // Create or return a DOMTokenList bound to this element
-    let list = crate::dom::domtokenlist::DOMTokenList::create_for_element(this_obj.clone(), context)?;
+    let list =
+        crate::dom::domtokenlist::DOMTokenList::create_for_element(this_obj.clone(), context)?;
     Ok(list.into())
 }
 
@@ -1706,8 +1696,7 @@ fn set_html(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.setHTML called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.setHTML called on non-Element object")
     })?;
 
     let input = args.get_or_undefined(0).to_string(context)?;
@@ -1752,9 +1741,8 @@ pub fn can_have_shadow_root(element: &ElementData) -> bool {
             name if name.contains('-') => true,
 
             // Standard HTML elements that can host shadow roots
-            "article" | "aside" | "blockquote" | "body" | "div" |
-            "footer" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" |
-            "header" | "main" | "nav" | "p" | "section" | "span" => true,
+            "article" | "aside" | "blockquote" | "body" | "div" | "footer" | "h1" | "h2" | "h3"
+            | "h4" | "h5" | "h6" | "header" | "main" | "nav" | "p" | "section" | "span" => true,
 
             // Form elements that can host shadow roots
             "form" | "fieldset" => true,
@@ -1802,8 +1790,8 @@ fn has_forbidden_shadow_characteristics(element: &ElementData) -> bool {
         "a" | "area" | "iframe" | "object" | "embed" => true,
 
         // Table elements with complex UA behavior
-        "table" | "thead" | "tbody" | "tfoot" | "tr" | "td" | "th" |
-        "col" | "colgroup" | "caption" => true,
+        "table" | "thead" | "tbody" | "tfoot" | "tr" | "td" | "th" | "col" | "colgroup"
+        | "caption" => true,
 
         // List elements
         "ol" | "ul" | "li" | "dl" | "dt" | "dd" => true,
@@ -1832,9 +1820,10 @@ fn is_valid_custom_element_name(name: &str) -> bool {
         return false;
     }
 
-    if !name.chars().all(|c| {
-        c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.' || c == '_'
-    }) {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.' || c == '_')
+    {
         return false;
     }
 
@@ -1873,27 +1862,34 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
                 let mode = if let Ok(mode_value) = options_obj.get(js_string!("mode"), context) {
                     let mode_str = mode_value.to_string(context)?.to_std_string_escaped();
                     crate::dom::shadow::shadow_root::ShadowRootMode::from_string(&mode_str)
-                        .ok_or_else(|| JsNativeError::typ()
-                            .with_message("attachShadow mode must be 'open' or 'closed'"))?
+                        .ok_or_else(|| {
+                            JsNativeError::typ()
+                                .with_message("attachShadow mode must be 'open' or 'closed'")
+                        })?
                 } else {
                     return Err(JsNativeError::typ()
                         .with_message("attachShadow options must include a mode")
                         .into());
                 };
 
-                let clonable = if let Ok(clonable_value) = options_obj.get(js_string!("clonable"), context) {
-                    clonable_value.to_boolean()
-                } else {
-                    false
-                };
+                let clonable =
+                    if let Ok(clonable_value) = options_obj.get(js_string!("clonable"), context) {
+                        clonable_value.to_boolean()
+                    } else {
+                        false
+                    };
 
-                let serializable = if let Ok(serializable_value) = options_obj.get(js_string!("serializable"), context) {
+                let serializable = if let Ok(serializable_value) =
+                    options_obj.get(js_string!("serializable"), context)
+                {
                     serializable_value.to_boolean()
                 } else {
                     false
                 };
 
-                let delegates_focus = if let Ok(delegates_focus_value) = options_obj.get(js_string!("delegatesFocus"), context) {
+                let delegates_focus = if let Ok(delegates_focus_value) =
+                    options_obj.get(js_string!("delegatesFocus"), context)
+                {
                     delegates_focus_value.to_boolean()
                 } else {
                     false
@@ -1942,7 +1938,9 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     )?;
 
     // Set the host element for the shadow root
-    if let Some(shadow_data) = shadow_root.downcast_ref::<crate::dom::shadow::shadow_root::ShadowRootData>() {
+    if let Some(shadow_data) =
+        shadow_root.downcast_ref::<crate::dom::shadow::shadow_root::ShadowRootData>()
+    {
         shadow_data.set_host(this_obj.clone());
     }
 
@@ -1987,7 +1985,11 @@ fn attach_shadow(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 
 /// `Element.prototype.addEventListener(type, listener[, options])`
 /// JavaScript wrapper for EventTarget functionality
-fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn add_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.addEventListener called on non-object")
     })?;
@@ -2006,9 +2008,14 @@ fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -
 
 /// `Element.prototype.removeEventListener(type, listener[, options])`
 /// JavaScript wrapper for EventTarget functionality
-fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn remove_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Element.prototype.removeEventListener called on non-object")
+        JsNativeError::typ()
+            .with_message("Element.prototype.removeEventListener called on non-object")
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
@@ -2041,7 +2048,8 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     if event.is_object() {
         if let Some(event_obj) = event.as_object() {
             // Get the 'type' property from the event object
-            let event_type_value = event_obj.get(js_string!("type"), context)
+            let event_type_value = event_obj
+                .get(js_string!("type"), context)
                 .unwrap_or(JsValue::undefined());
 
             if !event_type_value.is_undefined() {
@@ -2083,9 +2091,9 @@ fn insert_before(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     let new_node = args.get_or_undefined(0);
     let reference_node = args.get_or_undefined(1);
 
-    let new_obj = new_node.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("insertBefore: newNode must be a Node")
-    })?;
+    let new_obj = new_node
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("insertBefore: newNode must be a Node"))?;
 
     // Set parent on new node
     if let Some(new_data) = new_obj.downcast_ref::<ElementData>() {
@@ -2163,8 +2171,7 @@ fn contains(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResul
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.contains called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.contains called on non-Element object")
     })?;
 
     let other = args.get_or_undefined(0);
@@ -2191,8 +2198,7 @@ fn closest(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.closest called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.closest called on non-Element object")
     })?;
 
     let selector = args.get_or_undefined(0).to_string(context)?;
@@ -2212,8 +2218,7 @@ fn matches(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.matches called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.matches called on non-Element object")
     })?;
 
     let selector = args.get_or_undefined(0).to_string(context)?;
@@ -2223,9 +2228,14 @@ fn matches(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 /// `Element.prototype.getBoundingClientRect()`
-fn get_bounding_client_rect(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_bounding_client_rect(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Element.prototype.getBoundingClientRect called on non-object")
+        JsNativeError::typ()
+            .with_message("Element.prototype.getBoundingClientRect called on non-object")
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
@@ -2248,11 +2258,13 @@ fn get_bounding_client_rect(this: &JsValue, _args: &[JsValue], context: &mut Con
 
     // Add toJSON method
     let to_json = BuiltInBuilder::callable(context.realm(), |this, _args, ctx| {
-        let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("toJSON called on non-object")
-        })?;
+        let obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("toJSON called on non-object"))?;
         let result = JsObject::default(ctx.intrinsics());
-        for prop in ["x", "y", "width", "height", "top", "right", "bottom", "left"] {
+        for prop in [
+            "x", "y", "width", "height", "top", "right", "bottom", "left",
+        ] {
             if let Ok(val) = obj.get(js_string!(prop), ctx) {
                 result.set(js_string!(prop), val, false, ctx)?;
             }
@@ -2295,8 +2307,7 @@ fn focus(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<J
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.focus called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.focus called on non-Element object")
     })?;
 
     // Dispatch focus event
@@ -2318,8 +2329,7 @@ fn blur(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<Js
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.blur called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.blur called on non-Element object")
     })?;
 
     // Dispatch blur event
@@ -2341,8 +2351,7 @@ fn click(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<J
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.click called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.click called on non-Element object")
     })?;
 
     // Dispatch click event
@@ -2375,7 +2384,10 @@ fn get_first_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
             .with_message("Element.prototype.firstChild called on non-Element object")
     })?;
 
-    Ok(element.get_first_child().map(|c| c.into()).unwrap_or(JsValue::null()))
+    Ok(element
+        .get_first_child()
+        .map(|c| c.into())
+        .unwrap_or(JsValue::null()))
 }
 
 /// `Element.prototype.lastChild` getter
@@ -2389,11 +2401,18 @@ fn get_last_child(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
             .with_message("Element.prototype.lastChild called on non-Element object")
     })?;
 
-    Ok(element.get_last_child().map(|c| c.into()).unwrap_or(JsValue::null()))
+    Ok(element
+        .get_last_child()
+        .map(|c| c.into())
+        .unwrap_or(JsValue::null()))
 }
 
 /// `Element.prototype.nextSibling` getter
-fn get_next_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_next_sibling(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.nextSibling called on non-object")
     })?;
@@ -2403,11 +2422,18 @@ fn get_next_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
             .with_message("Element.prototype.nextSibling called on non-Element object")
     })?;
 
-    Ok(element.get_next_sibling().map(|c| c.into()).unwrap_or(JsValue::null()))
+    Ok(element
+        .get_next_sibling()
+        .map(|c| c.into())
+        .unwrap_or(JsValue::null()))
 }
 
 /// `Element.prototype.previousSibling` getter
-fn get_previous_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_previous_sibling(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.previousSibling called on non-object")
     })?;
@@ -2417,7 +2443,10 @@ fn get_previous_sibling(this: &JsValue, _args: &[JsValue], _context: &mut Contex
             .with_message("Element.prototype.previousSibling called on non-Element object")
     })?;
 
-    Ok(element.get_previous_sibling().map(|c| c.into()).unwrap_or(JsValue::null()))
+    Ok(element
+        .get_previous_sibling()
+        .map(|c| c.into())
+        .unwrap_or(JsValue::null()))
 }
 
 /// `Element.prototype.nodeType` getter (returns ELEMENT_NODE = 1)
@@ -2428,8 +2457,7 @@ fn get_node_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> J
 
     // Verify it's an element
     this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.nodeType called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.nodeType called on non-Element object")
     })?;
 
     // ELEMENT_NODE = 1
@@ -2443,8 +2471,7 @@ fn get_node_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> J
     })?;
 
     let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Element.prototype.nodeName called on non-Element object")
+        JsNativeError::typ().with_message("Element.prototype.nodeName called on non-Element object")
     })?;
 
     Ok(JsString::from(element.get_tag_name()).into())
@@ -2521,4 +2548,3 @@ fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
 
     Ok(array.into())
 }
-

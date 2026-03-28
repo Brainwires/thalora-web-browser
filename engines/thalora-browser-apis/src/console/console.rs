@@ -6,12 +6,12 @@
 //! This implements the complete Console interface for debugging and logging
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, JsValue, NativeFunction,
-    object::ObjectInitializer, js_string,
+    Context, JsArgs, JsNativeError, JsResult, JsValue, NativeFunction, js_string,
+    object::ObjectInitializer,
 };
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use once_cell::sync::Lazy;
 
 /// Global timers storage
 static TIMERS: Lazy<Arc<Mutex<HashMap<String, std::time::Instant>>>> =
@@ -29,28 +29,100 @@ impl Console {
     pub fn init(context: &mut Context) {
         let console_obj = ObjectInitializer::new(context)
             .function(NativeFunction::from_fn_ptr(Self::log), js_string!("log"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::error), js_string!("error"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::warn), js_string!("warn"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::info), js_string!("info"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::debug), js_string!("debug"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::trace), js_string!("trace"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::assert), js_string!("assert"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::clear), js_string!("clear"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::count), js_string!("count"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::count_reset), js_string!("countReset"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::group), js_string!("group"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::group_collapsed), js_string!("groupCollapsed"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::group_end), js_string!("groupEnd"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::time), js_string!("time"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::time_log), js_string!("timeLog"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::time_end), js_string!("timeEnd"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::table), js_string!("table"), 0)
+            .function(
+                NativeFunction::from_fn_ptr(Self::error),
+                js_string!("error"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::warn),
+                js_string!("warn"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::info),
+                js_string!("info"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::debug),
+                js_string!("debug"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::trace),
+                js_string!("trace"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::assert),
+                js_string!("assert"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::clear),
+                js_string!("clear"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::count),
+                js_string!("count"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::count_reset),
+                js_string!("countReset"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::group),
+                js_string!("group"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::group_collapsed),
+                js_string!("groupCollapsed"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::group_end),
+                js_string!("groupEnd"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::time),
+                js_string!("time"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::time_log),
+                js_string!("timeLog"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::time_end),
+                js_string!("timeEnd"),
+                0,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::table),
+                js_string!("table"),
+                0,
+            )
             .function(NativeFunction::from_fn_ptr(Self::dir), js_string!("dir"), 0)
-            .function(NativeFunction::from_fn_ptr(Self::dirxml), js_string!("dirxml"), 0)
+            .function(
+                NativeFunction::from_fn_ptr(Self::dirxml),
+                js_string!("dirxml"),
+                0,
+            )
             .build();
 
         context
-            .register_global_property(js_string!("console"), console_obj, boa_engine::property::Attribute::all())
+            .register_global_property(
+                js_string!("console"),
+                console_obj,
+                boa_engine::property::Attribute::all(),
+            )
             .expect("Failed to register console");
     }
 
@@ -118,7 +190,9 @@ impl Console {
         let label = if args.is_empty() {
             "default".to_string()
         } else {
-            args.get_or_undefined(0).to_string(context)?.to_std_string_escaped()
+            args.get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped()
         };
 
         let mut counters = COUNTERS.lock().unwrap();
@@ -133,7 +207,9 @@ impl Console {
         let label = if args.is_empty() {
             "default".to_string()
         } else {
-            args.get_or_undefined(0).to_string(context)?.to_std_string_escaped()
+            args.get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped()
         };
 
         let mut counters = COUNTERS.lock().unwrap();
@@ -165,7 +241,9 @@ impl Console {
         let label = if args.is_empty() {
             "default".to_string()
         } else {
-            args.get_or_undefined(0).to_string(context)?.to_std_string_escaped()
+            args.get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped()
         };
 
         let mut timers = TIMERS.lock().unwrap();
@@ -178,7 +256,9 @@ impl Console {
         let label = if args.is_empty() {
             "default".to_string()
         } else {
-            args.get_or_undefined(0).to_string(context)?.to_std_string_escaped()
+            args.get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped()
         };
 
         let timers = TIMERS.lock().unwrap();
@@ -196,7 +276,9 @@ impl Console {
         let label = if args.is_empty() {
             "default".to_string()
         } else {
-            args.get_or_undefined(0).to_string(context)?.to_std_string_escaped()
+            args.get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped()
         };
 
         let mut timers = TIMERS.lock().unwrap();

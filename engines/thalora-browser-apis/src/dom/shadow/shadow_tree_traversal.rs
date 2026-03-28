@@ -3,21 +3,14 @@
 //! Implementation of WHATWG DOM shadow-including tree traversal algorithms
 //! https://dom.spec.whatwg.org/#concept-shadow-including-tree-order
 
-use boa_engine::{
-    object::JsObject,
-    value::JsValue,
-    Context, JsResult,
-};
 use crate::dom::{
     element::ElementData,
-    shadow::{
-        shadow_root::ShadowRootData,
-        html_slot_element::HTMLSlotElementData,
-    },
     node::NodeData,
+    shadow::{html_slot_element::HTMLSlotElementData, shadow_root::ShadowRootData},
 };
+use boa_engine::{Context, JsResult, object::JsObject, value::JsValue};
 use boa_gc::{Finalize, Trace};
-use std::collections::{VecDeque, HashSet};
+use std::collections::{HashSet, VecDeque};
 
 /// Shadow-including tree traversal order types
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
@@ -100,10 +93,7 @@ impl ShadowTreeTraversal {
 
     /// Shadow-including tree order traversal
     /// https://dom.spec.whatwg.org/#concept-shadow-including-tree-order
-    pub fn shadow_including_tree_order(
-        root: &JsObject,
-        order: TraversalOrder,
-    ) -> Vec<JsObject> {
+    pub fn shadow_including_tree_order(root: &JsObject, order: TraversalOrder) -> Vec<JsObject> {
         let mut result = Vec::new();
         Self::traverse_shadow_including_tree(root, &mut result, order);
         result
@@ -259,10 +249,7 @@ impl ShadowTreeTraversal {
 
     /// Shadow DOM query selector implementation
     /// This implements shadow-aware querySelector behavior
-    pub fn shadow_aware_query_selector(
-        root: &JsObject,
-        selector: &str,
-    ) -> Option<JsObject> {
+    pub fn shadow_aware_query_selector(root: &JsObject, selector: &str) -> Option<JsObject> {
         // Implementation of shadow-aware querySelector with proper shadow boundary respect
         Self::query_selector_with_shadow_boundaries(root, selector, QueryMode::First)
             .into_iter()
@@ -270,10 +257,7 @@ impl ShadowTreeTraversal {
     }
 
     /// Shadow DOM query selector all implementation
-    pub fn shadow_aware_query_selector_all(
-        root: &JsObject,
-        selector: &str,
-    ) -> Vec<JsObject> {
+    pub fn shadow_aware_query_selector_all(root: &JsObject, selector: &str) -> Vec<JsObject> {
         // Implementation of shadow-aware querySelectorAll
         Self::query_selector_with_shadow_boundaries(root, selector, QueryMode::All)
     }
@@ -590,7 +574,10 @@ impl ShadowTreeTraversal {
                     current.push(ch);
 
                     // Check if we're at the end or next char is a delimiter
-                    if chars.peek().map_or(true, |&next| next == '#' || next == '.') {
+                    if chars
+                        .peek()
+                        .map_or(true, |&next| next == '#' || next == '.')
+                    {
                         // Process current part
                         if current.starts_with('#') {
                             parts.push(ParsedCSSSelector::Id(current[1..].to_string()));
@@ -614,7 +601,9 @@ impl ShadowTreeTraversal {
 
     /// Check if a string is a valid HTML tag name
     fn is_valid_tag_name(s: &str) -> bool {
-        !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
     }
 
     /// Match element against parsed selector
@@ -632,12 +621,14 @@ impl ShadowTreeTraversal {
                 Self::matches_parsed_selector(element, base)
                     && Self::matches_pseudo_class(element, pseudo_class)
             }
-            ParsedCSSSelector::Combinator { left, combinator, right } => {
-                Self::matches_combinator_selector(element, left, *combinator, right)
-            }
-            ParsedCSSSelector::Compound(selectors) => {
-                selectors.iter().all(|s| Self::matches_parsed_selector(element, s))
-            }
+            ParsedCSSSelector::Combinator {
+                left,
+                combinator,
+                right,
+            } => Self::matches_combinator_selector(element, left, *combinator, right),
+            ParsedCSSSelector::Compound(selectors) => selectors
+                .iter()
+                .all(|s| Self::matches_parsed_selector(element, s)),
             ParsedCSSSelector::Invalid => false,
         }
     }
@@ -695,9 +686,7 @@ impl ShadowTreeTraversal {
     fn matches_attribute_operator(actual: &str, expected: &str, op: AttributeOperator) -> bool {
         match op {
             AttributeOperator::Exact => actual == expected,
-            AttributeOperator::Contains => {
-                actual.split_whitespace().any(|word| word == expected)
-            }
+            AttributeOperator::Contains => actual.split_whitespace().any(|word| word == expected),
             AttributeOperator::Prefix => {
                 actual == expected || actual.starts_with(&format!("{}-", expected))
             }
@@ -796,7 +785,9 @@ impl ShadowTreeTraversal {
     fn is_first_child(element: &JsObject) -> bool {
         if let Some(parent) = Self::get_parent_node(element) {
             let children = Self::get_child_nodes(&parent);
-            children.first().map_or(false, |first| JsObject::equals(first, element))
+            children
+                .first()
+                .map_or(false, |first| JsObject::equals(first, element))
         } else {
             false
         }
@@ -805,7 +796,9 @@ impl ShadowTreeTraversal {
     fn is_last_child(element: &JsObject) -> bool {
         if let Some(parent) = Self::get_parent_node(element) {
             let children = Self::get_child_nodes(&parent);
-            children.last().map_or(false, |last| JsObject::equals(last, element))
+            children
+                .last()
+                .map_or(false, |last| JsObject::equals(last, element))
         } else {
             false
         }
@@ -877,8 +870,8 @@ enum ParsedCSSSelector {
 /// CSS combinator types
 #[derive(Debug, Clone, Copy)]
 enum CSSCombinator {
-    Descendant, // space
-    Child,      // >
+    Descendant,      // space
+    Child,           // >
     AdjacentSibling, // +
     GeneralSibling,  // ~
 }
@@ -946,10 +939,7 @@ impl EventPath {
     }
 
     /// Retarget event for shadow DOM boundaries
-    pub fn retarget_event(
-        original_target: &JsObject,
-        current_target: &JsObject,
-    ) -> JsObject {
+    pub fn retarget_event(original_target: &JsObject, current_target: &JsObject) -> JsObject {
         // Implementation of event retargeting algorithm
         // This ensures events crossing shadow boundaries appear to come from the host
 
@@ -990,7 +980,9 @@ impl EventPath {
     /// Find shadow host for event retargeting
     fn find_shadow_host_for_retargeting(shadow_root: &JsObject) -> JsObject {
         if let Some(shadow_data) = shadow_root.downcast_ref::<ShadowRootData>() {
-            shadow_data.get_host().unwrap_or_else(|| shadow_root.clone())
+            shadow_data
+                .get_host()
+                .unwrap_or_else(|| shadow_root.clone())
         } else {
             shadow_root.clone()
         }

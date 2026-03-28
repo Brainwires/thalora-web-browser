@@ -3,11 +3,13 @@
 
 #[cfg(test)]
 mod worker_message_tests {
-    use crate::worker::worker_thread::{WorkerThread, WorkerConfig, WorkerType, WorkerCommand, WorkerEvent};
-    use crate::misc::structured_clone::{structured_clone, StructuredCloneValue};
+    use crate::misc::structured_clone::{StructuredCloneValue, structured_clone};
+    use crate::worker::worker_thread::{
+        WorkerCommand, WorkerConfig, WorkerEvent, WorkerThread, WorkerType,
+    };
     use boa_engine::{Context, JsValue, js_string};
-    use std::time::Duration;
     use std::thread;
+    use std::time::Duration;
 
     /// Helper to serialize a JsValue for message passing
     fn serialize_message(value: &JsValue, context: &mut Context) -> StructuredCloneValue {
@@ -40,7 +42,9 @@ mod worker_message_tests {
         let serialized = serialize_message(&message, &mut context);
 
         // Send message to worker
-        let result = worker.send_command(WorkerCommand::PostMessage { message: serialized });
+        let result = worker.send_command(WorkerCommand::PostMessage {
+            message: serialized,
+        });
         assert!(result.is_ok(), "Should send message to worker");
 
         // Give worker time to process message
@@ -75,7 +79,10 @@ mod worker_message_tests {
                         got_message = true;
                         // Verify message data
                         let mut context = Context::default();
-                        if let Ok(value) = crate::misc::structured_clone::structured_deserialize(&data, &mut context) {
+                        if let Ok(value) = crate::misc::structured_clone::structured_deserialize(
+                            &data,
+                            &mut context,
+                        ) {
                             if let Some(s) = value.as_string() {
                                 assert_eq!(s.to_std_string_escaped(), "Hello from worker!");
                             }
@@ -118,7 +125,11 @@ mod worker_message_tests {
         let mut context = Context::default();
         let message1 = JsValue::from(js_string!("Message 1"));
         let serialized1 = serialize_message(&message1, &mut context);
-        worker.send_command(WorkerCommand::PostMessage { message: serialized1 }).expect("Send 1");
+        worker
+            .send_command(WorkerCommand::PostMessage {
+                message: serialized1,
+            })
+            .expect("Send 1");
 
         thread::sleep(Duration::from_millis(200));
 
@@ -138,7 +149,11 @@ mod worker_message_tests {
         // Send second message
         let message2 = JsValue::from(js_string!("Message 2"));
         let serialized2 = serialize_message(&message2, &mut context);
-        worker.send_command(WorkerCommand::PostMessage { message: serialized2 }).expect("Send 2");
+        worker
+            .send_command(WorkerCommand::PostMessage {
+                message: serialized2,
+            })
+            .expect("Send 2");
 
         thread::sleep(Duration::from_millis(200));
 
@@ -172,7 +187,11 @@ mod worker_message_tests {
         let mut context = Context::default();
         let number = JsValue::from(42);
         let serialized = serialize_message(&number, &mut context);
-        worker.send_command(WorkerCommand::PostMessage { message: serialized }).expect("Send number");
+        worker
+            .send_command(WorkerCommand::PostMessage {
+                message: serialized,
+            })
+            .expect("Send number");
 
         thread::sleep(Duration::from_millis(200));
 
@@ -181,7 +200,9 @@ mod worker_message_tests {
         for _ in 0..10 {
             if let Some(event) = worker.try_recv_event() {
                 if let WorkerEvent::Message { data } = event {
-                    if let Ok(value) = crate::misc::structured_clone::structured_deserialize(&data, &mut context) {
+                    if let Ok(value) =
+                        crate::misc::structured_clone::structured_deserialize(&data, &mut context)
+                    {
                         if let Some(num) = value.as_number() {
                             assert_eq!(num, 84.0);
                             got_number = true;
@@ -219,9 +240,15 @@ mod worker_message_tests {
 
         // Create an array
         let mut context = Context::default();
-        let array = context.eval(boa_engine::Source::from_bytes("[1, 2, 3, 4, 5]")).expect("Create array");
+        let array = context
+            .eval(boa_engine::Source::from_bytes("[1, 2, 3, 4, 5]"))
+            .expect("Create array");
         let serialized = serialize_message(&array, &mut context);
-        worker.send_command(WorkerCommand::PostMessage { message: serialized }).expect("Send array");
+        worker
+            .send_command(WorkerCommand::PostMessage {
+                message: serialized,
+            })
+            .expect("Send array");
 
         thread::sleep(Duration::from_millis(200));
 
@@ -230,7 +257,9 @@ mod worker_message_tests {
         for _ in 0..10 {
             if let Some(event) = worker.try_recv_event() {
                 if let WorkerEvent::Message { data } = event {
-                    if let Ok(value) = crate::misc::structured_clone::structured_deserialize(&data, &mut context) {
+                    if let Ok(value) =
+                        crate::misc::structured_clone::structured_deserialize(&data, &mut context)
+                    {
                         if let Some(num) = value.as_number() {
                             assert_eq!(num, 5.0);
                             got_length = true;
@@ -272,10 +301,17 @@ mod worker_message_tests {
 
         // Create an object
         let mut context = Context::default();
-        let obj = context.eval(boa_engine::Source::from_bytes("({name: 'test', value: 123})"))
+        let obj = context
+            .eval(boa_engine::Source::from_bytes(
+                "({name: 'test', value: 123})",
+            ))
             .expect("Create object");
         let serialized = serialize_message(&obj, &mut context);
-        worker.send_command(WorkerCommand::PostMessage { message: serialized }).expect("Send object");
+        worker
+            .send_command(WorkerCommand::PostMessage {
+                message: serialized,
+            })
+            .expect("Send object");
 
         thread::sleep(Duration::from_millis(300));
 
@@ -284,7 +320,9 @@ mod worker_message_tests {
         for _ in 0..10 {
             if let Some(event) = worker.try_recv_event() {
                 if let WorkerEvent::Message { data } = event {
-                    if let Ok(_value) = crate::misc::structured_clone::structured_deserialize(&data, &mut context) {
+                    if let Ok(_value) =
+                        crate::misc::structured_clone::structured_deserialize(&data, &mut context)
+                    {
                         got_object = true;
                         break;
                     }
@@ -324,7 +362,11 @@ mod worker_message_tests {
         for i in 1..=5 {
             let message = JsValue::from(js_string!(format!("Message {}", i)));
             let serialized = serialize_message(&message, &mut context);
-            worker.send_command(WorkerCommand::PostMessage { message: serialized }).expect("Send message");
+            worker
+                .send_command(WorkerCommand::PostMessage {
+                    message: serialized,
+                })
+                .expect("Send message");
         }
 
         thread::sleep(Duration::from_millis(300));
@@ -370,12 +412,19 @@ mod worker_message_tests {
         let mut context = Context::default();
         let message = JsValue::from(js_string!("normal"));
         let serialized = serialize_message(&message, &mut context);
-        worker.send_command(WorkerCommand::PostMessage { message: serialized }).expect("Send normal");
+        worker
+            .send_command(WorkerCommand::PostMessage {
+                message: serialized,
+            })
+            .expect("Send normal");
 
         thread::sleep(Duration::from_millis(200));
 
         // Worker should still be running
-        assert!(worker.is_running(), "Worker should still be running after processing normal message");
+        assert!(
+            worker.is_running(),
+            "Worker should still be running after processing normal message"
+        );
 
         worker.terminate();
     }

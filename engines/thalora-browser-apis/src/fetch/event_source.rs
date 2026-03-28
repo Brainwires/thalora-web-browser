@@ -7,31 +7,31 @@
 //! It allows for real-time communication via HTTP streaming.
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    native_function::NativeFunction,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsArgs, JsData, JsResult, JsString, JsValue,
-    native_function::NativeFunction,
 };
 use boa_gc::{Finalize, Trace};
+use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use reqwest::Client;
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
     },
     time::Duration,
 };
 use tokio::{sync::mpsc, time::sleep};
 use url::Url;
-use bytes::Bytes;
 
 /// EventSource connection states according to WHATWG specification
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,11 +281,7 @@ impl BuiltInConstructor for EventSource {
 
 impl EventSource {
     /// Start the EventSource connection
-    async fn start_connection(
-        data: EventSourceData,
-        _object: JsObject,
-        url: Url,
-    ) {
+    async fn start_connection(data: EventSourceData, _object: JsObject, url: Url) {
         let client = Client::new();
         let mut retry_count = 0;
         const MAX_RETRIES: u32 = 10;
@@ -339,7 +335,9 @@ impl EventSource {
 
                                     // Process the stream
                                     let stream = response.bytes_stream();
-                                    if let Err(_) = Self::process_stream(stream, &data, &mut control_rx).await {
+                                    if let Err(_) =
+                                        Self::process_stream(stream, &data, &mut control_rx).await
+                                    {
                                         // Stream processing failed
                                         break;
                                     }
@@ -428,7 +426,8 @@ impl EventSource {
 
                             // Process complete lines
                             while let Some(line_end) = buffer.find('\n') {
-                                let line_string = buffer[..line_end].trim_end_matches('\r').to_string();
+                                let line_string =
+                                    buffer[..line_end].trim_end_matches('\r').to_string();
                                 buffer.drain(..=line_end);
 
                                 // Process the line according to EventSource spec
@@ -446,7 +445,9 @@ impl EventSource {
                                 } else if let Some(colon_pos) = line_string.find(':') {
                                     // Line with field and value
                                     let field = &line_string[..colon_pos];
-                                    let value = if colon_pos + 1 < line_string.len() && line_string.chars().nth(colon_pos + 1) == Some(' ') {
+                                    let value = if colon_pos + 1 < line_string.len()
+                                        && line_string.chars().nth(colon_pos + 1) == Some(' ')
+                                    {
                                         &line_string[colon_pos + 2..]
                                     } else {
                                         &line_string[colon_pos + 1..]
@@ -477,7 +478,12 @@ impl EventSource {
     }
 
     /// Process a field according to EventSource specification
-    fn process_field(field: &str, value: &str, event: &mut ServerSentEvent, data: &EventSourceData) {
+    fn process_field(
+        field: &str,
+        value: &str,
+        event: &mut ServerSentEvent,
+        data: &EventSourceData,
+    ) {
         match field {
             "event" => {
                 event.event_type = value.to_string();
@@ -536,14 +542,16 @@ impl EventSource {
 
         // Log event for debugging/demonstration
         // In a full implementation, this would be queued for JavaScript delivery
-        eprintln!("[EventSource] event: type='{}', data='{}', id={:?}",
-                 event.event_type,
-                 if event.data.len() > 100 {
-                     format!("{}...", &event.data[..100])
-                 } else {
-                     event.data.clone()
-                 },
-                 event.id);
+        eprintln!(
+            "[EventSource] event: type='{}', data='{}', id={:?}",
+            event.event_type,
+            if event.data.len() > 100 {
+                format!("{}...", &event.data[..100])
+            } else {
+                event.data.clone()
+            },
+            event.id
+        );
     }
 
     /// Close the EventSource connection
@@ -578,7 +586,11 @@ fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
 }
 
 /// Get the withCredentials property of EventSource
-fn get_with_credentials(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_with_credentials(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(object) = this.as_object() {
         if let Some(event_source) = object.downcast_ref::<EventSource>() {
             return Ok(JsValue::from(event_source.data.with_credentials()));
@@ -586,4 +598,3 @@ fn get_with_credentials(this: &JsValue, _args: &[JsValue], _context: &mut Contex
     }
     Ok(JsValue::undefined())
 }
-

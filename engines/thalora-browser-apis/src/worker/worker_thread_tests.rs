@@ -3,9 +3,11 @@
 
 #[cfg(test)]
 mod worker_thread_tests {
-    use crate::worker::worker_thread::{WorkerThread, WorkerConfig, WorkerType, WorkerCommand, WorkerEvent, WorkerStatus};
-    use std::time::Duration;
+    use crate::worker::worker_thread::{
+        WorkerCommand, WorkerConfig, WorkerEvent, WorkerStatus, WorkerThread, WorkerType,
+    };
     use std::thread;
+    use std::time::Duration;
 
     /// Test basic worker creation and termination
     #[test]
@@ -236,7 +238,11 @@ mod worker_thread_tests {
         let _ = worker.send_command(WorkerCommand::Suspend);
         thread::sleep(Duration::from_millis(50));
         let status = worker.status();
-        assert_eq!(status, WorkerStatus::Suspended, "Worker should be Suspended");
+        assert_eq!(
+            status,
+            WorkerStatus::Suspended,
+            "Worker should be Suspended"
+        );
 
         // Resume worker
         let _ = worker.send_command(WorkerCommand::Resume);
@@ -247,14 +253,21 @@ mod worker_thread_tests {
         worker.terminate();
         thread::sleep(Duration::from_millis(100));
         let status = worker.status();
-        assert_eq!(status, WorkerStatus::Terminated, "Worker should be Terminated");
+        assert_eq!(
+            status,
+            WorkerStatus::Terminated,
+            "Worker should be Terminated"
+        );
     }
 
     /// Test worker with data URL script
     #[test]
     fn test_worker_data_url() {
         let script = "console.log('Hello from data URL');";
-        let data_url = format!("data:application/javascript,{}", urlencoding::encode(script));
+        let data_url = format!(
+            "data:application/javascript,{}",
+            urlencoding::encode(script)
+        );
 
         let config = WorkerConfig {
             name: Some("data-url-worker".to_string()),

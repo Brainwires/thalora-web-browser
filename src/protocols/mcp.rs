@@ -20,7 +20,10 @@ impl McpResponse {
         } else {
             vec![value]
         };
-        Self { content, is_error: false }
+        Self {
+            content,
+            is_error: false,
+        }
     }
 
     /// Create an error response with a human-readable `message`.

@@ -6,13 +6,13 @@
 //! Spec: https://w3c.github.io/IndexedDB/#request-api
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -143,7 +143,12 @@ impl IDBRequest {
     /// Create a simple event object
     fn create_event(event_type: &str, context: &mut Context) -> JsResult<JsValue> {
         let event = JsObject::with_object_proto(context.intrinsics());
-        event.set(js_string!("type"), JsValue::from(JsString::from(event_type)), false, context)?;
+        event.set(
+            js_string!("type"),
+            JsValue::from(JsString::from(event_type)),
+            false,
+            context,
+        )?;
         Ok(event.into())
     }
 
@@ -192,20 +197,28 @@ impl IDBRequest {
             if let Some(request) = obj.downcast_ref::<IDBRequest>() {
                 let data = request.data.lock().unwrap();
                 if data.state == RequestState::Pending {
-                    return Err(JsNativeError::error().with_message("Request is still pending").into());
+                    return Err(JsNativeError::error()
+                        .with_message("Request is still pending")
+                        .into());
                 }
                 Ok(data.result.clone().unwrap_or(JsValue::undefined()))
             } else if let Some(open_request) = obj.downcast_ref::<IDBOpenDBRequest>() {
                 let data = open_request.base.data.lock().unwrap();
                 if data.state == RequestState::Pending {
-                    return Err(JsNativeError::error().with_message("Request is still pending").into());
+                    return Err(JsNativeError::error()
+                        .with_message("Request is still pending")
+                        .into());
                 }
                 Ok(data.result.clone().unwrap_or(JsValue::undefined()))
             } else {
-                Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+                Err(JsNativeError::typ()
+                    .with_message("'this' is not an IDBRequest object")
+                    .into())
             }
         } else {
-            Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+            Err(JsNativeError::typ()
+                .with_message("'this' is not an IDBRequest object")
+                .into())
         }
     }
 
@@ -232,10 +245,14 @@ impl IDBRequest {
                     Ok(JsValue::null())
                 }
             } else {
-                Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+                Err(JsNativeError::typ()
+                    .with_message("'this' is not an IDBRequest object")
+                    .into())
             }
         } else {
-            Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+            Err(JsNativeError::typ()
+                .with_message("'this' is not an IDBRequest object")
+                .into())
         }
     }
 
@@ -248,14 +265,27 @@ impl IDBRequest {
         // Get source from the underlying request (not from RequestData)
         if let Some(obj) = this.as_object() {
             if let Some(request) = obj.downcast_ref::<IDBRequest>() {
-                Ok(request.source.clone().map(|s| s.into()).unwrap_or(JsValue::null()))
+                Ok(request
+                    .source
+                    .clone()
+                    .map(|s| s.into())
+                    .unwrap_or(JsValue::null()))
             } else if let Some(open_request) = obj.downcast_ref::<IDBOpenDBRequest>() {
-                Ok(open_request.base.source.clone().map(|s| s.into()).unwrap_or(JsValue::null()))
+                Ok(open_request
+                    .base
+                    .source
+                    .clone()
+                    .map(|s| s.into())
+                    .unwrap_or(JsValue::null()))
             } else {
-                Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+                Err(JsNativeError::typ()
+                    .with_message("'this' is not an IDBRequest object")
+                    .into())
             }
         } else {
-            Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+            Err(JsNativeError::typ()
+                .with_message("'this' is not an IDBRequest object")
+                .into())
         }
     }
 
@@ -268,14 +298,27 @@ impl IDBRequest {
         // Get transaction from the underlying request (works for both IDBRequest and IDBOpenDBRequest)
         if let Some(obj) = this.as_object() {
             if let Some(request) = obj.downcast_ref::<IDBRequest>() {
-                Ok(request.transaction.clone().map(|t| t.into()).unwrap_or(JsValue::null()))
+                Ok(request
+                    .transaction
+                    .clone()
+                    .map(|t| t.into())
+                    .unwrap_or(JsValue::null()))
             } else if let Some(open_request) = obj.downcast_ref::<IDBOpenDBRequest>() {
-                Ok(open_request.base.transaction.clone().map(|t| t.into()).unwrap_or(JsValue::null()))
+                Ok(open_request
+                    .base
+                    .transaction
+                    .clone()
+                    .map(|t| t.into())
+                    .unwrap_or(JsValue::null()))
             } else {
-                Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+                Err(JsNativeError::typ()
+                    .with_message("'this' is not an IDBRequest object")
+                    .into())
             }
         } else {
-            Err(JsNativeError::typ().with_message("'this' is not an IDBRequest object").into())
+            Err(JsNativeError::typ()
+                .with_message("'this' is not an IDBRequest object")
+                .into())
         }
     }
 
@@ -285,13 +328,13 @@ impl IDBRequest {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBRequest object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBRequest object")
+        })?;
 
-        let request = obj.downcast_ref::<IDBRequest>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBRequest object"))?;
+        let request = obj.downcast_ref::<IDBRequest>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBRequest object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onsuccess = request.onsuccess.lock().unwrap();
@@ -311,13 +354,13 @@ impl IDBRequest {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBRequest object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBRequest object")
+        })?;
 
-        let request = obj.downcast_ref::<IDBRequest>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBRequest object"))?;
+        let request = obj.downcast_ref::<IDBRequest>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBRequest object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onerror = request.onerror.lock().unwrap();
@@ -346,58 +389,72 @@ impl IntrinsicObject for IDBRequest {
             // Properties
             .accessor(
                 js_string!("readyState"),
-                Some(BuiltInBuilder::callable(realm, Self::get_ready_state)
-                    .name(js_string!("get readyState"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_ready_state)
+                        .name(js_string!("get readyState"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("result"),
-                Some(BuiltInBuilder::callable(realm, Self::get_result)
-                    .name(js_string!("get result"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_result)
+                        .name(js_string!("get result"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("error"),
-                Some(BuiltInBuilder::callable(realm, Self::get_error)
-                    .name(js_string!("get error"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_error)
+                        .name(js_string!("get error"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("source"),
-                Some(BuiltInBuilder::callable(realm, Self::get_source)
-                    .name(js_string!("get source"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_source)
+                        .name(js_string!("get source"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("transaction"),
-                Some(BuiltInBuilder::callable(realm, Self::get_transaction)
-                    .name(js_string!("get transaction"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_transaction)
+                        .name(js_string!("get transaction"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onsuccess"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onsuccess)
-                    .name(js_string!("set onsuccess"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onsuccess)
+                        .name(js_string!("set onsuccess"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onerror"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onerror)
-                    .name(js_string!("set onerror"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onerror)
+                        .name(js_string!("set onerror"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             .build();
@@ -413,15 +470,14 @@ impl BuiltInObject for IDBRequest {
 }
 
 impl BuiltInConstructor for IDBRequest {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Constructor properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Constructor properties
 
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| {
-            constructors.idb_request()
-        };
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.idb_request();
 
     fn constructor(
         _new_target: &JsValue,
@@ -476,15 +532,35 @@ impl IDBOpenDBRequest {
     }
 
     /// Trigger upgradeneeded event
-    pub fn trigger_upgradeneeded(&self, old_version: u32, new_version: u32, context: &mut Context) -> JsResult<()> {
+    pub fn trigger_upgradeneeded(
+        &self,
+        old_version: u32,
+        new_version: u32,
+        context: &mut Context,
+    ) -> JsResult<()> {
         let handler = self.onupgradeneeded.lock().unwrap();
         if let Some(callback) = handler.as_ref() {
             if callback.is_callable() {
                 // Create version change event
                 let event = JsObject::with_object_proto(context.intrinsics());
-                event.set(js_string!("type"), JsValue::from(JsString::from("upgradeneeded")), false, context)?;
-                event.set(js_string!("oldVersion"), JsValue::from(old_version), false, context)?;
-                event.set(js_string!("newVersion"), JsValue::from(new_version), false, context)?;
+                event.set(
+                    js_string!("type"),
+                    JsValue::from(JsString::from("upgradeneeded")),
+                    false,
+                    context,
+                )?;
+                event.set(
+                    js_string!("oldVersion"),
+                    JsValue::from(old_version),
+                    false,
+                    context,
+                )?;
+                event.set(
+                    js_string!("newVersion"),
+                    JsValue::from(new_version),
+                    false,
+                    context,
+                )?;
 
                 callback.call(&JsValue::undefined(), &[event.into()], context)?;
             }
@@ -498,13 +574,13 @@ impl IDBOpenDBRequest {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBRequest object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBRequest object")
+        })?;
 
-        let request = obj.downcast_ref::<IDBOpenDBRequest>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBOpenDBRequest object"))?;
+        let request = obj.downcast_ref::<IDBOpenDBRequest>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBOpenDBRequest object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onupgradeneeded = request.onupgradeneeded.lock().unwrap();

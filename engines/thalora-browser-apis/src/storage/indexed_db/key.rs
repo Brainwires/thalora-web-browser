@@ -12,9 +12,7 @@
 //! Spec: https://w3c.github.io/IndexedDB/#key-construct
 
 use boa_engine::{
-    Context, JsNativeError, JsResult, JsString, JsValue,
-    builtins::array::Array,
-    js_string,
+    Context, JsNativeError, JsResult, JsString, JsValue, builtins::array::Array, js_string,
     object::JsObject,
 };
 use boa_gc::{Finalize, Trace};
@@ -116,7 +114,10 @@ impl IDBKey {
         }
 
         Err(JsNativeError::typ()
-            .with_message(format!("Value of type {} is not a valid IndexedDB key", value.type_of()))
+            .with_message(format!(
+                "Value of type {} is not a valid IndexedDB key",
+                value.type_of()
+            ))
             .into())
     }
 
@@ -144,12 +145,16 @@ impl IDBKey {
         }
 
         // Check if this is a typed array (has buffer property) or ArrayBuffer directly
-        let is_typed_array = obj.has_property(js_string!("buffer"), context).unwrap_or(false);
+        let is_typed_array = obj
+            .has_property(js_string!("buffer"), context)
+            .unwrap_or(false);
 
         if is_typed_array {
             // For typed arrays, use the buffer property and byteOffset
             let buffer = obj.get(js_string!("buffer"), context).ok()?;
-            let byte_offset = obj.get(js_string!("byteOffset"), context).ok()?
+            let byte_offset = obj
+                .get(js_string!("byteOffset"), context)
+                .ok()?
                 .as_number()
                 .unwrap_or(0.0) as usize;
 
@@ -205,11 +210,11 @@ impl IDBKey {
                     bits ^ (1u64 << 63)
                 };
                 bytes.extend_from_slice(&encoded.to_be_bytes());
-            },
+            }
             IDBKey::String(s) => {
                 bytes.push(0x02); // String prefix
                 bytes.extend_from_slice(s.as_bytes());
-            },
+            }
             IDBKey::Date(ms) => {
                 bytes.push(0x03); // Date prefix
                 let bits = ms.to_bits();
@@ -219,11 +224,11 @@ impl IDBKey {
                     bits ^ (1u64 << 63)
                 };
                 bytes.extend_from_slice(&encoded.to_be_bytes());
-            },
+            }
             IDBKey::Binary(data) => {
                 bytes.push(0x04); // Binary prefix
                 bytes.extend_from_slice(data);
-            },
+            }
             IDBKey::Array(keys) => {
                 bytes.push(0x05); // Array prefix
                 // Encode length
@@ -235,7 +240,7 @@ impl IDBKey {
                     bytes.extend_from_slice(&(key_bytes.len() as u32).to_be_bytes());
                     bytes.extend_from_slice(&key_bytes);
                 }
-            },
+            }
         }
 
         bytes
@@ -268,13 +273,13 @@ impl IDBKey {
                 };
 
                 Ok(IDBKey::Number(f64::from_bits(bits)))
-            },
+            }
             0x02 => {
                 // String
                 let s = String::from_utf8(data.to_vec())
                     .map_err(|e| format!("Invalid UTF-8: {}", e))?;
                 Ok(IDBKey::String(s))
-            },
+            }
             0x03 => {
                 // Date
                 if data.len() < 8 {
@@ -291,11 +296,11 @@ impl IDBKey {
                 };
 
                 Ok(IDBKey::Date(f64::from_bits(bits)))
-            },
+            }
             0x04 => {
                 // Binary
                 Ok(IDBKey::Binary(data.to_vec()))
-            },
+            }
             0x05 => {
                 // Array
                 if data.len() < 4 {
@@ -315,7 +320,7 @@ impl IDBKey {
                     }
 
                     let mut key_len_bytes = [0u8; 4];
-                    key_len_bytes.copy_from_slice(&data[offset..offset+4]);
+                    key_len_bytes.copy_from_slice(&data[offset..offset + 4]);
                     let key_len = u32::from_be_bytes(key_len_bytes) as usize;
                     offset += 4;
 
@@ -323,13 +328,13 @@ impl IDBKey {
                         return Err("Invalid array element data".to_string());
                     }
 
-                    let key = Self::from_bytes(&data[offset..offset+key_len])?;
+                    let key = Self::from_bytes(&data[offset..offset + key_len])?;
                     keys.push(key);
                     offset += key_len;
                 }
 
                 Ok(IDBKey::Array(keys))
-            },
+            }
             _ => Err(format!("Unknown key type prefix: {}", type_prefix)),
         }
     }
@@ -344,7 +349,7 @@ impl IDBKey {
                 let date_constructor = context.intrinsics().constructors().date().constructor();
                 let date = date_constructor.construct(&[JsValue::from(*ms)], None, context)?;
                 Ok(date.into())
-            },
+            }
             IDBKey::Binary(bytes) => {
                 // Create Uint8Array
                 let array = Array::array_create(bytes.len() as u64, None, context)?;
@@ -352,7 +357,7 @@ impl IDBKey {
                     array.set(i, JsValue::from(byte), true, context)?;
                 }
                 Ok(array.into())
-            },
+            }
             IDBKey::Array(keys) => {
                 // Create JavaScript array
                 let array = Array::array_create(keys.len() as u64, None, context)?;
@@ -361,7 +366,7 @@ impl IDBKey {
                     array.set(i, value, true, context)?;
                 }
                 Ok(array.into())
-            },
+            }
         }
     }
 }
@@ -377,16 +382,24 @@ impl Ord for IDBKey {
         match (self, other) {
             // Same types - compare values
             (Number(a), Number(b)) => {
-                if a < b { Ordering::Less }
-                else if a > b { Ordering::Greater }
-                else { Ordering::Equal }
-            },
+                if a < b {
+                    Ordering::Less
+                } else if a > b {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            }
             (String(a), String(b)) => a.cmp(b),
             (Date(a), Date(b)) => {
-                if a < b { Ordering::Less }
-                else if a > b { Ordering::Greater }
-                else { Ordering::Equal }
-            },
+                if a < b {
+                    Ordering::Less
+                } else if a > b {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            }
             (Binary(a), Binary(b)) => a.cmp(b),
             (Array(a), Array(b)) => a.cmp(b),
 
@@ -396,8 +409,12 @@ impl Ord for IDBKey {
             (_, Array(_)) => Ordering::Less,
 
             // Binary is higher than String, Date, Number
-            (Binary(_), String(_)) | (Binary(_), Date(_)) | (Binary(_), Number(_)) => Ordering::Greater,
-            (String(_), Binary(_)) | (Date(_), Binary(_)) | (Number(_), Binary(_)) => Ordering::Less,
+            (Binary(_), String(_)) | (Binary(_), Date(_)) | (Binary(_), Number(_)) => {
+                Ordering::Greater
+            }
+            (String(_), Binary(_)) | (Date(_), Binary(_)) | (Number(_), Binary(_)) => {
+                Ordering::Less
+            }
 
             // String is higher than Date, Number
             (String(_), Date(_)) | (String(_), Number(_)) => Ordering::Greater,
@@ -433,8 +450,8 @@ mod tests {
         assert!(num1 < num2);
 
         // Cross-type ordering per IndexedDB spec: Number < Date < String < Binary < Array
-        assert!(num1 < date1);  // Number < Date
-        assert!(date1 < str1);  // Date < String
+        assert!(num1 < date1); // Number < Date
+        assert!(date1 < str1); // Date < String
     }
 
     #[test]

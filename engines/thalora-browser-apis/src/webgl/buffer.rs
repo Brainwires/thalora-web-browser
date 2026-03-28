@@ -166,7 +166,13 @@ impl WebGLFramebuffer {
     }
 
     /// Attach a texture
-    pub fn attach_texture(&mut self, attachment: u32, texture_id: u32, level: i32, face: Option<u32>) {
+    pub fn attach_texture(
+        &mut self,
+        attachment: u32,
+        texture_id: u32,
+        level: i32,
+        face: Option<u32>,
+    ) {
         let attach = FramebufferAttachment::Texture {
             texture_id,
             level,
@@ -237,7 +243,11 @@ impl WebGLFramebuffer {
         };
 
         match attach {
-            Some(FramebufferAttachment::Texture { texture_id, level, face }) => match pname {
+            Some(FramebufferAttachment::Texture {
+                texture_id,
+                level,
+                face,
+            }) => match pname {
                 WebGLConstants::FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE => {
                     Some(WebGLConstants::TEXTURE as i32)
                 }

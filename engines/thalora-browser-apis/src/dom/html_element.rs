@@ -4,14 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/dom.html#htmlelement
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -92,7 +93,11 @@ impl BuiltInConstructor for HTMLElement {
                 .into());
         }
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::html_element, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::html_element,
+            context,
+        )?;
         let html_element_data = HTMLElementData::new();
         let html_element_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -146,7 +151,10 @@ fn set_inner_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("HTMLElement.prototype.innerText called on non-object")
     })?;
 
-    let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let text = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<HTMLElementData>() {
         data.inner_text = text;
@@ -183,7 +191,11 @@ fn set_hidden(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsRes
 
 fn get_style(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Return a CSSStyleDeclaration object
-    let style_constructor = context.intrinsics().constructors().css_style_declaration().constructor();
+    let style_constructor = context
+        .intrinsics()
+        .constructors()
+        .css_style_declaration()
+        .constructor();
     crate::browser::cssom::CSSStyleDeclaration::constructor(
         &style_constructor.clone().into(),
         &[],
@@ -220,17 +232,23 @@ mod tests {
     #[test]
     fn test_html_element_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof HTMLElement === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof HTMLElement === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_html_element_constructor() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const el = new HTMLElement();
             el.nodeType === 1;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

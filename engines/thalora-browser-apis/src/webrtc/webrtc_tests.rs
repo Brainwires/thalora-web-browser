@@ -12,16 +12,15 @@ mod tests {
 
     /// Test helper to create a new context and evaluate JavaScript code
     fn eval_js(code: &str) -> JsResult<JsValue> {
+        use crate::webrtc::{
+            rtc_data_channel::RTCDataChannelBuiltin, rtc_ice_candidate::RTCIceCandidateBuiltin,
+            rtc_peer_connection::RTCPeerConnectionBuiltin,
+            rtc_session_description::RTCSessionDescriptionBuiltin,
+        };
         use boa_engine::{
-            builtins::{IntrinsicObject, BuiltInObject},
+            builtins::{BuiltInObject, IntrinsicObject},
             js_string,
             property::Attribute,
-        };
-        use crate::webrtc::{
-            rtc_peer_connection::RTCPeerConnectionBuiltin,
-            rtc_data_channel::RTCDataChannelBuiltin,
-            rtc_ice_candidate::RTCIceCandidateBuiltin,
-            rtc_session_description::RTCSessionDescriptionBuiltin,
         };
 
         let mut context = Context::default();
@@ -38,15 +37,50 @@ mod tests {
         let intrinsics = realm.intrinsics();
 
         // Register core ECMAScript error types (these should be automatic but aren't due to Boa changes)
-        global_obj.set(js_string!("TypeError"), intrinsics.constructors().type_error().constructor(), false, &mut context)?;
-        global_obj.set(js_string!("Error"), intrinsics.constructors().error().constructor(), false, &mut context)?;
-        global_obj.set(js_string!("ReferenceError"), intrinsics.constructors().reference_error().constructor(), false, &mut context)?;
-        global_obj.set(js_string!("RangeError"), intrinsics.constructors().range_error().constructor(), false, &mut context)?;
-        global_obj.set(js_string!("SyntaxError"), intrinsics.constructors().syntax_error().constructor(), false, &mut context)?;
+        global_obj.set(
+            js_string!("TypeError"),
+            intrinsics.constructors().type_error().constructor(),
+            false,
+            &mut context,
+        )?;
+        global_obj.set(
+            js_string!("Error"),
+            intrinsics.constructors().error().constructor(),
+            false,
+            &mut context,
+        )?;
+        global_obj.set(
+            js_string!("ReferenceError"),
+            intrinsics.constructors().reference_error().constructor(),
+            false,
+            &mut context,
+        )?;
+        global_obj.set(
+            js_string!("RangeError"),
+            intrinsics.constructors().range_error().constructor(),
+            false,
+            &mut context,
+        )?;
+        global_obj.set(
+            js_string!("SyntaxError"),
+            intrinsics.constructors().syntax_error().constructor(),
+            false,
+            &mut context,
+        )?;
 
         // Register core ECMAScript objects
-        global_obj.set(js_string!("Object"), intrinsics.constructors().object().constructor(), false, &mut context)?;
-        global_obj.set(js_string!("JSON"), intrinsics.objects().json(), false, &mut context)?;
+        global_obj.set(
+            js_string!("Object"),
+            intrinsics.constructors().object().constructor(),
+            false,
+            &mut context,
+        )?;
+        global_obj.set(
+            js_string!("JSON"),
+            intrinsics.objects().json(),
+            false,
+            &mut context,
+        )?;
 
         // Register WebRTC constructors
         let rtc_pc_constructor = RTCPeerConnectionBuiltin::get(intrinsics);
@@ -100,7 +134,9 @@ mod tests {
     fn test_core_builtins_exist() {
         // First test with a completely fresh context
         let mut fresh_context = boa_engine::Context::default();
-        let result = fresh_context.eval(boa_parser::Source::from_bytes("typeof TypeError")).unwrap();
+        let result = fresh_context
+            .eval(boa_parser::Source::from_bytes("typeof TypeError"))
+            .unwrap();
         eprintln!("Fresh context - typeof TypeError: {:?}", result);
 
         // Then test with our eval_js helper
@@ -115,10 +151,24 @@ mod tests {
         eprintln!("typeof JSON.parse: {:?}", json_parse_type);
 
         // Verify core JavaScript builtins are available
-        assert!(test_constructor_exists("TypeError").unwrap(), "TypeError should exist");
-        assert!(test_constructor_exists("Object").unwrap(), "Object should exist");
-        assert!(eval_js("typeof JSON === 'object'").unwrap().to_boolean(), "JSON should exist");
-        assert!(eval_js("typeof JSON.parse === 'function'").unwrap().to_boolean(), "JSON.parse should be a function");
+        assert!(
+            test_constructor_exists("TypeError").unwrap(),
+            "TypeError should exist"
+        );
+        assert!(
+            test_constructor_exists("Object").unwrap(),
+            "Object should exist"
+        );
+        assert!(
+            eval_js("typeof JSON === 'object'").unwrap().to_boolean(),
+            "JSON should exist"
+        );
+        assert!(
+            eval_js("typeof JSON.parse === 'function'")
+                .unwrap()
+                .to_boolean(),
+            "JSON.parse should be a function"
+        );
     }
 
     #[test]
@@ -138,126 +188,153 @@ mod tests {
 
     #[test]
     fn test_rtc_peer_connection_basic_creation() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc === 'object' && pc.constructor.name === 'RTCPeerConnection'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_with_configuration() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
             typeof pc === 'object' && pc.constructor.name === 'RTCPeerConnection'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_connection_state() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.connectionState === 'string'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_ice_connection_state() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.iceConnectionState === 'string'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_ice_gathering_state() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.iceGatheringState === 'string'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_signaling_state() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.signalingState === 'string'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_create_offer_method() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.createOffer === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_create_answer_method() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.createAnswer === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_set_local_description_method() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.setLocalDescription === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_set_remote_description_method() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.setRemoteDescription === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_add_ice_candidate_method() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.addIceCandidate === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_close_method() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             typeof pc.close === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_ice_candidate_empty_constructor() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let candidate = new RTCIceCandidate();
             typeof candidate === 'object' && candidate.constructor.name === 'RTCIceCandidate'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_ice_candidate_with_init() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let candidate = new RTCIceCandidate({
                 candidate: 'candidate:1 1 UDP 2130706431 192.168.1.100 54400 typ host',
                 sdpMid: '0',
@@ -265,13 +342,15 @@ mod tests {
                 usernameFragment: 'username'
             });
             typeof candidate === 'object' && candidate.constructor.name === 'RTCIceCandidate'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_ice_candidate_properties() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let candidate = new RTCIceCandidate({
                 candidate: 'candidate:1 1 UDP 2130706431 192.168.1.100 54400 typ host',
                 sdpMid: '0',
@@ -282,13 +361,15 @@ mod tests {
             candidate.sdpMid === '0' &&
             candidate.sdpMLineIndex === 0 &&
             candidate.usernameFragment === 'username'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_ice_candidate_to_json() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let candidate = new RTCIceCandidate({
                 candidate: 'test-candidate',
                 sdpMid: '0',
@@ -297,59 +378,69 @@ mod tests {
             });
             typeof candidate.toJSON === 'function' &&
             typeof candidate.toJSON() === 'string'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_ice_candidate_null_properties() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let candidate = new RTCIceCandidate();
             candidate.candidate === '' &&
             candidate.sdpMid === null &&
             candidate.sdpMLineIndex === null &&
             candidate.usernameFragment === null
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_session_description_empty_constructor() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let desc = new RTCSessionDescription();
             typeof desc === 'object' && desc.constructor.name === 'RTCSessionDescription'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_session_description_with_init() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let desc = new RTCSessionDescription({
                 type: 'offer',
                 sdp: 'v=0\\r\\no=- 123456 2 IN IP4 127.0.0.1\\r\\n'
             });
             typeof desc === 'object' && desc.constructor.name === 'RTCSessionDescription'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_session_description_properties() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let desc = new RTCSessionDescription({
                 type: 'offer',
                 sdp: 'v=0\\r\\no=- 123456 2 IN IP4 127.0.0.1\\r\\n'
             });
             desc.type === 'offer' &&
             desc.sdp === 'v=0\\r\\no=- 123456 2 IN IP4 127.0.0.1\\r\\n'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_session_description_types() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let offer = new RTCSessionDescription({ type: 'offer', sdp: 'test' });
             let answer = new RTCSessionDescription({ type: 'answer', sdp: 'test' });
             let pranswer = new RTCSessionDescription({ type: 'pranswer', sdp: 'test' });
@@ -359,71 +450,82 @@ mod tests {
             answer.type === 'answer' &&
             pranswer.type === 'pranswer' &&
             rollback.type === 'rollback'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_session_description_to_json() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let desc = new RTCSessionDescription({
                 type: 'offer',
                 sdp: 'test-sdp'
             });
             typeof desc.toJSON === 'function' &&
             typeof desc.toJSON() === 'string'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_data_channel_constructor_throws() {
         // RTCDataChannel constructor should not be callable directly
-        let result = eval_js("
+        let result = eval_js(
+            "
             try {
                 new RTCDataChannel();
                 false; // Should not reach here
             } catch (e) {
                 e instanceof TypeError;
             }
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_webrtc_apis_global_availability() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             typeof RTCPeerConnection === 'function' &&
             typeof RTCDataChannel === 'function' &&
             typeof RTCIceCandidate === 'function' &&
             typeof RTCSessionDescription === 'function'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_rtc_peer_connection_state_initial_values() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             pc.connectionState === 'new' &&
             pc.iceConnectionState === 'new' &&
             pc.iceGatheringState === 'new' &&
             pc.signalingState === 'stable'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_webrtc_error_handling() {
         // Test that invalid parameters throw appropriate errors
-        let result = eval_js("
+        let result = eval_js(
+            "
             try {
                 new RTCIceCandidate('invalid');
                 false;
             } catch (e) {
                 e instanceof TypeError;
             }
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
@@ -445,7 +547,8 @@ mod tests {
     #[test]
     fn test_webrtc_inheritance() {
         // Test that WebRTC objects properly inherit from Object
-        let result = eval_js("
+        let result = eval_js(
+            "
             let pc = new RTCPeerConnection();
             let candidate = new RTCIceCandidate();
             let desc = new RTCSessionDescription();
@@ -453,13 +556,15 @@ mod tests {
             pc instanceof Object &&
             candidate instanceof Object &&
             desc instanceof Object
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_webrtc_json_serialization() {
-        let result = eval_js("
+        let result = eval_js(
+            "
             let candidate = new RTCIceCandidate({
                 candidate: 'test-candidate',
                 sdpMid: '0',
@@ -479,14 +584,16 @@ mod tests {
             candidateJson.sdpMLineIndex === 0 &&
             descJson.type === 'offer' &&
             descJson.sdp === 'test-sdp'
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 
     #[test]
     fn test_webrtc_comprehensive_api_coverage() {
         // Test that all major WebRTC APIs are available and functional
-        let result = eval_js("
+        let result = eval_js(
+            "
             // Test RTCPeerConnection creation and basic methods
             let pc = new RTCPeerConnection();
             let hasBasicMethods = typeof pc.createOffer === 'function' &&
@@ -519,7 +626,8 @@ mod tests {
             let hasDataChannel = typeof RTCDataChannel === 'function';
 
             hasBasicMethods && hasIceCandidate && hasSessionDesc && hasDataChannel
-        ");
+        ",
+        );
         assert!(result.unwrap().to_boolean());
     }
 }

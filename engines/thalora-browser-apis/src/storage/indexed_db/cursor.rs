@@ -9,13 +9,13 @@ use super::key::IDBKey;
 use super::key_range::IDBKeyRange;
 use super::request::IDBRequest;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -25,12 +25,14 @@ fn json_stringify(value: &JsValue, context: &mut Context) -> JsResult<String> {
     // Get JSON global object
     let global = context.global_object();
     let json_obj = global.get(js_string!("JSON"), context)?;
-    let json_obj = json_obj.as_object()
+    let json_obj = json_obj
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON is not an object"))?;
 
     // Call JSON.stringify
     let stringify_fn = json_obj.get(js_string!("stringify"), context)?;
-    let stringify_fn = stringify_fn.as_callable()
+    let stringify_fn = stringify_fn
+        .as_callable()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON.stringify is not callable"))?;
 
     let result = stringify_fn.call(&JsValue::undefined(), &[value.clone()], context)?;
@@ -42,15 +44,21 @@ fn json_parse(json_str: &str, context: &mut Context) -> JsResult<JsValue> {
     // Get JSON global object
     let global = context.global_object();
     let json_obj = global.get(js_string!("JSON"), context)?;
-    let json_obj = json_obj.as_object()
+    let json_obj = json_obj
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON is not an object"))?;
 
     // Call JSON.parse
     let parse_fn = json_obj.get(js_string!("parse"), context)?;
-    let parse_fn = parse_fn.as_callable()
+    let parse_fn = parse_fn
+        .as_callable()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON.parse is not callable"))?;
 
-    parse_fn.call(&JsValue::undefined(), &[JsValue::from(JsString::from(json_str))], context)
+    parse_fn.call(
+        &JsValue::undefined(),
+        &[JsValue::from(JsString::from(json_str))],
+        context,
+    )
 }
 
 /// Cursor direction
@@ -199,13 +207,13 @@ impl IDBCursor {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         Ok(JsValue::from(JsString::from(cursor.direction.to_string())))
     }
@@ -216,13 +224,13 @@ impl IDBCursor {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         match cursor.key() {
             Some(key) => key.to_js_value(context),
@@ -236,13 +244,13 @@ impl IDBCursor {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         match cursor.primary_key() {
             Some(key) => key.to_js_value(context),
@@ -256,13 +264,13 @@ impl IDBCursor {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         match cursor.value() {
             Some(value_bytes) => {
@@ -281,17 +289,15 @@ impl IDBCursor {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let count = args.get_or_undefined(0)
-            .to_u32(_context)
-            .unwrap_or(1) as usize;
+        let count = args.get_or_undefined(0).to_u32(_context).unwrap_or(1) as usize;
 
         if count == 0 {
             return Err(JsNativeError::typ()
@@ -319,7 +325,8 @@ impl IDBCursor {
                     while state.current_index < state.keys.len() && advanced < count {
                         state.current_index += 1;
                         if state.current_index >= state.keys.len()
-                            || state.keys[state.current_index] != current_key {
+                            || state.keys[state.current_index] != current_key
+                        {
                             advanced += 1;
                             if advanced < count && state.current_index < state.keys.len() {
                                 // Update current key for next iteration
@@ -345,13 +352,13 @@ impl IDBCursor {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         let mut state = cursor.state.lock().unwrap();
 
@@ -376,14 +383,16 @@ impl IDBCursor {
                 CursorDirection::Next | CursorDirection::NextUnique => {
                     // Find first key >= target
                     while state.current_index < state.keys.len()
-                        && state.keys[state.current_index] < key {
+                        && state.keys[state.current_index] < key
+                    {
                         state.current_index += 1;
                     }
                 }
                 CursorDirection::Prev | CursorDirection::PrevUnique => {
                     // Find first key <= target
                     while state.current_index < state.keys.len()
-                        && state.keys[state.current_index] > key {
+                        && state.keys[state.current_index] > key
+                    {
                         state.current_index += 1;
                     }
                 }
@@ -398,7 +407,8 @@ impl IDBCursor {
                     if state.current_index > 0 && state.current_index < state.keys.len() {
                         let prev_key = state.keys[state.current_index - 1].clone();
                         while state.current_index < state.keys.len()
-                            && state.keys[state.current_index] == prev_key {
+                            && state.keys[state.current_index] == prev_key
+                        {
                             state.current_index += 1;
                         }
                     }
@@ -419,13 +429,13 @@ impl IDBCursor {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         // For object stores, primary key is the same as key
         // So this just calls continue with the key
@@ -440,13 +450,13 @@ impl IDBCursor {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         let state = cursor.state.lock().unwrap();
 
@@ -477,7 +487,12 @@ impl IDBCursor {
         // Update in backend
         let result = {
             let mut backend = cursor.backend.lock().unwrap();
-            backend.put(&cursor.db_name, &cursor.store_name, &current_key, value_bytes)
+            backend.put(
+                &cursor.db_name,
+                &cursor.store_name,
+                &current_key,
+                value_bytes,
+            )
         };
 
         match result {
@@ -508,13 +523,13 @@ impl IDBCursor {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBCursor object"))?;
+        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBCursor object")
+        })?;
 
         let state = cursor.state.lock().unwrap();
 
@@ -572,40 +587,52 @@ impl IntrinsicObject for IDBCursor {
             // Properties
             .accessor(
                 js_string!("direction"),
-                Some(BuiltInBuilder::callable(realm, Self::get_direction)
-                    .name(js_string!("get direction"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_direction)
+                        .name(js_string!("get direction"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("key"),
-                Some(BuiltInBuilder::callable(realm, Self::get_key)
-                    .name(js_string!("get key"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_key)
+                        .name(js_string!("get key"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("primaryKey"),
-                Some(BuiltInBuilder::callable(realm, Self::get_primary_key)
-                    .name(js_string!("get primaryKey"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_primary_key)
+                        .name(js_string!("get primaryKey"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("value"),
-                Some(BuiltInBuilder::callable(realm, Self::get_value)
-                    .name(js_string!("get value"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_value)
+                        .name(js_string!("get value"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             // Methods
             .method(Self::advance, js_string!("advance"), 1)
             .method(Self::continue_method, js_string!("continue"), 0)
-            .method(Self::continue_primary_key, js_string!("continuePrimaryKey"), 2)
+            .method(
+                Self::continue_primary_key,
+                js_string!("continuePrimaryKey"),
+                2,
+            )
             .method(Self::update, js_string!("update"), 1)
             .method(Self::delete_method, js_string!("delete"), 0)
             .build();
@@ -622,13 +649,12 @@ impl BuiltInObject for IDBCursor {
 
 impl BuiltInConstructor for IDBCursor {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Estimated prototype property count
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Constructor properties
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| {
-            constructors.idb_cursor()
-        };
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.idb_cursor();
 
     fn constructor(
         _new_target: &JsValue,

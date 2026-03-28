@@ -2,7 +2,7 @@
 //!
 //! WebGL 2.0 specific constant values.
 
-use boa_engine::{js_string, Context, JsObject, JsValue};
+use boa_engine::{Context, JsObject, JsValue, js_string};
 
 use super::state::WebGL2Constants;
 
@@ -12,7 +12,10 @@ pub fn add_webgl2_constants(obj: &JsObject, context: &mut Context) {
         // WebGL2 buffer targets
         ("COPY_READ_BUFFER", WebGL2Constants::COPY_READ_BUFFER),
         ("COPY_WRITE_BUFFER", WebGL2Constants::COPY_WRITE_BUFFER),
-        ("TRANSFORM_FEEDBACK_BUFFER", WebGL2Constants::TRANSFORM_FEEDBACK_BUFFER),
+        (
+            "TRANSFORM_FEEDBACK_BUFFER",
+            WebGL2Constants::TRANSFORM_FEEDBACK_BUFFER,
+        ),
         ("UNIFORM_BUFFER", WebGL2Constants::UNIFORM_BUFFER),
         ("PIXEL_PACK_BUFFER", WebGL2Constants::PIXEL_PACK_BUFFER),
         ("PIXEL_UNPACK_BUFFER", WebGL2Constants::PIXEL_UNPACK_BUFFER),
@@ -29,7 +32,10 @@ pub fn add_webgl2_constants(obj: &JsObject, context: &mut Context) {
         ("DRAW_BUFFER2", WebGL2Constants::DRAW_BUFFER2),
         ("DRAW_BUFFER3", WebGL2Constants::DRAW_BUFFER3),
         ("MAX_DRAW_BUFFERS", WebGL2Constants::MAX_DRAW_BUFFERS),
-        ("MAX_COLOR_ATTACHMENTS", WebGL2Constants::MAX_COLOR_ATTACHMENTS),
+        (
+            "MAX_COLOR_ATTACHMENTS",
+            WebGL2Constants::MAX_COLOR_ATTACHMENTS,
+        ),
         // Internal formats
         ("R8", WebGL2Constants::R8),
         ("RG8", WebGL2Constants::RG8),
@@ -60,28 +66,61 @@ pub fn add_webgl2_constants(obj: &JsObject, context: &mut Context) {
         ("SAMPLER_3D", WebGL2Constants::SAMPLER_3D),
         ("SAMPLER_2D_SHADOW", WebGL2Constants::SAMPLER_2D_SHADOW),
         ("SAMPLER_2D_ARRAY", WebGL2Constants::SAMPLER_2D_ARRAY),
-        ("SAMPLER_2D_ARRAY_SHADOW", WebGL2Constants::SAMPLER_2D_ARRAY_SHADOW),
+        (
+            "SAMPLER_2D_ARRAY_SHADOW",
+            WebGL2Constants::SAMPLER_2D_ARRAY_SHADOW,
+        ),
         ("SAMPLER_CUBE_SHADOW", WebGL2Constants::SAMPLER_CUBE_SHADOW),
         ("INT_SAMPLER_2D", WebGL2Constants::INT_SAMPLER_2D),
         ("INT_SAMPLER_3D", WebGL2Constants::INT_SAMPLER_3D),
         ("INT_SAMPLER_CUBE", WebGL2Constants::INT_SAMPLER_CUBE),
-        ("INT_SAMPLER_2D_ARRAY", WebGL2Constants::INT_SAMPLER_2D_ARRAY),
-        ("UNSIGNED_INT_SAMPLER_2D", WebGL2Constants::UNSIGNED_INT_SAMPLER_2D),
-        ("UNSIGNED_INT_SAMPLER_3D", WebGL2Constants::UNSIGNED_INT_SAMPLER_3D),
-        ("UNSIGNED_INT_SAMPLER_CUBE", WebGL2Constants::UNSIGNED_INT_SAMPLER_CUBE),
-        ("UNSIGNED_INT_SAMPLER_2D_ARRAY", WebGL2Constants::UNSIGNED_INT_SAMPLER_2D_ARRAY),
+        (
+            "INT_SAMPLER_2D_ARRAY",
+            WebGL2Constants::INT_SAMPLER_2D_ARRAY,
+        ),
+        (
+            "UNSIGNED_INT_SAMPLER_2D",
+            WebGL2Constants::UNSIGNED_INT_SAMPLER_2D,
+        ),
+        (
+            "UNSIGNED_INT_SAMPLER_3D",
+            WebGL2Constants::UNSIGNED_INT_SAMPLER_3D,
+        ),
+        (
+            "UNSIGNED_INT_SAMPLER_CUBE",
+            WebGL2Constants::UNSIGNED_INT_SAMPLER_CUBE,
+        ),
+        (
+            "UNSIGNED_INT_SAMPLER_2D_ARRAY",
+            WebGL2Constants::UNSIGNED_INT_SAMPLER_2D_ARRAY,
+        ),
         // Transform feedback
         ("TRANSFORM_FEEDBACK", WebGL2Constants::TRANSFORM_FEEDBACK),
-        ("TRANSFORM_FEEDBACK_BINDING", WebGL2Constants::TRANSFORM_FEEDBACK_BINDING),
-        ("TRANSFORM_FEEDBACK_ACTIVE", WebGL2Constants::TRANSFORM_FEEDBACK_ACTIVE),
-        ("TRANSFORM_FEEDBACK_PAUSED", WebGL2Constants::TRANSFORM_FEEDBACK_PAUSED),
+        (
+            "TRANSFORM_FEEDBACK_BINDING",
+            WebGL2Constants::TRANSFORM_FEEDBACK_BINDING,
+        ),
+        (
+            "TRANSFORM_FEEDBACK_ACTIVE",
+            WebGL2Constants::TRANSFORM_FEEDBACK_ACTIVE,
+        ),
+        (
+            "TRANSFORM_FEEDBACK_PAUSED",
+            WebGL2Constants::TRANSFORM_FEEDBACK_PAUSED,
+        ),
         // Sync
-        ("SYNC_GPU_COMMANDS_COMPLETE", WebGL2Constants::SYNC_GPU_COMMANDS_COMPLETE),
+        (
+            "SYNC_GPU_COMMANDS_COMPLETE",
+            WebGL2Constants::SYNC_GPU_COMMANDS_COMPLETE,
+        ),
         ("ALREADY_SIGNALED", WebGL2Constants::ALREADY_SIGNALED),
         ("TIMEOUT_EXPIRED", WebGL2Constants::TIMEOUT_EXPIRED),
         ("CONDITION_SATISFIED", WebGL2Constants::CONDITION_SATISFIED),
         ("WAIT_FAILED", WebGL2Constants::WAIT_FAILED),
-        ("SYNC_FLUSH_COMMANDS_BIT", WebGL2Constants::SYNC_FLUSH_COMMANDS_BIT),
+        (
+            "SYNC_FLUSH_COMMANDS_BIT",
+            WebGL2Constants::SYNC_FLUSH_COMMANDS_BIT,
+        ),
     ];
 
     for (name, value) in constants {

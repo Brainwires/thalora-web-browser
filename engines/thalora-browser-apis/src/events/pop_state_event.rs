@@ -4,14 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/browsing-the-web.html#popstateevent
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -68,11 +69,17 @@ impl BuiltInConstructor for PopStateEvent {
 
         let event_type = type_arg.to_string(context)?;
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::pop_state_event, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::pop_state_event,
+            context,
+        )?;
 
         let state = if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
-                init_obj.get(js_string!("state"), context).unwrap_or(JsValue::null())
+                init_obj
+                    .get(js_string!("state"), context)
+                    .unwrap_or(JsValue::null())
             } else {
                 JsValue::null()
             }
@@ -80,10 +87,8 @@ impl BuiltInConstructor for PopStateEvent {
             JsValue::null()
         };
 
-        let pop_state_event_data = PopStateEventData::new(
-            event_type.to_std_string_escaped(),
-            state,
-        );
+        let pop_state_event_data =
+            PopStateEventData::new(event_type.to_std_string_escaped(), state);
         let pop_state_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -101,16 +106,36 @@ impl BuiltInConstructor for PopStateEvent {
         pop_state_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
         pop_state_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         pop_state_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        pop_state_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        pop_state_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        pop_state_event_generic.set(
+            js_string!("currentTarget"),
+            JsValue::null(),
+            false,
+            context,
+        )?;
+        pop_state_event_generic.set(
+            js_string!("timeStamp"),
+            context.clock().now().millis_since_epoch(),
+            false,
+            context,
+        )?;
 
         if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
                 if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    pop_state_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                    pop_state_event_generic.set(
+                        js_string!("bubbles"),
+                        bubbles_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    pop_state_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                    pop_state_event_generic.set(
+                        js_string!("cancelable"),
+                        cancelable_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
             }
         }
@@ -137,9 +162,12 @@ fn get_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("PopStateEvent.prototype.state called on non-object")
     })?;
 
-    let pop_state_event = this_obj.downcast_ref::<PopStateEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("PopStateEvent.prototype.state called on non-PopStateEvent object")
-    })?;
+    let pop_state_event = this_obj
+        .downcast_ref::<PopStateEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("PopStateEvent.prototype.state called on non-PopStateEvent object")
+        })?;
 
     Ok(pop_state_event.state.clone())
 }
@@ -158,17 +186,23 @@ mod tests {
     #[test]
     fn test_pop_state_event_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof PopStateEvent === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof PopStateEvent === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_pop_state_event_constructor() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const event = new PopStateEvent('popstate', { state: { page: 1 } });
             event.type === 'popstate' && event.state.page === 1;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

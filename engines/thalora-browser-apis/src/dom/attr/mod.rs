@@ -5,16 +5,16 @@
 //! https://dom.spec.whatwg.org/#interface-attr
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    string::{StaticJsStrings, JsString},
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
+    string::{JsString, StaticJsStrings},
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 
 /// The Attr data implementation
 #[derive(Debug, Trace, Finalize, JsData)]
@@ -125,7 +125,6 @@ impl Attr {
         Ok(attr_obj.upcast())
     }
 
-
     /// Get the name property
     fn name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
@@ -180,7 +179,11 @@ impl Attr {
     }
 
     /// Get the ownerElement property
-    fn owner_element(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn owner_element(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Attr.prototype.ownerElement called on non-object")
         })?;
@@ -199,7 +202,11 @@ impl Attr {
     }
 
     /// Get the namespaceURI property
-    fn namespace_uri(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn namespace_uri(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Attr.prototype.namespaceURI called on non-object")
         })?;
@@ -376,11 +383,8 @@ impl BuiltInConstructor for Attr {
     ) -> JsResult<JsValue> {
         use boa_engine::object::internal_methods::get_prototype_from_constructor;
 
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::attr,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::attr, context)?;
 
         // Create a default Attr object
         let attr_data = AttrData::new(String::new(), String::new());
@@ -394,7 +398,6 @@ impl BuiltInConstructor for Attr {
         Ok(attr_obj.into())
     }
 }
-
 
 #[cfg(test)]
 mod tests;

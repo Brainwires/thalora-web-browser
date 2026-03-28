@@ -4,14 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/scripting.html#the-script-element
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -118,7 +119,11 @@ impl BuiltInConstructor for HTMLScriptElement {
                 .into());
         }
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::html_script_element, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::html_script_element,
+            context,
+        )?;
         let script_data = HTMLScriptElementData::new();
         let script_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -181,7 +186,10 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("HTMLScriptElement.prototype.src called on non-object")
     })?;
 
-    let src = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let src = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<HTMLScriptElementData>() {
         data.src = src;
@@ -207,7 +215,10 @@ fn set_type(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("HTMLScriptElement.prototype.type called on non-object")
     })?;
 
-    let type_ = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let type_ = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<HTMLScriptElementData>() {
         data.type_ = type_;
@@ -285,7 +296,10 @@ fn set_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
         JsNativeError::typ().with_message("HTMLScriptElement.prototype.text called on non-object")
     })?;
 
-    let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let text = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<HTMLScriptElementData>() {
         data.text = text;
@@ -308,17 +322,25 @@ mod tests {
     #[test]
     fn test_html_script_element_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof HTMLScriptElement === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes(
+                "typeof HTMLScriptElement === 'function'",
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_html_script_element_constructor() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const script = new HTMLScriptElement();
             script.tagName === 'SCRIPT';
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

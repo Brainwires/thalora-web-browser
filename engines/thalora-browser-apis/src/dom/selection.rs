@@ -6,17 +6,17 @@
 //!
 //! This module provides the native Selection implementation for the Boa JavaScript engine.
 
-use boa_gc::{Finalize, Trace};
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    js_string, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsString, JsValue,
+    js_string,
     object::internal_methods::get_prototype_from_constructor,
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
-    Context,
 };
+use boa_gc::{Finalize, Trace};
 
 use super::range::RangeData;
 
@@ -95,8 +95,8 @@ impl SelectionData {
             // For simplicity, use the first range's boundaries
             // In a full implementation, anchor/focus might differ from range boundaries
             // depending on selection direction
-            self.is_collapsed = self.anchor_node == self.focus_node &&
-                               self.anchor_offset == self.focus_offset;
+            self.is_collapsed =
+                self.anchor_node == self.focus_node && self.anchor_offset == self.focus_offset;
             self.selection_type = if self.is_collapsed {
                 SelectionType::Caret
             } else {
@@ -123,7 +123,10 @@ impl SelectionData {
         }
 
         self.update_state();
-        eprintln!("Selection: Added range, now have {} range(s)", self.ranges.len());
+        eprintln!(
+            "Selection: Added range, now have {} range(s)",
+            self.ranges.len()
+        );
         Ok(())
     }
 
@@ -398,7 +401,10 @@ fn get_anchor_node(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("Selection method called on non-Selection object")
     })?;
 
-    Ok(selection_data.anchor_node.clone().unwrap_or(JsValue::null()))
+    Ok(selection_data
+        .anchor_node
+        .clone()
+        .unwrap_or(JsValue::null()))
 }
 
 fn get_anchor_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
@@ -558,7 +564,9 @@ fn delete_from_document(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsRes
     // and collapse the selection to the start
     if let Some(mut selection_data) = this_obj.downcast_mut::<SelectionData>() {
         selection_data.collapse_to_start();
-        eprintln!("Selection: deleteFromDocument called (content deletion not implemented in headless browser)");
+        eprintln!(
+            "Selection: deleteFromDocument called (content deletion not implemented in headless browser)"
+        );
     }
 
     Ok(JsValue::undefined())
@@ -675,7 +683,11 @@ fn select_all_children(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsR
     Ok(JsValue::undefined())
 }
 
-fn set_base_and_extent(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn set_base_and_extent(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;

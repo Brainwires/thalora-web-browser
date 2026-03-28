@@ -63,7 +63,10 @@ async fn test_cdp_dom_query_selector_missing_params() {
 
     let response = cdp_tools.query_selector(args, &mut cdp_server).await;
 
-    assert!(response.is_error, "Should return error for missing selector");
+    assert!(
+        response.is_error,
+        "Should return error for missing selector"
+    );
     if let Some(text) = extract_response_text(&response) {
         assert!(
             text.contains("Missing required parameter: selector"),

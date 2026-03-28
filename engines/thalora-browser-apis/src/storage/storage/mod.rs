@@ -13,31 +13,27 @@
 //! - [WHATWG Specification](https://html.spec.whatwg.org/multipage/webstorage.html#the-storage-interface)
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/Storage)
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::path::PathBuf;
-use std::fs;
-use serde::{Serialize, Deserialize};
-use boa_gc::{Finalize, Trace};
-use boa_engine::{
-    builtins::BuiltInBuilder,
-    context::intrinsics::Intrinsics,
-    js_string,
-    object::JsObject,
-    property::Attribute,
-    realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
-};
 use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
+use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue, builtins::BuiltInBuilder,
+    context::intrinsics::Intrinsics, js_string, object::JsObject, property::Attribute,
+    realm::Realm,
+};
+use boa_gc::{Finalize, Trace};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 // Encryption imports
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce,
-};
 use aes_gcm::aead::rand_core::RngCore;
-use sha2::{Sha256, Digest};
+use aes_gcm::{
+    Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, OsRng},
+};
+use sha2::{Digest, Sha256};
 
 /// Encryption module for Storage API
 mod encryption {
@@ -61,48 +57,47 @@ mod encryption {
     /// Derive a 256-bit key from the storage type and session secret.
     fn derive_key(storage_type: &str) -> [u8; 32] {
         // Get secret from environment or use auto-generated fallback
-        let secret = std::env::var("THALORA_SESSION_SECRET")
-            .unwrap_or_else(|_| {
-                // Try to load from persisted secret file
-                let secret_path = get_secret_path();
+        let secret = std::env::var("THALORA_SESSION_SECRET").unwrap_or_else(|_| {
+            // Try to load from persisted secret file
+            let secret_path = get_secret_path();
 
-                if let Ok(secret) = fs::read_to_string(&secret_path) {
-                    let secret = secret.trim().to_string();
-                    if secret.len() >= 32 {
-                        return secret;
-                    }
+            if let Ok(secret) = fs::read_to_string(&secret_path) {
+                let secret = secret.trim().to_string();
+                if secret.len() >= 32 {
+                    return secret;
                 }
+            }
 
-                // Generate and save new secret
-                let mut bytes = [0u8; 32];
-                OsRng.fill_bytes(&mut bytes);
-                let new_secret: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+            // Generate and save new secret
+            let mut bytes = [0u8; 32];
+            OsRng.fill_bytes(&mut bytes);
+            let new_secret: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
 
-                // Try to create parent directory and save
-                if let Some(parent) = secret_path.parent() {
-                    let _ = fs::create_dir_all(parent);
-                }
-                #[cfg(unix)]
+            // Try to create parent directory and save
+            if let Some(parent) = secret_path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                if let Ok(mut file) = fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .mode(0o600)
+                    .open(&secret_path)
                 {
-                    use std::os::unix::fs::OpenOptionsExt;
-                    if let Ok(mut file) = fs::OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .mode(0o600)
-                        .open(&secret_path)
-                    {
-                        use std::io::Write;
-                        let _ = file.write_all(new_secret.as_bytes());
-                    }
+                    use std::io::Write;
+                    let _ = file.write_all(new_secret.as_bytes());
                 }
-                #[cfg(not(unix))]
-                {
-                    let _ = fs::write(&secret_path, &new_secret);
-                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = fs::write(&secret_path, &new_secret);
+            }
 
-                new_secret
-            });
+            new_secret
+        });
 
         // Derive key using SHA-256(secret || storage_type)
         let mut hasher = Sha256::new();
@@ -129,7 +124,8 @@ mod encryption {
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt
-        let ciphertext = cipher.encrypt(nonce, plaintext)
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| format!("Encryption failed: {}", e))?;
 
         // Prepend nonce to ciphertext
@@ -156,7 +152,8 @@ mod encryption {
         let nonce = Nonce::from_slice(nonce_bytes);
 
         // Decrypt
-        cipher.decrypt(nonce, ciphertext)
+        cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|_| "Decryption failed: invalid key or corrupted data".to_string())
     }
 }
@@ -367,7 +364,10 @@ impl Storage {
     ///
     /// Data is decrypted using AES-256-GCM with a key derived from the session secret.
     /// If decryption fails (wrong key, corrupted data), returns empty HashMap.
-    fn load_storage_data(storage_path: &PathBuf, storage_type: &'static str) -> HashMap<String, String> {
+    fn load_storage_data(
+        storage_path: &PathBuf,
+        storage_type: &'static str,
+    ) -> HashMap<String, String> {
         if storage_path.exists() {
             // Try to read encrypted data
             if let Ok(encrypted_bytes) = fs::read(storage_path) {
@@ -403,9 +403,7 @@ impl Storage {
     /// The encrypted file contains: [12-byte nonce][ciphertext with auth tag]
     fn save_storage_data(&self) {
         let data = self.data.read().unwrap();
-        let storage_data = StorageData {
-            data: data.clone(),
-        };
+        let storage_data = StorageData { data: data.clone() };
 
         // Serialize to JSON
         let json_content = match serde_json::to_string(&storage_data) {
@@ -459,9 +457,11 @@ impl IntrinsicObject for Storage {
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("length"),
-                Some(BuiltInBuilder::callable(realm, Self::get_length)
-                    .name(js_string!("get length"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_length)
+                        .name(js_string!("get length"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
@@ -487,8 +487,9 @@ impl BuiltInConstructor for Storage {
     const PROTOTYPE_STORAGE_SLOTS: usize = 100;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| constructors.storage();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.storage();
 
     fn constructor(
         _new_target: &JsValue,
@@ -508,16 +509,11 @@ impl Storage {
     fn get_length(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let obj = this
             .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let storage = obj.downcast_ref::<Storage>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+        let storage = obj
+            .downcast_ref::<Storage>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
         Ok(JsValue::from(storage.length_internal()))
     }
@@ -526,16 +522,11 @@ impl Storage {
     fn key(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let obj = this
             .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let storage = obj.downcast_ref::<Storage>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+        let storage = obj
+            .downcast_ref::<Storage>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
         let index = args.get_or_undefined(0).to_length(context)?;
 
@@ -549,16 +540,11 @@ impl Storage {
     fn get_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let obj = this
             .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let storage = obj.downcast_ref::<Storage>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+        let storage = obj
+            .downcast_ref::<Storage>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
         let key = args.get_or_undefined(0).to_string(context)?;
 
@@ -572,19 +558,20 @@ impl Storage {
     fn set_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let obj = this
             .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let storage = obj.downcast_ref::<Storage>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+        let storage = obj
+            .downcast_ref::<Storage>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let key = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let value = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+        let key = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        let value = args
+            .get_or_undefined(1)
+            .to_string(context)?
+            .to_std_string_escaped();
 
         storage.set_item_internal(key, value)?;
         Ok(JsValue::undefined())
@@ -594,18 +581,16 @@ impl Storage {
     fn remove_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let obj = this
             .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let storage = obj.downcast_ref::<Storage>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+        let storage = obj
+            .downcast_ref::<Storage>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let key = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let key = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         storage.remove_item_internal(&key);
         Ok(JsValue::undefined())
     }
@@ -614,23 +599,16 @@ impl Storage {
     fn clear(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let obj = this
             .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
-        let storage = obj.downcast_ref::<Storage>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a Storage object")
-            })?;
+        let storage = obj
+            .downcast_ref::<Storage>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Storage object"))?;
 
         storage.clear_internal();
         Ok(JsValue::undefined())
     }
 }
-
-
 
 #[cfg(test)]
 mod tests;

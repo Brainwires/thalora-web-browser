@@ -6,8 +6,8 @@
 //! This implementation stores only callback IDs, not JsObjects, making it thread-safe.
 //! The actual callbacks are stored in the JavaScript Context.
 
-use std::collections::{BinaryHeap, VecDeque};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, VecDeque};
 use std::time::{Duration, Instant};
 
 /// A scheduled timer (stores only ID and timing info, not the callback)
@@ -84,12 +84,7 @@ impl WorkerEventLoop {
     }
 
     /// Schedule a timer (setTimeout or setInterval)
-    pub fn schedule_timer(
-        &mut self,
-        callback_id: u32,
-        delay: u32,
-        repeating: bool,
-    ) -> u32 {
+    pub fn schedule_timer(&mut self, callback_id: u32, delay: u32, repeating: bool) -> u32 {
         let timer_id = self.next_timer_id;
         self.next_timer_id += 1;
 

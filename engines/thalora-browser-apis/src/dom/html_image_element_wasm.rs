@@ -3,13 +3,13 @@
 //! In WASM builds, the browser's native HTMLImageElement is used directly.
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -121,7 +121,9 @@ impl BuiltInConstructor for HTMLImageElement {
 
     fn constructor(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         Err(JsNativeError::error()
-            .with_message("HTMLImageElement is not available in WASM. Use the browser's native Image().")
+            .with_message(
+                "HTMLImageElement is not available in WASM. Use the browser's native Image().",
+            )
             .into())
     }
 }

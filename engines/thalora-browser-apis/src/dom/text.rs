@@ -4,19 +4,19 @@
 //! It inherits from CharacterData and provides text-specific functionality.
 //! https://dom.spec.whatwg.org/#interface-text
 
+use super::{character_data::CharacterDataData, node::NodeType};
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
 use boa_gc::{Finalize, Trace};
-use super::{character_data::CharacterDataData, node::NodeType};
 use std::sync::{Arc, Mutex};
 
 /// Text data structure for text DOM nodes
@@ -84,7 +84,10 @@ impl TextData {
 
     /// Check if this text node contains only whitespace
     pub fn is_element_content_whitespace(&self) -> bool {
-        self.character_data.get_data().chars().all(|c| c.is_whitespace())
+        self.character_data
+            .get_data()
+            .chars()
+            .all(|c| c.is_whitespace())
     }
 
     /// Get the assigned slot name (for shadow DOM)
@@ -116,15 +119,18 @@ impl TextData {
 
 impl TextData {
     /// `Text.prototype.wholeText` getter
-    fn get_whole_text_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_whole_text_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Text.wholeText called on non-object")
         })?;
 
         let value = {
             let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Text.wholeText called on non-Text object")
+                JsNativeError::typ().with_message("Text.wholeText called on non-Text object")
             })?;
             text_data.get_whole_text()
         };
@@ -132,15 +138,18 @@ impl TextData {
     }
 
     /// `Text.prototype.assignedSlot` getter
-    fn get_assigned_slot_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_assigned_slot_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Text.assignedSlot called on non-object")
         })?;
 
         let value = {
             let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Text.assignedSlot called on non-Text object")
+                JsNativeError::typ().with_message("Text.assignedSlot called on non-Text object")
             })?;
             text_data.get_assigned_slot()
         };
@@ -160,29 +169,29 @@ impl TextData {
         let offset = offset_arg.to_u32(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.splitText called on non-Text object")
+            JsNativeError::typ().with_message("Text.splitText called on non-Text object")
         })?;
 
         match text_data.split_text_impl(offset) {
-                Ok(new_text_node) => {
-                    // Create a new Text object
-                    let text_obj = JsObject::from_proto_and_data_with_shared_shape(
-                        context.root_shape(),
-                        context.intrinsics().constructors().text().prototype(),
-                        new_text_node,
-                    );
-                    Ok(text_obj.into())
-                },
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-
+            Ok(new_text_node) => {
+                // Create a new Text object
+                let text_obj = JsObject::from_proto_and_data_with_shared_shape(
+                    context.root_shape(),
+                    context.intrinsics().constructors().text().prototype(),
+                    new_text_node,
+                );
+                Ok(text_obj.into())
+            }
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
     /// `Text.prototype.replaceWholeText(content)`
-    fn replace_whole_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn replace_whole_text(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Text.replaceWholeText called on non-object")
         })?;
@@ -191,64 +200,77 @@ impl TextData {
         let content_string = content_arg.to_string(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.replaceWholeText called on non-Text object")
+            JsNativeError::typ().with_message("Text.replaceWholeText called on non-Text object")
         })?;
 
         match text_data.replace_whole_text_impl(content_string.to_std_string_escaped()) {
-                Ok(_) => Ok(this_obj.clone().into()),
-                Err(err) => Err(JsNativeError::error()
-                    .with_message(err)
-                    .into()),
-
+            Ok(_) => Ok(this_obj.clone().into()),
+            Err(err) => Err(JsNativeError::error().with_message(err).into()),
         }
     }
 
     /// Delegate to CharacterData methods
-    fn get_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Text.data called on non-object")
-        })?;
+    fn get_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Text.data called on non-object"))?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.data called on non-Text object")
+            JsNativeError::typ().with_message("Text.data called on non-Text object")
         })?;
 
-        Ok(JsValue::from(js_string!(text_data.character_data.get_data())))
+        Ok(JsValue::from(js_string!(
+            text_data.character_data.get_data()
+        )))
     }
 
-    fn set_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Text.data called on non-object")
-        })?;
+    fn set_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Text.data called on non-object"))?;
 
         let data_arg = args.get_or_undefined(0);
         let data_string = data_arg.to_string(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.data called on non-Text object")
+            JsNativeError::typ().with_message("Text.data called on non-Text object")
         })?;
 
-        text_data.character_data.set_data(data_string.to_std_string_escaped());
+        text_data
+            .character_data
+            .set_data(data_string.to_std_string_escaped());
         Ok(JsValue::undefined())
     }
 
-    fn get_length_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Text.length called on non-object")
-        })?;
+    fn get_length_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Text.length called on non-object"))?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.length called on non-Text object")
+            JsNativeError::typ().with_message("Text.length called on non-Text object")
         })?;
 
         Ok(JsValue::from(text_data.character_data.get_length()))
     }
 
-    fn substring_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn substring_data(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Text.substringData called on non-object")
         })?;
@@ -260,16 +282,12 @@ impl TextData {
         let count = count_arg.to_u32(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.substringData called on non-Text object")
+            JsNativeError::typ().with_message("Text.substringData called on non-Text object")
         })?;
 
         match text_data.character_data.substring_data_impl(offset, count) {
-                Ok(result) => Ok(JsValue::from(js_string!(result))),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-
+            Ok(result) => Ok(JsValue::from(js_string!(result))),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
@@ -282,11 +300,12 @@ impl TextData {
         let data_string = data_arg.to_string(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.appendData called on non-Text object")
+            JsNativeError::typ().with_message("Text.appendData called on non-Text object")
         })?;
 
-        text_data.character_data.append_data_impl(data_string.to_std_string_escaped());
+        text_data
+            .character_data
+            .append_data_impl(data_string.to_std_string_escaped());
         Ok(JsValue::undefined())
     }
 
@@ -302,16 +321,15 @@ impl TextData {
         let data_string = data_arg.to_string(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.insertData called on non-Text object")
+            JsNativeError::typ().with_message("Text.insertData called on non-Text object")
         })?;
 
-        match text_data.character_data.insert_data_impl(offset, data_string.to_std_string_escaped()) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-
+        match text_data
+            .character_data
+            .insert_data_impl(offset, data_string.to_std_string_escaped())
+        {
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
@@ -327,16 +345,12 @@ impl TextData {
         let count = count_arg.to_u32(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.deleteData called on non-Text object")
+            JsNativeError::typ().with_message("Text.deleteData called on non-Text object")
         })?;
 
         match text_data.character_data.delete_data_impl(offset, count) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
@@ -354,16 +368,16 @@ impl TextData {
         let data_string = data_arg.to_string(context)?;
 
         let text_data = this_obj.downcast_ref::<TextData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Text.replaceData called on non-Text object")
+            JsNativeError::typ().with_message("Text.replaceData called on non-Text object")
         })?;
 
-        match text_data.character_data.replace_data_impl(offset, count, data_string.to_std_string_escaped()) {
-                Ok(_) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::range()
-                    .with_message(err)
-                    .into()),
-
+        match text_data.character_data.replace_data_impl(
+            offset,
+            count,
+            data_string.to_std_string_escaped(),
+        ) {
+            Ok(_) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 }
@@ -374,27 +388,51 @@ pub struct Text;
 
 impl Text {
     // Static method implementations for BuiltInBuilder
-    fn get_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::get_data_accessor(this, args, context)
     }
 
-    fn set_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::set_data_accessor(this, args, context)
     }
 
-    fn get_length_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_length_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::get_length_accessor(this, args, context)
     }
 
-    fn get_whole_text_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_whole_text_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::get_whole_text_accessor(this, args, context)
     }
 
-    fn get_assigned_slot_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_assigned_slot_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::get_assigned_slot_accessor(this, args, context)
     }
 
-    fn substring_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn substring_data(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::substring_data(this, args, context)
     }
 
@@ -418,7 +456,11 @@ impl Text {
         TextData::split_text(this, args, context)
     }
 
-    fn replace_whole_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn replace_whole_text(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         TextData::replace_whole_text(this, args, context)
     }
 }
@@ -437,13 +479,20 @@ impl IntrinsicObject for Text {
         let whole_text_get_func = BuiltInBuilder::callable(realm, Self::get_whole_text_accessor)
             .name(js_string!("get wholeText"))
             .build();
-        let assigned_slot_get_func = BuiltInBuilder::callable(realm, Self::get_assigned_slot_accessor)
-            .name(js_string!("get assignedSlot"))
-            .build();
+        let assigned_slot_get_func =
+            BuiltInBuilder::callable(realm, Self::get_assigned_slot_accessor)
+                .name(js_string!("get assignedSlot"))
+                .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Text -> CharacterData -> Node -> EventTarget
-            .inherits(Some(realm.intrinsics().constructors().character_data().prototype()))
+            .inherits(Some(
+                realm
+                    .intrinsics()
+                    .constructors()
+                    .character_data()
+                    .prototype(),
+            ))
             // CharacterData methods
             .method(Self::substring_data, js_string!("substringData"), 2)
             .method(Self::append_data, js_string!("appendData"), 1)
@@ -531,4 +580,3 @@ impl BuiltInConstructor for Text {
         Ok(text_obj.into())
     }
 }
-

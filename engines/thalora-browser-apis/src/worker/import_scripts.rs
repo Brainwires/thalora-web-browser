@@ -3,10 +3,10 @@
 //! Implements the synchronous script loading mechanism for workers as defined in:
 //! https://html.spec.whatwg.org/multipage/workers.html#dom-workerglobalscope-importscripts
 
-use boa_engine::{Context, JsResult, JsValue, JsNativeError, Source, js_string};
-use url::Url;
+use boa_engine::{Context, JsNativeError, JsResult, JsValue, Source, js_string};
 use std::sync::Arc;
 use std::time::Duration;
+use url::Url;
 
 /// Script fetcher for importScripts()
 pub struct ScriptImporter {
@@ -19,9 +19,7 @@ pub struct ScriptImporter {
 impl ScriptImporter {
     /// Create a new script importer with a base URL
     pub fn new(base_url: Option<String>) -> Self {
-        let parsed_base_url = base_url.and_then(|url_str| {
-            Url::parse(&url_str).ok()
-        });
+        let parsed_base_url = base_url.and_then(|url_str| Url::parse(&url_str).ok());
 
         // Create HTTP client with reasonable timeout
         let client = reqwest::blocking::Client::builder()
@@ -39,11 +37,7 @@ impl ScriptImporter {
     ///
     /// This function blocks until all scripts are fetched and executed.
     /// According to the spec, importScripts() must be synchronous.
-    pub fn import_scripts(
-        &self,
-        urls: &[String],
-        context: &mut Context,
-    ) -> JsResult<()> {
+    pub fn import_scripts(&self, urls: &[String], context: &mut Context) -> JsResult<()> {
         eprintln!("[importScripts] Importing {} script(s)", urls.len());
 
         for url_str in urls {
@@ -79,12 +73,15 @@ impl ScriptImporter {
                 Ok(resolved) => Ok(resolved.to_string()),
                 Err(e) => Err(JsNativeError::uri()
                     .with_message(format!("Failed to resolve URL '{}': {}", url_str, e))
-                    .into())
+                    .into()),
             }
         } else {
             // No base URL and not absolute - this is an error
             Err(JsNativeError::uri()
-                .with_message(format!("Cannot resolve relative URL '{}' without base URL", url_str))
+                .with_message(format!(
+                    "Cannot resolve relative URL '{}' without base URL",
+                    url_str
+                ))
                 .into())
         }
     }
@@ -92,10 +89,8 @@ impl ScriptImporter {
     /// Fetch a script from a URL
     fn fetch_script(&self, url: &str) -> JsResult<String> {
         // Check URL scheme - only http/https are supported
-        let parsed_url = Url::parse(url).map_err(|e| {
-            JsNativeError::uri()
-                .with_message(format!("Invalid URL: {}", e))
-        })?;
+        let parsed_url = Url::parse(url)
+            .map_err(|e| JsNativeError::uri().with_message(format!("Invalid URL: {}", e)))?;
 
         match parsed_url.scheme() {
             "http" | "https" => {
@@ -112,22 +107,17 @@ impl ScriptImporter {
                 // Data URLs - extract the content
                 self.extract_from_data_url(url)
             }
-            scheme => {
-                Err(JsNativeError::typ()
-                    .with_message(format!("Unsupported URL scheme: {}", scheme))
-                    .into())
-            }
+            scheme => Err(JsNativeError::typ()
+                .with_message(format!("Unsupported URL scheme: {}", scheme))
+                .into()),
         }
     }
 
     /// Fetch a script via HTTP/HTTPS
     fn fetch_http(&self, url: &str) -> JsResult<String> {
-        let response = self.client.get(url)
-            .send()
-            .map_err(|e| {
-                JsNativeError::error()
-                    .with_message(format!("Network error fetching script: {}", e))
-            })?;
+        let response = self.client.get(url).send().map_err(|e| {
+            JsNativeError::error().with_message(format!("Network error fetching script: {}", e))
+        })?;
 
         // Check HTTP status
         if !response.status().is_success() {
@@ -142,8 +132,7 @@ impl ScriptImporter {
 
         // Get the text content
         let content = response.text().map_err(|e| {
-            JsNativeError::error()
-                .with_message(format!("Failed to read script content: {}", e))
+            JsNativeError::error().with_message(format!("Failed to read script content: {}", e))
         })?;
 
         Ok(content)
@@ -158,20 +147,24 @@ impl ScriptImporter {
             // Check if base64 encoded
             if data_url[..comma_pos].contains(";base64") {
                 use base64::{Engine as _, engine::general_purpose};
-                let decoded = general_purpose::STANDARD.decode(content)
-                    .map_err(|e| JsNativeError::error()
-                        .with_message(format!("Failed to decode base64 data URL: {}", e)))?;
-                String::from_utf8(decoded)
-                    .map_err(|e| JsNativeError::error()
+                let decoded = general_purpose::STANDARD.decode(content).map_err(|e| {
+                    JsNativeError::error()
+                        .with_message(format!("Failed to decode base64 data URL: {}", e))
+                })?;
+                String::from_utf8(decoded).map_err(|e| {
+                    JsNativeError::error()
                         .with_message(format!("Invalid UTF-8 in data URL: {}", e))
-                        .into())
+                        .into()
+                })
             } else {
                 // URL decode the content
                 urlencoding::decode(content)
                     .map(|s| s.to_string())
-                    .map_err(|e| JsNativeError::error()
-                        .with_message(format!("Failed to decode data URL: {}", e))
-                        .into())
+                    .map_err(|e| {
+                        JsNativeError::error()
+                            .with_message(format!("Failed to decode data URL: {}", e))
+                            .into()
+                    })
             }
         } else {
             Err(JsNativeError::error()
@@ -193,7 +186,10 @@ impl ScriptImporter {
 
         // Execute the script
         context.eval(source).map_err(|e| {
-            eprintln!("[importScripts] Script execution error in {}: {:?}", script_url, e);
+            eprintln!(
+                "[importScripts] Script execution error in {}: {:?}",
+                script_url, e
+            );
             e
         })
     }
@@ -262,7 +258,10 @@ mod tests {
 
         // Create a simple test script
         let script = "var testVar = 42;";
-        let data_url = format!("data:application/javascript,{}", urlencoding::encode(script));
+        let data_url = format!(
+            "data:application/javascript,{}",
+            urlencoding::encode(script)
+        );
 
         let result = importer.import_scripts(&[data_url], &mut context);
         assert!(result.is_ok());

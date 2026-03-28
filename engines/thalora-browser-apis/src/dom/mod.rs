@@ -26,12 +26,12 @@ pub mod image_bitmap;
 pub mod namednodemap;
 pub mod node;
 pub mod nodeiterator;
-pub mod treewalker;
 pub mod nodelist;
 pub mod range;
 pub mod selection;
 pub mod shadow;
 pub mod text;
+pub mod treewalker;
 
 #[cfg(test)]
 mod document_tests;

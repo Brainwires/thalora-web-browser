@@ -6,11 +6,10 @@
 //! https://html.spec.whatwg.org/multipage/custom-elements.html#customelementregistry
 
 use boa_engine::{
-    js_string,
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string,
     object::{FunctionObjectBuilder, JsObject, ObjectInitializer},
     property::Attribute,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, NativeFunction,
 };
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -41,11 +40,7 @@ impl CustomElementRegistry {
                 js_string!("define"),
                 3,
             )
-            .function(
-                NativeFunction::from_fn_ptr(Self::get),
-                js_string!("get"),
-                1,
-            )
+            .function(NativeFunction::from_fn_ptr(Self::get), js_string!("get"), 1)
             .function(
                 NativeFunction::from_fn_ptr(Self::get_name),
                 js_string!("getName"),

@@ -4,11 +4,10 @@
 //! Implements event handler properties and event dispatching
 
 use boa_engine::{
-    value::JsValue,
-    Context, JsResult, JsString, js_string, JsArgs,
+    Context, JsArgs, JsNativeError, JsResult, JsString, js_string,
     object::JsObject,
-    property::{PropertyDescriptorBuilder, Attribute},
-    JsNativeError,
+    property::{Attribute, PropertyDescriptorBuilder},
+    value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -109,13 +108,15 @@ impl WorkerEvent {
 /// Add event handler properties to a Worker object
 pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsResult<()> {
     // Add onmessage property
-    let onmessage_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onmessage)
-        .name(js_string!("get onmessage"))
-        .build();
+    let onmessage_getter =
+        boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onmessage)
+            .name(js_string!("get onmessage"))
+            .build();
 
-    let onmessage_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onmessage)
-        .name(js_string!("set onmessage"))
-        .build();
+    let onmessage_setter =
+        boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onmessage)
+            .name(js_string!("set onmessage"))
+            .build();
 
     obj.define_property_or_throw(
         js_string!("onmessage"),
@@ -128,13 +129,15 @@ pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsRes
     )?;
 
     // Add onerror property
-    let onerror_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onerror)
-        .name(js_string!("get onerror"))
-        .build();
+    let onerror_getter =
+        boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onerror)
+            .name(js_string!("get onerror"))
+            .build();
 
-    let onerror_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onerror)
-        .name(js_string!("set onerror"))
-        .build();
+    let onerror_setter =
+        boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onerror)
+            .name(js_string!("set onerror"))
+            .build();
 
     obj.define_property_or_throw(
         js_string!("onerror"),
@@ -147,13 +150,15 @@ pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsRes
     )?;
 
     // Add onmessageerror property
-    let onmessageerror_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onmessageerror)
-        .name(js_string!("get onmessageerror"))
-        .build();
+    let onmessageerror_getter =
+        boa_engine::builtins::BuiltInBuilder::callable(context.realm(), get_onmessageerror)
+            .name(js_string!("get onmessageerror"))
+            .build();
 
-    let onmessageerror_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onmessageerror)
-        .name(js_string!("set onmessageerror"))
-        .build();
+    let onmessageerror_setter =
+        boa_engine::builtins::BuiltInBuilder::callable(context.realm(), set_onmessageerror)
+            .name(js_string!("set onmessageerror"))
+            .build();
 
     obj.define_property_or_throw(
         js_string!("onmessageerror"),
@@ -169,7 +174,11 @@ pub fn add_worker_event_handlers(obj: &JsObject, context: &mut Context) -> JsRes
 }
 
 /// Dispatch an event to a Worker object
-pub fn dispatch_worker_event(obj: &JsObject, event: WorkerEvent, context: &mut Context) -> JsResult<()> {
+pub fn dispatch_worker_event(
+    obj: &JsObject,
+    event: WorkerEvent,
+    context: &mut Context,
+) -> JsResult<()> {
     // Get the appropriate event handler
     if let Some(handler) = get_event_handler_for_object(obj, &event.event_type) {
         if handler.is_callable() {
@@ -190,7 +199,10 @@ pub fn dispatch_worker_event(obj: &JsObject, event: WorkerEvent, context: &mut C
 fn get_event_handler_for_object(obj: &JsObject, event_type: &WorkerEventType) -> Option<JsValue> {
     // Try to get the event handlers from the object
     // This is a simplified implementation - in a real implementation we'd store this in the object's data
-    match obj.get(js_string!(event_type.handler_property()), &mut Context::default()) {
+    match obj.get(
+        js_string!(event_type.handler_property()),
+        &mut Context::default(),
+    ) {
         Ok(value) if !value.is_null_or_undefined() => Some(value),
         _ => None,
     }
@@ -247,15 +259,20 @@ fn set_onmessage(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
     let handler = args.get_or_undefined(0);
 
     // Store the handler value
-    this_obj.set(js_string!("__onmessage_handler"), handler.clone(), false, context)?;
+    this_obj.set(
+        js_string!("__onmessage_handler"),
+        handler.clone(),
+        false,
+        context,
+    )?;
 
     Ok(JsValue::undefined())
 }
 
 fn get_onerror(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("onerror getter called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("onerror getter called on non-object"))?;
 
     match this_obj.get(js_string!("__onerror_handler"), _context) {
         Ok(value) => Ok(value),
@@ -264,17 +281,26 @@ fn get_onerror(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
 }
 
 fn set_onerror(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("onerror setter called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("onerror setter called on non-object"))?;
 
     let handler = args.get_or_undefined(0);
-    this_obj.set(js_string!("__onerror_handler"), handler.clone(), false, context)?;
+    this_obj.set(
+        js_string!("__onerror_handler"),
+        handler.clone(),
+        false,
+        context,
+    )?;
 
     Ok(JsValue::undefined())
 }
 
-fn get_onmessageerror(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_onmessageerror(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("onmessageerror getter called on non-object")
     })?;
@@ -285,13 +311,22 @@ fn get_onmessageerror(this: &JsValue, _args: &[JsValue], _context: &mut Context)
     }
 }
 
-fn set_onmessageerror(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn set_onmessageerror(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("onmessageerror setter called on non-object")
     })?;
 
     let handler = args.get_or_undefined(0);
-    this_obj.set(js_string!("__onmessageerror_handler"), handler.clone(), false, context)?;
+    this_obj.set(
+        js_string!("__onmessageerror_handler"),
+        handler.clone(),
+        false,
+        context,
+    )?;
 
     Ok(JsValue::undefined())
 }

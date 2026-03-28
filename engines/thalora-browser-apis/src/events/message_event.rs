@@ -3,16 +3,16 @@
 //! Implements the MessageEvent interface as defined in:
 //! https://html.spec.whatwg.org/multipage/comms.html#messageevent
 
-
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -88,7 +88,11 @@ impl BuiltInConstructor for MessageEvent {
         let event_type = type_arg.to_string(context)?;
 
         // Create the MessageEvent object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::message_event, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::message_event,
+            context,
+        )?;
         let message_event_data = MessageEventData::new(event_type.to_std_string_escaped());
         let message_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -115,7 +119,12 @@ impl BuiltInConstructor for MessageEvent {
                 // Set lastEventId property
                 if let Ok(last_event_id_val) = init_obj.get(js_string!("lastEventId"), context) {
                     let last_event_id_str = last_event_id_val.to_string(context)?;
-                    message_event_generic.set(js_string!("lastEventId"), last_event_id_str, false, context)?;
+                    message_event_generic.set(
+                        js_string!("lastEventId"),
+                        last_event_id_str,
+                        false,
+                        context,
+                    )?;
                 }
 
                 // Set source property
@@ -137,7 +146,12 @@ impl BuiltInConstructor for MessageEvent {
                 // Set cancelable property (inherited from Event)
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
                     let cancelable = cancelable_val.to_boolean();
-                    message_event_generic.set(js_string!("cancelable"), cancelable, false, context)?;
+                    message_event_generic.set(
+                        js_string!("cancelable"),
+                        cancelable,
+                        false,
+                        context,
+                    )?;
                 }
             }
         }
@@ -154,7 +168,12 @@ impl BuiltInConstructor for MessageEvent {
         message_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         message_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
         message_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        message_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        message_event_generic.set(
+            js_string!("timeStamp"),
+            context.clock().now().millis_since_epoch(),
+            false,
+            context,
+        )?;
 
         Ok(message_event_generic.into())
     }
@@ -181,7 +200,11 @@ pub fn create_message_event(
     ports: Option<JsValue>,
     context: &mut Context,
 ) -> JsResult<JsObject> {
-    let message_event_constructor = context.intrinsics().constructors().message_event().constructor();
+    let message_event_constructor = context
+        .intrinsics()
+        .constructors()
+        .message_event()
+        .constructor();
 
     // Create the event
     let message_event = message_event_constructor.construct(

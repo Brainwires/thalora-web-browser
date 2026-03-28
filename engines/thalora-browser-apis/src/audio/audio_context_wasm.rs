@@ -4,12 +4,12 @@
 //! This module provides placeholder types for API compatibility.
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     realm::Realm,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     string::StaticJsStrings,
 };
 use boa_gc::{Finalize, Trace};
@@ -24,8 +24,7 @@ pub struct AudioContext;
 
 impl IntrinsicObject for AudioContext {
     fn init(realm: &Realm) {
-        BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .build();
+        BuiltInBuilder::from_standard_constructor::<Self>(realm).build();
     }
 
     fn get(intrinsics: &Intrinsics) -> JsObject {
@@ -51,7 +50,9 @@ impl BuiltInConstructor for AudioContext {
     ) -> JsResult<JsValue> {
         // In WASM builds, AudioContext should be used directly from the browser
         Err(JsNativeError::error()
-            .with_message("AudioContext is not available in WASM. Use the browser's native Web Audio API.")
+            .with_message(
+                "AudioContext is not available in WASM. Use the browser's native Web Audio API.",
+            )
             .into())
     }
 }

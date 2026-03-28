@@ -8,13 +8,13 @@ use super::backend::{StorageBackend, TransactionMode};
 use super::object_store::IDBObjectStore;
 use super::transaction::IDBTransaction;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -125,13 +125,13 @@ impl IDBDatabase {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         Ok(JsValue::from(JsString::from(db.name.clone())))
     }
@@ -142,13 +142,13 @@ impl IDBDatabase {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         Ok(JsValue::from(db.version))
     }
@@ -159,20 +159,25 @@ impl IDBDatabase {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         // Create DOMStringList-like object
         use boa_engine::builtins::array::Array;
         let array = Array::array_create(db.object_store_names.len() as u64, None, context)?;
 
         for (i, name) in db.object_store_names.iter().enumerate() {
-            array.set(i, JsValue::from(JsString::from(name.clone())), true, context)?;
+            array.set(
+                i,
+                JsValue::from(JsString::from(name.clone())),
+                true,
+                context,
+            )?;
         }
 
         Ok(array.into())
@@ -185,13 +190,13 @@ impl IDBDatabase {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         // Parse arguments
         let name = args.get_or_undefined(0).to_string(context)?;
@@ -227,7 +232,8 @@ impl IDBDatabase {
         // Create object store in backend
         {
             let mut backend = db.backend.lock().unwrap();
-            backend.create_object_store(&db.name, &name_str, key_path.clone(), auto_increment)
+            backend
+                .create_object_store(&db.name, &name_str, key_path.clone(), auto_increment)
                 .map_err(|e| JsNativeError::error().with_message(e))?;
         }
 
@@ -256,13 +262,13 @@ impl IDBDatabase {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         let name = args.get_or_undefined(0).to_string(context)?;
         let name_str = name.to_std_string_escaped();
@@ -277,7 +283,8 @@ impl IDBDatabase {
         // Delete from backend
         {
             let mut backend = db.backend.lock().unwrap();
-            backend.delete_object_store(&db.name, &name_str)
+            backend
+                .delete_object_store(&db.name, &name_str)
                 .map_err(|e| JsNativeError::error().with_message(e))?;
         }
 
@@ -291,13 +298,13 @@ impl IDBDatabase {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         // Check if database is closed
         if db.is_closed() {
@@ -312,24 +319,22 @@ impl IDBDatabase {
 
         if let Some(arr) = store_names_arg.as_object() {
             if arr.is_array() {
-                let length = arr.get(js_string!("length"), context)?
-                    .to_u32(context)?;
+                let length = arr.get(js_string!("length"), context)?.to_u32(context)?;
 
                 for i in 0..length {
-                    let name = arr.get(i, context)?
+                    let name = arr
+                        .get(i, context)?
                         .to_string(context)?
                         .to_std_string_escaped();
                     store_names.push(name);
                 }
             } else {
                 // Single store name
-                let name = store_names_arg.to_string(context)?
-                    .to_std_string_escaped();
+                let name = store_names_arg.to_string(context)?.to_std_string_escaped();
                 store_names.push(name);
             }
         } else {
-            let name = store_names_arg.to_string(context)?
-                .to_std_string_escaped();
+            let name = store_names_arg.to_string(context)?.to_std_string_escaped();
             store_names.push(name);
         }
 
@@ -366,12 +371,7 @@ impl IDBDatabase {
         };
 
         // Create transaction
-        let txn = IDBTransaction::new(
-            db.backend.clone(),
-            db.name.clone(),
-            store_names,
-            mode,
-        );
+        let txn = IDBTransaction::new(db.backend.clone(), db.name.clone(), store_names, mode);
 
         let txn_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -389,13 +389,13 @@ impl IDBDatabase {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         db.close();
         Ok(JsValue::undefined())
@@ -407,13 +407,13 @@ impl IDBDatabase {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onabort = db.onabort.lock().unwrap();
@@ -433,13 +433,13 @@ impl IDBDatabase {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onerror = db.onerror.lock().unwrap();
@@ -459,13 +459,13 @@ impl IDBDatabase {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
-        let db = obj.downcast_ref::<IDBDatabase>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBDatabase object"))?;
+        let db = obj.downcast_ref::<IDBDatabase>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBDatabase object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onversionchange = db.onversionchange.lock().unwrap();
@@ -486,55 +486,75 @@ impl IntrinsicObject for IDBDatabase {
             // Properties
             .accessor(
                 js_string!("name"),
-                Some(BuiltInBuilder::callable(realm, Self::get_name)
-                    .name(js_string!("get name"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_name)
+                        .name(js_string!("get name"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("version"),
-                Some(BuiltInBuilder::callable(realm, Self::get_version)
-                    .name(js_string!("get version"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_version)
+                        .name(js_string!("get version"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("objectStoreNames"),
-                Some(BuiltInBuilder::callable(realm, Self::get_object_store_names)
-                    .name(js_string!("get objectStoreNames"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_object_store_names)
+                        .name(js_string!("get objectStoreNames"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onabort"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onabort)
-                    .name(js_string!("set onabort"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onabort)
+                        .name(js_string!("set onabort"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onerror"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onerror)
-                    .name(js_string!("set onerror"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onerror)
+                        .name(js_string!("set onerror"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onversionchange"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onversionchange)
-                    .name(js_string!("set onversionchange"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onversionchange)
+                        .name(js_string!("set onversionchange"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             // Methods
-            .method(Self::create_object_store, js_string!("createObjectStore"), 1)
-            .method(Self::delete_object_store, js_string!("deleteObjectStore"), 1)
+            .method(
+                Self::create_object_store,
+                js_string!("createObjectStore"),
+                1,
+            )
+            .method(
+                Self::delete_object_store,
+                js_string!("deleteObjectStore"),
+                1,
+            )
             .method(Self::transaction, js_string!("transaction"), 1)
             .method(Self::close_method, js_string!("close"), 0)
             .build();
@@ -550,13 +570,14 @@ impl BuiltInObject for IDBDatabase {
 }
 
 impl BuiltInConstructor for IDBDatabase {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Constructor properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Constructor properties
 
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |intrinsics| intrinsics.idb_database();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |intrinsics| intrinsics.idb_database();
 
     fn constructor(
         _new_target: &JsValue,
@@ -575,7 +596,9 @@ impl Default for IDBDatabase {
             name: String::new(),
             version: 0,
             object_store_names: Vec::new(),
-            backend: Arc::new(Mutex::new(Box::new(super::backend::memory::MemoryBackend::new()))),
+            backend: Arc::new(Mutex::new(Box::new(
+                super::backend::memory::MemoryBackend::new(),
+            ))),
             closed: Arc::new(Mutex::new(false)),
             onabort: Arc::new(Mutex::new(None)),
             onerror: Arc::new(Mutex::new(None)),

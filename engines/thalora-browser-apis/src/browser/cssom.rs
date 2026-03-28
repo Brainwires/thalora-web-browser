@@ -3,13 +3,14 @@
 //! Implements CSSStyleDeclaration and getComputedStyle
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject, FunctionObjectBuilder},
+    js_string,
+    object::{FunctionObjectBuilder, JsObject, internal_methods::get_prototype_from_constructor},
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string, NativeFunction,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -80,7 +81,11 @@ impl BuiltInConstructor for CSSStyleDeclaration {
                 .into());
         }
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::css_style_declaration, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::css_style_declaration,
+            context,
+        )?;
         let style_data = CSSStyleDeclarationData::new();
         let style_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -109,7 +114,8 @@ impl CSSStyleDeclarationData {
 
 fn get_length(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.length called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.length called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
@@ -121,11 +127,14 @@ fn get_length(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 
 fn get_css_text(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.cssText called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.cssText called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
-        let css_text: Vec<String> = data.properties.iter()
+        let css_text: Vec<String> = data
+            .properties
+            .iter()
             .map(|(name, (value, important))| {
                 if *important {
                     format!("{}: {} !important", name, value)
@@ -142,10 +151,14 @@ fn get_css_text(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 
 fn set_css_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.cssText called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.cssText called on non-object")
     })?;
 
-    let css_text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let css_text = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<CSSStyleDeclarationData>() {
         data.properties.clear();
@@ -167,12 +180,20 @@ fn set_css_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     Ok(JsValue::undefined())
 }
 
-fn get_property_value(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_property_value(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.getPropertyValue called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.getPropertyValue called on non-object")
     })?;
 
-    let property = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let property = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
         if let Some((value, _)) = data.properties.get(&property) {
@@ -185,12 +206,20 @@ fn get_property_value(this: &JsValue, args: &[JsValue], context: &mut Context) -
 
 fn set_property(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.setProperty called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.setProperty called on non-object")
     })?;
 
-    let property = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    let value = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
-    let priority = args.get(2)
+    let property = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let value = args
+        .get_or_undefined(1)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let priority = args
+        .get(2)
         .map(|p| p.to_string(context).ok())
         .flatten()
         .map(|s| s.to_std_string_escaped())
@@ -211,10 +240,14 @@ fn set_property(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
 
 fn remove_property(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.removeProperty called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.removeProperty called on non-object")
     })?;
 
-    let property = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let property = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<CSSStyleDeclarationData>() {
         if let Some((old_value, _)) = data.properties.remove(&property) {
@@ -225,12 +258,20 @@ fn remove_property(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     Ok(js_string!("").into())
 }
 
-fn get_property_priority(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_property_priority(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CSSStyleDeclaration.prototype.getPropertyPriority called on non-object")
+        JsNativeError::typ()
+            .with_message("CSSStyleDeclaration.prototype.getPropertyPriority called on non-object")
     })?;
 
-    let property = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let property = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
         if let Some((_, important)) = data.properties.get(&property) {
@@ -273,14 +314,18 @@ pub fn create_get_computed_style_function(context: &mut Context) -> JsResult<JsV
 }
 
 /// `getComputedStyle(element, pseudoElt)`
-fn get_computed_style(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_computed_style(
+    _this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // Return a new CSSStyleDeclaration
-    let style_constructor = context.intrinsics().constructors().css_style_declaration().constructor();
-    CSSStyleDeclaration::constructor(
-        &style_constructor.clone().into(),
-        &[],
-        context,
-    )
+    let style_constructor = context
+        .intrinsics()
+        .constructors()
+        .css_style_declaration()
+        .constructor();
+    CSSStyleDeclaration::constructor(&style_constructor.clone().into(), &[], context)
 }
 
 #[cfg(test)]
@@ -297,25 +342,35 @@ mod tests {
     #[test]
     fn test_css_style_declaration_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof CSSStyleDeclaration === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes(
+                "typeof CSSStyleDeclaration === 'function'",
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_get_computed_style_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof getComputedStyle === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof getComputedStyle === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_css_style_declaration_set_property() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const style = new CSSStyleDeclaration();
             style.setProperty('color', 'red');
             style.getPropertyValue('color') === 'red';
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

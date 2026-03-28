@@ -1,14 +1,13 @@
 //! Comprehensive test suite for Canvas 2D APIs
 //! Tests HTMLCanvasElement, CanvasRenderingContext2D, Path2D, and OffscreenCanvas
 
-use boa_engine::{Context, Source, JsValue};
 use boa_engine::string::JsString;
+use boa_engine::{Context, JsValue, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {
     let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context)
-        .expect("Failed to initialize browser APIs");
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     context
 }
 
@@ -19,59 +18,81 @@ fn create_test_context() -> Context {
 #[test]
 fn test_htmlcanvaselement_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof HTMLCanvasElement")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof HTMLCanvasElement"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_htmlcanvaselement_constructor_creates_instance() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         canvas !== null && canvas !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_default_dimensions() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         canvas.width === 300 && canvas.height === 150;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_custom_dimensions() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement(640, 480);
         canvas.width === 640 && canvas.height === 480;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_width_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         canvas.width = 500;
         canvas.width === 500;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_height_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         canvas.height = 400;
         canvas.height === 400;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -82,54 +103,74 @@ fn test_htmlcanvaselement_height_setter() {
 #[test]
 fn test_htmlcanvaselement_getcontext_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof HTMLCanvasElement.prototype.getContext === 'function' ||
         typeof new HTMLCanvasElement().getContext === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_getcontext_2d() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx !== null && ctx !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_getcontext_returns_same_context() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx1 = canvas.getContext('2d');
         let ctx2 = canvas.getContext('2d');
         ctx1 === ctx2;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_todataurl_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         typeof canvas.toDataURL === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_htmlcanvaselement_todataurl_returns_string() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement(10, 10);
         let dataUrl = canvas.toDataURL();
         typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png');
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -140,18 +181,24 @@ fn test_htmlcanvaselement_todataurl_returns_string() {
 #[test]
 fn test_canvasrenderingcontext2d_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof CanvasRenderingContext2D")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof CanvasRenderingContext2D"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_canvasrenderingcontext2d_canvas_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.canvas === canvas;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -162,81 +209,109 @@ fn test_canvasrenderingcontext2d_canvas_property() {
 #[test]
 fn test_context2d_fillstyle_default() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.fillStyle === '#000000' || ctx.fillStyle === 'black' || ctx.fillStyle === '#000';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_fillstyle_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ff0000';
         ctx.fillStyle === '#ff0000' || ctx.fillStyle === 'red';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_strokestyle_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.strokeStyle = 'blue';
         ctx.strokeStyle !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_linewidth_default() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.lineWidth === 1;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_linewidth_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.lineWidth = 5;
         ctx.lineWidth === 5;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_globalalpha_default() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.globalAlpha === 1;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_globalalpha_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.globalAlpha = 0.5;
         ctx.globalAlpha === 0.5;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -247,45 +322,61 @@ fn test_context2d_globalalpha_setter() {
 #[test]
 fn test_context2d_font_default() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.font === '10px sans-serif';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_font_setter() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.font = '16px Arial';
         ctx.font === '16px Arial';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_textalign_default() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.textAlign === 'start';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_textbaseline_default() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.textBaseline === 'alphabetic';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -296,29 +387,39 @@ fn test_context2d_textbaseline_default() {
 #[test]
 fn test_context2d_save_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.save === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_restore_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.restore === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_save_restore_preserves_state() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ff0000';
@@ -326,7 +427,9 @@ fn test_context2d_save_restore_preserves_state() {
         ctx.fillStyle = '#00ff00';
         ctx.restore();
         ctx.fillStyle === '#ff0000' || ctx.fillStyle === 'red';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -337,88 +440,120 @@ fn test_context2d_save_restore_preserves_state() {
 #[test]
 fn test_context2d_beginpath_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.beginPath === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_closepath_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.closePath === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_moveto_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.moveTo === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_lineto_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.lineTo === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_arc_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.arc === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_rect_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.rect === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_beziercurveto_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.bezierCurveTo === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_quadraticcurveto_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.quadraticCurveTo === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -429,55 +564,75 @@ fn test_context2d_quadraticcurveto_method() {
 #[test]
 fn test_context2d_fill_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.fill === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_stroke_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.stroke === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_fillrect_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.fillRect === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_strokerect_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.strokeRect === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_clearrect_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.clearRect === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -488,66 +643,90 @@ fn test_context2d_clearrect_method() {
 #[test]
 fn test_context2d_scale_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.scale === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_rotate_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.rotate === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_translate_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.translate === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_transform_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.transform === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_settransform_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.setTransform === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_resettransform_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.resetTransform === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -558,57 +737,77 @@ fn test_context2d_resettransform_method() {
 #[test]
 fn test_context2d_filltext_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.fillText === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_stroketext_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.strokeText === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_measuretext_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.measureText === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_measuretext_returns_object() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         let metrics = ctx.measureText('Hello');
         typeof metrics === 'object' && metrics !== null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_measuretext_width_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         let metrics = ctx.measureText('Hello');
         typeof metrics.width === 'number' && metrics.width >= 0;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -619,33 +818,45 @@ fn test_context2d_measuretext_width_property() {
 #[test]
 fn test_context2d_getimagedata_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.getImageData === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_putimagedata_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.putImageData === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_context2d_createimagedata_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let ctx = canvas.getContext('2d');
         typeof ctx.createImageData === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -663,40 +874,56 @@ fn test_path2d_constructor_exists() {
 #[test]
 fn test_path2d_constructor_creates_instance() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let path = new Path2D();
         path !== null && path !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_path2d_moveto_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let path = new Path2D();
         typeof path.moveTo === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_path2d_lineto_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let path = new Path2D();
         typeof path.lineTo === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_path2d_closepath_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let path = new Path2D();
         typeof path.closePath === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -707,47 +934,65 @@ fn test_path2d_closepath_method() {
 #[test]
 fn test_offscreencanvas_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof OffscreenCanvas")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof OffscreenCanvas"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_offscreencanvas_constructor_creates_instance() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new OffscreenCanvas(100, 100);
         canvas !== null && canvas !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_offscreencanvas_width_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new OffscreenCanvas(200, 150);
         canvas.width === 200;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_offscreencanvas_height_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new OffscreenCanvas(200, 150);
         canvas.height === 150;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_offscreencanvas_getcontext_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new OffscreenCanvas(100, 100);
         typeof canvas.getContext === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -758,20 +1003,26 @@ fn test_offscreencanvas_getcontext_method() {
 #[test]
 fn test_canvas_draw_rectangle() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement(100, 100);
         let ctx = canvas.getContext('2d');
         ctx.fillStyle = 'red';
         ctx.fillRect(10, 10, 50, 50);
         true; // Test that drawing doesn't throw
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_canvas_draw_path() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement(100, 100);
         let ctx = canvas.getContext('2d');
         ctx.beginPath();
@@ -781,14 +1032,18 @@ fn test_canvas_draw_path() {
         ctx.closePath();
         ctx.fill();
         true; // Test that path drawing doesn't throw
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_canvas_state_stack() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement(100, 100);
         let ctx = canvas.getContext('2d');
         ctx.globalAlpha = 0.5;
@@ -801,6 +1056,8 @@ fn test_canvas_state_stack() {
         ctx.restore();
         let alpha2 = ctx.globalAlpha;
         alpha1 === 0.25 && alpha2 === 0.5;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }

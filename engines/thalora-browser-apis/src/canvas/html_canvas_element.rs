@@ -4,13 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/canvas.html#htmlcanvaselement
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, Source,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute, Source,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -182,7 +184,11 @@ impl IntrinsicObject for HTMLCanvasElement {
             .method(get_context, js_string!("getContext"), 1)
             .method(to_data_url, js_string!("toDataURL"), 0)
             .method(to_blob, js_string!("toBlob"), 1)
-            .method(transfer_control_to_offscreen, js_string!("transferControlToOffscreen"), 0)
+            .method(
+                transfer_control_to_offscreen,
+                js_string!("transferControlToOffscreen"),
+                0,
+            )
             .build();
     }
 
@@ -292,13 +298,13 @@ fn set_height(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 // ============== Methods ==============
 
 fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let canvas_data = this_obj.downcast_ref::<HTMLCanvasElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement")
-    })?;
+    let canvas_data = this_obj
+        .downcast_ref::<HTMLCanvasElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement"))?;
 
     let context_type = args
         .get_or_undefined(0)
@@ -356,13 +362,13 @@ fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 }
 
 fn to_data_url(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let canvas_data = this_obj.downcast_ref::<HTMLCanvasElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement")
-    })?;
+    let canvas_data = this_obj
+        .downcast_ref::<HTMLCanvasElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement"))?;
 
     let mime_type = args
         .get(0)
@@ -375,13 +381,13 @@ fn to_data_url(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 }
 
 fn to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let canvas_data = this_obj.downcast_ref::<HTMLCanvasElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement")
-    })?;
+    let canvas_data = this_obj
+        .downcast_ref::<HTMLCanvasElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement"))?;
 
     // Get callback function
     let callback = args.get_or_undefined(0);
@@ -400,7 +406,11 @@ fn to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         // Create a Uint8Array from the PNG data
         let typed_array = context.eval(Source::from_bytes(&format!(
             "new Uint8Array([{}])",
-            png_data.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",")
+            png_data
+                .iter()
+                .map(|b| b.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
         )))?;
 
         // Call the callback with the "blob" (typed array for now)
@@ -422,9 +432,9 @@ fn transfer_control_to_offscreen(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     // OffscreenCanvas will be implemented in Phase 3.4
     // For now, throw an error
@@ -434,11 +444,7 @@ fn transfer_control_to_offscreen(
 }
 
 /// Helper function to create a canvas element programmatically
-pub fn create_canvas_element(
-    width: u32,
-    height: u32,
-    context: &mut Context,
-) -> JsResult<JsObject> {
+pub fn create_canvas_element(width: u32, height: u32, context: &mut Context) -> JsResult<JsObject> {
     let prototype = context
         .intrinsics()
         .constructors()

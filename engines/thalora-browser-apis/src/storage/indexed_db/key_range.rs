@@ -7,13 +7,13 @@
 
 use super::key::IDBKey;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -59,7 +59,9 @@ impl IDBKeyRange {
                 return Err("Lower bound cannot be greater than upper bound".to_string());
             }
             if l == u && (lower_open || upper_open) {
-                return Err("Lower and upper bounds cannot be equal when either is open".to_string());
+                return Err(
+                    "Lower and upper bounds cannot be equal when either is open".to_string()
+                );
             }
         }
 
@@ -233,13 +235,13 @@ impl IDBKeyRange {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
-        let range = obj.downcast_ref::<IDBKeyRange>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let range = obj.downcast_ref::<IDBKeyRange>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
         match &range.lower {
             Some(key) => key.to_js_value(context),
@@ -253,13 +255,13 @@ impl IDBKeyRange {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
-        let range = obj.downcast_ref::<IDBKeyRange>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let range = obj.downcast_ref::<IDBKeyRange>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
         match &range.upper {
             Some(key) => key.to_js_value(context),
@@ -273,13 +275,13 @@ impl IDBKeyRange {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
-        let range = obj.downcast_ref::<IDBKeyRange>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let range = obj.downcast_ref::<IDBKeyRange>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
         Ok(JsValue::from(range.lower_open))
     }
@@ -290,13 +292,13 @@ impl IDBKeyRange {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
-        let range = obj.downcast_ref::<IDBKeyRange>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let range = obj.downcast_ref::<IDBKeyRange>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
         Ok(JsValue::from(range.upper_open))
     }
@@ -308,13 +310,13 @@ impl IDBKeyRange {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
-        let range = obj.downcast_ref::<IDBKeyRange>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBKeyRange object"))?;
+        let range = obj.downcast_ref::<IDBKeyRange>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBKeyRange object")
+        })?;
 
         let key_val = args.get_or_undefined(0);
         let key = IDBKey::from_js_value(key_val, context)?;
@@ -351,33 +353,41 @@ impl IntrinsicObject for IDBKeyRange {
             // Instance properties with getters
             .accessor(
                 js_string!("lower"),
-                Some(BuiltInBuilder::callable(realm, Self::get_lower)
-                    .name(js_string!("get lower"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_lower)
+                        .name(js_string!("get lower"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("upper"),
-                Some(BuiltInBuilder::callable(realm, Self::get_upper)
-                    .name(js_string!("get upper"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_upper)
+                        .name(js_string!("get upper"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("lowerOpen"),
-                Some(BuiltInBuilder::callable(realm, Self::get_lower_open)
-                    .name(js_string!("get lowerOpen"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_lower_open)
+                        .name(js_string!("get lowerOpen"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("upperOpen"),
-                Some(BuiltInBuilder::callable(realm, Self::get_upper_open)
-                    .name(js_string!("get upperOpen"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_upper_open)
+                        .name(js_string!("get upperOpen"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
@@ -400,10 +410,9 @@ impl BuiltInConstructor for IDBKeyRange {
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // 4 static methods: only, lowerBound, upperBound, bound
     const PROTOTYPE_STORAGE_SLOTS: usize = 100; // 4 accessors + 1 method (lower, upper, lowerOpen, upperOpen, includes)
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| {
-            constructors.idb_key_range()
-        };
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.idb_key_range();
 
     fn constructor(
         _new_target: &JsValue,
@@ -455,8 +464,9 @@ mod tests {
             Some(IDBKey::Number(10.0)),
             Some(IDBKey::Number(100.0)),
             false,
-            false
-        ).unwrap();
+            false,
+        )
+        .unwrap();
 
         assert!(range.includes(&IDBKey::Number(10.0)));
         assert!(range.includes(&IDBKey::Number(50.0)));
@@ -470,11 +480,12 @@ mod tests {
         let range = IDBKeyRange::new(
             Some(IDBKey::Number(10.0)),
             Some(IDBKey::Number(100.0)),
-            true,  // lower open
-            true   // upper open
-        ).unwrap();
+            true, // lower open
+            true, // upper open
+        )
+        .unwrap();
 
-        assert!(!range.includes(&IDBKey::Number(10.0)));  // Lower bound excluded
+        assert!(!range.includes(&IDBKey::Number(10.0))); // Lower bound excluded
         assert!(range.includes(&IDBKey::Number(50.0)));
         assert!(!range.includes(&IDBKey::Number(100.0))); // Upper bound excluded
     }

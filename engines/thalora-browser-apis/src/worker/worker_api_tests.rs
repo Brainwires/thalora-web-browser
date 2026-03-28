@@ -4,9 +4,9 @@
 #[cfg(test)]
 mod worker_api_tests {
     use crate::worker::worker::register_worker_api;
-    use boa_engine::{Context, Source, JsValue, js_string};
-    use std::time::Duration;
+    use boa_engine::{Context, JsValue, Source, js_string};
     use std::thread;
+    use std::time::Duration;
 
     /// Helper to set up a context with Worker API registered
     fn setup_context() -> Context {
@@ -112,7 +112,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "onmessage should be null initially");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "onmessage should be null initially"
+        );
     }
 
     /// Test setting Worker onmessage handler
@@ -149,7 +152,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "onerror should be null initially");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "onerror should be null initially"
+        );
     }
 
     /// Test setting Worker onerror handler
@@ -191,7 +197,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "postMessage should be callable");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "postMessage should be callable"
+        );
     }
 
     /// Test Worker.terminate can be called
@@ -213,7 +222,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "terminate should be callable");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "terminate should be callable"
+        );
     }
 
     /// Test Worker constructor with options
@@ -249,7 +261,10 @@ mod worker_api_tests {
         "#;
 
         let result = context.eval(Source::from_bytes(script));
-        assert!(result.is_ok(), "Worker constructor should accept module type");
+        assert!(
+            result.is_ok(),
+            "Worker constructor should accept module type"
+        );
 
         let value = result.unwrap();
         if let Some(s) = value.as_string() {
@@ -272,7 +287,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "Each Worker should be a unique instance");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "Each Worker should be a unique instance"
+        );
     }
 
     /// Test Worker postMessage with different data types
@@ -301,7 +319,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "postMessage should accept various data types");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "postMessage should accept various data types"
+        );
     }
 
     /// Test Worker instance properties are enumerable
@@ -322,7 +343,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "Event handler properties should be enumerable");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "Event handler properties should be enumerable"
+        );
     }
 
     /// Test Worker methods are on prototype
@@ -340,7 +364,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "Methods should be on prototype, not own properties");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "Methods should be on prototype, not own properties"
+        );
     }
 
     /// Test setting onmessage to null
@@ -359,7 +386,10 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "onmessage should be settable to null");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "onmessage should be settable to null"
+        );
     }
 
     /// Test setting onerror to null
@@ -378,6 +408,9 @@ mod worker_api_tests {
         assert!(result.is_ok());
 
         let value = result.unwrap();
-        assert!(value.as_boolean().unwrap_or(false), "onerror should be settable to null");
+        assert!(
+            value.as_boolean().unwrap_or(false),
+            "onerror should be settable to null"
+        );
     }
 }

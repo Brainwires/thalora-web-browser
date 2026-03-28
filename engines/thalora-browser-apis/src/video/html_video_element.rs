@@ -4,13 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/media.html#htmlvideoelement
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -281,7 +283,10 @@ impl HTMLVideoElementData {
         let mut state = self.state.lock().unwrap();
 
         if state.state == VideoState::Error {
-            return Err(state.error.clone().unwrap_or_else(|| "Unknown error".to_string()));
+            return Err(state
+                .error
+                .clone()
+                .unwrap_or_else(|| "Unknown error".to_string()));
         }
 
         if state.state == VideoState::Loading {
@@ -316,36 +321,72 @@ impl HTMLVideoElementData {
     }
 
     // Getters and setters for all properties
-    pub fn get_volume(&self) -> f64 { self.state.lock().unwrap().volume }
-    pub fn set_volume(&self, v: f64) { self.state.lock().unwrap().volume = v.clamp(0.0, 1.0); }
+    pub fn get_volume(&self) -> f64 {
+        self.state.lock().unwrap().volume
+    }
+    pub fn set_volume(&self, v: f64) {
+        self.state.lock().unwrap().volume = v.clamp(0.0, 1.0);
+    }
 
-    pub fn get_muted(&self) -> bool { self.state.lock().unwrap().muted }
-    pub fn set_muted(&self, v: bool) { self.state.lock().unwrap().muted = v; }
+    pub fn get_muted(&self) -> bool {
+        self.state.lock().unwrap().muted
+    }
+    pub fn set_muted(&self, v: bool) {
+        self.state.lock().unwrap().muted = v;
+    }
 
-    pub fn get_loop(&self) -> bool { self.state.lock().unwrap().loop_video }
-    pub fn set_loop(&self, v: bool) { self.state.lock().unwrap().loop_video = v; }
+    pub fn get_loop(&self) -> bool {
+        self.state.lock().unwrap().loop_video
+    }
+    pub fn set_loop(&self, v: bool) {
+        self.state.lock().unwrap().loop_video = v;
+    }
 
-    pub fn get_autoplay(&self) -> bool { self.state.lock().unwrap().autoplay }
-    pub fn set_autoplay(&self, v: bool) { self.state.lock().unwrap().autoplay = v; }
+    pub fn get_autoplay(&self) -> bool {
+        self.state.lock().unwrap().autoplay
+    }
+    pub fn set_autoplay(&self, v: bool) {
+        self.state.lock().unwrap().autoplay = v;
+    }
 
-    pub fn get_controls(&self) -> bool { self.state.lock().unwrap().controls }
-    pub fn set_controls(&self, v: bool) { self.state.lock().unwrap().controls = v; }
+    pub fn get_controls(&self) -> bool {
+        self.state.lock().unwrap().controls
+    }
+    pub fn set_controls(&self, v: bool) {
+        self.state.lock().unwrap().controls = v;
+    }
 
-    pub fn get_poster(&self) -> String { self.state.lock().unwrap().poster.clone() }
-    pub fn set_poster(&self, v: String) { self.state.lock().unwrap().poster = v; }
+    pub fn get_poster(&self) -> String {
+        self.state.lock().unwrap().poster.clone()
+    }
+    pub fn set_poster(&self, v: String) {
+        self.state.lock().unwrap().poster = v;
+    }
 
-    pub fn get_current_time(&self) -> f64 { self.state.lock().unwrap().current_time }
+    pub fn get_current_time(&self) -> f64 {
+        self.state.lock().unwrap().current_time
+    }
     pub fn set_current_time(&self, v: f64) {
         let mut state = self.state.lock().unwrap();
         state.current_time = v.max(0.0).min(state.duration);
     }
 
-    pub fn get_duration(&self) -> f64 { self.state.lock().unwrap().duration }
-    pub fn get_video_width(&self) -> u32 { self.state.lock().unwrap().video_width }
-    pub fn get_video_height(&self) -> u32 { self.state.lock().unwrap().video_height }
+    pub fn get_duration(&self) -> f64 {
+        self.state.lock().unwrap().duration
+    }
+    pub fn get_video_width(&self) -> u32 {
+        self.state.lock().unwrap().video_width
+    }
+    pub fn get_video_height(&self) -> u32 {
+        self.state.lock().unwrap().video_height
+    }
 
-    pub fn get_playback_rate(&self) -> f64 { self.state.lock().unwrap().playback_rate }
-    pub fn set_playback_rate(&self, v: f64) { self.state.lock().unwrap().playback_rate = v.max(0.0); }
+    pub fn get_playback_rate(&self) -> f64 {
+        self.state.lock().unwrap().playback_rate
+    }
+    pub fn set_playback_rate(&self, v: f64) {
+        self.state.lock().unwrap().playback_rate = v.max(0.0);
+    }
 
     pub fn get_paused(&self) -> bool {
         let state = self.state.lock().unwrap();
@@ -356,19 +397,37 @@ impl HTMLVideoElementData {
         self.state.lock().unwrap().state == VideoState::Ended
     }
 
-    pub fn get_network_state(&self) -> u16 { self.state.lock().unwrap().network_state }
-    pub fn get_ready_state(&self) -> u16 { self.state.lock().unwrap().ready_state }
+    pub fn get_network_state(&self) -> u16 {
+        self.state.lock().unwrap().network_state
+    }
+    pub fn get_ready_state(&self) -> u16 {
+        self.state.lock().unwrap().ready_state
+    }
 
-    pub fn get_preload(&self) -> String { self.state.lock().unwrap().preload.clone() }
-    pub fn set_preload(&self, v: String) { self.state.lock().unwrap().preload = v; }
+    pub fn get_preload(&self) -> String {
+        self.state.lock().unwrap().preload.clone()
+    }
+    pub fn set_preload(&self, v: String) {
+        self.state.lock().unwrap().preload = v;
+    }
 
-    pub fn get_cross_origin(&self) -> Option<String> { self.state.lock().unwrap().cross_origin.clone() }
-    pub fn set_cross_origin(&self, v: Option<String>) { self.state.lock().unwrap().cross_origin = v; }
+    pub fn get_cross_origin(&self) -> Option<String> {
+        self.state.lock().unwrap().cross_origin.clone()
+    }
+    pub fn set_cross_origin(&self, v: Option<String>) {
+        self.state.lock().unwrap().cross_origin = v;
+    }
 
-    pub fn get_seeking(&self) -> bool { self.state.lock().unwrap().seeking }
+    pub fn get_seeking(&self) -> bool {
+        self.state.lock().unwrap().seeking
+    }
 
-    pub fn get_buffered_start(&self) -> f64 { self.state.lock().unwrap().buffered_start }
-    pub fn get_buffered_end(&self) -> f64 { self.state.lock().unwrap().buffered_end }
+    pub fn get_buffered_start(&self) -> f64 {
+        self.state.lock().unwrap().buffered_start
+    }
+    pub fn get_buffered_end(&self) -> f64 {
+        self.state.lock().unwrap().buffered_end
+    }
 }
 
 /// Video metadata
@@ -386,84 +445,270 @@ pub struct HTMLVideoElement;
 impl IntrinsicObject for HTMLVideoElement {
     fn init(realm: &Realm) {
         // Create getters and setters
-        let src_getter = BuiltInBuilder::callable(realm, get_src).name(js_string!("get src")).build();
-        let src_setter = BuiltInBuilder::callable(realm, set_src).name(js_string!("set src")).build();
+        let src_getter = BuiltInBuilder::callable(realm, get_src)
+            .name(js_string!("get src"))
+            .build();
+        let src_setter = BuiltInBuilder::callable(realm, set_src)
+            .name(js_string!("set src"))
+            .build();
 
-        let volume_getter = BuiltInBuilder::callable(realm, get_volume).name(js_string!("get volume")).build();
-        let volume_setter = BuiltInBuilder::callable(realm, set_volume).name(js_string!("set volume")).build();
+        let volume_getter = BuiltInBuilder::callable(realm, get_volume)
+            .name(js_string!("get volume"))
+            .build();
+        let volume_setter = BuiltInBuilder::callable(realm, set_volume)
+            .name(js_string!("set volume"))
+            .build();
 
-        let muted_getter = BuiltInBuilder::callable(realm, get_muted).name(js_string!("get muted")).build();
-        let muted_setter = BuiltInBuilder::callable(realm, set_muted).name(js_string!("set muted")).build();
+        let muted_getter = BuiltInBuilder::callable(realm, get_muted)
+            .name(js_string!("get muted"))
+            .build();
+        let muted_setter = BuiltInBuilder::callable(realm, set_muted)
+            .name(js_string!("set muted"))
+            .build();
 
-        let loop_getter = BuiltInBuilder::callable(realm, get_loop).name(js_string!("get loop")).build();
-        let loop_setter = BuiltInBuilder::callable(realm, set_loop).name(js_string!("set loop")).build();
+        let loop_getter = BuiltInBuilder::callable(realm, get_loop)
+            .name(js_string!("get loop"))
+            .build();
+        let loop_setter = BuiltInBuilder::callable(realm, set_loop)
+            .name(js_string!("set loop"))
+            .build();
 
-        let autoplay_getter = BuiltInBuilder::callable(realm, get_autoplay).name(js_string!("get autoplay")).build();
-        let autoplay_setter = BuiltInBuilder::callable(realm, set_autoplay).name(js_string!("set autoplay")).build();
+        let autoplay_getter = BuiltInBuilder::callable(realm, get_autoplay)
+            .name(js_string!("get autoplay"))
+            .build();
+        let autoplay_setter = BuiltInBuilder::callable(realm, set_autoplay)
+            .name(js_string!("set autoplay"))
+            .build();
 
-        let controls_getter = BuiltInBuilder::callable(realm, get_controls).name(js_string!("get controls")).build();
-        let controls_setter = BuiltInBuilder::callable(realm, set_controls).name(js_string!("set controls")).build();
+        let controls_getter = BuiltInBuilder::callable(realm, get_controls)
+            .name(js_string!("get controls"))
+            .build();
+        let controls_setter = BuiltInBuilder::callable(realm, set_controls)
+            .name(js_string!("set controls"))
+            .build();
 
-        let poster_getter = BuiltInBuilder::callable(realm, get_poster).name(js_string!("get poster")).build();
-        let poster_setter = BuiltInBuilder::callable(realm, set_poster).name(js_string!("set poster")).build();
+        let poster_getter = BuiltInBuilder::callable(realm, get_poster)
+            .name(js_string!("get poster"))
+            .build();
+        let poster_setter = BuiltInBuilder::callable(realm, set_poster)
+            .name(js_string!("set poster"))
+            .build();
 
-        let current_time_getter = BuiltInBuilder::callable(realm, get_current_time).name(js_string!("get currentTime")).build();
-        let current_time_setter = BuiltInBuilder::callable(realm, set_current_time).name(js_string!("set currentTime")).build();
+        let current_time_getter = BuiltInBuilder::callable(realm, get_current_time)
+            .name(js_string!("get currentTime"))
+            .build();
+        let current_time_setter = BuiltInBuilder::callable(realm, set_current_time)
+            .name(js_string!("set currentTime"))
+            .build();
 
-        let duration_getter = BuiltInBuilder::callable(realm, get_duration).name(js_string!("get duration")).build();
-        let video_width_getter = BuiltInBuilder::callable(realm, get_video_width).name(js_string!("get videoWidth")).build();
-        let video_height_getter = BuiltInBuilder::callable(realm, get_video_height).name(js_string!("get videoHeight")).build();
+        let duration_getter = BuiltInBuilder::callable(realm, get_duration)
+            .name(js_string!("get duration"))
+            .build();
+        let video_width_getter = BuiltInBuilder::callable(realm, get_video_width)
+            .name(js_string!("get videoWidth"))
+            .build();
+        let video_height_getter = BuiltInBuilder::callable(realm, get_video_height)
+            .name(js_string!("get videoHeight"))
+            .build();
 
-        let playback_rate_getter = BuiltInBuilder::callable(realm, get_playback_rate).name(js_string!("get playbackRate")).build();
-        let playback_rate_setter = BuiltInBuilder::callable(realm, set_playback_rate).name(js_string!("set playbackRate")).build();
+        let playback_rate_getter = BuiltInBuilder::callable(realm, get_playback_rate)
+            .name(js_string!("get playbackRate"))
+            .build();
+        let playback_rate_setter = BuiltInBuilder::callable(realm, set_playback_rate)
+            .name(js_string!("set playbackRate"))
+            .build();
 
-        let paused_getter = BuiltInBuilder::callable(realm, get_paused).name(js_string!("get paused")).build();
-        let ended_getter = BuiltInBuilder::callable(realm, get_ended).name(js_string!("get ended")).build();
+        let paused_getter = BuiltInBuilder::callable(realm, get_paused)
+            .name(js_string!("get paused"))
+            .build();
+        let ended_getter = BuiltInBuilder::callable(realm, get_ended)
+            .name(js_string!("get ended"))
+            .build();
 
-        let network_state_getter = BuiltInBuilder::callable(realm, get_network_state).name(js_string!("get networkState")).build();
-        let ready_state_getter = BuiltInBuilder::callable(realm, get_ready_state).name(js_string!("get readyState")).build();
+        let network_state_getter = BuiltInBuilder::callable(realm, get_network_state)
+            .name(js_string!("get networkState"))
+            .build();
+        let ready_state_getter = BuiltInBuilder::callable(realm, get_ready_state)
+            .name(js_string!("get readyState"))
+            .build();
 
-        let preload_getter = BuiltInBuilder::callable(realm, get_preload).name(js_string!("get preload")).build();
-        let preload_setter = BuiltInBuilder::callable(realm, set_preload).name(js_string!("set preload")).build();
+        let preload_getter = BuiltInBuilder::callable(realm, get_preload)
+            .name(js_string!("get preload"))
+            .build();
+        let preload_setter = BuiltInBuilder::callable(realm, set_preload)
+            .name(js_string!("set preload"))
+            .build();
 
-        let seeking_getter = BuiltInBuilder::callable(realm, get_seeking).name(js_string!("get seeking")).build();
+        let seeking_getter = BuiltInBuilder::callable(realm, get_seeking)
+            .name(js_string!("get seeking"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Static constants on constructor (HTMLVideoElement.HAVE_NOTHING, etc.)
-            .static_property(js_string!("HAVE_NOTHING"), ready_state::HAVE_NOTHING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("HAVE_METADATA"), ready_state::HAVE_METADATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("HAVE_CURRENT_DATA"), ready_state::HAVE_CURRENT_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("HAVE_FUTURE_DATA"), ready_state::HAVE_FUTURE_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("HAVE_ENOUGH_DATA"), ready_state::HAVE_ENOUGH_DATA, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("NETWORK_EMPTY"), network_state::NETWORK_EMPTY, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("NETWORK_IDLE"), network_state::NETWORK_IDLE, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("NETWORK_LOADING"), network_state::NETWORK_LOADING, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
-            .static_property(js_string!("NETWORK_NO_SOURCE"), network_state::NETWORK_NO_SOURCE, Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT)
+            .static_property(
+                js_string!("HAVE_NOTHING"),
+                ready_state::HAVE_NOTHING,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("HAVE_METADATA"),
+                ready_state::HAVE_METADATA,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("HAVE_CURRENT_DATA"),
+                ready_state::HAVE_CURRENT_DATA,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("HAVE_FUTURE_DATA"),
+                ready_state::HAVE_FUTURE_DATA,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("HAVE_ENOUGH_DATA"),
+                ready_state::HAVE_ENOUGH_DATA,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("NETWORK_EMPTY"),
+                network_state::NETWORK_EMPTY,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("NETWORK_IDLE"),
+                network_state::NETWORK_IDLE,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("NETWORK_LOADING"),
+                network_state::NETWORK_LOADING,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
+            .static_property(
+                js_string!("NETWORK_NO_SOURCE"),
+                network_state::NETWORK_NO_SOURCE,
+                Attribute::READONLY | Attribute::NON_ENUMERABLE | Attribute::PERMANENT,
+            )
             // Accessors
-            .accessor(js_string!("src"), Some(src_getter), Some(src_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("volume"), Some(volume_getter), Some(volume_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("muted"), Some(muted_getter), Some(muted_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("loop"), Some(loop_getter), Some(loop_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("autoplay"), Some(autoplay_getter), Some(autoplay_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("controls"), Some(controls_getter), Some(controls_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("poster"), Some(poster_getter), Some(poster_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("currentTime"), Some(current_time_getter), Some(current_time_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("duration"), Some(duration_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("videoWidth"), Some(video_width_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("videoHeight"), Some(video_height_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("playbackRate"), Some(playback_rate_getter), Some(playback_rate_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("paused"), Some(paused_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("ended"), Some(ended_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("networkState"), Some(network_state_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("readyState"), Some(ready_state_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("preload"), Some(preload_getter), Some(preload_setter), Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
-            .accessor(js_string!("seeking"), Some(seeking_getter), None, Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE)
+            .accessor(
+                js_string!("src"),
+                Some(src_getter),
+                Some(src_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("volume"),
+                Some(volume_getter),
+                Some(volume_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("muted"),
+                Some(muted_getter),
+                Some(muted_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("loop"),
+                Some(loop_getter),
+                Some(loop_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("autoplay"),
+                Some(autoplay_getter),
+                Some(autoplay_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("controls"),
+                Some(controls_getter),
+                Some(controls_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("poster"),
+                Some(poster_getter),
+                Some(poster_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("currentTime"),
+                Some(current_time_getter),
+                Some(current_time_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("duration"),
+                Some(duration_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("videoWidth"),
+                Some(video_width_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("videoHeight"),
+                Some(video_height_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("playbackRate"),
+                Some(playback_rate_getter),
+                Some(playback_rate_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("paused"),
+                Some(paused_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("ended"),
+                Some(ended_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("networkState"),
+                Some(network_state_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("readyState"),
+                Some(ready_state_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("preload"),
+                Some(preload_getter),
+                Some(preload_setter),
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
+            .accessor(
+                js_string!("seeking"),
+                Some(seeking_getter),
+                None,
+                Attribute::CONFIGURABLE | Attribute::NON_ENUMERABLE,
+            )
             // Methods
             .method(play, js_string!("play"), 0)
             .method(pause, js_string!("pause"), 0)
             .method(load, js_string!("load"), 0)
             .method(can_play_type, js_string!("canPlayType"), 1)
-            .method(get_video_playback_quality, js_string!("getVideoPlaybackQuality"), 0)
+            .method(
+                get_video_playback_quality,
+                js_string!("getVideoPlaybackQuality"),
+                0,
+            )
             .build();
     }
 
@@ -496,11 +741,8 @@ impl BuiltInConstructor for HTMLVideoElement {
 
         let data = HTMLVideoElementData::new();
 
-        let obj = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            prototype,
-            data,
-        );
+        let obj =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
 
         Ok(obj.into())
     }
@@ -509,198 +751,339 @@ impl BuiltInConstructor for HTMLVideoElement {
 // === Property Getters and Setters ===
 
 fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsString::from(data.get_src()).into())
 }
 
 fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let src = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let src = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     data.set_src(src);
     Ok(JsValue::undefined())
 }
 
 fn get_volume(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_volume()))
 }
 
 fn set_volume(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let volume = args.get_or_undefined(0).to_number(context)?;
     data.set_volume(volume);
     Ok(JsValue::undefined())
 }
 
 fn get_muted(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_muted()))
 }
 
 fn set_muted(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let muted = args.get_or_undefined(0).to_boolean();
     data.set_muted(muted);
     Ok(JsValue::undefined())
 }
 
 fn get_loop(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_loop()))
 }
 
 fn set_loop(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let loop_val = args.get_or_undefined(0).to_boolean();
     data.set_loop(loop_val);
     Ok(JsValue::undefined())
 }
 
 fn get_autoplay(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_autoplay()))
 }
 
 fn set_autoplay(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let autoplay = args.get_or_undefined(0).to_boolean();
     data.set_autoplay(autoplay);
     Ok(JsValue::undefined())
 }
 
 fn get_controls(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_controls()))
 }
 
 fn set_controls(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let controls = args.get_or_undefined(0).to_boolean();
     data.set_controls(controls);
     Ok(JsValue::undefined())
 }
 
 fn get_poster(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsString::from(data.get_poster()).into())
 }
 
 fn set_poster(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let poster = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let poster = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     data.set_poster(poster);
     Ok(JsValue::undefined())
 }
 
-fn get_current_time(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+fn get_current_time(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_current_time()))
 }
 
 fn set_current_time(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let time = args.get_or_undefined(0).to_number(context)?;
     data.set_current_time(time);
     Ok(JsValue::undefined())
 }
 
 fn get_duration(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_duration()))
 }
 
 fn get_video_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_video_width()))
 }
 
-fn get_video_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+fn get_video_height(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_video_height()))
 }
 
-fn get_playback_rate(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+fn get_playback_rate(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_playback_rate()))
 }
 
 fn set_playback_rate(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     let rate = args.get_or_undefined(0).to_number(context)?;
     data.set_playback_rate(rate);
     Ok(JsValue::undefined())
 }
 
 fn get_paused(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_paused()))
 }
 
 fn get_ended(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_ended()))
 }
 
-fn get_network_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+fn get_network_state(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_network_state()))
 }
 
 fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_ready_state()))
 }
 
 fn get_preload(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsString::from(data.get_preload()).into())
 }
 
 fn set_preload(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let preload = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let preload = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     data.set_preload(preload);
     Ok(JsValue::undefined())
 }
 
 fn get_seeking(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     Ok(JsValue::from(data.get_seeking()))
 }
 
 // === Methods ===
 
 fn play(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
 
     match data.play() {
         Ok(()) => {
@@ -718,25 +1101,39 @@ fn play(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<Js
 }
 
 fn pause(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     data.pause();
     Ok(JsValue::undefined())
 }
 
 fn load(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
-    let data = obj.downcast_ref::<HTMLVideoElementData>().ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
+    let data = obj
+        .downcast_ref::<HTMLVideoElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLVideoElement"))?;
     data.load();
     Ok(JsValue::undefined())
 }
 
 fn can_play_type(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let mime_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let mime_type = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     let lower = mime_type.to_lowercase();
 
     // Return support level: "probably", "maybe", or ""
-    let support = if lower.contains("video/mp4") || lower.contains("video/webm") || lower.contains("video/ogg") {
+    let support = if lower.contains("video/mp4")
+        || lower.contains("video/webm")
+        || lower.contains("video/ogg")
+    {
         "probably"
     } else if lower.contains("video/") {
         "maybe"
@@ -747,12 +1144,36 @@ fn can_play_type(_this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     Ok(JsString::from(support).into())
 }
 
-fn get_video_playback_quality(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_video_playback_quality(
+    _this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // Return a VideoPlaybackQuality object
     let obj = JsObject::with_null_proto();
-    obj.set(js_string!("creationTime"), JsValue::from(0.0), false, context)?;
-    obj.set(js_string!("totalVideoFrames"), JsValue::from(0), false, context)?;
-    obj.set(js_string!("droppedVideoFrames"), JsValue::from(0), false, context)?;
-    obj.set(js_string!("corruptedVideoFrames"), JsValue::from(0), false, context)?;
+    obj.set(
+        js_string!("creationTime"),
+        JsValue::from(0.0),
+        false,
+        context,
+    )?;
+    obj.set(
+        js_string!("totalVideoFrames"),
+        JsValue::from(0),
+        false,
+        context,
+    )?;
+    obj.set(
+        js_string!("droppedVideoFrames"),
+        JsValue::from(0),
+        false,
+        context,
+    )?;
+    obj.set(
+        js_string!("corruptedVideoFrames"),
+        JsValue::from(0),
+        false,
+        context,
+    )?;
     Ok(obj.into())
 }

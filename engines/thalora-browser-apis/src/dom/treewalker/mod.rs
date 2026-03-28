@@ -4,17 +4,17 @@
 //! https://dom.spec.whatwg.org/#interface-treewalker
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     property::Attribute,
+    property::PropertyDescriptorBuilder,
     realm::Realm,
     string::JsString,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
-    property::PropertyDescriptorBuilder,
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 
 /// NodeFilter constants - what types of nodes to show
 pub mod node_filter {
@@ -116,15 +116,15 @@ impl TreeWalkerData {
 
         // Map nodeType to whatToShow bit
         let bit = match node_type {
-            1 => node_filter::SHOW_ELEMENT,        // Element
-            2 => node_filter::SHOW_ATTRIBUTE,      // Attr
-            3 => node_filter::SHOW_TEXT,           // Text
-            4 => node_filter::SHOW_CDATA_SECTION,  // CDATASection
+            1 => node_filter::SHOW_ELEMENT,                // Element
+            2 => node_filter::SHOW_ATTRIBUTE,              // Attr
+            3 => node_filter::SHOW_TEXT,                   // Text
+            4 => node_filter::SHOW_CDATA_SECTION,          // CDATASection
             7 => node_filter::SHOW_PROCESSING_INSTRUCTION, // ProcessingInstruction
-            8 => node_filter::SHOW_COMMENT,        // Comment
-            9 => node_filter::SHOW_DOCUMENT,       // Document
-            10 => node_filter::SHOW_DOCUMENT_TYPE, // DocumentType
-            11 => node_filter::SHOW_DOCUMENT_FRAGMENT, // DocumentFragment
+            8 => node_filter::SHOW_COMMENT,                // Comment
+            9 => node_filter::SHOW_DOCUMENT,               // Document
+            10 => node_filter::SHOW_DOCUMENT_TYPE,         // DocumentType
+            11 => node_filter::SHOW_DOCUMENT_FRAGMENT,     // DocumentFragment
             _ => return false,
         };
 
@@ -183,13 +183,18 @@ impl TreeWalker {
     }
 
     /// `TreeWalker.prototype.whatToShow` getter
-    fn get_what_to_show(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_what_to_show(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("TreeWalker.whatToShow called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<TreeWalkerData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("TreeWalker.whatToShow called on non-TreeWalker object")
+            JsNativeError::typ()
+                .with_message("TreeWalker.whatToShow called on non-TreeWalker object")
         })?;
 
         Ok(JsValue::new(data.what_to_show()))
@@ -212,13 +217,18 @@ impl TreeWalker {
     }
 
     /// `TreeWalker.prototype.currentNode` getter
-    fn get_current_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_current_node(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("TreeWalker.currentNode called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<TreeWalkerData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("TreeWalker.currentNode called on non-TreeWalker object")
+            JsNativeError::typ()
+                .with_message("TreeWalker.currentNode called on non-TreeWalker object")
         })?;
 
         match data.current_node() {
@@ -228,19 +238,24 @@ impl TreeWalker {
     }
 
     /// `TreeWalker.prototype.currentNode` setter
-    fn set_current_node(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn set_current_node(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("TreeWalker.currentNode called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<TreeWalkerData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("TreeWalker.currentNode called on non-TreeWalker object")
+            JsNativeError::typ()
+                .with_message("TreeWalker.currentNode called on non-TreeWalker object")
         })?;
 
         let node = args.get_or_undefined(0);
-        let node_obj = node.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("currentNode must be a Node")
-        })?;
+        let node_obj = node
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("currentNode must be a Node"))?;
 
         data.set_current_node(node_obj.clone());
         Ok(JsValue::undefined())
@@ -253,7 +268,8 @@ impl TreeWalker {
         })?;
 
         let data = this_obj.downcast_ref::<TreeWalkerData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("TreeWalker.parentNode called on non-TreeWalker object")
+            JsNativeError::typ()
+                .with_message("TreeWalker.parentNode called on non-TreeWalker object")
         })?;
 
         let root = match data.root() {
@@ -273,9 +289,9 @@ impl TreeWalker {
                 return Ok(JsValue::null());
             }
 
-            let parent_obj = parent.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("parentNode is not an object")
-            })?;
+            let parent_obj = parent
+                .as_object()
+                .ok_or_else(|| JsNativeError::typ().with_message("parentNode is not an object"))?;
 
             node = parent_obj.clone();
 
@@ -317,7 +333,11 @@ impl TreeWalker {
 
         // Get the appropriate child
         let child_prop = if first { "firstChild" } else { "lastChild" };
-        let sibling_prop = if first { "nextSibling" } else { "previousSibling" };
+        let sibling_prop = if first {
+            "nextSibling"
+        } else {
+            "previousSibling"
+        };
 
         let mut child = node.get(js_string!(child_prop), context)?;
 
@@ -375,7 +395,11 @@ impl TreeWalker {
     }
 
     /// `TreeWalker.prototype.previousSibling()`
-    fn previous_sibling(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn previous_sibling(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::traverse_siblings(this, context, false)
     }
 
@@ -408,7 +432,11 @@ impl TreeWalker {
             return Ok(JsValue::null());
         }
 
-        let sibling_prop = if next { "nextSibling" } else { "previousSibling" };
+        let sibling_prop = if next {
+            "nextSibling"
+        } else {
+            "previousSibling"
+        };
         let child_prop = if next { "firstChild" } else { "lastChild" };
 
         loop {
@@ -445,9 +473,9 @@ impl TreeWalker {
                 return Ok(JsValue::null());
             }
 
-            let parent_obj = parent.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("parentNode is not an object")
-            })?;
+            let parent_obj = parent
+                .as_object()
+                .ok_or_else(|| JsNativeError::typ().with_message("parentNode is not an object"))?;
 
             if std::ptr::eq(parent_obj.as_ref(), root.as_ref()) {
                 return Ok(JsValue::null());
@@ -458,13 +486,18 @@ impl TreeWalker {
     }
 
     /// `TreeWalker.prototype.previousNode()`
-    fn previous_node(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn previous_node(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("TreeWalker.previousNode called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<TreeWalkerData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("TreeWalker.previousNode called on non-TreeWalker object")
+            JsNativeError::typ()
+                .with_message("TreeWalker.previousNode called on non-TreeWalker object")
         })?;
 
         let root = match data.root() {
@@ -482,9 +515,10 @@ impl TreeWalker {
             let sibling = node.get(js_string!("previousSibling"), context)?;
 
             if !sibling.is_null() && !sibling.is_undefined() {
-                let mut sibling_obj = sibling.as_object().ok_or_else(|| {
-                    JsNativeError::typ().with_message("sibling is not an object")
-                })?.clone();
+                let mut sibling_obj = sibling
+                    .as_object()
+                    .ok_or_else(|| JsNativeError::typ().with_message("sibling is not an object"))?
+                    .clone();
 
                 // Descend to last child
                 loop {
@@ -504,9 +538,12 @@ impl TreeWalker {
                         break;
                     }
 
-                    sibling_obj = last_child.as_object().ok_or_else(|| {
-                        JsNativeError::typ().with_message("lastChild is not an object")
-                    })?.clone();
+                    sibling_obj = last_child
+                        .as_object()
+                        .ok_or_else(|| {
+                            JsNativeError::typ().with_message("lastChild is not an object")
+                        })?
+                        .clone();
                 }
 
                 node = sibling_obj;
@@ -519,9 +556,9 @@ impl TreeWalker {
                 return Ok(JsValue::null());
             }
 
-            let parent_obj = parent.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("parentNode is not an object")
-            })?;
+            let parent_obj = parent
+                .as_object()
+                .ok_or_else(|| JsNativeError::typ().with_message("parentNode is not an object"))?;
 
             if std::ptr::eq(parent_obj.as_ref(), root.as_ref()) {
                 return Ok(JsValue::null());
@@ -609,9 +646,12 @@ impl TreeWalker {
                     return Ok(JsValue::null());
                 }
 
-                node = parent.as_object().ok_or_else(|| {
-                    JsNativeError::typ().with_message("parentNode is not an object")
-                })?.clone();
+                node = parent
+                    .as_object()
+                    .ok_or_else(|| {
+                        JsNativeError::typ().with_message("parentNode is not an object")
+                    })?
+                    .clone();
             }
         }
     }

@@ -2,8 +2,10 @@
 //!
 //! Manages the drawing state including transforms, styles, and clipping regions.
 
-use tiny_skia::{Color, Pixmap, Transform, Paint, PathBuilder, Path, FillRule, Stroke, LineCap, LineJoin};
 use std::sync::{Arc, Mutex};
+use tiny_skia::{
+    Color, FillRule, LineCap, LineJoin, Paint, Path, PathBuilder, Pixmap, Stroke, Transform,
+};
 
 /// Fill or stroke style
 #[derive(Debug, Clone)]
@@ -308,7 +310,15 @@ impl CanvasState {
     }
 
     /// Draw an arc
-    pub fn arc(&mut self, x: f32, y: f32, radius: f32, start_angle: f32, end_angle: f32, counterclockwise: bool) {
+    pub fn arc(
+        &mut self,
+        x: f32,
+        y: f32,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+        counterclockwise: bool,
+    ) {
         // Convert arc to bezier curves
         // This is a simplified implementation
         let mut angle = start_angle;
@@ -350,7 +360,10 @@ impl CanvasState {
                 // For solid colors, we can adjust alpha
                 if let CanvasStyle::Color(ref c) = self.current.fill_style {
                     let new_alpha = (c.alpha() * self.current.global_alpha).min(1.0);
-                    paint.set_color(Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha).unwrap_or(Color::BLACK));
+                    paint.set_color(
+                        Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
+                            .unwrap_or(Color::BLACK),
+                    );
                 }
             }
 
@@ -374,19 +387,17 @@ impl CanvasState {
             if self.current.global_alpha < 1.0 {
                 if let CanvasStyle::Color(ref c) = self.current.stroke_style {
                     let new_alpha = (c.alpha() * self.current.global_alpha).min(1.0);
-                    paint.set_color(Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha).unwrap_or(Color::BLACK));
+                    paint.set_color(
+                        Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
+                            .unwrap_or(Color::BLACK),
+                    );
                 }
             }
 
             let stroke = self.get_stroke();
 
-            self.pixmap.stroke_path(
-                &path,
-                &paint,
-                &stroke,
-                self.current.transform,
-                None,
-            );
+            self.pixmap
+                .stroke_path(&path, &paint, &stroke, self.current.transform, None);
         }
     }
 
@@ -397,12 +408,8 @@ impl CanvasState {
             let mut paint = self.current.fill_style.to_paint();
             paint.anti_alias = true;
 
-            self.pixmap.fill_rect(
-                rect,
-                &paint,
-                self.current.transform,
-                None,
-            );
+            self.pixmap
+                .fill_rect(rect, &paint, self.current.transform, None);
         }
     }
 
@@ -420,13 +427,8 @@ impl CanvasState {
             paint.anti_alias = true;
             let stroke = self.get_stroke();
 
-            self.pixmap.stroke_path(
-                &path,
-                &paint,
-                &stroke,
-                self.current.transform,
-                None,
-            );
+            self.pixmap
+                .stroke_path(&path, &paint, &stroke, self.current.transform, None);
         }
     }
 
@@ -438,12 +440,8 @@ impl CanvasState {
             paint.set_color(Color::from_rgba8(0, 0, 0, 0));
             paint.blend_mode = tiny_skia::BlendMode::Clear;
 
-            self.pixmap.fill_rect(
-                rect,
-                &paint,
-                self.current.transform,
-                None,
-            );
+            self.pixmap
+                .fill_rect(rect, &paint, self.current.transform, None);
         }
     }
 
@@ -506,7 +504,9 @@ impl CanvasState {
 
                         let dest_idx = (dest_y * pixmap_width + dest_x) as usize;
                         if let Some(pixel) = self.pixmap.pixels_mut().get_mut(dest_idx) {
-                            if let Some(color) = tiny_skia::PremultipliedColorU8::from_rgba(pr, pg, pb, a) {
+                            if let Some(color) =
+                                tiny_skia::PremultipliedColorU8::from_rgba(pr, pg, pb, a)
+                            {
                                 *pixel = color;
                             }
                         }

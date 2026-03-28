@@ -1,14 +1,13 @@
 //! Comprehensive test suite for Timer APIs
 //! Tests setTimeout, setInterval, clearTimeout, clearInterval
 
-use boa_engine::{Context, Source, JsValue};
 use boa_engine::string::JsString;
+use boa_engine::{Context, JsValue, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {
     let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context)
-        .expect("Failed to initialize browser APIs");
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     context
 }
 
@@ -19,21 +18,27 @@ fn create_test_context() -> Context {
 #[test]
 fn test_settimeout_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof setTimeout")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof setTimeout"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_settimeout_returns_number() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof setTimeout(function(){}, 100)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof setTimeout(function(){}, 100)"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("number")));
 }
 
 #[test]
 fn test_settimeout_returns_positive_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("setTimeout(function(){}, 100)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("setTimeout(function(){}, 100)"))
+        .unwrap();
     let id = result.as_number().expect("Should return number");
     assert!(id > 0.0, "Timer ID should be positive");
 }
@@ -41,8 +46,12 @@ fn test_settimeout_returns_positive_id() {
 #[test]
 fn test_settimeout_increments_id() {
     let mut context = create_test_context();
-    let result1 = context.eval(Source::from_bytes("setTimeout(function(){}, 100)")).unwrap();
-    let result2 = context.eval(Source::from_bytes("setTimeout(function(){}, 100)")).unwrap();
+    let result1 = context
+        .eval(Source::from_bytes("setTimeout(function(){}, 100)"))
+        .unwrap();
+    let result2 = context
+        .eval(Source::from_bytes("setTimeout(function(){}, 100)"))
+        .unwrap();
 
     let id1 = result1.as_number().unwrap();
     let id2 = result2.as_number().unwrap();
@@ -87,19 +96,25 @@ fn test_settimeout_with_string_callback() {
 #[test]
 fn test_settimeout_with_arrow_function() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("setTimeout(() => console.log('test'), 100)"));
+    let result = context.eval(Source::from_bytes(
+        "setTimeout(() => console.log('test'), 100)",
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_settimeout_multiple_concurrent() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let id1 = setTimeout(() => {}, 100);
         let id2 = setTimeout(() => {}, 200);
         let id3 = setTimeout(() => {}, 300);
         [id1, id2, id3].every(id => typeof id === 'number' && id > 0);
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -110,21 +125,27 @@ fn test_settimeout_multiple_concurrent() {
 #[test]
 fn test_setinterval_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof setInterval")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof setInterval"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_setinterval_returns_number() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof setInterval(function(){}, 100)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof setInterval(function(){}, 100)"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("number")));
 }
 
 #[test]
 fn test_setinterval_returns_positive_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("setInterval(function(){}, 100)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("setInterval(function(){}, 100)"))
+        .unwrap();
     let id = result.as_number().expect("Should return number");
     assert!(id > 0.0, "Interval ID should be positive");
 }
@@ -132,8 +153,12 @@ fn test_setinterval_returns_positive_id() {
 #[test]
 fn test_setinterval_increments_id() {
     let mut context = create_test_context();
-    let result1 = context.eval(Source::from_bytes("setInterval(function(){}, 100)")).unwrap();
-    let result2 = context.eval(Source::from_bytes("setInterval(function(){}, 100)")).unwrap();
+    let result1 = context
+        .eval(Source::from_bytes("setInterval(function(){}, 100)"))
+        .unwrap();
+    let result2 = context
+        .eval(Source::from_bytes("setInterval(function(){}, 100)"))
+        .unwrap();
 
     let id1 = result1.as_number().unwrap();
     let id2 = result2.as_number().unwrap();
@@ -171,19 +196,25 @@ fn test_setinterval_without_callback() {
 #[test]
 fn test_setinterval_with_arrow_function() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("setInterval(() => console.log('test'), 100)"));
+    let result = context.eval(Source::from_bytes(
+        "setInterval(() => console.log('test'), 100)",
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_setinterval_multiple_concurrent() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let id1 = setInterval(() => {}, 100);
         let id2 = setInterval(() => {}, 200);
         let id3 = setInterval(() => {}, 300);
         [id1, id2, id3].every(id => typeof id === 'number' && id > 0);
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -194,28 +225,36 @@ fn test_setinterval_multiple_concurrent() {
 #[test]
 fn test_cleartimeout_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof clearTimeout")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof clearTimeout"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_cleartimeout_returns_undefined() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let id = setTimeout(() => {}, 100);
         typeof clearTimeout(id);
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("undefined")));
 }
 
 #[test]
 fn test_cleartimeout_with_valid_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setTimeout(() => {}, 100);
         clearTimeout(id);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
@@ -243,14 +282,19 @@ fn test_cleartimeout_without_argument() {
 #[test]
 fn test_cleartimeout_multiple_times_same_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setTimeout(() => {}, 100);
         clearTimeout(id);
         clearTimeout(id);
         clearTimeout(id);
         true;
-    "#));
-    assert!(result.is_ok(), "Should handle clearing same ID multiple times");
+    "#,
+    ));
+    assert!(
+        result.is_ok(),
+        "Should handle clearing same ID multiple times"
+    );
 }
 
 // ============================================================================
@@ -260,28 +304,36 @@ fn test_cleartimeout_multiple_times_same_id() {
 #[test]
 fn test_clearinterval_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof clearInterval")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof clearInterval"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_clearinterval_returns_undefined() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let id = setInterval(() => {}, 100);
         typeof clearInterval(id);
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("undefined")));
 }
 
 #[test]
 fn test_clearinterval_with_valid_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setInterval(() => {}, 100);
         clearInterval(id);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
@@ -309,14 +361,19 @@ fn test_clearinterval_without_argument() {
 #[test]
 fn test_clearinterval_multiple_times_same_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setInterval(() => {}, 100);
         clearInterval(id);
         clearInterval(id);
         clearInterval(id);
         true;
-    "#));
-    assert!(result.is_ok(), "Should handle clearing same ID multiple times");
+    "#,
+    ));
+    assert!(
+        result.is_ok(),
+        "Should handle clearing same ID multiple times"
+    );
 }
 
 // ============================================================================
@@ -326,46 +383,62 @@ fn test_clearinterval_multiple_times_same_id() {
 #[test]
 fn test_settimeout_and_setinterval_share_id_space() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let timeoutId = setTimeout(() => {}, 100);
         let intervalId = setInterval(() => {}, 100);
         intervalId > timeoutId;
-    "#)).unwrap();
-    assert_eq!(result.to_boolean(), true, "IDs should be sequential across both timer types");
+    "#,
+        ))
+        .unwrap();
+    assert_eq!(
+        result.to_boolean(),
+        true,
+        "IDs should be sequential across both timer types"
+    );
 }
 
 #[test]
 fn test_cleartimeout_on_interval_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setInterval(() => {}, 100);
         clearTimeout(id);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok(), "clearTimeout should work on interval IDs");
 }
 
 #[test]
 fn test_clearinterval_on_timeout_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setTimeout(() => {}, 100);
         clearInterval(id);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok(), "clearInterval should work on timeout IDs");
 }
 
 #[test]
 fn test_mixed_timers_concurrent() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let t1 = setTimeout(() => {}, 100);
         let i1 = setInterval(() => {}, 100);
         let t2 = setTimeout(() => {}, 200);
         let i2 = setInterval(() => {}, 200);
         [t1, i1, t2, i2].every(id => typeof id === 'number' && id > 0);
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -432,11 +505,13 @@ fn test_clear_with_string_id() {
 #[test]
 fn test_clear_with_float_id() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let id = setTimeout(() => {}, 100);
         clearTimeout(id + 0.5);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
@@ -447,44 +522,55 @@ fn test_clear_with_float_id() {
 #[test]
 fn test_settimeout_in_expression() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let id = setTimeout(() => {}, 100) + 5;
         typeof id === 'number';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_nested_settimeout_calls() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         setTimeout(() => {
             setTimeout(() => {
                 console.log('nested');
             }, 100);
         }, 100);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_many_concurrent_timers() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let ids = [];
         for (let i = 0; i < 100; i++) {
             ids.push(setTimeout(() => {}, i * 10));
         }
         ids.length === 100 && ids.every(id => typeof id === 'number');
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_clear_many_timers() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let ids = [];
         for (let i = 0; i < 50; i++) {
             ids.push(setTimeout(() => {}, i * 10));
@@ -493,7 +579,8 @@ fn test_clear_many_timers() {
             clearTimeout(ids[i]);
         }
         true;
-    "#));
+    "#,
+    ));
     if result.is_err() {
         println!("Error: {:?}", result);
     }
@@ -503,14 +590,18 @@ fn test_clear_many_timers() {
 #[test]
 fn test_timer_ids_are_unique() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let ids = new Set();
         for (let i = 0; i < 50; i++) {
             ids.add(setTimeout(() => {}, 100));
             ids.add(setInterval(() => {}, 100));
         }
         ids.size === 100;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true, "All timer IDs should be unique");
 }
 

@@ -9,10 +9,9 @@
 //! - Integration with DOM tree and layout
 //! - Caret positioning and rendering state
 
+use boa_engine::{JsResult, JsValue};
 use boa_gc::{Finalize, Trace};
-use boa_engine::{JsValue, JsResult};
 use std::sync::{Arc, Mutex};
-
 
 /// Selection granularity levels (matches Chrome's implementation)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,8 +97,14 @@ impl SelectionInDOMTree {
         self.is_directional
     }
 
-    pub fn set_selection(&mut self, anchor_node: Option<JsValue>, anchor_offset: u32,
-                        focus_node: Option<JsValue>, focus_offset: u32, is_directional: bool) {
+    pub fn set_selection(
+        &mut self,
+        anchor_node: Option<JsValue>,
+        anchor_offset: u32,
+        focus_node: Option<JsValue>,
+        focus_offset: u32,
+        is_directional: bool,
+    ) {
         self.anchor_node = anchor_node;
         self.anchor_offset = anchor_offset;
         self.focus_node = focus_node;
@@ -236,9 +241,14 @@ impl FrameSelection {
     }
 
     /// Set selection with options (Chrome-style API)
-    pub fn set_selection(&mut self, anchor_node: Option<JsValue>, anchor_offset: u32,
-                        focus_node: Option<JsValue>, focus_offset: u32,
-                        options: SelectionOptions) -> JsResult<()> {
+    pub fn set_selection(
+        &mut self,
+        anchor_node: Option<JsValue>,
+        anchor_offset: u32,
+        focus_node: Option<JsValue>,
+        focus_offset: u32,
+        options: SelectionOptions,
+    ) -> JsResult<()> {
         let mut selection = self.selection_in_dom_tree.lock().unwrap();
 
         // Store old selection for change detection
@@ -262,7 +272,10 @@ impl FrameSelection {
             self.notify_selection_changed();
         }
 
-        eprintln!("FrameSelection: Selection updated with granularity {:?}", self.granularity);
+        eprintln!(
+            "FrameSelection: Selection updated with granularity {:?}",
+            self.granularity
+        );
         Ok(())
     }
 
@@ -284,9 +297,12 @@ impl FrameSelection {
 
     /// Modify selection (Chrome's modify method equivalent)
     /// This modifies the selection based on alter (move/extend), direction, and granularity
-    pub fn modify(&mut self, alter: SelectionModifyAlter, direction: SelectionModifyDirection,
-                  granularity: SelectionGranularity) -> JsResult<bool> {
-
+    pub fn modify(
+        &mut self,
+        alter: SelectionModifyAlter,
+        direction: SelectionModifyDirection,
+        granularity: SelectionGranularity,
+    ) -> JsResult<bool> {
         self.granularity = granularity;
 
         let mut selection = self.selection_in_dom_tree.lock().unwrap();
@@ -300,9 +316,9 @@ impl FrameSelection {
         // In a full implementation, this would do proper text analysis
         let offset_delta: i32 = match granularity {
             SelectionGranularity::Character => 1,
-            SelectionGranularity::Word => 5,       // Approximate word length
-            SelectionGranularity::Sentence => 50,  // Approximate sentence length
-            SelectionGranularity::Line => 80,      // Approximate line length
+            SelectionGranularity::Word => 5, // Approximate word length
+            SelectionGranularity::Sentence => 50, // Approximate sentence length
+            SelectionGranularity::Line => 80, // Approximate line length
             SelectionGranularity::Paragraph => 200,
             SelectionGranularity::Document => i32::MAX,
         };
@@ -423,7 +439,10 @@ impl FrameSelection {
             // Since we don't have context access here, the actual dispatching
             // is handled by the Selection JavaScript API layer which has context
 
-            eprintln!("FrameSelection: {} selection change listeners registered", count);
+            eprintln!(
+                "FrameSelection: {} selection change listeners registered",
+                count
+            );
 
             // Mark that a selection change occurred (could be used for batching)
             // A full implementation might queue this for microtask dispatch
@@ -442,11 +461,11 @@ impl FrameSelection {
 
     /// Compare two selections for equality
     fn selections_equal(&self, a: &SelectionInDOMTree, b: &SelectionInDOMTree) -> bool {
-        a.anchor_node() == b.anchor_node() &&
-        a.focus_node() == b.focus_node() &&
-        a.anchor_offset() == b.anchor_offset() &&
-        a.focus_offset() == b.focus_offset() &&
-        a.is_directional() == b.is_directional()
+        a.anchor_node() == b.anchor_node()
+            && a.focus_node() == b.focus_node()
+            && a.anchor_offset() == b.anchor_offset()
+            && a.focus_offset() == b.focus_offset()
+            && a.is_directional() == b.is_directional()
     }
 
     /// Get current granularity

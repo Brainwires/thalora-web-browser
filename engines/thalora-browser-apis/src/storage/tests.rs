@@ -1,14 +1,13 @@
 //! Comprehensive test suite for Storage APIs
 //! Tests Storage (localStorage/sessionStorage), StorageManager, and StorageEvent
 
-use crate::boa_engine::{Context, Source, JsValue};
 use crate::boa_engine::string::JsString;
+use crate::boa_engine::{Context, JsValue, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {
     let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context)
-        .expect("Failed to initialize browser APIs");
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     context
 }
 
@@ -30,103 +29,143 @@ fn test_storage_constructor_exists() {
 #[test]
 fn test_localstorage_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof localStorage === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_is_storage() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage instanceof Storage;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_setitem() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('test', 'value');
         localStorage.getItem('test') === 'value';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_getitem() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('key', 'value');
         localStorage.getItem('key') === 'value';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_getitem_nonexistent() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.getItem('nonexistent') === null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_removeitem() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('test', 'value');
         localStorage.removeItem('test');
         localStorage.getItem('test') === null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_clear() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('key1', 'value1');
         localStorage.setItem('key2', 'value2');
         localStorage.clear();
         localStorage.getItem('key1') === null && localStorage.getItem('key2') === null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_length() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.clear();
         localStorage.setItem('key1', 'value1');
         localStorage.setItem('key2', 'value2');
         localStorage.length === 2;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_key() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.clear();
         localStorage.setItem('test', 'value');
         localStorage.key(0) !== null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_key_out_of_bounds() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.clear();
         localStorage.key(100) === null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -137,41 +176,57 @@ fn test_localstorage_key_out_of_bounds() {
 #[test]
 fn test_sessionstorage_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof sessionStorage === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_sessionstorage_is_storage() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         sessionStorage instanceof Storage;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_sessionstorage_setitem() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         sessionStorage.setItem('test', 'value');
         sessionStorage.getItem('test') === 'value';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_sessionstorage_independent_from_localstorage() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.clear();
         sessionStorage.clear();
         localStorage.setItem('key', 'local');
         sessionStorage.setItem('key', 'session');
         localStorage.getItem('key') === 'local' && sessionStorage.getItem('key') === 'session';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -182,45 +237,65 @@ fn test_sessionstorage_independent_from_localstorage() {
 #[test]
 fn test_storage_setitem_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof localStorage.setItem === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_getitem_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof localStorage.getItem === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_removeitem_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof localStorage.removeItem === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_clear_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof localStorage.clear === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_key_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof localStorage.key === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -231,30 +306,42 @@ fn test_storage_key_method() {
 #[test]
 fn test_storage_stores_as_string() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('number', 123);
         localStorage.getItem('number') === '123';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_boolean_conversion() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('bool', true);
         localStorage.getItem('bool') === 'true';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_object_conversion() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('obj', {a: 1});
         localStorage.getItem('obj') === '[object Object]';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -265,77 +352,107 @@ fn test_storage_object_conversion() {
 #[test]
 fn test_storageevent_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof StorageEvent")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof StorageEvent"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_storageevent_constructor_basic() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage');
         event !== null && event !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_type_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage');
         event.type === 'storage';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_key_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage', { key: 'test' });
         event.key === 'test';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_oldvalue_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage', { oldValue: 'old' });
         event.oldValue === 'old';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_newvalue_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage', { newValue: 'new' });
         event.newValue === 'new';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_url_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage', { url: 'http://example.com' });
         event.url === 'http://example.com';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_storagearea_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new StorageEvent('storage', { storageArea: localStorage });
         event.storageArea === localStorage;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -346,43 +463,61 @@ fn test_storageevent_storagearea_property() {
 #[test]
 fn test_storagemanager_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof StorageManager")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof StorageManager"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_navigator_storage_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof navigator.storage === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storagemanager_estimate_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof navigator.storage.estimate === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storagemanager_persist_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof navigator.storage.persist === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storagemanager_persisted_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof navigator.storage.persisted === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -393,50 +528,70 @@ fn test_storagemanager_persisted_method() {
 #[test]
 fn test_storage_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'Storage');
         desc !== undefined && typeof desc.value === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_localstorage_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
         desc !== undefined && typeof desc.value === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_sessionstorage_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
         desc !== undefined && typeof desc.value === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storageevent_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'StorageEvent');
         desc !== undefined && typeof desc.value === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storagemanager_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'StorageManager');
         desc !== undefined && typeof desc.value === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -447,18 +602,24 @@ fn test_storagemanager_property_descriptor() {
 #[test]
 fn test_storage_persistence() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('persist', 'test');
         let value = localStorage.getItem('persist');
         value === 'test';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_iteration() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.clear();
         localStorage.setItem('a', '1');
         localStorage.setItem('b', '2');
@@ -468,47 +629,65 @@ fn test_storage_iteration() {
             if (localStorage.key(i)) count++;
         }
         count === 3;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_overwrite() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('key', 'value1');
         localStorage.setItem('key', 'value2');
         localStorage.getItem('key') === 'value2';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_empty_string_value() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('empty', '');
         localStorage.getItem('empty') === '';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_null_handling() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('null', null);
         localStorage.getItem('null') === 'null';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_storage_undefined_handling() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         localStorage.setItem('undef', undefined);
         localStorage.getItem('undef') === 'undefined';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }

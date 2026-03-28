@@ -4,22 +4,24 @@
 //! https://html.spec.whatwg.org/multipage/canvas.html#canvasrenderingcontext2d
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, Source,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute, Source,
 };
 use boa_gc::{Finalize, Trace};
-use tiny_skia::{LineCap, LineJoin};
 use std::sync::{Arc, Mutex};
+use tiny_skia::{LineCap, LineJoin};
 
 use super::canvas_state::{CanvasState, CanvasStyle};
 use super::path::Path2DData;
-use crate::dom::image_bitmap::ImageBitmapData;
 use crate::dom::html_image_element::HTMLImageElementData;
+use crate::dom::image_bitmap::ImageBitmapData;
 
 /// Internal data for CanvasRenderingContext2D
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
@@ -329,45 +331,54 @@ impl BuiltInConstructor for CanvasRenderingContext2D {
 // ============== Style Property Accessors ==============
 
 fn get_fill_style(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let color_str = ctx_data.with_state(|state| {
-        match &state.current.fill_style {
-            CanvasStyle::Color(c) => {
-                let r = (c.red() * 255.0) as u8;
-                let g = (c.green() * 255.0) as u8;
-                let b = (c.blue() * 255.0) as u8;
-                let a = c.alpha();
-                // Return hex format for opaque colors, rgba for transparent
-                if (a - 1.0).abs() < f32::EPSILON {
-                    format!("#{:02x}{:02x}{:02x}", r, g, b)
-                } else {
-                    format!("rgba({},{},{},{})", r, g, b, a)
+    let color_str = ctx_data
+        .with_state(|state| {
+            match &state.current.fill_style {
+                CanvasStyle::Color(c) => {
+                    let r = (c.red() * 255.0) as u8;
+                    let g = (c.green() * 255.0) as u8;
+                    let b = (c.blue() * 255.0) as u8;
+                    let a = c.alpha();
+                    // Return hex format for opaque colors, rgba for transparent
+                    if (a - 1.0).abs() < f32::EPSILON {
+                        format!("#{:02x}{:02x}{:02x}", r, g, b)
+                    } else {
+                        format!("rgba({},{},{},{})", r, g, b, a)
+                    }
                 }
+                _ => "#000000".to_string(),
             }
-            _ => "#000000".to_string(),
-        }
-    }).unwrap_or_else(|| "#000000".to_string());
+        })
+        .unwrap_or_else(|| "#000000".to_string());
 
     Ok(JsValue::from(js_string!(color_str)))
 }
 
 fn set_fill_style(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let color_str = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let color_str = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(style) = CanvasStyle::from_css_color(&color_str) {
         ctx_data.with_state(|state| {
@@ -378,19 +389,26 @@ fn set_fill_style(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     Ok(JsValue::undefined())
 }
 
-fn get_stroke_style(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_stroke_style(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let color_str = ctx_data.with_state(|state| {
-        match &state.current.stroke_style {
+    let color_str = ctx_data
+        .with_state(|state| match &state.current.stroke_style {
             CanvasStyle::Color(c) => {
-                format!("rgba({},{},{},{})",
+                format!(
+                    "rgba({},{},{},{})",
                     (c.red() * 255.0) as u8,
                     (c.green() * 255.0) as u8,
                     (c.blue() * 255.0) as u8,
@@ -398,22 +416,27 @@ fn get_stroke_style(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
                 )
             }
             _ => "#000000".to_string(),
-        }
-    }).unwrap_or_else(|| "#000000".to_string());
+        })
+        .unwrap_or_else(|| "#000000".to_string());
 
     Ok(JsValue::from(js_string!(color_str)))
 }
 
 fn set_stroke_style(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let color_str = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let color_str = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(style) = CanvasStyle::from_css_color(&color_str) {
         ctx_data.with_state(|state| {
@@ -425,26 +448,32 @@ fn set_stroke_style(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 }
 
 fn get_line_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let width = ctx_data.with_state(|state| state.current.line_width).unwrap_or(1.0);
+    let width = ctx_data
+        .with_state(|state| state.current.line_width)
+        .unwrap_or(1.0);
     Ok(JsValue::from(width as f64))
 }
 
 fn set_line_width(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let width = args.get_or_undefined(0).to_number(context)? as f32;
     if width > 0.0 {
@@ -457,35 +486,42 @@ fn set_line_width(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 fn get_line_cap(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let cap = ctx_data.with_state(|state| {
-        match state.current.line_cap {
+    let cap = ctx_data
+        .with_state(|state| match state.current.line_cap {
             LineCap::Butt => "butt",
             LineCap::Round => "round",
             LineCap::Square => "square",
-        }
-    }).unwrap_or("butt");
+        })
+        .unwrap_or("butt");
 
     Ok(JsValue::from(js_string!(cap)))
 }
 
 fn set_line_cap(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let cap_str = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let cap_str = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     let cap = match cap_str.as_str() {
         "butt" => LineCap::Butt,
         "round" => LineCap::Round,
@@ -501,36 +537,43 @@ fn set_line_cap(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
 }
 
 fn get_line_join(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let join = ctx_data.with_state(|state| {
-        match state.current.line_join {
+    let join = ctx_data
+        .with_state(|state| match state.current.line_join {
             LineJoin::Miter => "miter",
             LineJoin::MiterClip => "miter",
             LineJoin::Round => "round",
             LineJoin::Bevel => "bevel",
-        }
-    }).unwrap_or("miter");
+        })
+        .unwrap_or("miter");
 
     Ok(JsValue::from(js_string!(join)))
 }
 
 fn set_line_join(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let join_str = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let join_str = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     let join = match join_str.as_str() {
         "miter" => LineJoin::Miter,
         "round" => LineJoin::Round,
@@ -546,26 +589,32 @@ fn set_line_join(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 fn get_miter_limit(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let limit = ctx_data.with_state(|state| state.current.miter_limit).unwrap_or(10.0);
+    let limit = ctx_data
+        .with_state(|state| state.current.miter_limit)
+        .unwrap_or(10.0);
     Ok(JsValue::from(limit as f64))
 }
 
 fn set_miter_limit(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let limit = args.get_or_undefined(0).to_number(context)? as f32;
     if limit > 0.0 {
@@ -577,27 +626,37 @@ fn set_miter_limit(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     Ok(JsValue::undefined())
 }
 
-fn get_global_alpha(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_global_alpha(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let alpha = ctx_data.with_state(|state| state.current.global_alpha).unwrap_or(1.0);
+    let alpha = ctx_data
+        .with_state(|state| state.current.global_alpha)
+        .unwrap_or(1.0);
     Ok(JsValue::from(alpha as f64))
 }
 
 fn set_global_alpha(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let alpha = args.get_or_undefined(0).to_number(context)? as f32;
     if (0.0..=1.0).contains(&alpha) {
@@ -610,29 +669,37 @@ fn set_global_alpha(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 }
 
 fn get_font(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let font = ctx_data.with_state(|state| state.current.font.clone())
+    let font = ctx_data
+        .with_state(|state| state.current.font.clone())
         .unwrap_or_else(|| "10px sans-serif".to_string());
     Ok(JsValue::from(js_string!(font)))
 }
 
 fn set_font(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let font = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let font = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     ctx_data.with_state(|state| {
         state.current.font = font;
     });
@@ -641,29 +708,37 @@ fn set_font(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
 }
 
 fn get_text_align(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let align = ctx_data.with_state(|state| state.current.text_align.clone())
+    let align = ctx_data
+        .with_state(|state| state.current.text_align.clone())
         .unwrap_or_else(|| "start".to_string());
     Ok(JsValue::from(js_string!(align)))
 }
 
 fn set_text_align(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let align = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let align = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     if ["start", "end", "left", "right", "center"].contains(&align.as_str()) {
         ctx_data.with_state(|state| {
             state.current.text_align = align;
@@ -673,31 +748,52 @@ fn set_text_align(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     Ok(JsValue::undefined())
 }
 
-fn get_text_baseline(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_text_baseline(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let baseline = ctx_data.with_state(|state| state.current.text_baseline.clone())
+    let baseline = ctx_data
+        .with_state(|state| state.current.text_baseline.clone())
         .unwrap_or_else(|| "alphabetic".to_string());
     Ok(JsValue::from(js_string!(baseline)))
 }
 
 fn set_text_baseline(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let baseline = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    if ["top", "hanging", "middle", "alphabetic", "ideographic", "bottom"].contains(&baseline.as_str()) {
+    let baseline = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    if [
+        "top",
+        "hanging",
+        "middle",
+        "alphabetic",
+        "ideographic",
+        "bottom",
+    ]
+    .contains(&baseline.as_str())
+    {
         ctx_data.with_state(|state| {
             state.current.text_baseline = baseline;
         });
@@ -707,26 +803,32 @@ fn set_text_baseline(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 }
 
 fn get_shadow_blur(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let blur = ctx_data.with_state(|state| state.current.shadow_blur).unwrap_or(0.0);
+    let blur = ctx_data
+        .with_state(|state| state.current.shadow_blur)
+        .unwrap_or(0.0);
     Ok(JsValue::from(blur as f64))
 }
 
 fn set_shadow_blur(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let blur = args.get_or_undefined(0).to_number(context)? as f32;
     if blur >= 0.0 {
@@ -738,38 +840,52 @@ fn set_shadow_blur(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     Ok(JsValue::undefined())
 }
 
-fn get_shadow_color(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_shadow_color(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let color_str = ctx_data.with_state(|state| {
-        let c = &state.current.shadow_color;
-        format!("rgba({},{},{},{})",
-            (c.red() * 255.0) as u8,
-            (c.green() * 255.0) as u8,
-            (c.blue() * 255.0) as u8,
-            c.alpha()
-        )
-    }).unwrap_or_else(|| "rgba(0,0,0,0)".to_string());
+    let color_str = ctx_data
+        .with_state(|state| {
+            let c = &state.current.shadow_color;
+            format!(
+                "rgba({},{},{},{})",
+                (c.red() * 255.0) as u8,
+                (c.green() * 255.0) as u8,
+                (c.blue() * 255.0) as u8,
+                c.alpha()
+            )
+        })
+        .unwrap_or_else(|| "rgba(0,0,0,0)".to_string());
 
     Ok(JsValue::from(js_string!(color_str)))
 }
 
 fn set_shadow_color(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let color_str = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let color_str = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(CanvasStyle::Color(color)) = CanvasStyle::from_css_color(&color_str) {
         ctx_data.with_state(|state| {
@@ -780,27 +896,41 @@ fn set_shadow_color(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
     Ok(JsValue::undefined())
 }
 
-fn get_shadow_offset_x(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_shadow_offset_x(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let offset = ctx_data.with_state(|state| state.current.shadow_offset_x).unwrap_or(0.0);
+    let offset = ctx_data
+        .with_state(|state| state.current.shadow_offset_x)
+        .unwrap_or(0.0);
     Ok(JsValue::from(offset as f64))
 }
 
-fn set_shadow_offset_x(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn set_shadow_offset_x(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let offset = args.get_or_undefined(0).to_number(context)? as f32;
     ctx_data.with_state(|state| {
@@ -810,27 +940,41 @@ fn set_shadow_offset_x(this: &JsValue, args: &[JsValue], context: &mut Context) 
     Ok(JsValue::undefined())
 }
 
-fn get_shadow_offset_y(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_shadow_offset_y(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let offset = ctx_data.with_state(|state| state.current.shadow_offset_y).unwrap_or(0.0);
+    let offset = ctx_data
+        .with_state(|state| state.current.shadow_offset_y)
+        .unwrap_or(0.0);
     Ok(JsValue::from(offset as f64))
 }
 
-fn set_shadow_offset_y(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn set_shadow_offset_y(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let offset = args.get_or_undefined(0).to_number(context)? as f32;
     ctx_data.with_state(|state| {
@@ -840,27 +984,41 @@ fn set_shadow_offset_y(this: &JsValue, args: &[JsValue], context: &mut Context) 
     Ok(JsValue::undefined())
 }
 
-fn get_line_dash_offset(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn get_line_dash_offset(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let offset = ctx_data.with_state(|state| state.current.line_dash_offset).unwrap_or(0.0);
+    let offset = ctx_data
+        .with_state(|state| state.current.line_dash_offset)
+        .unwrap_or(0.0);
     Ok(JsValue::from(offset as f64))
 }
 
-fn set_line_dash_offset(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn set_line_dash_offset(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let offset = args.get_or_undefined(0).to_number(context)? as f32;
     ctx_data.with_state(|state| {
@@ -873,26 +1031,30 @@ fn set_line_dash_offset(this: &JsValue, args: &[JsValue], context: &mut Context)
 // ============== State Methods ==============
 
 fn save(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     ctx_data.with_state(|state| state.save());
     Ok(JsValue::undefined())
 }
 
 fn restore(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     ctx_data.with_state(|state| state.restore());
     Ok(JsValue::undefined())
@@ -901,39 +1063,45 @@ fn restore(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 // ============== Path Methods ==============
 
 fn begin_path(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     ctx_data.with_state(|state| state.begin_path());
     Ok(JsValue::undefined())
 }
 
 fn close_path(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     ctx_data.with_state(|state| state.close_path());
     Ok(JsValue::undefined())
 }
 
 fn move_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -943,13 +1111,15 @@ fn move_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn line_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -959,13 +1129,15 @@ fn line_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn bezier_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let cp1x = args.get_or_undefined(0).to_number(context)? as f32;
     let cp1y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -978,14 +1150,20 @@ fn bezier_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     Ok(JsValue::undefined())
 }
 
-fn quadratic_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn quadratic_curve_to(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let cpx = args.get_or_undefined(0).to_number(context)? as f32;
     let cpy = args.get_or_undefined(1).to_number(context)? as f32;
@@ -997,13 +1175,15 @@ fn quadratic_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 fn arc(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1017,13 +1197,15 @@ fn arc(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVa
 }
 
 fn arc_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let _ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let _ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     // arcTo is more complex - needs the path module
     // For now, just consume the arguments
@@ -1038,13 +1220,15 @@ fn arc_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
 }
 
 fn ellipse(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let _ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let _ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     // For now, approximate with an arc
     let _x = args.get_or_undefined(0).to_number(context)? as f32;
@@ -1061,13 +1245,15 @@ fn ellipse(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1079,13 +1265,15 @@ fn rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsV
 }
 
 fn round_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1101,13 +1289,15 @@ fn round_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 // ============== Drawing Methods ==============
 
 fn fill(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     // Check if first arg is a Path2D
     if let Some(path_obj) = args.get(0).and_then(|v| v.as_object()) {
@@ -1121,13 +1311,15 @@ fn fill(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<Js
 }
 
 fn stroke(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     // Check if first arg is a Path2D
     if let Some(path_obj) = args.get(0).and_then(|v| v.as_object()) {
@@ -1141,13 +1333,15 @@ fn stroke(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<
 }
 
 fn fill_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1159,13 +1353,15 @@ fn fill_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 fn stroke_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1177,13 +1373,15 @@ fn stroke_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 }
 
 fn clear_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1197,13 +1395,15 @@ fn clear_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 // ============== Transform Methods ==============
 
 fn scale(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1213,13 +1413,15 @@ fn scale(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<Js
 }
 
 fn rotate(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let angle = args.get_or_undefined(0).to_number(context)? as f32;
 
@@ -1228,13 +1430,15 @@ fn rotate(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
 }
 
 fn translate(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1244,13 +1448,15 @@ fn translate(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 fn transform(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let a = args.get_or_undefined(0).to_number(context)? as f32;
     let b = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1264,13 +1470,15 @@ fn transform(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 fn set_transform(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let a = args.get_or_undefined(0).to_number(context)? as f32;
     let b = args.get_or_undefined(1).to_number(context)? as f32;
@@ -1284,31 +1492,37 @@ fn set_transform(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 fn reset_transform(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     ctx_data.with_state(|state| state.reset_transform());
     Ok(JsValue::undefined())
 }
 
 fn get_transform(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let (a, b, c, d, e, f) = ctx_data.with_state(|state| {
-        let t = state.current.transform;
-        (t.sx, t.ky, t.kx, t.sy, t.tx, t.ty)
-    }).unwrap_or((1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
+    let (a, b, c, d, e, f) = ctx_data
+        .with_state(|state| {
+            let t = state.current.transform;
+            (t.sx, t.ky, t.kx, t.sy, t.tx, t.ty)
+        })
+        .unwrap_or((1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
 
     // Create a DOMMatrix-like object
     context.eval(Source::from_bytes(&format!(
@@ -1320,19 +1534,20 @@ fn get_transform(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
 // ============== Line Dash Methods ==============
 
 fn set_line_dash(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let segments_arg = args.get_or_undefined(0);
 
     if let Some(arr) = segments_arg.as_object() {
-        let length = arr.get(js_string!("length"), context)?
-            .to_number(context)? as usize;
+        let length = arr.get(js_string!("length"), context)?.to_number(context)? as usize;
 
         let mut segments = Vec::with_capacity(length);
         for i in 0..length {
@@ -1351,32 +1566,43 @@ fn set_line_dash(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 fn get_line_dash(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
-    let segments = ctx_data.with_state(|state| state.current.line_dash.clone())
+    let segments = ctx_data
+        .with_state(|state| state.current.line_dash.clone())
         .unwrap_or_default();
 
-    let arr_str = format!("[{}]",
-        segments.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(","));
+    let arr_str = format!(
+        "[{}]",
+        segments
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
     context.eval(Source::from_bytes(&arr_str))
 }
 
 // ============== Image Methods ==============
 
 fn draw_image(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let source = args.get_or_undefined(0);
 
@@ -1396,7 +1622,9 @@ fn draw_image(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
             } else {
                 return Ok(JsValue::undefined()); // Bitmap closed
             }
-        } else if let Some(canvas_data) = obj.downcast_ref::<super::html_canvas_element::HTMLCanvasElementData>() {
+        } else if let Some(canvas_data) =
+            obj.downcast_ref::<super::html_canvas_element::HTMLCanvasElementData>()
+        {
             // Another canvas source
             let state_arc = canvas_data.get_state();
             let guard = state_arc.lock().unwrap();
@@ -1468,24 +1696,31 @@ fn draw_image(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 // ============== Pixel Manipulation ==============
 
 fn get_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let x = args.get_or_undefined(0).to_number(context)? as u32;
     let y = args.get_or_undefined(1).to_number(context)? as u32;
     let width = args.get_or_undefined(2).to_number(context)? as u32;
     let height = args.get_or_undefined(3).to_number(context)? as u32;
 
-    let data = ctx_data.with_state(|state| state.get_image_data(x, y, width, height))
+    let data = ctx_data
+        .with_state(|state| state.get_image_data(x, y, width, height))
         .unwrap_or_default();
 
     // Create ImageData object
-    let data_str = data.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",");
+    let data_str = data
+        .iter()
+        .map(|b| b.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
     context.eval(Source::from_bytes(&format!(
         "{{ width: {}, height: {}, data: new Uint8ClampedArray([{}]) }}",
         width, height, data_str
@@ -1493,13 +1728,15 @@ fn get_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 fn put_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let ctx_data = this_obj.downcast_ref::<CanvasRenderingContext2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
-    })?;
+    let ctx_data = this_obj
+        .downcast_ref::<CanvasRenderingContext2DData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CanvasRenderingContext2D")
+        })?;
 
     let image_data = args.get_or_undefined(0);
     let dx = args.get_or_undefined(1).to_number(context)? as i32;
@@ -1511,7 +1748,8 @@ fn put_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         let data_obj = obj.get(js_string!("data"), context)?;
 
         if let Some(data_arr) = data_obj.as_object() {
-            let length = data_arr.get(js_string!("length"), context)?
+            let length = data_arr
+                .get(js_string!("length"), context)?
                 .to_number(context)? as usize;
 
             let mut data = Vec::with_capacity(length);
@@ -1530,9 +1768,9 @@ fn put_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 fn create_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     let width = args.get_or_undefined(0).to_number(context)? as u32;
     let height = args.get_or_undefined(1).to_number(context)? as u32;
@@ -1550,9 +1788,9 @@ fn create_image_data(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 // ============== Text Methods ==============
 
 fn fill_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     // Text rendering is complex and requires font shaping
     // For now, just consume the arguments
@@ -1566,9 +1804,9 @@ fn fill_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 fn stroke_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     let _text = args.get_or_undefined(0).to_string(context)?;
     let _x = args.get_or_undefined(1).to_number(context)?;
@@ -1580,11 +1818,14 @@ fn stroke_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 }
 
 fn measure_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let text = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let text = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     // Very rough approximation - proper implementation needs font metrics
     let width = text.len() as f64 * 8.0; // ~8px per character
@@ -1592,17 +1833,72 @@ fn measure_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     // Create TextMetrics object using Boa APIs instead of eval
     let metrics = JsObject::with_null_proto();
     metrics.set(js_string!("width"), JsValue::from(width), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxLeft"), JsValue::from(0.0), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxRight"), JsValue::from(width), false, context)?;
-    metrics.set(js_string!("fontBoundingBoxAscent"), JsValue::from(10.0), false, context)?;
-    metrics.set(js_string!("fontBoundingBoxDescent"), JsValue::from(2.0), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxAscent"), JsValue::from(10.0), false, context)?;
-    metrics.set(js_string!("actualBoundingBoxDescent"), JsValue::from(2.0), false, context)?;
-    metrics.set(js_string!("emHeightAscent"), JsValue::from(10.0), false, context)?;
-    metrics.set(js_string!("emHeightDescent"), JsValue::from(2.0), false, context)?;
-    metrics.set(js_string!("hangingBaseline"), JsValue::from(10.0), false, context)?;
-    metrics.set(js_string!("alphabeticBaseline"), JsValue::from(0.0), false, context)?;
-    metrics.set(js_string!("ideographicBaseline"), JsValue::from(-2.0), false, context)?;
+    metrics.set(
+        js_string!("actualBoundingBoxLeft"),
+        JsValue::from(0.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("actualBoundingBoxRight"),
+        JsValue::from(width),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("fontBoundingBoxAscent"),
+        JsValue::from(10.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("fontBoundingBoxDescent"),
+        JsValue::from(2.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("actualBoundingBoxAscent"),
+        JsValue::from(10.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("actualBoundingBoxDescent"),
+        JsValue::from(2.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("emHeightAscent"),
+        JsValue::from(10.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("emHeightDescent"),
+        JsValue::from(2.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("hangingBaseline"),
+        JsValue::from(10.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("alphabeticBaseline"),
+        JsValue::from(0.0),
+        false,
+        context,
+    )?;
+    metrics.set(
+        js_string!("ideographicBaseline"),
+        JsValue::from(-2.0),
+        false,
+        context,
+    )?;
 
     Ok(JsValue::from(metrics))
 }
@@ -1610,9 +1906,9 @@ fn measure_text(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
 // ============== Clipping ==============
 
 fn clip(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     // TODO: Implement clipping
     Ok(JsValue::undefined())
@@ -1621,9 +1917,9 @@ fn clip(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<J
 // ============== Hit Testing ==============
 
 fn is_point_in_path(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;
@@ -1632,10 +1928,14 @@ fn is_point_in_path(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
     Ok(JsValue::from(false))
 }
 
-fn is_point_in_stroke(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn is_point_in_stroke(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;

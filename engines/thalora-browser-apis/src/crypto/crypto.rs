@@ -10,8 +10,8 @@
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, JsValue, NativeFunction,
-    object::ObjectInitializer, js_string,
+    Context, JsArgs, JsNativeError, JsResult, JsValue, NativeFunction, js_string,
+    object::ObjectInitializer,
 };
 
 use super::subtle_crypto::SubtleCrypto;
@@ -26,13 +26,30 @@ impl Crypto {
         let subtle_obj = SubtleCrypto::create(context);
 
         let crypto_obj = ObjectInitializer::new(context)
-            .function(NativeFunction::from_fn_ptr(Self::get_random_values), js_string!("getRandomValues"), 1)
-            .function(NativeFunction::from_fn_ptr(Self::random_uuid), js_string!("randomUUID"), 0)
-            .property(js_string!("subtle"), subtle_obj, boa_engine::property::Attribute::READONLY | boa_engine::property::Attribute::NON_ENUMERABLE)
+            .function(
+                NativeFunction::from_fn_ptr(Self::get_random_values),
+                js_string!("getRandomValues"),
+                1,
+            )
+            .function(
+                NativeFunction::from_fn_ptr(Self::random_uuid),
+                js_string!("randomUUID"),
+                0,
+            )
+            .property(
+                js_string!("subtle"),
+                subtle_obj,
+                boa_engine::property::Attribute::READONLY
+                    | boa_engine::property::Attribute::NON_ENUMERABLE,
+            )
             .build();
 
         context
-            .register_global_property(js_string!("crypto"), crypto_obj, boa_engine::property::Attribute::all())
+            .register_global_property(
+                js_string!("crypto"),
+                crypto_obj,
+                boa_engine::property::Attribute::all(),
+            )
             .expect("Failed to register crypto");
     }
 
@@ -46,7 +63,11 @@ impl Crypto {
     ///
     /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
     /// [spec]: https://w3c.github.io/webcrypto/#Crypto-method-getRandomValues
-    fn get_random_values(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_random_values(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Check if argument is provided
         let array_arg = args.get_or_undefined(0);
         if array_arg.is_undefined() {
@@ -77,22 +98,31 @@ impl Crypto {
 
         // Check maximum quota (65536 bytes as per spec)
         if byte_length > 65536 {
-            let message = format!("Failed to execute 'getRandomValues' on 'Crypto': The ArrayBufferView's byte length ({}) exceeds the maximum allowed length (65536).", byte_length);
-            return Err(JsNativeError::range()
-                .with_message(message)
-                .into());
+            let message = format!(
+                "Failed to execute 'getRandomValues' on 'Crypto': The ArrayBufferView's byte length ({}) exceeds the maximum allowed length (65536).",
+                byte_length
+            );
+            return Err(JsNativeError::range().with_message(message).into());
         }
 
         // Generate random bytes
         let mut random_bytes = vec![0u8; byte_length as usize];
 
-        #[cfg(all(feature = "js", target_family = "wasm", not(any(target_os = "emscripten", target_os = "wasi"))))]
+        #[cfg(all(
+            feature = "js",
+            target_family = "wasm",
+            not(any(target_os = "emscripten", target_os = "wasi"))
+        ))]
         {
             getrandom::getrandom(&mut random_bytes)
                 .map_err(|_| JsNativeError::error()
                     .with_message("Failed to execute 'getRandomValues' on 'Crypto': Unable to generate random values."))?;
         }
-        #[cfg(not(all(feature = "js", target_family = "wasm", not(any(target_os = "emscripten", target_os = "wasi")))))]
+        #[cfg(not(all(
+            feature = "js",
+            target_family = "wasm",
+            not(any(target_os = "emscripten", target_os = "wasi"))
+        )))]
         {
             // Fallback using thread_rng for non-WASM targets
             use rand::Rng;
@@ -102,7 +132,8 @@ impl Crypto {
 
         // Fill the array with random bytes
         // For TypedArray, we need to set each element
-        let length = array_obj.get(js_string!("length"), context)?
+        let length = array_obj
+            .get(js_string!("length"), context)?
             .to_u32(context)?;
 
         // Determine element size (bytes per element)
@@ -161,17 +192,31 @@ impl Crypto {
     ///
     /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID
     /// [spec]: https://w3c.github.io/webcrypto/#Crypto-method-randomUUID
-    fn random_uuid(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn random_uuid(
+        _this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Generate 16 random bytes
         let mut bytes = [0u8; 16];
 
-        #[cfg(all(feature = "js", target_family = "wasm", not(any(target_os = "emscripten", target_os = "wasi"))))]
+        #[cfg(all(
+            feature = "js",
+            target_family = "wasm",
+            not(any(target_os = "emscripten", target_os = "wasi"))
+        ))]
         {
-            getrandom::getrandom(&mut bytes)
-                .map_err(|_| JsNativeError::error()
-                    .with_message("Failed to execute 'randomUUID' on 'Crypto': Unable to generate random UUID."))?;
+            getrandom::getrandom(&mut bytes).map_err(|_| {
+                JsNativeError::error().with_message(
+                    "Failed to execute 'randomUUID' on 'Crypto': Unable to generate random UUID.",
+                )
+            })?;
         }
-        #[cfg(not(all(feature = "js", target_family = "wasm", not(any(target_os = "emscripten", target_os = "wasi")))))]
+        #[cfg(not(all(
+            feature = "js",
+            target_family = "wasm",
+            not(any(target_os = "emscripten", target_os = "wasi"))
+        )))]
         {
             // Fallback using thread_rng for non-WASM targets
             use rand::Rng;
@@ -186,11 +231,22 @@ impl Crypto {
         // Format as UUID string: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
         let uuid = format!(
             "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5],
-            bytes[6], bytes[7],
-            bytes[8], bytes[9],
-            bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+            bytes[4],
+            bytes[5],
+            bytes[6],
+            bytes[7],
+            bytes[8],
+            bytes[9],
+            bytes[10],
+            bytes[11],
+            bytes[12],
+            bytes[13],
+            bytes[14],
+            bytes[15]
         );
 
         Ok(JsValue::from(js_string!(uuid)))

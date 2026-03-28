@@ -3,18 +3,22 @@
 //! Implementation of the Encoding Standard APIs
 //! https://encoding.spec.whatwg.org/
 
+use base64::{Engine as _, engine::general_purpose};
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject, FunctionObjectBuilder, builtins::JsUint8Array},
+    js_string,
+    object::{
+        FunctionObjectBuilder, JsObject, builtins::JsUint8Array,
+        internal_methods::get_prototype_from_constructor,
+    },
+    property::{Attribute, PropertyDescriptorBuilder},
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder},
-    NativeFunction,
 };
 use boa_gc::{Finalize, Trace};
-use base64::{Engine as _, engine::general_purpose};
 
 // ============================================================================
 // TextEncoder
@@ -138,7 +142,8 @@ fn encode_into(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     let bytes = source_string.as_bytes();
 
     // Get destination length
-    let dest_length = dest_obj.get(js_string!("length"), context)?
+    let dest_length = dest_obj
+        .get(js_string!("length"), context)?
         .to_number(context)? as usize;
 
     // Calculate how many bytes we can write
@@ -151,7 +156,12 @@ fn encode_into(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 
     // Return result object { read: number, written: number }
     let result = JsObject::with_null_proto();
-    result.set(js_string!("read"), source_string.chars().count() as i32, false, context)?;
+    result.set(
+        js_string!("read"),
+        source_string.chars().count() as i32,
+        false,
+        context,
+    )?;
     result.set(js_string!("written"), bytes_to_write as i32, false, context)?;
 
     Ok(result.into())
@@ -240,7 +250,10 @@ impl BuiltInConstructor for TextDecoder {
                     "utf-8" | "utf8" | "unicode-1-1-utf-8" => "utf-8".to_string(),
                     _ => {
                         return Err(JsNativeError::range()
-                            .with_message(format!("The encoding label '{}' is not supported", encoding))
+                            .with_message(format!(
+                                "The encoding label '{}' is not supported",
+                                encoding
+                            ))
                             .into());
                     }
                 }
@@ -254,9 +267,9 @@ impl BuiltInConstructor for TextDecoder {
         // Get options
         let (fatal, ignore_bom) = if let Some(options) = args.get(1) {
             if let Some(options_obj) = options.as_object() {
-                let fatal = options_obj.get(js_string!("fatal"), context)?
-                    .to_boolean();
-                let ignore_bom = options_obj.get(js_string!("ignoreBOM"), context)?
+                let fatal = options_obj.get(js_string!("fatal"), context)?.to_boolean();
+                let ignore_bom = options_obj
+                    .get(js_string!("ignoreBOM"), context)?
                     .to_boolean();
                 (fatal, ignore_bom)
             } else {
@@ -290,7 +303,11 @@ pub struct TextDecoderData {
 }
 
 /// `TextDecoder.prototype.encoding` getter
-fn get_decoder_encoding(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_decoder_encoding(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("TextDecoder.prototype.encoding called on non-object")
     })?;
@@ -439,7 +456,9 @@ pub fn atob(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
     for c in cleaned.chars() {
         if !c.is_ascii() {
             return Err(JsNativeError::error()
-                .with_message("The string to be decoded contains characters outside of the Latin1 range")
+                .with_message(
+                    "The string to be decoded contains characters outside of the Latin1 range",
+                )
                 .into());
         }
     }
@@ -450,11 +469,9 @@ pub fn atob(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
             let result: String = bytes.iter().map(|&b| b as char).collect();
             Ok(JsString::from(result.as_str()).into())
         }
-        Err(_) => {
-            Err(JsNativeError::error()
-                .with_message("The string to be decoded is not correctly encoded")
-                .into())
-        }
+        Err(_) => Err(JsNativeError::error()
+            .with_message("The string to be decoded is not correctly encoded")
+            .into()),
     }
 }
 
@@ -470,7 +487,9 @@ pub fn btoa(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
         let code = c as u32;
         if code > 255 {
             return Err(JsNativeError::error()
-                .with_message("The string to be encoded contains characters outside of the Latin1 range")
+                .with_message(
+                    "The string to be encoded contains characters outside of the Latin1 range",
+                )
                 .into());
         }
         bytes.push(code as u8);
@@ -482,26 +501,20 @@ pub fn btoa(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 
 /// Create the atob function object
 pub fn create_atob_function(context: &mut Context) -> JsResult<JsValue> {
-    let func = FunctionObjectBuilder::new(
-        context.realm(),
-        NativeFunction::from_fn_ptr(atob),
-    )
-    .name(js_string!("atob"))
-    .length(1)
-    .build();
+    let func = FunctionObjectBuilder::new(context.realm(), NativeFunction::from_fn_ptr(atob))
+        .name(js_string!("atob"))
+        .length(1)
+        .build();
 
     Ok(func.into())
 }
 
 /// Create the btoa function object
 pub fn create_btoa_function(context: &mut Context) -> JsResult<JsValue> {
-    let func = FunctionObjectBuilder::new(
-        context.realm(),
-        NativeFunction::from_fn_ptr(btoa),
-    )
-    .name(js_string!("btoa"))
-    .length(1)
-    .build();
+    let func = FunctionObjectBuilder::new(context.realm(), NativeFunction::from_fn_ptr(btoa))
+        .name(js_string!("btoa"))
+        .length(1)
+        .build();
 
     Ok(func.into())
 }
@@ -513,65 +526,84 @@ mod tests {
 
     fn create_test_context() -> Context {
         let mut context = Context::default();
-        crate::initialize_browser_apis(&mut context)
-            .expect("Failed to initialize browser APIs");
+        crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
         context
     }
 
     #[test]
     fn test_text_encoder_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof TextEncoder")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof TextEncoder"))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("function")));
     }
 
     #[test]
     fn test_text_encoder_encoding() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             let encoder = new TextEncoder();
             encoder.encoding;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("utf-8")));
     }
 
     #[test]
     fn test_text_encoder_encode() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             let encoder = new TextEncoder();
             let encoded = encoder.encode('hello');
             encoded instanceof Uint8Array && encoded.length === 5;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_text_decoder_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof TextDecoder")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof TextDecoder"))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("function")));
     }
 
     #[test]
     fn test_text_decoder_encoding() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             let decoder = new TextDecoder();
             decoder.encoding;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("utf-8")));
     }
 
     #[test]
     fn test_text_decoder_decode() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             let decoder = new TextDecoder();
             let encoder = new TextEncoder();
             let encoded = encoder.encode('hello');
             decoder.decode(encoded);
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("hello")));
     }
 
@@ -599,14 +631,18 @@ mod tests {
     #[test]
     fn test_atob_decode() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("atob('aGVsbG8=')")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("atob('aGVsbG8=')"))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("hello")));
     }
 
     #[test]
     fn test_btoa_atob_roundtrip() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("atob(btoa('test string'))")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("atob(btoa('test string'))"))
+            .unwrap();
         assert_eq!(result, JsValue::from(js_string!("test string")));
     }
 }

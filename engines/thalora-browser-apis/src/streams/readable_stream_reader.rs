@@ -5,11 +5,13 @@
 //! https://streams.spec.whatwg.org/
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, promise::Promise},
+    js_string,
     object::JsObject,
+    property::Attribute,
+    realm::Realm,
     value::JsValue,
-    Context, JsData, JsNativeError, JsResult, js_string, JsArgs,
-    realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 
@@ -20,11 +22,7 @@ pub struct ReadableStreamDefaultReader;
 impl ReadableStreamDefaultReader {
     /// Create a new ReadableStreamDefaultReader instance
     pub fn create(stream: JsObject, context: &mut Context) -> JsResult<JsValue> {
-        let proto = context
-            .intrinsics()
-            .constructors()
-            .object()
-            .prototype();
+        let proto = context.intrinsics().constructors().object().prototype();
 
         let reader = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -70,63 +68,81 @@ impl ReadableStreamDefaultReader {
     }
 
     /// `ReadableStreamDefaultReader.prototype.read()`
-    fn read(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn read(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamDefaultReader.prototype.read called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStreamDefaultReader.prototype.read called on non-object")
         })?;
 
         if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>() {
             // Try to read from the stream
-            if let Some(mut stream_data) = reader_data.stream.downcast_mut::<super::readable_stream::ReadableStreamData>() {
+            if let Some(mut stream_data) = reader_data
+                .stream
+                .downcast_mut::<super::readable_stream::ReadableStreamData>(
+            ) {
                 if let Some(chunk) = stream_data.dequeue_chunk() {
                     // Create result object { value: chunk, done: false }
                     let result_obj = JsObject::with_object_proto(context.intrinsics());
                     result_obj.set(js_string!("value"), chunk, true, context)?;
                     result_obj.set(js_string!("done"), JsValue::from(false), true, context)?;
 
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    return boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::from(result_obj)],
+                        context,
+                    );
                 } else if stream_data.state == super::readable_stream::StreamState::Closed {
                     // Create result object { value: undefined, done: true }
                     let result_obj = JsObject::with_object_proto(context.intrinsics());
                     result_obj.set(js_string!("value"), JsValue::undefined(), true, context)?;
                     result_obj.set(js_string!("done"), JsValue::from(true), true, context)?;
 
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    return boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::from(result_obj)],
+                        context,
+                    );
                 }
             }
         }
 
         // Return a resolved promise for now
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `ReadableStreamDefaultReader.prototype.cancel(reason)`
-    fn cancel(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn cancel(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamDefaultReader.prototype.cancel called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStreamDefaultReader.prototype.cancel called on non-object")
         })?;
 
         let _reason = args.get_or_undefined(0);
 
         if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>() {
-            if let Some(mut stream_data) = reader_data.stream.downcast_mut::<super::readable_stream::ReadableStreamData>() {
+            if let Some(mut stream_data) = reader_data
+                .stream
+                .downcast_mut::<super::readable_stream::ReadableStreamData>(
+            ) {
                 stream_data.state = super::readable_stream::StreamState::Closed;
             }
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `ReadableStreamDefaultReader.prototype.releaseLock()`
@@ -136,11 +152,16 @@ impl ReadableStreamDefaultReader {
         _context: &mut Context,
     ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamDefaultReader.prototype.releaseLock called on non-object")
+            JsNativeError::typ().with_message(
+                "ReadableStreamDefaultReader.prototype.releaseLock called on non-object",
+            )
         })?;
 
         if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>() {
-            if let Some(mut stream_data) = reader_data.stream.downcast_mut::<super::readable_stream::ReadableStreamData>() {
+            if let Some(mut stream_data) = reader_data
+                .stream
+                .downcast_mut::<super::readable_stream::ReadableStreamData>(
+            ) {
                 stream_data.locked = false;
             }
         }
@@ -149,24 +170,26 @@ impl ReadableStreamDefaultReader {
     }
 
     /// Get the closed property of a ReadableStreamDefaultReader
-    fn get_closed(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn get_closed(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamDefaultReader.prototype.closed getter called on non-object")
+            JsNativeError::typ().with_message(
+                "ReadableStreamDefaultReader.prototype.closed getter called on non-object",
+            )
         })?;
 
         let stream = {
-            let reader_data = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a ReadableStreamDefaultReader object")
-            })?;
+            let reader_data = this_obj
+                .downcast_ref::<ReadableStreamDefaultReaderData>()
+                .ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("'this' is not a ReadableStreamDefaultReader object")
+                })?;
             reader_data.stream.clone()
         };
 
-        let state = if let Some(stream_data) = stream.downcast_ref::<super::readable_stream::ReadableStreamData>() {
+        let state = if let Some(stream_data) =
+            stream.downcast_ref::<super::readable_stream::ReadableStreamData>()
+        {
             Some(stream_data.state.clone())
         } else {
             None
@@ -175,21 +198,40 @@ impl ReadableStreamDefaultReader {
         if let Some(stream_state) = state {
             match stream_state {
                 super::readable_stream::StreamState::Closed => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                },
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::undefined()],
+                        context,
+                    )
+                }
                 super::readable_stream::StreamState::Errored => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                },
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::undefined()],
+                        context,
+                    )
+                }
                 _ => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::undefined()],
+                        context,
+                    )
                 }
             }
         } else {
             let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            Promise::resolve(
+                &promise_constructor.into(),
+                &[JsValue::undefined()],
+                context,
+            )
         }
     }
 }
@@ -201,11 +243,7 @@ pub struct ReadableStreamBYOBReader;
 impl ReadableStreamBYOBReader {
     /// Create a new ReadableStreamBYOBReader instance
     pub fn create(stream: JsObject, context: &mut Context) -> JsResult<JsValue> {
-        let proto = context
-            .intrinsics()
-            .constructors()
-            .object()
-            .prototype();
+        let proto = context.intrinsics().constructors().object().prototype();
 
         let reader = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -251,64 +289,82 @@ impl ReadableStreamBYOBReader {
     }
 
     /// `ReadableStreamBYOBReader.prototype.read(view)`
-    fn read(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn read(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamBYOBReader.prototype.read called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStreamBYOBReader.prototype.read called on non-object")
         })?;
 
         let _view = args.get_or_undefined(0);
 
         if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>() {
-            if let Some(stream_data) = reader_data.stream.downcast_ref::<super::readable_stream::ReadableStreamData>() {
+            if let Some(stream_data) = reader_data
+                .stream
+                .downcast_ref::<super::readable_stream::ReadableStreamData>()
+            {
                 match stream_data.state {
                     super::readable_stream::StreamState::Closed => {
                         let result_obj = JsObject::with_object_proto(context.intrinsics());
                         result_obj.set(js_string!("value"), JsValue::undefined(), true, context)?;
                         result_obj.set(js_string!("done"), JsValue::from(true), true, context)?;
-                        let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
-                    },
+                        let promise_constructor =
+                            context.intrinsics().constructors().promise().constructor();
+                        return boa_engine::builtins::promise::Promise::resolve(
+                            &promise_constructor.into(),
+                            &[JsValue::from(result_obj)],
+                            context,
+                        );
+                    }
                     _ => {
                         // For BYOB reader, we'd need to handle the view parameter properly
                         // This is a simplified implementation
                         let result_obj = JsObject::with_object_proto(context.intrinsics());
                         result_obj.set(js_string!("value"), _view.clone(), true, context)?;
                         result_obj.set(js_string!("done"), JsValue::from(false), true, context)?;
-                        let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    return boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::from(result_obj)], context);
+                        let promise_constructor =
+                            context.intrinsics().constructors().promise().constructor();
+                        return boa_engine::builtins::promise::Promise::resolve(
+                            &promise_constructor.into(),
+                            &[JsValue::from(result_obj)],
+                            context,
+                        );
                     }
                 }
             }
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `ReadableStreamBYOBReader.prototype.cancel(reason)`
-    fn cancel(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn cancel(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamBYOBReader.prototype.cancel called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStreamBYOBReader.prototype.cancel called on non-object")
         })?;
 
         let _reason = args.get_or_undefined(0);
 
         if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>() {
-            if let Some(mut stream_data) = reader_data.stream.downcast_mut::<super::readable_stream::ReadableStreamData>() {
+            if let Some(mut stream_data) = reader_data
+                .stream
+                .downcast_mut::<super::readable_stream::ReadableStreamData>(
+            ) {
                 stream_data.state = super::readable_stream::StreamState::Closed;
             }
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `ReadableStreamBYOBReader.prototype.releaseLock()`
@@ -318,11 +374,15 @@ impl ReadableStreamBYOBReader {
         _context: &mut Context,
     ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamBYOBReader.prototype.releaseLock called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStreamBYOBReader.prototype.releaseLock called on non-object")
         })?;
 
         if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>() {
-            if let Some(mut stream_data) = reader_data.stream.downcast_mut::<super::readable_stream::ReadableStreamData>() {
+            if let Some(mut stream_data) = reader_data
+                .stream
+                .downcast_mut::<super::readable_stream::ReadableStreamData>(
+            ) {
                 stream_data.locked = false;
             }
         }
@@ -331,24 +391,26 @@ impl ReadableStreamBYOBReader {
     }
 
     /// Get the closed property of a ReadableStreamBYOBReader
-    fn get_closed(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn get_closed(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStreamBYOBReader.prototype.closed getter called on non-object")
+            JsNativeError::typ().with_message(
+                "ReadableStreamBYOBReader.prototype.closed getter called on non-object",
+            )
         })?;
 
         let stream = {
-            let reader_data = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a ReadableStreamBYOBReader object")
-            })?;
+            let reader_data = this_obj
+                .downcast_ref::<ReadableStreamBYOBReaderData>()
+                .ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("'this' is not a ReadableStreamBYOBReader object")
+                })?;
             reader_data.stream.clone()
         };
 
-        let state = if let Some(stream_data) = stream.downcast_ref::<super::readable_stream::ReadableStreamData>() {
+        let state = if let Some(stream_data) =
+            stream.downcast_ref::<super::readable_stream::ReadableStreamData>()
+        {
             Some(stream_data.state.clone())
         } else {
             None
@@ -357,21 +419,40 @@ impl ReadableStreamBYOBReader {
         if let Some(stream_state) = state {
             match stream_state {
                 super::readable_stream::StreamState::Closed => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                },
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::undefined()],
+                        context,
+                    )
+                }
                 super::readable_stream::StreamState::Errored => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-                },
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::undefined()],
+                        context,
+                    )
+                }
                 _ => {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::undefined()],
+                        context,
+                    )
                 }
             }
         } else {
             let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            Promise::resolve(
+                &promise_constructor.into(),
+                &[JsValue::undefined()],
+                context,
+            )
         }
     }
 }

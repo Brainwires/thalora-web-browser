@@ -6,6 +6,7 @@
 //! https://html.spec.whatwg.org/multipage/history.html#the-location-interface
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -14,7 +15,6 @@ use boa_engine::{
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsData, JsNativeError, JsResult, JsString,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -118,55 +118,91 @@ impl IntrinsicObject for Location {
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("href"),
-                Some(BuiltInBuilder::callable(realm, Self::get_href).name(js_string!("get href")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_href)
+                        .name(js_string!("get href"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("protocol"),
-                Some(BuiltInBuilder::callable(realm, Self::get_protocol).name(js_string!("get protocol")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_protocol)
+                        .name(js_string!("get protocol"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("host"),
-                Some(BuiltInBuilder::callable(realm, Self::get_host).name(js_string!("get host")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_host)
+                        .name(js_string!("get host"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("hostname"),
-                Some(BuiltInBuilder::callable(realm, Self::get_hostname).name(js_string!("get hostname")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_hostname)
+                        .name(js_string!("get hostname"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("port"),
-                Some(BuiltInBuilder::callable(realm, Self::get_port).name(js_string!("get port")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_port)
+                        .name(js_string!("get port"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("pathname"),
-                Some(BuiltInBuilder::callable(realm, Self::get_pathname).name(js_string!("get pathname")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_pathname)
+                        .name(js_string!("get pathname"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("search"),
-                Some(BuiltInBuilder::callable(realm, Self::get_search).name(js_string!("get search")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_search)
+                        .name(js_string!("get search"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("hash"),
-                Some(BuiltInBuilder::callable(realm, Self::get_hash).name(js_string!("get hash")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_hash)
+                        .name(js_string!("get hash"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
             .accessor(
                 js_string!("origin"),
-                Some(BuiltInBuilder::callable(realm, Self::get_origin).name(js_string!("get origin")).build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_origin)
+                        .name(js_string!("get origin"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE | Attribute::ENUMERABLE,
             )
@@ -206,7 +242,9 @@ impl BuiltInConstructor for Location {
         let prototype = Self::get(context.intrinsics())
             .get(js_string!("prototype"), context)?
             .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("Location.prototype is not an object"))?
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message("Location.prototype is not an object")
+            })?
             .clone();
 
         let location_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -226,22 +264,26 @@ impl Location {
             JsNativeError::typ().with_message("Location.href getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         Ok(JsValue::from(js_string!(data.href.clone())))
     }
 
     /// `location.protocol` getter
-    fn get_protocol(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_protocol(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Location.protocol getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.protocol)))
@@ -253,23 +295,27 @@ impl Location {
             JsNativeError::typ().with_message("Location.host getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.host)))
     }
 
     /// `location.hostname` getter
-    fn get_hostname(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_hostname(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Location.hostname getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.hostname)))
@@ -281,23 +327,27 @@ impl Location {
             JsNativeError::typ().with_message("Location.port getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.port)))
     }
 
     /// `location.pathname` getter
-    fn get_pathname(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_pathname(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Location.pathname getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.pathname)))
@@ -309,9 +359,9 @@ impl Location {
             JsNativeError::typ().with_message("Location.search getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.search)))
@@ -323,9 +373,9 @@ impl Location {
             JsNativeError::typ().with_message("Location.hash getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.hash)))
@@ -337,9 +387,9 @@ impl Location {
             JsNativeError::typ().with_message("Location.origin getter called on non-object")
         })?;
 
-        let data = this_obj.downcast_ref::<LocationData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("'this' is not a Location object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<LocationData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Location object"))?;
 
         let parsed = data.parse_url();
         Ok(JsValue::from(js_string!(parsed.origin)))

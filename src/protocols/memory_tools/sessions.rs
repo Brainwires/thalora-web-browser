@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 
 /// Handle starting a new session in AI memory
 pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
@@ -58,7 +58,9 @@ pub async fn handle_update_session(args: Value, ai_memory: &mut AiMemoryHeap) ->
                     "type": "text",
                     "text": format!("Session '{}' progress updated: {} = {:?}", session_id, progress_key, progress_value)
                 })),
-                Err(e) => McpResponse::error(-1, format!("Failed to update session progress: {}", e)),
+                Err(e) => {
+                    McpResponse::error(-1, format!("Failed to update session progress: {}", e))
+                }
             }
         } else {
             McpResponse::error(-1, "Missing required parameter: progress_value".to_string())

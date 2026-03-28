@@ -112,9 +112,7 @@ async fn dispatch(server: &mut McpServer, method: &str, params: Value) -> Value 
             let content = result.content;
             json!({ "content": content, "isError": is_error })
         }
-        "notifications/initialized"
-        | "notifications/cancelled"
-        | "notifications/progress" => {
+        "notifications/initialized" | "notifications/cancelled" | "notifications/progress" => {
             // Notifications don't require a response; return a sentinel
             json!(null)
         }
@@ -190,7 +188,14 @@ async fn handle_mcp(
         let sent = {
             let sessions = state.sessions.read();
             if let Some(handle) = sessions.get(&sid) {
-                handle.tx.send(SessionMsg { method, params, response_tx }).is_ok()
+                handle
+                    .tx
+                    .send(SessionMsg {
+                        method,
+                        params,
+                        response_tx,
+                    })
+                    .is_ok()
             } else {
                 false
             }
@@ -222,9 +227,7 @@ async fn handle_mcp(
         if let Some(ref sid) = new_session_id {
             builder = builder.header("Mcp-Session-Id", sid.as_str());
         }
-        return builder
-            .body(axum::body::Body::empty())
-            .unwrap();
+        return builder.body(axum::body::Body::empty()).unwrap();
     }
 
     // Build JSON-RPC response

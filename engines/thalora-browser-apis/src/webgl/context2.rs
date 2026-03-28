@@ -6,11 +6,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use boa_engine::{
-    js_string,
+    Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
     object::{FunctionObjectBuilder, ObjectInitializer},
-    NativeFunction,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -124,9 +122,11 @@ macro_rules! with_webgl2_context {
         let $obj = $this.as_object().ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("Not a WebGL2RenderingContext")
         })?;
-        let $data = $obj.downcast_ref::<$crate::webgl::context2::WebGL2RenderingContextData>().ok_or_else(|| {
-            boa_engine::JsNativeError::typ().with_message("Not a WebGL2RenderingContext")
-        })?;
+        let $data = $obj
+            .downcast_ref::<$crate::webgl::context2::WebGL2RenderingContextData>()
+            .ok_or_else(|| {
+                boa_engine::JsNativeError::typ().with_message("Not a WebGL2RenderingContext")
+            })?;
     };
 }
 
@@ -160,7 +160,11 @@ impl WebGL2RenderingContext {
     /// Per Web spec, WebGL2RenderingContext IS a global constructor with static constants
     pub fn create_global_constructor(context: &mut Context) -> JsResult<JsObject> {
         // The constructor itself throws when called - contexts are created via getContext()
-        fn webgl2_constructor(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        fn webgl2_constructor(
+            _this: &JsValue,
+            _args: &[JsValue],
+            _context: &mut Context,
+        ) -> JsResult<JsValue> {
             Err(JsNativeError::typ()
                 .with_message("WebGL2RenderingContext cannot be directly constructed; use canvas.getContext('webgl2')")
                 .into())
@@ -225,8 +229,18 @@ impl WebGL2RenderingContext {
         obj.set(js_string!("canvas"), JsValue::null(), false, context)?;
 
         // Add drawing buffer properties
-        obj.set(js_string!("drawingBufferWidth"), JsValue::from(width), false, context)?;
-        obj.set(js_string!("drawingBufferHeight"), JsValue::from(height), false, context)?;
+        obj.set(
+            js_string!("drawingBufferWidth"),
+            JsValue::from(width),
+            false,
+            context,
+        )?;
+        obj.set(
+            js_string!("drawingBufferHeight"),
+            JsValue::from(height),
+            false,
+            context,
+        )?;
 
         Ok(obj)
     }

@@ -7,21 +7,21 @@
 //! - [WHATWG Specification](https://storage.spec.whatwg.org/)
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/StorageManager)
 
-use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::fs;
+use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use boa_engine::context::intrinsics::StandardConstructor;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
     object::{JsObject, JsPromise},
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
-use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
-use boa_engine::context::intrinsics::StandardConstructor;
+use boa_gc::{Finalize, Trace};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 
 /// `StorageManager` implementation for the Storage Standard.
 #[derive(Debug, Clone, Finalize)]
@@ -160,8 +160,9 @@ impl BuiltInConstructor for StorageManager {
     const PROTOTYPE_STORAGE_SLOTS: usize = 100;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| constructors.storage_manager();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.storage_manager();
 
     fn constructor(
         _new_target: &JsValue,
@@ -180,18 +181,13 @@ impl StorageManager {
     /// `navigator.storage.estimate()`
     /// Returns a Promise that resolves to storage quota and usage information
     fn estimate(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a StorageManager object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a StorageManager object")
+        })?;
 
-        let manager = obj.downcast_ref::<StorageManager>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a StorageManager object")
-            })?;
+        let manager = obj.downcast_ref::<StorageManager>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a StorageManager object")
+        })?;
 
         let usage = manager.calculate_storage_usage();
         let quota = manager.quota;
@@ -199,16 +195,25 @@ impl StorageManager {
         // Create estimate result object
         let estimate_obj = JsObject::from_proto_and_data(
             Some(context.intrinsics().constructors().object().prototype()),
-            ()
+            (),
         );
 
         estimate_obj.set(js_string!("quota"), JsValue::from(quota), false, context)?;
         estimate_obj.set(js_string!("usage"), JsValue::from(usage), false, context)?;
-        estimate_obj.set(js_string!("usageDetails"), JsValue::undefined(), false, context)?;
+        estimate_obj.set(
+            js_string!("usageDetails"),
+            JsValue::undefined(),
+            false,
+            context,
+        )?;
 
         // Return a resolved Promise
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(estimate_obj)], context)?;
+        resolvers.resolve.call(
+            &JsValue::undefined(),
+            &[JsValue::from(estimate_obj)],
+            context,
+        )?;
 
         Ok(JsValue::from(promise))
     }
@@ -218,7 +223,9 @@ impl StorageManager {
     fn persist(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // In a headless browser, we can always grant persistent storage
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(true)], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::from(true)], context)?;
 
         Ok(JsValue::from(promise))
     }
@@ -228,27 +235,33 @@ impl StorageManager {
     fn persisted(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // In a headless browser, storage is always persistent
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(true)], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::from(true)], context)?;
 
         Ok(JsValue::from(promise))
     }
 
     /// `navigator.storage.getDirectory()`
     /// Returns the origin private file system directory
-    fn get_directory(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_directory(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // This would return a FileSystemDirectoryHandle when File System API is implemented
         // For now, return a rejected promise
         let (promise, resolvers) = JsPromise::new_pending(context);
         let error_value = JsNativeError::error()
             .with_message("File System API not yet implemented")
             .into_opaque(context);
-        resolvers.reject.call(&JsValue::undefined(), &[error_value.into()], context)?;
+        resolvers
+            .reject
+            .call(&JsValue::undefined(), &[error_value.into()], context)?;
 
         Ok(JsValue::from(promise))
     }
 }
-
-
 
 #[cfg(test)]
 mod tests;

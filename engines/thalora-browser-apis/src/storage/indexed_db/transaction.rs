@@ -7,13 +7,13 @@
 use super::backend::{StorageBackend, TransactionMode};
 use super::object_store::IDBObjectStore;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -162,7 +162,9 @@ impl IDBTransaction {
     /// Abort the transaction
     pub fn abort(&self) -> Result<(), String> {
         let current_state = self.state();
-        if current_state == TransactionState::Committing || current_state == TransactionState::Finished {
+        if current_state == TransactionState::Committing
+            || current_state == TransactionState::Finished
+        {
             return Err("Cannot abort transaction in current state".to_string());
         }
 
@@ -184,20 +186,25 @@ impl IDBTransaction {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         // Create array of store names
         use boa_engine::builtins::array::Array;
         let array = Array::array_create(txn.object_store_names.len() as u64, None, context)?;
 
         for (i, name) in txn.object_store_names.iter().enumerate() {
-            array.set(i, JsValue::from(JsString::from(name.clone())), true, context)?;
+            array.set(
+                i,
+                JsValue::from(JsString::from(name.clone())),
+                true,
+                context,
+            )?;
         }
 
         Ok(array.into())
@@ -209,13 +216,13 @@ impl IDBTransaction {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         let mode_str = match txn.mode {
             TransactionMode::ReadOnly => "readonly",
@@ -232,13 +239,13 @@ impl IDBTransaction {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         let error = txn.error.lock().unwrap();
         if let Some(err) = error.as_ref() {
@@ -255,13 +262,13 @@ impl IDBTransaction {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         // Check if transaction is active
         txn.ensure_active()
@@ -274,14 +281,18 @@ impl IDBTransaction {
         // Validate store is in transaction scope
         if !txn.object_store_names.contains(&name_str) {
             return Err(JsNativeError::error()
-                .with_message(format!("Object store '{}' is not in transaction scope", name_str))
+                .with_message(format!(
+                    "Object store '{}' is not in transaction scope",
+                    name_str
+                ))
                 .into());
         }
 
         // Get object store metadata from backend
         let metadata = {
             let backend = txn.backend.lock().unwrap();
-            backend.get_object_store_metadata(&txn.db_name, &name_str)
+            backend
+                .get_object_store_metadata(&txn.db_name, &name_str)
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -310,13 +321,13 @@ impl IDBTransaction {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         txn.commit()
             .map_err(|e| JsNativeError::error().with_message(e))?;
@@ -340,13 +351,13 @@ impl IDBTransaction {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         txn.abort()
             .map_err(|e| JsNativeError::error().with_message(e))?;
@@ -366,7 +377,12 @@ impl IDBTransaction {
     /// Create a simple event object
     fn create_event(event_type: &str, context: &mut Context) -> JsResult<JsValue> {
         let event = JsObject::with_object_proto(context.intrinsics());
-        event.set(js_string!("type"), JsValue::from(JsString::from(event_type)), false, context)?;
+        event.set(
+            js_string!("type"),
+            JsValue::from(JsString::from(event_type)),
+            false,
+            context,
+        )?;
         Ok(event.into())
     }
 
@@ -376,13 +392,13 @@ impl IDBTransaction {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onabort = txn.onabort.lock().unwrap();
@@ -402,13 +418,13 @@ impl IDBTransaction {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut oncomplete = txn.oncomplete.lock().unwrap();
@@ -428,13 +444,13 @@ impl IDBTransaction {
         args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
-        let txn = obj.downcast_ref::<IDBTransaction>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBTransaction object"))?;
+        let txn = obj.downcast_ref::<IDBTransaction>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBTransaction object")
+        })?;
 
         let handler = args.get_or_undefined(0);
         let mut onerror = txn.onerror.lock().unwrap();
@@ -455,50 +471,62 @@ impl IntrinsicObject for IDBTransaction {
             // Properties
             .accessor(
                 js_string!("objectStoreNames"),
-                Some(BuiltInBuilder::callable(realm, Self::get_object_store_names)
-                    .name(js_string!("get objectStoreNames"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_object_store_names)
+                        .name(js_string!("get objectStoreNames"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("mode"),
-                Some(BuiltInBuilder::callable(realm, Self::get_mode)
-                    .name(js_string!("get mode"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_mode)
+                        .name(js_string!("get mode"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("error"),
-                Some(BuiltInBuilder::callable(realm, Self::get_error)
-                    .name(js_string!("get error"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_error)
+                        .name(js_string!("get error"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onabort"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onabort)
-                    .name(js_string!("set onabort"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onabort)
+                        .name(js_string!("set onabort"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("oncomplete"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_oncomplete)
-                    .name(js_string!("set oncomplete"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_oncomplete)
+                        .name(js_string!("set oncomplete"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onerror"),
                 None,
-                Some(BuiltInBuilder::callable(realm, Self::set_onerror)
-                    .name(js_string!("set onerror"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::set_onerror)
+                        .name(js_string!("set onerror"))
+                        .build(),
+                ),
                 Attribute::CONFIGURABLE,
             )
             // Methods
@@ -518,13 +546,14 @@ impl BuiltInObject for IDBTransaction {
 }
 
 impl BuiltInConstructor for IDBTransaction {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Constructor properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Constructor properties
 
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |intrinsics| intrinsics.idb_transaction();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |intrinsics| intrinsics.idb_transaction();
 
     fn constructor(
         _new_target: &JsValue,
@@ -542,7 +571,9 @@ impl Default for IDBTransaction {
         Self {
             mode: TransactionMode::ReadOnly,
             object_store_names: Vec::new(),
-            backend: Arc::new(Mutex::new(Box::new(super::backend::memory::MemoryBackend::new()))),
+            backend: Arc::new(Mutex::new(Box::new(
+                super::backend::memory::MemoryBackend::new(),
+            ))),
             db_name: String::new(),
             state: Arc::new(Mutex::new(TransactionState::Active)),
             transaction_id: Arc::new(Mutex::new(None)),

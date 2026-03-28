@@ -1,6 +1,6 @@
 //! Tests for the Navigator implementation
 
-use crate::{Context, JsValue, Source, JsString};
+use crate::{Context, JsString, JsValue, Source};
 
 #[test]
 fn test_navigator_basic() {
@@ -8,11 +8,15 @@ fn test_navigator_basic() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that window.navigator exists
-    let result = context.eval(Source::from_bytes("typeof window.navigator")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("object")));
 
     // Test that window.navigator is not null
-    let result = context.eval(Source::from_bytes("window.navigator !== null")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator !== null"))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -22,39 +26,59 @@ fn test_navigator_id_properties() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Debug: check Navigator.prototype
-    let proto_check = context.eval(Source::from_bytes("Navigator.prototype.appCodeName")).unwrap();
+    let proto_check = context
+        .eval(Source::from_bytes("Navigator.prototype.appCodeName"))
+        .unwrap();
     eprintln!("DEBUG: Navigator.prototype.appCodeName = {:?}", proto_check);
 
     // Test appCodeName property
-    let result = context.eval(Source::from_bytes("window.navigator.appCodeName")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.appCodeName"))
+        .unwrap();
     eprintln!("DEBUG: window.navigator.appCodeName = {:?}", result);
     assert_eq!(result, JsValue::from(JsString::from("Mozilla")));
 
     // Test appName property
-    let result = context.eval(Source::from_bytes("window.navigator.appName")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.appName"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("Netscape")));
 
     // Test appVersion property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.appVersion")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.appVersion"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("string")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.appVersion.includes('Chrome')")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "window.navigator.appVersion.includes('Chrome')",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test product property
-    let result = context.eval(Source::from_bytes("window.navigator.product")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.product"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("Gecko")));
 
     // Test productSub property
-    let result = context.eval(Source::from_bytes("window.navigator.productSub")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.productSub"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("20030107")));
 
     // Test vendor property
-    let result = context.eval(Source::from_bytes("window.navigator.vendor")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.vendor"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("Google Inc.")));
 
     // Test vendorSub property
-    let result = context.eval(Source::from_bytes("window.navigator.vendorSub")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.vendorSub"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("")));
 }
 
@@ -64,38 +88,60 @@ fn test_navigator_properties() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test userAgent property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.userAgent")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.userAgent"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("string")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.userAgent.includes('Chrome')")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "window.navigator.userAgent.includes('Chrome')",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test platform property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.platform")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.platform"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("string")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.platform")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.platform"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("MacIntel")));
 
     // Test language property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.language")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.language"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("string")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.language")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.language"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("en-US")));
 
     // Test cookieEnabled property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.cookieEnabled")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.cookieEnabled"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("boolean")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.cookieEnabled")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.cookieEnabled"))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test onLine property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.onLine")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.onLine"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("boolean")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.onLine")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.onLine"))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -105,19 +151,31 @@ fn test_navigator_language_properties() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test languages property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.languages")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.languages"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("object")));
 
-    let result = context.eval(Source::from_bytes("Array.isArray(window.navigator.languages)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "Array.isArray(window.navigator.languages)",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
-    let result = context.eval(Source::from_bytes("window.navigator.languages.length")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.languages.length"))
+        .unwrap();
     assert_eq!(result, JsValue::from(2));
 
-    let result = context.eval(Source::from_bytes("window.navigator.languages[0]")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.languages[0]"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("en-US")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.languages[1]")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.languages[1]"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("en")));
 }
 
@@ -127,37 +185,63 @@ fn test_navigator_plugins_properties() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test plugins property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.plugins")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.plugins"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("object")));
 
-    let result = context.eval(Source::from_bytes("Array.isArray(window.navigator.plugins)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "Array.isArray(window.navigator.plugins)",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
-    let result = context.eval(Source::from_bytes("window.navigator.plugins.length")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.plugins.length"))
+        .unwrap();
     assert_eq!(result, JsValue::from(0)); // Empty for security
 
     // Test mimeTypes property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.mimeTypes")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.mimeTypes"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("object")));
 
-    let result = context.eval(Source::from_bytes("Array.isArray(window.navigator.mimeTypes)")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "Array.isArray(window.navigator.mimeTypes)",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
-    let result = context.eval(Source::from_bytes("window.navigator.mimeTypes.length")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.mimeTypes.length"))
+        .unwrap();
     assert_eq!(result, JsValue::from(0)); // Empty for security
 
     // Test pdfViewerEnabled property
-    let result = context.eval(Source::from_bytes("typeof window.navigator.pdfViewerEnabled")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "typeof window.navigator.pdfViewerEnabled",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("boolean")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.pdfViewerEnabled")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.pdfViewerEnabled"))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test javaEnabled method
-    let result = context.eval(Source::from_bytes("typeof window.navigator.javaEnabled")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.javaEnabled"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
-    let result = context.eval(Source::from_bytes("window.navigator.javaEnabled()")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.javaEnabled()"))
+        .unwrap();
     assert_eq!(result, JsValue::from(false)); // Always false for security
 }
 
@@ -167,34 +251,42 @@ fn test_navigator_protocol_handlers() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test registerProtocolHandler method exists
-    let result = context.eval(Source::from_bytes("typeof window.navigator.registerProtocolHandler")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "typeof window.navigator.registerProtocolHandler",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
     // Test unregisterProtocolHandler method exists
-    let result = context.eval(Source::from_bytes("typeof window.navigator.unregisterProtocolHandler")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "typeof window.navigator.unregisterProtocolHandler",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
     // Test successful protocol handler registration
     let result = context.eval(Source::from_bytes(
-        "window.navigator.registerProtocolHandler('mailto', 'https://example.com/compose?to=%s')"
+        "window.navigator.registerProtocolHandler('mailto', 'https://example.com/compose?to=%s')",
     ));
     assert!(result.is_ok());
 
     // Test successful protocol handler unregistration
     let result = context.eval(Source::from_bytes(
-        "window.navigator.unregisterProtocolHandler('mailto', 'https://example.com/compose?to=%s')"
+        "window.navigator.unregisterProtocolHandler('mailto', 'https://example.com/compose?to=%s')",
     ));
     assert!(result.is_ok());
 
     // Test error on empty scheme
     let result = context.eval(Source::from_bytes(
-        "window.navigator.registerProtocolHandler('', 'https://example.com/%s')"
+        "window.navigator.registerProtocolHandler('', 'https://example.com/%s')",
     ));
     assert!(result.is_err());
 
     // Test error on URL without %s placeholder
     let result = context.eval(Source::from_bytes(
-        "window.navigator.registerProtocolHandler('test', 'https://example.com/')"
+        "window.navigator.registerProtocolHandler('test', 'https://example.com/')",
     ));
     assert!(result.is_err());
 }
@@ -205,19 +297,27 @@ fn test_navigator_locks_property() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that navigator.locks exists
-    let result = context.eval(Source::from_bytes("typeof window.navigator.locks")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.locks"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("object")));
 
     // Test that navigator.locks is not null
-    let result = context.eval(Source::from_bytes("window.navigator.locks !== null")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("window.navigator.locks !== null"))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test that navigator.locks has request method
-    let result = context.eval(Source::from_bytes("typeof window.navigator.locks.request")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.locks.request"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
     // Test that navigator.locks has query method
-    let result = context.eval(Source::from_bytes("typeof window.navigator.locks.query")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof window.navigator.locks.query"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
@@ -227,17 +327,25 @@ fn test_navigator_readonly_properties() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that properties are readonly (attempting to change should not work)
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         var original = window.navigator.userAgent;
         window.navigator.userAgent = "Modified";
         window.navigator.userAgent === original;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         var original = window.navigator.platform;
         window.navigator.platform = "Modified";
         window.navigator.platform === original;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }

@@ -9,8 +9,10 @@ pub fn run() -> Result<()> {
     println!("Step 1: Creating session and navigating to form...");
     super::run_mcp_binary(
         concat!(
-            r#"{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "browser_session_management", "arguments": {"action": "create", "persistent": false}}}"#, "\n",
-            r#"{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "browser_navigate_to", "arguments": {"url": "https://www.twologs.com/en/resources/formtest.asp", "session_id": "EXTRACT_FROM_RESPONSE_1", "wait_for_load": true}}}"#, "\n",
+            r#"{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "browser_session_management", "arguments": {"action": "create", "persistent": false}}}"#,
+            "\n",
+            r#"{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "browser_navigate_to", "arguments": {"url": "https://www.twologs.com/en/resources/formtest.asp", "session_id": "EXTRACT_FROM_RESPONSE_1", "wait_for_load": true}}}"#,
+            "\n",
         ),
         env,
     )?;

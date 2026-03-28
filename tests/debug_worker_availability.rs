@@ -9,9 +9,12 @@ fn main() {
     let result = default_context.eval(Source::from_bytes("typeof Worker"));
     match result {
         Ok(value) => {
-            let type_str = value.to_string(&mut default_context).unwrap().to_std_string_escaped();
+            let type_str = value
+                .to_string(&mut default_context)
+                .unwrap()
+                .to_std_string_escaped();
             eprintln!("   Worker type in default context: '{}'", type_str);
-        },
+        }
         Err(e) => eprintln!("   Error in default context: {:?}", e),
     }
 
@@ -21,9 +24,12 @@ fn main() {
     let result = builder_context.eval(Source::from_bytes("typeof Worker"));
     match result {
         Ok(value) => {
-            let type_str = value.to_string(&mut builder_context).unwrap().to_std_string_escaped();
+            let type_str = value
+                .to_string(&mut builder_context)
+                .unwrap()
+                .to_std_string_escaped();
             eprintln!("   Worker type in builder context: '{}'", type_str);
-        },
+        }
         Err(e) => eprintln!("   Error in builder context: {:?}", e),
     }
 
@@ -40,9 +46,12 @@ fn main() {
     let result = builder_context3.eval(Source::from_bytes("typeof WebSocket"));
     match result {
         Ok(value) => {
-            let type_str = value.to_string(&mut builder_context3).unwrap().to_std_string_escaped();
+            let type_str = value
+                .to_string(&mut builder_context3)
+                .unwrap()
+                .to_std_string_escaped();
             eprintln!("   WebSocket type in builder context: '{}'", type_str);
-        },
+        }
         Err(e) => eprintln!("   Error checking WebSocket: {:?}", e),
     }
 

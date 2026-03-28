@@ -3,16 +3,17 @@
 //! Provides setTimeout, setInterval, clearTimeout, clearInterval, queueMicrotask for workers
 //! This is spec-compliant: callbacks are stored in Context, event loop only has IDs
 
-use boa_engine::{Context, JsResult, JsValue, JsArgs, JsNativeError, js_string};
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use once_cell::sync::Lazy;
-use super::event_loop::WorkerEventLoop;
 use super::callback_registry;
+use super::event_loop::WorkerEventLoop;
+use boa_engine::{Context, JsArgs, JsNativeError, JsResult, JsValue, js_string};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// Global registry mapping thread IDs to event loops
-static EVENT_LOOP_REGISTRY: Lazy<Mutex<HashMap<std::thread::ThreadId, Arc<Mutex<WorkerEventLoop>>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static EVENT_LOOP_REGISTRY: Lazy<
+    Mutex<HashMap<std::thread::ThreadId, Arc<Mutex<WorkerEventLoop>>>>,
+> = Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Register an event loop for the current thread
 pub fn register_event_loop(event_loop: Arc<Mutex<WorkerEventLoop>>) {
@@ -39,7 +40,10 @@ fn get_current_event_loop() -> Option<Arc<Mutex<WorkerEventLoop>>> {
 }
 
 /// Initialize timer functions in a worker context
-pub fn init_worker_timers(context: &mut Context, event_loop: Arc<Mutex<WorkerEventLoop>>) -> JsResult<()> {
+pub fn init_worker_timers(
+    context: &mut Context,
+    event_loop: Arc<Mutex<WorkerEventLoop>>,
+) -> JsResult<()> {
     // Register the event loop for this thread
     register_event_loop(event_loop);
 
@@ -76,7 +80,12 @@ pub fn init_worker_timers(context: &mut Context, event_loop: Arc<Mutex<WorkerEve
     .length(1)
     .build();
 
-    global.set(js_string!("clearTimeout"), clear_timeout_func, false, context)?;
+    global.set(
+        js_string!("clearTimeout"),
+        clear_timeout_func,
+        false,
+        context,
+    )?;
 
     // clearInterval
     let clear_interval_func = boa_engine::object::FunctionObjectBuilder::new(
@@ -87,7 +96,12 @@ pub fn init_worker_timers(context: &mut Context, event_loop: Arc<Mutex<WorkerEve
     .length(1)
     .build();
 
-    global.set(js_string!("clearInterval"), clear_interval_func, false, context)?;
+    global.set(
+        js_string!("clearInterval"),
+        clear_interval_func,
+        false,
+        context,
+    )?;
 
     // queueMicrotask
     let queue_microtask_func = boa_engine::object::FunctionObjectBuilder::new(
@@ -98,7 +112,12 @@ pub fn init_worker_timers(context: &mut Context, event_loop: Arc<Mutex<WorkerEve
     .length(1)
     .build();
 
-    global.set(js_string!("queueMicrotask"), queue_microtask_func, false, context)?;
+    global.set(
+        js_string!("queueMicrotask"),
+        queue_microtask_func,
+        false,
+        context,
+    )?;
 
     Ok(())
 }
@@ -109,7 +128,11 @@ fn set_timeout_impl(_this: &JsValue, args: &[JsValue], context: &mut Context) ->
 }
 
 /// setInterval implementation
-fn set_interval_impl(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn set_interval_impl(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     schedule_timer(args, context, true)
 }
 
@@ -117,8 +140,7 @@ fn set_interval_impl(_this: &JsValue, args: &[JsValue], context: &mut Context) -
 fn schedule_timer(args: &[JsValue], context: &mut Context, repeating: bool) -> JsResult<JsValue> {
     // Get the event loop for this thread
     let event_loop = get_current_event_loop()
-        .ok_or_else(|| JsNativeError::error()
-            .with_message("Event loop not available"))?;
+        .ok_or_else(|| JsNativeError::error().with_message("Event loop not available"))?;
 
     // Get callback function
     let callback = args.get_or_undefined(0);
@@ -133,11 +155,7 @@ fn schedule_timer(args: &[JsValue], context: &mut Context, repeating: bool) -> J
     // Get delay (default to 0)
     let delay = if args.len() > 1 {
         let delay_val = args.get_or_undefined(1).to_number(context)?;
-        if delay_val < 0.0 {
-            0
-        } else {
-            delay_val as u32
-        }
+        if delay_val < 0.0 { 0 } else { delay_val as u32 }
     } else {
         0
     };
@@ -161,8 +179,7 @@ fn schedule_timer(args: &[JsValue], context: &mut Context, repeating: bool) -> J
 fn clear_timer_impl(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Get the event loop for this thread
     let event_loop = get_current_event_loop()
-        .ok_or_else(|| JsNativeError::error()
-            .with_message("Event loop not available"))?;
+        .ok_or_else(|| JsNativeError::error().with_message("Event loop not available"))?;
 
     if args.is_empty() {
         return Ok(JsValue::undefined());
@@ -180,11 +197,14 @@ fn clear_timer_impl(_this: &JsValue, args: &[JsValue], context: &mut Context) ->
 }
 
 /// queueMicrotask implementation
-fn queue_microtask_impl(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn queue_microtask_impl(
+    _this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     // Get the event loop for this thread
     let event_loop = get_current_event_loop()
-        .ok_or_else(|| JsNativeError::error()
-            .with_message("Event loop not available"))?;
+        .ok_or_else(|| JsNativeError::error().with_message("Event loop not available"))?;
 
     // Get callback function
     let callback = args.get_or_undefined(0);

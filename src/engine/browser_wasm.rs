@@ -158,11 +158,21 @@ pub mod types {
     #[serde(tag = "type")]
     pub enum HistoryEvent {
         #[serde(rename = "pushState")]
-        PushState { url: String, state_json: Option<String> },
+        PushState {
+            url: String,
+            state_json: Option<String>,
+        },
         #[serde(rename = "replaceState")]
-        ReplaceState { url: String, state_json: Option<String> },
+        ReplaceState {
+            url: String,
+            state_json: Option<String>,
+        },
         #[serde(rename = "popstate")]
-        PopState { url: String, state_json: Option<String>, delta: i32 },
+        PopState {
+            url: String,
+            state_json: Option<String>,
+            delta: i32,
+        },
     }
 }
 

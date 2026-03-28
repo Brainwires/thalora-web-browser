@@ -7,13 +7,17 @@
 //! WHATWG Streams Living Standard
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, promise::Promise},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{
+        BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject, promise::Promise,
+    },
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::VecDeque;
@@ -77,7 +81,11 @@ impl BuiltInConstructor for WritableStream {
         let queuing_strategy = args.get_or_undefined(1);
 
         // Create the WritableStream object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::writable_stream, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::writable_stream,
+            context,
+        )?;
         let writable_stream = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -93,11 +101,7 @@ impl WritableStream {
     ///
     /// Aborts the stream, signaling that the producer can no longer successfully write.
     /// Calls the underlying sink's abort method.
-    fn abort(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn abort(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("WritableStream.prototype.abort called on non-object")
         })?;
@@ -120,18 +124,18 @@ impl WritableStream {
 
         // Return a resolved Promise with undefined
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `WritableStream.prototype.close()`
     ///
     /// Closes the stream when all queued chunks have been written.
     /// Calls the underlying sink's close method.
-    fn close(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn close(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("WritableStream.prototype.close called on non-object")
         })?;
@@ -169,17 +173,18 @@ impl WritableStream {
 
         // Return a resolved Promise with undefined
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `WritableStream.prototype.getWriter()`
-    fn get_writer(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn get_writer(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStream.prototype.getWriter called on non-object")
+            JsNativeError::typ()
+                .with_message("WritableStream.prototype.getWriter called on non-object")
         })?;
 
         if let Some(data) = this_obj.downcast_ref::<WritableStreamData>() {
@@ -207,11 +212,7 @@ pub(crate) struct WritableStreamDefaultWriter;
 impl WritableStreamDefaultWriter {
     /// Create a new WritableStreamDefaultWriter instance
     fn create(stream: JsObject, context: &mut Context) -> JsResult<JsValue> {
-        let proto = context
-            .intrinsics()
-            .constructors()
-            .object()
-            .prototype();
+        let proto = context.intrinsics().constructors().object().prototype();
 
         let writer = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -287,13 +288,10 @@ impl WritableStreamDefaultWriter {
     }
 
     /// `WritableStreamDefaultWriter.prototype.abort(reason)`
-    fn abort(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn abort(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.abort called on non-object")
+            JsNativeError::typ()
+                .with_message("WritableStreamDefaultWriter.prototype.abort called on non-object")
         })?;
 
         let reason = args.get_or_undefined(0);
@@ -306,18 +304,19 @@ impl WritableStreamDefaultWriter {
 
         {
             let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            Promise::resolve(
+                &promise_constructor.into(),
+                &[JsValue::undefined()],
+                context,
+            )
         }
     }
 
     /// `WritableStreamDefaultWriter.prototype.close()`
-    fn close(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn close(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.close called on non-object")
+            JsNativeError::typ()
+                .with_message("WritableStreamDefaultWriter.prototype.close called on non-object")
         })?;
 
         if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
@@ -337,18 +336,19 @@ impl WritableStreamDefaultWriter {
 
         {
             let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            Promise::resolve(
+                &promise_constructor.into(),
+                &[JsValue::undefined()],
+                context,
+            )
         }
     }
 
     /// `WritableStreamDefaultWriter.prototype.write(chunk)`
-    fn write(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn write(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.write called on non-object")
+            JsNativeError::typ()
+                .with_message("WritableStreamDefaultWriter.prototype.write called on non-object")
         })?;
 
         let chunk = args.get_or_undefined(0);
@@ -371,7 +371,11 @@ impl WritableStreamDefaultWriter {
 
         {
             let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+            Promise::resolve(
+                &promise_constructor.into(),
+                &[JsValue::undefined()],
+                context,
+            )
         }
     }
 
@@ -382,7 +386,9 @@ impl WritableStreamDefaultWriter {
         _context: &mut Context,
     ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.releaseLock called on non-object")
+            JsNativeError::typ().with_message(
+                "WritableStreamDefaultWriter.prototype.releaseLock called on non-object",
+            )
         })?;
 
         if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
@@ -395,70 +401,104 @@ impl WritableStreamDefaultWriter {
     }
 
     /// Get the closed property of a WritableStreamDefaultWriter
-    fn get_closed(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn get_closed(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.closed getter called on non-object")
+            JsNativeError::typ().with_message(
+                "WritableStreamDefaultWriter.prototype.closed getter called on non-object",
+            )
         })?;
 
         let writer_data = this_obj.downcast_ref::<WritableStreamDefaultWriterData>().ok_or_else(|| {
             JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.closed getter called on non-WritableStreamDefaultWriter object")
         })?;
 
-        let stream_data = writer_data.stream.downcast_ref::<WritableStreamData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
-        })?;
+        let stream_data = writer_data
+            .stream
+            .downcast_ref::<WritableStreamData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
+            })?;
 
         match stream_data.state {
             StreamState::Closed => {
-                let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-            },
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(
+                    &promise_constructor.into(),
+                    &[JsValue::undefined()],
+                    context,
+                )
+            }
             StreamState::Errored => {
-                let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-            },
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(
+                    &promise_constructor.into(),
+                    &[JsValue::undefined()],
+                    context,
+                )
+            }
             _ => {
                 // Return a pending promise
-                let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(
+                    &promise_constructor.into(),
+                    &[JsValue::undefined()],
+                    context,
+                )
             }
         }
     }
 
     /// Get the ready property of a WritableStreamDefaultWriter
-    fn get_ready(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn get_ready(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.ready getter called on non-object")
+            JsNativeError::typ().with_message(
+                "WritableStreamDefaultWriter.prototype.ready getter called on non-object",
+            )
         })?;
 
         let writer_data = this_obj.downcast_ref::<WritableStreamDefaultWriterData>().ok_or_else(|| {
             JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.ready getter called on non-WritableStreamDefaultWriter object")
         })?;
 
-        let stream_data = writer_data.stream.downcast_ref::<WritableStreamData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
-        })?;
+        let stream_data = writer_data
+            .stream
+            .downcast_ref::<WritableStreamData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
+            })?;
 
         match stream_data.state {
             StreamState::Writable => {
-                let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-            },
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(
+                    &promise_constructor.into(),
+                    &[JsValue::undefined()],
+                    context,
+                )
+            }
             StreamState::Errored => {
-                let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
-            },
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(
+                    &promise_constructor.into(),
+                    &[JsValue::undefined()],
+                    context,
+                )
+            }
             _ => {
-                let promise_constructor = context.intrinsics().constructors().promise().constructor();
-                Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                Promise::resolve(
+                    &promise_constructor.into(),
+                    &[JsValue::undefined()],
+                    context,
+                )
             }
         }
     }
@@ -470,23 +510,29 @@ impl WritableStreamDefaultWriter {
         _context: &mut Context,
     ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.desiredSize getter called on non-object")
+            JsNativeError::typ().with_message(
+                "WritableStreamDefaultWriter.prototype.desiredSize getter called on non-object",
+            )
         })?;
 
         let writer_data = this_obj.downcast_ref::<WritableStreamDefaultWriterData>().ok_or_else(|| {
             JsNativeError::typ().with_message("WritableStreamDefaultWriter.prototype.desiredSize getter called on non-WritableStreamDefaultWriter object")
         })?;
 
-        let stream_data = writer_data.stream.downcast_ref::<WritableStreamData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
-        })?;
+        let stream_data = writer_data
+            .stream
+            .downcast_ref::<WritableStreamData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("WritableStreamDefaultWriter stream is not a WritableStreamData")
+            })?;
 
         match stream_data.state {
             StreamState::Writable => {
                 // Return high water mark minus current queue size
                 let desired = stream_data.high_water_mark - stream_data.write_queue.len() as f64;
                 Ok(JsValue::from(desired))
-            },
+            }
             StreamState::Closed | StreamState::Closing => Ok(JsValue::from(0)),
             StreamState::Errored => Ok(JsValue::null()),
         }
@@ -541,14 +587,13 @@ impl WritableStreamData {
             if let Some(ref write_val) = write_fn {
                 if let Some(write_callable) = write_val.as_callable() {
                     // Create a controller-like object for the write callback
-                    let controller = boa_engine::object::ObjectInitializer::new(context)
-                        .build();
+                    let controller = boa_engine::object::ObjectInitializer::new(context).build();
 
                     // Call write(chunk, controller)
                     let result = write_callable.call(
                         &self.underlying_sink,
                         &[chunk, controller.into()],
-                        context
+                        context,
                     );
 
                     if let Err(e) = result {
@@ -568,8 +613,7 @@ impl WritableStreamData {
         if let Some(sink_obj) = self.underlying_sink.as_object() {
             if let Ok(start_val) = sink_obj.get(js_string!("start"), context) {
                 if let Some(start_callable) = start_val.as_callable() {
-                    let controller = boa_engine::object::ObjectInitializer::new(context)
-                        .build();
+                    let controller = boa_engine::object::ObjectInitializer::new(context).build();
                     start_callable.call(&self.underlying_sink, &[controller.into()], context)?;
                 }
             }
@@ -632,18 +676,18 @@ enum StreamState {
 }
 
 /// Get the locked property of a WritableStream
-fn get_locked(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_locked(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WritableStream.prototype.locked getter called on non-object")
+        JsNativeError::typ()
+            .with_message("WritableStream.prototype.locked getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<WritableStreamData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("WritableStream.locked getter called on non-WritableStream object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<WritableStreamData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("WritableStream.locked getter called on non-WritableStream object")
+        })?;
 
     Ok(data.locked.into())
 }

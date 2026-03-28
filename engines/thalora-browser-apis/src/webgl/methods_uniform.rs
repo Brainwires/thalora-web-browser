@@ -3,12 +3,13 @@
 //! Uniform variable and vertex attribute operations.
 
 use boa_engine::{
-    js_string,
+    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
     object::builtins::JsArray,
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
 };
 
-use super::context::{get_object_id, get_location_id, WebGLRenderingContextData, MAX_VERTEX_ATTRIBS};
+use super::context::{
+    MAX_VERTEX_ATTRIBS, WebGLRenderingContextData, get_location_id, get_object_id,
+};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;
 
@@ -21,13 +22,17 @@ pub fn add_uniform_methods(obj: &JsObject, context: &mut Context) {
             let location_id = get_location_id(args.get_or_undefined(0), ctx)?;
             let x = args.get_or_undefined(1).to_number(ctx)? as f32;
 
-            data.uniform_values.lock().unwrap().insert(location_id, vec![x]);
+            data.uniform_values
+                .lock()
+                .unwrap()
+                .insert(location_id, vec![x]);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // uniform2f
     obj.set(
@@ -38,13 +43,17 @@ pub fn add_uniform_methods(obj: &JsObject, context: &mut Context) {
             let x = args.get_or_undefined(1).to_number(ctx)? as f32;
             let y = args.get_or_undefined(2).to_number(ctx)? as f32;
 
-            data.uniform_values.lock().unwrap().insert(location_id, vec![x, y]);
+            data.uniform_values
+                .lock()
+                .unwrap()
+                .insert(location_id, vec![x, y]);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // uniform3f
     obj.set(
@@ -56,13 +65,17 @@ pub fn add_uniform_methods(obj: &JsObject, context: &mut Context) {
             let y = args.get_or_undefined(2).to_number(ctx)? as f32;
             let z = args.get_or_undefined(3).to_number(ctx)? as f32;
 
-            data.uniform_values.lock().unwrap().insert(location_id, vec![x, y, z]);
+            data.uniform_values
+                .lock()
+                .unwrap()
+                .insert(location_id, vec![x, y, z]);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // uniform4f
     obj.set(
@@ -75,13 +88,17 @@ pub fn add_uniform_methods(obj: &JsObject, context: &mut Context) {
             let z = args.get_or_undefined(3).to_number(ctx)? as f32;
             let w = args.get_or_undefined(4).to_number(ctx)? as f32;
 
-            data.uniform_values.lock().unwrap().insert(location_id, vec![x, y, z, w]);
+            data.uniform_values
+                .lock()
+                .unwrap()
+                .insert(location_id, vec![x, y, z, w]);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // uniform1i
     obj.set(
@@ -91,13 +108,17 @@ pub fn add_uniform_methods(obj: &JsObject, context: &mut Context) {
             let location_id = get_location_id(args.get_or_undefined(0), ctx)?;
             let x = args.get_or_undefined(1).to_i32(ctx)? as f32;
 
-            data.uniform_values.lock().unwrap().insert(location_id, vec![x]);
+            data.uniform_values
+                .lock()
+                .unwrap()
+                .insert(location_id, vec![x]);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // uniformMatrix4fv
     obj.set(
@@ -122,13 +143,17 @@ pub fn add_uniform_methods(obj: &JsObject, context: &mut Context) {
                 }
             }
 
-            data.uniform_values.lock().unwrap().insert(location_id, values);
+            data.uniform_values
+                .lock()
+                .unwrap()
+                .insert(location_id, values);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add vertex attribute methods
@@ -165,7 +190,8 @@ pub fn add_vertex_attrib_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // enableVertexAttribArray
     obj.set(
@@ -185,7 +211,8 @@ pub fn add_vertex_attrib_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // disableVertexAttribArray
     obj.set(
@@ -205,5 +232,6 @@ pub fn add_vertex_attrib_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

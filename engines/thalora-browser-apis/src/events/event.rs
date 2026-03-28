@@ -3,15 +3,16 @@
 //! Native implementation of DOM Events with proper propagation
 //! https://dom.spec.whatwg.org/#interface-event
 
-
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 
@@ -100,30 +101,68 @@ impl EventData {
     }
 
     // Getters for read-only properties
-    pub fn get_type(&self) -> &str { &self.event_type }
-    pub fn get_bubbles(&self) -> bool { self.bubbles }
-    pub fn get_cancelable(&self) -> bool { self.cancelable }
-    pub fn get_default_prevented(&self) -> bool { self.default_prevented }
-    pub fn get_phase(&self) -> EventPhase { self.phase.clone() }
-    pub fn get_current_target(&self) -> Option<JsObject> { self.current_target.clone() }
-    pub fn get_target(&self) -> Option<JsObject> { self.target.clone() }
-    pub fn get_timestamp(&self) -> f64 { self.timestamp }
-    pub fn get_is_trusted(&self) -> bool { self.is_trusted }
-    pub fn get_composed(&self) -> bool { self.composed }
+    pub fn get_type(&self) -> &str {
+        &self.event_type
+    }
+    pub fn get_bubbles(&self) -> bool {
+        self.bubbles
+    }
+    pub fn get_cancelable(&self) -> bool {
+        self.cancelable
+    }
+    pub fn get_default_prevented(&self) -> bool {
+        self.default_prevented
+    }
+    pub fn get_phase(&self) -> EventPhase {
+        self.phase.clone()
+    }
+    pub fn get_current_target(&self) -> Option<JsObject> {
+        self.current_target.clone()
+    }
+    pub fn get_target(&self) -> Option<JsObject> {
+        self.target.clone()
+    }
+    pub fn get_timestamp(&self) -> f64 {
+        self.timestamp
+    }
+    pub fn get_is_trusted(&self) -> bool {
+        self.is_trusted
+    }
+    pub fn get_composed(&self) -> bool {
+        self.composed
+    }
 
     // Internal setters for event propagation
-    pub fn set_phase(&mut self, phase: EventPhase) { self.phase = phase; }
-    pub fn set_current_target(&mut self, target: Option<JsObject>) { self.current_target = target; }
-    pub fn set_target(&mut self, target: Option<JsObject>) { self.target = target; }
-    pub fn set_is_trusted(&mut self, trusted: bool) { self.is_trusted = trusted; }
+    pub fn set_phase(&mut self, phase: EventPhase) {
+        self.phase = phase;
+    }
+    pub fn set_current_target(&mut self, target: Option<JsObject>) {
+        self.current_target = target;
+    }
+    pub fn set_target(&mut self, target: Option<JsObject>) {
+        self.target = target;
+    }
+    pub fn set_is_trusted(&mut self, trusted: bool) {
+        self.is_trusted = trusted;
+    }
 
     // Setters for subclass event construction
-    pub fn set_bubbles(&mut self, bubbles: bool) { self.bubbles = bubbles; }
-    pub fn set_cancelable(&mut self, cancelable: bool) { self.cancelable = cancelable; }
-    pub fn set_composed(&mut self, composed: bool) { self.composed = composed; }
+    pub fn set_bubbles(&mut self, bubbles: bool) {
+        self.bubbles = bubbles;
+    }
+    pub fn set_cancelable(&mut self, cancelable: bool) {
+        self.cancelable = cancelable;
+    }
+    pub fn set_composed(&mut self, composed: bool) {
+        self.composed = composed;
+    }
 
-    pub fn should_stop_propagation(&self) -> bool { self.stop_propagation }
-    pub fn should_stop_immediate_propagation(&self) -> bool { self.stop_immediate_propagation }
+    pub fn should_stop_propagation(&self) -> bool {
+        self.stop_propagation
+    }
+    pub fn should_stop_immediate_propagation(&self) -> bool {
+        self.stop_immediate_propagation
+    }
 }
 
 /// The `Event` object.
@@ -235,7 +274,11 @@ impl IntrinsicObject for Event {
             )
             .method(prevent_default, js_string!("preventDefault"), 0)
             .method(stop_propagation, js_string!("stopPropagation"), 0)
-            .method(stop_immediate_propagation, js_string!("stopImmediatePropagation"), 0)
+            .method(
+                stop_immediate_propagation,
+                js_string!("stopImmediatePropagation"),
+                0,
+            )
             .method(init_event, js_string!("initEvent"), 3)
             .static_property(
                 js_string!("NONE"),
@@ -312,8 +355,10 @@ impl BuiltInConstructor for Event {
         let mut data = EventData::new(event_type.to_std_string_escaped(), bubbles, cancelable);
         data.composed = composed;
 
-        let prototype = get_prototype_from_constructor(new_target, StandardConstructors::event, context)?;
-        let event = JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::event, context)?;
+        let event =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
         Ok(event.into())
     }
 }
@@ -322,9 +367,9 @@ impl BuiltInConstructor for Event {
 
 /// Get the event type.
 fn get_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
@@ -336,51 +381,57 @@ fn get_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
 
 /// Get whether the event bubbles.
 fn get_bubbles(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
         event_data.get_bubbles()
     } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+        return Err(JsNativeError::typ()
+            .with_message("Event method called on non-Event object")
+            .into());
     };
     Ok(JsValue::from(value))
 }
 
 /// Get whether the event is cancelable.
 fn get_cancelable(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
         event_data.get_cancelable()
     } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+        return Err(JsNativeError::typ()
+            .with_message("Event method called on non-Event object")
+            .into());
     };
     Ok(JsValue::from(value))
 }
 
 /// Get whether preventDefault() has been called.
 fn get_default_prevented(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
         event_data.get_default_prevented()
     } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+        return Err(JsNativeError::typ()
+            .with_message("Event method called on non-Event object")
+            .into());
     };
     Ok(JsValue::from(value))
 }
 
 /// Get the current event phase.
 fn get_event_phase(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
@@ -397,68 +448,78 @@ fn get_event_phase(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
 
 /// Get the current target.
 fn get_current_target(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
     })?;
 
-    Ok(event_data.get_current_target().map_or(JsValue::null(), |obj| obj.into()))
+    Ok(event_data
+        .get_current_target()
+        .map_or(JsValue::null(), |obj| obj.into()))
 }
 
 /// Get the event target.
 fn get_target(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let event_data = this_obj.downcast_ref::<EventData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Event method called on non-Event object")
     })?;
 
-    Ok(event_data.get_target().map_or(JsValue::null(), |obj| obj.into()))
+    Ok(event_data
+        .get_target()
+        .map_or(JsValue::null(), |obj| obj.into()))
 }
 
 /// Get the event timestamp.
 fn get_timestamp(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
         event_data.get_timestamp()
     } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+        return Err(JsNativeError::typ()
+            .with_message("Event method called on non-Event object")
+            .into());
     };
     Ok(JsValue::from(value))
 }
 
 /// Get whether the event is trusted.
 fn get_is_trusted(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
         event_data.get_is_trusted()
     } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+        return Err(JsNativeError::typ()
+            .with_message("Event method called on non-Event object")
+            .into());
     };
     Ok(JsValue::from(value))
 }
 
 /// Get whether the event is composed.
 fn get_composed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     let value = if let Some(event_data) = this_obj.downcast_ref::<EventData>() {
         event_data.get_composed()
     } else {
-        return Err(JsNativeError::typ().with_message("Event method called on non-Event object").into());
+        return Err(JsNativeError::typ()
+            .with_message("Event method called on non-Event object")
+            .into());
     };
     Ok(JsValue::from(value))
 }
@@ -467,9 +528,9 @@ fn get_composed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
 
 /// Prevent the default action.
 fn prevent_default(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         event_data.prevent_default();
@@ -480,9 +541,9 @@ fn prevent_default(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
 
 /// Stop event propagation.
 fn stop_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         event_data.stop_propagation();
@@ -493,9 +554,9 @@ fn stop_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
 
 /// Stop immediate event propagation.
 fn stop_immediate_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         event_data.stop_immediate_propagation();
@@ -506,9 +567,9 @@ fn stop_immediate_propagation(this: &JsValue, _: &[JsValue], _: &mut Context) ->
 
 /// Initialize the event (legacy method).
 fn init_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Event method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Event method called on non-object"))?;
 
     if let Some(mut event_data) = this_obj.downcast_mut::<EventData>() {
         let event_type = args.get_or_undefined(0).to_string(context)?;

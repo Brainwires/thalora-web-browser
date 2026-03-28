@@ -80,7 +80,10 @@ struct Cli {
     /// Enable BrainClaw preset when running without a subcommand.
     /// Enables scraping + search + sessions + CDP with agent-friendly aliases.
     /// Equivalent to setting THALORA_PRESET=brainclaw.
-    #[arg(long = "brainclaw", help = "Enable BrainClaw preset (full feature set + agent-friendly aliases)")]
+    #[arg(
+        long = "brainclaw",
+        help = "Enable BrainClaw preset (full feature set + agent-friendly aliases)"
+    )]
     brainclaw: bool,
 }
 
@@ -94,7 +97,10 @@ enum Commands {
 
         /// Enable BrainClaw preset: scraping + search + sessions + CDP with agent-friendly aliases.
         /// Equivalent to setting THALORA_PRESET=brainclaw.
-        #[arg(long = "brainclaw", help = "Enable BrainClaw preset (scraping + search + sessions + CDP + agent-friendly aliases)")]
+        #[arg(
+            long = "brainclaw",
+            help = "Enable BrainClaw preset (scraping + search + sessions + CDP + agent-friendly aliases)"
+        )]
         brainclaw: bool,
 
         /// Transport: 'stdio' (default) or 'http'
@@ -191,16 +197,28 @@ async fn main() -> Result<()> {
             // Run as display server
             run_display_server(host, port).await
         }
-        Some(Commands::Server { mcp_mode, brainclaw, transport, host, port }) => {
+        Some(Commands::Server {
+            mcp_mode,
+            brainclaw,
+            transport,
+            host,
+            port,
+        }) => {
             // Run as MCP server with specified mode
             // SAFETY: This is called at program startup before any threads are spawned
             unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
             if brainclaw {
                 // SAFETY: called at startup before any threads are spawned
                 unsafe { std::env::set_var("THALORA_PRESET", "brainclaw") };
-                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset] [{transport}]", mcp_mode);
+                eprintln!(
+                    "🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset] [{transport}]",
+                    mcp_mode
+                );
             } else {
-                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [{transport}]", mcp_mode);
+                eprintln!(
+                    "🚀 Starting Thalora MCP Server in '{}' mode [{transport}]",
+                    mcp_mode
+                );
             }
 
             if transport == "http" {
@@ -241,7 +259,10 @@ async fn main() -> Result<()> {
             if cli.brainclaw {
                 // SAFETY: called at startup before any threads are spawned
                 unsafe { std::env::set_var("THALORA_PRESET", "brainclaw") };
-                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset]", mcp_mode);
+                eprintln!(
+                    "🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset]",
+                    mcp_mode
+                );
             } else {
                 eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
             }

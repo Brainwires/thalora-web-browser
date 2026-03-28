@@ -4,6 +4,7 @@
 //! https://developer.mozilla.org/en-US/docs/Web/API/Cache_API
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -11,9 +12,8 @@ use boa_engine::{
     property::Attribute,
     realm::Realm,
     string::JsString,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -85,9 +85,9 @@ impl Cache {
     }
 
     fn match_request(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Cache.match called on non-object")
-        })?;
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Cache.match called on non-object"))?;
 
         let data = this_obj.downcast_ref::<CacheData>().ok_or_else(|| {
             JsNativeError::typ().with_message("Cache.match called on non-Cache object")
@@ -95,7 +95,10 @@ impl Cache {
 
         let request = args.get_or_undefined(0);
         let url = if let Some(req_obj) = request.as_object() {
-            req_obj.get(js_string!("url"), context)?.to_string(context)?.to_std_string_escaped()
+            req_obj
+                .get(js_string!("url"), context)?
+                .to_string(context)?
+                .to_std_string_escaped()
         } else {
             request.to_string(context)?.to_std_string_escaped()
         };
@@ -104,17 +107,36 @@ impl Cache {
 
         if let Some(entry) = data.get(&url) {
             let response = JsObject::default(context.intrinsics());
-            response.set(js_string!("ok"), JsValue::from(entry.status >= 200 && entry.status < 300), false, context)?;
-            response.set(js_string!("status"), JsValue::from(entry.status), false, context)?;
-            response.set(js_string!("statusText"), js_string!(entry.status_text), false, context)?;
+            response.set(
+                js_string!("ok"),
+                JsValue::from(entry.status >= 200 && entry.status < 300),
+                false,
+                context,
+            )?;
+            response.set(
+                js_string!("status"),
+                JsValue::from(entry.status),
+                false,
+                context,
+            )?;
+            response.set(
+                js_string!("statusText"),
+                js_string!(entry.status_text),
+                false,
+                context,
+            )?;
             response.set(js_string!("url"), js_string!(entry.url), false, context)?;
 
             let body_str = String::from_utf8_lossy(&entry.body).to_string();
             response.set(js_string!("_body"), js_string!(body_str), false, context)?;
 
-            resolvers.resolve.call(&JsValue::undefined(), &[response.into()], context)?;
+            resolvers
+                .resolve
+                .call(&JsValue::undefined(), &[response.into()], context)?;
         } else {
-            resolvers.resolve.call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+            resolvers
+                .resolve
+                .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
         }
 
         Ok(JsValue::from(promise))
@@ -134,7 +156,10 @@ impl Cache {
         } else {
             let request = args.get_or_undefined(0);
             Some(if let Some(req_obj) = request.as_object() {
-                req_obj.get(js_string!("url"), context)?.to_string(context)?.to_std_string_escaped()
+                req_obj
+                    .get(js_string!("url"), context)?
+                    .to_string(context)?
+                    .to_std_string_escaped()
             } else {
                 request.to_string(context)?.to_std_string_escaped()
             })
@@ -154,8 +179,18 @@ impl Cache {
 
             if let Some(entry) = data.get(&url) {
                 let response = JsObject::default(context.intrinsics());
-                response.set(js_string!("ok"), JsValue::from(entry.status >= 200 && entry.status < 300), false, context)?;
-                response.set(js_string!("status"), JsValue::from(entry.status), false, context)?;
+                response.set(
+                    js_string!("ok"),
+                    JsValue::from(entry.status >= 200 && entry.status < 300),
+                    false,
+                    context,
+                )?;
+                response.set(
+                    js_string!("status"),
+                    JsValue::from(entry.status),
+                    false,
+                    context,
+                )?;
                 response.set(js_string!("url"), js_string!(entry.url), false, context)?;
 
                 let body_str = String::from_utf8_lossy(&entry.body).to_string();
@@ -166,14 +201,16 @@ impl Cache {
             }
         }
 
-        resolvers.resolve.call(&JsValue::undefined(), &[results.into()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[results.into()], context)?;
         Ok(JsValue::from(promise))
     }
 
     fn add(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Cache.add called on non-object")
-        })?;
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Cache.add called on non-object"))?;
 
         let data = this_obj.downcast_ref::<CacheData>().ok_or_else(|| {
             JsNativeError::typ().with_message("Cache.add called on non-Cache object")
@@ -181,7 +218,10 @@ impl Cache {
 
         let request = args.get_or_undefined(0);
         let url = if let Some(req_obj) = request.as_object() {
-            req_obj.get(js_string!("url"), context)?.to_string(context)?.to_std_string_escaped()
+            req_obj
+                .get(js_string!("url"), context)?
+                .to_string(context)?
+                .to_std_string_escaped()
         } else {
             request.to_string(context)?.to_std_string_escaped()
         };
@@ -198,20 +238,24 @@ impl Cache {
         data.put(url, entry);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
         Ok(JsValue::from(promise))
     }
 
     fn add_all(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
         Ok(JsValue::from(promise))
     }
 
     fn put(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Cache.put called on non-object")
-        })?;
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Cache.put called on non-object"))?;
 
         let data = this_obj.downcast_ref::<CacheData>().ok_or_else(|| {
             JsNativeError::typ().with_message("Cache.put called on non-Cache object")
@@ -221,19 +265,30 @@ impl Cache {
         let response = args.get_or_undefined(1);
 
         let url = if let Some(req_obj) = request.as_object() {
-            req_obj.get(js_string!("url"), context)?.to_string(context)?.to_std_string_escaped()
+            req_obj
+                .get(js_string!("url"), context)?
+                .to_string(context)?
+                .to_std_string_escaped()
         } else {
             request.to_string(context)?.to_std_string_escaped()
         };
 
         let (status, status_text, body) = if let Some(resp_obj) = response.as_object() {
-            let status = resp_obj.get(js_string!("status"), context)?.to_u32(context)? as u16;
-            let status_text = resp_obj.get(js_string!("statusText"), context)?.to_string(context)?.to_std_string_escaped();
+            let status = resp_obj
+                .get(js_string!("status"), context)?
+                .to_u32(context)? as u16;
+            let status_text = resp_obj
+                .get(js_string!("statusText"), context)?
+                .to_string(context)?
+                .to_std_string_escaped();
             let body_val = resp_obj.get(js_string!("_body"), context)?;
             let body = if body_val.is_undefined() {
                 Vec::new()
             } else {
-                body_val.to_string(context)?.to_std_string_escaped().into_bytes()
+                body_val
+                    .to_string(context)?
+                    .to_std_string_escaped()
+                    .into_bytes()
             };
             (status, status_text, body)
         } else {
@@ -251,7 +306,9 @@ impl Cache {
         data.put(url, entry);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
         Ok(JsValue::from(promise))
     }
 
@@ -266,7 +323,10 @@ impl Cache {
 
         let request = args.get_or_undefined(0);
         let url = if let Some(req_obj) = request.as_object() {
-            req_obj.get(js_string!("url"), context)?.to_string(context)?.to_std_string_escaped()
+            req_obj
+                .get(js_string!("url"), context)?
+                .to_string(context)?
+                .to_std_string_escaped()
         } else {
             request.to_string(context)?.to_std_string_escaped()
         };
@@ -274,14 +334,16 @@ impl Cache {
         let deleted = data.delete(&url);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(deleted)], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::from(deleted)], context)?;
         Ok(JsValue::from(promise))
     }
 
     fn keys(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Cache.keys called on non-object")
-        })?;
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Cache.keys called on non-object"))?;
 
         let data = this_obj.downcast_ref::<CacheData>().ok_or_else(|| {
             JsNativeError::typ().with_message("Cache.keys called on non-Cache object")
@@ -291,7 +353,8 @@ impl Cache {
 
         let (promise, resolvers) = JsPromise::new_pending(context);
 
-        let results = boa_engine::builtins::array::Array::array_create(urls.len() as u64, None, context)?;
+        let results =
+            boa_engine::builtins::array::Array::array_create(urls.len() as u64, None, context)?;
 
         for (idx, url) in urls.iter().enumerate() {
             let req = JsObject::default(context.intrinsics());
@@ -299,7 +362,9 @@ impl Cache {
             results.create_data_property_or_throw(idx, req, context)?;
         }
 
-        resolvers.resolve.call(&JsValue::undefined(), &[results.into()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[results.into()], context)?;
         Ok(JsValue::from(promise))
     }
 }
@@ -391,7 +456,11 @@ impl CacheStorage {
         let data = CacheStorageData::new();
         let obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().cache_storage().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .cache_storage()
+                .prototype(),
             data,
         );
         Ok(obj.upcast())
@@ -406,7 +475,10 @@ impl CacheStorage {
             JsNativeError::typ().with_message("CacheStorage.open called on non-CacheStorage object")
         })?;
 
-        let cache_name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let cache_name = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
 
         let cache = if let Some(existing) = data.get(&cache_name) {
             existing
@@ -417,7 +489,9 @@ impl CacheStorage {
         };
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[cache.into()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[cache.into()], context)?;
         Ok(JsValue::from(promise))
     }
 
@@ -430,11 +504,16 @@ impl CacheStorage {
             JsNativeError::typ().with_message("CacheStorage.has called on non-CacheStorage object")
         })?;
 
-        let cache_name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let cache_name = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         let exists = data.has(&cache_name);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(exists)], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::from(exists)], context)?;
         Ok(JsValue::from(promise))
     }
 
@@ -444,14 +523,20 @@ impl CacheStorage {
         })?;
 
         let data = this_obj.downcast_ref::<CacheStorageData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("CacheStorage.delete called on non-CacheStorage object")
+            JsNativeError::typ()
+                .with_message("CacheStorage.delete called on non-CacheStorage object")
         })?;
 
-        let cache_name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let cache_name = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         let deleted = data.delete(&cache_name);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(deleted)], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::from(deleted)], context)?;
         Ok(JsValue::from(promise))
     }
 
@@ -468,13 +553,19 @@ impl CacheStorage {
 
         let (promise, resolvers) = JsPromise::new_pending(context);
 
-        let results = boa_engine::builtins::array::Array::array_create(cache_names.len() as u64, None, context)?;
+        let results = boa_engine::builtins::array::Array::array_create(
+            cache_names.len() as u64,
+            None,
+            context,
+        )?;
 
         for (idx, name) in cache_names.iter().enumerate() {
             results.create_data_property_or_throw(idx, js_string!(name.as_str()), context)?;
         }
 
-        resolvers.resolve.call(&JsValue::undefined(), &[results.into()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[results.into()], context)?;
         Ok(JsValue::from(promise))
     }
 
@@ -484,12 +575,16 @@ impl CacheStorage {
         })?;
 
         let data = this_obj.downcast_ref::<CacheStorageData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("CacheStorage.match called on non-CacheStorage object")
+            JsNativeError::typ()
+                .with_message("CacheStorage.match called on non-CacheStorage object")
         })?;
 
         let request = args.get_or_undefined(0);
         let url = if let Some(req_obj) = request.as_object() {
-            req_obj.get(js_string!("url"), context)?.to_string(context)?.to_std_string_escaped()
+            req_obj
+                .get(js_string!("url"), context)?
+                .to_string(context)?
+                .to_std_string_escaped()
         } else {
             request.to_string(context)?.to_std_string_escaped()
         };
@@ -503,8 +598,18 @@ impl CacheStorage {
                 if let Some(cache_data) = cache_obj.downcast_ref::<CacheData>() {
                     if let Some(entry) = cache_data.get(&url) {
                         let response = JsObject::default(context.intrinsics());
-                        response.set(js_string!("ok"), JsValue::from(entry.status >= 200 && entry.status < 300), false, context)?;
-                        response.set(js_string!("status"), JsValue::from(entry.status), false, context)?;
+                        response.set(
+                            js_string!("ok"),
+                            JsValue::from(entry.status >= 200 && entry.status < 300),
+                            false,
+                            context,
+                        )?;
+                        response.set(
+                            js_string!("status"),
+                            JsValue::from(entry.status),
+                            false,
+                            context,
+                        )?;
                         response.set(js_string!("url"), js_string!(entry.url), false, context)?;
 
                         let body_str = String::from_utf8_lossy(&entry.body).to_string();
@@ -517,8 +622,12 @@ impl CacheStorage {
             }
         }
 
-        let result = found_response.map(|r| JsValue::from(r)).unwrap_or(JsValue::undefined());
-        resolvers.resolve.call(&JsValue::undefined(), &[result], context)?;
+        let result = found_response
+            .map(|r| JsValue::from(r))
+            .unwrap_or(JsValue::undefined());
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[result], context)?;
         Ok(JsValue::from(promise))
     }
 }

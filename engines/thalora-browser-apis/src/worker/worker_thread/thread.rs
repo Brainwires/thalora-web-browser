@@ -1,18 +1,18 @@
 //! WorkerThread implementation - main worker thread struct
 
-use boa_engine::{Context, JsResult, JsNativeError};
-use std::sync::{Arc, Mutex};
+use boa_engine::{Context, JsNativeError, JsResult};
+use crossbeam_channel::{Receiver, Sender, TryRecvError, unbounded};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-use crossbeam_channel::{Sender, Receiver, unbounded, TryRecvError};
 
-use crate::worker::worker_global_scope::{WorkerGlobalScope, WorkerGlobalScopeType};
-use super::types::{WorkerCommand, WorkerEvent, WorkerStatus, WorkerConfig};
-use super::script_loader;
 use super::command_handler;
 use super::event_loop::WorkerEventLoop;
+use super::script_loader;
 use super::timer_api;
+use super::types::{WorkerCommand, WorkerConfig, WorkerEvent, WorkerStatus};
+use crate::worker::worker_global_scope::{WorkerGlobalScope, WorkerGlobalScopeType};
 
 /// Unique identifier for worker threads
 static NEXT_WORKER_ID: AtomicU64 = AtomicU64::new(1);
@@ -60,31 +60,31 @@ impl WorkerThread {
         let worker_id_clone = worker_id;
 
         // Build the thread
-        let mut thread_builder = thread::Builder::new()
-            .name(format!("Worker-{}", worker_id));
+        let mut thread_builder = thread::Builder::new().name(format!("Worker-{}", worker_id));
 
         if let Some(stack_size) = config.stack_size {
             thread_builder = thread_builder.stack_size(stack_size);
         }
 
         // Spawn the worker thread
-        let thread_handle = thread_builder.spawn(move || {
-            let result = Self::run_worker_thread(
-                worker_id_clone,
-                worker_config,
-                worker_status,
-                worker_running,
-                command_rx,
-                event_tx,
-            );
+        let thread_handle = thread_builder
+            .spawn(move || {
+                let result = Self::run_worker_thread(
+                    worker_id_clone,
+                    worker_config,
+                    worker_status,
+                    worker_running,
+                    command_rx,
+                    event_tx,
+                );
 
-            if let Err(e) = result {
-                eprintln!("Worker thread {} failed: {:?}", worker_id_clone, e);
-            }
-        }).map_err(|e| {
-            JsNativeError::error()
-                .with_message(format!("Failed to spawn worker thread: {}", e))
-        })?;
+                if let Err(e) = result {
+                    eprintln!("Worker thread {} failed: {:?}", worker_id_clone, e);
+                }
+            })
+            .map_err(|e| {
+                JsNativeError::error().with_message(format!("Failed to spawn worker thread: {}", e))
+            })?;
 
         Ok(Self {
             worker_id,
@@ -114,7 +114,8 @@ impl WorkerThread {
 
         // Initialize the worker global scope
         let scope_type = WorkerGlobalScopeType::Dedicated;
-        let worker_scope = WorkerGlobalScope::new(scope_type, &config.script_url, Some(event_tx.clone()))?;
+        let worker_scope =
+            WorkerGlobalScope::new(scope_type, &config.script_url, Some(event_tx.clone()))?;
         let worker_scope_arc = Arc::new(worker_scope);
 
         // Register the scope in the global registry
@@ -140,7 +141,11 @@ impl WorkerThread {
 
         // Load and execute the initial worker script if provided
         if !config.script_url.is_empty() {
-            match script_loader::load_and_execute_script(&config.script_url, &mut context, &worker_scope_arc) {
+            match script_loader::load_and_execute_script(
+                &config.script_url,
+                &mut context,
+                &worker_scope_arc,
+            ) {
                 Ok(_) => {
                     let _ = event_tx.send(WorkerEvent::ScriptExecuted { success: true });
                 }
@@ -249,7 +254,8 @@ impl WorkerThread {
 
     /// Send a command to the worker thread
     pub fn send_command(&self, command: WorkerCommand) -> Result<(), String> {
-        self.command_sender.send(command)
+        self.command_sender
+            .send(command)
             .map_err(|e| format!("Failed to send command to worker: {}", e))
     }
 
@@ -289,7 +295,8 @@ impl WorkerThread {
         self.terminate();
 
         if let Some(handle) = self.thread_handle.take() {
-            handle.join()
+            handle
+                .join()
                 .map_err(|e| format!("Worker thread panicked: {:?}", e))
         } else {
             Ok(())
@@ -321,8 +328,8 @@ impl Drop for WorkerThread {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::types::WorkerType;
+    use super::*;
 
     #[test]
     fn test_worker_thread_creation() {
@@ -353,7 +360,10 @@ mod tests {
     #[test]
     fn test_worker_data_url_script() {
         let script = "self.postMessage('test');";
-        let data_url = format!("data:application/javascript,{}", urlencoding::encode(script));
+        let data_url = format!(
+            "data:application/javascript,{}",
+            urlencoding::encode(script)
+        );
 
         let config = WorkerConfig {
             script_url: data_url,

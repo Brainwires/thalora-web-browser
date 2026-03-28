@@ -4,20 +4,20 @@
 //! It's an abstract interface for Text, Comment, and ProcessingInstruction nodes.
 //! https://dom.spec.whatwg.org/#interface-characterdata
 
+use super::node::{NodeData, NodeType};
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
-use boa_gc::{Finalize, Trace};
 use boa_gc::GcRefCell;
-use super::node::{NodeData, NodeType};
+use boa_gc::{Finalize, Trace};
 
 /// CharacterData data structure for character-containing DOM nodes
 #[derive(Debug, Trace, Finalize, JsData)]
@@ -152,7 +152,11 @@ impl CharacterDataData {
 
 impl CharacterDataData {
     /// `CharacterData.prototype.data` getter
-    fn get_data_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_data_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("CharacterData.data called on non-object")
         })?;
@@ -168,7 +172,11 @@ impl CharacterDataData {
     }
 
     /// `CharacterData.prototype.data` setter
-    fn set_data_accessor(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn set_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("CharacterData.data called on non-object")
         })?;
@@ -177,17 +185,23 @@ impl CharacterDataData {
         let data_string = data_arg.to_string(_context)?;
 
         {
-            let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("CharacterData.data called on non-CharacterData object")
-            })?;
+            let char_data = this_obj
+                .downcast_ref::<CharacterDataData>()
+                .ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("CharacterData.data called on non-CharacterData object")
+                })?;
             char_data.set_data(data_string.to_std_string_escaped());
         }
         Ok(JsValue::undefined())
     }
 
     /// `CharacterData.prototype.length` getter
-    fn get_length_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_length_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("CharacterData.length called on non-object")
         })?;
@@ -203,7 +217,11 @@ impl CharacterDataData {
     }
 
     /// `CharacterData.prototype.substringData(offset, count)`
-    fn substring_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn substring_data(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("CharacterData.substringData called on non-object")
         })?;
@@ -214,16 +232,16 @@ impl CharacterDataData {
         let offset = offset_arg.to_u32(context)?;
         let count = count_arg.to_u32(context)?;
 
-        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("CharacterData.substringData called on non-CharacterData object")
-        })?;
+        let char_data = this_obj
+            .downcast_ref::<CharacterDataData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("CharacterData.substringData called on non-CharacterData object")
+            })?;
 
         match char_data.substring_data_impl(offset, count) {
             Ok(result) => Ok(JsValue::from(js_string!(result))),
-            Err(err) => Err(JsNativeError::range()
-                .with_message(err)
-                .into()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
@@ -237,10 +255,12 @@ impl CharacterDataData {
         let data_string = data_arg.to_string(context)?;
 
         {
-            let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("CharacterData.appendData called on non-CharacterData object")
-            })?;
+            let char_data = this_obj
+                .downcast_ref::<CharacterDataData>()
+                .ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("CharacterData.appendData called on non-CharacterData object")
+                })?;
             char_data.append_data_impl(data_string.to_std_string_escaped());
         }
         Ok(JsValue::undefined())
@@ -258,16 +278,16 @@ impl CharacterDataData {
         let offset = offset_arg.to_u32(context)?;
         let data_string = data_arg.to_string(context)?;
 
-        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("CharacterData.insertData called on non-CharacterData object")
-        })?;
+        let char_data = this_obj
+            .downcast_ref::<CharacterDataData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("CharacterData.insertData called on non-CharacterData object")
+            })?;
 
         match char_data.insert_data_impl(offset, data_string.to_std_string_escaped()) {
             Ok(_) => Ok(JsValue::undefined()),
-            Err(err) => Err(JsNativeError::range()
-                .with_message(err)
-                .into()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
@@ -283,16 +303,16 @@ impl CharacterDataData {
         let offset = offset_arg.to_u32(context)?;
         let count = count_arg.to_u32(context)?;
 
-        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("CharacterData.deleteData called on non-CharacterData object")
-        })?;
+        let char_data = this_obj
+            .downcast_ref::<CharacterDataData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("CharacterData.deleteData called on non-CharacterData object")
+            })?;
 
         match char_data.delete_data_impl(offset, count) {
             Ok(_) => Ok(JsValue::undefined()),
-            Err(err) => Err(JsNativeError::range()
-                .with_message(err)
-                .into()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 
@@ -310,16 +330,16 @@ impl CharacterDataData {
         let count = count_arg.to_u32(context)?;
         let data_string = data_arg.to_string(context)?;
 
-        let char_data = this_obj.downcast_ref::<CharacterDataData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("CharacterData.replaceData called on non-CharacterData object")
-        })?;
+        let char_data = this_obj
+            .downcast_ref::<CharacterDataData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("CharacterData.replaceData called on non-CharacterData object")
+            })?;
 
         match char_data.replace_data_impl(offset, count, data_string.to_std_string_escaped()) {
             Ok(_) => Ok(JsValue::undefined()),
-            Err(err) => Err(JsNativeError::range()
-                .with_message(err)
-                .into()),
+            Err(err) => Err(JsNativeError::range().with_message(err).into()),
         }
     }
 }
@@ -330,19 +350,35 @@ pub struct CharacterData;
 
 impl CharacterData {
     // Static method implementations for BuiltInBuilder
-    fn get_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         CharacterDataData::get_data_accessor(this, args, context)
     }
 
-    fn set_data_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_data_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         CharacterDataData::set_data_accessor(this, args, context)
     }
 
-    fn get_length_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_length_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         CharacterDataData::get_length_accessor(this, args, context)
     }
 
-    fn substring_data(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn substring_data(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         CharacterDataData::substring_data(this, args, context)
     }
 
@@ -433,4 +469,3 @@ impl BuiltInConstructor for CharacterData {
             .into())
     }
 }
-

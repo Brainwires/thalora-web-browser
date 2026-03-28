@@ -4,19 +4,21 @@
 //! https://html.spec.whatwg.org/multipage/media.html#htmlaudioelement
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, Source,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute, Source,
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex, mpsc};
+use rodio::{Decoder, OutputStream, Sink, Source as RodioSource};
 use std::io::Cursor;
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
-use rodio::{OutputStream, Sink, Decoder, Source as RodioSource};
 
 /// Audio state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,7 +172,9 @@ impl AudioThread {
     }
 
     fn send(&self, cmd: AudioCommand) -> Result<(), String> {
-        self.sender.send(cmd).map_err(|e| format!("Audio thread error: {}", e))
+        self.sender
+            .send(cmd)
+            .map_err(|e| format!("Audio thread error: {}", e))
     }
 }
 
@@ -277,8 +281,7 @@ impl HTMLAudioElementData {
     }
 
     fn load_from_file(path: &str) -> Result<(Vec<u8>, f64), String> {
-        let data = std::fs::read(path)
-            .map_err(|e| format!("Failed to read file: {}", e))?;
+        let data = std::fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
 
         let duration = Self::get_audio_duration(&data).unwrap_or(0.0);
 
@@ -322,7 +325,10 @@ impl HTMLAudioElementData {
         let state = self.state.lock().unwrap();
 
         if state.state == AudioState::Error {
-            return Err(state.error.clone().unwrap_or_else(|| "Unknown error".to_string()));
+            return Err(state
+                .error
+                .clone()
+                .unwrap_or_else(|| "Unknown error".to_string()));
         }
 
         if state.state == AudioState::Loading {
@@ -436,7 +442,10 @@ impl HTMLAudioElementData {
 
     pub fn get_paused(&self) -> bool {
         let state = self.state.lock().unwrap();
-        matches!(state.state, AudioState::Empty | AudioState::Paused | AudioState::Ended | AudioState::Ready)
+        matches!(
+            state.state,
+            AudioState::Empty | AudioState::Paused | AudioState::Ended | AudioState::Ready
+        )
     }
 
     pub fn get_ended(&self) -> bool {
@@ -447,12 +456,12 @@ impl HTMLAudioElementData {
     pub fn get_ready_state(&self) -> u16 {
         let state = self.state.lock().unwrap();
         match state.state {
-            AudioState::Empty => 0,      // HAVE_NOTHING
-            AudioState::Loading => 1,    // HAVE_METADATA
+            AudioState::Empty => 0,                      // HAVE_NOTHING
+            AudioState::Loading => 1,                    // HAVE_METADATA
             AudioState::Ready | AudioState::Paused => 4, // HAVE_ENOUGH_DATA
-            AudioState::Playing => 4,    // HAVE_ENOUGH_DATA
-            AudioState::Ended => 4,      // HAVE_ENOUGH_DATA
-            AudioState::Error => 0,      // HAVE_NOTHING
+            AudioState::Playing => 4,                    // HAVE_ENOUGH_DATA
+            AudioState::Ended => 4,                      // HAVE_ENOUGH_DATA
+            AudioState::Error => 0,                      // HAVE_NOTHING
         }
     }
 
@@ -658,7 +667,10 @@ fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let src = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let src = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             data.set_src(src);
             return Ok(JsValue::undefined());
         }
@@ -764,7 +776,11 @@ fn set_autoplay(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
         .into())
 }
 
-fn get_current_time(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_current_time(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
             return Ok(JsValue::from(data.get_current_time()));
@@ -839,13 +855,13 @@ fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
 // ============== Methods ==============
 
 fn play(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let audio_data = this_obj.downcast_ref::<HTMLAudioElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an HTMLAudioElement")
-    })?;
+    let audio_data = this_obj
+        .downcast_ref::<HTMLAudioElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLAudioElement"))?;
 
     match audio_data.play() {
         Ok(()) => {
@@ -863,26 +879,26 @@ fn play(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<Js
 }
 
 fn pause(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let audio_data = this_obj.downcast_ref::<HTMLAudioElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an HTMLAudioElement")
-    })?;
+    let audio_data = this_obj
+        .downcast_ref::<HTMLAudioElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLAudioElement"))?;
 
     audio_data.pause();
     Ok(JsValue::undefined())
 }
 
 fn load(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let audio_data = this_obj.downcast_ref::<HTMLAudioElementData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an HTMLAudioElement")
-    })?;
+    let audio_data = this_obj
+        .downcast_ref::<HTMLAudioElementData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLAudioElement"))?;
 
     // Reload the current source
     let src = audio_data.get_src();
@@ -894,7 +910,10 @@ fn load(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<J
 }
 
 fn can_play_type(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let mime_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let mime_type = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     // Check supported types based on rodio/symphonia capabilities
     let support = match mime_type.as_str() {

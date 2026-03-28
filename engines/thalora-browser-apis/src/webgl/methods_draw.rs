@@ -3,13 +3,11 @@
 //! Drawing operations and state management.
 
 use boa_engine::{
-    js_string,
-    object::builtins::JsArrayBuffer,
-    property::Attribute,
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
+    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
+    object::builtins::JsArrayBuffer, property::Attribute,
 };
 
-use super::context::{get_object_id, WebGLRenderingContextData};
+use super::context::{WebGLRenderingContextData, get_object_id};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;
 
@@ -45,7 +43,8 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // drawArrays
     obj.set(
@@ -70,7 +69,8 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // drawElements
     obj.set(
@@ -88,7 +88,13 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
                 return Ok(JsValue::undefined());
             }
 
-            if data.state.lock().unwrap().bound_element_array_buffer.is_none() {
+            if data
+                .state
+                .lock()
+                .unwrap()
+                .bound_element_array_buffer
+                .is_none()
+            {
                 data.set_error(WebGLConstants::INVALID_OPERATION);
                 return Ok(JsValue::undefined());
             }
@@ -101,29 +107,28 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // flush
     obj.set(
         js_string!("flush"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // finish
     obj.set(
         js_string!("finish"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // readPixels
     obj.set(
@@ -145,8 +150,12 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
 
             if let Some(obj) = pixels_arg.as_object() {
                 if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx) {
-                    if let Some(ab) = buffer_prop.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
-                        let byte_offset = obj.get(js_string!("byteOffset"), ctx)
+                    if let Some(ab) = buffer_prop
+                        .as_object()
+                        .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+                    {
+                        let byte_offset = obj
+                            .get(js_string!("byteOffset"), ctx)
                             .ok()
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
@@ -167,8 +176,11 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
                                     }
                                     let src_idx = ((src_y * target_width + src_x) * 4) as usize;
                                     let dst_idx = byte_offset + ((row * width + col) * 4) as usize;
-                                    if src_idx + 4 <= render_target.len() && dst_idx + 4 <= dst.len() {
-                                        dst[dst_idx..dst_idx + 4].copy_from_slice(&render_target[src_idx..src_idx + 4]);
+                                    if src_idx + 4 <= render_target.len()
+                                        && dst_idx + 4 <= dst.len()
+                                    {
+                                        dst[dst_idx..dst_idx + 4]
+                                            .copy_from_slice(&render_target[src_idx..src_idx + 4]);
                                     }
                                 }
                             }
@@ -182,7 +194,8 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add state methods
@@ -203,7 +216,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // clearDepth
     obj.set(
@@ -218,7 +232,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // clearStencil
     obj.set(
@@ -233,7 +248,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // enable
     obj.set(
@@ -263,7 +279,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // disable
     obj.set(
@@ -293,7 +310,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // isEnabled
     obj.set(
@@ -320,7 +338,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // viewport
     obj.set(
@@ -338,7 +357,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // scissor
     obj.set(
@@ -356,7 +376,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // blendFunc
     obj.set(
@@ -376,7 +397,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // blendFuncSeparate
     obj.set(
@@ -398,7 +420,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // blendEquation
     obj.set(
@@ -415,7 +438,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // depthFunc
     obj.set(
@@ -430,7 +454,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // depthMask
     obj.set(
@@ -445,7 +470,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // colorMask
     obj.set(
@@ -463,7 +489,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // cullFace
     obj.set(
@@ -478,7 +505,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // frontFace
     obj.set(
@@ -493,7 +521,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // lineWidth
     obj.set(
@@ -508,7 +537,8 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // pixelStorei
     obj.set(
@@ -542,5 +572,6 @@ pub fn add_state_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

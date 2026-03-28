@@ -3,13 +3,12 @@
 use std::cell::RefCell;
 
 use rmcp::{
-    RoleServer, ServerHandler,
+    ErrorData as McpError, RoleServer, ServerHandler,
     model::{
         CallToolRequestParams, CallToolResult, Implementation, ListToolsResult,
         PaginatedRequestParams, ServerCapabilities, ServerInfo,
     },
     service::RequestContext,
-    Error as McpError,
 };
 
 use crate::engine::EngineConfig;
@@ -35,8 +34,10 @@ impl McpServerService {
 
 impl ServerHandler for McpServerService {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::default())
-            .with_server_info(Implementation::new("thalora-mcp-server", env!("CARGO_PKG_VERSION")))
+        ServerInfo::new(ServerCapabilities::default()).with_server_info(Implementation::new(
+            "thalora-mcp-server",
+            env!("CARGO_PKG_VERSION"),
+        ))
     }
 
     async fn list_tools(

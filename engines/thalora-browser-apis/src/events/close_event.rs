@@ -4,14 +4,15 @@
 //! https://websockets.spec.whatwg.org/#closeevent
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -88,19 +89,23 @@ impl BuiltInConstructor for CloseEvent {
 
         let event_type = type_arg.to_string(context)?;
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::close_event, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::close_event, context)?;
 
         let (was_clean, code, reason) = if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
-                let was_clean = init_obj.get(js_string!("wasClean"), context)
+                let was_clean = init_obj
+                    .get(js_string!("wasClean"), context)
                     .ok()
                     .map(|v| v.to_boolean())
                     .unwrap_or(false);
-                let code = init_obj.get(js_string!("code"), context)
+                let code = init_obj
+                    .get(js_string!("code"), context)
                     .ok()
                     .and_then(|v| v.to_u32(context).ok())
                     .unwrap_or(0) as u16;
-                let reason = init_obj.get(js_string!("reason"), context)
+                let reason = init_obj
+                    .get(js_string!("reason"), context)
                     .ok()
                     .map(|v| v.to_string(context).ok())
                     .flatten()
@@ -114,12 +119,8 @@ impl BuiltInConstructor for CloseEvent {
             (false, 0, String::new())
         };
 
-        let close_event_data = CloseEventData::new(
-            event_type.to_std_string_escaped(),
-            was_clean,
-            code,
-            reason,
-        );
+        let close_event_data =
+            CloseEventData::new(event_type.to_std_string_escaped(), was_clean, code, reason);
         let close_event_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -138,15 +139,30 @@ impl BuiltInConstructor for CloseEvent {
         close_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         close_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
         close_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        close_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        close_event_generic.set(
+            js_string!("timeStamp"),
+            context.clock().now().millis_since_epoch(),
+            false,
+            context,
+        )?;
 
         if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
                 if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    close_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                    close_event_generic.set(
+                        js_string!("bubbles"),
+                        bubbles_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    close_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                    close_event_generic.set(
+                        js_string!("cancelable"),
+                        cancelable_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
             }
         }
@@ -169,7 +185,12 @@ struct CloseEventData {
 
 impl CloseEventData {
     fn new(event_type: String, was_clean: bool, code: u16, reason: String) -> Self {
-        Self { event_type, was_clean, code, reason }
+        Self {
+            event_type,
+            was_clean,
+            code,
+            reason,
+        }
     }
 }
 
@@ -179,7 +200,8 @@ fn get_was_clean(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> J
     })?;
 
     let close_event = this_obj.downcast_ref::<CloseEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("CloseEvent.prototype.wasClean called on non-CloseEvent object")
+        JsNativeError::typ()
+            .with_message("CloseEvent.prototype.wasClean called on non-CloseEvent object")
     })?;
 
     Ok(JsValue::from(close_event.was_clean))
@@ -191,7 +213,8 @@ fn get_code(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResu
     })?;
 
     let close_event = this_obj.downcast_ref::<CloseEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("CloseEvent.prototype.code called on non-CloseEvent object")
+        JsNativeError::typ()
+            .with_message("CloseEvent.prototype.code called on non-CloseEvent object")
     })?;
 
     Ok(JsValue::from(close_event.code))
@@ -203,7 +226,8 @@ fn get_reason(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
     })?;
 
     let close_event = this_obj.downcast_ref::<CloseEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("CloseEvent.prototype.reason called on non-CloseEvent object")
+        JsNativeError::typ()
+            .with_message("CloseEvent.prototype.reason called on non-CloseEvent object")
     })?;
 
     Ok(js_string!(close_event.reason.clone()).into())
@@ -223,7 +247,9 @@ mod tests {
     #[test]
     fn test_close_event_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof CloseEvent === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof CloseEvent === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 

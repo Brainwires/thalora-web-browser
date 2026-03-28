@@ -5,13 +5,15 @@
 //! https://html.spec.whatwg.org/multipage/canvas.html#the-offscreencanvas-interface
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, Source,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute, Source,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -128,7 +130,11 @@ impl IntrinsicObject for OffscreenCanvas {
             )
             .method(get_context, js_string!("getContext"), 1)
             .method(convert_to_blob, js_string!("convertToBlob"), 0)
-            .method(transfer_to_image_bitmap, js_string!("transferToImageBitmap"), 0)
+            .method(
+                transfer_to_image_bitmap,
+                js_string!("transferToImageBitmap"),
+                0,
+            )
             .build();
     }
 
@@ -237,13 +243,13 @@ fn set_height(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 // ============== Methods ==============
 
 fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let canvas_data = this_obj.downcast_ref::<OffscreenCanvasData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an OffscreenCanvas")
-    })?;
+    let canvas_data = this_obj
+        .downcast_ref::<OffscreenCanvasData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an OffscreenCanvas"))?;
 
     let context_type = args
         .get_or_undefined(0)
@@ -290,13 +296,13 @@ fn get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 }
 
 fn convert_to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let canvas_data = this_obj.downcast_ref::<OffscreenCanvasData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an OffscreenCanvas")
-    })?;
+    let canvas_data = this_obj
+        .downcast_ref::<OffscreenCanvasData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an OffscreenCanvas"))?;
 
     // Get options
     let _options = args.get(0);
@@ -310,7 +316,11 @@ fn convert_to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
                 // Create a Uint8Array from the PNG data
                 let typed_array = context.eval(Source::from_bytes(&format!(
                     "new Uint8Array([{}])",
-                    png_data.iter().map(|b| b.to_string()).collect::<Vec<_>>().join(",")
+                    png_data
+                        .iter()
+                        .map(|b| b.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
                 )))?;
 
                 // Return a resolved promise with the "blob" (typed array for now)
@@ -326,18 +336,22 @@ fn convert_to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
 
     // Return a rejected promise if something went wrong
     context.eval(Source::from_bytes(
-        "Promise.reject(new Error('Failed to convert canvas to blob'))"
+        "Promise.reject(new Error('Failed to convert canvas to blob'))",
     ))
 }
 
-fn transfer_to_image_bitmap(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn transfer_to_image_bitmap(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let canvas_data = this_obj.downcast_ref::<OffscreenCanvasData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an OffscreenCanvas")
-    })?;
+    let canvas_data = this_obj
+        .downcast_ref::<OffscreenCanvasData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an OffscreenCanvas"))?;
 
     // Get the current image data
     if let Some((width, height, data)) = canvas_data.get_image_data() {

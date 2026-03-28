@@ -6,10 +6,7 @@
 //! This provides vibration support for headless browser operation.
 //! In headless mode, vibration requests are recorded but no actual vibration occurs.
 
-use boa_engine::{
-    value::JsValue,
-    Context, JsArgs, JsResult, js_string,
-};
+use boa_engine::{Context, JsArgs, JsResult, js_string, value::JsValue};
 use std::sync::{Arc, Mutex};
 
 /// Global vibration state for testing/inspection
@@ -34,7 +31,11 @@ struct VibrationState {
 /// - An array of numbers: alternating vibrate/pause durations
 ///
 /// Returns true if vibration was initiated, false otherwise
-pub fn navigator_vibrate(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+pub fn navigator_vibrate(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let pattern_arg = args.get_or_undefined(0);
 
     // Parse the vibration pattern
@@ -71,7 +72,8 @@ fn parse_vibration_pattern(value: &JsValue, context: &mut Context) -> JsResult<V
 
     // If it's an array, parse each element
     if let Some(obj) = value.as_object() {
-        let length = obj.get(js_string!("length"), context)?
+        let length = obj
+            .get(js_string!("length"), context)?
             .to_u32(context)
             .unwrap_or(0);
 

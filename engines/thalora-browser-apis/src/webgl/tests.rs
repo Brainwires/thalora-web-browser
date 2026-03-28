@@ -1,14 +1,13 @@
 //! Comprehensive test suite for WebGL APIs
 //! Tests WebGLRenderingContext, WebGL2RenderingContext, and related objects
 
-use boa_engine::{Context, Source, JsValue};
 use boa_engine::string::JsString;
+use boa_engine::{Context, JsValue, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {
     let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context)
-        .expect("Failed to initialize browser APIs");
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     context
 }
 
@@ -19,7 +18,9 @@ fn create_test_context() -> Context {
 #[test]
 fn test_webglrenderingcontext_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof WebGLRenderingContext")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof WebGLRenderingContext"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
@@ -30,72 +31,104 @@ fn test_webglrenderingcontext_constructor_exists() {
 #[test]
 fn test_webgl_constants_depth_buffer_bit() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.DEPTH_BUFFER_BIT === 0x00000100;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_color_buffer_bit() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.COLOR_BUFFER_BIT === 0x00004000;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_triangles() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.TRIANGLES === 0x0004;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_array_buffer() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.ARRAY_BUFFER === 0x8892;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_vertex_shader() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.VERTEX_SHADER === 0x8B31;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_fragment_shader() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.FRAGMENT_SHADER === 0x8B30;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_static_draw() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.STATIC_DRAW === 0x88E4;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_constants_float() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         WebGLRenderingContext.FLOAT === 0x1406;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -106,11 +139,15 @@ fn test_webgl_constants_float() {
 #[test]
 fn test_canvas_getcontext_webgl() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let canvas = new HTMLCanvasElement();
         let gl = canvas.getContext('webgl');
         gl !== null || gl === null; // May return null if WebGL not supported
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -121,45 +158,65 @@ fn test_canvas_getcontext_webgl() {
 #[test]
 fn test_webgl_createshader_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.createShader === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_shadersource_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.shaderSource === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_compileshader_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.compileShader === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_deleteshader_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.deleteShader === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_getshaderparameter_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.getShaderParameter === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -170,45 +227,65 @@ fn test_webgl_getshaderparameter_method_type() {
 #[test]
 fn test_webgl_createprogram_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.createProgram === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_attachshader_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.attachShader === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_linkprogram_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.linkProgram === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_useprogram_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.useProgram === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_deleteprogram_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.deleteProgram === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -219,36 +296,52 @@ fn test_webgl_deleteprogram_method_type() {
 #[test]
 fn test_webgl_createbuffer_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.createBuffer === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_bindbuffer_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.bindBuffer === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_bufferdata_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.bufferData === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_deletebuffer_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.deleteBuffer === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -259,36 +352,52 @@ fn test_webgl_deletebuffer_method_type() {
 #[test]
 fn test_webgl_createtexture_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.createTexture === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_bindtexture_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.bindTexture === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_teximage2d_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.texImage2D === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_texparameteri_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.texParameteri === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -299,54 +408,78 @@ fn test_webgl_texparameteri_method_type() {
 #[test]
 fn test_webgl_getuniformlocation_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.getUniformLocation === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_uniform1f_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.uniform1f === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_uniform2f_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.uniform2f === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_uniform3f_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.uniform3f === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_uniform4f_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.uniform4f === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_uniformmatrix4fv_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.uniformMatrix4fv === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -357,36 +490,52 @@ fn test_webgl_uniformmatrix4fv_method_type() {
 #[test]
 fn test_webgl_getattriblocation_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.getAttribLocation === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_vertexattribpointer_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.vertexAttribPointer === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_enablevertexattribarray_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.enableVertexAttribArray === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_disablevertexattribarray_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.disableVertexAttribArray === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -397,45 +546,65 @@ fn test_webgl_disablevertexattribarray_method_type() {
 #[test]
 fn test_webgl_drawarrays_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.drawArrays === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_drawelements_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.drawElements === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_clear_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.clear === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_clearcolor_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.clearColor === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_viewport_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.viewport === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -446,36 +615,52 @@ fn test_webgl_viewport_method_type() {
 #[test]
 fn test_webgl_enable_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.enable === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_disable_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.disable === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_getparameter_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.getParameter === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl_geterror_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGLRenderingContext.prototype.getError === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -486,7 +671,9 @@ fn test_webgl_geterror_method_type() {
 #[test]
 fn test_webgl2renderingcontext_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof WebGL2RenderingContext")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof WebGL2RenderingContext"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
@@ -497,27 +684,39 @@ fn test_webgl2renderingcontext_constructor_exists() {
 #[test]
 fn test_webgl2_createvertexarray_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.createVertexArray === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_bindvertexarray_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.bindVertexArray === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_deletevertexarray_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.deleteVertexArray === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -528,27 +727,39 @@ fn test_webgl2_deletevertexarray_method_type() {
 #[test]
 fn test_webgl2_createquery_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.createQuery === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_beginquery_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.beginQuery === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_endquery_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.endQuery === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -559,18 +770,26 @@ fn test_webgl2_endquery_method_type() {
 #[test]
 fn test_webgl2_createsampler_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.createSampler === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_bindsampler_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.bindSampler === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -581,18 +800,26 @@ fn test_webgl2_bindsampler_method_type() {
 #[test]
 fn test_webgl2_fencesync_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.fenceSync === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_clientwaitsync_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.clientWaitSync === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -603,27 +830,39 @@ fn test_webgl2_clientwaitsync_method_type() {
 #[test]
 fn test_webgl2_createtransformfeedback_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.createTransformFeedback === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_bindtransformfeedback_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.bindTransformFeedback === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_begintransformfeedback_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.beginTransformFeedback === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -634,26 +873,38 @@ fn test_webgl2_begintransformfeedback_method_type() {
 #[test]
 fn test_webgl2_getuniformblockindex_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.getUniformBlockIndex === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_bindbufferbase_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.bindBufferBase === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_webgl2_bindbufferrange_method_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof WebGL2RenderingContext.prototype.bindBufferRange === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }

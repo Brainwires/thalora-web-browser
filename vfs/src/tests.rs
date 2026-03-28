@@ -1,8 +1,8 @@
 use super::fs;
-use std::path::PathBuf;
 use super::{VfsInstance, set_current_vfs};
-use std::sync::Arc;
 use std::fs as stdfs;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 #[test]
 fn basic_write_read() {

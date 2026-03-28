@@ -7,28 +7,28 @@
 //! to describe an offer or answer for an RTCPeerConnection.
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsArgs, JsData, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
     },
 };
 use tokio::sync::Mutex as TokioMutex;
 use webrtc::{
-    peer_connection::sdp::session_description::RTCSessionDescription as WebRTCSessionDescription,
     peer_connection::sdp::sdp_type::RTCSdpType,
+    peer_connection::sdp::session_description::RTCSessionDescription as WebRTCSessionDescription,
 };
 
 /// RTCSessionDescription type enumeration according to WHATWG specification
@@ -151,7 +151,10 @@ impl RTCSessionDescriptionData {
         format!(
             "{{\"type\":\"{}\",\"sdp\":\"{}\"}}",
             type_str,
-            self.sdp.replace('"', "\\\"").replace('\n', "\\n").replace('\r', "\\r")
+            self.sdp
+                .replace('"', "\\\"")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r")
         )
     }
 }
@@ -165,7 +168,10 @@ pub struct SessionDescriptionManager {
 impl std::fmt::Debug for SessionDescriptionManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SessionDescriptionManager")
-            .field("descriptions", &"Arc<TokioMutex<HashMap<String, Arc<WebRTCSessionDescription>>>>")
+            .field(
+                "descriptions",
+                &"Arc<TokioMutex<HashMap<String, Arc<WebRTCSessionDescription>>>>",
+            )
             .field("description_counter", &self.description_counter)
             .finish()
     }
@@ -187,7 +193,11 @@ impl SessionDescriptionManager {
     }
 
     /// Register a session description
-    pub async fn register_description(&self, id: String, description: Arc<WebRTCSessionDescription>) {
+    pub async fn register_description(
+        &self,
+        id: String,
+        description: Arc<WebRTCSessionDescription>,
+    ) {
         self.descriptions.lock().await.insert(id, description);
     }
 
@@ -269,13 +279,16 @@ impl BuiltInConstructor for RTCSessionDescriptionBuiltin {
 
         let description_init = args.get_or_undefined(0);
 
-        let session_description_data = if description_init.is_undefined() || description_init.is_null() {
+        let session_description_data = if description_init.is_undefined()
+            || description_init.is_null()
+        {
             // Create empty RTCSessionDescription if no init provided
             RTCSessionDescriptionData::new_empty()
         } else {
             // Parse the RTCSessionDescriptionInit dictionary
             let description_obj = description_init.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("RTCSessionDescription constructor requires an object or null")
+                JsNativeError::typ()
+                    .with_message("RTCSessionDescription constructor requires an object or null")
             })?;
 
             // Extract type (required)
@@ -288,14 +301,12 @@ impl BuiltInConstructor for RTCSessionDescriptionBuiltin {
             let sdp = sdp_value.to_string(context)?.to_std_string_escaped();
 
             // Create RTCSessionDescriptionInit
-            let description_init = RTCSessionDescriptionInit {
-                sdp_type,
-                sdp,
-            };
+            let description_init = RTCSessionDescriptionInit { sdp_type, sdp };
 
             // Create the RTCSessionDescriptionData
             RTCSessionDescriptionData::new(description_init).map_err(|e| {
-                JsNativeError::typ().with_message(format!("Failed to create RTCSessionDescription: {}", e))
+                JsNativeError::typ()
+                    .with_message(format!("Failed to create RTCSessionDescription: {}", e))
             })?
         };
 
@@ -320,9 +331,12 @@ impl RTCSessionDescriptionBuiltin {
             JsNativeError::typ().with_message("RTCSessionDescription method called on non-object")
         })?;
 
-        let data = obj.downcast_ref::<RTCSessionDescriptionData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("RTCSessionDescription method called on wrong object type")
-        })?;
+        let data = obj
+            .downcast_ref::<RTCSessionDescriptionData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("RTCSessionDescription method called on wrong object type")
+            })?;
 
         Ok(data.sdp_type.clone().into())
     }
@@ -337,9 +351,12 @@ impl RTCSessionDescriptionBuiltin {
             JsNativeError::typ().with_message("RTCSessionDescription method called on non-object")
         })?;
 
-        let data = obj.downcast_ref::<RTCSessionDescriptionData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("RTCSessionDescription method called on wrong object type")
-        })?;
+        let data = obj
+            .downcast_ref::<RTCSessionDescriptionData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("RTCSessionDescription method called on wrong object type")
+            })?;
 
         Ok(JsValue::from(js_string!(data.sdp().to_string())))
     }
@@ -354,9 +371,12 @@ impl RTCSessionDescriptionBuiltin {
             JsNativeError::typ().with_message("RTCSessionDescription method called on non-object")
         })?;
 
-        let data = obj.downcast_ref::<RTCSessionDescriptionData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("RTCSessionDescription method called on wrong object type")
-        })?;
+        let data = obj
+            .downcast_ref::<RTCSessionDescriptionData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("RTCSessionDescription method called on wrong object type")
+            })?;
 
         let json_string = data.to_json();
         Ok(JsValue::from(js_string!(json_string)))

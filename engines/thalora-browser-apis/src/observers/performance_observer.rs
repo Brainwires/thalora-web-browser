@@ -8,11 +8,10 @@
 //! performance timeline.
 
 use boa_engine::{
-    js_string,
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string,
     object::{FunctionObjectBuilder, JsObject, ObjectInitializer},
     property::Attribute,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, NativeFunction,
 };
 
 /// JavaScript `PerformanceObserver` implementation.
@@ -105,8 +104,8 @@ impl PerformanceObserver {
             "first-input",
         ];
 
-        let array = boa_engine::object::builtins::JsArray::new(context)
-            .expect("Failed to create array");
+        let array =
+            boa_engine::object::builtins::JsArray::new(context).expect("Failed to create array");
         for (i, entry_type) in entry_types.iter().enumerate() {
             array
                 .set(i as u32, js_string!(*entry_type), false, context)
@@ -117,11 +116,7 @@ impl PerformanceObserver {
     }
 
     /// Constructor function for PerformanceObserver
-    fn constructor(
-        _this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn constructor(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Get the callback function (required parameter)
         let callback = args.get_or_undefined(0);
         if !callback.is_callable() {
@@ -154,12 +149,9 @@ impl PerformanceObserver {
         // Add methods
         observer_obj.set(
             js_string!("observe"),
-            FunctionObjectBuilder::new(
-                context.realm(),
-                NativeFunction::from_fn_ptr(Self::observe),
-            )
-            .length(1)
-            .build(),
+            FunctionObjectBuilder::new(context.realm(), NativeFunction::from_fn_ptr(Self::observe))
+                .length(1)
+                .build(),
             false,
             context,
         )?;
@@ -260,8 +252,7 @@ impl PerformanceObserver {
     /// `PerformanceObserver.prototype.disconnect()` method
     fn disconnect(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("PerformanceObserver.disconnect called on non-object")
+            JsNativeError::typ().with_message("PerformanceObserver.disconnect called on non-object")
         })?;
 
         // Clear observation state

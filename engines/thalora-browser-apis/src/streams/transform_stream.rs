@@ -6,17 +6,21 @@
 //! This implements the complete TransformStream interface according to the
 //! WHATWG Streams Living Standard
 
+use super::{readable_stream::ReadableStream, writable_stream::WritableStream};
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, promise::Promise},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{
+        BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject, promise::Promise,
+    },
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
-use super::{readable_stream::ReadableStream, writable_stream::WritableStream};
 
 /// JavaScript `TransformStream` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -86,19 +90,33 @@ impl BuiltInConstructor for TransformStream {
 
         // Create readable and writable streams
         let readable_stream = ReadableStream::constructor(
-            &context.intrinsics().constructors().readable_stream().constructor().into(),
+            &context
+                .intrinsics()
+                .constructors()
+                .readable_stream()
+                .constructor()
+                .into(),
             &[JsValue::undefined(), readable_strategy.clone()],
             context,
         )?;
 
         let writable_stream = WritableStream::constructor(
-            &context.intrinsics().constructors().writable_stream().constructor().into(),
+            &context
+                .intrinsics()
+                .constructors()
+                .writable_stream()
+                .constructor()
+                .into(),
             &[JsValue::undefined(), writable_strategy.clone()],
             context,
         )?;
 
         // Create the TransformStream object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::transform_stream, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::transform_stream,
+            context,
+        )?;
         let transform_stream = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -137,37 +155,37 @@ impl TransformStreamData {
 }
 
 /// Get the readable property of a TransformStream
-fn get_readable(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_readable(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("TransformStream.prototype.readable getter called on non-object")
+        JsNativeError::typ()
+            .with_message("TransformStream.prototype.readable getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<TransformStreamData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("TransformStream.prototype.readable getter called on incompatible object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<TransformStreamData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "TransformStream.prototype.readable getter called on incompatible object",
+            )
+        })?;
 
     Ok(JsValue::from(data.readable.clone()))
 }
 
 /// Get the writable property of a TransformStream
-fn get_writable(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_writable(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("TransformStream.prototype.writable getter called on non-object")
+        JsNativeError::typ()
+            .with_message("TransformStream.prototype.writable getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<TransformStreamData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("TransformStream.prototype.writable getter called on incompatible object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<TransformStreamData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "TransformStream.prototype.writable getter called on incompatible object",
+            )
+        })?;
 
     Ok(JsValue::from(data.writable.clone()))
 }

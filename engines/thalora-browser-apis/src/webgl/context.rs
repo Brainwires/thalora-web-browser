@@ -6,11 +6,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use boa_engine::{
-    js_string,
-    object::{Object, FunctionObjectBuilder, ObjectInitializer},
-    NativeFunction,
+    Context, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
+    object::{FunctionObjectBuilder, Object, ObjectInitializer},
     realm::Realm,
-    Context, JsData, JsNativeError, JsObject, JsResult, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -88,7 +86,9 @@ impl WebGLRenderingContextData {
             textures: Arc::new(Mutex::new(HashMap::new())),
             framebuffers: Arc::new(Mutex::new(HashMap::new())),
             renderbuffers: Arc::new(Mutex::new(HashMap::new())),
-            vertex_attribs: Arc::new(Mutex::new(std::array::from_fn(|_| VertexAttribArray::default()))),
+            vertex_attribs: Arc::new(Mutex::new(std::array::from_fn(|_| {
+                VertexAttribArray::default()
+            }))),
             error: Arc::new(Mutex::new(WebGLConstants::NO_ERROR)),
             render_target: Arc::new(Mutex::new(render_target)),
             uniform_values: Arc::new(Mutex::new(HashMap::new())),
@@ -122,9 +122,11 @@ macro_rules! with_webgl_context {
         let $obj = $this.as_object().ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("Not a WebGLRenderingContext")
         })?;
-        let $data = $obj.downcast_ref::<$crate::webgl::context::WebGLRenderingContextData>().ok_or_else(|| {
-            boa_engine::JsNativeError::typ().with_message("Not a WebGLRenderingContext")
-        })?;
+        let $data = $obj
+            .downcast_ref::<$crate::webgl::context::WebGLRenderingContextData>()
+            .ok_or_else(|| {
+                boa_engine::JsNativeError::typ().with_message("Not a WebGLRenderingContext")
+            })?;
     };
 }
 
@@ -143,7 +145,11 @@ impl WebGLRenderingContext {
     /// Per Web spec, WebGLRenderingContext IS a global constructor with static constants
     pub fn create_global_constructor(context: &mut Context) -> JsResult<JsObject> {
         // The constructor itself throws when called - contexts are created via getContext()
-        fn webgl_constructor(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        fn webgl_constructor(
+            _this: &JsValue,
+            _args: &[JsValue],
+            _context: &mut Context,
+        ) -> JsResult<JsValue> {
             Err(JsNativeError::typ()
                 .with_message("WebGLRenderingContext cannot be directly constructed; use canvas.getContext('webgl')")
                 .into())
@@ -207,8 +213,18 @@ impl WebGLRenderingContext {
         obj.set(js_string!("canvas"), JsValue::null(), false, context)?;
 
         // Add drawing buffer properties
-        obj.set(js_string!("drawingBufferWidth"), JsValue::from(width), false, context)?;
-        obj.set(js_string!("drawingBufferHeight"), JsValue::from(height), false, context)?;
+        obj.set(
+            js_string!("drawingBufferWidth"),
+            JsValue::from(width),
+            false,
+            context,
+        )?;
+        obj.set(
+            js_string!("drawingBufferHeight"),
+            JsValue::from(height),
+            false,
+            context,
+        )?;
 
         Ok(obj)
     }
@@ -235,14 +251,20 @@ pub fn get_location_id(val: &JsValue, ctx: &mut Context) -> JsResult<u32> {
 }
 
 /// Get parameter value
-pub fn get_parameter(data: &WebGLRenderingContextData, pname: u32, ctx: &mut Context) -> JsResult<JsValue> {
+pub fn get_parameter(
+    data: &WebGLRenderingContextData,
+    pname: u32,
+    ctx: &mut Context,
+) -> JsResult<JsValue> {
     let state = data.state.lock().unwrap();
 
     match pname {
         WebGLConstants::VENDOR => Ok(JsValue::from(js_string!("Thalora"))),
         WebGLConstants::RENDERER => Ok(JsValue::from(js_string!("Thalora WebGL"))),
         WebGLConstants::VERSION => Ok(JsValue::from(js_string!("WebGL 1.0 (Thalora)"))),
-        WebGLConstants::SHADING_LANGUAGE_VERSION => Ok(JsValue::from(js_string!("WebGL GLSL ES 1.0"))),
+        WebGLConstants::SHADING_LANGUAGE_VERSION => {
+            Ok(JsValue::from(js_string!("WebGL GLSL ES 1.0")))
+        }
         WebGLConstants::MAX_TEXTURE_SIZE => Ok(JsValue::from(4096)),
         WebGLConstants::MAX_CUBE_MAP_TEXTURE_SIZE => Ok(JsValue::from(4096)),
         WebGLConstants::MAX_RENDERBUFFER_SIZE => Ok(JsValue::from(4096)),
@@ -296,7 +318,9 @@ pub fn get_parameter(data: &WebGLRenderingContextData, pname: u32, ctx: &mut Con
         WebGLConstants::UNPACK_ALIGNMENT => Ok(JsValue::from(state.unpack_alignment)),
         WebGLConstants::PACK_ALIGNMENT => Ok(JsValue::from(state.pack_alignment)),
         WebGLConstants::UNPACK_FLIP_Y_WEBGL => Ok(JsValue::from(state.unpack_flip_y)),
-        WebGLConstants::UNPACK_PREMULTIPLY_ALPHA_WEBGL => Ok(JsValue::from(state.unpack_premultiply_alpha)),
+        WebGLConstants::UNPACK_PREMULTIPLY_ALPHA_WEBGL => {
+            Ok(JsValue::from(state.unpack_premultiply_alpha))
+        }
         _ => Ok(JsValue::null()),
     }
 }

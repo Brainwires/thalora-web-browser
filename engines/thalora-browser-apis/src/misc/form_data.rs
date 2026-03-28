@@ -4,13 +4,14 @@
 //! https://xhr.spec.whatwg.org/#interface-formdata
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -63,13 +64,11 @@ impl BuiltInConstructor for FormData {
                 .into());
         }
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::form_data, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::form_data, context)?;
         let form_data = FormDataData::new();
-        let form_data_obj = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            proto,
-            form_data,
-        );
+        let form_data_obj =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), proto, form_data);
 
         Ok(form_data_obj.upcast().into())
     }
@@ -95,11 +94,20 @@ fn append(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("FormData.prototype.append called on non-object")
     })?;
 
-    let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    let value = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let value = args
+        .get_or_undefined(1)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<FormDataData>() {
-        data.entries.entry(name).or_insert_with(Vec::new).push(value);
+        data.entries
+            .entry(name)
+            .or_insert_with(Vec::new)
+            .push(value);
     }
 
     Ok(JsValue::undefined())
@@ -110,7 +118,10 @@ fn delete(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("FormData.prototype.delete called on non-object")
     })?;
 
-    let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<FormDataData>() {
         data.entries.remove(&name);
@@ -124,7 +135,10 @@ fn get(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("FormData.prototype.get called on non-object")
     })?;
 
-    let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         if let Some(values) = data.entries.get(&name) {
@@ -142,7 +156,10 @@ fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         JsNativeError::typ().with_message("FormData.prototype.getAll called on non-object")
     })?;
 
-    let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         if let Some(values) = data.entries.get(&name) {
@@ -162,7 +179,10 @@ fn has(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("FormData.prototype.has called on non-object")
     })?;
 
-    let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
         return Ok(JsValue::from(data.entries.contains_key(&name)));
@@ -176,8 +196,14 @@ fn set(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVa
         JsNativeError::typ().with_message("FormData.prototype.set called on non-object")
     })?;
 
-    let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    let value = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+    let name = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let value = args
+        .get_or_undefined(1)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     if let Some(mut data) = this_obj.downcast_mut::<FormDataData>() {
         data.entries.insert(name, vec![value]);
@@ -288,29 +314,39 @@ mod tests {
     #[test]
     fn test_form_data_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof FormData === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof FormData === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_form_data_append_get() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const fd = new FormData();
             fd.append('key', 'value');
             fd.get('key') === 'value';
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_form_data_has() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const fd = new FormData();
             fd.append('key', 'value');
             fd.has('key') === true && fd.has('missing') === false;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

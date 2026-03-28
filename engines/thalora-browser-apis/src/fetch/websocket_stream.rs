@@ -6,13 +6,15 @@
 //! This implements the WebSocketStream interface for Chrome 124+
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::Arc;
@@ -100,7 +102,8 @@ impl BuiltInConstructor for WebSocketStream {
         )?;
 
         let options = args.get(1).cloned().unwrap_or(JsValue::undefined());
-        let websocket_stream_data = WebSocketStreamData::new(url_string.to_std_string_escaped(), options);
+        let websocket_stream_data =
+            WebSocketStreamData::new(url_string.to_std_string_escaped(), options);
 
         let websocket_stream = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -150,10 +153,12 @@ fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
         JsNativeError::typ().with_message("WebSocketStream.prototype.url called on non-object")
     })?;
 
-    let websocket_stream = this_obj.downcast_ref::<WebSocketStreamData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("WebSocketStream.prototype.url called on non-WebSocketStream object")
-    })?;
+    let websocket_stream = this_obj
+        .downcast_ref::<WebSocketStreamData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("WebSocketStream.prototype.url called on non-WebSocketStream object")
+        })?;
 
     Ok(JsString::from(websocket_stream.url.as_str()).into())
 }
@@ -161,14 +166,17 @@ fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 /// `WebSocketStream.prototype.readyState` getter
 fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocketStream.prototype.readyState called on non-object")
+        JsNativeError::typ()
+            .with_message("WebSocketStream.prototype.readyState called on non-object")
     })?;
 
     let value = if let Some(websocket_stream) = this_obj.downcast_ref::<WebSocketStreamData>() {
         websocket_stream.get_ready_state()
     } else {
         return Err(JsNativeError::typ()
-            .with_message("WebSocketStream.prototype.readyState called on non-WebSocketStream object")
+            .with_message(
+                "WebSocketStream.prototype.readyState called on non-WebSocketStream object",
+            )
             .into());
     };
     Ok(JsValue::from(value))
@@ -181,12 +189,14 @@ fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<
     })?;
 
     {
-            let websocket_stream = this_obj.downcast_ref::<WebSocketStreamData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("WebSocketStream.prototype.close called on non-WebSocketStream object")
+        let websocket_stream = this_obj
+            .downcast_ref::<WebSocketStreamData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "WebSocketStream.prototype.close called on non-WebSocketStream object",
+                )
             })?;
-            websocket_stream.close();
-        }
-        Ok(JsValue::undefined())
+        websocket_stream.close();
+    }
+    Ok(JsValue::undefined())
 }
-

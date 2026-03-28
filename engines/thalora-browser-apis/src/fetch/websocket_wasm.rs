@@ -4,13 +4,15 @@
 //! This module provides placeholder types for API compatibility.
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 
@@ -72,7 +74,9 @@ impl BuiltInConstructor for WebSocket {
     ) -> JsResult<JsValue> {
         // In WASM builds, WebSocket should be used directly from JavaScript
         Err(JsNativeError::error()
-            .with_message("WebSocket is not available in WASM. Use the browser's native WebSocket API.")
+            .with_message(
+                "WebSocket is not available in WASM. Use the browser's native WebSocket API.",
+            )
             .into())
     }
 }

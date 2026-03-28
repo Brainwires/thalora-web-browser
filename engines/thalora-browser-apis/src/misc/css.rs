@@ -6,18 +6,18 @@
 //! https://www.w3.org/TR/css-houdini-drafts/
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
     context::intrinsics::Intrinsics,
+    js_string,
     object::JsObject,
+    property::PropertyDescriptorBuilder,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string, JsString,
-    property::PropertyDescriptorBuilder,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
-
 
 /// JavaScript `CSS` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -104,52 +104,162 @@ struct CssPropertySupport;
 impl CssPropertySupport {
     fn is_property_supported(property: &str, value: Option<&str>) -> bool {
         let supported_properties = HashMap::from([
-            ("display", vec!["flex", "grid", "block", "inline", "inline-block", "none", "table", "table-cell"]),
-            ("position", vec!["static", "relative", "absolute", "fixed", "sticky"]),
-            ("flex-direction", vec!["row", "column", "row-reverse", "column-reverse"]),
-            ("grid-template-columns", vec!["auto", "fr", "px", "%", "repeat"]),
-            ("transform", vec!["translateX", "translateY", "translate", "rotate", "scale", "matrix"]),
-            ("filter", vec!["blur", "brightness", "contrast", "grayscale", "hue-rotate"]),
-            ("backdrop-filter", vec!["blur", "brightness", "contrast", "grayscale"]),
+            (
+                "display",
+                vec![
+                    "flex",
+                    "grid",
+                    "block",
+                    "inline",
+                    "inline-block",
+                    "none",
+                    "table",
+                    "table-cell",
+                ],
+            ),
+            (
+                "position",
+                vec!["static", "relative", "absolute", "fixed", "sticky"],
+            ),
+            (
+                "flex-direction",
+                vec!["row", "column", "row-reverse", "column-reverse"],
+            ),
+            (
+                "grid-template-columns",
+                vec!["auto", "fr", "px", "%", "repeat"],
+            ),
+            (
+                "transform",
+                vec![
+                    "translateX",
+                    "translateY",
+                    "translate",
+                    "rotate",
+                    "scale",
+                    "matrix",
+                ],
+            ),
+            (
+                "filter",
+                vec!["blur", "brightness", "contrast", "grayscale", "hue-rotate"],
+            ),
+            (
+                "backdrop-filter",
+                vec!["blur", "brightness", "contrast", "grayscale"],
+            ),
             ("clip-path", vec!["polygon", "circle", "ellipse", "inset"]),
             ("mask", vec!["url", "linear-gradient", "radial-gradient"]),
             ("scroll-behavior", vec!["auto", "smooth"]),
-            ("scroll-snap-type", vec!["x", "y", "both", "mandatory", "proximity"]),
+            (
+                "scroll-snap-type",
+                vec!["x", "y", "both", "mandatory", "proximity"],
+            ),
             ("overscroll-behavior", vec!["auto", "contain", "none"]),
             ("user-select", vec!["auto", "none", "text", "all"]),
             ("appearance", vec!["auto", "none", "button", "textfield"]),
             ("box-sizing", vec!["content-box", "border-box"]),
-            ("background-clip", vec!["border-box", "padding-box", "content-box", "text"]),
-            ("mix-blend-mode", vec!["normal", "multiply", "screen", "overlay", "darken", "lighten"]),
-            ("object-fit", vec!["fill", "contain", "cover", "none", "scale-down"]),
-            ("writing-mode", vec!["horizontal-tb", "vertical-rl", "vertical-lr"]),
+            (
+                "background-clip",
+                vec!["border-box", "padding-box", "content-box", "text"],
+            ),
+            (
+                "mix-blend-mode",
+                vec![
+                    "normal", "multiply", "screen", "overlay", "darken", "lighten",
+                ],
+            ),
+            (
+                "object-fit",
+                vec!["fill", "contain", "cover", "none", "scale-down"],
+            ),
+            (
+                "writing-mode",
+                vec!["horizontal-tb", "vertical-rl", "vertical-lr"],
+            ),
             ("text-orientation", vec!["mixed", "upright", "sideways"]),
-            ("font-feature-settings", vec!["normal", "liga", "kern", "swsh"]),
-            ("font-variation-settings", vec!["normal", "wght", "wdth", "slnt"]),
-            ("color-scheme", vec!["normal", "light", "dark", "light dark"]),
-            ("accent-color", vec!["auto", "red", "blue", "green", "currentColor"]),
+            (
+                "font-feature-settings",
+                vec!["normal", "liga", "kern", "swsh"],
+            ),
+            (
+                "font-variation-settings",
+                vec!["normal", "wght", "wdth", "slnt"],
+            ),
+            (
+                "color-scheme",
+                vec!["normal", "light", "dark", "light dark"],
+            ),
+            (
+                "accent-color",
+                vec!["auto", "red", "blue", "green", "currentColor"],
+            ),
             ("aspect-ratio", vec!["auto", "16/9", "4/3", "1/1"]),
             ("gap", vec!["px", "em", "rem", "%", "vh", "vw"]),
             ("isolation", vec!["auto", "isolate"]),
-            ("contain", vec!["none", "strict", "content", "size", "layout", "style", "paint"]),
-            ("will-change", vec!["auto", "scroll-position", "contents", "transform", "opacity"]),
+            (
+                "contain",
+                vec![
+                    "none", "strict", "content", "size", "layout", "style", "paint",
+                ],
+            ),
+            (
+                "will-change",
+                vec![
+                    "auto",
+                    "scroll-position",
+                    "contents",
+                    "transform",
+                    "opacity",
+                ],
+            ),
             ("container-type", vec!["normal", "size", "inline-size"]),
             ("animation-timeline", vec!["auto", "scroll", "view"]),
-            ("animation-range", vec!["normal", "contain", "cover", "entry", "exit"]),
+            (
+                "animation-range",
+                vec!["normal", "contain", "cover", "entry", "exit"],
+            ),
             ("view-transition-name", vec!["none", "auto"]),
             ("text-wrap", vec!["wrap", "nowrap", "balance", "pretty"]),
-            ("white-space-collapse", vec!["collapse", "preserve", "preserve-breaks", "preserve-spaces", "break-spaces"]),
-            ("text-spacing-trim", vec!["normal", "space-all", "space-first", "trim-start"]),
+            (
+                "white-space-collapse",
+                vec![
+                    "collapse",
+                    "preserve",
+                    "preserve-breaks",
+                    "preserve-spaces",
+                    "break-spaces",
+                ],
+            ),
+            (
+                "text-spacing-trim",
+                vec!["normal", "space-all", "space-first", "trim-start"],
+            ),
             ("anchor-name", vec!["none"]),
             ("position-anchor", vec!["none"]),
             ("anchor", vec!["none"]),
             ("inset-area", vec!["none", "top", "bottom", "left", "right"]),
             // Chrome-specific features
-            ("color-mix", vec!["in srgb", "in hsl", "in hwb", "in lab", "in lch", "in oklab", "in oklch"]),
+            (
+                "color-mix",
+                vec![
+                    "in srgb", "in hsl", "in hwb", "in lab", "in lch", "in oklab", "in oklch",
+                ],
+            ),
             ("light-dark", vec!["light", "dark"]),
             ("field-sizing", vec!["content", "fixed"]),
             ("interpolate-size", vec!["allow-keywords", "numeric-only"]),
-            ("reading-flow", vec!["normal", "flex-visual", "flex-flow", "grid-rows", "grid-columns", "grid-order"]),
+            (
+                "reading-flow",
+                vec![
+                    "normal",
+                    "flex-visual",
+                    "flex-flow",
+                    "grid-rows",
+                    "grid-columns",
+                    "grid-order",
+                ],
+            ),
         ]);
 
         if let Some(values) = supported_properties.get(property) {
@@ -163,16 +273,17 @@ impl CssPropertySupport {
             match property {
                 "math" => {
                     if let Some(value) = value {
-                        let math_functions = ["calc", "min", "max", "clamp", "sin", "cos", "tan",
-                                            "asin", "acos", "atan", "atan2", "pow", "sqrt", "hypot",
-                                            "log", "exp"];
+                        let math_functions = [
+                            "calc", "min", "max", "clamp", "sin", "cos", "tan", "asin", "acos",
+                            "atan", "atan2", "pow", "sqrt", "hypot", "log", "exp",
+                        ];
                         math_functions.iter().any(|f| value.contains(f))
                     } else {
                         true
                     }
-                },
+                }
                 "sibling-count" | "sibling-index" => true,
-                _ => false
+                _ => false,
             }
         }
     }
@@ -184,16 +295,39 @@ impl CssPropertySupport {
         }
 
         let supported_selectors = [
-            ":hover", ":focus", ":active", ":visited", ":link",
-            ":first-child", ":last-child", ":nth-child", ":nth-of-type",
-            ":not", ":is", ":where", ":has",
-            "::before", "::after", "::first-line", "::first-letter",
-            ":focus-visible", ":focus-within",
-            ":target", ":checked", ":disabled", ":enabled",
-            ":valid", ":invalid", ":required", ":optional",
-            ":empty", ":root",
-            ":nth-last-child", ":nth-last-of-type",
-            ":only-child", ":only-of-type"
+            ":hover",
+            ":focus",
+            ":active",
+            ":visited",
+            ":link",
+            ":first-child",
+            ":last-child",
+            ":nth-child",
+            ":nth-of-type",
+            ":not",
+            ":is",
+            ":where",
+            ":has",
+            "::before",
+            "::after",
+            "::first-line",
+            "::first-letter",
+            ":focus-visible",
+            ":focus-within",
+            ":target",
+            ":checked",
+            ":disabled",
+            ":enabled",
+            ":valid",
+            ":invalid",
+            ":required",
+            ":optional",
+            ":empty",
+            ":root",
+            ":nth-last-child",
+            ":nth-last-of-type",
+            ":only-child",
+            ":only-of-type",
         ];
 
         // Use exact match or proper parsing instead of contains
@@ -202,7 +336,7 @@ impl CssPropertySupport {
             selector.starts_with(&format!("{}(", s)) || // e.g., ":nth-child(2n)"
             selector.contains(&format!(" {}", s)) ||     // e.g., "div :hover"
             selector.contains(&format!("{} ", s)) ||     // e.g., ":hover span"
-            selector.ends_with(s)                        // e.g., "div:hover"
+            selector.ends_with(s) // e.g., "div:hover"
         })
     }
 }
@@ -376,12 +510,39 @@ fn escape(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         }
 
         // Non-printable ASCII or special characters that need escaping
-        if c >= '\x01' && c <= '\x1F' || c == '\x7F' ||
-           c == '!' || c == '"' || c == '#' || c == '$' || c == '%' || c == '&' ||
-           c == '\'' || c == '(' || c == ')' || c == '*' || c == '+' || c == ',' ||
-           c == '.' || c == '/' || c == ':' || c == ';' || c == '<' || c == '=' ||
-           c == '>' || c == '?' || c == '@' || c == '[' || c == '\\' || c == ']' ||
-           c == '^' || c == '`' || c == '{' || c == '|' || c == '}' || c == '~' {
+        if c >= '\x01' && c <= '\x1F'
+            || c == '\x7F'
+            || c == '!'
+            || c == '"'
+            || c == '#'
+            || c == '$'
+            || c == '%'
+            || c == '&'
+            || c == '\''
+            || c == '('
+            || c == ')'
+            || c == '*'
+            || c == '+'
+            || c == ','
+            || c == '.'
+            || c == '/'
+            || c == ':'
+            || c == ';'
+            || c == '<'
+            || c == '='
+            || c == '>'
+            || c == '?'
+            || c == '@'
+            || c == '['
+            || c == '\\'
+            || c == ']'
+            || c == '^'
+            || c == '`'
+            || c == '{'
+            || c == '|'
+            || c == '}'
+            || c == '~'
+        {
             result.push('\\');
             result.push(c);
         } else if c as u32 >= 0x80 {
@@ -429,13 +590,20 @@ fn supports(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 /// `CSS.registerProperty(definition)` implementation
-fn register_property(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn register_property(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let definition = args.get_or_undefined(0);
 
     if let Some(obj) = definition.as_object() {
         if let Ok(name) = obj.get(js_string!("name"), context) {
             let name_str = name.to_string(context)?;
-            eprintln!("CSS custom property registered: {}", name_str.to_std_string_escaped());
+            eprintln!(
+                "CSS custom property registered: {}",
+                name_str.to_std_string_escaped()
+            );
         }
     }
 
@@ -541,14 +709,17 @@ fn css_vh(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 /// Worklet addModule method implementation
-fn worklet_add_module(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("addModule called on non-object")
-    })?;
+fn worklet_add_module(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("addModule called on non-object"))?;
 
     let mut worklet_data = this_obj.downcast_mut::<CssWorkletData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("addModule called on non-worklet object")
+        JsNativeError::typ().with_message("addModule called on non-worklet object")
     })?;
 
     let module_url = args.get_or_undefined(0).to_string(context)?;

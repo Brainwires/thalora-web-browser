@@ -3,13 +3,13 @@
 //! In WASM builds, the browser's native XMLHttpRequest is used directly.
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -48,7 +48,9 @@ impl BuiltInConstructor for XmlHttpRequest {
 
     fn constructor(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         Err(JsNativeError::error()
-            .with_message("XMLHttpRequest is not available in WASM. Use the browser's native XMLHttpRequest.")
+            .with_message(
+                "XMLHttpRequest is not available in WASM. Use the browser's native XMLHttpRequest.",
+            )
             .into())
     }
 }

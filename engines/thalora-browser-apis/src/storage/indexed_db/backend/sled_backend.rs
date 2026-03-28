@@ -22,12 +22,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 // Encryption imports
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce,
-};
 use aes_gcm::aead::rand_core::RngCore;
-use sha2::{Sha256, Digest};
+use aes_gcm::{
+    Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, OsRng},
+};
+use sha2::{Digest, Sha256};
 
 /// Encryption module for IndexedDB storage
 mod encryption {
@@ -46,46 +46,45 @@ mod encryption {
 
     /// Derive a 256-bit key for IndexedDB encryption.
     fn derive_key() -> [u8; 32] {
-        let secret = std::env::var("THALORA_SESSION_SECRET")
-            .unwrap_or_else(|_| {
-                let secret_path = get_secret_path();
+        let secret = std::env::var("THALORA_SESSION_SECRET").unwrap_or_else(|_| {
+            let secret_path = get_secret_path();
 
-                if let Ok(secret) = std::fs::read_to_string(&secret_path) {
-                    let secret = secret.trim().to_string();
-                    if secret.len() >= 32 {
-                        return secret;
-                    }
+            if let Ok(secret) = std::fs::read_to_string(&secret_path) {
+                let secret = secret.trim().to_string();
+                if secret.len() >= 32 {
+                    return secret;
                 }
+            }
 
-                // Generate and save new secret
-                let mut bytes = [0u8; 32];
-                OsRng.fill_bytes(&mut bytes);
-                let new_secret: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+            // Generate and save new secret
+            let mut bytes = [0u8; 32];
+            OsRng.fill_bytes(&mut bytes);
+            let new_secret: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
 
-                if let Some(parent) = secret_path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                #[cfg(unix)]
+            if let Some(parent) = secret_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                if let Ok(mut file) = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .mode(0o600)
+                    .open(&secret_path)
                 {
-                    use std::os::unix::fs::OpenOptionsExt;
-                    if let Ok(mut file) = std::fs::OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .mode(0o600)
-                        .open(&secret_path)
-                    {
-                        use std::io::Write;
-                        let _ = file.write_all(new_secret.as_bytes());
-                    }
+                    use std::io::Write;
+                    let _ = file.write_all(new_secret.as_bytes());
                 }
-                #[cfg(not(unix))]
-                {
-                    let _ = std::fs::write(&secret_path, &new_secret);
-                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = std::fs::write(&secret_path, &new_secret);
+            }
 
-                new_secret
-            });
+            new_secret
+        });
 
         // Derive key with IndexedDB-specific salt
         let mut hasher = Sha256::new();
@@ -109,7 +108,8 @@ mod encryption {
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        let ciphertext = cipher.encrypt(nonce, plaintext)
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| format!("Encryption failed: {}", e))?;
 
         let mut result = Vec::with_capacity(12 + ciphertext.len());
@@ -133,7 +133,8 @@ mod encryption {
         let (nonce_bytes, ciphertext) = encrypted.split_at(12);
         let nonce = Nonce::from_slice(nonce_bytes);
 
-        cipher.decrypt(nonce, ciphertext)
+        cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|_| "Decryption failed: invalid key or corrupted data".to_string())
     }
 }
@@ -182,8 +183,8 @@ impl SledBackend {
 
         // Open main Sled database
         let db_path = base_path.join("indexeddb");
-        let db = sled::open(&db_path)
-            .map_err(|e| format!("Failed to open Sled database: {}", e))?;
+        let db =
+            sled::open(&db_path).map_err(|e| format!("Failed to open Sled database: {}", e))?;
 
         Ok(Self {
             base_path,
@@ -211,11 +212,14 @@ impl SledBackend {
 
     /// Load database metadata
     fn load_metadata(&self, db_name: &str) -> Result<DatabaseInfo, String> {
-        let meta_tree = self.db.open_tree(Self::metadata_tree_name(db_name))
+        let meta_tree = self
+            .db
+            .open_tree(Self::metadata_tree_name(db_name))
             .map_err(|e| format!("Failed to open metadata tree: {}", e))?;
 
         // Get version
-        let version = meta_tree.get(b"version")
+        let version = meta_tree
+            .get(b"version")
             .map_err(|e| format!("Failed to read version: {}", e))?
             .map(|v| {
                 let bytes: [u8; 4] = v.as_ref().try_into().unwrap_or([0, 0, 0, 0]);
@@ -224,7 +228,8 @@ impl SledBackend {
             .unwrap_or(0);
 
         // Get object store list
-        let stores_bytes = meta_tree.get(b"object_stores")
+        let stores_bytes = meta_tree
+            .get(b"object_stores")
             .map_err(|e| format!("Failed to read object stores: {}", e))?;
 
         let object_stores = if let Some(bytes) = stores_bytes {
@@ -243,33 +248,45 @@ impl SledBackend {
 
     /// Save database metadata
     fn save_metadata(&self, info: &DatabaseInfo) -> Result<(), String> {
-        let meta_tree = self.db.open_tree(Self::metadata_tree_name(&info.name))
+        let meta_tree = self
+            .db
+            .open_tree(Self::metadata_tree_name(&info.name))
             .map_err(|e| format!("Failed to open metadata tree: {}", e))?;
 
         // Save version
-        meta_tree.insert(b"version", &info.version.to_be_bytes())
+        meta_tree
+            .insert(b"version", &info.version.to_be_bytes())
             .map_err(|e| format!("Failed to save version: {}", e))?;
 
         // Save object store list
         let stores_json = serde_json::to_vec(&info.object_stores)
             .map_err(|e| format!("Failed to serialize object stores: {}", e))?;
 
-        meta_tree.insert(b"object_stores", stores_json)
+        meta_tree
+            .insert(b"object_stores", stores_json)
             .map_err(|e| format!("Failed to save object stores: {}", e))?;
 
-        meta_tree.flush()
+        meta_tree
+            .flush()
             .map_err(|e| format!("Failed to flush metadata: {}", e))?;
 
         Ok(())
     }
 
     /// Load object store metadata
-    fn load_store_metadata(&self, db_name: &str, store_name: &str) -> Result<ObjectStoreMetadata, String> {
-        let meta_tree = self.db.open_tree(Self::metadata_tree_name(db_name))
+    fn load_store_metadata(
+        &self,
+        db_name: &str,
+        store_name: &str,
+    ) -> Result<ObjectStoreMetadata, String> {
+        let meta_tree = self
+            .db
+            .open_tree(Self::metadata_tree_name(db_name))
             .map_err(|e| format!("Failed to open metadata tree: {}", e))?;
 
         let key = format!("store::{}", store_name);
-        let metadata_bytes = meta_tree.get(key.as_bytes())
+        let metadata_bytes = meta_tree
+            .get(key.as_bytes())
             .map_err(|e| format!("Failed to read store metadata: {}", e))?
             .ok_or_else(|| format!("Object store '{}' not found", store_name))?;
 
@@ -278,15 +295,22 @@ impl SledBackend {
     }
 
     /// Save object store metadata
-    fn save_store_metadata(&self, db_name: &str, metadata: &ObjectStoreMetadata) -> Result<(), String> {
-        let meta_tree = self.db.open_tree(Self::metadata_tree_name(db_name))
+    fn save_store_metadata(
+        &self,
+        db_name: &str,
+        metadata: &ObjectStoreMetadata,
+    ) -> Result<(), String> {
+        let meta_tree = self
+            .db
+            .open_tree(Self::metadata_tree_name(db_name))
             .map_err(|e| format!("Failed to open metadata tree: {}", e))?;
 
         let key = format!("store::{}", metadata.name);
         let metadata_json = serde_json::to_vec(metadata)
             .map_err(|e| format!("Failed to serialize store metadata: {}", e))?;
 
-        meta_tree.insert(key.as_bytes(), metadata_json)
+        meta_tree
+            .insert(key.as_bytes(), metadata_json)
             .map_err(|e| format!("Failed to save store metadata: {}", e))?;
 
         Ok(())
@@ -295,7 +319,8 @@ impl SledBackend {
     /// Get tree for object store
     fn get_store_tree(&self, db_name: &str, store_name: &str) -> Result<Tree, String> {
         let tree_name = Self::store_tree_name(db_name, store_name);
-        self.db.open_tree(tree_name)
+        self.db
+            .open_tree(tree_name)
             .map_err(|e| format!("Failed to open store tree: {}", e))
     }
 }
@@ -313,9 +338,7 @@ impl StorageBackend for SledBackend {
             let new_info = DatabaseInfo {
                 name: name.to_string(),
                 version,
-                object_stores: current_info
-                    .map(|i| i.object_stores)
-                    .unwrap_or_default(),
+                object_stores: current_info.map(|i| i.object_stores).unwrap_or_default(),
             };
             self.save_metadata(&new_info)?;
             new_info
@@ -342,14 +365,16 @@ impl StorageBackend for SledBackend {
             // Delete all object store trees
             for store_name in &info.object_stores {
                 let tree_name = Self::store_tree_name(name, store_name);
-                self.db.drop_tree(tree_name)
+                self.db
+                    .drop_tree(tree_name)
                     .map_err(|e| format!("Failed to drop store tree: {}", e))?;
             }
         }
 
         // Delete metadata tree
         let meta_tree_name = Self::metadata_tree_name(name);
-        self.db.drop_tree(meta_tree_name)
+        self.db
+            .drop_tree(meta_tree_name)
             .map_err(|e| format!("Failed to drop metadata tree: {}", e))?;
 
         databases.remove(name);
@@ -396,7 +421,8 @@ impl StorageBackend for SledBackend {
 
         // Create the store tree
         let tree_name = Self::store_tree_name(db, store);
-        self.db.open_tree(&tree_name)
+        self.db
+            .open_tree(&tree_name)
             .map_err(|e| format!("Failed to create store tree: {}", e))?;
 
         // Add to object stores list
@@ -428,21 +454,29 @@ impl StorageBackend for SledBackend {
 
         // Drop the store tree
         let tree_name = Self::store_tree_name(db, store);
-        self.db.drop_tree(tree_name)
+        self.db
+            .drop_tree(tree_name)
             .map_err(|e| format!("Failed to drop store tree: {}", e))?;
 
         // Remove store metadata
-        let meta_tree = self.db.open_tree(Self::metadata_tree_name(db))
+        let meta_tree = self
+            .db
+            .open_tree(Self::metadata_tree_name(db))
             .map_err(|e| format!("Failed to open metadata tree: {}", e))?;
         let key = format!("store::{}", store);
-        meta_tree.remove(key.as_bytes())
+        meta_tree
+            .remove(key.as_bytes())
             .map_err(|e| format!("Failed to remove store metadata: {}", e))?;
 
         databases.insert(db.to_string(), info);
         Ok(())
     }
 
-    fn get_object_store_metadata(&self, db: &str, store: &str) -> Result<ObjectStoreMetadata, String> {
+    fn get_object_store_metadata(
+        &self,
+        db: &str,
+        store: &str,
+    ) -> Result<ObjectStoreMetadata, String> {
         self.load_store_metadata(db, store)
     }
 
@@ -456,8 +490,10 @@ impl StorageBackend for SledBackend {
         let key_bytes = key.to_bytes();
 
         // Check if key already exists
-        if tree.contains_key(&key_bytes)
-            .map_err(|e| format!("Failed to check key existence: {}", e))? {
+        if tree
+            .contains_key(&key_bytes)
+            .map_err(|e| format!("Failed to check key existence: {}", e))?
+        {
             return Err("Key already exists".to_string());
         }
 
@@ -487,7 +523,10 @@ impl StorageBackend for SledBackend {
         let tree = self.get_store_tree(db, store)?;
         let key_bytes = key.to_bytes();
 
-        match tree.get(&key_bytes).map_err(|e| format!("Failed to get: {}", e))? {
+        match tree
+            .get(&key_bytes)
+            .map_err(|e| format!("Failed to get: {}", e))?
+        {
             Some(encrypted_value) => {
                 // Decrypt the value before returning
                 let decrypted = encryption::decrypt_value(&encrypted_value)?;
@@ -520,7 +559,8 @@ impl StorageBackend for SledBackend {
         let tree = self.get_store_tree(db, store)?;
 
         if let Some(range) = range {
-            let count = tree.iter()
+            let count = tree
+                .iter()
                 .filter_map(|item| item.ok())
                 .filter(|(key_bytes, _)| {
                     if let Ok(key) = IDBKey::from_bytes(key_bytes) {
@@ -545,7 +585,8 @@ impl StorageBackend for SledBackend {
     ) -> Result<Vec<IDBKey>, String> {
         let tree = self.get_store_tree(db, store)?;
 
-        let mut keys: Vec<IDBKey> = tree.iter()
+        let mut keys: Vec<IDBKey> = tree
+            .iter()
             .filter_map(|item| item.ok())
             .filter_map(|(key_bytes, _)| IDBKey::from_bytes(&key_bytes).ok())
             .filter(|key| {
@@ -573,7 +614,8 @@ impl StorageBackend for SledBackend {
     ) -> Result<Vec<Vec<u8>>, String> {
         let tree = self.get_store_tree(db, store)?;
 
-        let mut values: Vec<Vec<u8>> = tree.iter()
+        let mut values: Vec<Vec<u8>> = tree
+            .iter()
             .filter_map(|item| item.ok())
             .filter(|(key_bytes, _)| {
                 if let Some(range) = range {
@@ -587,9 +629,7 @@ impl StorageBackend for SledBackend {
                 }
             })
             // Decrypt each value
-            .filter_map(|(_, encrypted_value)| {
-                encryption::decrypt_value(&encrypted_value).ok()
-            })
+            .filter_map(|(_, encrypted_value)| encryption::decrypt_value(&encrypted_value).ok())
             .collect();
 
         if let Some(limit) = count {
@@ -618,7 +658,8 @@ impl StorageBackend for SledBackend {
 
         // Create index tree
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        self.db.open_tree(&index_tree_name)
+        self.db
+            .open_tree(&index_tree_name)
             .map_err(|e| format!("Failed to create index tree: {}", e))?;
 
         // Add to metadata
@@ -643,7 +684,8 @@ impl StorageBackend for SledBackend {
 
         // Drop index tree
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        self.db.drop_tree(index_tree_name)
+        self.db
+            .drop_tree(index_tree_name)
             .map_err(|e| format!("Failed to drop index tree: {}", e))?;
 
         Ok(())
@@ -657,19 +699,24 @@ impl StorageBackend for SledBackend {
         key: &IDBKey,
     ) -> Result<Option<Vec<u8>>, String> {
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        let index_tree = self.db.open_tree(&index_tree_name)
+        let index_tree = self
+            .db
+            .open_tree(&index_tree_name)
             .map_err(|e| format!("Failed to open index tree: {}", e))?;
 
         let key_bytes = key.to_bytes();
 
         // Get primary key from index
-        if let Some(primary_key_bytes) = index_tree.get(&key_bytes)
-            .map_err(|e| format!("Failed to get from index: {}", e))? {
-
+        if let Some(primary_key_bytes) = index_tree
+            .get(&key_bytes)
+            .map_err(|e| format!("Failed to get from index: {}", e))?
+        {
             // Get encrypted value from store using primary key
             let store_tree = self.get_store_tree(db, store)?;
-            match store_tree.get(&primary_key_bytes)
-                .map_err(|e| format!("Failed to get from store: {}", e))? {
+            match store_tree
+                .get(&primary_key_bytes)
+                .map_err(|e| format!("Failed to get from store: {}", e))?
+            {
                 Some(encrypted_value) => {
                     // Decrypt the value before returning
                     let decrypted = encryption::decrypt_value(&encrypted_value)?;
@@ -690,14 +737,18 @@ impl StorageBackend for SledBackend {
         key: &IDBKey,
     ) -> Result<Option<IDBKey>, String> {
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        let index_tree = self.db.open_tree(&index_tree_name)
+        let index_tree = self
+            .db
+            .open_tree(&index_tree_name)
             .map_err(|e| format!("Failed to open index tree: {}", e))?;
 
         let key_bytes = key.to_bytes();
 
         // Get primary key from index
-        if let Some(primary_key_bytes) = index_tree.get(&key_bytes)
-            .map_err(|e| format!("Failed to get from index: {}", e))? {
+        if let Some(primary_key_bytes) = index_tree
+            .get(&key_bytes)
+            .map_err(|e| format!("Failed to get from index: {}", e))?
+        {
             IDBKey::from_bytes(&primary_key_bytes).map(Some)
         } else {
             Ok(None)
@@ -713,7 +764,9 @@ impl StorageBackend for SledBackend {
         count: Option<u32>,
     ) -> Result<Vec<Vec<u8>>, String> {
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        let index_tree = self.db.open_tree(&index_tree_name)
+        let index_tree = self
+            .db
+            .open_tree(&index_tree_name)
             .map_err(|e| format!("Failed to open index tree: {}", e))?;
 
         let store_tree = self.get_store_tree(db, store)?;
@@ -725,8 +778,8 @@ impl StorageBackend for SledBackend {
                 break;
             }
 
-            let (index_key_bytes, primary_key_bytes) = item
-                .map_err(|e| format!("Failed to iterate index: {}", e))?;
+            let (index_key_bytes, primary_key_bytes) =
+                item.map_err(|e| format!("Failed to iterate index: {}", e))?;
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(&index_key_bytes) {
@@ -737,8 +790,10 @@ impl StorageBackend for SledBackend {
                 }
 
                 // Get encrypted value from store and decrypt
-                if let Some(encrypted_value) = store_tree.get(&primary_key_bytes)
-                    .map_err(|e| format!("Failed to get from store: {}", e))? {
+                if let Some(encrypted_value) = store_tree
+                    .get(&primary_key_bytes)
+                    .map_err(|e| format!("Failed to get from store: {}", e))?
+                {
                     if let Ok(decrypted) = encryption::decrypt_value(&encrypted_value) {
                         results.push(decrypted);
                     }
@@ -758,7 +813,9 @@ impl StorageBackend for SledBackend {
         count: Option<u32>,
     ) -> Result<Vec<IDBKey>, String> {
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        let index_tree = self.db.open_tree(&index_tree_name)
+        let index_tree = self
+            .db
+            .open_tree(&index_tree_name)
             .map_err(|e| format!("Failed to open index tree: {}", e))?;
 
         let mut results = Vec::new();
@@ -769,8 +826,8 @@ impl StorageBackend for SledBackend {
                 break;
             }
 
-            let (index_key_bytes, primary_key_bytes) = item
-                .map_err(|e| format!("Failed to iterate index: {}", e))?;
+            let (index_key_bytes, primary_key_bytes) =
+                item.map_err(|e| format!("Failed to iterate index: {}", e))?;
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(&index_key_bytes) {
@@ -798,14 +855,16 @@ impl StorageBackend for SledBackend {
         range: Option<&IDBKeyRange>,
     ) -> Result<u32, String> {
         let index_tree_name = Self::index_tree_name(db, store, index_name);
-        let index_tree = self.db.open_tree(&index_tree_name)
+        let index_tree = self
+            .db
+            .open_tree(&index_tree_name)
             .map_err(|e| format!("Failed to open index tree: {}", e))?;
 
         let mut count = 0u32;
 
         for item in index_tree.iter() {
-            let (index_key_bytes, _) = item
-                .map_err(|e| format!("Failed to iterate index: {}", e))?;
+            let (index_key_bytes, _) =
+                item.map_err(|e| format!("Failed to iterate index: {}", e))?;
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(&index_key_bytes) {
@@ -822,7 +881,11 @@ impl StorageBackend for SledBackend {
         Ok(count)
     }
 
-    fn begin_transaction(&mut self, stores: &[String], mode: TransactionMode) -> Result<TransactionHandle, String> {
+    fn begin_transaction(
+        &mut self,
+        stores: &[String],
+        mode: TransactionMode,
+    ) -> Result<TransactionHandle, String> {
         let transaction_id = self.transaction_counter.fetch_add(1, Ordering::SeqCst);
 
         let info = TransactionInfo {
@@ -843,11 +906,13 @@ impl StorageBackend for SledBackend {
 
     fn commit_transaction(&mut self, transaction_id: u64) -> Result<(), String> {
         let mut transactions = self.active_transactions.lock().unwrap();
-        transactions.remove(&transaction_id)
+        transactions
+            .remove(&transaction_id)
             .ok_or_else(|| format!("Transaction {} not found", transaction_id))?;
 
         // Sled auto-commits, flush to ensure persistence
-        self.db.flush()
+        self.db
+            .flush()
             .map_err(|e| format!("Failed to flush: {}", e))?;
 
         Ok(())
@@ -855,7 +920,8 @@ impl StorageBackend for SledBackend {
 
     fn abort_transaction(&mut self, transaction_id: u64) -> Result<(), String> {
         let mut transactions = self.active_transactions.lock().unwrap();
-        transactions.remove(&transaction_id)
+        transactions
+            .remove(&transaction_id)
             .ok_or_else(|| format!("Transaction {} not found", transaction_id))?;
 
         // For abort, we would need to track changes and roll them back
@@ -887,7 +953,9 @@ mod tests {
 
         // Open database
         backend.open_database("test-db", 1).unwrap();
-        backend.create_object_store("test-db", "store1", None, false).unwrap();
+        backend
+            .create_object_store("test-db", "store1", None, false)
+            .unwrap();
 
         // Add
         let key = IDBKey::String("key1".to_string());
@@ -910,7 +978,9 @@ mod tests {
         {
             let mut backend = SledBackend::new(test_path.clone()).unwrap();
             backend.open_database("test-db", 1).unwrap();
-            backend.create_object_store("test-db", "store1", None, false).unwrap();
+            backend
+                .create_object_store("test-db", "store1", None, false)
+                .unwrap();
 
             let key = IDBKey::String("persistent-key".to_string());
             let value = b"persistent-value";

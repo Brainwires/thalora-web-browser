@@ -3,13 +3,12 @@
 //! Buffer creation and manipulation operations.
 
 use boa_engine::{
-    js_string,
+    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
     object::builtins::JsArrayBuffer,
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
 };
 
 use super::buffer::WebGLBuffer;
-use super::context::{get_object_id, WebGLRenderingContextData};
+use super::context::{WebGLRenderingContextData, get_object_id};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;
 
@@ -31,7 +30,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindBuffer
     obj.set(
@@ -62,7 +62,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bufferData
     obj.set(
@@ -94,7 +95,10 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
                 if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
                     buffer.allocate(size, usage);
                 }
-            } else if let Some(array_buffer) = buf_data_arg.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
+            } else if let Some(array_buffer) = buf_data_arg
+                .as_object()
+                .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+            {
                 let data_ref = array_buffer.data().expect("ArrayBuffer has no data");
                 let buf: Vec<u8> = (*data_ref).to_vec();
                 if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
@@ -103,12 +107,17 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
             } else if let Some(obj) = buf_data_arg.as_object() {
                 // Try to get typed array data
                 if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx) {
-                    if let Some(ab) = buffer_prop.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
-                        let byte_offset = obj.get(js_string!("byteOffset"), ctx)
+                    if let Some(ab) = buffer_prop
+                        .as_object()
+                        .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+                    {
+                        let byte_offset = obj
+                            .get(js_string!("byteOffset"), ctx)
                             .ok()
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
-                        let byte_length = obj.get(js_string!("byteLength"), ctx)
+                        let byte_length = obj
+                            .get(js_string!("byteLength"), ctx)
                             .ok()
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
@@ -128,7 +137,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bufferSubData
     obj.set(
@@ -153,7 +163,10 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
 
             let buf_data_arg = args.get_or_undefined(2);
 
-            if let Some(array_buffer) = buf_data_arg.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
+            if let Some(array_buffer) = buf_data_arg
+                .as_object()
+                .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+            {
                 let data_ref = array_buffer.data().expect("ArrayBuffer has no data");
                 let buf: Vec<u8> = (*data_ref).to_vec();
                 if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
@@ -166,7 +179,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteBuffer
     obj.set(
@@ -183,7 +197,8 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // isBuffer
     obj.set(
@@ -198,5 +213,6 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

@@ -38,7 +38,10 @@ async fn test_cdp_debugging_within_session() {
     let session_response = browser_tools
         .handle_session_management(create_session_args)
         .await;
-    assert!(!session_response.is_error, "Debug session creation should succeed");
+    assert!(
+        !session_response.is_error,
+        "Debug session creation should succeed"
+    );
 
     // Step 2: Use CDP tools to debug the session
 
@@ -47,7 +50,10 @@ async fn test_cdp_debugging_within_session() {
         "depth": 3
     });
     let dom_response = cdp_tools.get_document(dom_args, &mut cdp_server).await;
-    assert!(!dom_response.content.is_empty(), "DOM document response should have content");
+    assert!(
+        !dom_response.content.is_empty(),
+        "DOM document response should have content"
+    );
 
     // Query for specific elements
     let query_args = json!({
@@ -55,19 +61,28 @@ async fn test_cdp_debugging_within_session() {
         "node_id": 1
     });
     let query_response = cdp_tools.query_selector(query_args, &mut cdp_server).await;
-    assert!(!query_response.content.is_empty(), "Query selector response should have content");
+    assert!(
+        !query_response.content.is_empty(),
+        "Query selector response should have content"
+    );
 
     // Get cookies for debugging authentication
     let cookies_args = json!({});
     let cookies_response = cdp_tools.get_cookies(cookies_args, &mut cdp_server).await;
-    assert!(!cookies_response.content.is_empty(), "Cookies response should have content");
+    assert!(
+        !cookies_response.content.is_empty(),
+        "Cookies response should have content"
+    );
 
     // Step 3: Get page content through session
     let content_args = json!({
         "session_id": "debug_session"
     });
     let content_response = browser_tools.handle_get_page_content(content_args).await;
-    assert!(!content_response.content.is_empty(), "Page content response should have content");
+    assert!(
+        !content_response.content.is_empty(),
+        "Page content response should have content"
+    );
 
     // Step 4: Close the debugging session
     let close_args = json!({
@@ -100,31 +115,49 @@ async fn test_complete_debugging_workflow() {
         "format": "png",
         "full_page": false
     });
-    let screenshot_response = cdp_tools.take_screenshot(screenshot_args, &mut cdp_server).await;
-    assert!(!screenshot_response.content.is_empty(), "Screenshot response should have content");
+    let screenshot_response = cdp_tools
+        .take_screenshot(screenshot_args, &mut cdp_server)
+        .await;
+    assert!(
+        !screenshot_response.content.is_empty(),
+        "Screenshot response should have content"
+    );
 
     // 2. Inspect page elements
     let inspect_args = json!({
         "selector": "input[type='text']",
         "node_id": 1
     });
-    let inspect_response = cdp_tools.query_selector(inspect_args, &mut cdp_server).await;
-    assert!(!inspect_response.content.is_empty(), "Element inspection should have content");
+    let inspect_response = cdp_tools
+        .query_selector(inspect_args, &mut cdp_server)
+        .await;
+    assert!(
+        !inspect_response.content.is_empty(),
+        "Element inspection should have content"
+    );
 
     // 3. Get element attributes (simulating debugging form elements)
     let attr_args = json!({
         "node_id": 2
     });
     let attr_response = cdp_tools.get_attributes(attr_args, &mut cdp_server).await;
-    assert!(!attr_response.content.is_empty(), "Attributes response should have content");
+    assert!(
+        !attr_response.content.is_empty(),
+        "Attributes response should have content"
+    );
 
     // 4. Check console for JavaScript errors
     let console_args = json!({
         "level": "error",
         "limit": 10
     });
-    let console_response = cdp_tools.get_console_messages(console_args, &mut cdp_server).await;
-    assert!(!console_response.content.is_empty(), "Console messages should have content");
+    let console_response = cdp_tools
+        .get_console_messages(console_args, &mut cdp_server)
+        .await;
+    assert!(
+        !console_response.content.is_empty(),
+        "Console messages should have content"
+    );
 
     // 5. Set debugging cookie
     let cookie_args = json!({
@@ -134,28 +167,42 @@ async fn test_complete_debugging_workflow() {
         "secure": false
     });
     let cookie_response = cdp_tools.set_cookie(cookie_args, &mut cdp_server).await;
-    assert!(!cookie_response.content.is_empty(), "Set cookie should have content");
+    assert!(
+        !cookie_response.content.is_empty(),
+        "Set cookie should have content"
+    );
 
     // 6. Reload page to test with debug cookie
     let reload_args = json!({
         "ignore_cache": true
     });
     let reload_response = cdp_tools.reload_page(reload_args, &mut cdp_server).await;
-    assert!(!reload_response.content.is_empty(), "Page reload should have content");
+    assert!(
+        !reload_response.content.is_empty(),
+        "Page reload should have content"
+    );
 
     // 7. Navigate in browser history
     let back_args = json!({
         "session_id": session_id
     });
     let back_response = browser_tools.handle_navigate_back(back_args).await;
-    assert!(!back_response.content.is_empty(), "Navigate back should have content");
+    assert!(
+        !back_response.content.is_empty(),
+        "Navigate back should have content"
+    );
 
     // 8. Get final page state
     let final_content_args = json!({
         "session_id": session_id
     });
-    let final_content_response = browser_tools.handle_get_page_content(final_content_args).await;
-    assert!(!final_content_response.content.is_empty(), "Final page content should have content");
+    let final_content_response = browser_tools
+        .handle_get_page_content(final_content_args)
+        .await;
+    assert!(
+        !final_content_response.content.is_empty(),
+        "Final page content should have content"
+    );
 }
 
 /// Test error debugging scenario: finding and fixing issues
@@ -179,8 +226,13 @@ async fn test_error_debugging_scenario() {
     let console_args = json!({
         "level": "error"
     });
-    let console_response = cdp_tools.get_console_messages(console_args, &mut cdp_server).await;
-    assert!(!console_response.content.is_empty(), "Console errors check should have content");
+    let console_response = cdp_tools
+        .get_console_messages(console_args, &mut cdp_server)
+        .await;
+    assert!(
+        !console_response.content.is_empty(),
+        "Console errors check should have content"
+    );
     if let Some(text) = extract_response_text(&console_response) {
         assert!(
             text.contains("Console") || text.contains("messages") || text.contains("CDP"),
@@ -194,29 +246,49 @@ async fn test_error_debugging_scenario() {
         "selector": "form",
         "node_id": 1
     });
-    let form_response = cdp_tools.query_selector(form_query_args, &mut cdp_server).await;
-    assert!(!form_response.content.is_empty(), "Form query should have content");
+    let form_response = cdp_tools
+        .query_selector(form_query_args, &mut cdp_server)
+        .await;
+    assert!(
+        !form_response.content.is_empty(),
+        "Form query should have content"
+    );
 
     // 3. Check form element attributes
     let form_attr_args = json!({
         "node_id": 5
     });
-    let form_attr_response = cdp_tools.get_attributes(form_attr_args, &mut cdp_server).await;
-    assert!(!form_attr_response.content.is_empty(), "Form attributes should have content");
+    let form_attr_response = cdp_tools
+        .get_attributes(form_attr_args, &mut cdp_server)
+        .await;
+    assert!(
+        !form_attr_response.content.is_empty(),
+        "Form attributes should have content"
+    );
 
     // 4. Check computed styles (maybe CSS is hiding the form)
     let styles_args = json!({
         "node_id": 5
     });
-    let styles_response = cdp_tools.get_computed_style(styles_args, &mut cdp_server).await;
-    assert!(!styles_response.content.is_empty(), "Computed styles should have content");
+    let styles_response = cdp_tools
+        .get_computed_style(styles_args, &mut cdp_server)
+        .await;
+    assert!(
+        !styles_response.content.is_empty(),
+        "Computed styles should have content"
+    );
 
     // 5. Check authentication cookies
     let auth_cookies_args = json!({
         "urls": ["https://example.com"]
     });
-    let auth_cookies_response = cdp_tools.get_cookies(auth_cookies_args, &mut cdp_server).await;
-    assert!(!auth_cookies_response.content.is_empty(), "Auth cookies check should have content");
+    let auth_cookies_response = cdp_tools
+        .get_cookies(auth_cookies_args, &mut cdp_server)
+        .await;
+    assert!(
+        !auth_cookies_response.content.is_empty(),
+        "Auth cookies check should have content"
+    );
 
     // 6. Take screenshot to see visual state
     let debug_screenshot_args = json!({
@@ -226,7 +298,10 @@ async fn test_error_debugging_scenario() {
     let debug_screenshot_response = cdp_tools
         .take_screenshot(debug_screenshot_args, &mut cdp_server)
         .await;
-    assert!(!debug_screenshot_response.content.is_empty(), "Debug screenshot should have content");
+    assert!(
+        !debug_screenshot_response.content.is_empty(),
+        "Debug screenshot should have content"
+    );
 }
 
 /// Test session persistence during debugging operations
@@ -241,7 +316,10 @@ async fn test_session_persistence_during_debugging() {
         "persistent": true
     });
     let create_response = browser_tools.handle_session_management(create_args).await;
-    assert!(!create_response.is_error, "Persistent session creation should succeed");
+    assert!(
+        !create_response.is_error,
+        "Persistent session creation should succeed"
+    );
 
     // Perform multiple debugging operations
     let debug_operations = vec![
@@ -273,14 +351,20 @@ async fn test_session_persistence_during_debugging() {
         "session_id": "persistent_debug"
     });
     let info_response = browser_tools.handle_session_management(info_args).await;
-    assert!(!info_response.content.is_empty(), "Session info should have content");
+    assert!(
+        !info_response.content.is_empty(),
+        "Session info should have content"
+    );
 
     // Get page content to verify session state
     let content_args = json!({
         "session_id": "persistent_debug"
     });
     let content_response = browser_tools.handle_get_page_content(content_args).await;
-    assert!(!content_response.content.is_empty(), "Page content should have content");
+    assert!(
+        !content_response.content.is_empty(),
+        "Page content should have content"
+    );
 
     // Clean up persistent session
     let close_args = json!({
@@ -306,7 +390,11 @@ async fn test_concurrent_debugging_sessions() {
             "persistent": false
         });
         let create_response = browser_tools.handle_session_management(create_args).await;
-        assert!(!create_response.is_error, "Session {} creation should succeed", session_id);
+        assert!(
+            !create_response.is_error,
+            "Session {} creation should succeed",
+            session_id
+        );
     }
 
     // List all sessions
@@ -315,7 +403,10 @@ async fn test_concurrent_debugging_sessions() {
     });
     let list_response = browser_tools.handle_session_management(list_args).await;
     assert!(!list_response.is_error, "Session listing should succeed");
-    assert!(!list_response.content.is_empty(), "Session list should have content");
+    assert!(
+        !list_response.content.is_empty(),
+        "Session list should have content"
+    );
 
     // Perform debugging operations on different sessions
     for (i, session_id) in sessions.iter().enumerate() {

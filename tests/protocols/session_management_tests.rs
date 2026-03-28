@@ -70,7 +70,10 @@ async fn test_session_management_create_persistent() {
 
     let response = browser_tools.handle_session_management(args).await;
 
-    assert!(!response.is_error, "Persistent session creation should not error");
+    assert!(
+        !response.is_error,
+        "Persistent session creation should not error"
+    );
     assert!(!response.content.is_empty(), "Response should have content");
 
     if let Some(text) = extract_response_text(&response) {
@@ -214,7 +217,10 @@ async fn test_session_management_invalid_action() {
     let response = browser_tools.handle_session_management(args).await;
 
     // Invalid action should return an error
-    assert!(response.is_error, "Expected error response for invalid action");
+    assert!(
+        response.is_error,
+        "Expected error response for invalid action"
+    );
     if let Some(text) = extract_response_text(&response) {
         assert!(
             text.contains("Unknown action") || text.contains("invalid_action"),
@@ -282,9 +288,7 @@ async fn test_browser_navigate_back() {
 
     if let Some(text) = extract_response_text(&response) {
         assert!(
-            text.contains("back")
-                || text.contains("Cannot go back")
-                || text.contains("success"),
+            text.contains("back") || text.contains("Cannot go back") || text.contains("success"),
             "Response should mention navigation or inability to go back: {}",
             text
         );
@@ -306,9 +310,7 @@ async fn test_browser_navigate_back_with_session() {
 
     if let Some(text) = extract_response_text(&response) {
         assert!(
-            text.contains("back")
-                || text.contains("Cannot go back")
-                || text.contains("success"),
+            text.contains("back") || text.contains("Cannot go back") || text.contains("success"),
             "Response should mention navigation: {}",
             text
         );
@@ -395,7 +397,10 @@ async fn test_session_integration_with_browser_tools() {
             eprintln!("INFO: Click element test handled expected error: {}", text);
         }
     } else {
-        assert!(!click_response.content.is_empty(), "Click response should have content");
+        assert!(
+            !click_response.content.is_empty(),
+            "Click response should have content"
+        );
     }
 
     // Test form filling with the session
@@ -416,7 +421,10 @@ async fn test_session_integration_with_browser_tools() {
             eprintln!("INFO: Form filling test handled expected error: {}", text);
         }
     } else {
-        assert!(!form_response.content.is_empty(), "Form response should have content");
+        assert!(
+            !form_response.content.is_empty(),
+            "Form response should have content"
+        );
     }
 
     // Get page content for the session
@@ -424,7 +432,10 @@ async fn test_session_integration_with_browser_tools() {
         "session_id": "integration_session"
     });
     let content_response = browser_tools.handle_get_page_content(content_args).await;
-    assert!(!content_response.content.is_empty(), "Content response should have content");
+    assert!(
+        !content_response.content.is_empty(),
+        "Content response should have content"
+    );
 
     // Close the session
     let close_args = json!({
@@ -469,7 +480,10 @@ async fn test_session_persistence_workflow() {
     });
     let list_response = browser_tools.handle_session_management(list_args).await;
     assert!(!list_response.is_error, "Session listing should succeed");
-    assert!(!list_response.content.is_empty(), "List response should have content");
+    assert!(
+        !list_response.content.is_empty(),
+        "List response should have content"
+    );
 
     // Test cleanup (should remove non-persistent sessions older than threshold)
     let cleanup_args = json!({
@@ -503,7 +517,10 @@ async fn test_session_error_handling() {
     let response = browser_tools.handle_session_management(args).await;
 
     // Missing action parameter should return an error
-    assert!(response.is_error, "Expected error for missing action parameter");
+    assert!(
+        response.is_error,
+        "Expected error for missing action parameter"
+    );
     if let Some(text) = extract_response_text(&response) {
         assert!(
             text.contains("Unknown action") || text.contains("action"),
@@ -521,14 +538,20 @@ async fn test_session_error_handling() {
     let info_response = browser_tools.handle_session_management(info_args).await;
 
     // Non-existent session info should return an error
-    assert!(info_response.is_error, "Expected error for non-existent session info");
+    assert!(
+        info_response.is_error,
+        "Expected error for non-existent session info"
+    );
     if let Some(text) = extract_response_text(&info_response) {
         assert!(
             text.contains("Session not found") || text.contains("not found"),
             "Error should mention session not found: {}",
             text
         );
-        eprintln!("INFO: Non-existent session info handled correctly: {}", text);
+        eprintln!(
+            "INFO: Non-existent session info handled correctly: {}",
+            text
+        );
     }
 
     // Test close for non-existent session
@@ -538,7 +561,10 @@ async fn test_session_error_handling() {
     });
     let close_response = browser_tools.handle_session_management(close_args).await;
 
-    assert!(!close_response.content.is_empty(), "Response should have content");
+    assert!(
+        !close_response.content.is_empty(),
+        "Response should have content"
+    );
     if let Some(text) = extract_response_text(&close_response) {
         assert!(
             text.contains("closed") || text.contains("false"),
@@ -590,7 +616,10 @@ async fn test_browser_navigation_workflow() {
         }
         return; // Skip rest of test if we can't navigate
     }
-    assert!(!navigate_response.content.is_empty(), "Navigate response should have content");
+    assert!(
+        !navigate_response.content.is_empty(),
+        "Navigate response should have content"
+    );
 
     // Step 2: Get page content to verify session state
     let content_args = json!({
@@ -598,8 +627,14 @@ async fn test_browser_navigation_workflow() {
     });
 
     let content_response = browser_tools.handle_get_page_content(content_args).await;
-    assert!(!content_response.is_error, "Get page content should not error");
-    assert!(!content_response.content.is_empty(), "Content response should have content");
+    assert!(
+        !content_response.is_error,
+        "Get page content should not error"
+    );
+    assert!(
+        !content_response.content.is_empty(),
+        "Content response should have content"
+    );
 
     // Step 3: Test refresh functionality - should work now that we have a current URL
     let refresh_args = json!({
@@ -607,7 +642,10 @@ async fn test_browser_navigation_workflow() {
     });
 
     let refresh_response = browser_tools.handle_refresh_page(refresh_args).await;
-    assert!(!refresh_response.content.is_empty(), "Refresh response should have content");
+    assert!(
+        !refresh_response.content.is_empty(),
+        "Refresh response should have content"
+    );
     if refresh_response.is_error {
         if let Some(text) = extract_response_text(&refresh_response) {
             eprintln!("INFO: Refresh test handled error: {}", text);
@@ -620,5 +658,8 @@ async fn test_browser_navigation_workflow() {
     });
 
     let back_response = browser_tools.handle_navigate_back(back_args).await;
-    assert!(!back_response.content.is_empty(), "Back response should have content");
+    assert!(
+        !back_response.content.is_empty(),
+        "Back response should have content"
+    );
 }

@@ -2,14 +2,14 @@
 //!
 //! In WASM builds, the browser's native IndexedDB is used directly.
 
-use super::backend::{StorageBackend, MemoryBackend};
+use super::backend::{MemoryBackend, StorageBackend};
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     realm::Realm,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -81,11 +81,17 @@ impl BuiltInConstructor for IDBFactory {
 
 fn open(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     Err(JsNativeError::error()
-        .with_message("IndexedDB.open() is not available in WASM. Use the browser's native IndexedDB API.")
+        .with_message(
+            "IndexedDB.open() is not available in WASM. Use the browser's native IndexedDB API.",
+        )
         .into())
 }
 
-fn delete_database(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn delete_database(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     Err(JsNativeError::error()
         .with_message("IndexedDB.deleteDatabase() is not available in WASM. Use the browser's native IndexedDB API.")
         .into())

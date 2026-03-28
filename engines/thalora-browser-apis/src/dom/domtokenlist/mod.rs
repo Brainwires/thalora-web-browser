@@ -1,13 +1,17 @@
 //! DOMTokenList implementation (classList) - minimal spec-aligned subset
 //!
 //! Implements: add, remove, toggle, contains, item, length, toString
-use boa_engine::{
-    builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject, BuiltInConstructor},
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    js_string, object::JsObject, property::Attribute, realm::Realm,
-    string::JsString, Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
-};
 use crate::dom::element::ElementData;
+use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::JsObject,
+    property::Attribute,
+    realm::Realm,
+    string::JsString,
+};
 use boa_gc::{Finalize, Trace};
 
 /// Internal data for DOMTokenList objects
@@ -58,7 +62,10 @@ impl DOMTokenList {
         if token.is_empty() {
             return Err(JsNativeError::typ().with_message("The token must not be empty"));
         }
-        if token.chars().any(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C')) {
+        if token
+            .chars()
+            .any(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C'))
+        {
             return Err(JsNativeError::typ().with_message("The token contains invalid whitespace"));
         }
         Ok(())
@@ -69,7 +76,11 @@ impl DOMTokenList {
         let data = DOMTokenListData::new(element.clone());
         let obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().domtokenlist().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .domtokenlist()
+                .prototype(),
             data,
         );
         Ok(obj.upcast())
@@ -77,10 +88,13 @@ impl DOMTokenList {
 
     /* Prototype methods */
     fn contains(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.contains called on non-object"))?;
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.contains called on non-object")
+        })?;
 
         let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("DOMTokenList.contains called on non-DOMTokenList object")
+            JsNativeError::typ()
+                .with_message("DOMTokenList.contains called on non-DOMTokenList object")
         })?;
 
         let token = args.get_or_undefined(0).to_string(context)?;
@@ -94,7 +108,9 @@ impl DOMTokenList {
     }
 
     fn add(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.add called on non-object"))?;
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.add called on non-object")
+        })?;
 
         let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
             JsNativeError::typ().with_message("DOMTokenList.add called on non-DOMTokenList object")
@@ -116,10 +132,13 @@ impl DOMTokenList {
     }
 
     fn remove(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.remove called on non-object"))?;
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.remove called on non-object")
+        })?;
 
         let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("DOMTokenList.remove called on non-DOMTokenList object")
+            JsNativeError::typ()
+                .with_message("DOMTokenList.remove called on non-DOMTokenList object")
         })?;
 
         let mut class = data.class_name(context).unwrap_or_default();
@@ -136,10 +155,13 @@ impl DOMTokenList {
     }
 
     fn toggle(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.toggle called on non-object"))?;
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.toggle called on non-object")
+        })?;
 
         let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("DOMTokenList.toggle called on non-DOMTokenList object")
+            JsNativeError::typ()
+                .with_message("DOMTokenList.toggle called on non-DOMTokenList object")
         })?;
 
         let token = args.get_or_undefined(0).to_string(context)?;
@@ -161,7 +183,9 @@ impl DOMTokenList {
     }
 
     fn item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.item called on non-object"))?;
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.item called on non-object")
+        })?;
 
         let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
             JsNativeError::typ().with_message("DOMTokenList.item called on non-DOMTokenList object")
@@ -178,10 +202,13 @@ impl DOMTokenList {
     }
 
     fn get_length(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("DOMTokenList.length called on non-object"))?;
+        let this_obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("DOMTokenList.length called on non-object")
+        })?;
 
         let data = this_obj.downcast_ref::<DOMTokenListData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("DOMTokenList.length called on non-DOMTokenList object")
+            JsNativeError::typ()
+                .with_message("DOMTokenList.length called on non-DOMTokenList object")
         })?;
 
         if let Some(class_name) = data.class_name(context) {
@@ -229,7 +256,12 @@ impl IntrinsicObject for DOMTokenList {
             .method(Self::remove, js_string!("remove"), 1)
             .method(Self::toggle, js_string!("toggle"), 1)
             .method(Self::item, js_string!("item"), 1)
-            .accessor(js_string!("length"), Some(length_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("length"),
+                Some(length_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -260,8 +292,6 @@ impl BuiltInConstructor for DOMTokenList {
         Ok(obj.into())
     }
 }
-
-
 
 #[cfg(test)]
 mod tests;

@@ -4,14 +4,15 @@
 //! https://dom.spec.whatwg.org/#interface-abortsignal
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -117,25 +118,27 @@ impl AbortSignalData {
 
 /// Create an AbortSignal object (for internal use)
 pub fn create_abort_signal(context: &mut Context) -> JsResult<JsObject> {
-    let proto = context.intrinsics().constructors().abort_signal().prototype();
+    let proto = context
+        .intrinsics()
+        .constructors()
+        .abort_signal()
+        .prototype();
     let signal_data = AbortSignalData::new();
-    let signal_obj = JsObject::from_proto_and_data_with_shared_shape(
-        context.root_shape(),
-        proto,
-        signal_data,
-    );
+    let signal_obj =
+        JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), proto, signal_data);
     Ok(signal_obj.upcast())
 }
 
 /// Create an already-aborted AbortSignal
 pub fn create_aborted_signal(reason: JsValue, context: &mut Context) -> JsResult<JsObject> {
-    let proto = context.intrinsics().constructors().abort_signal().prototype();
+    let proto = context
+        .intrinsics()
+        .constructors()
+        .abort_signal()
+        .prototype();
     let signal_data = AbortSignalData::new_aborted(reason);
-    let signal_obj = JsObject::from_proto_and_data_with_shared_shape(
-        context.root_shape(),
-        proto,
-        signal_data,
-    );
+    let signal_obj =
+        JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), proto, signal_data);
     Ok(signal_obj.upcast())
 }
 
@@ -145,7 +148,8 @@ fn get_aborted(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
     })?;
 
     let signal = this_obj.downcast_ref::<AbortSignalData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("AbortSignal.prototype.aborted called on non-AbortSignal object")
+        JsNativeError::typ()
+            .with_message("AbortSignal.prototype.aborted called on non-AbortSignal object")
     })?;
 
     Ok(JsValue::from(signal.is_aborted()))
@@ -157,19 +161,26 @@ fn get_reason(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
     })?;
 
     let signal = this_obj.downcast_ref::<AbortSignalData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("AbortSignal.prototype.reason called on non-AbortSignal object")
+        JsNativeError::typ()
+            .with_message("AbortSignal.prototype.reason called on non-AbortSignal object")
     })?;
 
     Ok(signal.reason.clone())
 }
 
-fn throw_if_aborted(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn throw_if_aborted(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("AbortSignal.prototype.throwIfAborted called on non-object")
+        JsNativeError::typ()
+            .with_message("AbortSignal.prototype.throwIfAborted called on non-object")
     })?;
 
     let signal = this_obj.downcast_ref::<AbortSignalData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("AbortSignal.prototype.throwIfAborted called on non-AbortSignal object")
+        JsNativeError::typ()
+            .with_message("AbortSignal.prototype.throwIfAborted called on non-AbortSignal object")
     })?;
 
     if signal.is_aborted() {
@@ -213,7 +224,11 @@ fn any_static(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
                         if let Some(signal_data) = signal_obj.downcast_ref::<AbortSignalData>() {
                             if signal_data.is_aborted() {
                                 // Return an already-aborted signal with the same reason
-                                return Ok(create_aborted_signal(signal_data.reason.clone(), context)?.into());
+                                return Ok(create_aborted_signal(
+                                    signal_data.reason.clone(),
+                                    context,
+                                )?
+                                .into());
                             }
                         }
                     }
@@ -241,27 +256,37 @@ mod tests {
     #[test]
     fn test_abort_signal_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof AbortSignal === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof AbortSignal === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_abort_signal_abort_static() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const signal = AbortSignal.abort();
             signal.aborted === true;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_abort_signal_timeout_static() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const signal = AbortSignal.timeout(1000);
             typeof signal === 'object';
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

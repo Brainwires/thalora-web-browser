@@ -4,7 +4,7 @@
 //!
 //! Spec: https://w3c.github.io/IndexedDB/#idbversionchangeevent
 
-use boa_engine::{JsValue, Context, JsResult};
+use boa_engine::{Context, JsResult, JsValue};
 
 /// Version change event
 #[derive(Debug, Clone)]
@@ -26,14 +26,29 @@ impl IDBVersionChangeEvent {
 
     /// Convert to JsValue
     pub fn to_js_value(&self, context: &mut Context) -> JsResult<JsValue> {
-        use boa_engine::{js_string, JsString, object::JsObject};
+        use boa_engine::{JsString, js_string, object::JsObject};
 
         let event = JsObject::with_object_proto(context.intrinsics());
-        event.set(js_string!("type"), JsValue::from(JsString::from(self.event_type.clone())), false, context)?;
-        event.set(js_string!("oldVersion"), JsValue::from(self.old_version), false, context)?;
+        event.set(
+            js_string!("type"),
+            JsValue::from(JsString::from(self.event_type.clone())),
+            false,
+            context,
+        )?;
+        event.set(
+            js_string!("oldVersion"),
+            JsValue::from(self.old_version),
+            false,
+            context,
+        )?;
 
         if let Some(new_version) = self.new_version {
-            event.set(js_string!("newVersion"), JsValue::from(new_version), false, context)?;
+            event.set(
+                js_string!("newVersion"),
+                JsValue::from(new_version),
+                false,
+                context,
+            )?;
         } else {
             event.set(js_string!("newVersion"), JsValue::null(), false, context)?;
         }

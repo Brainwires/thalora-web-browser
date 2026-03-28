@@ -7,13 +7,15 @@
 //! https://streams.spec.whatwg.org/#qs
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 
@@ -98,7 +100,11 @@ impl BuiltInConstructor for CountQueuingStrategy {
         }
 
         // Create the CountQueuingStrategy object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::count_queuing_strategy, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::count_queuing_strategy,
+            context,
+        )?;
         let strategy = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -190,7 +196,11 @@ impl BuiltInConstructor for ByteLengthQueuingStrategy {
         }
 
         // Create the ByteLengthQueuingStrategy object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::byte_length_queuing_strategy, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::byte_length_queuing_strategy,
+            context,
+        )?;
         let strategy = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -232,28 +242,33 @@ fn get_high_water_mark(
     _context: &mut Context,
 ) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CountQueuingStrategy.prototype.highWaterMark getter called on non-object")
+        JsNativeError::typ().with_message(
+            "CountQueuingStrategy.prototype.highWaterMark getter called on non-object",
+        )
     })?;
 
-    let data = this_obj.downcast_ref::<CountQueuingStrategyData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("CountQueuingStrategy.prototype.highWaterMark getter called on incompatible object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<CountQueuingStrategyData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "CountQueuingStrategy.prototype.highWaterMark getter called on incompatible object",
+            )
+        })?;
 
     Ok(data.high_water_mark.into())
 }
 
 /// Get the size property of a CountQueuingStrategy
-fn get_size(
-    this: &JsValue,
-    _args: &[JsValue],
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_size(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CountQueuingStrategy.prototype.size getter called on non-object")
+        JsNativeError::typ()
+            .with_message("CountQueuingStrategy.prototype.size getter called on non-object")
     })?;
 
-    if this_obj.downcast_ref::<CountQueuingStrategyData>().is_some() {
+    if this_obj
+        .downcast_ref::<CountQueuingStrategyData>()
+        .is_some()
+    {
         // Return a function that always returns 1
         let size_fn = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
             Ok(JsValue::from(1))
@@ -265,7 +280,9 @@ fn get_size(
         Ok(JsValue::from(size_fn))
     } else {
         Err(JsNativeError::typ()
-            .with_message("CountQueuingStrategy.prototype.size getter called on incompatible object")
+            .with_message(
+                "CountQueuingStrategy.prototype.size getter called on incompatible object",
+            )
             .into())
     }
 }
@@ -277,7 +294,9 @@ fn get_byte_high_water_mark(
     _context: &mut Context,
 ) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("ByteLengthQueuingStrategy.prototype.highWaterMark getter called on non-object")
+        JsNativeError::typ().with_message(
+            "ByteLengthQueuingStrategy.prototype.highWaterMark getter called on non-object",
+        )
     })?;
 
     let data = this_obj.downcast_ref::<ByteLengthQueuingStrategyData>().ok_or_else(|| {
@@ -289,16 +308,16 @@ fn get_byte_high_water_mark(
 }
 
 /// Get the size property of a ByteLengthQueuingStrategy
-fn get_byte_size(
-    this: &JsValue,
-    _args: &[JsValue],
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_byte_size(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("ByteLengthQueuingStrategy.prototype.size getter called on non-object")
+        JsNativeError::typ()
+            .with_message("ByteLengthQueuingStrategy.prototype.size getter called on non-object")
     })?;
 
-    if this_obj.downcast_ref::<ByteLengthQueuingStrategyData>().is_some() {
+    if this_obj
+        .downcast_ref::<ByteLengthQueuingStrategyData>()
+        .is_some()
+    {
         // Return a function that returns the byteLength property
         let size_fn = BuiltInBuilder::callable(context.realm(), |_this, args, context| {
             let chunk = args.get_or_undefined(0);
@@ -321,7 +340,9 @@ fn get_byte_size(
         Ok(JsValue::from(size_fn))
     } else {
         Err(JsNativeError::typ()
-            .with_message("ByteLengthQueuingStrategy.prototype.size getter called on incompatible object")
+            .with_message(
+                "ByteLengthQueuingStrategy.prototype.size getter called on incompatible object",
+            )
             .into())
     }
 }

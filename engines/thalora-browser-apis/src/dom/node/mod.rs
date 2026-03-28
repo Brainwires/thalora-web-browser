@@ -6,7 +6,6 @@
 
 mod node;
 
-
 pub use node::*;
 #[cfg(test)]
 mod tests;

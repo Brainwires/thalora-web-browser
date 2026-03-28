@@ -5,20 +5,21 @@
 //!
 //! This implements the complete MessageChannel interface for creating communication channels
 
-
-use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
-    string::StaticJsStrings,
-    value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
-};
+use super::message_port::MessagePortData;
 #[cfg(feature = "native")]
 use crate::worker::worker_events;
+use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
+    string::StaticJsStrings,
+    value::JsValue,
+};
 use boa_gc::{Finalize, Trace};
-use super::message_port::MessagePortData;
 
 /// JavaScript `MessageChannel` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -95,7 +96,11 @@ impl BuiltInConstructor for MessageChannel {
         let port2 = port2_data.create_js_object(context)?;
 
         // Create the MessageChannel object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::message_channel, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::message_channel,
+            context,
+        )?;
         let channel_data = MessageChannelData { port1, port2 };
         let channel_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -113,10 +118,11 @@ fn get_port1(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("MessageChannel port1 getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<MessageChannelData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("'this' is not a MessageChannel object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<MessageChannelData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a MessageChannel object")
+        })?;
 
     Ok(data.port1.clone().into())
 }
@@ -127,10 +133,11 @@ fn get_port2(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("MessageChannel port2 getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<MessageChannelData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("'this' is not a MessageChannel object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<MessageChannelData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a MessageChannel object")
+        })?;
 
     Ok(data.port2.clone().into())
 }
@@ -138,12 +145,13 @@ fn get_port2(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 /// Helper function to create a MessagePort object with proper prototype and methods
 fn create_message_port_object(data: MessagePortData, context: &mut Context) -> JsResult<JsObject> {
     // Create the object with MessagePort prototype
-    let prototype = context.intrinsics().constructors().message_port().prototype();
-    let port_obj = JsObject::from_proto_and_data_with_shared_shape(
-        context.root_shape(),
-        prototype,
-        data,
-    );
+    let prototype = context
+        .intrinsics()
+        .constructors()
+        .message_port()
+        .prototype();
+    let port_obj =
+        JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
 
     // Add MessagePort methods
     let post_message_func = BuiltInBuilder::callable(context.realm(), message_port_post_message)
@@ -204,7 +212,11 @@ fn create_message_port_object(data: MessagePortData, context: &mut Context) -> J
 }
 
 /// MessagePort postMessage implementation
-fn message_port_post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn message_port_post_message(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     use crate::misc::structured_clone::{structured_clone, structured_deserialize};
 
     let message = args.get_or_undefined(0);
@@ -213,9 +225,9 @@ fn message_port_post_message(this: &JsValue, args: &[JsValue], context: &mut Con
         JsNativeError::typ().with_message("MessagePort.prototype.postMessage called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a MessagePort object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<MessagePortData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a MessagePort object"))?;
 
     if !data.is_entangled() {
         return Err(JsNativeError::typ()
@@ -251,28 +263,36 @@ fn message_port_post_message(this: &JsValue, args: &[JsValue], context: &mut Con
 }
 
 /// MessagePort start implementation
-fn message_port_start(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn message_port_start(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("MessagePort.prototype.start called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a MessagePort object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<MessagePortData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a MessagePort object"))?;
 
     data.start();
     Ok(JsValue::undefined())
 }
 
 /// MessagePort close implementation
-fn message_port_close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn message_port_close(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("MessagePort.prototype.close called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a MessagePort object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<MessagePortData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a MessagePort object"))?;
 
     data.close();
     Ok(JsValue::undefined())

@@ -4,14 +4,15 @@
 //! https://xhr.spec.whatwg.org/#interface-progressevent
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -88,19 +89,26 @@ impl BuiltInConstructor for ProgressEvent {
 
         let event_type = type_arg.to_string(context)?;
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::progress_event, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::progress_event,
+            context,
+        )?;
 
         let (length_computable, loaded, total) = if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
-                let length_computable = init_obj.get(js_string!("lengthComputable"), context)
+                let length_computable = init_obj
+                    .get(js_string!("lengthComputable"), context)
                     .ok()
                     .map(|v| v.to_boolean())
                     .unwrap_or(false);
-                let loaded = init_obj.get(js_string!("loaded"), context)
+                let loaded = init_obj
+                    .get(js_string!("loaded"), context)
                     .ok()
                     .and_then(|v| v.to_number(context).ok())
                     .unwrap_or(0.0) as u64;
-                let total = init_obj.get(js_string!("total"), context)
+                let total = init_obj
+                    .get(js_string!("total"), context)
                     .ok()
                     .and_then(|v| v.to_number(context).ok())
                     .unwrap_or(0.0) as u64;
@@ -136,15 +144,30 @@ impl BuiltInConstructor for ProgressEvent {
         progress_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         progress_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
         progress_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        progress_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        progress_event_generic.set(
+            js_string!("timeStamp"),
+            context.clock().now().millis_since_epoch(),
+            false,
+            context,
+        )?;
 
         if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
                 if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    progress_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                    progress_event_generic.set(
+                        js_string!("bubbles"),
+                        bubbles_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    progress_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                    progress_event_generic.set(
+                        js_string!("cancelable"),
+                        cancelable_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
             }
         }
@@ -167,18 +190,32 @@ struct ProgressEventData {
 
 impl ProgressEventData {
     fn new(event_type: String, length_computable: bool, loaded: u64, total: u64) -> Self {
-        Self { event_type, length_computable, loaded, total }
+        Self {
+            event_type,
+            length_computable,
+            loaded,
+            total,
+        }
     }
 }
 
-fn get_length_computable(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_length_computable(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("ProgressEvent.prototype.lengthComputable called on non-object")
+        JsNativeError::typ()
+            .with_message("ProgressEvent.prototype.lengthComputable called on non-object")
     })?;
 
-    let progress_event = this_obj.downcast_ref::<ProgressEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ProgressEvent.prototype.lengthComputable called on non-ProgressEvent object")
-    })?;
+    let progress_event = this_obj
+        .downcast_ref::<ProgressEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "ProgressEvent.prototype.lengthComputable called on non-ProgressEvent object",
+            )
+        })?;
 
     Ok(JsValue::from(progress_event.length_computable))
 }
@@ -188,9 +225,12 @@ fn get_loaded(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("ProgressEvent.prototype.loaded called on non-object")
     })?;
 
-    let progress_event = this_obj.downcast_ref::<ProgressEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ProgressEvent.prototype.loaded called on non-ProgressEvent object")
-    })?;
+    let progress_event = this_obj
+        .downcast_ref::<ProgressEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("ProgressEvent.prototype.loaded called on non-ProgressEvent object")
+        })?;
 
     Ok(JsValue::from(progress_event.loaded as f64))
 }
@@ -200,9 +240,12 @@ fn get_total(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("ProgressEvent.prototype.total called on non-object")
     })?;
 
-    let progress_event = this_obj.downcast_ref::<ProgressEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ProgressEvent.prototype.total called on non-ProgressEvent object")
-    })?;
+    let progress_event = this_obj
+        .downcast_ref::<ProgressEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("ProgressEvent.prototype.total called on non-ProgressEvent object")
+        })?;
 
     Ok(JsValue::from(progress_event.total as f64))
 }
@@ -221,7 +264,9 @@ mod tests {
     #[test]
     fn test_progress_event_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof ProgressEvent === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof ProgressEvent === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 

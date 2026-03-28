@@ -904,20 +904,47 @@ fn build_styled_element_from_dom(
                                 }
                                 Node::Element(el) => {
                                     let sib_tag = el.name.local.as_ref();
-                                    matches!(sib_tag,
-                                        "div" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-                                        | "ul" | "ol" | "li" | "dl" | "dt" | "dd"
-                                        | "article" | "aside" | "footer" | "header" | "main"
-                                        | "nav" | "section" | "blockquote" | "pre" | "figure"
-                                        | "figcaption" | "details" | "summary" | "hr" | "table"
-                                        | "form" | "fieldset" | "address"
+                                    matches!(
+                                        sib_tag,
+                                        "div"
+                                            | "p"
+                                            | "h1"
+                                            | "h2"
+                                            | "h3"
+                                            | "h4"
+                                            | "h5"
+                                            | "h6"
+                                            | "ul"
+                                            | "ol"
+                                            | "li"
+                                            | "dl"
+                                            | "dt"
+                                            | "dd"
+                                            | "article"
+                                            | "aside"
+                                            | "footer"
+                                            | "header"
+                                            | "main"
+                                            | "nav"
+                                            | "section"
+                                            | "blockquote"
+                                            | "pre"
+                                            | "figure"
+                                            | "figcaption"
+                                            | "details"
+                                            | "summary"
+                                            | "hr"
+                                            | "table"
+                                            | "form"
+                                            | "fieldset"
+                                            | "address"
                                     )
                                 }
                                 _ => true,
                             }
                         });
                         if all_siblings_block {
-                            continue;  // Suppress inter-block whitespace
+                            continue; // Suppress inter-block whitespace
                         }
                         if has_leading_ws || has_trailing_ws {
                             " ".to_string()

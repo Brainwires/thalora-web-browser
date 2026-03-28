@@ -1,6 +1,6 @@
 //! Tests for the StorageManager API implementation
 
-use crate::{Context, JsValue, Source, JsString};
+use crate::{Context, JsString, JsValue, Source};
 
 #[test]
 fn test_storage_manager_exists() {
@@ -8,11 +8,15 @@ fn test_storage_manager_exists() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that navigator.storage exists
-    let result = context.eval(Source::from_bytes("typeof navigator.storage")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof navigator.storage"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("object")));
 
     // Test that navigator.storage is not null
-    let result = context.eval(Source::from_bytes("navigator.storage !== null")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("navigator.storage !== null"))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -22,16 +26,24 @@ fn test_storage_manager_methods() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that all main methods exist
-    let result = context.eval(Source::from_bytes("typeof navigator.storage.estimate")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof navigator.storage.estimate"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
-    let result = context.eval(Source::from_bytes("typeof navigator.storage.persist")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof navigator.storage.persist"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
-    let result = context.eval(Source::from_bytes("typeof navigator.storage.persisted")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof navigator.storage.persisted"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
-    let result = context.eval(Source::from_bytes("typeof navigator.storage.getDirectory")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof navigator.storage.getDirectory"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
@@ -41,7 +53,11 @@ fn test_storage_estimate_returns_promise() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that estimate() returns a Promise
-    let result = context.eval(Source::from_bytes("navigator.storage.estimate() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "navigator.storage.estimate() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -51,7 +67,11 @@ fn test_storage_persist_returns_promise() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that persist() returns a Promise
-    let result = context.eval(Source::from_bytes("navigator.storage.persist() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "navigator.storage.persist() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -61,7 +81,11 @@ fn test_storage_persisted_returns_promise() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that persisted() returns a Promise
-    let result = context.eval(Source::from_bytes("navigator.storage.persisted() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "navigator.storage.persisted() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -71,7 +95,11 @@ fn test_storage_get_directory_returns_promise() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that getDirectory() returns a Promise
-    let result = context.eval(Source::from_bytes("navigator.storage.getDirectory() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "navigator.storage.getDirectory() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 

@@ -27,7 +27,12 @@ pub enum WorkerEvent {
     /// Worker has sent a message
     Message { data: StructuredCloneValue },
     /// Worker encountered an error
-    Error { message: String, filename: String, lineno: u32, colno: u32 },
+    Error {
+        message: String,
+        filename: String,
+        lineno: u32,
+        colno: u32,
+    },
     /// Worker has terminated
     Terminated,
     /// Script execution completed

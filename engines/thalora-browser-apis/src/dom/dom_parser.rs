@@ -4,13 +4,14 @@
 //! https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#domparser
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -53,7 +54,8 @@ impl BuiltInConstructor for DOMParser {
                 .into());
         }
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::dom_parser, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::dom_parser, context)?;
         let parser_data = DOMParserData::new();
         let parser_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -76,13 +78,27 @@ impl DOMParserData {
 }
 
 /// `DOMParser.prototype.parseFromString(string, mimeType)`
-fn parse_from_string(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _string = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-    let mime_type = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+fn parse_from_string(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let _string = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+    let mime_type = args
+        .get_or_undefined(1)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     // Validate mime type
     match mime_type.as_str() {
-        "text/html" | "text/xml" | "application/xml" | "application/xhtml+xml" | "image/svg+xml" => {}
+        "text/html"
+        | "text/xml"
+        | "application/xml"
+        | "application/xhtml+xml"
+        | "image/svg+xml" => {}
         _ => {
             return Err(JsNativeError::typ()
                 .with_message(format!("Invalid MIME type: {}", mime_type))
@@ -92,11 +108,7 @@ fn parse_from_string(_this: &JsValue, args: &[JsValue], context: &mut Context) -
 
     // Create and return a new Document
     let document_constructor = context.intrinsics().constructors().document().constructor();
-    crate::dom::document::Document::constructor(
-        &document_constructor.clone().into(),
-        &[],
-        context,
-    )
+    crate::dom::document::Document::constructor(&document_constructor.clone().into(), &[], context)
 }
 
 #[cfg(test)]
@@ -113,18 +125,24 @@ mod tests {
     #[test]
     fn test_dom_parser_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof DOMParser === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof DOMParser === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_dom_parser_parse_from_string() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const parser = new DOMParser();
             const doc = parser.parseFromString('<html></html>', 'text/html');
             typeof doc === 'object';
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

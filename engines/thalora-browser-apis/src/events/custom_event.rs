@@ -4,14 +4,15 @@
 //! https://dom.spec.whatwg.org/#interface-customevent
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -70,12 +71,18 @@ impl BuiltInConstructor for CustomEvent {
 
         let event_type = type_arg.to_string(context)?;
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::custom_event, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::custom_event,
+            context,
+        )?;
 
         // Get detail from eventInitDict
         let detail = if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
-                init_obj.get(js_string!("detail"), context).unwrap_or(JsValue::null())
+                init_obj
+                    .get(js_string!("detail"), context)
+                    .unwrap_or(JsValue::null())
             } else {
                 JsValue::null()
             }
@@ -102,19 +109,39 @@ impl BuiltInConstructor for CustomEvent {
         custom_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         custom_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
         custom_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        custom_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        custom_event_generic.set(
+            js_string!("timeStamp"),
+            context.clock().now().millis_since_epoch(),
+            false,
+            context,
+        )?;
 
         // Parse eventInitDict for Event properties
         if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
                 if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    custom_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                    custom_event_generic.set(
+                        js_string!("bubbles"),
+                        bubbles_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    custom_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                    custom_event_generic.set(
+                        js_string!("cancelable"),
+                        cancelable_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
                 if let Ok(composed_val) = init_obj.get(js_string!("composed"), context) {
-                    custom_event_generic.set(js_string!("composed"), composed_val.to_boolean(), false, context)?;
+                    custom_event_generic.set(
+                        js_string!("composed"),
+                        composed_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
             }
         }
@@ -154,7 +181,8 @@ fn get_detail(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 /// `CustomEvent.prototype.initCustomEvent(type, bubbles, cancelable, detail)`
 fn init_custom_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("CustomEvent.prototype.initCustomEvent called on non-object")
+        JsNativeError::typ()
+            .with_message("CustomEvent.prototype.initCustomEvent called on non-object")
     })?;
 
     let event_type = args.get_or_undefined(0).to_string(context)?;
@@ -188,27 +216,37 @@ mod tests {
     #[test]
     fn test_custom_event_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof CustomEvent === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof CustomEvent === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_custom_event_constructor() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const event = new CustomEvent('myevent', { detail: { key: 'value' } });
             event.type === 'myevent';
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_custom_event_detail() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const event = new CustomEvent('myevent', { detail: 42 });
             event.detail === 42;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

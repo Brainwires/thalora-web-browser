@@ -6,20 +6,21 @@
 //! The ServiceWorkerContainer provides the main entry point for service worker
 //! registration and management via navigator.serviceWorker
 
-
+use crate::events::event_target::EventTarget;
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
     object::{JsObject, ObjectInitializer},
+    property::{Attribute, PropertyDescriptor},
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsData, JsNativeError, JsResult, js_string, JsArgs,
-    JsString, realm::Realm, property::{Attribute, PropertyDescriptor}
 };
-use crate::events::event_target::EventTarget;
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tokio::sync::Mutex as AsyncMutex;
 use url::Url;
 
@@ -113,7 +114,8 @@ impl ServiceWorkerContainer {
     /// `ServiceWorkerContainer.prototype.register(scriptURL, options)`
     fn register(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ServiceWorkerContainer.register called on non-object")
+            JsNativeError::typ()
+                .with_message("ServiceWorkerContainer.register called on non-object")
         })?;
 
         let script_url = args.get_or_undefined(0);
@@ -159,7 +161,10 @@ impl ServiceWorkerContainer {
             Self::get_default_scope(&script_url)?
         };
 
-        eprintln!("ServiceWorker: Registering script '{}' with scope '{}'", script_url, scope_url);
+        eprintln!(
+            "ServiceWorker: Registering script '{}' with scope '{}'",
+            script_url, scope_url
+        );
 
         // Create registration
         let registration = ServiceWorkerRegistration {
@@ -193,9 +198,14 @@ impl ServiceWorkerContainer {
     }
 
     /// `ServiceWorkerContainer.prototype.getRegistration(clientURL)`
-    fn get_registration(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_registration(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ServiceWorkerContainer.getRegistration called on non-object")
+            JsNativeError::typ()
+                .with_message("ServiceWorkerContainer.getRegistration called on non-object")
         })?;
 
         let client_url = args.get_or_undefined(0);
@@ -216,11 +226,12 @@ impl ServiceWorkerContainer {
                         let registration_obj = Self::create_registration_object(
                             &registration.scope,
                             &registration.script_url,
-                            context
+                            context,
                         )?;
 
                         // Return a Promise that resolves to the registration
-                        let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                        let promise_constructor =
+                            context.intrinsics().constructors().promise().constructor();
                         let promise = boa_engine::builtins::promise::Promise::promise_resolve(
                             &promise_constructor,
                             registration_obj.into(),
@@ -243,9 +254,14 @@ impl ServiceWorkerContainer {
     }
 
     /// `ServiceWorkerContainer.prototype.getRegistrations()`
-    fn get_registrations(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_registrations(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ServiceWorkerContainer.getRegistrations called on non-object")
+            JsNativeError::typ()
+                .with_message("ServiceWorkerContainer.getRegistrations called on non-object")
         })?;
 
         let mut registration_objects: Vec<JsValue> = Vec::new();
@@ -256,7 +272,7 @@ impl ServiceWorkerContainer {
                     let registration_obj = Self::create_registration_object(
                         &registration.scope,
                         &registration.script_url,
-                        context
+                        context,
                     )?;
                     registration_objects.push(registration_obj.into());
                 }
@@ -264,7 +280,11 @@ impl ServiceWorkerContainer {
         }
 
         // Create array of registrations
-        let array = boa_engine::builtins::array::Array::array_create(registration_objects.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(
+            registration_objects.len() as u64,
+            None,
+            context,
+        )?;
         for (i, reg_obj) in registration_objects.into_iter().enumerate() {
             array.set(i, reg_obj, true, context)?;
         }
@@ -280,7 +300,11 @@ impl ServiceWorkerContainer {
     }
 
     /// `ServiceWorkerContainer.prototype.startMessages()`
-    fn start_messages(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn start_messages(
+        _this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Start receiving messages from service workers
         eprintln!("ServiceWorker: Starting message channel");
         Ok(JsValue::undefined())
@@ -289,7 +313,8 @@ impl ServiceWorkerContainer {
     /// Get the ready promise
     fn get_ready(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ServiceWorkerContainer.ready getter called on non-object")
+            JsNativeError::typ()
+                .with_message("ServiceWorkerContainer.ready getter called on non-object")
         })?;
 
         if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>() {
@@ -315,51 +340,81 @@ impl ServiceWorkerContainer {
     }
 
     /// Event handler getters and setters
-    fn get_oncontrollerchange(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Invalid 'this' value")
-        })?;
+    fn get_oncontrollerchange(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Invalid 'this' value"))?;
         this_obj.get(js_string!("__oncontrollerchange"), context)
     }
 
-    fn set_oncontrollerchange(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Invalid 'this' value")
-        })?;
+    fn set_oncontrollerchange(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Invalid 'this' value"))?;
         let handler = args.get_or_undefined(0);
-        this_obj.set(js_string!("__oncontrollerchange"), handler.clone(), false, context)?;
+        this_obj.set(
+            js_string!("__oncontrollerchange"),
+            handler.clone(),
+            false,
+            context,
+        )?;
         Ok(JsValue::undefined())
     }
 
-    fn get_onmessage(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Invalid 'this' value")
-        })?;
+    fn get_onmessage(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Invalid 'this' value"))?;
         this_obj.get(js_string!("__onmessage"), context)
     }
 
     fn set_onmessage(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Invalid 'this' value")
-        })?;
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Invalid 'this' value"))?;
         let handler = args.get_or_undefined(0);
         this_obj.set(js_string!("__onmessage"), handler.clone(), false, context)?;
         Ok(JsValue::undefined())
     }
 
-    fn get_onmessageerror(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Invalid 'this' value")
-        })?;
+    fn get_onmessageerror(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Invalid 'this' value"))?;
         this_obj.get(js_string!("__onmessageerror"), context)
     }
 
-    fn set_onmessageerror(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Invalid 'this' value")
-        })?;
+    fn set_onmessageerror(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let this_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Invalid 'this' value"))?;
         let handler = args.get_or_undefined(0);
-        this_obj.set(js_string!("__onmessageerror"), handler.clone(), false, context)?;
+        this_obj.set(
+            js_string!("__onmessageerror"),
+            handler.clone(),
+            false,
+            context,
+        )?;
         Ok(JsValue::undefined())
     }
 
@@ -396,7 +451,11 @@ impl ServiceWorkerContainer {
     }
 
     /// Create a ServiceWorkerRegistration object
-    fn create_registration_object(scope: &str, script_url: &str, context: &mut Context) -> JsResult<JsObject> {
+    fn create_registration_object(
+        scope: &str,
+        script_url: &str,
+        context: &mut Context,
+    ) -> JsResult<JsObject> {
         let registration_obj = JsObject::with_object_proto(context.intrinsics());
 
         // Set registration properties
@@ -404,102 +463,159 @@ impl ServiceWorkerContainer {
         registration_obj.set(js_string!("installing"), JsValue::null(), false, context)?;
         registration_obj.set(js_string!("waiting"), JsValue::null(), false, context)?;
         registration_obj.set(js_string!("active"), JsValue::null(), false, context)?;
-        registration_obj.set(js_string!("updateViaCache"), js_string!("imports"), false, context)?;
+        registration_obj.set(
+            js_string!("updateViaCache"),
+            js_string!("imports"),
+            false,
+            context,
+        )?;
 
         // Store internal data for methods
         registration_obj.set(js_string!("__scope"), js_string!(scope), false, context)?;
-        registration_obj.set(js_string!("__scriptUrl"), js_string!(script_url), false, context)?;
+        registration_obj.set(
+            js_string!("__scriptUrl"),
+            js_string!(script_url),
+            false,
+            context,
+        )?;
 
         // Add update() method - returns Promise resolving to registration
-        let update_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), |this, _args, context| {
-            let this_obj = this.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("ServiceWorkerRegistration.update called on non-object")
-            })?;
+        let update_func = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            |this, _args, context| {
+                let this_obj = this.as_object().ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("ServiceWorkerRegistration.update called on non-object")
+                })?;
 
-            let scope = this_obj.get(js_string!("scope"), context)?
-                .to_string(context)?
-                .to_std_string_escaped();
+                let scope = this_obj
+                    .get(js_string!("scope"), context)?
+                    .to_string(context)?
+                    .to_std_string_escaped();
 
-            eprintln!("ServiceWorkerRegistration: Checking for updates to scope '{}'", scope);
+                eprintln!(
+                    "ServiceWorkerRegistration: Checking for updates to scope '{}'",
+                    scope
+                );
 
-            // Return a Promise that resolves with the registration itself (simulating successful update check)
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            boa_engine::builtins::promise::Promise::promise_resolve(
-                &promise_constructor,
-                this.clone(),
-                context,
-            ).map(|p| p.into())
-        })
+                // Return a Promise that resolves with the registration itself (simulating successful update check)
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                boa_engine::builtins::promise::Promise::promise_resolve(
+                    &promise_constructor,
+                    this.clone(),
+                    context,
+                )
+                .map(|p| p.into())
+            },
+        )
         .name(js_string!("update"))
         .length(0)
         .build();
         registration_obj.set(js_string!("update"), update_func, false, context)?;
 
         // Add unregister() method - returns Promise resolving to boolean
-        let unregister_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), |this, _args, context| {
-            let this_obj = this.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("ServiceWorkerRegistration.unregister called on non-object")
-            })?;
+        let unregister_func = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            |this, _args, context| {
+                let this_obj = this.as_object().ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("ServiceWorkerRegistration.unregister called on non-object")
+                })?;
 
-            let scope = this_obj.get(js_string!("scope"), context)?
-                .to_string(context)?
-                .to_std_string_escaped();
+                let scope = this_obj
+                    .get(js_string!("scope"), context)?
+                    .to_string(context)?
+                    .to_std_string_escaped();
 
-            eprintln!("ServiceWorkerRegistration: Unregistering service worker for scope '{}'", scope);
+                eprintln!(
+                    "ServiceWorkerRegistration: Unregistering service worker for scope '{}'",
+                    scope
+                );
 
-            // Set properties to indicate unregistration
-            this_obj.set(js_string!("installing"), JsValue::null(), false, context)?;
-            this_obj.set(js_string!("waiting"), JsValue::null(), false, context)?;
-            this_obj.set(js_string!("active"), JsValue::null(), false, context)?;
+                // Set properties to indicate unregistration
+                this_obj.set(js_string!("installing"), JsValue::null(), false, context)?;
+                this_obj.set(js_string!("waiting"), JsValue::null(), false, context)?;
+                this_obj.set(js_string!("active"), JsValue::null(), false, context)?;
 
-            // Return a Promise that resolves with true (successful unregistration)
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            boa_engine::builtins::promise::Promise::promise_resolve(
-                &promise_constructor,
-                JsValue::from(true),
-                context,
-            ).map(|p| p.into())
-        })
+                // Return a Promise that resolves with true (successful unregistration)
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                boa_engine::builtins::promise::Promise::promise_resolve(
+                    &promise_constructor,
+                    JsValue::from(true),
+                    context,
+                )
+                .map(|p| p.into())
+            },
+        )
         .name(js_string!("unregister"))
         .length(0)
         .build();
         registration_obj.set(js_string!("unregister"), unregister_func, false, context)?;
 
         // Add showNotification() method - displays notification from service worker
-        let show_notification_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), |_this, args, context| {
-            let title = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-            let _options = args.get_or_undefined(1);
+        let show_notification_func = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            |_this, args, context| {
+                let title = args
+                    .get_or_undefined(0)
+                    .to_string(context)?
+                    .to_std_string_escaped();
+                let _options = args.get_or_undefined(1);
 
-            eprintln!("ServiceWorkerRegistration: Showing notification '{}'", title);
+                eprintln!(
+                    "ServiceWorkerRegistration: Showing notification '{}'",
+                    title
+                );
 
-            // Return a Promise that resolves with undefined
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            boa_engine::builtins::promise::Promise::promise_resolve(
-                &promise_constructor,
-                JsValue::undefined(),
-                context,
-            ).map(|p| p.into())
-        })
+                // Return a Promise that resolves with undefined
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                boa_engine::builtins::promise::Promise::promise_resolve(
+                    &promise_constructor,
+                    JsValue::undefined(),
+                    context,
+                )
+                .map(|p| p.into())
+            },
+        )
         .name(js_string!("showNotification"))
         .length(1)
         .build();
-        registration_obj.set(js_string!("showNotification"), show_notification_func, false, context)?;
+        registration_obj.set(
+            js_string!("showNotification"),
+            show_notification_func,
+            false,
+            context,
+        )?;
 
         // Add getNotifications() method - returns array of notifications
-        let get_notifications_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), |_this, _args, context| {
-            // Return a Promise that resolves with an empty array (no active notifications)
-            let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
-            let promise_constructor = context.intrinsics().constructors().promise().constructor();
-            boa_engine::builtins::promise::Promise::promise_resolve(
-                &promise_constructor,
-                empty_array.into(),
-                context,
-            ).map(|p| p.into())
-        })
+        let get_notifications_func = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            |_this, _args, context| {
+                // Return a Promise that resolves with an empty array (no active notifications)
+                let empty_array =
+                    boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                let promise_constructor =
+                    context.intrinsics().constructors().promise().constructor();
+                boa_engine::builtins::promise::Promise::promise_resolve(
+                    &promise_constructor,
+                    empty_array.into(),
+                    context,
+                )
+                .map(|p| p.into())
+            },
+        )
         .name(js_string!("getNotifications"))
         .length(0)
         .build();
-        registration_obj.set(js_string!("getNotifications"), get_notifications_func, false, context)?;
+        registration_obj.set(
+            js_string!("getNotifications"),
+            get_notifications_func,
+            false,
+            context,
+        )?;
 
         // Add event handler properties
         registration_obj.set(js_string!("onupdatefound"), JsValue::null(), false, context)?;
@@ -508,36 +624,42 @@ impl ServiceWorkerContainer {
         let navigation_preload = ObjectInitializer::new(context)
             .function(
                 boa_engine::NativeFunction::from_fn_ptr(|_this, _args, context| {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
                     boa_engine::builtins::promise::Promise::promise_resolve(
                         &promise_constructor,
                         JsValue::undefined(),
                         context,
-                    ).map(|p| p.into())
+                    )
+                    .map(|p| p.into())
                 }),
                 js_string!("enable"),
                 0,
             )
             .function(
                 boa_engine::NativeFunction::from_fn_ptr(|_this, _args, context| {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
                     boa_engine::builtins::promise::Promise::promise_resolve(
                         &promise_constructor,
                         JsValue::undefined(),
                         context,
-                    ).map(|p| p.into())
+                    )
+                    .map(|p| p.into())
                 }),
                 js_string!("disable"),
                 0,
             )
             .function(
                 boa_engine::NativeFunction::from_fn_ptr(|_this, _args, context| {
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
                     boa_engine::builtins::promise::Promise::promise_resolve(
                         &promise_constructor,
                         JsValue::undefined(),
                         context,
-                    ).map(|p| p.into())
+                    )
+                    .map(|p| p.into())
                 }),
                 js_string!("setHeaderValue"),
                 1,
@@ -546,21 +668,36 @@ impl ServiceWorkerContainer {
                 boa_engine::NativeFunction::from_fn_ptr(|_this, _args, context| {
                     // Return state object
                     let state = ObjectInitializer::new(context)
-                        .property(js_string!("enabled"), false, Attribute::ENUMERABLE | Attribute::READONLY)
-                        .property(js_string!("headerValue"), js_string!(""), Attribute::ENUMERABLE | Attribute::READONLY)
+                        .property(
+                            js_string!("enabled"),
+                            false,
+                            Attribute::ENUMERABLE | Attribute::READONLY,
+                        )
+                        .property(
+                            js_string!("headerValue"),
+                            js_string!(""),
+                            Attribute::ENUMERABLE | Attribute::READONLY,
+                        )
                         .build();
-                    let promise_constructor = context.intrinsics().constructors().promise().constructor();
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
                     boa_engine::builtins::promise::Promise::promise_resolve(
                         &promise_constructor,
                         state.into(),
                         context,
-                    ).map(|p| p.into())
+                    )
+                    .map(|p| p.into())
                 }),
                 js_string!("getState"),
                 0,
             )
             .build();
-        registration_obj.set(js_string!("navigationPreload"), navigation_preload, false, context)?;
+        registration_obj.set(
+            js_string!("navigationPreload"),
+            navigation_preload,
+            false,
+            context,
+        )?;
 
         Ok(registration_obj)
     }
@@ -577,34 +714,56 @@ impl ServiceWorkerContainer {
         container.set(js_string!("controller"), JsValue::null(), false, context)?;
 
         // Add methods
-        let register_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::register)
-            .name(js_string!("register"))
-            .length(1)
-            .build();
+        let register_func =
+            boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::register)
+                .name(js_string!("register"))
+                .length(1)
+                .build();
         container.set(js_string!("register"), register_func, false, context)?;
 
-        let get_registration_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registration)
-            .name(js_string!("getRegistration"))
-            .length(0)
-            .build();
-        container.set(js_string!("getRegistration"), get_registration_func, false, context)?;
+        let get_registration_func =
+            boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registration)
+                .name(js_string!("getRegistration"))
+                .length(0)
+                .build();
+        container.set(
+            js_string!("getRegistration"),
+            get_registration_func,
+            false,
+            context,
+        )?;
 
-        let get_registrations_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_registrations)
-            .name(js_string!("getRegistrations"))
-            .length(0)
-            .build();
-        container.set(js_string!("getRegistrations"), get_registrations_func, false, context)?;
+        let get_registrations_func = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            Self::get_registrations,
+        )
+        .name(js_string!("getRegistrations"))
+        .length(0)
+        .build();
+        container.set(
+            js_string!("getRegistrations"),
+            get_registrations_func,
+            false,
+            context,
+        )?;
 
-        let start_messages_func = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::start_messages)
-            .name(js_string!("startMessages"))
-            .length(0)
-            .build();
-        container.set(js_string!("startMessages"), start_messages_func, false, context)?;
+        let start_messages_func =
+            boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::start_messages)
+                .name(js_string!("startMessages"))
+                .length(0)
+                .build();
+        container.set(
+            js_string!("startMessages"),
+            start_messages_func,
+            false,
+            context,
+        )?;
 
         // Add ready getter
-        let ready_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_ready)
-            .name(js_string!("get ready"))
-            .build();
+        let ready_getter =
+            boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_ready)
+                .name(js_string!("get ready"))
+                .build();
         container.define_property_or_throw(
             js_string!("ready"),
             boa_engine::property::PropertyDescriptor::builder()
@@ -616,17 +775,33 @@ impl ServiceWorkerContainer {
         )?;
 
         // Initialize event handler properties
-        container.set(js_string!("__oncontrollerchange"), JsValue::null(), false, context)?;
+        container.set(
+            js_string!("__oncontrollerchange"),
+            JsValue::null(),
+            false,
+            context,
+        )?;
         container.set(js_string!("__onmessage"), JsValue::null(), false, context)?;
-        container.set(js_string!("__onmessageerror"), JsValue::null(), false, context)?;
+        container.set(
+            js_string!("__onmessageerror"),
+            JsValue::null(),
+            false,
+            context,
+        )?;
 
         // Add event handler accessors
-        let oncontrollerchange_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_oncontrollerchange)
-            .name(js_string!("get oncontrollerchange"))
-            .build();
-        let oncontrollerchange_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_oncontrollerchange)
-            .name(js_string!("set oncontrollerchange"))
-            .build();
+        let oncontrollerchange_getter = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            Self::get_oncontrollerchange,
+        )
+        .name(js_string!("get oncontrollerchange"))
+        .build();
+        let oncontrollerchange_setter = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            Self::set_oncontrollerchange,
+        )
+        .name(js_string!("set oncontrollerchange"))
+        .build();
         container.define_property_or_throw(
             js_string!("oncontrollerchange"),
             boa_engine::property::PropertyDescriptor::builder()
@@ -638,12 +813,14 @@ impl ServiceWorkerContainer {
             context,
         )?;
 
-        let onmessage_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessage)
-            .name(js_string!("get onmessage"))
-            .build();
-        let onmessage_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessage)
-            .name(js_string!("set onmessage"))
-            .build();
+        let onmessage_getter =
+            boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessage)
+                .name(js_string!("get onmessage"))
+                .build();
+        let onmessage_setter =
+            boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessage)
+                .name(js_string!("set onmessage"))
+                .build();
         container.define_property_or_throw(
             js_string!("onmessage"),
             boa_engine::property::PropertyDescriptor::builder()
@@ -655,12 +832,18 @@ impl ServiceWorkerContainer {
             context,
         )?;
 
-        let onmessageerror_getter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::get_onmessageerror)
-            .name(js_string!("get onmessageerror"))
-            .build();
-        let onmessageerror_setter = boa_engine::builtins::BuiltInBuilder::callable(context.realm(), Self::set_onmessageerror)
-            .name(js_string!("set onmessageerror"))
-            .build();
+        let onmessageerror_getter = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            Self::get_onmessageerror,
+        )
+        .name(js_string!("get onmessageerror"))
+        .build();
+        let onmessageerror_setter = boa_engine::builtins::BuiltInBuilder::callable(
+            context.realm(),
+            Self::set_onmessageerror,
+        )
+        .name(js_string!("set onmessageerror"))
+        .build();
         container.define_property_or_throw(
             js_string!("onmessageerror"),
             boa_engine::property::PropertyDescriptor::builder()

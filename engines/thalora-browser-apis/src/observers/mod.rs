@@ -1,11 +1,13 @@
 //! Observer APIs
 
-pub mod mutation_observer;
 pub mod intersection_observer;
-pub mod resize_observer;
+pub mod mutation_observer;
 pub mod performance_observer;
+pub mod resize_observer;
 
-pub use performance_observer::{PerformanceObserver, PerformanceEntry, PerformanceObserverEntryList};
+pub use performance_observer::{
+    PerformanceEntry, PerformanceObserver, PerformanceObserverEntryList,
+};
 
 #[cfg(test)]
 mod tests;

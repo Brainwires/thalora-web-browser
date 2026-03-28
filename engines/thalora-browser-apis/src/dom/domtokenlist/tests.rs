@@ -1,7 +1,7 @@
 //! Tests for DOMTokenList (classList)
-use crate::run_test_actions;
 use crate::TestAction;
 use crate::js_string;
+use crate::run_test_actions;
 
 #[test]
 fn domtokenlist_basic() {

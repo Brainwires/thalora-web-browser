@@ -1,6 +1,6 @@
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{MAX_JS_CODE_LENGTH, limit_input_length, sanitize_session_id};
 use serde_json::Value;
 use std::sync::Arc;
@@ -31,7 +31,10 @@ impl RuntimeTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::error(-1, format!("CDP Runtime domain enable failed: {:?}", response.error))
+                    McpResponse::error(
+                        -1,
+                        format!("CDP Runtime domain enable failed: {:?}", response.error),
+                    )
                 } else {
                     McpResponse::success(serde_json::json!({
                         "type": "text",
@@ -55,7 +58,10 @@ impl RuntimeTools {
         let expression = match args.get("expression").and_then(|v| v.as_str()) {
             Some(expr) => expr,
             None => {
-                return McpResponse::error(-1, "Missing required parameter: expression".to_string());
+                return McpResponse::error(
+                    -1,
+                    "Missing required parameter: expression".to_string(),
+                );
             }
         };
 
@@ -101,7 +107,8 @@ impl RuntimeTools {
                         }
                     }
                     Err(e) => {
-                        response = McpResponse::error(-1, format!("JavaScript execution error: {}", e));
+                        response =
+                            McpResponse::error(-1, format!("JavaScript execution error: {}", e));
                     }
                 }
             }
@@ -120,7 +127,10 @@ impl RuntimeTools {
                 match cdp_server.handle_message(CdpMessage::Command(command)) {
                     Ok(Some(CdpMessage::Response(cdp_response))) => {
                         if let Some(error) = cdp_response.error {
-                            response = McpResponse::error(-1, format!("CDP JavaScript evaluation failed: {}", error.message));
+                            response = McpResponse::error(
+                                -1,
+                                format!("CDP JavaScript evaluation failed: {}", error.message),
+                            );
                         } else if let Some(result) = cdp_response.result {
                             response = McpResponse::success(serde_json::json!({
                                 "type": "text",
@@ -140,7 +150,10 @@ impl RuntimeTools {
                         }));
                     }
                     Err(e) => {
-                        response = McpResponse::error(-1, format!("CDP JavaScript evaluation error: {}", e));
+                        response = McpResponse::error(
+                            -1,
+                            format!("CDP JavaScript evaluation error: {}", e),
+                        );
                     }
                 }
             }
@@ -195,7 +208,10 @@ impl RuntimeTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::error(-1, format!("Get console messages failed: {}", error.message))
+                    McpResponse::error(
+                        -1,
+                        format!("Get console messages failed: {}", error.message),
+                    )
                 } else if let Some(result) = response.result {
                     let filtered_msg = if let Some(level) = level {
                         format!("Console messages (filtered by {}): {}", level, result)

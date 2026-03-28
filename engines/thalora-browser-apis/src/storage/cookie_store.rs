@@ -7,22 +7,22 @@
 //! - [WICG Cookie Store API](https://wicg.github.io/cookie-store/)
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/CookieStore)
 
-use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::fs;
-use serde::{Serialize, Deserialize};
+use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use boa_engine::context::intrinsics::StandardConstructor;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
     object::{JsObject, JsPromise},
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
-use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
-use boa_engine::context::intrinsics::StandardConstructor;
+use boa_gc::{Finalize, Trace};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 
 /// Cookie data structure for persistence
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,8 +163,9 @@ impl BuiltInConstructor for CookieStore {
     const PROTOTYPE_STORAGE_SLOTS: usize = 100;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| constructors.cookie_store();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.cookie_store();
 
     fn constructor(
         _new_target: &JsValue,
@@ -183,18 +184,13 @@ impl CookieStore {
     /// `cookieStore.get(name)` or `cookieStore.get(options)`
     /// Returns a Promise that resolves to a cookie object or null
     fn get(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
-        let cookie_store = obj.downcast_ref::<CookieStore>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let cookie_store = obj.downcast_ref::<CookieStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
         let name_or_options = args.get_or_undefined(0);
         let cookie_name = if let Some(options_obj) = name_or_options.as_object() {
@@ -221,33 +217,76 @@ impl CookieStore {
                 // Create cookie object
                 let cookie_obj = JsObject::from_proto_and_data(
                     Some(context.intrinsics().constructors().object().prototype()),
-                    ()
+                    (),
                 );
 
-                cookie_obj.set(js_string!("name"), JsValue::from(JsString::from(cookie.name.clone())), false, context)?;
-                cookie_obj.set(js_string!("value"), JsValue::from(JsString::from(cookie.value.clone())), false, context)?;
+                cookie_obj.set(
+                    js_string!("name"),
+                    JsValue::from(JsString::from(cookie.name.clone())),
+                    false,
+                    context,
+                )?;
+                cookie_obj.set(
+                    js_string!("value"),
+                    JsValue::from(JsString::from(cookie.value.clone())),
+                    false,
+                    context,
+                )?;
 
                 if let Some(domain_val) = &cookie.domain {
-                    cookie_obj.set(js_string!("domain"), JsValue::from(JsString::from(domain_val.clone())), false, context)?;
+                    cookie_obj.set(
+                        js_string!("domain"),
+                        JsValue::from(JsString::from(domain_val.clone())),
+                        false,
+                        context,
+                    )?;
                 }
 
                 if let Some(path_val) = &cookie.path {
-                    cookie_obj.set(js_string!("path"), JsValue::from(JsString::from(path_val.clone())), false, context)?;
+                    cookie_obj.set(
+                        js_string!("path"),
+                        JsValue::from(JsString::from(path_val.clone())),
+                        false,
+                        context,
+                    )?;
                 }
 
-                cookie_obj.set(js_string!("secure"), JsValue::from(cookie.secure), false, context)?;
-                cookie_obj.set(js_string!("httpOnly"), JsValue::from(cookie.http_only), false, context)?;
+                cookie_obj.set(
+                    js_string!("secure"),
+                    JsValue::from(cookie.secure),
+                    false,
+                    context,
+                )?;
+                cookie_obj.set(
+                    js_string!("httpOnly"),
+                    JsValue::from(cookie.http_only),
+                    false,
+                    context,
+                )?;
 
                 if let Some(same_site) = &cookie.same_site {
-                    cookie_obj.set(js_string!("sameSite"), JsValue::from(JsString::from(same_site.clone())), false, context)?;
+                    cookie_obj.set(
+                        js_string!("sameSite"),
+                        JsValue::from(JsString::from(same_site.clone())),
+                        false,
+                        context,
+                    )?;
                 }
 
-                resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(cookie_obj)], context)?;
+                resolvers.resolve.call(
+                    &JsValue::undefined(),
+                    &[JsValue::from(cookie_obj)],
+                    context,
+                )?;
             } else {
-                resolvers.resolve.call(&JsValue::undefined(), &[JsValue::null()], context)?;
+                resolvers
+                    .resolve
+                    .call(&JsValue::undefined(), &[JsValue::null()], context)?;
             }
         } else {
-            resolvers.resolve.call(&JsValue::undefined(), &[JsValue::null()], context)?;
+            resolvers
+                .resolve
+                .call(&JsValue::undefined(), &[JsValue::null()], context)?;
         }
 
         Ok(JsValue::from(promise))
@@ -256,46 +295,91 @@ impl CookieStore {
     /// `cookieStore.getAll(name)` or `cookieStore.getAll(options)`
     /// Returns a Promise that resolves to an array of cookie objects
     fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
-        let cookie_store = obj.downcast_ref::<CookieStore>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let cookie_store = obj.downcast_ref::<CookieStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
         let domain = Self::get_current_domain();
 
         let storage = cookie_store.storage.read().unwrap();
         let cookies: Vec<JsValue> = if let Some(domain_cookies) = storage.cookies.get(&domain) {
-            domain_cookies.values()
+            domain_cookies
+                .values()
                 .map(|cookie| {
                     let cookie_obj = JsObject::from_proto_and_data(
                         Some(context.intrinsics().constructors().object().prototype()),
-                        ()
+                        (),
                     );
 
-                    cookie_obj.set(js_string!("name"), JsValue::from(JsString::from(cookie.name.clone())), false, context).ok();
-                    cookie_obj.set(js_string!("value"), JsValue::from(JsString::from(cookie.value.clone())), false, context).ok();
+                    cookie_obj
+                        .set(
+                            js_string!("name"),
+                            JsValue::from(JsString::from(cookie.name.clone())),
+                            false,
+                            context,
+                        )
+                        .ok();
+                    cookie_obj
+                        .set(
+                            js_string!("value"),
+                            JsValue::from(JsString::from(cookie.value.clone())),
+                            false,
+                            context,
+                        )
+                        .ok();
 
                     if let Some(domain_val) = &cookie.domain {
-                        cookie_obj.set(js_string!("domain"), JsValue::from(JsString::from(domain_val.clone())), false, context).ok();
+                        cookie_obj
+                            .set(
+                                js_string!("domain"),
+                                JsValue::from(JsString::from(domain_val.clone())),
+                                false,
+                                context,
+                            )
+                            .ok();
                     }
 
                     if let Some(path_val) = &cookie.path {
-                        cookie_obj.set(js_string!("path"), JsValue::from(JsString::from(path_val.clone())), false, context).ok();
+                        cookie_obj
+                            .set(
+                                js_string!("path"),
+                                JsValue::from(JsString::from(path_val.clone())),
+                                false,
+                                context,
+                            )
+                            .ok();
                     }
 
-                    cookie_obj.set(js_string!("secure"), JsValue::from(cookie.secure), false, context).ok();
-                    cookie_obj.set(js_string!("httpOnly"), JsValue::from(cookie.http_only), false, context).ok();
+                    cookie_obj
+                        .set(
+                            js_string!("secure"),
+                            JsValue::from(cookie.secure),
+                            false,
+                            context,
+                        )
+                        .ok();
+                    cookie_obj
+                        .set(
+                            js_string!("httpOnly"),
+                            JsValue::from(cookie.http_only),
+                            false,
+                            context,
+                        )
+                        .ok();
 
                     if let Some(same_site) = &cookie.same_site {
-                        cookie_obj.set(js_string!("sameSite"), JsValue::from(JsString::from(same_site.clone())), false, context).ok();
+                        cookie_obj
+                            .set(
+                                js_string!("sameSite"),
+                                JsValue::from(JsString::from(same_site.clone())),
+                                false,
+                                context,
+                            )
+                            .ok();
                     }
 
                     JsValue::from(cookie_obj)
@@ -309,7 +393,11 @@ impl CookieStore {
         let cookies_array = Array::create_array_from_list(cookies, context);
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::from(cookies_array)], context)?;
+        resolvers.resolve.call(
+            &JsValue::undefined(),
+            &[JsValue::from(cookies_array)],
+            context,
+        )?;
 
         Ok(JsValue::from(promise))
     }
@@ -317,26 +405,29 @@ impl CookieStore {
     /// `cookieStore.set(name, value)` or `cookieStore.set(options)`
     /// Returns a Promise that resolves when the cookie is set
     fn set(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
-        let cookie_store = obj.downcast_ref::<CookieStore>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let cookie_store = obj.downcast_ref::<CookieStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
         let first_arg = args.get_or_undefined(0);
         let second_arg = args.get_or_undefined(1);
 
-        let (name, value, domain, path, secure, http_only, same_site) = if let Some(options_obj) = first_arg.as_object() {
+        let (name, value, domain, path, secure, http_only, same_site) = if let Some(options_obj) =
+            first_arg.as_object()
+        {
             // Options object format
-            let name = options_obj.get(js_string!("name"), context)?.to_string(context)?.to_std_string_escaped();
-            let value = options_obj.get(js_string!("value"), context)?.to_string(context)?.to_std_string_escaped();
+            let name = options_obj
+                .get(js_string!("name"), context)?
+                .to_string(context)?
+                .to_std_string_escaped();
+            let value = options_obj
+                .get(js_string!("value"), context)?
+                .to_string(context)?
+                .to_std_string_escaped();
             let domain = if let Ok(domain_val) = options_obj.get(js_string!("domain"), context) {
                 if domain_val.is_null() || domain_val.is_undefined() {
                     None
@@ -355,17 +446,24 @@ impl CookieStore {
             } else {
                 None
             };
-            let secure = options_obj.get(js_string!("secure"), context).unwrap_or(JsValue::from(false)).to_boolean();
-            let http_only = options_obj.get(js_string!("httpOnly"), context).unwrap_or(JsValue::from(false)).to_boolean();
-            let same_site = if let Ok(same_site_val) = options_obj.get(js_string!("sameSite"), context) {
-                if same_site_val.is_null() || same_site_val.is_undefined() {
-                    None
+            let secure = options_obj
+                .get(js_string!("secure"), context)
+                .unwrap_or(JsValue::from(false))
+                .to_boolean();
+            let http_only = options_obj
+                .get(js_string!("httpOnly"), context)
+                .unwrap_or(JsValue::from(false))
+                .to_boolean();
+            let same_site =
+                if let Ok(same_site_val) = options_obj.get(js_string!("sameSite"), context) {
+                    if same_site_val.is_null() || same_site_val.is_undefined() {
+                        None
+                    } else {
+                        Some(same_site_val.to_string(context)?.to_std_string_escaped())
+                    }
                 } else {
-                    Some(same_site_val.to_string(context)?.to_std_string_escaped())
-                }
-            } else {
-                None
-            };
+                    None
+                };
 
             (name, value, domain, path, secure, http_only, same_site)
         } else {
@@ -390,13 +488,19 @@ impl CookieStore {
 
         {
             let mut storage = cookie_store.storage.write().unwrap();
-            storage.cookies.entry(domain.clone()).or_insert_with(HashMap::new).insert(name, cookie);
+            storage
+                .cookies
+                .entry(domain.clone())
+                .or_insert_with(HashMap::new)
+                .insert(name, cookie);
         }
 
         cookie_store.save_cookie_storage();
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
 
         Ok(JsValue::from(promise))
     }
@@ -404,18 +508,13 @@ impl CookieStore {
     /// `cookieStore.delete(name)` or `cookieStore.delete(options)`
     /// Returns a Promise that resolves when the cookie is deleted
     fn delete(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
-        let cookie_store = obj.downcast_ref::<CookieStore>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("'this' is not a CookieStore object")
-            })?;
+        let cookie_store = obj.downcast_ref::<CookieStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not a CookieStore object")
+        })?;
 
         let name_or_options = args.get_or_undefined(0);
         let cookie_name = if let Some(options_obj) = name_or_options.as_object() {
@@ -448,9 +547,10 @@ impl CookieStore {
         }
 
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[JsValue::undefined()], context)?;
 
         Ok(JsValue::from(promise))
     }
 }
-

@@ -1,6 +1,6 @@
 //! Tests for the File System API implementation
 
-use crate::{Context, JsValue, Source, JsString};
+use crate::{Context, JsString, JsValue, Source};
 
 #[test]
 fn test_file_system_constructors_not_exposed() {
@@ -32,15 +32,21 @@ fn test_file_picker_functions_exist() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that showOpenFilePicker exists and is a function
-    let result = context.eval(Source::from_bytes("typeof showOpenFilePicker")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof showOpenFilePicker"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
     // Test that showSaveFilePicker exists and is a function
-    let result = context.eval(Source::from_bytes("typeof showSaveFilePicker")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof showSaveFilePicker"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
     // Test that showDirectoryPicker exists and is a function
-    let result = context.eval(Source::from_bytes("typeof showDirectoryPicker")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof showDirectoryPicker"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
@@ -50,15 +56,27 @@ fn test_file_picker_functions_return_promises() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that showOpenFilePicker returns a Promise
-    let result = context.eval(Source::from_bytes("showOpenFilePicker() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "showOpenFilePicker() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test that showSaveFilePicker returns a Promise
-    let result = context.eval(Source::from_bytes("showSaveFilePicker() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "showSaveFilePicker() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
     // Test that showDirectoryPicker returns a Promise
-    let result = context.eval(Source::from_bytes("showDirectoryPicker() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "showDirectoryPicker() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -68,7 +86,9 @@ fn test_file_system_basic_functionality() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a mock test for file system functionality
-    context.eval(Source::from_bytes(r#"
+    context
+        .eval(Source::from_bytes(
+            r#"
         // Test showOpenFilePicker mock functionality
         var filePickerPromise = showOpenFilePicker();
         var isPromise = filePickerPromise instanceof Promise;
@@ -80,7 +100,9 @@ fn test_file_system_basic_functionality() {
         // Test showDirectoryPicker mock functionality
         var dirPickerPromise = showDirectoryPicker();
         var isDirPromise = dirPickerPromise instanceof Promise;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
 
     // Test that promises were created correctly
     let result = context.eval(Source::from_bytes("isPromise")).unwrap();
@@ -98,7 +120,9 @@ fn test_file_handle_methods_exist() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
-    context.eval(Source::from_bytes(r#"
+    context
+        .eval(Source::from_bytes(
+            r#"
         // Test that file handle has expected methods after resolution
         var fileHandleTest = false;
         showOpenFilePicker().then(function(fileHandles) {
@@ -109,7 +133,9 @@ fn test_file_handle_methods_exist() {
                                 typeof fileHandle.createWritable === 'function';
             }
         });
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
 
     // Note: In a real async environment, we would need to wait for the promise
     // This test just verifies the structure is set up correctly
@@ -120,7 +146,9 @@ fn test_directory_handle_methods_exist() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
-    context.eval(Source::from_bytes(r#"
+    context
+        .eval(Source::from_bytes(
+            r#"
         // Test that directory handle has expected methods after resolution
         var dirHandleTest = false;
         showDirectoryPicker().then(function(dirHandle) {
@@ -132,7 +160,9 @@ fn test_directory_handle_methods_exist() {
                                typeof dirHandle.resolve === 'function';
             }
         });
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
 
     // Note: In a real async environment, we would need to wait for the promise
     // This test just verifies the structure is set up correctly
@@ -144,13 +174,25 @@ fn test_file_system_vfs_integration() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that file picker functions work with VFS
-    let result = context.eval(Source::from_bytes("showOpenFilePicker() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "showOpenFilePicker() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
-    let result = context.eval(Source::from_bytes("showSaveFilePicker() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "showSaveFilePicker() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 
-    let result = context.eval(Source::from_bytes("showDirectoryPicker() instanceof Promise")).unwrap();
+    let result = context
+        .eval(Source::from_bytes(
+            "showDirectoryPicker() instanceof Promise",
+        ))
+        .unwrap();
     assert_eq!(result, JsValue::from(true));
 }
 
@@ -159,7 +201,9 @@ fn test_file_system_handle_common_methods() {
     let mut context = Context::default();
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
-    context.eval(Source::from_bytes(r#"
+    context
+        .eval(Source::from_bytes(
+            r#"
         // Test common FileSystemHandle methods
         var handleMethodsTest = false;
         showSaveFilePicker().then(function(fileHandle) {
@@ -169,7 +213,9 @@ fn test_file_system_handle_common_methods() {
                                    typeof fileHandle.requestPermission === 'function';
             }
         });
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
 
     // Note: In a real async environment, we would need to wait for the promise
     // This test just verifies the structure is set up correctly

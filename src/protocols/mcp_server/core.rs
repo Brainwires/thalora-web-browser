@@ -197,8 +197,8 @@ impl McpServer {
     /// Uses `tokio::task::LocalSet` so the `!Send` boa engine (`Rc`-based) is safe.
     #[cfg(feature = "http-transport")]
     pub async fn run(self) -> Result<()> {
-        use rmcp::ServiceExt;
         use crate::protocols::mcp_server::service::McpServerService;
+        use rmcp::ServiceExt;
 
         let local = tokio::task::LocalSet::new();
         let service = McpServerService::new(self);

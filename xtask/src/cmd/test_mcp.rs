@@ -30,10 +30,14 @@ fn build_release() -> Result<()> {
 
 fn run_category(filter: &str, description: &str) -> Result<()> {
     println!("Running {description}...");
-    super::run_cmd(
-        Command::new("cargo")
-            .args(["test", "--test", "mcp_tests", filter, "--", "--nocapture"]),
-    )
+    super::run_cmd(Command::new("cargo").args([
+        "test",
+        "--test",
+        "mcp_tests",
+        filter,
+        "--",
+        "--nocapture",
+    ]))
 }
 
 fn run_all() -> Result<()> {
@@ -69,7 +73,12 @@ fn run_all() -> Result<()> {
     // Performance tests need release build
     println!("Performance tests require release build...");
     if build_release().is_ok() {
-        if run_category("test_.*_performance|test_stress_test", "Performance & Stress Tests").is_err() {
+        if run_category(
+            "test_.*_performance|test_stress_test",
+            "Performance & Stress Tests",
+        )
+        .is_err()
+        {
             failed += 1;
         }
     } else {
@@ -95,16 +104,14 @@ fn run_all() -> Result<()> {
 fn run_quick() -> Result<()> {
     println!("Running quick smoke tests...");
     build_debug()?;
-    super::run_cmd(
-        Command::new("cargo").args([
-            "test",
-            "--test",
-            "mcp_tests",
-            "test_harness_functionality|test_tool_categories_smoke",
-            "--",
-            "--nocapture",
-        ]),
-    )?;
+    super::run_cmd(Command::new("cargo").args([
+        "test",
+        "--test",
+        "mcp_tests",
+        "test_harness_functionality|test_tool_categories_smoke",
+        "--",
+        "--nocapture",
+    ]))?;
     println!("Quick tests passed - MCP server basic functionality works");
     Ok(())
 }
@@ -112,17 +119,15 @@ fn run_quick() -> Result<()> {
 fn run_perf() -> Result<()> {
     println!("Running performance tests only...");
     build_release()?;
-    super::run_cmd(
-        Command::new("cargo").args([
-            "test",
-            "--release",
-            "--test",
-            "mcp_tests",
-            "performance",
-            "--",
-            "--nocapture",
-        ]),
-    )?;
+    super::run_cmd(Command::new("cargo").args([
+        "test",
+        "--release",
+        "--test",
+        "mcp_tests",
+        "performance",
+        "--",
+        "--nocapture",
+    ]))?;
     println!("Performance tests completed");
     Ok(())
 }

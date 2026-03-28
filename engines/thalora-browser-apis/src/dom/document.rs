@@ -4,14 +4,15 @@
 //! https://dom.spec.whatwg.org/#interface-document
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::{Attribute, PropertyDescriptorBuilder},
+    realm::Realm,
     string::StaticJsStrings,
-    NativeFunction,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder}
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -216,7 +217,11 @@ impl IntrinsicObject for Document {
             )
             .method(create_element, js_string!("createElement"), 1)
             .method(create_text_node, js_string!("createTextNode"), 1)
-            .method(create_document_fragment, js_string!("createDocumentFragment"), 0)
+            .method(
+                create_document_fragment,
+                js_string!("createDocumentFragment"),
+                0,
+            )
             .method(create_range, js_string!("createRange"), 0)
             .method(get_element_by_id, js_string!("getElementById"), 1)
             .method(query_selector, js_string!("querySelector"), 1)
@@ -226,8 +231,16 @@ impl IntrinsicObject for Document {
             .method(dispatch_event, js_string!("dispatchEvent"), 1)
             .method(start_view_transition, js_string!("startViewTransition"), 0)
             // New DOM query methods
-            .method(get_elements_by_class_name, js_string!("getElementsByClassName"), 1)
-            .method(get_elements_by_tag_name, js_string!("getElementsByTagName"), 1)
+            .method(
+                get_elements_by_class_name,
+                js_string!("getElementsByClassName"),
+                1,
+            )
+            .method(
+                get_elements_by_tag_name,
+                js_string!("getElementsByTagName"),
+                1,
+            )
             .method(get_elements_by_name, js_string!("getElementsByName"), 1)
             .method(create_comment, js_string!("createComment"), 1)
             .method(create_attribute, js_string!("createAttribute"), 1)
@@ -261,11 +274,8 @@ impl BuiltInConstructor for Document {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::document,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::document, context)?;
 
         let document_data = DocumentData::new();
 
@@ -325,7 +335,8 @@ impl DocumentData {
         // Set up DOM sync bridge - connect Element changes to Document updates
         use crate::dom::element::GLOBAL_DOM_SYNC;
         let html_content_ref = doc_data.html_content.clone();
-        GLOBAL_DOM_SYNC.get_or_init(|| crate::dom::element::DomSync::new())
+        GLOBAL_DOM_SYNC
+            .get_or_init(|| crate::dom::element::DomSync::new())
             .set_updater(Box::new(move |html| {
                 *html_content_ref.lock().unwrap() = html.to_string();
             }));
@@ -381,7 +392,10 @@ impl DocumentData {
     /// Process all forms in HTML content and prepare elements collections
     /// This ensures that forms accessed via DOM events have proper elements collections
     fn process_forms_in_html(&self, html_content: &str) {
-        eprintln!("🔍 DEBUG: process_forms_in_html called with {} characters of HTML", html_content.len());
+        eprintln!(
+            "🔍 DEBUG: process_forms_in_html called with {} characters of HTML",
+            html_content.len()
+        );
 
         // Parse the HTML content to find all forms
         let document = scraper::Html::parse_document(html_content);
@@ -409,8 +423,16 @@ impl DocumentData {
                 if let Ok(input_selector) = scraper::Selector::parse("input") {
                     for input_element in form_doc.select(&input_selector) {
                         if let Some(input_name) = input_element.value().attr("name") {
-                            let input_value = input_element.value().attr("value").unwrap_or("").to_string();
-                            let input_type = input_element.value().attr("type").unwrap_or("text").to_string();
+                            let input_value = input_element
+                                .value()
+                                .attr("value")
+                                .unwrap_or("")
+                                .to_string();
+                            let input_type = input_element
+                                .value()
+                                .attr("type")
+                                .unwrap_or("text")
+                                .to_string();
 
                             form_inputs.push((input_name.to_string(), input_value, input_type));
                         }
@@ -427,20 +449,29 @@ impl DocumentData {
     /// Add form metadata that can be used when creating form elements in JavaScript
     fn add_form_metadata(&self, form_id: String, inputs: Vec<(String, String, String)>) {
         // Create an HTMLFormElement with proper elements collection
-        use crate::misc::form::{HTMLFormElement, HTMLInputElement, HTMLFormControlsCollection};
-        use boa_engine::{Context, object::ObjectInitializer, js_string};
+        use crate::misc::form::{HTMLFormControlsCollection, HTMLFormElement, HTMLInputElement};
+        use boa_engine::{Context, js_string, object::ObjectInitializer};
 
         // For now, store the metadata - we'll need a context to create the actual objects
         // This processing happens at document level so all forms are known before JavaScript queries them
         // TODO: This needs to be enhanced to create actual JavaScript objects when we have a context
-        eprintln!("🔍 DEBUG: Found form '{}' with {} inputs", form_id, inputs.len());
+        eprintln!(
+            "🔍 DEBUG: Found form '{}' with {} inputs",
+            form_id,
+            inputs.len()
+        );
         for (name, value, input_type) in &inputs {
-            eprintln!("🔍 DEBUG: - Input '{}' = '{}' (type: {})", name, value, input_type);
+            eprintln!(
+                "🔍 DEBUG: - Input '{}' = '{}' (type: {})",
+                name, value, input_type
+            );
         }
     }
 
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
-        self.event_listeners.lock().unwrap()
+        self.event_listeners
+            .lock()
+            .unwrap()
             .entry(event_type)
             .or_insert_with(Vec::new)
             .push(listener);
@@ -453,7 +484,9 @@ impl DocumentData {
     }
 
     pub fn get_event_listeners(&self, event_type: &str) -> Vec<JsValue> {
-        self.event_listeners.lock().unwrap()
+        self.event_listeners
+            .lock()
+            .unwrap()
             .get(event_type)
             .cloned()
             .unwrap_or_default()
@@ -467,12 +500,12 @@ fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
     })?;
 
     let value = {
-            let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Document.prototype.readyState called on non-Document object")
-            })?;
-            document.get_ready_state()
-        };
+        let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Document.prototype.readyState called on non-Document object")
+        })?;
+        document.get_ready_state()
+    };
     Ok(JsString::from(value).into())
 }
 
@@ -483,12 +516,12 @@ fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
     })?;
 
     let value = {
-            let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Document.prototype.URL called on non-Document object")
-            })?;
-            document.get_url()
-        };
+        let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Document.prototype.URL called on non-Document object")
+        })?;
+        document.get_url()
+    };
     Ok(JsString::from(value).into())
 }
 
@@ -499,12 +532,12 @@ fn get_title(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
     })?;
 
     let value = {
-            let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Document.prototype.title called on non-Document object")
-            })?;
-            document.get_title()
-        };
+        let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("Document.prototype.title called on non-Document object")
+        })?;
+        document.get_title()
+    };
     Ok(JsString::from(value).into())
 }
 
@@ -531,8 +564,7 @@ fn get_body(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.body called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.body called on non-Document object")
     })?;
 
     // Create body element if it doesn't exist
@@ -555,8 +587,7 @@ fn get_head(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResul
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.head called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.head called on non-Document object")
     })?;
 
     // Create head element if it doesn't exist
@@ -688,7 +719,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
             // Return common attributes that Google checks
             match attr_name_str.as_str() {
                 "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                _ => Ok(JsValue::null())
+                _ => Ok(JsValue::null()),
             }
         })
         .name(js_string!("getAttribute"))
@@ -809,9 +840,17 @@ fn create_text_node(_this: &JsValue, args: &[JsValue], context: &mut Context) ->
 }
 
 /// `Document.prototype.createDocumentFragment()`
-fn create_document_fragment(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn create_document_fragment(
+    _this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // Create a DocumentFragment using the DocumentFragment constructor
-    let fragment_constructor = context.intrinsics().constructors().document_fragment().constructor();
+    let fragment_constructor = context
+        .intrinsics()
+        .constructors()
+        .document_fragment()
+        .constructor();
     let fragment = crate::dom::document_fragment::DocumentFragment::constructor(
         &fragment_constructor.clone().into(),
         &[],
@@ -825,11 +864,8 @@ fn create_document_fragment(_this: &JsValue, _args: &[JsValue], context: &mut Co
 fn create_range(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Create a Range using the Range constructor
     let range_constructor = context.intrinsics().constructors().range().constructor();
-    let range = crate::dom::range::Range::constructor(
-        &range_constructor.clone().into(),
-        &[],
-        context,
-    )?;
+    let range =
+        crate::dom::range::Range::constructor(&range_constructor.clone().into(), &[], context)?;
 
     Ok(range)
 }
@@ -873,7 +909,10 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
     // Get the HTML content from the document
     let html_content = document.get_html_content();
-    eprintln!("DEBUG: query_selector HTML content length: {}", html_content.len());
+    eprintln!(
+        "DEBUG: query_selector HTML content length: {}",
+        html_content.len()
+    );
 
     // Use real DOM implementation with scraper library
     if let Some(element) = create_real_element_from_html(context, &selector_str, &html_content)? {
@@ -885,7 +924,11 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 /// Real DOM element creation using scraper library and actual HTML content
-fn create_real_element_from_html(context: &mut Context, selector: &str, html_content: &str) -> JsResult<Option<JsObject>> {
+fn create_real_element_from_html(
+    context: &mut Context,
+    selector: &str,
+    html_content: &str,
+) -> JsResult<Option<JsObject>> {
     // Use the scraper crate to parse real HTML and find elements
     let document = scraper::Html::parse_document(html_content);
 
@@ -895,32 +938,56 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
 
             // Actually construct a new Element instance using the Element constructor
             let element_constructor = context.intrinsics().constructors().element().constructor();
-            let element_obj = element_constructor.construct(&[], Some(&element_constructor), context)?;
+            let element_obj =
+                element_constructor.construct(&[], Some(&element_constructor), context)?;
 
             eprintln!("DEBUG: Element created, checking for dispatchEvent...");
             if let Ok(dispatch_event) = element_obj.get(js_string!("dispatchEvent"), context) {
-                eprintln!("DEBUG: dispatchEvent found on created element: {:?}", dispatch_event.type_of());
+                eprintln!(
+                    "DEBUG: dispatchEvent found on created element: {:?}",
+                    dispatch_event.type_of()
+                );
             } else {
                 eprintln!("DEBUG: dispatchEvent NOT found on created element!");
             }
 
             // Set real properties from the actual HTML element
             let tag_name = element_ref.value().name().to_uppercase();
-            element_obj.set(js_string!("tagName"), js_string!(tag_name.clone()), false, context)?;
+            element_obj.set(
+                js_string!("tagName"),
+                js_string!(tag_name.clone()),
+                false,
+                context,
+            )?;
             element_obj.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
 
             // Set real attributes from the HTML
             for (attr_name, attr_value) in element_ref.value().attrs() {
-                element_obj.set(js_string!(attr_name), js_string!(attr_value), false, context)?;
+                element_obj.set(
+                    js_string!(attr_name),
+                    js_string!(attr_value),
+                    false,
+                    context,
+                )?;
             }
 
             // Set text content
             let text_content: String = element_ref.text().collect();
-            element_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element_obj.set(
+                js_string!("textContent"),
+                js_string!(text_content),
+                false,
+                context,
+            )?;
 
             // Set innerHTML
             let inner_html = element_ref.inner_html();
-            element_obj.set(js_string!("innerHTML"), js_string!(inner_html), false, context)?;
+            element_obj.set(
+                js_string!("innerHTML"),
+                js_string!(inner_html),
+                false,
+                context,
+            )?;
 
             // Add common DOM methods
             let focus_fn = context.intrinsics().constructors().function().constructor();
@@ -946,7 +1013,8 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
             // Add form-specific functionality for FORM elements from HTML
             if tag_name == "FORM" {
                 // Create elements collection
-                let elements_collection = context.intrinsics().constructors().object().constructor();
+                let elements_collection =
+                    context.intrinsics().constructors().object().constructor();
 
                 // Find all input elements within this form using the HTML content
                 let form_selector = scraper::Selector::parse("input").unwrap();
@@ -962,23 +1030,48 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
 
                         // Add value property
                         if let Some(input_value) = input_element.value().attr("value") {
-                            input_obj.set(js_string!("value"), js_string!(input_value), false, context)?;
+                            input_obj.set(
+                                js_string!("value"),
+                                js_string!(input_value),
+                                false,
+                                context,
+                            )?;
                         } else {
                             input_obj.set(js_string!("value"), js_string!(""), false, context)?;
                         }
 
                         // Add name property
-                        input_obj.set(js_string!("name"), js_string!(input_name), false, context)?;
+                        input_obj.set(
+                            js_string!("name"),
+                            js_string!(input_name),
+                            false,
+                            context,
+                        )?;
 
                         // Add input type
                         if let Some(input_type) = input_element.value().attr("type") {
-                            input_obj.set(js_string!("type"), js_string!(input_type), false, context)?;
+                            input_obj.set(
+                                js_string!("type"),
+                                js_string!(input_type),
+                                false,
+                                context,
+                            )?;
                         } else {
-                            input_obj.set(js_string!("type"), js_string!("text"), false, context)?;
+                            input_obj.set(
+                                js_string!("type"),
+                                js_string!("text"),
+                                false,
+                                context,
+                            )?;
                         }
 
                         // Add this input to the elements collection by name
-                        elements_collection.set(js_string!(input_name), input_obj, false, context)?;
+                        elements_collection.set(
+                            js_string!(input_name),
+                            input_obj,
+                            false,
+                            context,
+                        )?;
                     }
                 }
 
@@ -986,20 +1079,26 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
                 element_obj.set(js_string!("elements"), elements_collection, false, context)?;
 
                 // Add getAttribute method that Google's code needs
-                let get_attribute_func = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
-                    let attr_name = args.get_or_undefined(0).to_string(ctx)?;
-                    let attr_name_str = attr_name.to_std_string_escaped();
+                let get_attribute_func =
+                    BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+                        let attr_name = args.get_or_undefined(0).to_string(ctx)?;
+                        let attr_name_str = attr_name.to_std_string_escaped();
 
-                    // Return common attributes that Google checks
-                    match attr_name_str.as_str() {
-                        "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                        _ => Ok(JsValue::null())
-                    }
-                })
-                .name(js_string!("getAttribute"))
-                .build();
+                        // Return common attributes that Google checks
+                        match attr_name_str.as_str() {
+                            "data-submitfalse" => Ok(JsValue::null()), // Google checks this
+                            _ => Ok(JsValue::null()),
+                        }
+                    })
+                    .name(js_string!("getAttribute"))
+                    .build();
 
-                element_obj.set(js_string!("getAttribute"), get_attribute_func, false, context)?;
+                element_obj.set(
+                    js_string!("getAttribute"),
+                    get_attribute_func,
+                    false,
+                    context,
+                )?;
             }
 
             return Ok(Some(element_obj));
@@ -1010,7 +1109,11 @@ fn create_real_element_from_html(context: &mut Context, selector: &str, html_con
 }
 
 /// Real DOM elements creation using scraper library to find all matching elements
-fn create_all_real_elements_from_html(context: &mut Context, selector: &str, html_content: &str) -> JsResult<Vec<JsValue>> {
+fn create_all_real_elements_from_html(
+    context: &mut Context,
+    selector: &str,
+    html_content: &str,
+) -> JsResult<Vec<JsValue>> {
     let mut elements = Vec::new();
 
     // Use the scraper crate to parse real HTML and find all elements
@@ -1022,21 +1125,41 @@ fn create_all_real_elements_from_html(context: &mut Context, selector: &str, htm
 
             // Set real properties from the actual HTML element
             let tag_name = element_ref.value().name().to_uppercase();
-            element_obj.set(js_string!("tagName"), js_string!(tag_name.clone()), false, context)?;
+            element_obj.set(
+                js_string!("tagName"),
+                js_string!(tag_name.clone()),
+                false,
+                context,
+            )?;
             element_obj.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
 
             // Set real attributes from the HTML
             for (attr_name, attr_value) in element_ref.value().attrs() {
-                element_obj.set(js_string!(attr_name), js_string!(attr_value), false, context)?;
+                element_obj.set(
+                    js_string!(attr_name),
+                    js_string!(attr_value),
+                    false,
+                    context,
+                )?;
             }
 
             // Set text content
             let text_content: String = element_ref.text().collect();
-            element_obj.set(js_string!("textContent"), js_string!(text_content), false, context)?;
+            element_obj.set(
+                js_string!("textContent"),
+                js_string!(text_content),
+                false,
+                context,
+            )?;
 
             // Set innerHTML
             let inner_html = element_ref.inner_html();
-            element_obj.set(js_string!("innerHTML"), js_string!(inner_html), false, context)?;
+            element_obj.set(
+                js_string!("innerHTML"),
+                js_string!(inner_html),
+                false,
+                context,
+            )?;
 
             // Add common DOM methods
             let focus_fn = context.intrinsics().constructors().function().constructor();
@@ -1062,9 +1185,14 @@ fn create_all_real_elements_from_html(context: &mut Context, selector: &str, htm
 }
 
 /// `Document.prototype.querySelectorAll(selector)`
-fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn query_selector_all(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.querySelectorAll called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.querySelectorAll called on non-object")
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1087,9 +1215,14 @@ fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 /// `Document.prototype.addEventListener(type, listener)`
-fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn add_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.addEventListener called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.addEventListener called on non-object")
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1105,9 +1238,14 @@ fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 /// `Document.prototype.removeEventListener(type, listener)`
-fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn remove_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.removeEventListener called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.removeEventListener called on non-object")
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1160,9 +1298,14 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 /// `Document.prototype.startViewTransition(callback)`
-fn start_view_transition(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn start_view_transition(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.startViewTransition called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.startViewTransition called on non-object")
     })?;
 
     let _document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1205,10 +1348,12 @@ fn start_view_transition(this: &JsValue, args: &[JsValue], context: &mut Context
     let mut callback_promise = context.eval(boa_engine::Source::from_bytes("Promise.resolve()"))?;
     if !callback.is_undefined() && callback.is_callable() {
         // Call the callback function
-        if let Ok(result) = callback.as_callable()
-            .unwrap()
-            .call(&JsValue::undefined(), &[], context) {
-
+        if let Ok(result) =
+            callback
+                .as_callable()
+                .unwrap()
+                .call(&JsValue::undefined(), &[], context)
+        {
             // Check if result is a promise
             if result.is_object() {
                 if let Some(obj) = result.as_object() {
@@ -1258,9 +1403,14 @@ fn start_view_transition(this: &JsValue, args: &[JsValue], context: &mut Context
 // ============================================================================
 
 /// `Document.prototype.getElementsByClassName(classNames)`
-fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_elements_by_class_name(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.getElementsByClassName called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.getElementsByClassName called on non-object")
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1279,7 +1429,8 @@ fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Co
     let fragment = scraper::Html::parse_fragment(&html_content);
 
     // Build CSS selector for matching all classes
-    let selector_str = classes.iter()
+    let selector_str = classes
+        .iter()
         .map(|c| format!(".{}", c))
         .collect::<Vec<_>>()
         .join("");
@@ -1360,9 +1511,14 @@ fn get_elements_by_class_name(this: &JsValue, args: &[JsValue], context: &mut Co
 }
 
 /// `Document.prototype.getElementsByTagName(tagName)`
-fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_elements_by_tag_name(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.getElementsByTagName called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.getElementsByTagName called on non-object")
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1455,9 +1611,14 @@ fn get_elements_by_tag_name(this: &JsValue, args: &[JsValue], context: &mut Cont
 }
 
 /// `Document.prototype.getElementsByName(name)`
-fn get_elements_by_name(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_elements_by_name(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Document.prototype.getElementsByName called on non-object")
+        JsNativeError::typ()
+            .with_message("Document.prototype.getElementsByName called on non-object")
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
@@ -1695,14 +1856,19 @@ fn exec_command(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 /// `Document.prototype.createTreeWalker(root, whatToShow, filter)`
-fn create_tree_walker(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn create_tree_walker(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     use super::treewalker::{TreeWalker, node_filter};
 
     // Get the root node (required)
     let root = args.get_or_undefined(0);
-    let root_obj = root.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("createTreeWalker: root must be a Node")
-    })?.clone();
+    let root_obj = root
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("createTreeWalker: root must be a Node"))?
+        .clone();
 
     // Get whatToShow (optional, defaults to SHOW_ALL)
     let what_to_show = if args.len() > 1 && !args.get_or_undefined(1).is_undefined() {
@@ -1723,15 +1889,22 @@ fn create_tree_walker(_this: &JsValue, args: &[JsValue], context: &mut Context) 
 }
 
 /// `Document.prototype.createNodeIterator(root, whatToShow, filter)`
-fn create_node_iterator(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn create_node_iterator(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     use super::nodeiterator::NodeIterator;
     use super::treewalker::node_filter;
 
     // Get the root node (required)
     let root = args.get_or_undefined(0);
-    let root_obj = root.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("createNodeIterator: root must be a Node")
-    })?.clone();
+    let root_obj = root
+        .as_object()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("createNodeIterator: root must be a Node")
+        })?
+        .clone();
 
     // Get whatToShow (optional, defaults to SHOW_ALL)
     let what_to_show = if args.len() > 1 && !args.get_or_undefined(1).is_undefined() {
@@ -1752,7 +1925,11 @@ fn create_node_iterator(_this: &JsValue, args: &[JsValue], context: &mut Context
 }
 
 /// Canvas `getContext(contextType)` method implementation
-fn canvas_get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_get_context(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let context_type = args.get_or_undefined(0).to_string(context)?;
     let context_type_str = context_type.to_std_string_escaped();
 
@@ -1834,9 +2011,10 @@ fn canvas_get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -
                 context,
             )?;
 
-            let measure_text_func = BuiltInBuilder::callable(context.realm(), canvas_2d_measure_text)
-                .name(js_string!("measureText"))
-                .build();
+            let measure_text_func =
+                BuiltInBuilder::callable(context.realm(), canvas_2d_measure_text)
+                    .name(js_string!("measureText"))
+                    .build();
             context_2d.define_property_or_throw(
                 js_string!("measureText"),
                 PropertyDescriptorBuilder::new()
@@ -1966,19 +2144,22 @@ fn canvas_get_context(this: &JsValue, args: &[JsValue], context: &mut Context) -
 
             Ok(context_2d.into())
         }
-        "webgl" | "experimental-webgl" => {
-            create_webgl_context(context, false)
-        }
-        "webgl2" | "experimental-webgl2" => {
-            create_webgl_context(context, true)
-        }
-        _ => Ok(JsValue::null())
+        "webgl" | "experimental-webgl" => create_webgl_context(context, false),
+        "webgl2" | "experimental-webgl2" => create_webgl_context(context, true),
+        _ => Ok(JsValue::null()),
     }
 }
 
 /// Canvas `toDataURL(type, quality)` method implementation
-fn canvas_to_data_url(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _mime_type = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+fn canvas_to_data_url(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let _mime_type = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
     let _quality = args.get_or_undefined(1).to_number(context)?;
 
     // For now, return a minimal empty PNG data URL
@@ -1987,7 +2168,11 @@ fn canvas_to_data_url(this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 // Canvas 2D context method implementations
-fn canvas_2d_fill_rect(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_fill_rect(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;
     let _width = args.get_or_undefined(2).to_number(context)?;
@@ -1999,7 +2184,11 @@ fn canvas_2d_fill_rect(_this: &JsValue, args: &[JsValue], context: &mut Context)
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_stroke_rect(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_stroke_rect(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;
     let _width = args.get_or_undefined(2).to_number(context)?;
@@ -2011,7 +2200,11 @@ fn canvas_2d_stroke_rect(_this: &JsValue, args: &[JsValue], context: &mut Contex
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_clear_rect(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_clear_rect(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;
     let _width = args.get_or_undefined(2).to_number(context)?;
@@ -2023,31 +2216,53 @@ fn canvas_2d_clear_rect(_this: &JsValue, args: &[JsValue], context: &mut Context
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_fill_text(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_fill_text(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let text = args.get_or_undefined(0).to_string(context)?;
     let _x = args.get_or_undefined(1).to_number(context)?;
     let _y = args.get_or_undefined(2).to_number(context)?;
     let _max_width = args.get_or_undefined(3);
 
     // TODO: Implement actual text rendering
-    eprintln!("Canvas fillText('{}', {}, {})", text.to_std_string_escaped(), _x, _y);
+    eprintln!(
+        "Canvas fillText('{}', {}, {})",
+        text.to_std_string_escaped(),
+        _x,
+        _y
+    );
 
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_stroke_text(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_stroke_text(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let text = args.get_or_undefined(0).to_string(context)?;
     let _x = args.get_or_undefined(1).to_number(context)?;
     let _y = args.get_or_undefined(2).to_number(context)?;
     let _max_width = args.get_or_undefined(3);
 
     // TODO: Implement actual text stroking
-    eprintln!("Canvas strokeText('{}', {}, {})", text.to_std_string_escaped(), _x, _y);
+    eprintln!(
+        "Canvas strokeText('{}', {}, {})",
+        text.to_std_string_escaped(),
+        _x,
+        _y
+    );
 
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_measure_text(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_measure_text(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let text = args.get_or_undefined(0).to_string(context)?;
 
     // Create TextMetrics object
@@ -2072,13 +2287,21 @@ fn canvas_2d_measure_text(_this: &JsValue, args: &[JsValue], context: &mut Conte
     Ok(metrics.into())
 }
 
-fn canvas_2d_begin_path(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_begin_path(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     // TODO: Implement path state management
     eprintln!("Canvas beginPath()");
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_move_to(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_move_to(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;
 
@@ -2088,7 +2311,11 @@ fn canvas_2d_move_to(_this: &JsValue, args: &[JsValue], context: &mut Context) -
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_line_to(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_line_to(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let _x = args.get_or_undefined(0).to_number(context)?;
     let _y = args.get_or_undefined(1).to_number(context)?;
 
@@ -2098,7 +2325,11 @@ fn canvas_2d_line_to(_this: &JsValue, args: &[JsValue], context: &mut Context) -
     Ok(JsValue::undefined())
 }
 
-fn canvas_2d_stroke(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn canvas_2d_stroke(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     // TODO: Implement path stroking
     eprintln!("Canvas stroke()");
     Ok(JsValue::undefined())
@@ -2115,133 +2346,277 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
     let gl_context = JsObject::default(context.intrinsics());
 
     // WebGL constants (subset of most commonly used)
-    gl_context.set(js_string!("VERTEX_SHADER"), JsValue::from(35633), false, context)?;
-    gl_context.set(js_string!("FRAGMENT_SHADER"), JsValue::from(35632), false, context)?;
-    gl_context.set(js_string!("ARRAY_BUFFER"), JsValue::from(34962), false, context)?;
-    gl_context.set(js_string!("STATIC_DRAW"), JsValue::from(35044), false, context)?;
-    gl_context.set(js_string!("COLOR_BUFFER_BIT"), JsValue::from(16384), false, context)?;
+    gl_context.set(
+        js_string!("VERTEX_SHADER"),
+        JsValue::from(35633),
+        false,
+        context,
+    )?;
+    gl_context.set(
+        js_string!("FRAGMENT_SHADER"),
+        JsValue::from(35632),
+        false,
+        context,
+    )?;
+    gl_context.set(
+        js_string!("ARRAY_BUFFER"),
+        JsValue::from(34962),
+        false,
+        context,
+    )?;
+    gl_context.set(
+        js_string!("STATIC_DRAW"),
+        JsValue::from(35044),
+        false,
+        context,
+    )?;
+    gl_context.set(
+        js_string!("COLOR_BUFFER_BIT"),
+        JsValue::from(16384),
+        false,
+        context,
+    )?;
     gl_context.set(js_string!("TRIANGLES"), JsValue::from(4), false, context)?;
     gl_context.set(js_string!("FLOAT"), JsValue::from(5126), false, context)?;
 
     // Core WebGL methods
-    let create_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-        let shader_obj = JsObject::default(_context.intrinsics());
-        Ok(JsValue::from(shader_obj))
-    }) };
-    gl_context.set(js_string!("createShader"), JsValue::from(create_shader_fn.to_js_function(context.realm())), false, context)?;
+    let create_shader_fn = unsafe {
+        NativeFunction::from_closure(|_, _args, _context| {
+            let shader_obj = JsObject::default(_context.intrinsics());
+            Ok(JsValue::from(shader_obj))
+        })
+    };
+    gl_context.set(
+        js_string!("createShader"),
+        JsValue::from(create_shader_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let create_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-        let program_obj = JsObject::default(_context.intrinsics());
-        Ok(JsValue::from(program_obj))
-    }) };
-    gl_context.set(js_string!("createProgram"), JsValue::from(create_program_fn.to_js_function(context.realm())), false, context)?;
+    let create_program_fn = unsafe {
+        NativeFunction::from_closure(|_, _args, _context| {
+            let program_obj = JsObject::default(_context.intrinsics());
+            Ok(JsValue::from(program_obj))
+        })
+    };
+    gl_context.set(
+        js_string!("createProgram"),
+        JsValue::from(create_program_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let create_buffer_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-        let buffer_obj = JsObject::default(_context.intrinsics());
-        Ok(JsValue::from(buffer_obj))
-    }) };
-    gl_context.set(js_string!("createBuffer"), JsValue::from(create_buffer_fn.to_js_function(context.realm())), false, context)?;
+    let create_buffer_fn = unsafe {
+        NativeFunction::from_closure(|_, _args, _context| {
+            let buffer_obj = JsObject::default(_context.intrinsics());
+            Ok(JsValue::from(buffer_obj))
+        })
+    };
+    gl_context.set(
+        js_string!("createBuffer"),
+        JsValue::from(create_buffer_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // Shader operations
-    let shader_source_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("shaderSource"), JsValue::from(shader_source_fn.to_js_function(context.realm())), false, context)?;
+    let shader_source_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("shaderSource"),
+        JsValue::from(shader_source_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let compile_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("compileShader"), JsValue::from(compile_shader_fn.to_js_function(context.realm())), false, context)?;
+    let compile_shader_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("compileShader"),
+        JsValue::from(compile_shader_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // Program operations
-    let attach_shader_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("attachShader"), JsValue::from(attach_shader_fn.to_js_function(context.realm())), false, context)?;
+    let attach_shader_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("attachShader"),
+        JsValue::from(attach_shader_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let link_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("linkProgram"), JsValue::from(link_program_fn.to_js_function(context.realm())), false, context)?;
+    let link_program_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("linkProgram"),
+        JsValue::from(link_program_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let use_program_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("useProgram"), JsValue::from(use_program_fn.to_js_function(context.realm())), false, context)?;
+    let use_program_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("useProgram"),
+        JsValue::from(use_program_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // Buffer operations
-    let bind_buffer_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("bindBuffer"), JsValue::from(bind_buffer_fn.to_js_function(context.realm())), false, context)?;
+    let bind_buffer_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("bindBuffer"),
+        JsValue::from(bind_buffer_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let buffer_data_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("bufferData"), JsValue::from(buffer_data_fn.to_js_function(context.realm())), false, context)?;
+    let buffer_data_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("bufferData"),
+        JsValue::from(buffer_data_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // Rendering operations
-    let viewport_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("viewport"), JsValue::from(viewport_fn.to_js_function(context.realm())), false, context)?;
+    let viewport_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("viewport"),
+        JsValue::from(viewport_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let clear_color_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("clearColor"), JsValue::from(clear_color_fn.to_js_function(context.realm())), false, context)?;
+    let clear_color_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("clearColor"),
+        JsValue::from(clear_color_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let clear_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("clear"), JsValue::from(clear_fn.to_js_function(context.realm())), false, context)?;
+    let clear_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("clear"),
+        JsValue::from(clear_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let draw_arrays_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
-    gl_context.set(js_string!("drawArrays"), JsValue::from(draw_arrays_fn.to_js_function(context.realm())), false, context)?;
+    let draw_arrays_fn =
+        unsafe { NativeFunction::from_closure(|_, _args, _context| Ok(JsValue::undefined())) };
+    gl_context.set(
+        js_string!("drawArrays"),
+        JsValue::from(draw_arrays_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // Critical fingerprinting methods
-    let get_parameter_fn = unsafe { NativeFunction::from_closure(move |_, args, context| {
-        if args.is_empty() {
-            return Ok(JsValue::null());
-        }
+    let get_parameter_fn = unsafe {
+        NativeFunction::from_closure(move |_, args, context| {
+            if args.is_empty() {
+                return Ok(JsValue::null());
+            }
 
-        let param = args[0].to_i32(context)?;
-        match param {
-            7936 => Ok(JsValue::from(js_string!("WebKit"))), // GL_VENDOR
-            7937 => Ok(JsValue::from(js_string!("WebKit WebGL"))), // GL_RENDERER
-            7938 => Ok(JsValue::from(js_string!("WebGL 1.0 (OpenGL ES 2.0 Chromium)"))), // GL_VERSION
-            34921 => Ok(JsValue::from(js_string!("WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)"))), // GL_SHADING_LANGUAGE_VERSION
-            34930 => Ok(JsValue::from(16)), // GL_MAX_TEXTURE_SIZE
-            3379 => Ok(JsValue::from(16384)), // GL_MAX_VIEWPORT_DIMS
-            _ => Ok(JsValue::from(0))
-        }
-    }) };
-    gl_context.set(js_string!("getParameter"), JsValue::from(get_parameter_fn.to_js_function(context.realm())), false, context)?;
+            let param = args[0].to_i32(context)?;
+            match param {
+                7936 => Ok(JsValue::from(js_string!("WebKit"))), // GL_VENDOR
+                7937 => Ok(JsValue::from(js_string!("WebKit WebGL"))), // GL_RENDERER
+                7938 => Ok(JsValue::from(js_string!(
+                    "WebGL 1.0 (OpenGL ES 2.0 Chromium)"
+                ))), // GL_VERSION
+                34921 => Ok(JsValue::from(js_string!(
+                    "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)"
+                ))), // GL_SHADING_LANGUAGE_VERSION
+                34930 => Ok(JsValue::from(16)),                  // GL_MAX_TEXTURE_SIZE
+                3379 => Ok(JsValue::from(16384)),                // GL_MAX_VIEWPORT_DIMS
+                _ => Ok(JsValue::from(0)),
+            }
+        })
+    };
+    gl_context.set(
+        js_string!("getParameter"),
+        JsValue::from(get_parameter_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // Extensions support
-    let get_extension_fn = unsafe { NativeFunction::from_closure(|_, args, context| {
-        if args.is_empty() {
-            return Ok(JsValue::null());
-        }
+    let get_extension_fn = unsafe {
+        NativeFunction::from_closure(|_, args, context| {
+            if args.is_empty() {
+                return Ok(JsValue::null());
+            }
 
-        let ext_name = args[0].to_string(context)?.to_std_string_escaped();
-        match ext_name.as_str() {
-            "WEBKIT_EXT_texture_filter_anisotropic" |
-            "EXT_texture_filter_anisotropic" |
-            "OES_element_index_uint" |
-            "OES_standard_derivatives" => {
-                let ext_obj = JsObject::default(context.intrinsics());
-                Ok(JsValue::from(ext_obj))
-            },
-            _ => Ok(JsValue::null())
-        }
-    }) };
-    gl_context.set(js_string!("getExtension"), JsValue::from(get_extension_fn.to_js_function(context.realm())), false, context)?;
+            let ext_name = args[0].to_string(context)?.to_std_string_escaped();
+            match ext_name.as_str() {
+                "WEBKIT_EXT_texture_filter_anisotropic"
+                | "EXT_texture_filter_anisotropic"
+                | "OES_element_index_uint"
+                | "OES_standard_derivatives" => {
+                    let ext_obj = JsObject::default(context.intrinsics());
+                    Ok(JsValue::from(ext_obj))
+                }
+                _ => Ok(JsValue::null()),
+            }
+        })
+    };
+    gl_context.set(
+        js_string!("getExtension"),
+        JsValue::from(get_extension_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
-    let get_supported_extensions_fn = unsafe { NativeFunction::from_closure(|_, _args, context| {
-        let extensions = vec![
-            "WEBKIT_EXT_texture_filter_anisotropic",
-            "EXT_texture_filter_anisotropic",
-            "OES_element_index_uint",
-            "OES_standard_derivatives",
-            "WEBGL_debug_renderer_info"
-        ];
+    let get_supported_extensions_fn = unsafe {
+        NativeFunction::from_closure(|_, _args, context| {
+            let extensions = vec![
+                "WEBKIT_EXT_texture_filter_anisotropic",
+                "EXT_texture_filter_anisotropic",
+                "OES_element_index_uint",
+                "OES_standard_derivatives",
+                "WEBGL_debug_renderer_info",
+            ];
 
-        let js_array = boa_engine::object::builtins::JsArray::new(context)?;
-        for (i, ext) in extensions.iter().enumerate() {
-            js_array.set(i, js_string!(*ext), true, context).ok();
-        }
-        Ok(JsValue::from(js_array))
-    }) };
-    gl_context.set(js_string!("getSupportedExtensions"), JsValue::from(get_supported_extensions_fn.to_js_function(context.realm())), false, context)?;
+            let js_array = boa_engine::object::builtins::JsArray::new(context)?;
+            for (i, ext) in extensions.iter().enumerate() {
+                js_array.set(i, js_string!(*ext), true, context).ok();
+            }
+            Ok(JsValue::from(js_array))
+        })
+    };
+    gl_context.set(
+        js_string!("getSupportedExtensions"),
+        JsValue::from(get_supported_extensions_fn.to_js_function(context.realm())),
+        false,
+        context,
+    )?;
 
     // WebGL2 specific methods
     if is_webgl2 {
-        let create_vertex_array_fn = unsafe { NativeFunction::from_closure(|_, _args, _context| {
-            let vao_obj = JsObject::default(_context.intrinsics());
-            Ok(JsValue::from(vao_obj))
-        }) };
-        gl_context.set(js_string!("createVertexArray"), JsValue::from(create_vertex_array_fn.to_js_function(context.realm())), false, context)?;
+        let create_vertex_array_fn = unsafe {
+            NativeFunction::from_closure(|_, _args, _context| {
+                let vao_obj = JsObject::default(_context.intrinsics());
+                Ok(JsValue::from(vao_obj))
+            })
+        };
+        gl_context.set(
+            js_string!("createVertexArray"),
+            JsValue::from(create_vertex_array_fn.to_js_function(context.realm())),
+            false,
+            context,
+        )?;
     }
 
     Ok(JsValue::from(gl_context))
@@ -2252,7 +2627,11 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
 // ============================================================================
 
 /// `Document.prototype.documentElement` getter
-fn get_document_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_document_element(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.documentElement called on non-object")
     })?;
@@ -2300,8 +2679,7 @@ fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.forms called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.forms called on non-Document object")
     })?;
 
     // Parse HTML content to find all form elements
@@ -2314,7 +2692,8 @@ fn get_forms(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
             // Create a form element object
             let element_constructor = context.intrinsics().constructors().element().constructor();
             if let Ok(form_obj) = element_constructor.construct(&[], None, context) {
-                if let Some(elem_data) = form_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                if let Some(elem_data) = form_obj.downcast_ref::<crate::dom::element::ElementData>()
+                {
                     elem_data.set_tag_name("FORM".to_string());
                     // Set form attributes
                     if let Some(id) = form_element.value().attr("id") {
@@ -2348,8 +2727,7 @@ fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.images called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.images called on non-Document object")
     })?;
 
     let html_content = document.get_html_content();
@@ -2360,7 +2738,8 @@ fn get_images(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
         for img_element in doc.select(&selector) {
             let element_constructor = context.intrinsics().constructors().element().constructor();
             if let Ok(img_obj) = element_constructor.construct(&[], None, context) {
-                if let Some(elem_data) = img_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                if let Some(elem_data) = img_obj.downcast_ref::<crate::dom::element::ElementData>()
+                {
                     elem_data.set_tag_name("IMG".to_string());
                     if let Some(src) = img_element.value().attr("src") {
                         elem_data.set_attribute("src".to_string(), src.to_string());
@@ -2389,8 +2768,7 @@ fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.links called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.links called on non-Document object")
     })?;
 
     let html_content = document.get_html_content();
@@ -2401,7 +2779,8 @@ fn get_links(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
         for link_element in doc.select(&selector) {
             let element_constructor = context.intrinsics().constructors().element().constructor();
             if let Ok(link_obj) = element_constructor.construct(&[], None, context) {
-                if let Some(elem_data) = link_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                if let Some(elem_data) = link_obj.downcast_ref::<crate::dom::element::ElementData>()
+                {
                     elem_data.set_tag_name(link_element.value().name().to_uppercase());
                     if let Some(href) = link_element.value().attr("href") {
                         elem_data.set_attribute("href".to_string(), href.to_string());
@@ -2439,7 +2818,9 @@ fn get_scripts(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
         for script_element in doc.select(&selector) {
             let element_constructor = context.intrinsics().constructors().element().constructor();
             if let Ok(script_obj) = element_constructor.construct(&[], None, context) {
-                if let Some(elem_data) = script_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                if let Some(elem_data) =
+                    script_obj.downcast_ref::<crate::dom::element::ElementData>()
+                {
                     elem_data.set_tag_name("SCRIPT".to_string());
                     if let Some(src) = script_element.value().attr("src") {
                         elem_data.set_attribute("src".to_string(), src.to_string());
@@ -2481,7 +2862,10 @@ fn add_html_collection_methods(array: &JsObject, context: &mut Context) -> JsRes
 
     // Add namedItem() method
     let named_item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
-        let name = args.get_or_undefined(0).to_string(ctx)?.to_std_string_escaped();
+        let name = args
+            .get_or_undefined(0)
+            .to_string(ctx)?
+            .to_std_string_escaped();
         if let Some(arr) = this.as_object() {
             if let Ok(length) = arr.get(js_string!("length"), ctx) {
                 let len = length.to_u32(ctx)?;
@@ -2521,8 +2905,7 @@ fn get_cookie(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.cookie called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.cookie called on non-Document object")
     })?;
 
     let cookie = document.cookie.lock().unwrap().clone();
@@ -2540,7 +2923,10 @@ fn set_cookie(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
             .with_message("Document.prototype.cookie setter called on non-Document object")
     })?;
 
-    let new_cookie = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let new_cookie = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     // Cookie setting appends to existing cookies (doesn't replace)
     // Parse the new cookie and add/update it
@@ -2595,8 +2981,7 @@ fn get_domain(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
     })?;
 
     let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Document.prototype.domain called on non-Document object")
+        JsNativeError::typ().with_message("Document.prototype.domain called on non-Document object")
     })?;
 
     // Extract domain from URL
@@ -2610,7 +2995,11 @@ fn get_domain(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 /// `Document.prototype.characterSet` getter
-fn get_character_set(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_character_set(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.characterSet called on non-object")
     })?;
@@ -2625,7 +3014,11 @@ fn get_character_set(this: &JsValue, _args: &[JsValue], _context: &mut Context) 
 }
 
 /// `Document.prototype.contentType` getter
-fn get_content_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_content_type(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.contentType called on non-object")
     })?;
@@ -2640,7 +3033,11 @@ fn get_content_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
 }
 
 /// `Document.prototype.visibilityState` getter
-fn get_visibility_state(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_visibility_state(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     // In a headless browser, document is always "visible"
     Ok(JsString::from("visible").into())
 }
@@ -2652,7 +3049,11 @@ fn get_hidden(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
 }
 
 /// `Document.prototype.activeElement` getter
-fn get_active_element(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_active_element(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Document.prototype.activeElement called on non-object")
     })?;
@@ -2676,4 +3077,3 @@ fn get_active_element(this: &JsValue, _args: &[JsValue], context: &mut Context) 
         Ok(body_element.into())
     }
 }
-

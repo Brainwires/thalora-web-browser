@@ -6,12 +6,14 @@
 //! This implements the complete ResizeObserver interface for observing changes in element size
 
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject, ObjectInitializer},
+    js_string,
+    object::{JsObject, ObjectInitializer, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string,
-    realm::Realm, JsData, JsString, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -78,7 +80,7 @@ impl BuiltInConstructor for ResizeObserver {
         let observer_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             prototype,
-            observer_data
+            observer_data,
         );
 
         Ok(observer_obj.into())
@@ -107,7 +109,8 @@ impl ResizeObserver {
 
         if let Some(options_obj) = options.as_object() {
             if let Ok(box_option) = options_obj.get(js_string!("box"), context) {
-                let box_str = box_option.to_string(context)
+                let box_str = box_option
+                    .to_string(context)
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_else(|_| "content-box".to_string());
 
@@ -123,7 +126,9 @@ impl ResizeObserver {
         // Update observer data
         if let Some(mut observer_data) = observer_obj.downcast_mut::<ResizeObserverData>() {
             let target_id = format!("{:p}", target.as_object().unwrap().as_ref());
-            observer_data.observed_targets.insert(target_id, (target.clone(), box_type));
+            observer_data
+                .observed_targets
+                .insert(target_id, (target.clone(), box_type));
             observer_data.is_observing = true;
 
             // In a real implementation, we would start observing the element's size changes
@@ -180,7 +185,11 @@ impl ResizeObserver {
     /// in a headless browser context where there's no real DOM layout.
     ///
     /// Usage: observer.triggerResize(target, { width: 100, height: 200 })
-    fn trigger_resize(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn trigger_resize(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let observer_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ResizeObserver.triggerResize called on non-object")
         })?;
@@ -196,19 +205,23 @@ impl ResizeObserver {
 
         // Extract dimensions from the options object
         let (width, height, x, y) = if let Some(dim_obj) = dimensions.as_object() {
-            let width = dim_obj.get(js_string!("width"), context)
+            let width = dim_obj
+                .get(js_string!("width"), context)
                 .ok()
                 .and_then(|v| v.as_number())
                 .unwrap_or(0.0);
-            let height = dim_obj.get(js_string!("height"), context)
+            let height = dim_obj
+                .get(js_string!("height"), context)
                 .ok()
                 .and_then(|v| v.as_number())
                 .unwrap_or(0.0);
-            let x = dim_obj.get(js_string!("x"), context)
+            let x = dim_obj
+                .get(js_string!("x"), context)
                 .ok()
                 .and_then(|v| v.as_number())
                 .unwrap_or(0.0);
-            let y = dim_obj.get(js_string!("y"), context)
+            let y = dim_obj
+                .get(js_string!("y"), context)
                 .ok()
                 .and_then(|v| v.as_number())
                 .unwrap_or(0.0);
@@ -264,7 +277,11 @@ impl ResizeObserver {
     ///
     /// Delivers any pending resize entries to the callback.
     /// This is typically called by the event loop but can be triggered manually.
-    fn deliver_entries(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn deliver_entries(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let observer_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ResizeObserver.deliverEntries called on non-object")
         })?;
@@ -295,7 +312,11 @@ impl ResizeObserver {
 
         // Call the callback with (entries, observer)
         if let Some(func) = callback.as_callable() {
-            func.call(&JsValue::undefined(), &[js_entries.into(), this.clone()], context)?;
+            func.call(
+                &JsValue::undefined(),
+                &[js_entries.into(), this.clone()],
+                context,
+            )?;
         }
 
         Ok(JsValue::undefined())
@@ -369,17 +390,40 @@ pub struct DOMRectReadOnly {
 }
 
 /// Create a JavaScript ResizeObserverEntry object from a Rust entry
-fn create_resize_observer_entry(entry: &ResizeObserverEntry, context: &mut Context) -> JsResult<JsObject> {
+fn create_resize_observer_entry(
+    entry: &ResizeObserverEntry,
+    context: &mut Context,
+) -> JsResult<JsObject> {
     // Create contentRect object
     let content_rect = ObjectInitializer::new(context)
         .property(js_string!("x"), entry.content_rect.x, Attribute::all())
         .property(js_string!("y"), entry.content_rect.y, Attribute::all())
-        .property(js_string!("width"), entry.content_rect.width, Attribute::all())
-        .property(js_string!("height"), entry.content_rect.height, Attribute::all())
+        .property(
+            js_string!("width"),
+            entry.content_rect.width,
+            Attribute::all(),
+        )
+        .property(
+            js_string!("height"),
+            entry.content_rect.height,
+            Attribute::all(),
+        )
         .property(js_string!("top"), entry.content_rect.top, Attribute::all())
-        .property(js_string!("right"), entry.content_rect.right, Attribute::all())
-        .property(js_string!("bottom"), entry.content_rect.bottom, Attribute::all())
-        .property(js_string!("left"), entry.content_rect.left, Attribute::all())
+        .property(
+            js_string!("right"),
+            entry.content_rect.right,
+            Attribute::all(),
+        )
+        .property(
+            js_string!("bottom"),
+            entry.content_rect.bottom,
+            Attribute::all(),
+        )
+        .property(
+            js_string!("left"),
+            entry.content_rect.left,
+            Attribute::all(),
+        )
         .build();
 
     // Create borderBoxSize array
@@ -389,15 +433,32 @@ fn create_resize_observer_entry(entry: &ResizeObserverEntry, context: &mut Conte
     let content_box_size = create_size_array(&entry.content_box_size, context)?;
 
     // Create devicePixelContentBoxSize array
-    let device_pixel_content_box_size = create_size_array(&entry.device_pixel_content_box_size, context)?;
+    let device_pixel_content_box_size =
+        create_size_array(&entry.device_pixel_content_box_size, context)?;
 
     // Create the ResizeObserverEntry object
     let entry_obj = ObjectInitializer::new(context)
-        .property(js_string!("target"), entry.target_value.clone(), Attribute::all())
+        .property(
+            js_string!("target"),
+            entry.target_value.clone(),
+            Attribute::all(),
+        )
         .property(js_string!("contentRect"), content_rect, Attribute::all())
-        .property(js_string!("borderBoxSize"), border_box_size, Attribute::all())
-        .property(js_string!("contentBoxSize"), content_box_size, Attribute::all())
-        .property(js_string!("devicePixelContentBoxSize"), device_pixel_content_box_size, Attribute::all())
+        .property(
+            js_string!("borderBoxSize"),
+            border_box_size,
+            Attribute::all(),
+        )
+        .property(
+            js_string!("contentBoxSize"),
+            content_box_size,
+            Attribute::all(),
+        )
+        .property(
+            js_string!("devicePixelContentBoxSize"),
+            device_pixel_content_box_size,
+            Attribute::all(),
+        )
         .build();
 
     Ok(entry_obj)

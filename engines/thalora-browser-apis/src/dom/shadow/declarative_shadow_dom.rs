@@ -3,19 +3,15 @@
 //! Implementation of declarative Shadow DOM parsing according to WHATWG HTML spec
 //! https://html.spec.whatwg.org/multipage/scripting.html#declarative-shadow-roots
 
-use boa_engine::{
-    object::JsObject,
-    value::JsValue,
-    Context, JsResult, JsNativeError,
-};
 use crate::dom::{
     element::ElementData,
     shadow::{
-        shadow_root::{ShadowRootData, ShadowRootMode},
         html_slot_element::HTMLSlotElementData,
+        shadow_root::{ShadowRootData, ShadowRootMode},
     },
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_engine::{Context, JsNativeError, JsResult, object::JsObject, value::JsValue};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::HashMap;
 
 /// Declarative Shadow DOM parser for template elements
@@ -24,10 +20,7 @@ pub struct DeclarativeShadowDOMParser;
 impl DeclarativeShadowDOMParser {
     /// Parse HTML content and process declarative shadow roots
     /// This implements the WHATWG algorithm for processing declarative shadow roots
-    pub fn parse_and_process(
-        html: &str,
-        context: &mut Context,
-    ) -> JsResult<Vec<JsObject>> {
+    pub fn parse_and_process(html: &str, context: &mut Context) -> JsResult<Vec<JsObject>> {
         let mut elements = Vec::new();
 
         // Parse HTML and identify template elements with shadowrootmode
@@ -209,15 +202,21 @@ impl DeclarativeShadowDOMParser {
         let host_element = Self::create_host_element_for_template(context)?;
 
         // Determine shadow root options from attributes
-        let clonable = template_info.attributes.get("shadowrootclonable")
+        let clonable = template_info
+            .attributes
+            .get("shadowrootclonable")
             .map(|v| v == "true" || v.is_empty())
             .unwrap_or(false);
 
-        let serializable = template_info.attributes.get("shadowrootserializable")
+        let serializable = template_info
+            .attributes
+            .get("shadowrootserializable")
             .map(|v| v == "true" || v.is_empty())
             .unwrap_or(false);
 
-        let delegates_focus = template_info.attributes.get("shadowrootdelegatesfocus")
+        let delegates_focus = template_info
+            .attributes
+            .get("shadowrootdelegatesfocus")
             .map(|v| v == "true" || v.is_empty())
             .unwrap_or(false);
 
@@ -296,7 +295,8 @@ impl DeclarativeShadowDOMParser {
     ) -> JsResult<()> {
         if let Some(shadow_data) = shadow_root.downcast_ref::<ShadowRootData>() {
             // Set the innerHTML which will trigger CSS scoping
-            shadow_data.set_inner_html(content)
+            shadow_data
+                .set_inner_html(content)
                 .map_err(|e| JsNativeError::error().with_message(e))?;
 
             // Parse content and create actual DOM nodes
@@ -304,7 +304,9 @@ impl DeclarativeShadowDOMParser {
 
             // Add elements to shadow root
             for element in elements {
-                shadow_data.fragment_data().append_impl(element)
+                shadow_data
+                    .fragment_data()
+                    .append_impl(element)
                     .map_err(|e| JsNativeError::error().with_message(e))?;
             }
         }
@@ -423,13 +425,8 @@ impl DeclarativeShadowDOMParser {
     }
 
     /// Create a slot element
-    fn create_slot_element(
-        tag_info: ElementTagInfo,
-        context: &mut Context,
-    ) -> JsResult<JsObject> {
-        let name = tag_info.attributes.get("name")
-            .cloned()
-            .unwrap_or_default();
+    fn create_slot_element(tag_info: ElementTagInfo, context: &mut Context) -> JsResult<JsObject> {
+        let name = tag_info.attributes.get("name").cloned().unwrap_or_default();
 
         let slot_data = HTMLSlotElementData::new();
         if !name.is_empty() {
@@ -482,7 +479,8 @@ impl DeclarativeShadowDOMParser {
         let nested_templates = Self::find_declarative_shadow_templates(content);
 
         for template_info in nested_templates {
-            let _nested_element = Self::process_declarative_shadow_template(template_info, context)?;
+            let _nested_element =
+                Self::process_declarative_shadow_template(template_info, context)?;
             // In a full implementation, would properly attach nested shadow roots
         }
 
@@ -544,10 +542,7 @@ pub struct DeclarativeShadowDOMHTMLProcessor;
 
 impl DeclarativeShadowDOMHTMLProcessor {
     /// Process complete HTML document and handle all declarative shadow roots
-    pub fn process_document_html(
-        html: &str,
-        context: &mut Context,
-    ) -> JsResult<String> {
+    pub fn process_document_html(html: &str, context: &mut Context) -> JsResult<String> {
         // Find all declarative shadow templates
         let templates = DeclarativeShadowDOMParser::find_declarative_shadow_templates(html);
 
@@ -560,11 +555,17 @@ impl DeclarativeShadowDOMHTMLProcessor {
         // Process templates in reverse order to maintain position indices
         for template in templates.into_iter().rev() {
             // Process the template and create shadow root
-            let _host_element = DeclarativeShadowDOMParser::process_declarative_shadow_template(template.clone(), context)?;
+            let _host_element = DeclarativeShadowDOMParser::process_declarative_shadow_template(
+                template.clone(),
+                context,
+            )?;
 
             // Replace the template element in HTML with processed content
             // In a real implementation, this would modify the DOM rather than string manipulation
-            processed_html.replace_range(template.start_pos..template.end_pos, "<!-- declarative shadow root processed -->");
+            processed_html.replace_range(
+                template.start_pos..template.end_pos,
+                "<!-- declarative shadow root processed -->",
+            );
         }
 
         Ok(processed_html)

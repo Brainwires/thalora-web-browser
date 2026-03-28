@@ -5,21 +5,22 @@
 //!
 //! This implements the complete BroadcastChannel interface for cross-context communication
 
-
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex, Weak};
-use crossbeam_channel::{Sender, Receiver, unbounded};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use std::collections::HashMap;
 use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, Weak};
 
 /// Global registry for BroadcastChannel instances
 /// Stores weak references to all active channels, grouped by channel name
@@ -167,7 +168,11 @@ impl BuiltInConstructor for BroadcastChannel {
         let channel_name = name_arg.to_string(context)?.to_std_string_escaped();
 
         // Create the BroadcastChannel object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::broadcast_channel, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::broadcast_channel,
+            context,
+        )?;
 
         // Create channel for receiving messages from other BroadcastChannel instances
         let (sender, receiver) = unbounded::<BroadcastMessage>();
@@ -191,12 +196,16 @@ impl BuiltInConstructor for BroadcastChannel {
         // Add event handler properties (onmessage, onmessageerror)
         let channel_obj_generic = channel_obj.upcast();
         channel_obj_generic.set(js_string!("onmessage"), JsValue::null(), false, context)?;
-        channel_obj_generic.set(js_string!("onmessageerror"), JsValue::null(), false, context)?;
+        channel_obj_generic.set(
+            js_string!("onmessageerror"),
+            JsValue::null(),
+            false,
+            context,
+        )?;
 
         Ok(channel_obj_generic.into())
     }
 }
-
 
 /// Internal data for BroadcastChannel instances
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
@@ -242,7 +251,6 @@ impl BroadcastChannelData {
     }
 }
 
-
 // Property getters and methods
 
 /// `BroadcastChannel.prototype.name` getter
@@ -251,26 +259,30 @@ fn get_name(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
         JsNativeError::typ().with_message("BroadcastChannel.name getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<BroadcastChannelData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("BroadcastChannel.name getter called on invalid object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<BroadcastChannelData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("BroadcastChannel.name getter called on invalid object")
+        })?;
 
     Ok(JsValue::from(js_string!(data.name.clone())))
 }
 
 /// `BroadcastChannel.prototype.postMessage(message)`
 fn post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    use crate::misc::structured_clone::{structured_clone, StructuredClone};
+    use crate::misc::structured_clone::{StructuredClone, structured_clone};
 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("BroadcastChannel.postMessage called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<BroadcastChannelData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("BroadcastChannel.postMessage called on invalid object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<BroadcastChannelData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("BroadcastChannel.postMessage called on invalid object")
+        })?;
 
     if data.is_closed() {
         return Err(JsNativeError::error()
@@ -312,10 +324,11 @@ fn close(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         JsNativeError::typ().with_message("BroadcastChannel.close called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<BroadcastChannelData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("BroadcastChannel.close called on invalid object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<BroadcastChannelData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message("BroadcastChannel.close called on invalid object")
+        })?;
 
     data.close();
 

@@ -24,19 +24,19 @@ pub mod worker_thread;
 
 // WASM stubs - browser's native Worker API is used directly
 #[cfg(feature = "wasm")]
-pub mod worker_wasm;
+pub mod service_worker_container_wasm;
 #[cfg(feature = "wasm")]
 pub mod service_worker_wasm;
 #[cfg(feature = "wasm")]
-pub mod service_worker_container_wasm;
+pub mod worker_wasm;
 
 // Re-exports for uniform API
 #[cfg(feature = "wasm")]
-pub use worker_wasm as worker;
+pub use service_worker_container_wasm as service_worker_container;
 #[cfg(feature = "wasm")]
 pub use service_worker_wasm as service_worker;
 #[cfg(feature = "wasm")]
-pub use service_worker_container_wasm as service_worker_container;
+pub use worker_wasm as worker;
 
 #[cfg(all(test, feature = "native"))]
 mod tests;

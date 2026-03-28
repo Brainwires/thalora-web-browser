@@ -7,22 +7,18 @@
 //! - [WHATWG HTML Specification](https://html.spec.whatwg.org/multipage/system-state.html#the-navigator-object)
 //! - [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/Navigator)
 
-use boa_gc::{Finalize, Trace};
-use boa_engine::{
-    builtins::BuiltInBuilder,
-    context::intrinsics::Intrinsics,
-    js_string,
-    object::JsObject,
-    property::Attribute,
-    realm::Realm,
-    Context, JsArgs, JsData, JsResult, JsString, JsValue,
-};
-use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
-use boa_engine::context::intrinsics::StandardConstructor;
 use crate::browser::clipboard;
 use crate::browser::permissions;
 use crate::browser::vibration;
 use crate::worker::service_worker_container::ServiceWorkerContainer;
+use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use boa_engine::context::intrinsics::StandardConstructor;
+use boa_engine::{
+    Context, JsArgs, JsData, JsResult, JsString, JsValue, builtins::BuiltInBuilder,
+    context::intrinsics::Intrinsics, js_string, object::JsObject, property::Attribute,
+    realm::Realm,
+};
+use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -129,16 +125,16 @@ impl Navigator {
     }
 }
 
-
 impl IntrinsicObject for Navigator {
     fn init(realm: &Realm) {
         let locks_getter_func = BuiltInBuilder::callable(realm, Self::locks_getter)
             .name(js_string!("get locks"))
             .build();
 
-        let service_worker_getter_func = BuiltInBuilder::callable(realm, Self::service_worker_getter)
-            .name(js_string!("get serviceWorker"))
-            .build();
+        let service_worker_getter_func =
+            BuiltInBuilder::callable(realm, Self::service_worker_getter)
+                .name(js_string!("get serviceWorker"))
+                .build();
 
         let languages_getter_func = BuiltInBuilder::callable(realm, Self::languages_getter)
             .name(js_string!("get languages"))
@@ -258,8 +254,9 @@ impl BuiltInConstructor for Navigator {
     const PROTOTYPE_STORAGE_SLOTS: usize = 100;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| constructors.navigator();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.navigator();
 
     fn constructor(
         _new_target: &JsValue,
@@ -274,53 +271,77 @@ impl BuiltInConstructor for Navigator {
 // Navigator prototype methods and getters
 impl Navigator {
     /// `navigator.locks` getter
-    fn locks_getter(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let obj = _this
-            .as_object()
-            .ok_or_else(|| {
-                boa_engine::JsNativeError::typ()
-                    .with_message("Navigator.prototype.locks called on non-Navigator object")
-            })?;
+    fn locks_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let obj = _this.as_object().ok_or_else(|| {
+            boa_engine::JsNativeError::typ()
+                .with_message("Navigator.prototype.locks called on non-Navigator object")
+        })?;
 
-        let navigator = obj
-            .downcast_ref::<Navigator>()
-            .ok_or_else(|| {
-                boa_engine::JsNativeError::typ()
-                    .with_message("Navigator.prototype.locks called on non-Navigator object")
-            })?;
+        let navigator = obj.downcast_ref::<Navigator>().ok_or_else(|| {
+            boa_engine::JsNativeError::typ()
+                .with_message("Navigator.prototype.locks called on non-Navigator object")
+        })?;
 
-        Ok(navigator.lock_manager.clone().map(|lm| lm.into()).unwrap_or(JsValue::undefined()))
+        Ok(navigator
+            .lock_manager
+            .clone()
+            .map(|lm| lm.into())
+            .unwrap_or(JsValue::undefined()))
     }
 
     /// `navigator.serviceWorker` getter
-    fn service_worker_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn service_worker_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Create and return a ServiceWorkerContainer instance
         let service_worker_container = ServiceWorkerContainer::create(context)?;
         Ok(JsValue::from(service_worker_container))
     }
 
     /// `navigator.clipboard` getter
-    fn clipboard_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn clipboard_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Create and return a Clipboard instance
         let clipboard_obj = clipboard::create_clipboard(context)?;
         Ok(JsValue::from(clipboard_obj))
     }
 
     /// `navigator.permissions` getter
-    fn permissions_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn permissions_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Create and return a Permissions instance
         let permissions_obj = permissions::create_permissions(context)?;
         Ok(JsValue::from(permissions_obj))
     }
 
     /// `navigator.languages` getter - returns array of language preferences
-    fn languages_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn languages_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let languages = vec![
             JsValue::from(js_string!("en-US")),
             JsValue::from(js_string!("en")),
         ];
 
-        let array = boa_engine::builtins::array::Array::array_create(languages.len() as u64, None, context)?;
+        let array = boa_engine::builtins::array::Array::array_create(
+            languages.len() as u64,
+            None,
+            context,
+        )?;
 
         for (i, lang) in languages.into_iter().enumerate() {
             array.create_data_property_or_throw(i, lang, context)?;
@@ -330,7 +351,11 @@ impl Navigator {
     }
 
     /// `navigator.plugins` getter - returns empty PluginArray for security
-    fn plugins_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn plugins_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Return empty plugin array for security/privacy
         // Arrays already have a length property set to 0
         let plugin_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
@@ -338,7 +363,11 @@ impl Navigator {
     }
 
     /// `navigator.mimeTypes` getter - returns empty MimeTypeArray for security
-    fn mime_types_getter(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn mime_types_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Return empty mime types array for security/privacy
         // Arrays already have a length property set to 0
         let mime_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
@@ -346,7 +375,11 @@ impl Navigator {
     }
 
     /// `navigator.javaEnabled()` method - returns false for security
-    fn java_enabled(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn java_enabled(
+        _this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         // Always return false for security/privacy
         Ok(JsValue::from(false))
     }
@@ -357,9 +390,19 @@ impl Navigator {
     }
 
     /// `navigator.registerProtocolHandler(scheme, url)` method
-    fn register_protocol_handler(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let scheme = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let url = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+    fn register_protocol_handler(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let scheme = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        let url = args
+            .get_or_undefined(1)
+            .to_string(context)?
+            .to_std_string_escaped();
 
         // Basic validation - scheme should not be empty
         if scheme.is_empty() {
@@ -382,9 +425,19 @@ impl Navigator {
     }
 
     /// `navigator.unregisterProtocolHandler(scheme, url)` method
-    fn unregister_protocol_handler(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let scheme = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let url = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+    fn unregister_protocol_handler(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let scheme = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        let url = args
+            .get_or_undefined(1)
+            .to_string(context)?
+            .to_std_string_escaped();
 
         // Basic validation - scheme should not be empty
         if scheme.is_empty() {

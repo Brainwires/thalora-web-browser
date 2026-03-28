@@ -8,33 +8,30 @@
 //! data asynchronously.
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsArgs, JsData, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
+use bytes::Bytes;
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
     },
 };
 use tokio::sync::Mutex as TokioMutex;
-use webrtc::{
-    data_channel::{
-        data_channel_message::DataChannelMessage,
-        data_channel_state::RTCDataChannelState,
-        RTCDataChannel,
-    },
+use webrtc::data_channel::{
+    RTCDataChannel, data_channel_message::DataChannelMessage,
+    data_channel_state::RTCDataChannelState,
 };
-use bytes::Bytes;
 
 /// RTCDataChannel states according to WHATWG specification
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
@@ -104,11 +101,7 @@ impl std::fmt::Debug for RTCDataChannelData {
 
 impl RTCDataChannelData {
     /// Create a new RTCDataChannelData instance
-    pub fn new(
-        channel: Arc<RTCDataChannel>,
-        channel_id: String,
-        label: String,
-    ) -> Self {
+    pub fn new(channel: Arc<RTCDataChannel>, channel_id: String, label: String) -> Self {
         Self {
             channel: Some(channel),
             channel_id,
@@ -148,7 +141,10 @@ pub struct DataChannelManager {
 impl std::fmt::Debug for DataChannelManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DataChannelManager")
-            .field("channels", &"Arc<TokioMutex<HashMap<String, Arc<RTCDataChannel>>>>")
+            .field(
+                "channels",
+                &"Arc<TokioMutex<HashMap<String, Arc<RTCDataChannel>>>>",
+            )
             .field("channel_counter", &self.channel_counter)
             .finish()
     }
@@ -197,7 +193,6 @@ pub struct RTCDataChannelBuiltin;
 
 impl IntrinsicObject for RTCDataChannelBuiltin {
     fn init(realm: &Realm) {
-
         let get_label = BuiltInBuilder::callable(realm, Self::get_label)
             .name(js_string!("get label"))
             .build();
@@ -206,9 +201,10 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
             .name(js_string!("get ordered"))
             .build();
 
-        let get_max_packet_life_time = BuiltInBuilder::callable(realm, Self::get_max_packet_life_time)
-            .name(js_string!("get maxPacketLifeTime"))
-            .build();
+        let get_max_packet_life_time =
+            BuiltInBuilder::callable(realm, Self::get_max_packet_life_time)
+                .name(js_string!("get maxPacketLifeTime"))
+                .build();
 
         let get_max_retransmits = BuiltInBuilder::callable(realm, Self::get_max_retransmits)
             .name(js_string!("get maxRetransmits"))
@@ -234,13 +230,15 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
             .name(js_string!("get bufferedAmount"))
             .build();
 
-        let get_buffered_amount_low_threshold = BuiltInBuilder::callable(realm, Self::get_buffered_amount_low_threshold)
-            .name(js_string!("get bufferedAmountLowThreshold"))
-            .build();
+        let get_buffered_amount_low_threshold =
+            BuiltInBuilder::callable(realm, Self::get_buffered_amount_low_threshold)
+                .name(js_string!("get bufferedAmountLowThreshold"))
+                .build();
 
-        let set_buffered_amount_low_threshold = BuiltInBuilder::callable(realm, Self::set_buffered_amount_low_threshold)
-            .name(js_string!("set bufferedAmountLowThreshold"))
-            .build();
+        let set_buffered_amount_low_threshold =
+            BuiltInBuilder::callable(realm, Self::set_buffered_amount_low_threshold)
+                .name(js_string!("set bufferedAmountLowThreshold"))
+                .build();
 
         let get_binary_type = BuiltInBuilder::callable(realm, Self::get_binary_type)
             .name(js_string!("get binaryType"))
@@ -251,16 +249,8 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .property(
-                js_string!("label"),
-                get_label,
-                Attribute::CONFIGURABLE,
-            )
-            .property(
-                js_string!("ordered"),
-                get_ordered,
-                Attribute::CONFIGURABLE,
-            )
+            .property(js_string!("label"), get_label, Attribute::CONFIGURABLE)
+            .property(js_string!("ordered"), get_ordered, Attribute::CONFIGURABLE)
             .property(
                 js_string!("maxPacketLifeTime"),
                 get_max_packet_life_time,
@@ -281,11 +271,7 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
                 get_negotiated,
                 Attribute::CONFIGURABLE,
             )
-            .property(
-                js_string!("id"),
-                get_id,
-                Attribute::CONFIGURABLE,
-            )
+            .property(js_string!("id"), get_id, Attribute::CONFIGURABLE)
             .property(
                 js_string!("readyState"),
                 get_ready_state,
@@ -580,7 +566,9 @@ impl RTCDataChannelBuiltin {
         let binary_type = args.get_or_undefined(0).to_string(context)?;
 
         // Validate binary type
-        if binary_type.to_std_string_escaped() != "blob" && binary_type.to_std_string_escaped() != "arraybuffer" {
+        if binary_type.to_std_string_escaped() != "blob"
+            && binary_type.to_std_string_escaped() != "arraybuffer"
+        {
             return Err(JsNativeError::typ()
                 .with_message("Invalid binaryType - must be 'blob' or 'arraybuffer'")
                 .into());
@@ -652,8 +640,11 @@ impl RTCDataChannelBuiltin {
             // Send the message
             // Real implementation would use: channel.send(&message).await;
             // For now, just log the operation
-            println!("Sending message on data channel {}: {} bytes",
-                     data.channel_id(), message.data.len());
+            println!(
+                "Sending message on data channel {}: {} bytes",
+                data.channel_id(),
+                message.data.len()
+            );
         }
 
         Ok(JsValue::undefined())

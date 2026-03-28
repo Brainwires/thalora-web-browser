@@ -4,6 +4,7 @@
 //! https://dom.spec.whatwg.org/#interface-nodeiterator
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
@@ -11,9 +12,8 @@ use boa_engine::{
     property::Attribute,
     realm::Realm,
     string::JsString,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 
 // Re-use node_filter constants from TreeWalker
 use super::treewalker::node_filter;
@@ -74,12 +74,14 @@ impl NodeIteratorData {
 
     /// Get whether pointer is before reference
     pub fn pointer_before_reference(&self) -> bool {
-        self.pointer_before_reference.load(std::sync::atomic::Ordering::SeqCst)
+        self.pointer_before_reference
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Set whether pointer is before reference
     pub fn set_pointer_before_reference(&self, before: bool) {
-        self.pointer_before_reference.store(before, std::sync::atomic::Ordering::SeqCst);
+        self.pointer_before_reference
+            .store(before, std::sync::atomic::Ordering::SeqCst);
     }
 
     /// Check if a node should be accepted based on whatToShow
@@ -137,7 +139,11 @@ impl NodeIteratorData {
     }
 
     /// Get the next node in document order from a given node
-    fn next_in_document_order(&self, node: &JsObject, context: &mut Context) -> JsResult<Option<JsObject>> {
+    fn next_in_document_order(
+        &self,
+        node: &JsObject,
+        context: &mut Context,
+    ) -> JsResult<Option<JsObject>> {
         let root = match self.root() {
             Some(r) => r,
             None => return Ok(None),
@@ -179,7 +185,11 @@ impl NodeIteratorData {
     }
 
     /// Get the previous node in document order from a given node
-    fn previous_in_document_order(&self, node: &JsObject, context: &mut Context) -> JsResult<Option<JsObject>> {
+    fn previous_in_document_order(
+        &self,
+        node: &JsObject,
+        context: &mut Context,
+    ) -> JsResult<Option<JsObject>> {
         let root = match self.root() {
             Some(r) => r,
             None => return Ok(None),
@@ -248,13 +258,18 @@ impl NodeIterator {
     }
 
     /// `NodeIterator.prototype.whatToShow` getter
-    fn get_what_to_show(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_what_to_show(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeIterator.whatToShow called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<NodeIteratorData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.whatToShow called on non-NodeIterator object")
+            JsNativeError::typ()
+                .with_message("NodeIterator.whatToShow called on non-NodeIterator object")
         })?;
 
         Ok(JsValue::new(data.what_to_show()))
@@ -267,7 +282,8 @@ impl NodeIterator {
         })?;
 
         let data = this_obj.downcast_ref::<NodeIteratorData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.filter called on non-NodeIterator object")
+            JsNativeError::typ()
+                .with_message("NodeIterator.filter called on non-NodeIterator object")
         })?;
 
         match data.filter() {
@@ -277,13 +293,18 @@ impl NodeIterator {
     }
 
     /// `NodeIterator.prototype.referenceNode` getter
-    fn get_reference_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_reference_node(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeIterator.referenceNode called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<NodeIteratorData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.referenceNode called on non-NodeIterator object")
+            JsNativeError::typ()
+                .with_message("NodeIterator.referenceNode called on non-NodeIterator object")
         })?;
 
         match data.reference_node() {
@@ -293,13 +314,20 @@ impl NodeIterator {
     }
 
     /// `NodeIterator.prototype.pointerBeforeReferenceNode` getter
-    fn get_pointer_before_reference_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_pointer_before_reference_node(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.pointerBeforeReferenceNode called on non-object")
+            JsNativeError::typ()
+                .with_message("NodeIterator.pointerBeforeReferenceNode called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<NodeIteratorData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.pointerBeforeReferenceNode called on non-NodeIterator object")
+            JsNativeError::typ().with_message(
+                "NodeIterator.pointerBeforeReferenceNode called on non-NodeIterator object",
+            )
         })?;
 
         Ok(JsValue::new(data.pointer_before_reference()))
@@ -312,7 +340,8 @@ impl NodeIterator {
         })?;
 
         let data = this_obj.downcast_ref::<NodeIteratorData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.nextNode called on non-NodeIterator object")
+            JsNativeError::typ()
+                .with_message("NodeIterator.nextNode called on non-NodeIterator object")
         })?;
 
         let mut node = match data.reference_node() {
@@ -343,13 +372,18 @@ impl NodeIterator {
     }
 
     /// `NodeIterator.prototype.previousNode()`
-    fn previous_node(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn previous_node(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeIterator.previousNode called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<NodeIteratorData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("NodeIterator.previousNode called on non-NodeIterator object")
+            JsNativeError::typ()
+                .with_message("NodeIterator.previousNode called on non-NodeIterator object")
         })?;
 
         let mut node = match data.reference_node() {
@@ -396,7 +430,11 @@ impl NodeIterator {
         let data = NodeIteratorData::new(root, what_to_show, filter);
         let obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().nodeiterator().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .nodeiterator()
+                .prototype(),
             data,
         );
         Ok(obj.upcast())
@@ -421,9 +459,10 @@ impl IntrinsicObject for NodeIterator {
             .name(js_string!("get referenceNode"))
             .build();
 
-        let pointer_before_getter = BuiltInBuilder::callable(realm, Self::get_pointer_before_reference_node)
-            .name(js_string!("get pointerBeforeReferenceNode"))
-            .build();
+        let pointer_before_getter =
+            BuiltInBuilder::callable(realm, Self::get_pointer_before_reference_node)
+                .name(js_string!("get pointerBeforeReferenceNode"))
+                .build();
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::next_node, js_string!("nextNode"), 0)

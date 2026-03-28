@@ -2,17 +2,18 @@
 //!
 //! Handles fetching, parsing, and executing JavaScript files in isolated Worker contexts
 
-use boa_engine::{
-    Context, JsResult, JsValue, JsNativeError, Source, JsArgs, js_string,
-    object::JsObject,
-    module::Module,
+use crate::misc::structured_clone::{
+    StructuredCloneValue, TransferList, structured_clone, structured_deserialize,
 };
 use crate::worker::{
+    worker_error::{WorkerError, WorkerErrorHandler, WorkerErrorType, error_helpers},
     worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event},
-    worker_global_scope::{WorkerGlobalScope, WorkerGlobalScopeType, WorkerMessage, MessageSource},
-    worker_error::{WorkerErrorHandler, WorkerErrorType, WorkerError, error_helpers},
+    worker_global_scope::{MessageSource, WorkerGlobalScope, WorkerGlobalScopeType, WorkerMessage},
 };
-use crate::misc::structured_clone::{StructuredCloneValue, structured_clone, structured_deserialize, TransferList};
+use boa_engine::{
+    Context, JsArgs, JsNativeError, JsResult, JsValue, Source, js_string, module::Module,
+    object::JsObject,
+};
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
@@ -46,7 +47,11 @@ impl WorkerExecutionContext {
     }
 
     /// Load and execute the worker script
-    pub async fn load_and_execute(&self, _worker_obj: JsObject, _main_context: &mut Context) -> JsResult<()> {
+    pub async fn load_and_execute(
+        &self,
+        _worker_obj: JsObject,
+        _main_context: &mut Context,
+    ) -> JsResult<()> {
         // Check if terminated
         if *self.terminated.lock().unwrap() {
             return Ok(());
@@ -59,7 +64,9 @@ impl WorkerExecutionContext {
                 eprintln!("Failed to fetch worker script: {}", e);
                 // For now, we don't have a worker object reference to dispatch error events
                 // In a full implementation, we'd store a reference to the worker and dispatch error events
-                return Err(error_helpers::script_load_error(&self.script_url, &e.to_string()).into());
+                return Err(
+                    error_helpers::script_load_error(&self.script_url, &e.to_string()).into(),
+                );
             }
         };
 
@@ -73,12 +80,8 @@ impl WorkerExecutionContext {
 
         // Execute script based on worker type
         match self.worker_type.as_str() {
-            "module" => {
-                self.execute_module_script(&script_content).await
-            }
-            "classic" | _ => {
-                self.execute_classic_script(&script_content).await
-            }
+            "module" => self.execute_module_script(&script_content).await,
+            "classic" | _ => self.execute_classic_script(&script_content).await,
         }
     }
 
@@ -93,11 +96,8 @@ impl WorkerExecutionContext {
         let mut worker_context = Context::default();
 
         // Set up WorkerGlobalScope for dedicated worker
-        let worker_global_scope = WorkerGlobalScope::new(
-            WorkerGlobalScopeType::Dedicated,
-            &self.script_url,
-            None,
-        )?;
+        let worker_global_scope =
+            WorkerGlobalScope::new(WorkerGlobalScopeType::Dedicated, &self.script_url, None)?;
 
         // Initialize the worker global scope in the context
         worker_global_scope.initialize_in_context(&mut worker_context)?;
@@ -110,7 +110,10 @@ impl WorkerExecutionContext {
             }
             Err(js_error) => {
                 eprintln!("Classic worker script execution failed: {}", js_error);
-                Err(error_helpers::script_parse_error(&self.script_url, &js_error.to_string()).into())
+                Err(
+                    error_helpers::script_parse_error(&self.script_url, &js_error.to_string())
+                        .into(),
+                )
             }
         }
     }
@@ -126,11 +129,8 @@ impl WorkerExecutionContext {
         let mut worker_context = Context::default();
 
         // Set up WorkerGlobalScope for dedicated worker
-        let worker_global_scope = WorkerGlobalScope::new(
-            WorkerGlobalScopeType::Dedicated,
-            &self.script_url,
-            None,
-        )?;
+        let worker_global_scope =
+            WorkerGlobalScope::new(WorkerGlobalScopeType::Dedicated, &self.script_url, None)?;
 
         // Initialize the worker global scope in the context
         worker_global_scope.initialize_in_context(&mut worker_context)?;
@@ -144,7 +144,11 @@ impl WorkerExecutionContext {
             Ok(module) => module,
             Err(js_error) => {
                 eprintln!("Module worker script parsing failed: {}", js_error);
-                return Err(error_helpers::script_parse_error(&self.script_url, &js_error.to_string()).into());
+                return Err(error_helpers::script_parse_error(
+                    &self.script_url,
+                    &js_error.to_string(),
+                )
+                .into());
             }
         };
 
@@ -175,14 +179,15 @@ impl WorkerExecutionContext {
                 // Handle data URLs
                 self.parse_data_url(&url)
             }
-            _ => {
-                Err(format!("Unsupported URL scheme: {}", url.scheme()).into())
-            }
+            _ => Err(format!("Unsupported URL scheme: {}", url.scheme()).into()),
         }
     }
 
     /// Fetch script from remote URL
-    async fn fetch_remote_script(&self, url: &Url) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    async fn fetch_remote_script(
+        &self,
+        url: &Url,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         // Use reqwest for HTTP fetching
         let client = reqwest::Client::builder()
             .user_agent("Thalora-WebBrowser/1.0")
@@ -200,14 +205,20 @@ impl WorkerExecutionContext {
     }
 
     /// Parse data URL content
-    fn parse_data_url(&self, url: &Url) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    fn parse_data_url(
+        &self,
+        url: &Url,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let path = url.path();
 
         // Simple data URL parsing for text/javascript
         if path.starts_with("text/javascript,") {
             Ok(path.strip_prefix("text/javascript,").unwrap().to_string())
         } else if path.starts_with("application/javascript,") {
-            Ok(path.strip_prefix("application/javascript,").unwrap().to_string())
+            Ok(path
+                .strip_prefix("application/javascript,")
+                .unwrap()
+                .to_string())
         } else {
             // Handle base64 encoding if needed
             Err("Unsupported data URL format".into())
@@ -236,7 +247,9 @@ impl WorkerExecutionContext {
             Ok(content) => content,
             Err(e) => {
                 eprintln!("Failed to fetch worker script: {}", e);
-                return Err(error_helpers::script_load_error(&self.script_url, &e.to_string()).into());
+                return Err(
+                    error_helpers::script_load_error(&self.script_url, &e.to_string()).into(),
+                );
             }
         };
 
@@ -273,12 +286,16 @@ impl WorkerExecutionContext {
         // Store the global scope reference (can't clone WorkerGlobalScope, so we won't store it locally)
         // The scope is now registered globally and accessible via postMessage
 
-        eprintln!("Worker global scope created and registered with ID: {}", global_scope_arc.get_scope_id());
+        eprintln!(
+            "Worker global scope created and registered with ID: {}",
+            global_scope_arc.get_scope_id()
+        );
 
         // Execute the script in a new isolated context
         // Note: In a real implementation, this would be in a separate thread
         // For now, we'll execute it in the current context to demonstrate the concept
-        self.execute_script_in_isolated_context(script_content).await?;
+        self.execute_script_in_isolated_context(script_content)
+            .await?;
 
         Ok(())
     }
@@ -337,15 +354,20 @@ impl WorkerExecutionContext {
 
         // Clone message using structured cloning
         let mut context = Context::default();
-        let cloned_message = structured_clone(&message, &mut context, None)
-            .map_err(|e| error_helpers::data_clone_error(&format!("Failed to clone message: {:?}", e)))?;
+        let cloned_message = structured_clone(&message, &mut context, None).map_err(|e| {
+            error_helpers::data_clone_error(&format!("Failed to clone message: {:?}", e))
+        })?;
 
         self.post_cloned_message_to_worker(cloned_message).await
     }
 
     /// Post structured cloned message from main thread to worker
-    pub async fn post_cloned_message_to_worker(&self, cloned_message: StructuredCloneValue) -> JsResult<()> {
-        self.post_cloned_message_to_worker_with_transfer(cloned_message, None).await
+    pub async fn post_cloned_message_to_worker(
+        &self,
+        cloned_message: StructuredCloneValue,
+    ) -> JsResult<()> {
+        self.post_cloned_message_to_worker_with_transfer(cloned_message, None)
+            .await
     }
 
     /// Post structured cloned message from main thread to worker with optional transferables
@@ -365,7 +387,8 @@ impl WorkerExecutionContext {
         // Transferable objects include: MessagePort, ArrayBuffer, ImageBitmap, OffscreenCanvas
         let ports = if let Some(ref transfer) = transfer_list {
             // Get any MessagePort IDs from the transfer list
-            transfer.get_message_port_ids()
+            transfer
+                .get_message_port_ids()
                 .iter()
                 .map(|id| format!("port-{}", id))
                 .collect()
@@ -390,7 +413,9 @@ impl WorkerExecutionContext {
             }
         } else {
             // Fallback for when global scope isn't ready yet
-            eprintln!("Message sent to worker (scope not ready) - structured clone ready for delivery");
+            eprintln!(
+                "Message sent to worker (scope not ready) - structured clone ready for delivery"
+            );
         }
 
         Ok(())
@@ -407,7 +432,8 @@ impl WorkerScriptLoader {
         script_url: String,
         worker_type: String,
     ) -> JsResult<Arc<WorkerExecutionContext>> {
-        let execution_context = Arc::new(WorkerExecutionContext::new(script_url.clone(), worker_type));
+        let execution_context =
+            Arc::new(WorkerExecutionContext::new(script_url.clone(), worker_type));
         let exec_ctx_clone = execution_context.clone();
 
         // Check if we're in a Tokio runtime context

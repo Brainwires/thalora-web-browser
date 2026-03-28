@@ -1,12 +1,12 @@
 //! RTCSessionDescription stub for WASM builds
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     realm::Realm,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     string::StaticJsStrings,
 };
 use boa_gc::{Finalize, Trace};

@@ -3,19 +3,18 @@
 //! The Range represents a fragment of a document that can contain nodes and parts of text nodes.
 //! This module provides the native Range implementation for the Boa JavaScript engine.
 
-use boa_gc::{Finalize, Trace};
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInObject, BuiltInConstructor},
-    js_string, JsString, JsArgs, JsData,
+    Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsString, JsValue,
+    builtins::BuiltInBuilder,
+    builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::internal_methods::get_prototype_from_constructor,
     property::Attribute,
     realm::Realm,
-    Context, JsNativeError, JsObject, JsResult, JsValue,
-    builtins::BuiltInBuilder,
     string::StaticJsStrings,
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::internal_methods::get_prototype_from_constructor,
 };
-
+use boa_gc::{Finalize, Trace};
 
 /// How to position the boundary point in relation to the node
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,14 +111,22 @@ impl RangeData {
     }
 
     /// Set both start and end to the same position (collapse)
-    fn set_start_and_end(&mut self, node: JsValue, start_offset: u32, end_offset: u32) -> JsResult<()> {
+    fn set_start_and_end(
+        &mut self,
+        node: JsValue,
+        start_offset: u32,
+        end_offset: u32,
+    ) -> JsResult<()> {
         self.start_container = Some(node.clone());
         self.start_offset = start_offset;
         self.end_container = Some(node);
         self.end_offset = end_offset;
 
         self.update_state();
-        eprintln!("Range: Set range from offset {} to {}", start_offset, end_offset);
+        eprintln!(
+            "Range: Set range from offset {} to {}",
+            start_offset, end_offset
+        );
         Ok(())
     }
 
@@ -138,7 +145,10 @@ impl RangeData {
         }
 
         self.update_state();
-        eprintln!("Range: Collapsed to {}", if to_start { "start" } else { "end" });
+        eprintln!(
+            "Range: Collapsed to {}",
+            if to_start { "start" } else { "end" }
+        );
     }
 
     /// Select the contents of a node
@@ -168,8 +178,8 @@ impl RangeData {
     /// Update internal state after boundary changes
     fn update_state(&mut self) {
         // Check if range is collapsed
-        self.collapsed = self.start_container == self.end_container &&
-                        self.start_offset == self.end_offset;
+        self.collapsed =
+            self.start_container == self.end_container && self.start_offset == self.end_offset;
 
         // Update common ancestor container (simplified implementation)
         if let (Some(start), Some(end)) = (&self.start_container, &self.end_container) {
@@ -189,17 +199,21 @@ impl RangeData {
         // In a real implementation, this would need proper DOM tree position comparison
 
         let (this_node, this_offset) = match how {
-            RangeHowType::StartToStart | RangeHowType::StartToEnd =>
-                (&self.start_container, self.start_offset),
-            RangeHowType::EndToEnd | RangeHowType::EndToStart =>
-                (&self.end_container, self.end_offset),
+            RangeHowType::StartToStart | RangeHowType::StartToEnd => {
+                (&self.start_container, self.start_offset)
+            }
+            RangeHowType::EndToEnd | RangeHowType::EndToStart => {
+                (&self.end_container, self.end_offset)
+            }
         };
 
         let (other_node, other_offset) = match how {
-            RangeHowType::StartToStart | RangeHowType::EndToStart =>
-                (&other.start_container, other.start_offset),
-            RangeHowType::StartToEnd | RangeHowType::EndToEnd =>
-                (&other.end_container, other.end_offset),
+            RangeHowType::StartToStart | RangeHowType::EndToStart => {
+                (&other.start_container, other.start_offset)
+            }
+            RangeHowType::StartToEnd | RangeHowType::EndToEnd => {
+                (&other.end_container, other.end_offset)
+            }
         };
 
         // Simple offset comparison (would need proper DOM position comparison)
@@ -357,7 +371,11 @@ impl IntrinsicObject for Range {
             .method(collapse, js_string!("collapse"), 1)
             .method(select_node, js_string!("selectNode"), 1)
             .method(select_node_contents, js_string!("selectNodeContents"), 1)
-            .method(compare_boundary_points, js_string!("compareBoundaryPoints"), 2)
+            .method(
+                compare_boundary_points,
+                js_string!("compareBoundaryPoints"),
+                2,
+            )
             .method(delete_contents, js_string!("deleteContents"), 0)
             .method(extract_contents, js_string!("extractContents"), 0)
             .method(clone_contents, js_string!("cloneContents"), 0)
@@ -366,8 +384,16 @@ impl IntrinsicObject for Range {
             .method(clone_range, js_string!("cloneRange"), 0)
             .method(to_string, js_string!("toString"), 0)
             .method(detach, js_string!("detach"), 0)
-            .method(create_contextual_fragment, js_string!("createContextualFragment"), 1)
-            .method(get_bounding_client_rect, js_string!("getBoundingClientRect"), 0)
+            .method(
+                create_contextual_fragment,
+                js_string!("createContextualFragment"),
+                1,
+            )
+            .method(
+                get_bounding_client_rect,
+                js_string!("getBoundingClientRect"),
+                0,
+            )
             .method(get_client_rects, js_string!("getClientRects"), 0)
             .method(is_point_in_range, js_string!("isPointInRange"), 2)
             .method(compare_point, js_string!("comparePoint"), 2)
@@ -425,29 +451,34 @@ impl BuiltInConstructor for Range {
         }
 
         let data = RangeData::new();
-        let prototype = get_prototype_from_constructor(new_target, StandardConstructors::range, context)?;
-        let range = JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::range, context)?;
+        let range =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
         Ok(range.into())
     }
 }
 
 /// Get the start container of the range.
 fn get_start_container(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
     })?;
-    Ok(range_data.start_container.clone().unwrap_or(JsValue::null()))
+    Ok(range_data
+        .start_container
+        .clone()
+        .unwrap_or(JsValue::null()))
 }
 
 /// Get the start offset of the range.
 fn get_start_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -457,9 +488,9 @@ fn get_start_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
 
 /// Get the end container of the range.
 fn get_end_container(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -469,9 +500,9 @@ fn get_end_container(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult
 
 /// Get the end offset of the range.
 fn get_end_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -481,9 +512,9 @@ fn get_end_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
 
 /// Get whether the range is collapsed.
 fn get_collapsed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -492,22 +523,29 @@ fn get_collapsed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
 }
 
 /// Get the common ancestor container.
-fn get_common_ancestor_container(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+fn get_common_ancestor_container(
+    this: &JsValue,
+    _: &[JsValue],
+    _: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
     })?;
-    Ok(range_data.common_ancestor_container.clone().unwrap_or(JsValue::null()))
+    Ok(range_data
+        .common_ancestor_container
+        .clone()
+        .unwrap_or(JsValue::null()))
 }
 
 /// Set the start of the range.
 fn set_start(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
     let offset = match args.get_or_undefined(1).to_integer_or_infinity(context)? {
@@ -524,9 +562,9 @@ fn set_start(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 
 /// Set the end of the range.
 fn set_end(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
     let offset = match args.get_or_undefined(1).to_integer_or_infinity(context)? {
@@ -543,9 +581,9 @@ fn set_end(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 
 /// Set the start before a node.
 fn set_start_before(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -560,9 +598,9 @@ fn set_start_before(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResu
 
 /// Set the start after a node.
 fn set_start_after(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -577,9 +615,9 @@ fn set_start_after(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResul
 
 /// Set the end before a node.
 fn set_end_before(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -594,9 +632,9 @@ fn set_end_before(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult
 
 /// Set the end after a node.
 fn set_end_after(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -611,9 +649,9 @@ fn set_end_after(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<
 
 /// Collapse the range to a single point.
 fn collapse(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let to_start = args.get_or_undefined(0).to_boolean();
 
@@ -626,9 +664,9 @@ fn collapse(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsVal
 
 /// Select an entire node.
 fn select_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -641,9 +679,9 @@ fn select_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<Js
 
 /// Select the contents of a node.
 fn select_node_contents(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -655,22 +693,32 @@ fn select_node_contents(this: &JsValue, args: &[JsValue], _: &mut Context) -> Js
 }
 
 /// Compare boundary points with another range.
-fn compare_boundary_points(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+fn compare_boundary_points(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let how = match args.get_or_undefined(0).to_integer_or_infinity(context)? {
-        boa_engine::value::IntegerOrInfinity::Integer(i) => {
-            match i {
-                0 => RangeHowType::StartToStart,
-                1 => RangeHowType::StartToEnd,
-                2 => RangeHowType::EndToEnd,
-                3 => RangeHowType::EndToStart,
-                _ => return Err(JsNativeError::range().with_message("Invalid how parameter").into()),
+        boa_engine::value::IntegerOrInfinity::Integer(i) => match i {
+            0 => RangeHowType::StartToStart,
+            1 => RangeHowType::StartToEnd,
+            2 => RangeHowType::EndToEnd,
+            3 => RangeHowType::EndToStart,
+            _ => {
+                return Err(JsNativeError::range()
+                    .with_message("Invalid how parameter")
+                    .into());
             }
         },
-        _ => return Err(JsNativeError::range().with_message("Invalid how parameter").into()),
+        _ => {
+            return Err(JsNativeError::range()
+                .with_message("Invalid how parameter")
+                .into());
+        }
     };
 
     let other_range_obj = args.get_or_undefined(1).as_object().ok_or_else(|| {
@@ -691,9 +739,9 @@ fn compare_boundary_points(this: &JsValue, args: &[JsValue], context: &mut Conte
 
 /// Delete the contents of the range.
 fn delete_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     if let Some(mut range_data) = this_obj.downcast_mut::<RangeData>() {
         // In a real implementation, this would remove the range contents from the DOM
@@ -706,9 +754,9 @@ fn delete_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
 
 /// Extract the contents of the range.
 fn extract_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let mut range_data = this_obj.downcast_mut::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -719,9 +767,9 @@ fn extract_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
 
 /// Clone the contents of the range.
 fn clone_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -731,9 +779,9 @@ fn clone_contents(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<Js
 
 /// Insert a node at the start of the range.
 fn insert_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -746,9 +794,9 @@ fn insert_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<Js
 
 /// Surround the range contents with a node.
 fn surround_contents(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let new_parent = args.get_or_undefined(0);
 
@@ -761,30 +809,35 @@ fn surround_contents(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsRes
 
 /// Clone the range.
 fn clone_range(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
     })?;
 
     let cloned_data = range_data.clone_range();
-    let range_constructor = StandardConstructors::range(context.intrinsics().constructors()).constructor();
-    let prototype = get_prototype_from_constructor(&range_constructor.into(), StandardConstructors::range, context)?;
+    let range_constructor =
+        StandardConstructors::range(context.intrinsics().constructors()).constructor();
+    let prototype = get_prototype_from_constructor(
+        &range_constructor.into(),
+        StandardConstructors::range,
+        context,
+    )?;
     let cloned_range = JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
         prototype,
-        cloned_data
+        cloned_data,
     );
     Ok(cloned_range.into())
 }
 
 /// Convert the range to a string.
 fn to_string(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let _range_data = this_obj.downcast_ref::<RangeData>().ok_or_else(|| {
         JsNativeError::typ().with_message("Range method called on non-Range object")
@@ -796,9 +849,9 @@ fn to_string(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue
 
 /// Detach the range.
 fn detach(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     if let Some(mut range_data) = this_obj.downcast_mut::<RangeData>() {
         range_data.detach();
@@ -812,10 +865,14 @@ fn detach(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
 /// This method parses the provided HTML string and returns a DocumentFragment
 /// containing the resulting nodes. The parsing context is determined by the
 /// range's start container.
-fn create_contextual_fragment(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+fn create_contextual_fragment(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let fragment_string = args.get_or_undefined(0).to_string(context)?;
 
@@ -824,7 +881,10 @@ fn create_contextual_fragment(this: &JsValue, args: &[JsValue], context: &mut Co
     // 2. Parse the HTML string according to HTML fragment parsing algorithm
     // 3. Return a DocumentFragment with the parsed nodes
 
-    eprintln!("Range: createContextualFragment called with: {}", fragment_string.to_std_string_escaped());
+    eprintln!(
+        "Range: createContextualFragment called with: {}",
+        fragment_string.to_std_string_escaped()
+    );
 
     // Return a basic DocumentFragment
     // Note: Full HTML fragment parsing requires integrating html5ever or similar
@@ -835,7 +895,11 @@ fn create_contextual_fragment(this: &JsValue, args: &[JsValue], context: &mut Co
     // 3. Handle script elements, template elements, and other special cases
     use crate::dom::document_fragment::DocumentFragmentData;
     let fragment_data = DocumentFragmentData::new();
-    let fragment_proto = context.intrinsics().constructors().document_fragment().prototype();
+    let fragment_proto = context
+        .intrinsics()
+        .constructors()
+        .document_fragment()
+        .prototype();
     let fragment_obj = JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
         fragment_proto,
@@ -847,10 +911,14 @@ fn create_contextual_fragment(this: &JsValue, args: &[JsValue], context: &mut Co
 /// Get a DOMRect object representing the bounding rectangle of the range's contents.
 ///
 /// Returns a DOMRect with x, y, width, height, top, right, bottom, left properties.
-fn get_bounding_client_rect(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+fn get_bounding_client_rect(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     // Create a DOMRect-like object
     // In a real implementation, this would calculate the actual bounding box
@@ -874,9 +942,9 @@ fn get_bounding_client_rect(this: &JsValue, _: &[JsValue], context: &mut Context
 ///
 /// For inline elements that span multiple lines, this returns multiple rectangles.
 fn get_client_rects(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let _this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let _this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     // Create a DOMRectList-like object with array-like properties
     // In a real implementation, this would return an array of DOMRects
@@ -893,9 +961,9 @@ fn get_client_rects(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsR
 ///
 /// Returns true if the point is between the range's start and end boundaries.
 fn is_point_in_range(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
     let offset = match args.get_or_undefined(1).to_integer_or_infinity(context)? {
@@ -909,7 +977,9 @@ fn is_point_in_range(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 
     // Simplified implementation: check if the node matches and offset is within range
     // A full implementation would need proper DOM tree position comparison
-    let in_range = if let (Some(start), Some(end)) = (&range_data.start_container, &range_data.end_container) {
+    let in_range = if let (Some(start), Some(end)) =
+        (&range_data.start_container, &range_data.end_container)
+    {
         if start == node && end == node {
             // Same node - check offset bounds
             offset >= range_data.start_offset && offset <= range_data.end_offset
@@ -928,7 +998,10 @@ fn is_point_in_range(this: &JsValue, args: &[JsValue], context: &mut Context) ->
         false
     };
 
-    eprintln!("Range: isPointInRange called with offset {} -> {}", offset, in_range);
+    eprintln!(
+        "Range: isPointInRange called with offset {} -> {}",
+        offset, in_range
+    );
     Ok(JsValue::from(in_range))
 }
 
@@ -939,9 +1012,9 @@ fn is_point_in_range(this: &JsValue, args: &[JsValue], context: &mut Context) ->
 /// - 0 if the point is within the range
 /// - 1 if the point is after the range
 fn compare_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
     let offset = match args.get_or_undefined(1).to_integer_or_infinity(context)? {
@@ -955,7 +1028,9 @@ fn compare_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 
     // Simplified implementation
     // A full implementation would need proper DOM tree position comparison
-    let result = if let (Some(start), Some(end)) = (&range_data.start_container, &range_data.end_container) {
+    let result = if let (Some(start), Some(end)) =
+        (&range_data.start_container, &range_data.end_container)
+    {
         if start == node && end == node {
             // Same node
             if offset < range_data.start_offset {
@@ -985,7 +1060,10 @@ fn compare_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         0i16
     };
 
-    eprintln!("Range: comparePoint called with offset {} -> {}", offset, result);
+    eprintln!(
+        "Range: comparePoint called with offset {} -> {}",
+        offset, result
+    );
     Ok(JsValue::from(result))
 }
 
@@ -993,9 +1071,9 @@ fn compare_point(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 ///
 /// Returns true if any part of the node is within the range.
 fn intersects_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Range method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Range method called on non-object"))?;
 
     let node = args.get_or_undefined(0);
 
@@ -1005,9 +1083,15 @@ fn intersects_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResul
 
     // Simplified implementation: check if node is one of the boundary containers
     // or the common ancestor. A full implementation would need DOM tree traversal.
-    let intersects = if let (Some(start), Some(end)) = (&range_data.start_container, &range_data.end_container) {
-        start == node || end == node ||
-        range_data.common_ancestor_container.as_ref().map_or(false, |ca| ca == node)
+    let intersects = if let (Some(start), Some(end)) =
+        (&range_data.start_container, &range_data.end_container)
+    {
+        start == node
+            || end == node
+            || range_data
+                .common_ancestor_container
+                .as_ref()
+                .map_or(false, |ca| ca == node)
     } else {
         false
     };

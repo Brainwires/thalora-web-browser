@@ -4,16 +4,16 @@
 //! https://dom.spec.whatwg.org/#interface-htmlcollection
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    string::{JsString},
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
+    string::JsString,
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::HashMap;
 
 /// The HTMLCollection data implementation
@@ -77,12 +77,19 @@ pub struct HTMLCollection;
 
 impl HTMLCollection {
     /// Create a new HTMLCollection from a vector of elements
-    pub fn create_from_elements(elements: Vec<JsObject>, context: &mut Context) -> JsResult<JsObject> {
+    pub fn create_from_elements(
+        elements: Vec<JsObject>,
+        context: &mut Context,
+    ) -> JsResult<JsObject> {
         let collection_data = HTMLCollectionData::new(elements);
 
         let collection_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().htmlcollection().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .htmlcollection()
+                .prototype(),
             collection_data,
         );
 
@@ -90,15 +97,21 @@ impl HTMLCollection {
     }
 
     /// `HTMLCollection.prototype.length` getter
-    fn get_length_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_length_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLCollection.length called on non-object")
         })?;
 
-        let collection_data = this_obj.downcast_ref::<HTMLCollectionData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLCollection.length called on non-HTMLCollection object")
-        })?;
+        let collection_data = this_obj
+            .downcast_ref::<HTMLCollectionData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("HTMLCollection.length called on non-HTMLCollection object")
+            })?;
 
         Ok(JsValue::new(collection_data.length() as i32))
     }
@@ -109,10 +122,12 @@ impl HTMLCollection {
             JsNativeError::typ().with_message("HTMLCollection.item called on non-object")
         })?;
 
-        let collection_data = this_obj.downcast_ref::<HTMLCollectionData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLCollection.item called on non-HTMLCollection object")
-        })?;
+        let collection_data = this_obj
+            .downcast_ref::<HTMLCollectionData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("HTMLCollection.item called on non-HTMLCollection object")
+            })?;
 
         let index = args.get_or_undefined(0).to_length(context)? as usize;
 
@@ -128,10 +143,12 @@ impl HTMLCollection {
             JsNativeError::typ().with_message("HTMLCollection.namedItem called on non-object")
         })?;
 
-        let collection_data = this_obj.downcast_ref::<HTMLCollectionData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLCollection.namedItem called on non-HTMLCollection object")
-        })?;
+        let collection_data = this_obj
+            .downcast_ref::<HTMLCollectionData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("HTMLCollection.namedItem called on non-HTMLCollection object")
+            })?;
 
         let name = args.get_or_undefined(0).to_string(context)?;
         let name_str = name.to_std_string_escaped();
@@ -219,7 +236,11 @@ impl BuiltInConstructor for HTMLCollection {
 
         let collection_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().htmlcollection().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .htmlcollection()
+                .prototype(),
             collection_data,
         );
 

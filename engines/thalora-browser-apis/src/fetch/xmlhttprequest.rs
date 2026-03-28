@@ -6,18 +6,19 @@
 //! This implements the complete XMLHttpRequest interface with real HTTP networking
 
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
-    value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string,
-    realm::Realm, JsData, JsString,
     job::NativeAsyncJob,
-    property::Attribute
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
+    value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
 use reqwest;
+use std::collections::HashMap;
 use url::Url;
 
 /// JavaScript `XMLHttpRequest` constructor implementation.
@@ -30,8 +31,16 @@ impl IntrinsicObject for XmlHttpRequest {
             .method(Self::open, js_string!("open"), 2)
             .method(Self::send, js_string!("send"), 0)
             .method(Self::set_request_header, js_string!("setRequestHeader"), 2)
-            .method(Self::get_response_header, js_string!("getResponseHeader"), 1)
-            .method(Self::get_all_response_headers, js_string!("getAllResponseHeaders"), 0)
+            .method(
+                Self::get_response_header,
+                js_string!("getResponseHeader"),
+                1,
+            )
+            .method(
+                Self::get_all_response_headers,
+                js_string!("getAllResponseHeaders"),
+                0,
+            )
             .method(Self::abort, js_string!("abort"), 0)
             .static_property(js_string!("UNSENT"), 0, Attribute::all())
             .static_property(js_string!("OPENED"), 1, Attribute::all())
@@ -70,7 +79,7 @@ impl BuiltInConstructor for XmlHttpRequest {
         )?;
         // Create XMLHttpRequest object
         let xhr_data = XmlHttpRequestData {
-            ready_state: 0,  // UNSENT
+            ready_state: 0, // UNSENT
             response_url: String::new(),
             status: 0,
             status_text: String::new(),
@@ -80,7 +89,7 @@ impl BuiltInConstructor for XmlHttpRequest {
             request_method: String::new(),
             request_url: String::new(),
             request_headers: HashMap::new(),
-            is_async: true,  // Fixed: renamed from async
+            is_async: true, // Fixed: renamed from async
             timeout: 0,
             with_credentials: false,
         };
@@ -88,7 +97,7 @@ impl BuiltInConstructor for XmlHttpRequest {
         let xhr_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             prototype,
-            xhr_data
+            xhr_data,
         );
 
         // Upcast to generic JsObject for property operations
@@ -97,18 +106,43 @@ impl BuiltInConstructor for XmlHttpRequest {
         // Initialize properties
         xhr_obj_upcast.set(js_string!("readyState"), JsValue::from(0), false, context)?;
         xhr_obj_upcast.set(js_string!("status"), JsValue::from(0), false, context)?;
-        xhr_obj_upcast.set(js_string!("statusText"), JsValue::from(js_string!("")), false, context)?;
-        xhr_obj_upcast.set(js_string!("responseText"), JsValue::from(js_string!("")), false, context)?;
+        xhr_obj_upcast.set(
+            js_string!("statusText"),
+            JsValue::from(js_string!("")),
+            false,
+            context,
+        )?;
+        xhr_obj_upcast.set(
+            js_string!("responseText"),
+            JsValue::from(js_string!("")),
+            false,
+            context,
+        )?;
         xhr_obj_upcast.set(js_string!("responseXML"), JsValue::null(), false, context)?;
         xhr_obj_upcast.set(js_string!("timeout"), JsValue::from(0), false, context)?;
-        xhr_obj_upcast.set(js_string!("withCredentials"), JsValue::from(false), false, context)?;
+        xhr_obj_upcast.set(
+            js_string!("withCredentials"),
+            JsValue::from(false),
+            false,
+            context,
+        )?;
 
         // Create empty upload object
         let upload_obj = JsObject::with_object_proto(context.intrinsics());
-        xhr_obj_upcast.set(js_string!("upload"), JsValue::from(upload_obj), false, context)?;
+        xhr_obj_upcast.set(
+            js_string!("upload"),
+            JsValue::from(upload_obj),
+            false,
+            context,
+        )?;
 
         // Event handlers
-        xhr_obj_upcast.set(js_string!("onreadystatechange"), JsValue::null(), false, context)?;
+        xhr_obj_upcast.set(
+            js_string!("onreadystatechange"),
+            JsValue::null(),
+            false,
+            context,
+        )?;
         xhr_obj_upcast.set(js_string!("onload"), JsValue::null(), false, context)?;
         xhr_obj_upcast.set(js_string!("onerror"), JsValue::null(), false, context)?;
         xhr_obj_upcast.set(js_string!("onabort"), JsValue::null(), false, context)?;
@@ -128,20 +162,34 @@ impl XmlHttpRequest {
             JsNativeError::typ().with_message("XMLHttpRequest.open called on non-object")
         })?;
 
-        let method = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped().to_uppercase();
-        let url = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+        let method = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped()
+            .to_uppercase();
+        let url = args
+            .get_or_undefined(1)
+            .to_string(context)?
+            .to_std_string_escaped();
         let async_val = args.get_or_undefined(2);
-        let is_async = if async_val.is_undefined() { true } else { async_val.to_boolean() };
+        let is_async = if async_val.is_undefined() {
+            true
+        } else {
+            async_val.to_boolean()
+        };
 
         // Validate URL
-        Url::parse(&url).map_err(|_| {
-            JsNativeError::syntax().with_message(format!("Invalid URL: {}", url))
-        })?;
+        Url::parse(&url)
+            .map_err(|_| JsNativeError::syntax().with_message(format!("Invalid URL: {}", url)))?;
 
         // Validate method
         match method.as_str() {
-            "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "PATCH" => {},
-            _ => return Err(JsNativeError::syntax().with_message(format!("Invalid HTTP method: {}", method)).into()),
+            "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "PATCH" => {}
+            _ => {
+                return Err(JsNativeError::syntax()
+                    .with_message(format!("Invalid HTTP method: {}", method))
+                    .into());
+            }
         }
 
         // Update internal data
@@ -172,12 +220,17 @@ impl XmlHttpRequest {
             JsNativeError::typ().with_message("XMLHttpRequest.send called on non-object")
         })?;
 
-        let xhr_data = xhr_obj.downcast_ref::<XmlHttpRequestData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("XMLHttpRequest.send called on non-XMLHttpRequest object")
-        })?;
+        let xhr_data = xhr_obj
+            .downcast_ref::<XmlHttpRequestData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("XMLHttpRequest.send called on non-XMLHttpRequest object")
+            })?;
 
         if xhr_data.ready_state != 1 {
-            return Err(JsNativeError::typ().with_message("XMLHttpRequest.send: object state must be OPENED").into());
+            return Err(JsNativeError::typ()
+                .with_message("XMLHttpRequest.send: object state must be OPENED")
+                .into());
         }
 
         let body = args.get_or_undefined(0);
@@ -197,7 +250,9 @@ impl XmlHttpRequest {
         context.enqueue_job(
             NativeAsyncJob::new(async move |context| {
                 let context = &mut context.borrow_mut();
-                match Self::perform_request(xhr_obj_clone, method, url, headers, body_text, context).await {
+                match Self::perform_request(xhr_obj_clone, method, url, headers, body_text, context)
+                    .await
+                {
                     Ok(_) => Ok(JsValue::undefined()),
                     Err(e) => {
                         eprintln!("XMLHttpRequest error: {}", e);
@@ -212,17 +267,30 @@ impl XmlHttpRequest {
     }
 
     /// `XMLHttpRequest.prototype.setRequestHeader()` method
-    fn set_request_header(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_request_header(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let xhr_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("XMLHttpRequest.setRequestHeader called on non-object")
+            JsNativeError::typ()
+                .with_message("XMLHttpRequest.setRequestHeader called on non-object")
         })?;
 
-        let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
-        let value = args.get_or_undefined(1).to_string(context)?.to_std_string_escaped();
+        let name = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        let value = args
+            .get_or_undefined(1)
+            .to_string(context)?
+            .to_std_string_escaped();
 
         if let Some(mut xhr_data) = xhr_obj.downcast_mut::<XmlHttpRequestData>() {
             if xhr_data.ready_state != 1 {
-                return Err(JsNativeError::typ().with_message("XMLHttpRequest.setRequestHeader: object state must be OPENED").into());
+                return Err(JsNativeError::typ()
+                    .with_message("XMLHttpRequest.setRequestHeader: object state must be OPENED")
+                    .into());
             }
             xhr_data.request_headers.insert(name, value);
         }
@@ -231,16 +299,29 @@ impl XmlHttpRequest {
     }
 
     /// `XMLHttpRequest.prototype.getResponseHeader()` method
-    fn get_response_header(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_response_header(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let xhr_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("XMLHttpRequest.getResponseHeader called on non-object")
+            JsNativeError::typ()
+                .with_message("XMLHttpRequest.getResponseHeader called on non-object")
         })?;
 
-        let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped().to_lowercase();
+        let name = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped()
+            .to_lowercase();
 
-        let xhr_data = xhr_obj.downcast_ref::<XmlHttpRequestData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("XMLHttpRequest.getResponseHeader called on non-XMLHttpRequest object")
-        })?;
+        let xhr_data = xhr_obj
+            .downcast_ref::<XmlHttpRequestData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "XMLHttpRequest.getResponseHeader called on non-XMLHttpRequest object",
+                )
+            })?;
 
         if xhr_data.ready_state < 2 {
             return Ok(JsValue::null());
@@ -254,14 +335,23 @@ impl XmlHttpRequest {
     }
 
     /// `XMLHttpRequest.prototype.getAllResponseHeaders()` method
-    fn get_all_response_headers(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_all_response_headers(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let xhr_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("XMLHttpRequest.getAllResponseHeaders called on non-object")
+            JsNativeError::typ()
+                .with_message("XMLHttpRequest.getAllResponseHeaders called on non-object")
         })?;
 
-        let xhr_data = xhr_obj.downcast_ref::<XmlHttpRequestData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("XMLHttpRequest.getAllResponseHeaders called on non-XMLHttpRequest object")
-        })?;
+        let xhr_data = xhr_obj
+            .downcast_ref::<XmlHttpRequestData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "XMLHttpRequest.getAllResponseHeaders called on non-XMLHttpRequest object",
+                )
+            })?;
 
         if xhr_data.ready_state < 2 {
             return Ok(JsValue::from(js_string!("")));
@@ -317,7 +407,7 @@ impl XmlHttpRequest {
         let client = reqwest::Client::new();
         let mut request_builder = client.request(
             reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
-            &url
+            &url,
         );
 
         // Add headers
@@ -338,13 +428,18 @@ impl XmlHttpRequest {
 
                 // Extract response data
                 let status = response.status().as_u16();
-                let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+                let status_text = response
+                    .status()
+                    .canonical_reason()
+                    .unwrap_or("")
+                    .to_string();
 
                 // Convert headers
                 let mut response_headers = HashMap::new();
                 for (name, value) in response.headers() {
                     if let Ok(value_str) = value.to_str() {
-                        response_headers.insert(name.to_string().to_lowercase(), value_str.to_string());
+                        response_headers
+                            .insert(name.to_string().to_lowercase(), value_str.to_string());
                     }
                 }
 
@@ -362,9 +457,24 @@ impl XmlHttpRequest {
 
                         // Update properties
                         xhr_obj.set(js_string!("status"), JsValue::from(status), false, context)?;
-                        xhr_obj.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context)?;
-                        xhr_obj.set(js_string!("responseText"), JsValue::from(js_string!(body_text)), false, context)?;
-                        xhr_obj.set(js_string!("responseURL"), JsValue::from(js_string!(url)), false, context)?;
+                        xhr_obj.set(
+                            js_string!("statusText"),
+                            JsValue::from(js_string!(status_text)),
+                            false,
+                            context,
+                        )?;
+                        xhr_obj.set(
+                            js_string!("responseText"),
+                            JsValue::from(js_string!(body_text)),
+                            false,
+                            context,
+                        )?;
+                        xhr_obj.set(
+                            js_string!("responseURL"),
+                            JsValue::from(js_string!(url)),
+                            false,
+                            context,
+                        )?;
 
                         // Update state to DONE
                         Self::update_ready_state(&xhr_obj, 4, context)?;
@@ -374,7 +484,11 @@ impl XmlHttpRequest {
                     }
                     Err(e) => {
                         // Handle body read error
-                        Self::handle_error(&xhr_obj, &format!("Failed to read response body: {}", e), context)?;
+                        Self::handle_error(
+                            &xhr_obj,
+                            &format!("Failed to read response body: {}", e),
+                            context,
+                        )?;
                     }
                 }
             }
@@ -388,12 +502,21 @@ impl XmlHttpRequest {
     }
 
     /// Update ready state and call onreadystatechange
-    fn update_ready_state(xhr_obj: &JsObject, new_state: u8, context: &mut Context) -> JsResult<()> {
+    fn update_ready_state(
+        xhr_obj: &JsObject,
+        new_state: u8,
+        context: &mut Context,
+    ) -> JsResult<()> {
         if let Some(mut xhr_data) = xhr_obj.downcast_mut::<XmlHttpRequestData>() {
             xhr_data.ready_state = new_state;
         }
 
-        xhr_obj.set(js_string!("readyState"), JsValue::from(new_state), false, context)?;
+        xhr_obj.set(
+            js_string!("readyState"),
+            JsValue::from(new_state),
+            false,
+            context,
+        )?;
         Self::call_event_handler(xhr_obj, "onreadystatechange", context)?;
 
         Ok(())
@@ -409,7 +532,12 @@ impl XmlHttpRequest {
 
         xhr_obj.set(js_string!("readyState"), JsValue::from(4), false, context)?;
         xhr_obj.set(js_string!("status"), JsValue::from(0), false, context)?;
-        xhr_obj.set(js_string!("statusText"), JsValue::from(js_string!("")), false, context)?;
+        xhr_obj.set(
+            js_string!("statusText"),
+            JsValue::from(js_string!("")),
+            false,
+            context,
+        )?;
 
         Self::call_event_handler(xhr_obj, "onreadystatechange", context)?;
         Self::call_event_handler(xhr_obj, "onerror", context)?;
@@ -419,7 +547,11 @@ impl XmlHttpRequest {
     }
 
     /// Call event handler if it exists
-    fn call_event_handler(xhr_obj: &JsObject, handler_name: &str, context: &mut Context) -> JsResult<()> {
+    fn call_event_handler(
+        xhr_obj: &JsObject,
+        handler_name: &str,
+        context: &mut Context,
+    ) -> JsResult<()> {
         if let Ok(handler) = xhr_obj.get(js_string!(handler_name), context) {
             if let Some(handler_fn) = handler.as_callable() {
                 let _ = handler_fn.call(&JsValue::from(xhr_obj.clone()), &[], context);
@@ -453,7 +585,7 @@ pub struct XmlHttpRequestData {
     #[unsafe_ignore_trace]
     pub request_headers: HashMap<String, String>,
     #[unsafe_ignore_trace]
-    pub is_async: bool,  // Fixed: renamed from async
+    pub is_async: bool, // Fixed: renamed from async
     #[unsafe_ignore_trace]
     pub timeout: u32,
     #[unsafe_ignore_trace]

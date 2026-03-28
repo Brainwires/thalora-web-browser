@@ -127,7 +127,11 @@ impl WebGLTexture {
             };
 
             // Replace or insert
-            if let Some(existing) = self.mipmap_levels.iter_mut().find(|m| m.level == level as u32) {
+            if let Some(existing) = self
+                .mipmap_levels
+                .iter_mut()
+                .find(|m| m.level == level as u32)
+            {
                 *existing = mip;
             } else {
                 self.mipmap_levels.push(mip);
@@ -160,7 +164,8 @@ impl WebGLTexture {
                     let dst_start =
                         ((y_offset as usize + row) * tex_width + x_offset as usize) * pixel_size;
 
-                    if src_start + row_size <= data.len() && dst_start + row_size <= tex_data.len() {
+                    if src_start + row_size <= data.len() && dst_start + row_size <= tex_data.len()
+                    {
                         tex_data[dst_start..dst_start + row_size]
                             .copy_from_slice(&data[src_start..src_start + row_size]);
                     }
@@ -168,7 +173,11 @@ impl WebGLTexture {
             }
         } else {
             // Handle mipmap level sub-image
-            if let Some(mip) = self.mipmap_levels.iter_mut().find(|m| m.level == level as u32) {
+            if let Some(mip) = self
+                .mipmap_levels
+                .iter_mut()
+                .find(|m| m.level == level as u32)
+            {
                 let mip_width = mip.width as usize;
                 let row_size = width as usize * pixel_size;
 
@@ -177,7 +186,8 @@ impl WebGLTexture {
                     let dst_start =
                         ((y_offset as usize + row) * mip_width + x_offset as usize) * pixel_size;
 
-                    if src_start + row_size <= data.len() && dst_start + row_size <= mip.data.len() {
+                    if src_start + row_size <= data.len() && dst_start + row_size <= mip.data.len()
+                    {
                         mip.data[dst_start..dst_start + row_size]
                             .copy_from_slice(&data[src_start..src_start + row_size]);
                     }
@@ -275,7 +285,15 @@ impl WebGLTexture {
             if let Some(ref base_data) = self.data {
                 if level == 1 && !base_data.is_empty() {
                     let mip = self.mipmap_levels.last_mut().unwrap();
-                    generate_mipmap_level(base_data, self.width, self.height, &mut mip.data, w, h, pixel_size);
+                    generate_mipmap_level(
+                        base_data,
+                        self.width,
+                        self.height,
+                        &mut mip.data,
+                        w,
+                        h,
+                        pixel_size,
+                    );
                 }
             }
 
@@ -306,11 +324,17 @@ impl WebGLTexture {
     /// Convert to WGPU texture format
     pub fn wgpu_format(&self) -> wgpu::TextureFormat {
         match (self.internal_format, self.data_type) {
-            (WebGLConstants::RGBA, WebGLConstants::UNSIGNED_BYTE) => wgpu::TextureFormat::Rgba8Unorm,
+            (WebGLConstants::RGBA, WebGLConstants::UNSIGNED_BYTE) => {
+                wgpu::TextureFormat::Rgba8Unorm
+            }
             (WebGLConstants::RGB, WebGLConstants::UNSIGNED_BYTE) => wgpu::TextureFormat::Rgba8Unorm,
-            (WebGLConstants::LUMINANCE, WebGLConstants::UNSIGNED_BYTE) => wgpu::TextureFormat::R8Unorm,
+            (WebGLConstants::LUMINANCE, WebGLConstants::UNSIGNED_BYTE) => {
+                wgpu::TextureFormat::R8Unorm
+            }
             (WebGLConstants::ALPHA, WebGLConstants::UNSIGNED_BYTE) => wgpu::TextureFormat::R8Unorm,
-            (WebGLConstants::LUMINANCE_ALPHA, WebGLConstants::UNSIGNED_BYTE) => wgpu::TextureFormat::Rg8Unorm,
+            (WebGLConstants::LUMINANCE_ALPHA, WebGLConstants::UNSIGNED_BYTE) => {
+                wgpu::TextureFormat::Rg8Unorm
+            }
             (WebGLConstants::DEPTH_COMPONENT, WebGLConstants::UNSIGNED_SHORT) => {
                 wgpu::TextureFormat::Depth16Unorm
             }
@@ -432,12 +456,12 @@ fn webgl_wrap_to_wgpu(wrap: u32) -> wgpu::AddressMode {
 /// Convert WebGL filter to WGPU
 fn webgl_filter_to_wgpu(filter: u32) -> wgpu::FilterMode {
     match filter {
-        WebGLConstants::NEAREST | WebGLConstants::NEAREST_MIPMAP_NEAREST | WebGLConstants::NEAREST_MIPMAP_LINEAR => {
-            wgpu::FilterMode::Nearest
-        }
-        WebGLConstants::LINEAR | WebGLConstants::LINEAR_MIPMAP_NEAREST | WebGLConstants::LINEAR_MIPMAP_LINEAR => {
-            wgpu::FilterMode::Linear
-        }
+        WebGLConstants::NEAREST
+        | WebGLConstants::NEAREST_MIPMAP_NEAREST
+        | WebGLConstants::NEAREST_MIPMAP_LINEAR => wgpu::FilterMode::Nearest,
+        WebGLConstants::LINEAR
+        | WebGLConstants::LINEAR_MIPMAP_NEAREST
+        | WebGLConstants::LINEAR_MIPMAP_LINEAR => wgpu::FilterMode::Linear,
         _ => wgpu::FilterMode::Linear,
     }
 }

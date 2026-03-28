@@ -40,25 +40,25 @@ mod real_fs_warning {
     }
 }
 
+use bincode;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 #[allow(dead_code)]
 use std::collections::HashMap;
+use std::fs as stdfs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::io;
 use uuid::Uuid;
-use std::fs as stdfs;
-use bincode;
 
 // Encryption imports for session data at rest
-use chacha20poly1305::{
-    aead::{Aead, KeyInit, OsRng},
-    ChaCha20Poly1305, Nonce,
-};
 use chacha20poly1305::aead::rand_core::RngCore;
+use chacha20poly1305::{
+    ChaCha20Poly1305, Nonce,
+    aead::{Aead, KeyInit, OsRng},
+};
+use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
-use sha2::{Sha256, Digest};
 
 /// Secret management for session encryption.
 ///
@@ -287,7 +287,8 @@ pub fn validate_path(path: &Path) -> io::Result<PathBuf> {
 }
 
 #[cfg(not(feature = "real_fs"))]
-static IN_MEM_FILES: Lazy<Mutex<HashMap<PathBuf, Vec<u8>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static IN_MEM_FILES: Lazy<Mutex<HashMap<PathBuf, Vec<u8>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// File-backed VFS instance persisted in a single binary file.
 #[derive(Debug, Clone)]
@@ -307,14 +308,21 @@ impl VfsInstance {
         let p = path.as_ref().to_path_buf();
         if p.exists() {
             let bytes = stdfs::read(&p)?;
-            let persist: VfsPersist = bincode::deserialize(&bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let persist: VfsPersist = bincode::deserialize(&bytes)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             let mut map = HashMap::new();
             for (k, v) in persist.entries.into_iter() {
                 map.insert(k, v);
             }
-            Ok(Self { file_path: p, map: Arc::new(Mutex::new(map)) })
+            Ok(Self {
+                file_path: p,
+                map: Arc::new(Mutex::new(map)),
+            })
         } else {
-            Ok(Self { file_path: p, map: Arc::new(Mutex::new(HashMap::new())) })
+            Ok(Self {
+                file_path: p,
+                map: Arc::new(Mutex::new(HashMap::new())),
+            })
         }
     }
 
@@ -322,7 +330,10 @@ impl VfsInstance {
     pub fn new_temp_in_dir<P: AsRef<Path>>(dir: P) -> io::Result<Self> {
         let id = Uuid::new_v4().to_string();
         let file = dir.as_ref().join(format!("vfs-{}.bin", id));
-        Ok(Self { file_path: file, map: Arc::new(Mutex::new(HashMap::new())) })
+        Ok(Self {
+            file_path: file,
+            map: Arc::new(Mutex::new(HashMap::new())),
+        })
     }
 
     /// Persist current in-memory map to disk atomically.
@@ -333,7 +344,8 @@ impl VfsInstance {
             entries.push((k.clone(), v.clone()));
         }
         let persist = VfsPersist { entries };
-        let bytes = bincode::serialize(&persist).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let bytes =
+            bincode::serialize(&persist).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
         let tmp = self.file_path.with_extension("tmp");
         stdfs::write(&tmp, &bytes)?;
         stdfs::rename(&tmp, &self.file_path)?;
@@ -372,7 +384,10 @@ impl VfsInstance {
 
             // File format: [12-byte nonce][ciphertext with auth tag]
             if encrypted_bytes.len() < 12 {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "encrypted file too short"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "encrypted file too short",
+                ));
             }
 
             let (nonce_bytes, ciphertext) = encrypted_bytes.split_at(12);
@@ -384,9 +399,12 @@ impl VfsInstance {
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
             // Decrypt the data
-            let plaintext = cipher.decrypt(nonce, ciphertext)
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData,
-                    "decryption failed: invalid key or corrupted data"))?;
+            let plaintext = cipher.decrypt(nonce, ciphertext).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "decryption failed: invalid key or corrupted data",
+                )
+            })?;
 
             // Deserialize the VFS data
             let persist: VfsPersist = bincode::deserialize(&plaintext)
@@ -396,9 +414,15 @@ impl VfsInstance {
             for (k, v) in persist.entries.into_iter() {
                 map.insert(k, v);
             }
-            Ok(Self { file_path: p, map: Arc::new(Mutex::new(map)) })
+            Ok(Self {
+                file_path: p,
+                map: Arc::new(Mutex::new(map)),
+            })
         } else {
-            Ok(Self { file_path: p, map: Arc::new(Mutex::new(HashMap::new())) })
+            Ok(Self {
+                file_path: p,
+                map: Arc::new(Mutex::new(HashMap::new())),
+            })
         }
     }
 
@@ -415,8 +439,8 @@ impl VfsInstance {
             entries.push((k.clone(), v.clone()));
         }
         let persist = VfsPersist { entries };
-        let plaintext = bincode::serialize(&persist)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let plaintext =
+            bincode::serialize(&persist).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
         // Generate a random 96-bit nonce
         let mut nonce_bytes = [0u8; 12];
@@ -429,7 +453,8 @@ impl VfsInstance {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
 
         // Encrypt the data
-        let ciphertext = cipher.encrypt(nonce, plaintext.as_slice())
+        let ciphertext = cipher
+            .encrypt(nonce, plaintext.as_slice())
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
         // Write file format: [12-byte nonce][ciphertext with auth tag]
@@ -648,7 +673,10 @@ pub mod fs {
                 map.insert(top, bytes);
                 Ok(len)
             } else {
-                Err(io::Error::new(io::ErrorKind::NotFound, "source file not found"))
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "source file not found",
+                ))
             }
         } else {
             let mut map = IN_MEM_FILES.lock().unwrap();
@@ -657,7 +685,10 @@ pub mod fs {
                 map.insert(top, bytes);
                 Ok(len)
             } else {
-                Err(io::Error::new(io::ErrorKind::NotFound, "source file not found"))
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "source file not found",
+                ))
             }
         }
     }
@@ -685,7 +716,10 @@ pub mod fs {
                     }
                 });
                 if is_dir {
-                    Ok(Metadata { is_dir: true, len: 0 })
+                    Ok(Metadata {
+                        is_dir: true,
+                        len: 0,
+                    })
                 } else {
                     Err(io::Error::new(io::ErrorKind::NotFound, "path not found"))
                 }
@@ -707,7 +741,10 @@ pub mod fs {
                     }
                 });
                 if is_dir {
-                    Ok(Metadata { is_dir: true, len: 0 })
+                    Ok(Metadata {
+                        is_dir: true,
+                        len: 0,
+                    })
                 } else {
                     Err(io::Error::new(io::ErrorKind::NotFound, "path not found"))
                 }
@@ -887,27 +924,33 @@ impl Seek for File {
         if let Some(bytes) = map.get(&self.path) {
             // SECURITY: Use checked arithmetic to prevent integer overflow (CWE-190)
             let new = match pos {
-                SeekFrom::Start(off) => i64::try_from(off)
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "seek offset too large"))?,
+                SeekFrom::Start(off) => i64::try_from(off).map_err(|_| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "seek offset too large")
+                })?,
                 SeekFrom::End(off) => {
-                    let len = i64::try_from(bytes.len())
-                        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "file too large"))?;
-                    len.checked_add(off)
-                        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek overflow"))?
-                },
+                    let len = i64::try_from(bytes.len()).map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "file too large")
+                    })?;
+                    len.checked_add(off).ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
+                    })?
+                }
                 SeekFrom::Current(off) => {
-                    let pos = i64::try_from(self.pos)
-                        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "position too large"))?;
-                    pos.checked_add(off)
-                        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "seek overflow"))?
-                },
+                    let pos = i64::try_from(self.pos).map_err(|_| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "position too large")
+                    })?;
+                    pos.checked_add(off).ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
+                    })?
+                }
             };
             if new < 0 {
                 return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid seek"));
             }
             // SECURITY: Safe conversion since we've verified new >= 0
-            self.pos = usize::try_from(new)
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "seek result too large"))?;
+            self.pos = usize::try_from(new).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "seek result too large")
+            })?;
             Ok(self.pos as u64)
         } else {
             Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
@@ -919,7 +962,9 @@ impl Seek for File {
 impl Write for File {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut map = IN_MEM_FILES.lock().unwrap();
-        let entry = map.get_mut(&self.path).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "file not found"))?;
+        let entry = map
+            .get_mut(&self.path)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "file not found"))?;
         if self.pos >= entry.len() {
             entry.extend_from_slice(buf);
             self.pos = entry.len();
@@ -935,7 +980,9 @@ impl Write for File {
         }
     }
 
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(not(feature = "real_fs"))]
@@ -949,13 +996,30 @@ pub struct OpenOptions {
 #[cfg(not(feature = "real_fs"))]
 impl OpenOptions {
     pub fn new() -> Self {
-        Self { read: false, write: false, create: false, truncate: false }
+        Self {
+            read: false,
+            write: false,
+            create: false,
+            truncate: false,
+        }
     }
 
-    pub fn read(&mut self, v: bool) -> &mut Self { self.read = v; self }
-    pub fn write(&mut self, v: bool) -> &mut Self { self.write = v; self }
-    pub fn create(&mut self, v: bool) -> &mut Self { self.create = v; self }
-    pub fn truncate(&mut self, v: bool) -> &mut Self { self.truncate = v; self }
+    pub fn read(&mut self, v: bool) -> &mut Self {
+        self.read = v;
+        self
+    }
+    pub fn write(&mut self, v: bool) -> &mut Self {
+        self.write = v;
+        self
+    }
+    pub fn create(&mut self, v: bool) -> &mut Self {
+        self.create = v;
+        self
+    }
+    pub fn truncate(&mut self, v: bool) -> &mut Self {
+        self.truncate = v;
+        self
+    }
 
     pub fn open<P: AsRef<Path>>(&self, path: P) -> io::Result<File> {
         let p = path.as_ref().to_path_buf();
@@ -964,7 +1028,9 @@ impl OpenOptions {
             map.insert(p.clone(), Vec::new());
         }
         if self.truncate {
-            if let Some(entry) = map.get_mut(&p) { entry.clear(); }
+            if let Some(entry) = map.get_mut(&p) {
+                entry.clear();
+            }
         }
         if map.contains_key(&p) {
             Ok(File { path: p, pos: 0 })
@@ -973,7 +1039,6 @@ impl OpenOptions {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests;

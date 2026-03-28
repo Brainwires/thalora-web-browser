@@ -4,13 +4,15 @@
 //! https://dom.spec.whatwg.org/#interface-abortcontroller
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::{Attribute, PropertyDescriptorBuilder},
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder}
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::Arc;
@@ -119,13 +121,20 @@ fn get_signal(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRes
         JsNativeError::typ().with_message("AbortController.prototype.signal called on non-object")
     })?;
 
-    let abort_controller = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("AbortController.prototype.signal called on non-AbortController object")
-    })?;
+    let abort_controller = this_obj
+        .downcast_ref::<AbortControllerData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "AbortController.prototype.signal called on non-AbortController object",
+            )
+        })?;
 
     // Create AbortSignal as an EventTarget so it has addEventListener
-    let event_target_constructor = context.intrinsics().constructors().event_target().constructor();
+    let event_target_constructor = context
+        .intrinsics()
+        .constructors()
+        .event_target()
+        .constructor();
     let signal_obj = crate::events::event_target::EventTarget::constructor(
         &event_target_constructor.clone().into(),
         &[],
@@ -156,10 +165,13 @@ fn abort(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<J
         JsNativeError::typ().with_message("AbortController.prototype.abort called on non-object")
     })?;
 
-    let abort_controller = this_obj.downcast_ref::<AbortControllerData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("AbortController.prototype.abort called on non-AbortController object")
-    })?;
+    let abort_controller = this_obj
+        .downcast_ref::<AbortControllerData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "AbortController.prototype.abort called on non-AbortController object",
+            )
+        })?;
 
     let reason = args.get_or_undefined(0).clone();
     abort_controller.abort(Some(reason));

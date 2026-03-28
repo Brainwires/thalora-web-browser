@@ -5,20 +5,21 @@
 //!
 //! This implements the complete Service Worker interface with real background processing
 
-
+use crate::worker::worker_events;
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
-use crate::worker::worker_events;
 use boa_gc::{Finalize, Trace};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use std::sync::{Arc, Mutex};
-use crossbeam_channel::{Sender, Receiver, unbounded};
 use tokio::sync::Mutex as AsyncMutex;
 use url::Url;
 
@@ -165,7 +166,12 @@ impl BuiltInConstructor for ServiceWorker {
         let mut scope = script_url_str.clone();
 
         if !options.is_undefined() && options.is_object() {
-            if let Some(scope_prop) = options.as_object().unwrap().get(js_string!("scope"), context).ok() {
+            if let Some(scope_prop) = options
+                .as_object()
+                .unwrap()
+                .get(js_string!("scope"), context)
+                .ok()
+            {
                 if !scope_prop.is_undefined() {
                     scope = scope_prop.to_string(context)?.to_std_string_escaped();
                 }
@@ -173,7 +179,11 @@ impl BuiltInConstructor for ServiceWorker {
         }
 
         // Create the ServiceWorker object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::service_worker, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::service_worker,
+            context,
+        )?;
         let service_worker_data = ServiceWorkerData::new(script_url_str, scope);
         let service_worker_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -212,7 +222,10 @@ impl ServiceWorker {
                             *worker_state = ServiceWorkerState::Installing;
                         }
 
-                        eprintln!("ServiceWorker installing with script: {} for scope: {}", script_url, scope);
+                        eprintln!(
+                            "ServiceWorker installing with script: {} for scope: {}",
+                            script_url, scope
+                        );
 
                         // Simulate installation delay
                         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
@@ -255,7 +268,8 @@ impl ServiceWorker {
         let _transfer = args.get_or_undefined(1);
 
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ServiceWorker.prototype.postMessage called on non-object")
+            JsNativeError::typ()
+                .with_message("ServiceWorker.prototype.postMessage called on non-object")
         })?;
 
         if let Some(data) = this_obj.downcast_ref::<ServiceWorkerData>() {
@@ -280,7 +294,8 @@ impl ServiceWorker {
                     if transfer_array.is_array() {
                         // Extract port identifiers from transfer array
                         // In a full implementation, we'd serialize MessagePort references
-                        let length = transfer_array.get(js_string!("length"), context)?
+                        let length = transfer_array
+                            .get(js_string!("length"), context)?
                             .to_u32(context)? as usize;
                         let mut port_ids = Vec::with_capacity(length);
                         for i in 0..length {
@@ -326,10 +341,9 @@ fn get_script_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
         JsNativeError::typ().with_message("ServiceWorker scriptURL getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<ServiceWorkerData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("'this' is not a ServiceWorker object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<ServiceWorkerData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a ServiceWorker object"))?;
 
     Ok(JsValue::from(JsString::from(data.script_url.as_str())))
 }
@@ -341,10 +355,11 @@ fn get_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
     })?;
 
     let state_arc = {
-        let data = this_obj.downcast_ref::<ServiceWorkerData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("'this' is not a ServiceWorker object")
-        })?;
+        let data = this_obj
+            .downcast_ref::<ServiceWorkerData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message("'this' is not a ServiceWorker object")
+            })?;
         data.state.clone()
     };
 

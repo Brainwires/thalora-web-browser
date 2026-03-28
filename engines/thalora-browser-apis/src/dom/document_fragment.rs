@@ -5,22 +5,22 @@
 //! comprised of nodes just like a standard document.
 //! https://dom.spec.whatwg.org/#interface-documentfragment
 
+use super::element::CSSStyleDeclaration;
+use super::node::{NodeData, NodeType};
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
-use boa_gc::{Finalize, Trace};
 use boa_gc::GcRefCell;
+use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
-use super::node::{NodeData, NodeType};
-use super::element::CSSStyleDeclaration;
 
 /// DocumentFragment data structure for lightweight document containers
 #[derive(Debug, Trace, Finalize, JsData)]
@@ -125,7 +125,11 @@ impl DocumentFragmentData {
     }
 
     /// Move a node before another node (simplified)
-    pub fn move_before_impl(&self, _node: JsObject, _reference_node: Option<JsObject>) -> Result<(), String> {
+    pub fn move_before_impl(
+        &self,
+        _node: JsObject,
+        _reference_node: Option<JsObject>,
+    ) -> Result<(), String> {
         // Simplified implementation
         Ok(())
     }
@@ -150,32 +154,48 @@ impl DocumentFragmentData {
 
 impl DocumentFragmentData {
     /// `DocumentFragment.prototype.childElementCount` getter
-    fn get_child_element_count_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_child_element_count_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("DocumentFragment.childElementCount called on non-object")
+            JsNativeError::typ()
+                .with_message("DocumentFragment.childElementCount called on non-object")
         })?;
 
         let value = {
-            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("DocumentFragment.childElementCount called on non-DocumentFragment object")
-            })?;
+            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(
+                || {
+                    JsNativeError::typ().with_message(
+                        "DocumentFragment.childElementCount called on non-DocumentFragment object",
+                    )
+                },
+            )?;
             fragment_data.get_child_element_count()
         };
         Ok(JsValue::from(value))
     }
 
     /// `DocumentFragment.prototype.firstElementChild` getter
-    fn get_first_element_child_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_first_element_child_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("DocumentFragment.firstElementChild called on non-object")
+            JsNativeError::typ()
+                .with_message("DocumentFragment.firstElementChild called on non-object")
         })?;
 
         let value = {
-            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("DocumentFragment.firstElementChild called on non-DocumentFragment object")
-            })?;
+            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(
+                || {
+                    JsNativeError::typ().with_message(
+                        "DocumentFragment.firstElementChild called on non-DocumentFragment object",
+                    )
+                },
+            )?;
             fragment_data.get_first_element_child()
         };
         match value {
@@ -185,16 +205,24 @@ impl DocumentFragmentData {
     }
 
     /// `DocumentFragment.prototype.lastElementChild` getter
-    fn get_last_element_child_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_last_element_child_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("DocumentFragment.lastElementChild called on non-object")
+            JsNativeError::typ()
+                .with_message("DocumentFragment.lastElementChild called on non-object")
         })?;
 
         let value = {
-            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("DocumentFragment.lastElementChild called on non-DocumentFragment object")
-            })?;
+            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(
+                || {
+                    JsNativeError::typ().with_message(
+                        "DocumentFragment.lastElementChild called on non-DocumentFragment object",
+                    )
+                },
+            )?;
             fragment_data.get_last_element_child()
         };
         match value {
@@ -204,20 +232,30 @@ impl DocumentFragmentData {
     }
 
     /// `DocumentFragment.prototype.children` getter
-    fn get_children_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_children_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("DocumentFragment.children called on non-object")
         })?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.children called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("DocumentFragment.children called on non-DocumentFragment object")
+            })?;
 
         let children = fragment_data.get_children();
         // In a full implementation, this would return an HTMLCollection
         // For now, return an array-like object
-        let array = boa_engine::builtins::array::Array::array_create(children.len() as u64, None, _context)?;
+        let array = boa_engine::builtins::array::Array::array_create(
+            children.len() as u64,
+            None,
+            _context,
+        )?;
         for (i, child) in children.iter().enumerate() {
             array.create_data_property_or_throw(i, child.clone(), _context)?;
         }
@@ -230,18 +268,18 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.append called on non-object")
         })?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.append called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("DocumentFragment.append called on non-DocumentFragment object")
+            })?;
 
         for arg in args {
             if let Some(node_obj) = arg.as_object() {
                 match fragment_data.append_impl(node_obj.clone()) {
-                    Ok(_) => {},
-                    Err(err) => return Err(JsNativeError::error()
-                        .with_message(err)
-                        .into()),
+                    Ok(_) => {}
+                    Err(err) => return Err(JsNativeError::error().with_message(err).into()),
                 }
             }
             // Note: In full implementation, would also handle string arguments
@@ -255,17 +293,25 @@ impl DocumentFragmentData {
             JsNativeError::typ().with_message("DocumentFragment.prepend called on non-object")
         })?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.prepend called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("DocumentFragment.prepend called on non-DocumentFragment object")
+            })?;
 
         // Process arguments in normal order, inserting each at position 0
         // This results in final order: [last_arg, second_last_arg, first_arg, existing_children]
         for arg in args.iter() {
             if let Some(node_obj) = arg.as_object() {
-                fragment_data.children.borrow_mut().insert(0, node_obj.clone());
-                fragment_data.element_children.borrow_mut().insert(0, node_obj.clone());
+                fragment_data
+                    .children
+                    .borrow_mut()
+                    .insert(0, node_obj.clone());
+                fragment_data
+                    .element_children
+                    .borrow_mut()
+                    .insert(0, node_obj.clone());
             }
         }
 
@@ -273,15 +319,23 @@ impl DocumentFragmentData {
     }
 
     /// `DocumentFragment.prototype.replaceChildren(...nodes)`
-    fn replace_children(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn replace_children(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("DocumentFragment.replaceChildren called on non-object")
+            JsNativeError::typ()
+                .with_message("DocumentFragment.replaceChildren called on non-object")
         })?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.replaceChildren called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "DocumentFragment.replaceChildren called on non-DocumentFragment object",
+                )
+            })?;
 
         let mut nodes = Vec::new();
         for arg in args {
@@ -292,14 +346,16 @@ impl DocumentFragmentData {
 
         match fragment_data.replace_children_impl(nodes) {
             Ok(_) => Ok(JsValue::undefined()),
-            Err(err) => Err(JsNativeError::error()
-                .with_message(err)
-                .into()),
+            Err(err) => Err(JsNativeError::error().with_message(err).into()),
         }
     }
 
     /// `DocumentFragment.prototype.querySelector(selectors)`
-    fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn query_selector(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("DocumentFragment.querySelector called on non-object")
         })?;
@@ -307,72 +363,86 @@ impl DocumentFragmentData {
         let selectors_arg = args.get_or_undefined(0);
         let selectors = selectors_arg.to_string(context)?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.querySelector called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "DocumentFragment.querySelector called on non-DocumentFragment object",
+                )
+            })?;
 
         match fragment_data.query_selector_impl(selectors.to_std_string_escaped()) {
-                Ok(Some(element)) => Ok(element.into()),
-                Ok(None) => Ok(JsValue::null()),
-                Err(err) => Err(JsNativeError::error()
-                    .with_message(err)
-                    .into()),
-
+            Ok(Some(element)) => Ok(element.into()),
+            Ok(None) => Ok(JsValue::null()),
+            Err(err) => Err(JsNativeError::error().with_message(err).into()),
         }
     }
 
     /// `DocumentFragment.prototype.querySelectorAll(selectors)`
-    fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn query_selector_all(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("DocumentFragment.querySelectorAll called on non-object")
+            JsNativeError::typ()
+                .with_message("DocumentFragment.querySelectorAll called on non-object")
         })?;
 
         let selectors_arg = args.get_or_undefined(0);
         let selectors = selectors_arg.to_string(context)?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.querySelectorAll called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "DocumentFragment.querySelectorAll called on non-DocumentFragment object",
+                )
+            })?;
 
         match fragment_data.query_selector_all_impl(selectors.to_std_string_escaped()) {
-                Ok(elements) => {
-                    // Return as NodeList-like array
-                    let array = boa_engine::builtins::array::Array::array_create(elements.len() as u64, None, context)?;
-                    for (i, element) in elements.iter().enumerate() {
-                        array.create_data_property_or_throw(i, element.clone(), context)?;
-                    }
-                    Ok(array.into())
-                },
-                Err(err) => Err(JsNativeError::error()
-                    .with_message(err)
-                    .into()),
-
+            Ok(elements) => {
+                // Return as NodeList-like array
+                let array = boa_engine::builtins::array::Array::array_create(
+                    elements.len() as u64,
+                    None,
+                    context,
+                )?;
+                for (i, element) in elements.iter().enumerate() {
+                    array.create_data_property_or_throw(i, element.clone(), context)?;
+                }
+                Ok(array.into())
+            }
+            Err(err) => Err(JsNativeError::error().with_message(err).into()),
         }
     }
 
     /// `DocumentFragment.prototype.getElementById(id)`
-    fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_element_by_id(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("DocumentFragment.getElementById called on non-object")
+            JsNativeError::typ()
+                .with_message("DocumentFragment.getElementById called on non-object")
         })?;
 
         let id_arg = args.get_or_undefined(0);
         let id = id_arg.to_string(context)?;
 
-        let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("DocumentFragment.getElementById called on non-DocumentFragment object")
-        })?;
+        let fragment_data = this_obj
+            .downcast_ref::<DocumentFragmentData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "DocumentFragment.getElementById called on non-DocumentFragment object",
+                )
+            })?;
 
         match fragment_data.get_element_by_id_impl(id.to_std_string_escaped()) {
-                Ok(Some(element)) => Ok(element.into()),
-                Ok(None) => Ok(JsValue::null()),
-                Err(err) => Err(JsNativeError::error()
-                    .with_message(err)
-                    .into()),
-
+            Ok(Some(element)) => Ok(element.into()),
+            Ok(None) => Ok(JsValue::null()),
+            Err(err) => Err(JsNativeError::error().with_message(err).into()),
         }
     }
 }
@@ -383,19 +453,35 @@ pub struct DocumentFragment;
 
 impl DocumentFragment {
     // Static method implementations for BuiltInBuilder
-    fn get_child_element_count_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_child_element_count_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::get_child_element_count_accessor(this, args, context)
     }
 
-    fn get_first_element_child_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_first_element_child_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::get_first_element_child_accessor(this, args, context)
     }
 
-    fn get_last_element_child_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_last_element_child_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::get_last_element_child_accessor(this, args, context)
     }
 
-    fn get_children_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_children_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::get_children_accessor(this, args, context)
     }
 
@@ -407,34 +493,53 @@ impl DocumentFragment {
         DocumentFragmentData::prepend(this, args, context)
     }
 
-    fn replace_children(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn replace_children(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::replace_children(this, args, context)
     }
 
-    fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn query_selector(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::query_selector(this, args, context)
     }
 
-    fn query_selector_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn query_selector_all(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::query_selector_all(this, args, context)
     }
 
-    fn get_element_by_id(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_element_by_id(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         DocumentFragmentData::get_element_by_id(this, args, context)
     }
 }
 
 impl IntrinsicObject for DocumentFragment {
     fn init(realm: &Realm) {
-        let child_element_count_get_func = BuiltInBuilder::callable(realm, Self::get_child_element_count_accessor)
-            .name(js_string!("get childElementCount"))
-            .build();
-        let first_element_child_get_func = BuiltInBuilder::callable(realm, Self::get_first_element_child_accessor)
-            .name(js_string!("get firstElementChild"))
-            .build();
-        let last_element_child_get_func = BuiltInBuilder::callable(realm, Self::get_last_element_child_accessor)
-            .name(js_string!("get lastElementChild"))
-            .build();
+        let child_element_count_get_func =
+            BuiltInBuilder::callable(realm, Self::get_child_element_count_accessor)
+                .name(js_string!("get childElementCount"))
+                .build();
+        let first_element_child_get_func =
+            BuiltInBuilder::callable(realm, Self::get_first_element_child_accessor)
+                .name(js_string!("get firstElementChild"))
+                .build();
+        let last_element_child_get_func =
+            BuiltInBuilder::callable(realm, Self::get_last_element_child_accessor)
+                .name(js_string!("get lastElementChild"))
+                .build();
         let children_get_func = BuiltInBuilder::callable(realm, Self::get_children_accessor)
             .name(js_string!("get children"))
             .build();
@@ -511,11 +616,14 @@ impl BuiltInConstructor for DocumentFragment {
 
         let fragment_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().document_fragment().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .document_fragment()
+                .prototype(),
             fragment_data,
         );
 
         Ok(fragment_obj.into())
     }
 }
-

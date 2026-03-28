@@ -6,19 +6,23 @@
 //! This implements the complete ReadableStream interface according to the
 //! WHATWG Streams Living Standard
 
+use super::readable_stream_reader::{ReadableStreamBYOBReader, ReadableStreamDefaultReader};
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder, promise::Promise},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{
+        BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject, promise::Promise,
+    },
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject, JsArray},
+    js_string,
+    object::{JsArray, JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     symbol::JsSymbol,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
-use std::collections::VecDeque;
 use boa_gc::{Finalize, Trace};
-use super::readable_stream_reader::{ReadableStreamDefaultReader, ReadableStreamBYOBReader};
+use std::collections::VecDeque;
 
 /// JavaScript `ReadableStream` builtin implementation.
 #[derive(Debug, Copy, Clone)]
@@ -84,7 +88,11 @@ impl BuiltInConstructor for ReadableStream {
         let queuing_strategy = args.get_or_undefined(1);
 
         // Create the ReadableStream object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::readable_stream, context)?;
+        let proto = get_prototype_from_constructor(
+            new_target,
+            StandardConstructors::readable_stream,
+            context,
+        )?;
         let readable_stream = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -97,13 +105,10 @@ impl BuiltInConstructor for ReadableStream {
 
 impl ReadableStream {
     /// `ReadableStream.prototype.cancel(reason)`
-    fn cancel(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn cancel(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStream.prototype.cancel called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStream.prototype.cancel called on non-object")
         })?;
 
         let _reason = args.get_or_undefined(0);
@@ -116,17 +121,18 @@ impl ReadableStream {
         // Return a resolved Promise with undefined
         // Use Promise.resolve static method
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `ReadableStream.prototype.getReader(options)`
-    fn get_reader(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn get_reader(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStream.prototype.getReader called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStream.prototype.getReader called on non-object")
         })?;
 
         let options = args.get_or_undefined(0);
@@ -167,13 +173,10 @@ impl ReadableStream {
     /// `ReadableStream.prototype.pipeThrough(transform, options)`
     ///
     /// Pipes this readable stream through a transform stream, returning the readable side.
-    fn pipe_through(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn pipe_through(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStream.prototype.pipeThrough called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStream.prototype.pipeThrough called on non-object")
         })?;
 
         // Check if stream is locked
@@ -217,13 +220,10 @@ impl ReadableStream {
     ///
     /// Pipes this readable stream to a writable stream destination.
     /// This performs actual data transfer from source to destination.
-    fn pipe_to(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn pipe_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStream.prototype.pipeTo called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStream.prototype.pipeTo called on non-object")
         })?;
 
         // Check if stream is locked
@@ -253,17 +253,23 @@ impl ReadableStream {
 
         // Parse options
         let prevent_close = if let Some(opts_obj) = options.as_object() {
-            opts_obj.get(js_string!("preventClose"), context)?.to_boolean()
+            opts_obj
+                .get(js_string!("preventClose"), context)?
+                .to_boolean()
         } else {
             false
         };
         let prevent_abort = if let Some(opts_obj) = options.as_object() {
-            opts_obj.get(js_string!("preventAbort"), context)?.to_boolean()
+            opts_obj
+                .get(js_string!("preventAbort"), context)?
+                .to_boolean()
         } else {
             false
         };
         let prevent_cancel = if let Some(opts_obj) = options.as_object() {
-            opts_obj.get(js_string!("preventCancel"), context)?.to_boolean()
+            opts_obj
+                .get(js_string!("preventCancel"), context)?
+                .to_boolean()
         } else {
             false
         };
@@ -336,7 +342,10 @@ impl ReadableStream {
             }
         }
 
-        eprintln!("ReadableStream: pipeTo transferred {} chunks", chunks_transferred);
+        eprintln!(
+            "ReadableStream: pipeTo transferred {} chunks",
+            chunks_transferred
+        );
 
         // Handle errors
         if source_errored && !prevent_abort {
@@ -381,18 +390,18 @@ impl ReadableStream {
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[JsValue::undefined()],
+            context,
+        )
     }
 
     /// `ReadableStream.prototype.tee()`
     ///
     /// Creates two branches of this stream, each receiving the same data.
     /// Both returned streams can be read independently.
-    fn tee(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn tee(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ReadableStream.prototype.tee called on non-object")
         })?;
@@ -443,13 +452,21 @@ impl ReadableStream {
 
         let stream1 = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().readable_stream().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .readable_stream()
+                .prototype(),
             stream1_data,
         );
 
         let stream2 = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().readable_stream().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .readable_stream()
+                .prototype(),
             stream2_data,
         );
 
@@ -476,13 +493,10 @@ impl ReadableStream {
     /// `ReadableStream.prototype.values(options)`
     ///
     /// Returns an async iterator that yields chunks from the stream.
-    fn values(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn values(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("ReadableStream.prototype.values called on non-object")
+            JsNativeError::typ()
+                .with_message("ReadableStream.prototype.values called on non-object")
         })?;
 
         // Check if stream is locked
@@ -496,8 +510,7 @@ impl ReadableStream {
 
         // Create an async iterator object
         // The iterator has a next() method that returns { value, done }
-        let iterator = boa_engine::object::ObjectInitializer::new(context)
-            .build();
+        let iterator = boa_engine::object::ObjectInitializer::new(context).build();
 
         // Store reference to the stream
         iterator.set(js_string!("_stream"), this.clone(), false, context)?;
@@ -528,15 +541,15 @@ impl ReadableStream {
     /// `ReadableStream.from(asyncIterable)`
     ///
     /// Creates a ReadableStream from an async iterable or iterable.
-    fn from(
-        _this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn from(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let source = args.get_or_undefined(0);
 
         // Create a new ReadableStream
-        let proto = context.intrinsics().constructors().readable_stream().prototype();
+        let proto = context
+            .intrinsics()
+            .constructors()
+            .readable_stream()
+            .prototype();
         let stream_data = ReadableStreamData::new(source.clone(), JsValue::undefined());
         let stream = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -555,19 +568,21 @@ fn async_iterator_next(
     _args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Iterator next() called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Iterator next() called on non-object"))?;
 
     // Get the stream reference
     let stream = this_obj.get(js_string!("_stream"), context)?;
-    let stream_obj = stream.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Iterator has no associated stream")
-    })?;
+    let stream_obj = stream
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Iterator has no associated stream"))?;
 
     // Try to read from the stream
     if let Some(mut data) = stream_obj.downcast_mut::<ReadableStreamData>() {
-        if data.state == StreamState::Closed || (data.is_queue_empty() && data.byte_buffer.is_none()) {
+        if data.state == StreamState::Closed
+            || (data.is_queue_empty() && data.byte_buffer.is_none())
+        {
             // Stream is done
             let result = boa_engine::object::ObjectInitializer::new(context)
                 .property(js_string!("value"), JsValue::undefined(), Attribute::all())
@@ -579,7 +594,7 @@ fn async_iterator_next(
             return boa_engine::builtins::promise::Promise::resolve(
                 &promise_constructor.into(),
                 &[result.into()],
-                context
+                context,
             );
         }
 
@@ -594,7 +609,7 @@ fn async_iterator_next(
             return boa_engine::builtins::promise::Promise::resolve(
                 &promise_constructor.into(),
                 &[result.into()],
-                context
+                context,
             );
         }
     }
@@ -609,7 +624,7 @@ fn async_iterator_next(
     boa_engine::builtins::promise::Promise::resolve(
         &promise_constructor.into(),
         &[result.into()],
-        context
+        context,
     )
 }
 
@@ -642,7 +657,7 @@ fn async_iterator_return(
     boa_engine::builtins::promise::Promise::resolve(
         &promise_constructor.into(),
         &[result.into()],
-        context
+        context,
     )
 }
 
@@ -758,19 +773,19 @@ fn iterator_function(
 }
 
 /// Get the locked property of a ReadableStream
-fn get_locked(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_locked(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("ReadableStream.prototype.locked getter called on non-object")
+        JsNativeError::typ()
+            .with_message("ReadableStream.prototype.locked getter called on non-object")
     })?;
 
-    let data = this_obj.downcast_ref::<ReadableStreamData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("ReadableStream.prototype.locked getter called on non-ReadableStream object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<ReadableStreamData>()
+        .ok_or_else(|| {
+            JsNativeError::typ().with_message(
+                "ReadableStream.prototype.locked getter called on non-ReadableStream object",
+            )
+        })?;
 
     Ok(data.locked.into())
 }

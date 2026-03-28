@@ -216,7 +216,7 @@ impl RustRenderer {
                     );
                     eprintln!("🔴 JS ERROR DETAILS:");
                     eprintln!("   Error type: {}", e);
-                    if let Some(cause) = e.cause() {
+                    if let Some(cause) = e.source() {
                         eprintln!("   Caused by: {:?}", cause);
                     }
                     // Try to get more info from the JsError

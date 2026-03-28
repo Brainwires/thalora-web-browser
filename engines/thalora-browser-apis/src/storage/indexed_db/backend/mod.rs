@@ -106,7 +106,11 @@ pub trait StorageBackend: Send + Sync {
     fn delete_object_store(&mut self, db: &str, store: &str) -> Result<(), String>;
 
     /// Get object store metadata
-    fn get_object_store_metadata(&self, db: &str, store: &str) -> Result<ObjectStoreMetadata, String>;
+    fn get_object_store_metadata(
+        &self,
+        db: &str,
+        store: &str,
+    ) -> Result<ObjectStoreMetadata, String>;
 
     /// List object stores in a database
     fn list_object_stores(&self, db: &str) -> Result<Vec<String>, String>;
@@ -209,7 +213,11 @@ pub trait StorageBackend: Send + Sync {
     ) -> Result<u32, String>;
 
     /// Begin transaction
-    fn begin_transaction(&mut self, stores: &[String], mode: TransactionMode) -> Result<TransactionHandle, String>;
+    fn begin_transaction(
+        &mut self,
+        stores: &[String],
+        mode: TransactionMode,
+    ) -> Result<TransactionHandle, String>;
 
     /// Commit transaction
     fn commit_transaction(&mut self, transaction_id: u64) -> Result<(), String>;

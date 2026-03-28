@@ -15,8 +15,8 @@ mod routing;
 
 // Re-export for internal use
 use definitions::*;
-use features::*;
 pub(crate) use features::is_brainclaw_preset;
+use features::*;
 
 /*
     Define the available tools for the MCP server, including AI memory management,

@@ -6,21 +6,19 @@
 //! This implements the complete Timer interface with basic synchronous scheduling
 
 use boa_engine::{
-    Context, JsArgs, JsResult, JsValue, NativeFunction,
-    object::ObjectInitializer, js_string,
+    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string, object::ObjectInitializer,
 };
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use once_cell::sync::Lazy;
 
 /// Global timer storage
 static TIMERS: Lazy<Arc<Mutex<HashMap<u32, TimerInfo>>>> =
     Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
 /// Next timer ID
-static NEXT_TIMER_ID: Lazy<Arc<Mutex<u32>>> =
-    Lazy::new(|| Arc::new(Mutex::new(1)));
+static NEXT_TIMER_ID: Lazy<Arc<Mutex<u32>>> = Lazy::new(|| Arc::new(Mutex::new(1)));
 
 /// Timer information
 #[derive(Debug, Clone)]
@@ -124,7 +122,11 @@ impl Timers {
 
     /// requestAnimationFrame(callback)
     /// In a headless environment, we simulate ~60fps (16ms delay)
-    fn request_animation_frame(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn request_animation_frame(
+        _: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         // requestAnimationFrame is essentially setTimeout with ~16ms delay
         // In headless mode, we just schedule it like a timer
         if args.is_empty() {
@@ -157,7 +159,11 @@ impl Timers {
     }
 
     /// cancelAnimationFrame(id)
-    fn cancel_animation_frame(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn cancel_animation_frame(
+        _: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::clear_timer(args, context)
     }
 
@@ -181,7 +187,11 @@ impl Timers {
     }
 
     /// Schedule a timer (setTimeout or setInterval)
-    fn schedule_timer(args: &[JsValue], context: &mut Context, repeating: bool) -> JsResult<JsValue> {
+    fn schedule_timer(
+        args: &[JsValue],
+        context: &mut Context,
+        repeating: bool,
+    ) -> JsResult<JsValue> {
         // Get callback (must be provided)
         if args.is_empty() {
             return Ok(JsValue::from(0));
@@ -190,11 +200,7 @@ impl Timers {
         // Get delay (default to 0)
         let delay = if args.len() > 1 {
             let delay_val = args.get_or_undefined(1).to_number(context)?;
-            if delay_val < 0.0 {
-                0
-            } else {
-                delay_val as u32
-            }
+            if delay_val < 0.0 { 0 } else { delay_val as u32 }
         } else {
             0
         };

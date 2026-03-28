@@ -3,17 +3,21 @@
 //! Native implementation of Window standard
 //! https://html.spec.whatwg.org/#the-window-object
 
-use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
-    string::StaticJsStrings,
-    value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::{Attribute, PropertyDescriptorBuilder}
+use crate::file::file_system::{
+    show_directory_picker, show_open_file_picker, show_save_file_picker,
 };
 use crate::storage::storage::Storage;
-use crate::file::file_system::{show_open_file_picker, show_save_file_picker, show_directory_picker};
+use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::{Attribute, PropertyDescriptorBuilder},
+    realm::Realm,
+    string::StaticJsStrings,
+    value::JsValue,
+};
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -188,11 +192,8 @@ impl BuiltInConstructor for Window {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::window,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::window, context)?;
 
         let window_data = WindowData::new(context);
 
@@ -268,7 +269,9 @@ impl WindowData {
     }
 
     pub fn add_event_listener(&self, event_type: String, listener: JsValue) {
-        self.event_listeners.lock().unwrap()
+        self.event_listeners
+            .lock()
+            .unwrap()
             .entry(event_type)
             .or_insert_with(Vec::new)
             .push(listener);
@@ -281,7 +284,9 @@ impl WindowData {
     }
 
     pub fn get_event_listeners(&self, event_type: &str) -> Vec<JsValue> {
-        self.event_listeners.lock().unwrap()
+        self.event_listeners
+            .lock()
+            .unwrap()
             .get(event_type)
             .cloned()
             .unwrap_or_default()
@@ -303,71 +308,70 @@ fn get_location(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
     })?;
 
     let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Window.prototype.location called on non-Window object")
+        JsNativeError::typ().with_message("Window.prototype.location called on non-Window object")
     })?;
 
     let location = window.get_location();
 
     // Initialize location object if empty
     if !location.has_property(js_string!("href"), context)? {
-            let current_url = window.get_current_url();
+        let current_url = window.get_current_url();
 
-            // Add href property
-            location.define_property_or_throw(
-                js_string!("href"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(JsString::from(current_url.as_str()))
-                    .build(),
-                context,
-            )?;
+        // Add href property
+        location.define_property_or_throw(
+            js_string!("href"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(JsString::from(current_url.as_str()))
+                .build(),
+            context,
+        )?;
 
-            // Add protocol property
-            let protocol = if current_url.starts_with("https:") {
-                "https:"
-            } else if current_url.starts_with("http:") {
-                "http:"
+        // Add protocol property
+        let protocol = if current_url.starts_with("https:") {
+            "https:"
+        } else if current_url.starts_with("http:") {
+            "http:"
+        } else {
+            "about:"
+        };
+
+        location.define_property_or_throw(
+            js_string!("protocol"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(JsString::from(protocol))
+                .build(),
+            context,
+        )?;
+
+        // Add hostname property
+        let hostname = if let Some(url_start) = current_url.find("://") {
+            let after_protocol = &current_url[url_start + 3..];
+            if let Some(slash_pos) = after_protocol.find('/') {
+                &after_protocol[..slash_pos]
             } else {
-                "about:"
-            };
+                after_protocol
+            }
+        } else {
+            ""
+        };
 
-            location.define_property_or_throw(
-                js_string!("protocol"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(JsString::from(protocol))
-                    .build(),
-                context,
-            )?;
-
-            // Add hostname property
-            let hostname = if let Some(url_start) = current_url.find("://") {
-                let after_protocol = &current_url[url_start + 3..];
-                if let Some(slash_pos) = after_protocol.find('/') {
-                    &after_protocol[..slash_pos]
-                } else {
-                    after_protocol
-                }
-            } else {
-                ""
-            };
-
-            location.define_property_or_throw(
-                js_string!("hostname"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(true)
-                    .value(JsString::from(hostname))
-                    .build(),
-                context,
-            )?;
-        }
+        location.define_property_or_throw(
+            js_string!("hostname"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(true)
+                .value(JsString::from(hostname))
+                .build(),
+            context,
+        )?;
+    }
 
     Ok(location.into())
 }
@@ -379,98 +383,99 @@ fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     })?;
 
     let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Window.prototype.history called on non-Window object")
+        JsNativeError::typ().with_message("Window.prototype.history called on non-Window object")
     })?;
 
     let history = window.get_history();
 
     // Initialize history object if empty
     if !history.has_property(js_string!("length"), context)? {
-            // Add length property
-            history.define_property_or_throw(
-                js_string!("length"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(1)
-                    .build(),
-                context,
-            )?;
+        // Add length property
+        history.define_property_or_throw(
+            js_string!("length"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(1)
+                .build(),
+            context,
+        )?;
 
-            // Add state property
-            history.define_property_or_throw(
-                js_string!("state"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsValue::null())
-                    .build(),
-                context,
-            )?;
+        // Add state property
+        history.define_property_or_throw(
+            js_string!("state"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsValue::null())
+                .build(),
+            context,
+        )?;
 
-            // Add back method
-            let back_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                // Implementation would trigger pageswap event and navigate back
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("back"))
-            .build();
+        // Add back method
+        let back_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+            // Implementation would trigger pageswap event and navigate back
+            Ok(JsValue::undefined())
+        })
+        .name(js_string!("back"))
+        .build();
 
-            history.define_property_or_throw(
-                js_string!("back"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(back_function)
-                    .build(),
-                context,
-            )?;
+        history.define_property_or_throw(
+            js_string!("back"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(back_function)
+                .build(),
+            context,
+        )?;
 
-            // Add forward method
-            let forward_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        // Add forward method
+        let forward_function =
+            BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
                 // Implementation would trigger pageswap event and navigate forward
                 Ok(JsValue::undefined())
             })
             .name(js_string!("forward"))
             .build();
 
-            history.define_property_or_throw(
-                js_string!("forward"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(forward_function)
-                    .build(),
-                context,
-            )?;
+        history.define_property_or_throw(
+            js_string!("forward"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(forward_function)
+                .build(),
+            context,
+        )?;
 
-            // Add go method
-            let go_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
-                let _delta = _args.get_or_undefined(0);
-                // Implementation would trigger pageswap event and navigate by delta
-                Ok(JsValue::undefined())
-            })
-            .name(js_string!("go"))
-            .build();
+        // Add go method
+        let go_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+            let _delta = _args.get_or_undefined(0);
+            // Implementation would trigger pageswap event and navigate by delta
+            Ok(JsValue::undefined())
+        })
+        .name(js_string!("go"))
+        .build();
 
-            history.define_property_or_throw(
-                js_string!("go"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(go_function)
-                    .build(),
-                context,
-            )?;
+        history.define_property_or_throw(
+            js_string!("go"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(go_function)
+                .build(),
+            context,
+        )?;
 
-            // Add pushState method
-            let push_state_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        // Add pushState method
+        let push_state_function =
+            BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
                 let _state = _args.get_or_undefined(0);
                 let _title = _args.get_or_undefined(1);
                 let _url = _args.get_or_undefined(2);
@@ -480,19 +485,20 @@ fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
             .name(js_string!("pushState"))
             .build();
 
-            history.define_property_or_throw(
-                js_string!("pushState"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(push_state_function)
-                    .build(),
-                context,
-            )?;
+        history.define_property_or_throw(
+            js_string!("pushState"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(push_state_function)
+                .build(),
+            context,
+        )?;
 
-            // Add replaceState method
-            let replace_state_function = BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
+        // Add replaceState method
+        let replace_state_function =
+            BuiltInBuilder::callable(context.realm(), |_this, _args, _context| {
                 let _state = _args.get_or_undefined(0);
                 let _title = _args.get_or_undefined(1);
                 let _url = _args.get_or_undefined(2);
@@ -502,17 +508,17 @@ fn get_history(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
             .name(js_string!("replaceState"))
             .build();
 
-            history.define_property_or_throw(
-                js_string!("replaceState"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(replace_state_function)
-                    .build(),
-                context,
-            )?;
-        }
+        history.define_property_or_throw(
+            js_string!("replaceState"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(replace_state_function)
+                .build(),
+            context,
+        )?;
+    }
 
     Ok(history.into())
 }
@@ -524,8 +530,7 @@ fn get_document(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
     })?;
 
     let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Window.prototype.document called on non-Window object")
+        JsNativeError::typ().with_message("Window.prototype.document called on non-Window object")
     })?;
 
     let document = window.get_document();
@@ -536,7 +541,8 @@ fn get_document(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsR
         use crate::dom::document::Document;
 
         let document_constructor_args: &[JsValue] = &[];
-        let new_document = Document::constructor(&JsValue::undefined(), document_constructor_args, context)?;
+        let new_document =
+            Document::constructor(&JsValue::undefined(), document_constructor_args, context)?;
 
         if let Some(doc_obj) = new_document.as_object() {
             window.set_document(doc_obj.clone());
@@ -554,279 +560,321 @@ fn get_navigator(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
     })?;
 
     let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Window.prototype.navigator called on non-Window object")
+        JsNativeError::typ().with_message("Window.prototype.navigator called on non-Window object")
     })?;
 
     let navigator = window.get_navigator();
 
-        // Initialize navigator object - check if we have a Navigator constructor registered externally
-        if !navigator.has_property(js_string!("userAgent"), context)? {
-            eprintln!("🔍 DEBUG: navigator doesn't have userAgent, trying to create proper Navigator instance");
-            // Try to create a proper Navigator instance from external constructor
-            if let Some(nav_constructor) = context.realm().get_external_constructor("Navigator") {
-                eprintln!("🔍 DEBUG: Found Navigator constructor");
-                use boa_engine::builtins::BuiltInConstructor;
-                use crate::browser::navigator::Navigator;
+    // Initialize navigator object - check if we have a Navigator constructor registered externally
+    if !navigator.has_property(js_string!("userAgent"), context)? {
+        eprintln!(
+            "🔍 DEBUG: navigator doesn't have userAgent, trying to create proper Navigator instance"
+        );
+        // Try to create a proper Navigator instance from external constructor
+        if let Some(nav_constructor) = context.realm().get_external_constructor("Navigator") {
+            eprintln!("🔍 DEBUG: Found Navigator constructor");
+            use crate::browser::navigator::Navigator;
+            use boa_engine::builtins::BuiltInConstructor;
 
-                let nav_args: &[JsValue] = &[];
-                let nav_fn_value: JsValue = nav_constructor.constructor().clone().into();
-                eprintln!("🔍 DEBUG: About to call Navigator::constructor");
-                match Navigator::constructor(&nav_fn_value, nav_args, context) {
-                    Ok(nav_instance) => {
-                        eprintln!("🔍 DEBUG: Navigator::constructor succeeded: {:?}", nav_instance);
-                        if let Some(nav_obj) = nav_instance.as_object() {
-                            eprintln!("🔍 DEBUG: Got navigator object, setting it on window");
-                            window.set_navigator(nav_obj.clone());
-                            return Ok(nav_instance);
-                        } else {
-                            eprintln!("❌ DEBUG: nav_instance is not an object!");
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("❌ DEBUG: Navigator::constructor failed: {:?}", e);
+            let nav_args: &[JsValue] = &[];
+            let nav_fn_value: JsValue = nav_constructor.constructor().clone().into();
+            eprintln!("🔍 DEBUG: About to call Navigator::constructor");
+            match Navigator::constructor(&nav_fn_value, nav_args, context) {
+                Ok(nav_instance) => {
+                    eprintln!(
+                        "🔍 DEBUG: Navigator::constructor succeeded: {:?}",
+                        nav_instance
+                    );
+                    if let Some(nav_obj) = nav_instance.as_object() {
+                        eprintln!("🔍 DEBUG: Got navigator object, setting it on window");
+                        window.set_navigator(nav_obj.clone());
+                        return Ok(nav_instance);
+                    } else {
+                        eprintln!("❌ DEBUG: nav_instance is not an object!");
                     }
                 }
-            } else {
-                eprintln!("❌ DEBUG: No Navigator constructor found in context.realm()");
+                Err(e) => {
+                    eprintln!("❌ DEBUG: Navigator::constructor failed: {:?}", e);
+                }
             }
-            eprintln!("🔍 DEBUG: Falling back to manual navigator property creation");
+        } else {
+            eprintln!("❌ DEBUG: No Navigator constructor found in context.realm()");
+        }
+        eprintln!("🔍 DEBUG: Falling back to manual navigator property creation");
 
-            // Fallback: manually add properties if Navigator constructor not available
-            // Add userAgent property - use shared USER_AGENT constant
-            navigator.define_property_or_throw(
-                js_string!("userAgent"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsString::from(thalora_constants::USER_AGENT))
-                    .build(),
-                context,
-            )?;
+        // Fallback: manually add properties if Navigator constructor not available
+        // Add userAgent property - use shared USER_AGENT constant
+        navigator.define_property_or_throw(
+            js_string!("userAgent"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsString::from(thalora_constants::USER_AGENT))
+                .build(),
+            context,
+        )?;
 
-            // Add platform property - Windows to match userAgent
-            navigator.define_property_or_throw(
-                js_string!("platform"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsString::from("MacIntel"))
-                    .build(),
-                context,
-            )?;
+        // Add platform property - Windows to match userAgent
+        navigator.define_property_or_throw(
+            js_string!("platform"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsString::from("MacIntel"))
+                .build(),
+            context,
+        )?;
 
-            // Add language property
-            navigator.define_property_or_throw(
-                js_string!("language"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsString::from("en-US"))
-                    .build(),
-                context,
-            )?;
+        // Add language property
+        navigator.define_property_or_throw(
+            js_string!("language"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsString::from("en-US"))
+                .build(),
+            context,
+        )?;
 
-            // Add languages array property
-            use boa_engine::builtins::array::Array;
-            let languages_array = Array::create_array_from_list([
-                JsString::from("en-US").into(),
-                JsString::from("en").into(),
-            ], context);
-            navigator.define_property_or_throw(
-                js_string!("languages"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(languages_array)
-                    .build(),
-                context,
-            )?;
+        // Add languages array property
+        use boa_engine::builtins::array::Array;
+        let languages_array = Array::create_array_from_list(
+            [JsString::from("en-US").into(), JsString::from("en").into()],
+            context,
+        );
+        navigator.define_property_or_throw(
+            js_string!("languages"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(languages_array)
+                .build(),
+            context,
+        )?;
 
-            // Add onLine property
-            navigator.define_property_or_throw(
-                js_string!("onLine"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(true)
-                    .build(),
-                context,
-            )?;
+        // Add onLine property
+        navigator.define_property_or_throw(
+            js_string!("onLine"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(true)
+                .build(),
+            context,
+        )?;
 
-            // Add webdriver property (should be false for legitimate browsers)
-            navigator.define_property_or_throw(
-                js_string!("webdriver"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(true)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(false)
-                    .build(),
-                context,
-            )?;
+        // Add webdriver property (should be false for legitimate browsers)
+        navigator.define_property_or_throw(
+            js_string!("webdriver"),
+            PropertyDescriptorBuilder::new()
+                .configurable(true)
+                .enumerable(true)
+                .writable(false)
+                .value(false)
+                .build(),
+            context,
+        )?;
 
-            // Add plugins array (fake some common plugins)
-            let plugins_array = Array::create_array_from_list([
+        // Add plugins array (fake some common plugins)
+        let plugins_array = Array::create_array_from_list(
+            [
                 // Create fake PDF Viewer plugin
                 create_fake_plugin(context, "PDF Viewer", "Portable Document Format", "pdf")?,
                 // Create fake Chrome PDF Plugin
-                create_fake_plugin(context, "Chrome PDF Plugin", "Portable Document Format", "pdf")?,
+                create_fake_plugin(
+                    context,
+                    "Chrome PDF Plugin",
+                    "Portable Document Format",
+                    "pdf",
+                )?,
                 // Create fake Chromium PDF Plugin
-                create_fake_plugin(context, "Chromium PDF Plugin", "Portable Document Format", "pdf")?,
+                create_fake_plugin(
+                    context,
+                    "Chromium PDF Plugin",
+                    "Portable Document Format",
+                    "pdf",
+                )?,
                 // Create fake Microsoft Edge PDF Plugin
-                create_fake_plugin(context, "Microsoft Edge PDF Plugin", "Portable Document Format", "pdf")?,
+                create_fake_plugin(
+                    context,
+                    "Microsoft Edge PDF Plugin",
+                    "Portable Document Format",
+                    "pdf",
+                )?,
                 // Create fake WebKit built-in PDF
-                create_fake_plugin(context, "WebKit built-in PDF", "Portable Document Format", "pdf")?,
-            ], context);
+                create_fake_plugin(
+                    context,
+                    "WebKit built-in PDF",
+                    "Portable Document Format",
+                    "pdf",
+                )?,
+            ],
+            context,
+        );
 
-            // Add length property to plugins array
-            plugins_array.define_property_or_throw(
-                js_string!("length"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(false)
-                    .writable(false)
-                    .value(5)
-                    .build(),
-                context,
-            )?;
+        // Add length property to plugins array
+        plugins_array.define_property_or_throw(
+            js_string!("length"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(false)
+                .writable(false)
+                .value(5)
+                .build(),
+            context,
+        )?;
 
-            navigator.define_property_or_throw(
-                js_string!("plugins"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(plugins_array)
-                    .build(),
-                context,
-            )?;
+        navigator.define_property_or_throw(
+            js_string!("plugins"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(plugins_array)
+                .build(),
+            context,
+        )?;
 
-            // Add mimeTypes array (related to plugins)
-            let mime_types_array = Array::create_array_from_list([
+        // Add mimeTypes array (related to plugins)
+        let mime_types_array = Array::create_array_from_list(
+            [
                 create_fake_mime_type(context, "application/pdf", "pdf")?,
                 create_fake_mime_type(context, "text/pdf", "pdf")?,
-            ], context);
+            ],
+            context,
+        );
 
-            mime_types_array.define_property_or_throw(
-                js_string!("length"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(false)
-                    .writable(false)
-                    .value(2)
-                    .build(),
-                context,
-            )?;
+        mime_types_array.define_property_or_throw(
+            js_string!("length"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(false)
+                .writable(false)
+                .value(2)
+                .build(),
+            context,
+        )?;
 
-            navigator.define_property_or_throw(
-                js_string!("mimeTypes"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(mime_types_array)
-                    .build(),
-                context,
-            )?;
+        navigator.define_property_or_throw(
+            js_string!("mimeTypes"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(mime_types_array)
+                .build(),
+            context,
+        )?;
 
-            // Add cookieEnabled property
-            navigator.define_property_or_throw(
-                js_string!("cookieEnabled"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(true)
-                    .build(),
-                context,
-            )?;
+        // Add cookieEnabled property
+        navigator.define_property_or_throw(
+            js_string!("cookieEnabled"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(true)
+                .build(),
+            context,
+        )?;
 
-            // Add doNotTrack property
-            navigator.define_property_or_throw(
-                js_string!("doNotTrack"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(JsValue::null())
-                    .build(),
-                context,
-            )?;
+        // Add doNotTrack property
+        navigator.define_property_or_throw(
+            js_string!("doNotTrack"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(JsValue::null())
+                .build(),
+            context,
+        )?;
 
-            // Add Web Locks API (navigator.locks)
-            use crate::locks::LockManager;
-            let lock_manager = LockManager::new();
-            let lock_manager_proto = context.intrinsics().constructors().lock_manager().prototype();
-            let lock_manager_obj = JsObject::from_proto_and_data_with_shared_shape(
-                context.root_shape(),
-                lock_manager_proto,
-                lock_manager,
-            );
-            navigator.define_property_or_throw(
-                js_string!("locks"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(lock_manager_obj)
-                    .build(),
-                context,
-            )?;
+        // Add Web Locks API (navigator.locks)
+        use crate::locks::LockManager;
+        let lock_manager = LockManager::new();
+        let lock_manager_proto = context
+            .intrinsics()
+            .constructors()
+            .lock_manager()
+            .prototype();
+        let lock_manager_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            lock_manager_proto,
+            lock_manager,
+        );
+        navigator.define_property_or_throw(
+            js_string!("locks"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(lock_manager_obj)
+                .build(),
+            context,
+        )?;
 
-            // Add hardwareConcurrency property (fake CPU core count)
-            navigator.define_property_or_throw(
-                js_string!("hardwareConcurrency"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(8) // Fake 8 CPU cores
-                    .build(),
-                context,
-            )?;
+        // Add hardwareConcurrency property (fake CPU core count)
+        navigator.define_property_or_throw(
+            js_string!("hardwareConcurrency"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(8) // Fake 8 CPU cores
+                .build(),
+            context,
+        )?;
 
-            // Add maxTouchPoints property
-            navigator.define_property_or_throw(
-                js_string!("maxTouchPoints"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(0) // Desktop - no touch
-                    .build(),
-                context,
-            )?;
+        // Add maxTouchPoints property
+        navigator.define_property_or_throw(
+            js_string!("maxTouchPoints"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(0) // Desktop - no touch
+                .build(),
+            context,
+        )?;
 
-            // Add Storage API (navigator.storage)
-            use crate::storage::storage_manager::StorageManager;
-            let storage_manager = StorageManager::create_storage_manager();
-            let storage_manager_prototype = context.intrinsics().constructors().storage_manager().prototype();
-            storage_manager.set_prototype(Some(storage_manager_prototype));
-            navigator.define_property_or_throw(
-                js_string!("storage"),
-                PropertyDescriptorBuilder::new()
-                    .configurable(false)
-                    .enumerable(true)
-                    .writable(false)
-                    .value(storage_manager)
-                    .build(),
-                context,
-            )?;
-        } else {
-            eprintln!("🔍 DEBUG: navigator already has userAgent, using existing object");
-        }
+        // Add Storage API (navigator.storage)
+        use crate::storage::storage_manager::StorageManager;
+        let storage_manager = StorageManager::create_storage_manager();
+        let storage_manager_prototype = context
+            .intrinsics()
+            .constructors()
+            .storage_manager()
+            .prototype();
+        storage_manager.set_prototype(Some(storage_manager_prototype));
+        navigator.define_property_or_throw(
+            js_string!("storage"),
+            PropertyDescriptorBuilder::new()
+                .configurable(false)
+                .enumerable(true)
+                .writable(false)
+                .value(storage_manager)
+                .build(),
+            context,
+        )?;
+    } else {
+        eprintln!("🔍 DEBUG: navigator already has userAgent, using existing object");
+    }
 
     Ok(navigator.into())
 }
 
 /// `Window.prototype.addEventListener(type, listener)`
-fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn add_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Window.prototype.addEventListener called on non-object")
     })?;
@@ -844,9 +892,14 @@ fn add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 /// `Window.prototype.removeEventListener(type, listener)`
-fn remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn remove_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Window.prototype.removeEventListener called on non-object")
+        JsNativeError::typ()
+            .with_message("Window.prototype.removeEventListener called on non-object")
     })?;
 
     let window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
@@ -905,8 +958,7 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     })?;
 
     let _window = this_obj.downcast_ref::<WindowData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("Window.prototype.matchMedia called on non-Window object")
+        JsNativeError::typ().with_message("Window.prototype.matchMedia called on non-Window object")
     })?;
 
     let media_query = args.get_or_undefined(0).to_string(context)?;
@@ -952,9 +1004,10 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     )?;
 
     // Add addListener method
-    let add_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_listener)
-        .name(js_string!("addListener"))
-        .build();
+    let add_listener_func =
+        BuiltInBuilder::callable(context.realm(), media_query_list_add_listener)
+            .name(js_string!("addListener"))
+            .build();
 
     media_query_list.define_property_or_throw(
         js_string!("addListener"),
@@ -968,9 +1021,10 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     )?;
 
     // Add removeListener method
-    let remove_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_listener)
-        .name(js_string!("removeListener"))
-        .build();
+    let remove_listener_func =
+        BuiltInBuilder::callable(context.realm(), media_query_list_remove_listener)
+            .name(js_string!("removeListener"))
+            .build();
 
     media_query_list.define_property_or_throw(
         js_string!("removeListener"),
@@ -984,9 +1038,10 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     )?;
 
     // Add addEventListener method (newer API)
-    let add_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_add_event_listener)
-        .name(js_string!("addEventListener"))
-        .build();
+    let add_event_listener_func =
+        BuiltInBuilder::callable(context.realm(), media_query_list_add_event_listener)
+            .name(js_string!("addEventListener"))
+            .build();
 
     media_query_list.define_property_or_throw(
         js_string!("addEventListener"),
@@ -1000,9 +1055,10 @@ fn match_media(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
     )?;
 
     // Add removeEventListener method
-    let remove_event_listener_func = BuiltInBuilder::callable(context.realm(), media_query_list_remove_event_listener)
-        .name(js_string!("removeEventListener"))
-        .build();
+    let remove_event_listener_func =
+        BuiltInBuilder::callable(context.realm(), media_query_list_remove_event_listener)
+            .name(js_string!("removeEventListener"))
+            .build();
 
     media_query_list.define_property_or_throw(
         js_string!("removeEventListener"),
@@ -1024,7 +1080,7 @@ fn evaluate_media_query(query: &str) -> bool {
 
     // Default viewport dimensions (can be made configurable later)
     let viewport_width = 1366.0; // Common desktop width
-    let viewport_height = 768.0;  // Common desktop height
+    let viewport_height = 768.0; // Common desktop height
     let pixel_density = 1.0;
 
     // Handle empty/all queries
@@ -1042,8 +1098,14 @@ fn evaluate_media_query(query: &str) -> bool {
 
     // Parse complex queries with logical operators
     if query.contains(" and ") {
-        return query.split(" and ")
-            .all(|part| evaluate_single_media_feature(part.trim(), viewport_width, viewport_height, pixel_density));
+        return query.split(" and ").all(|part| {
+            evaluate_single_media_feature(
+                part.trim(),
+                viewport_width,
+                viewport_height,
+                pixel_density,
+            )
+        });
     }
 
     if query.contains(" or ") || query.contains(", ") {
@@ -1054,16 +1116,20 @@ fn evaluate_media_query(query: &str) -> bool {
             query.split(" or ").collect::<Vec<_>>()
         };
 
-        return parts.iter()
-            .map(|part| part.trim())
-            .any(|part| {
-                if part.contains(" and ") {
-                    part.split(" and ")
-                        .all(|subpart| evaluate_single_media_feature(subpart.trim(), viewport_width, viewport_height, pixel_density))
-                } else {
-                    evaluate_single_media_feature(part, viewport_width, viewport_height, pixel_density)
-                }
-            });
+        return parts.iter().map(|part| part.trim()).any(|part| {
+            if part.contains(" and ") {
+                part.split(" and ").all(|subpart| {
+                    evaluate_single_media_feature(
+                        subpart.trim(),
+                        viewport_width,
+                        viewport_height,
+                        pixel_density,
+                    )
+                })
+            } else {
+                evaluate_single_media_feature(part, viewport_width, viewport_height, pixel_density)
+            }
+        });
     }
 
     // Single media feature
@@ -1075,7 +1141,7 @@ fn evaluate_single_media_feature(feature: &str, width: f64, height: f64, density
 
     // Remove parentheses if present
     let feature = if feature.starts_with('(') && feature.ends_with(')') {
-        &feature[1..feature.len()-1]
+        &feature[1..feature.len() - 1]
     } else {
         feature
     };
@@ -1152,21 +1218,21 @@ fn extract_pixel_value(feature: &str, property: &str) -> Option<f64> {
 
         // Handle px values
         if value_part.ends_with("px") {
-            if let Ok(value) = value_part[..value_part.len()-2].trim().parse::<f64>() {
+            if let Ok(value) = value_part[..value_part.len() - 2].trim().parse::<f64>() {
                 return Some(value);
             }
         }
 
         // Handle em values (assume 16px = 1em)
         if value_part.ends_with("em") {
-            if let Ok(value) = value_part[..value_part.len()-2].trim().parse::<f64>() {
+            if let Ok(value) = value_part[..value_part.len() - 2].trim().parse::<f64>() {
                 return Some(value * 16.0);
             }
         }
 
         // Handle rem values (assume 16px = 1rem)
         if value_part.ends_with("rem") {
-            if let Ok(value) = value_part[..value_part.len()-3].trim().parse::<f64>() {
+            if let Ok(value) = value_part[..value_part.len() - 3].trim().parse::<f64>() {
                 return Some(value * 16.0);
             }
         }
@@ -1252,7 +1318,10 @@ impl MediaQueryListData {
         let mut listeners = self.event_listeners.lock().unwrap();
         let type_listeners = listeners.entry(event_type).or_insert_with(Vec::new);
         // Don't add duplicate listeners
-        if !type_listeners.iter().any(|l| JsValue::same_value(l, &listener)) {
+        if !type_listeners
+            .iter()
+            .any(|l| JsValue::same_value(l, &listener))
+        {
             type_listeners.push(listener);
         }
     }
@@ -1266,7 +1335,11 @@ impl MediaQueryListData {
 }
 
 // MediaQueryList method implementations
-fn media_query_list_add_listener(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn media_query_list_add_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let listener = args.get_or_undefined(0);
     if listener.is_undefined() || listener.is_null() {
         return Ok(JsValue::undefined());
@@ -1282,7 +1355,11 @@ fn media_query_list_add_listener(this: &JsValue, args: &[JsValue], _context: &mu
     Ok(JsValue::undefined())
 }
 
-fn media_query_list_remove_listener(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn media_query_list_remove_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let listener = args.get_or_undefined(0);
     if listener.is_undefined() || listener.is_null() {
         return Ok(JsValue::undefined());
@@ -1298,7 +1375,11 @@ fn media_query_list_remove_listener(this: &JsValue, args: &[JsValue], _context: 
     Ok(JsValue::undefined())
 }
 
-fn media_query_list_add_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn media_query_list_add_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1);
     if listener.is_undefined() || listener.is_null() {
@@ -1315,7 +1396,11 @@ fn media_query_list_add_event_listener(this: &JsValue, args: &[JsValue], context
     Ok(JsValue::undefined())
 }
 
-fn media_query_list_remove_event_listener(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn media_query_list_remove_event_listener(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1);
     if listener.is_undefined() || listener.is_null() {
@@ -1498,12 +1583,9 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
 
     // Also register screen as a global variable (not just window.screen)
     // This ensures both window.screen and global screen work correctly
-    context.global_object().set(
-        js_string!("screen"),
-        screen.clone(),
-        false,
-        context,
-    )?;
+    context
+        .global_object()
+        .set(js_string!("screen"), screen.clone(), false, context)?;
 
     eprintln!("✅ Screen object registered both as window.screen and global screen");
 
@@ -1512,7 +1594,8 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
 
 /// Global storage for screen orientation lock state
 /// In a headless browser, we simulate orientation locking by tracking the state
-static SCREEN_ORIENTATION_LOCK: std::sync::OnceLock<Mutex<Option<String>>> = std::sync::OnceLock::new();
+static SCREEN_ORIENTATION_LOCK: std::sync::OnceLock<Mutex<Option<String>>> =
+    std::sync::OnceLock::new();
 
 fn get_orientation_lock() -> &'static Mutex<Option<String>> {
     SCREEN_ORIENTATION_LOCK.get_or_init(|| Mutex::new(None))
@@ -1531,7 +1614,11 @@ const VALID_ORIENTATIONS: &[&str] = &[
 ];
 
 // Screen orientation method implementations
-fn screen_orientation_lock(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn screen_orientation_lock(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let orientation = args.get_or_undefined(0).to_string(context)?;
     let orientation_str = orientation.to_std_string_escaped();
 
@@ -1553,7 +1640,11 @@ fn screen_orientation_lock(_this: &JsValue, args: &[JsValue], context: &mut Cont
     Ok(promise)
 }
 
-fn screen_orientation_unlock(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn screen_orientation_unlock(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     // Clear the locked orientation state
     if let Ok(mut lock) = get_orientation_lock().lock() {
         *lock = None;
@@ -1564,7 +1655,12 @@ fn screen_orientation_unlock(_this: &JsValue, _args: &[JsValue], _context: &mut 
 }
 
 /// Helper function to create fake plugin objects
-fn create_fake_plugin(context: &mut Context, name: &str, description: &str, suffix: &str) -> JsResult<JsValue> {
+fn create_fake_plugin(
+    context: &mut Context,
+    name: &str,
+    description: &str,
+    suffix: &str,
+) -> JsResult<JsValue> {
     let plugin = JsObject::default(context.intrinsics());
 
     // Add name property
@@ -1619,7 +1715,11 @@ fn create_fake_plugin(context: &mut Context, name: &str, description: &str, suff
 }
 
 /// Helper function to create fake MIME type objects
-fn create_fake_mime_type(context: &mut Context, type_name: &str, suffix: &str) -> JsResult<JsValue> {
+fn create_fake_mime_type(
+    context: &mut Context,
+    type_name: &str,
+    suffix: &str,
+) -> JsResult<JsValue> {
     let mime_type = JsObject::default(context.intrinsics());
 
     // Add type property
@@ -1659,7 +1759,8 @@ fn create_fake_mime_type(context: &mut Context, type_name: &str, suffix: &str) -
     )?;
 
     // Add enabledPlugin property (reference back to plugin)
-    let fake_plugin = create_fake_plugin(context, "PDF Viewer", "Portable Document Format", suffix)?;
+    let fake_plugin =
+        create_fake_plugin(context, "PDF Viewer", "Portable Document Format", suffix)?;
     mime_type.define_property_or_throw(
         js_string!("enabledPlugin"),
         PropertyDescriptorBuilder::new()
@@ -1882,7 +1983,11 @@ fn get_chrome(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
 }
 
 /// `window.localStorage` getter
-fn get_local_storage(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_local_storage(
+    _this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // Create localStorage instance with Storage prototype
     let local_storage = Storage::create_local_storage();
 
@@ -1894,7 +1999,11 @@ fn get_local_storage(_this: &JsValue, _args: &[JsValue], context: &mut Context) 
 }
 
 /// `window.sessionStorage` getter
-fn get_session_storage(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_session_storage(
+    _this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // Create sessionStorage instance with Storage prototype
     let session_storage = Storage::create_session_storage();
 
@@ -1918,7 +2027,11 @@ fn get_indexed_db(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
     // Create JsObject with IDBFactory data
     let factory_obj = JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
-        context.intrinsics().constructors().idb_factory().prototype(),
+        context
+            .intrinsics()
+            .constructors()
+            .idb_factory()
+            .prototype(),
         factory,
     );
 
@@ -1968,7 +2081,11 @@ fn get_performance(_this: &JsValue, _args: &[JsValue], context: &mut Context) ->
 /// `window.getComputedStyle(element, pseudoElement)` implementation
 /// Returns a CSSStyleDeclaration object containing the computed styles for an element
 /// https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle
-fn get_computed_style(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_computed_style(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     use crate::dom::element::ElementData;
 
     let element = args.get_or_undefined(0);
@@ -2090,10 +2207,11 @@ fn get_computed_style(_this: &JsValue, args: &[JsValue], context: &mut Context) 
     }
 
     // Add getPropertyValue method
-    let get_property_value_fn = BuiltInBuilder::callable(context.realm(), computed_style_get_property_value)
-        .name(js_string!("getPropertyValue"))
-        .length(1)
-        .build();
+    let get_property_value_fn =
+        BuiltInBuilder::callable(context.realm(), computed_style_get_property_value)
+            .name(js_string!("getPropertyValue"))
+            .length(1)
+            .build();
 
     style_obj.set(
         js_string!("getPropertyValue"),
@@ -2114,12 +2232,19 @@ fn get_computed_style(_this: &JsValue, args: &[JsValue], context: &mut Context) 
 }
 
 /// `CSSStyleDeclaration.getPropertyValue(property)` for computed styles
-fn computed_style_get_property_value(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn computed_style_get_property_value(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("getPropertyValue called on non-object")
     })?;
 
-    let property = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+    let property = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
 
     // Convert kebab-case to camelCase for lookup
     let camel_property = property

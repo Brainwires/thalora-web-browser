@@ -4,14 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/webappapis.html#errorevent
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, js_string,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -109,32 +110,38 @@ impl BuiltInConstructor for ErrorEvent {
 
         let event_type = type_arg.to_string(context)?;
 
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::error_event, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::error_event, context)?;
 
         // Get properties from eventInitDict
         let (message, filename, lineno, colno, error) = if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
-                let message = init_obj.get(js_string!("message"), context)
+                let message = init_obj
+                    .get(js_string!("message"), context)
                     .ok()
                     .map(|v| v.to_string(context).ok())
                     .flatten()
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_default();
-                let filename = init_obj.get(js_string!("filename"), context)
+                let filename = init_obj
+                    .get(js_string!("filename"), context)
                     .ok()
                     .map(|v| v.to_string(context).ok())
                     .flatten()
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_default();
-                let lineno = init_obj.get(js_string!("lineno"), context)
+                let lineno = init_obj
+                    .get(js_string!("lineno"), context)
                     .ok()
                     .and_then(|v| v.to_u32(context).ok())
                     .unwrap_or(0);
-                let colno = init_obj.get(js_string!("colno"), context)
+                let colno = init_obj
+                    .get(js_string!("colno"), context)
                     .ok()
                     .and_then(|v| v.to_u32(context).ok())
                     .unwrap_or(0);
-                let error = init_obj.get(js_string!("error"), context)
+                let error = init_obj
+                    .get(js_string!("error"), context)
                     .unwrap_or(JsValue::undefined());
                 (message, filename, lineno, colno, error)
             } else {
@@ -170,16 +177,31 @@ impl BuiltInConstructor for ErrorEvent {
         error_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         error_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
         error_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
-        error_event_generic.set(js_string!("timeStamp"), context.clock().now().millis_since_epoch(), false, context)?;
+        error_event_generic.set(
+            js_string!("timeStamp"),
+            context.clock().now().millis_since_epoch(),
+            false,
+            context,
+        )?;
 
         // Parse eventInitDict for Event properties
         if !event_init_dict.is_undefined() {
             if let Some(init_obj) = event_init_dict.as_object() {
                 if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    error_event_generic.set(js_string!("bubbles"), bubbles_val.to_boolean(), false, context)?;
+                    error_event_generic.set(
+                        js_string!("bubbles"),
+                        bubbles_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
                 if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    error_event_generic.set(js_string!("cancelable"), cancelable_val.to_boolean(), false, context)?;
+                    error_event_generic.set(
+                        js_string!("cancelable"),
+                        cancelable_val.to_boolean(),
+                        false,
+                        context,
+                    )?;
                 }
             }
         }
@@ -205,8 +227,22 @@ struct ErrorEventData {
 }
 
 impl ErrorEventData {
-    fn new(event_type: String, message: String, filename: String, lineno: u32, colno: u32, error: JsValue) -> Self {
-        Self { event_type, message, filename, lineno, colno, error }
+    fn new(
+        event_type: String,
+        message: String,
+        filename: String,
+        lineno: u32,
+        colno: u32,
+        error: JsValue,
+    ) -> Self {
+        Self {
+            event_type,
+            message,
+            filename,
+            lineno,
+            colno,
+            error,
+        }
     }
 }
 
@@ -216,7 +252,8 @@ fn get_message(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
     })?;
 
     let error_event = this_obj.downcast_ref::<ErrorEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ErrorEvent.prototype.message called on non-ErrorEvent object")
+        JsNativeError::typ()
+            .with_message("ErrorEvent.prototype.message called on non-ErrorEvent object")
     })?;
 
     Ok(js_string!(error_event.message.clone()).into())
@@ -228,7 +265,8 @@ fn get_filename(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
     })?;
 
     let error_event = this_obj.downcast_ref::<ErrorEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ErrorEvent.prototype.filename called on non-ErrorEvent object")
+        JsNativeError::typ()
+            .with_message("ErrorEvent.prototype.filename called on non-ErrorEvent object")
     })?;
 
     Ok(js_string!(error_event.filename.clone()).into())
@@ -240,7 +278,8 @@ fn get_lineno(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
     })?;
 
     let error_event = this_obj.downcast_ref::<ErrorEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ErrorEvent.prototype.lineno called on non-ErrorEvent object")
+        JsNativeError::typ()
+            .with_message("ErrorEvent.prototype.lineno called on non-ErrorEvent object")
     })?;
 
     Ok(JsValue::from(error_event.lineno))
@@ -252,7 +291,8 @@ fn get_colno(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
     })?;
 
     let error_event = this_obj.downcast_ref::<ErrorEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ErrorEvent.prototype.colno called on non-ErrorEvent object")
+        JsNativeError::typ()
+            .with_message("ErrorEvent.prototype.colno called on non-ErrorEvent object")
     })?;
 
     Ok(JsValue::from(error_event.colno))
@@ -264,7 +304,8 @@ fn get_error(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
     })?;
 
     let error_event = this_obj.downcast_ref::<ErrorEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("ErrorEvent.prototype.error called on non-ErrorEvent object")
+        JsNativeError::typ()
+            .with_message("ErrorEvent.prototype.error called on non-ErrorEvent object")
     })?;
 
     Ok(error_event.error.clone())
@@ -284,17 +325,23 @@ mod tests {
     #[test]
     fn test_error_event_exists() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes("typeof ErrorEvent === 'function'")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof ErrorEvent === 'function'"))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 
     #[test]
     fn test_error_event_constructor() {
         let mut context = create_test_context();
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context
+            .eval(Source::from_bytes(
+                r#"
             const event = new ErrorEvent('error', { message: 'Test error', lineno: 10 });
             event.type === 'error' && event.message === 'Test error' && event.lineno === 10;
-        "#)).unwrap();
+        "#,
+            ))
+            .unwrap();
         assert_eq!(result.to_boolean(), true);
     }
 }

@@ -4,15 +4,15 @@
 //! https://w3c.github.io/uievents/
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -137,24 +137,40 @@ impl BuiltInConstructor for UIEvent {
 }
 
 fn get_ui_view(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("UIEvent method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("UIEvent method called on non-object"))?;
 
     if let Some(data) = this_obj.downcast_ref::<UIEventData>() {
         return Ok(data.view.clone().map_or(JsValue::null(), |v| v.into()));
     }
     if let Some(data) = this_obj.downcast_ref::<KeyboardEventData>() {
-        return Ok(data.ui_event.view.clone().map_or(JsValue::null(), |v| v.into()));
+        return Ok(data
+            .ui_event
+            .view
+            .clone()
+            .map_or(JsValue::null(), |v| v.into()));
     }
     if let Some(data) = this_obj.downcast_ref::<MouseEventData>() {
-        return Ok(data.ui_event.view.clone().map_or(JsValue::null(), |v| v.into()));
+        return Ok(data
+            .ui_event
+            .view
+            .clone()
+            .map_or(JsValue::null(), |v| v.into()));
     }
     if let Some(data) = this_obj.downcast_ref::<FocusEventData>() {
-        return Ok(data.ui_event.view.clone().map_or(JsValue::null(), |v| v.into()));
+        return Ok(data
+            .ui_event
+            .view
+            .clone()
+            .map_or(JsValue::null(), |v| v.into()));
     }
     if let Some(data) = this_obj.downcast_ref::<InputEventData>() {
-        return Ok(data.ui_event.view.clone().map_or(JsValue::null(), |v| v.into()));
+        return Ok(data
+            .ui_event
+            .view
+            .clone()
+            .map_or(JsValue::null(), |v| v.into()));
     }
 
     Err(JsNativeError::typ()
@@ -163,9 +179,9 @@ fn get_ui_view(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVal
 }
 
 fn get_ui_detail(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("UIEvent method called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("UIEvent method called on non-object"))?;
 
     if let Some(data) = this_obj.downcast_ref::<UIEventData>() {
         return Ok(JsValue::from(data.detail));
@@ -313,20 +329,90 @@ impl IntrinsicObject for KeyboardEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("key"), Some(key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("code"), Some(code_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("location"), Some(location_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("ctrlKey"), Some(ctrl_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("shiftKey"), Some(shift_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("altKey"), Some(alt_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("metaKey"), Some(meta_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("repeat"), Some(repeat_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("isComposing"), Some(is_composing_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("keyCode"), Some(key_code_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("charCode"), Some(char_code_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("which"), Some(which_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("key"),
+                Some(key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("code"),
+                Some(code_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("location"),
+                Some(location_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("ctrlKey"),
+                Some(ctrl_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("shiftKey"),
+                Some(shift_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("altKey"),
+                Some(alt_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("metaKey"),
+                Some(meta_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("repeat"),
+                Some(repeat_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("isComposing"),
+                Some(is_composing_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("keyCode"),
+                Some(key_code_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("charCode"),
+                Some(char_code_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("which"),
+                Some(which_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("view"),
+                Some(view_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("detail"),
+                Some(detail_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(get_modifier_state, js_string!("getModifierState"), 1)
             .static_property(
                 js_string!("DOM_KEY_LOCATION_STANDARD"),
@@ -453,9 +539,12 @@ fn get_key(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(js_string!(data.key.clone())))
 }
 
@@ -463,9 +552,12 @@ fn get_code(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue>
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(js_string!(data.code.clone())))
 }
 
@@ -473,9 +565,12 @@ fn get_location(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.location))
 }
 
@@ -483,9 +578,12 @@ fn get_ctrl_key(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.ctrl_key))
 }
 
@@ -493,9 +591,12 @@ fn get_shift_key(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.shift_key))
 }
 
@@ -503,9 +604,12 @@ fn get_alt_key(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVal
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.alt_key))
 }
 
@@ -513,9 +617,12 @@ fn get_meta_key(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.meta_key))
 }
 
@@ -523,9 +630,12 @@ fn get_repeat(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValu
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.repeat))
 }
 
@@ -533,9 +643,12 @@ fn get_keyboard_is_composing(this: &JsValue, _: &[JsValue], _: &mut Context) -> 
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.is_composing))
 }
 
@@ -543,9 +656,12 @@ fn get_key_code(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.key_code))
 }
 
@@ -553,9 +669,12 @@ fn get_char_code(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsV
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.char_code))
 }
 
@@ -563,13 +682,20 @@ fn get_keyboard_which(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResul
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
-    let data = this_obj.downcast_ref::<KeyboardEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("KeyboardEvent method called on non-KeyboardEvent object")
-    })?;
+    let data = this_obj
+        .downcast_ref::<KeyboardEventData>()
+        .ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("KeyboardEvent method called on non-KeyboardEvent object")
+        })?;
     Ok(JsValue::from(data.which))
 }
 
-fn get_modifier_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_modifier_state(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("KeyboardEvent method called on non-object")
     })?;
@@ -577,10 +703,14 @@ fn get_modifier_state(this: &JsValue, args: &[JsValue], context: &mut Context) -
     let key = args.get_or_undefined(0).to_string(context)?;
 
     if let Some(data) = this_obj.downcast_ref::<KeyboardEventData>() {
-        return Ok(JsValue::from(data.get_modifier_state(&key.to_std_string_escaped())));
+        return Ok(JsValue::from(
+            data.get_modifier_state(&key.to_std_string_escaped()),
+        ));
     }
     if let Some(data) = this_obj.downcast_ref::<MouseEventData>() {
-        return Ok(JsValue::from(data.get_modifier_state(&key.to_std_string_escaped())));
+        return Ok(JsValue::from(
+            data.get_modifier_state(&key.to_std_string_escaped()),
+        ));
     }
 
     Err(JsNativeError::typ()
@@ -594,11 +724,11 @@ fn get_modifier_state(this: &JsValue, args: &[JsValue], context: &mut Context) -
 
 /// Mouse button constants
 pub mod mouse_button {
-    pub const PRIMARY: i16 = 0;     // Usually the left button
-    pub const AUXILIARY: i16 = 1;   // Usually the wheel/middle button
-    pub const SECONDARY: i16 = 2;   // Usually the right button
-    pub const FOURTH: i16 = 3;      // Browser back
-    pub const FIFTH: i16 = 4;       // Browser forward
+    pub const PRIMARY: i16 = 0; // Usually the left button
+    pub const AUXILIARY: i16 = 1; // Usually the wheel/middle button
+    pub const SECONDARY: i16 = 2; // Usually the right button
+    pub const FOURTH: i16 = 3; // Browser back
+    pub const FIFTH: i16 = 4; // Browser forward
 }
 
 /// The `MouseEvent` data object.
@@ -751,27 +881,122 @@ impl IntrinsicObject for MouseEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("clientX"), Some(client_x_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("clientY"), Some(client_y_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("screenX"), Some(screen_x_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("screenY"), Some(screen_y_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("pageX"), Some(page_x_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("pageY"), Some(page_y_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("offsetX"), Some(offset_x_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("offsetY"), Some(offset_y_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("movementX"), Some(movement_x_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("movementY"), Some(movement_y_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("button"), Some(button_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("buttons"), Some(buttons_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("ctrlKey"), Some(ctrl_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("shiftKey"), Some(shift_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("altKey"), Some(alt_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("metaKey"), Some(meta_key_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("relatedTarget"), Some(related_target_func), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("clientX"),
+                Some(client_x_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientY"),
+                Some(client_y_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("screenX"),
+                Some(screen_x_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("screenY"),
+                Some(screen_y_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("pageX"),
+                Some(page_x_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("pageY"),
+                Some(page_y_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetX"),
+                Some(offset_x_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetY"),
+                Some(offset_y_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("movementX"),
+                Some(movement_x_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("movementY"),
+                Some(movement_y_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("button"),
+                Some(button_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("buttons"),
+                Some(buttons_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("ctrlKey"),
+                Some(ctrl_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("shiftKey"),
+                Some(shift_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("altKey"),
+                Some(alt_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("metaKey"),
+                Some(meta_key_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("relatedTarget"),
+                Some(related_target_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .accessor(js_string!("x"), Some(x_func), None, Attribute::CONFIGURABLE)
             .accessor(js_string!("y"), Some(y_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("view"),
+                Some(view_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("detail"),
+                Some(detail_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(get_modifier_state, js_string!("getModifierState"), 1)
             .build();
     }
@@ -1104,8 +1329,18 @@ impl IntrinsicObject for FocusEvent {
                 None,
                 Attribute::CONFIGURABLE,
             )
-            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("view"),
+                Some(view_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("detail"),
+                Some(detail_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -1243,12 +1478,42 @@ impl IntrinsicObject for InputEvent {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("data"), Some(data_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("inputType"), Some(input_type_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("isComposing"), Some(is_composing_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("dataTransfer"), Some(data_transfer_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("view"), Some(view_func), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("detail"), Some(detail_func), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("data"),
+                Some(data_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("inputType"),
+                Some(input_type_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("isComposing"),
+                Some(is_composing_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("dataTransfer"),
+                Some(data_transfer_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("view"),
+                Some(view_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("detail"),
+                Some(detail_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(get_target_ranges, js_string!("getTargetRanges"), 0)
             .build();
     }

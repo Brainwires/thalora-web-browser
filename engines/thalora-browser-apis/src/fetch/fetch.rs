@@ -5,20 +5,22 @@
 //!
 //! This implements the complete Fetch interface with real HTTP networking
 
-
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, json::Json},
-    object::{JsObject, builtins::JsPromise, PROTOTYPE, internal_methods::get_prototype_from_constructor},
-    value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string,
-    realm::Realm, JsData, JsString,
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject, json::Json},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    job::NativeAsyncJob,
+    js_string,
+    object::{
+        JsObject, PROTOTYPE, builtins::JsPromise, internal_methods::get_prototype_from_constructor,
+    },
     property::Attribute,
-    job::NativeAsyncJob
+    realm::Realm,
+    value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
 use reqwest;
+use std::collections::HashMap;
 use url::Url;
 
 /// JavaScript `fetch()` global function implementation.
@@ -44,11 +46,7 @@ impl BuiltInObject for Fetch {
 }
 
 /// `fetch(input, init)` global function
-fn fetch(
-    _this: &JsValue,
-    args: &[JsValue],
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let input = args.get_or_undefined(0);
     let init = args.get_or_undefined(1);
 
@@ -66,9 +64,8 @@ fn fetch(
     };
 
     // Validate URL
-    let _url = Url::parse(&url_string).map_err(|_| {
-        JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string))
-    })?;
+    let _url = Url::parse(&url_string)
+        .map_err(|_| JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string)))?;
 
     // Parse init options
     let (method, headers, body) = if !init.is_undefined() {
@@ -87,7 +84,7 @@ fn fetch(
             let client = reqwest::Client::new();
             let mut request_builder = client.request(
                 reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
-                &url_string
+                &url_string,
             );
 
             // Add headers
@@ -109,7 +106,11 @@ fn fetch(
                 Ok(response) => {
                     // Extract response data
                     let status = response.status().as_u16();
-                    let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+                    let status_text = response
+                        .status()
+                        .canonical_reason()
+                        .unwrap_or("")
+                        .to_string();
 
                     // Convert headers
                     let mut response_headers = HashMap::new();
@@ -135,19 +136,45 @@ fn fetch(
                             let response_obj = JsObject::from_proto_and_data(None, response_data);
 
                             // Add properties to the Response object
-                            drop(response_obj.set(js_string!("status"), JsValue::from(status), false, context));
-                            drop(response_obj.set(js_string!("statusText"), JsValue::from(js_string!(status_text)), false, context));
-                            drop(response_obj.set(js_string!("ok"), JsValue::from(status >= 200 && status < 300), false, context));
-                            drop(response_obj.set(js_string!("url"), JsValue::from(js_string!(url_string)), false, context));
+                            drop(response_obj.set(
+                                js_string!("status"),
+                                JsValue::from(status),
+                                false,
+                                context,
+                            ));
+                            drop(response_obj.set(
+                                js_string!("statusText"),
+                                JsValue::from(js_string!(status_text)),
+                                false,
+                                context,
+                            ));
+                            drop(response_obj.set(
+                                js_string!("ok"),
+                                JsValue::from(status >= 200 && status < 300),
+                                false,
+                                context,
+                            ));
+                            drop(response_obj.set(
+                                js_string!("url"),
+                                JsValue::from(js_string!(url_string)),
+                                false,
+                                context,
+                            ));
 
-                            resolvers.resolve.call(&JsValue::undefined(), &[response_obj.into()], context)
+                            resolvers.resolve.call(
+                                &JsValue::undefined(),
+                                &[response_obj.into()],
+                                context,
+                            )
                         }
                         Err(e) => {
                             // Reject promise with body read error
                             let error = JsNativeError::typ()
                                 .with_message(format!("Failed to read response body: {}", e))
                                 .into_opaque(context);
-                            resolvers.reject.call(&JsValue::undefined(), &[error.into()], context)
+                            resolvers
+                                .reject
+                                .call(&JsValue::undefined(), &[error.into()], context)
                         }
                     }
                 }
@@ -156,7 +183,9 @@ fn fetch(
                     let error = JsNativeError::typ()
                         .with_message(format!("Fetch request failed: {}", e))
                         .into_opaque(context);
-                    resolvers.reject.call(&JsValue::undefined(), &[error.into()], context)
+                    resolvers
+                        .reject
+                        .call(&JsValue::undefined(), &[error.into()], context)
                 }
             }
         })
@@ -172,13 +201,16 @@ fn parse_fetch_init(
     init: &JsValue,
     context: &mut Context,
 ) -> JsResult<(String, HashMap<String, String>, Option<String>)> {
-    let init_obj = init.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("fetch init must be an object")
-    })?;
+    let init_obj = init
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("fetch init must be an object"))?;
 
     // Method
     let method = if let Ok(method_val) = init_obj.get(js_string!("method"), context) {
-        method_val.to_string(context)?.to_std_string_escaped().to_uppercase()
+        method_val
+            .to_string(context)?
+            .to_std_string_escaped()
+            .to_uppercase()
     } else {
         "GET".to_string()
     };
@@ -215,7 +247,10 @@ fn parse_fetch_init(
 
     // Add default User-Agent if not present - use shared constant!
     if !headers.contains_key("User-Agent") {
-        headers.insert("User-Agent".to_string(), thalora_constants::USER_AGENT.to_string());
+        headers.insert(
+            "User-Agent".to_string(),
+            thalora_constants::USER_AGENT.to_string(),
+        );
     }
 
     // Body
@@ -238,8 +273,7 @@ pub struct Request;
 
 impl IntrinsicObject for Request {
     fn init(realm: &Realm) {
-        BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .build();
+        BuiltInBuilder::from_standard_constructor::<Self>(realm).build();
     }
 
     fn get(intrinsics: &Intrinsics) -> JsObject {
@@ -280,13 +314,12 @@ impl BuiltInConstructor for Request {
 
         // Validate URL
         if Url::parse(&url).is_err() {
-            return Err(JsNativeError::typ()
-                .with_message("Invalid URL")
-                .into());
+            return Err(JsNativeError::typ().with_message("Invalid URL").into());
         }
 
         // Create the Request object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::request, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::request, context)?;
         let request_data = RequestData {
             url,
             method: "GET".to_string(),
@@ -303,8 +336,7 @@ impl BuiltInConstructor for Request {
     }
 }
 
-impl Request {
-}
+impl Request {}
 
 /// JavaScript `Response` constructor implementation.
 #[derive(Debug, Copy, Clone)]
@@ -416,7 +448,13 @@ impl BuiltInConstructor for Response {
                             Err(_) => "OK".to_string(),
                         }
                     }
-                    _ => if status >= 200 && status < 300 { "OK".to_string() } else { "".to_string() },
+                    _ => {
+                        if status >= 200 && status < 300 {
+                            "OK".to_string()
+                        } else {
+                            "".to_string()
+                        }
+                    }
                 };
 
                 (status, status_text)
@@ -428,7 +466,8 @@ impl BuiltInConstructor for Response {
         };
 
         // Create the Response object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::response, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::response, context)?;
         let response_data = ResponseData {
             body: body_text,
             status,
@@ -450,11 +489,13 @@ impl Response {
     /// `get Response.prototype.status` getter
     fn get_status(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Response.prototype.status getter called on non-object")
+            JsNativeError::typ()
+                .with_message("Response.prototype.status getter called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("Response.prototype.status getter called on non-Response object")
+            JsNativeError::typ()
+                .with_message("Response.prototype.status getter called on non-Response object")
         })?;
 
         Ok(JsValue::from(data.status))
@@ -463,11 +504,13 @@ impl Response {
     /// `get Response.prototype.statusText` getter
     fn get_status_text(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Response.prototype.statusText getter called on non-object")
+            JsNativeError::typ()
+                .with_message("Response.prototype.statusText getter called on non-object")
         })?;
 
         let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("Response.prototype.statusText getter called on non-Response object")
+            JsNativeError::typ()
+                .with_message("Response.prototype.statusText getter called on non-Response object")
         })?;
 
         Ok(JsValue::from(js_string!(data.status_text.clone())))
@@ -480,7 +523,8 @@ impl Response {
         })?;
 
         let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("Response.prototype.ok getter called on non-Response object")
+            JsNativeError::typ()
+                .with_message("Response.prototype.ok getter called on non-Response object")
         })?;
 
         Ok(JsValue::from(data.status >= 200 && data.status < 300))
@@ -493,7 +537,8 @@ impl Response {
         })?;
 
         let data = this_obj.downcast_ref::<ResponseData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("Response.prototype.url getter called on non-Response object")
+            JsNativeError::typ()
+                .with_message("Response.prototype.url getter called on non-Response object")
         })?;
 
         Ok(JsValue::from(js_string!(data.url.clone())))
@@ -529,7 +574,11 @@ impl Response {
 
         // Parse JSON from body text
         if let Some(ref body) = response_data.body {
-            match Json::parse(&JsValue::undefined(), &[JsValue::from(js_string!(body.clone()))], context) {
+            match Json::parse(
+                &JsValue::undefined(),
+                &[JsValue::from(js_string!(body.clone()))],
+                context,
+            ) {
                 Ok(json_value) => Ok(JsPromise::resolve(json_value, context)?.into()),
                 Err(e) => {
                     let error = JsNativeError::syntax()
@@ -538,8 +587,7 @@ impl Response {
                 }
             }
         } else {
-            let error = JsNativeError::typ()
-                .with_message("Response body is null");
+            let error = JsNativeError::typ().with_message("Response body is null");
             Ok(JsPromise::reject(error, context)?.into())
         }
     }
@@ -551,8 +599,7 @@ pub struct Headers;
 
 impl IntrinsicObject for Headers {
     fn init(realm: &Realm) {
-        BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .build();
+        BuiltInBuilder::from_standard_constructor::<Self>(realm).build();
     }
 
     fn get(intrinsics: &Intrinsics) -> JsObject {
@@ -607,11 +654,13 @@ impl BuiltInConstructor for Headers {
                                 let pair_len = pair_obj.get(js_string!("length"), context)?;
                                 if let Some(len) = pair_len.to_length(context).ok() {
                                     if len >= 2 {
-                                        let name = pair_obj.get(0, context)?
+                                        let name = pair_obj
+                                            .get(0, context)?
                                             .to_string(context)?
                                             .to_std_string_escaped()
                                             .to_lowercase();
-                                        let value = pair_obj.get(1, context)?
+                                        let value = pair_obj
+                                            .get(1, context)?
                                             .to_string(context)?
                                             .to_std_string_escaped();
                                         headers.insert(name, value);
@@ -637,7 +686,8 @@ impl BuiltInConstructor for Headers {
         }
 
         // Create the Headers object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::headers, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::headers, context)?;
         let headers_data = HeadersData { headers };
         let headers_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -649,8 +699,7 @@ impl BuiltInConstructor for Headers {
     }
 }
 
-impl Headers {
-}
+impl Headers {}
 
 /// Internal data for Request instances
 #[derive(Debug, Trace, Finalize, JsData)]

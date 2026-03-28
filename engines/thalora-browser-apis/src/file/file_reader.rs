@@ -5,23 +5,23 @@
 //!
 //! This implements the complete FileReader interface with async file reading and event handling
 
-
-use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
-    object::JsObject,
-    value::JsValue,
-    Context, JsResult, js_string, JsNativeError, JsArgs,
-    realm::Realm, JsString, JsData,
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors}
-};
 use crate::file::blob::BlobData;
 use crate::file::file::FileData;
+use base64::{Engine as _, engine::general_purpose};
+use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::JsObject,
+    realm::Realm,
+    value::JsValue,
+};
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
-use base64::{Engine as _, engine::general_purpose};
 
 /// FileReader ready states
 #[derive(Debug, Clone, PartialEq, Trace, Finalize)]
@@ -216,78 +216,116 @@ impl IntrinsicObject for FileReader {
 
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // ReadyState constants
-            .static_property(js_string!("EMPTY"), 0, boa_engine::property::Attribute::default())
-            .static_property(js_string!("LOADING"), 1, boa_engine::property::Attribute::default())
-            .static_property(js_string!("DONE"), 2, boa_engine::property::Attribute::default())
+            .static_property(
+                js_string!("EMPTY"),
+                0,
+                boa_engine::property::Attribute::default(),
+            )
+            .static_property(
+                js_string!("LOADING"),
+                1,
+                boa_engine::property::Attribute::default(),
+            )
+            .static_property(
+                js_string!("DONE"),
+                2,
+                boa_engine::property::Attribute::default(),
+            )
             // Read methods
-            .method(Self::read_as_array_buffer, js_string!("readAsArrayBuffer"), 1)
-            .method(Self::read_as_binary_string, js_string!("readAsBinaryString"), 1)
+            .method(
+                Self::read_as_array_buffer,
+                js_string!("readAsArrayBuffer"),
+                1,
+            )
+            .method(
+                Self::read_as_binary_string,
+                js_string!("readAsBinaryString"),
+                1,
+            )
             .method(Self::read_as_data_url, js_string!("readAsDataURL"), 1)
             .method(Self::read_as_text, js_string!("readAsText"), 1)
             .method(Self::abort, js_string!("abort"), 0)
-
             // State properties
             .accessor(
                 js_string!("readyState"),
                 Some(get_ready_state),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("result"),
                 Some(get_result),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("error"),
                 Some(get_error),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
-
             // Event handlers
             .accessor(
                 js_string!("onloadstart"),
                 Some(get_onloadstart),
                 Some(set_onloadstart),
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onprogress"),
                 Some(get_onprogress),
                 Some(set_onprogress),
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onload"),
                 Some(get_onload),
                 Some(set_onload),
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onloadend"),
                 Some(get_onloadend),
                 Some(set_onloadend),
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onerror"),
                 Some(get_onerror),
                 Some(set_onerror),
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("onabort"),
                 Some(get_onabort),
                 Some(set_onabort),
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
-
             // Constants
-            .property(js_string!("EMPTY"), ReadyState::Empty.as_u16(), boa_engine::property::Attribute::NON_ENUMERABLE)
-            .property(js_string!("LOADING"), ReadyState::Loading.as_u16(), boa_engine::property::Attribute::NON_ENUMERABLE)
-            .property(js_string!("DONE"), ReadyState::Done.as_u16(), boa_engine::property::Attribute::NON_ENUMERABLE)
+            .property(
+                js_string!("EMPTY"),
+                ReadyState::Empty.as_u16(),
+                boa_engine::property::Attribute::NON_ENUMERABLE,
+            )
+            .property(
+                js_string!("LOADING"),
+                ReadyState::Loading.as_u16(),
+                boa_engine::property::Attribute::NON_ENUMERABLE,
+            )
+            .property(
+                js_string!("DONE"),
+                ReadyState::Done.as_u16(),
+                boa_engine::property::Attribute::NON_ENUMERABLE,
+            )
             .build();
     }
 
@@ -325,7 +363,9 @@ impl BuiltInConstructor for FileReader {
         let prototype = Self::get(context.intrinsics())
             .get(js_string!("prototype"), context)?
             .as_object()
-            .ok_or_else(|| JsNativeError::typ().with_message("FileReader.prototype is not an object"))?
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message("FileReader.prototype is not an object")
+            })?
             .clone();
 
         let reader_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -340,17 +380,29 @@ impl BuiltInConstructor for FileReader {
 
 impl FileReader {
     /// `FileReader.prototype.readAsArrayBuffer(file)`
-    fn read_as_array_buffer(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn read_as_array_buffer(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::start_read(_this, args, context, ReadOperation::ArrayBuffer)
     }
 
     /// `FileReader.prototype.readAsBinaryString(file)`
-    fn read_as_binary_string(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn read_as_binary_string(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::start_read(_this, args, context, ReadOperation::BinaryString)
     }
 
     /// `FileReader.prototype.readAsDataURL(file)`
-    fn read_as_data_url(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn read_as_data_url(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::start_read(_this, args, context, ReadOperation::DataURL)
     }
 
@@ -366,9 +418,9 @@ impl FileReader {
 
     /// `FileReader.prototype.abort()`
     fn abort(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let reader_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("abort called on non-object")
-        })?;
+        let reader_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("abort called on non-object"))?;
 
         let (on_abort, on_loadend) = {
             let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
@@ -415,19 +467,44 @@ impl FileReader {
         // Create a simple object with ProgressEvent-like properties
         let event_obj = JsObject::with_null_proto();
         event_obj.set(js_string!("type"), js_string!(event_type), false, context)?;
-        event_obj.set(js_string!("loaded"), JsValue::from(loaded as u32), false, context)?;
-        event_obj.set(js_string!("total"), JsValue::from(total as u32), false, context)?;
-        event_obj.set(js_string!("lengthComputable"), JsValue::from(length_computable), false, context)?;
+        event_obj.set(
+            js_string!("loaded"),
+            JsValue::from(loaded as u32),
+            false,
+            context,
+        )?;
+        event_obj.set(
+            js_string!("total"),
+            JsValue::from(total as u32),
+            false,
+            context,
+        )?;
+        event_obj.set(
+            js_string!("lengthComputable"),
+            JsValue::from(length_computable),
+            false,
+            context,
+        )?;
         event_obj.set(js_string!("bubbles"), JsValue::from(false), false, context)?;
-        event_obj.set(js_string!("cancelable"), JsValue::from(false), false, context)?;
+        event_obj.set(
+            js_string!("cancelable"),
+            JsValue::from(false),
+            false,
+            context,
+        )?;
         Ok(event_obj.into())
     }
 
     /// Internal method to start a read operation
-    fn start_read(this: &JsValue, args: &[JsValue], context: &mut Context, operation: ReadOperation) -> JsResult<JsValue> {
-        let reader_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("read method called on non-object")
-        })?;
+    fn start_read(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+        operation: ReadOperation,
+    ) -> JsResult<JsValue> {
+        let reader_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("read method called on non-object"))?;
 
         let (reader_id, is_aborted, data, on_loadstart, total_size) = {
             let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
@@ -494,7 +571,10 @@ impl FileReader {
             ReadOperation::DataURL => {
                 // Create data URL with base64 encoding
                 let base64_data = general_purpose::STANDARD.encode(&*data);
-                FileReadResult::DataURL(format!("data:application/octet-stream;base64,{}", base64_data))
+                FileReadResult::DataURL(format!(
+                    "data:application/octet-stream;base64,{}",
+                    base64_data
+                ))
             }
             ReadOperation::Text(encoding) => {
                 // Convert to text (UTF-8 by default)
@@ -523,7 +603,11 @@ impl FileReader {
 
         {
             let state = get_filereader_state();
-            state.pending_results.lock().unwrap().insert(reader_id, pending);
+            state
+                .pending_results
+                .lock()
+                .unwrap()
+                .insert(reader_id, pending);
         }
 
         // Update the FileReader object state and fire events
@@ -564,7 +648,8 @@ impl FileReader {
         }
 
         if let Some(handler) = on_loadend {
-            let event = Self::create_progress_event("loadend", total_size, total_size, true, context)?;
+            let event =
+                Self::create_progress_event("loadend", total_size, total_size, true, context)?;
             let _ = handler.call(&this.clone(), &[event], context);
         }
 
@@ -572,13 +657,16 @@ impl FileReader {
     }
 
     /// Get the pending ArrayBuffer result for this reader
-    pub fn get_array_buffer_result(reader_id: u32, context: &mut Context) -> JsResult<Option<JsValue>> {
+    pub fn get_array_buffer_result(
+        reader_id: u32,
+        context: &mut Context,
+    ) -> JsResult<Option<JsValue>> {
         let state = get_filereader_state();
         let pending_results = state.pending_results.lock().unwrap();
 
         if let Some(pending) = pending_results.get(&reader_id) {
             if let Some(FileReadResult::ArrayBuffer(bytes)) = &pending.result {
-                use boa_engine::object::builtins::{JsArrayBuffer, AlignedVec};
+                use boa_engine::object::builtins::{AlignedVec, JsArrayBuffer};
                 let aligned_data = AlignedVec::<u8>::from_iter(0, bytes.iter().copied());
                 let array_buffer = JsArrayBuffer::from_byte_block(aligned_data, context)?;
                 return Ok(Some(array_buffer.into()));
@@ -600,7 +688,11 @@ enum ReadOperation {
 // Property getter/setter implementations
 
 /// `get FileReader.prototype.readyState`
-pub(crate) fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn get_ready_state(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let reader_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("readyState getter called on non-object")
     })?;
@@ -613,10 +705,14 @@ pub(crate) fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut 
 }
 
 /// `get FileReader.prototype.result`
-pub(crate) fn get_result(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let reader_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("result getter called on non-object")
-    })?;
+pub(crate) fn get_result(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let reader_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("result getter called on non-object"))?;
 
     let reader_data = reader_obj.downcast_ref::<FileReaderData>().ok_or_else(|| {
         JsNativeError::typ().with_message("result getter called on non-FileReader object")
@@ -637,10 +733,14 @@ pub(crate) fn get_result(this: &JsValue, _args: &[JsValue], context: &mut Contex
 }
 
 /// `get FileReader.prototype.error`
-pub(crate) fn get_error(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let reader_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("error getter called on non-object")
-    })?;
+pub(crate) fn get_error(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let reader_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("error getter called on non-object"))?;
 
     let reader_data = reader_obj.downcast_ref::<FileReaderData>().ok_or_else(|| {
         JsNativeError::typ().with_message("error getter called on non-FileReader object")
@@ -650,26 +750,18 @@ pub(crate) fn get_error(this: &JsValue, _args: &[JsValue], context: &mut Context
         Some(error) => {
             // Create a DOMException-like object with name and message
             let (name, message, code) = match error {
-                FileReaderError::NotReadable => (
-                    "NotReadableError",
-                    "The file could not be read.",
-                    1u16,
-                ),
+                FileReaderError::NotReadable => {
+                    ("NotReadableError", "The file could not be read.", 1u16)
+                }
                 FileReaderError::Security => (
                     "SecurityError",
                     "The file read was blocked by a security policy.",
                     2,
                 ),
-                FileReaderError::Abort => (
-                    "AbortError",
-                    "The read operation was aborted.",
-                    3,
-                ),
-                FileReaderError::Encoding => (
-                    "EncodingError",
-                    "The file encoding is not valid.",
-                    4,
-                ),
+                FileReaderError::Abort => ("AbortError", "The read operation was aborted.", 3),
+                FileReaderError::Encoding => {
+                    ("EncodingError", "The file encoding is not valid.", 4)
+                }
             };
 
             let error_obj = JsObject::with_null_proto();
@@ -686,13 +778,18 @@ pub(crate) fn get_error(this: &JsValue, _args: &[JsValue], context: &mut Context
 
 macro_rules! event_handler_accessors {
     ($getter:ident, $setter:ident, $field:ident, $name:literal) => {
-        pub(crate) fn $getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        pub(crate) fn $getter(
+            this: &JsValue,
+            _args: &[JsValue],
+            _context: &mut Context,
+        ) -> JsResult<JsValue> {
             let reader_obj = this.as_object().ok_or_else(|| {
                 JsNativeError::typ().with_message(concat!($name, " getter called on non-object"))
             })?;
 
             let reader_data = reader_obj.downcast_ref::<FileReaderData>().ok_or_else(|| {
-                JsNativeError::typ().with_message(concat!($name, " getter called on non-FileReader object"))
+                JsNativeError::typ()
+                    .with_message(concat!($name, " getter called on non-FileReader object"))
             })?;
 
             match &reader_data.$field {
@@ -701,13 +798,18 @@ macro_rules! event_handler_accessors {
             }
         }
 
-        pub(crate) fn $setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+        pub(crate) fn $setter(
+            this: &JsValue,
+            args: &[JsValue],
+            _context: &mut Context,
+        ) -> JsResult<JsValue> {
             let reader_obj = this.as_object().ok_or_else(|| {
                 JsNativeError::typ().with_message(concat!($name, " setter called on non-object"))
             })?;
 
             let mut reader_data = reader_obj.downcast_mut::<FileReaderData>().ok_or_else(|| {
-                JsNativeError::typ().with_message(concat!($name, " setter called on non-FileReader object"))
+                JsNativeError::typ()
+                    .with_message(concat!($name, " setter called on non-FileReader object"))
             })?;
 
             let handler = args.get_or_undefined(0);
@@ -724,7 +826,12 @@ macro_rules! event_handler_accessors {
     };
 }
 
-event_handler_accessors!(get_onloadstart, set_onloadstart, on_loadstart, "onloadstart");
+event_handler_accessors!(
+    get_onloadstart,
+    set_onloadstart,
+    on_loadstart,
+    "onloadstart"
+);
 event_handler_accessors!(get_onprogress, set_onprogress, on_progress, "onprogress");
 event_handler_accessors!(get_onload, set_onload, on_load, "onload");
 event_handler_accessors!(get_onloadend, set_onloadend, on_loadend, "onloadend");

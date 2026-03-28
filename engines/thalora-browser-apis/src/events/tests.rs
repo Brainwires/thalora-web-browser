@@ -1,14 +1,13 @@
 //! Comprehensive test suite for Event APIs
 //! Tests Event, EventTarget, and event propagation
 
-use boa_engine::{Context, Source, JsValue};
 use boa_engine::string::JsString;
+use boa_engine::{Context, JsValue, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {
     let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context)
-        .expect("Failed to initialize browser APIs");
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     context
 }
 
@@ -26,80 +25,112 @@ fn test_event_constructor_exists() {
 #[test]
 fn test_event_basic_construction() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event instanceof Event;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_with_type_only() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('click');
         event.type === 'click';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_with_options() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { bubbles: true, cancelable: true });
         event.bubbles && event.cancelable;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_default_bubbles_false() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.bubbles;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
 #[test]
 fn test_event_default_cancelable_false() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.cancelable;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
 #[test]
 fn test_event_bubbles_option() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { bubbles: true });
         event.bubbles;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_cancelable_option() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { cancelable: true });
         event.cancelable;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_composed_option() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { composed: true });
         event.composed;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -110,70 +141,104 @@ fn test_event_composed_option() {
 #[test]
 fn test_event_type_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('customEvent');
         event.type;
-    "#)).unwrap();
-    assert_eq!(result.to_string(&mut context).unwrap().to_std_string_escaped(), "customEvent");
+    "#,
+        ))
+        .unwrap();
+    assert_eq!(
+        result
+            .to_string(&mut context)
+            .unwrap()
+            .to_std_string_escaped(),
+        "customEvent"
+    );
 }
 
 #[test]
 fn test_event_timestamp_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         typeof event.timeStamp === 'number';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_default_prevented_initial() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.defaultPrevented;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
 #[test]
 fn test_event_phase_initial() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.eventPhase === 0;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_initial_null() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.target === null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_current_target_initial_null() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.currentTarget === null;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_is_trusted_false_for_script_created() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.isTrusted;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
@@ -184,95 +249,131 @@ fn test_event_is_trusted_false_for_script_created() {
 #[test]
 fn test_event_prevent_default_method_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         typeof event.preventDefault === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_prevent_default_sets_flag() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { cancelable: true });
         event.preventDefault();
         event.defaultPrevented;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_prevent_default_non_cancelable() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { cancelable: false });
         event.preventDefault();
         event.defaultPrevented;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
 #[test]
 fn test_event_stop_propagation_method_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         typeof event.stopPropagation === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_stop_immediate_propagation_method_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         typeof event.stopImmediatePropagation === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_init_event_method_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         typeof event.initEvent === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_init_event_changes_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.initEvent('newType', true, true);
         event.type === 'newType';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_init_event_changes_bubbles() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.initEvent('test', true, false);
         event.bubbles;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_init_event_changes_cancelable() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test');
         event.initEvent('test', false, true);
         event.cancelable;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -283,12 +384,16 @@ fn test_event_init_event_changes_cancelable() {
 #[test]
 fn test_event_phase_constants() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         Event.NONE === 0 &&
         Event.CAPTURING_PHASE === 1 &&
         Event.AT_TARGET === 2 &&
         Event.BUBBLING_PHASE === 3;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -299,17 +404,23 @@ fn test_event_phase_constants() {
 #[test]
 fn test_event_target_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof EventTarget")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof EventTarget"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_event_target_construction() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         target instanceof EventTarget;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -320,62 +431,82 @@ fn test_event_target_construction() {
 #[test]
 fn test_event_target_add_event_listener_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         typeof target.addEventListener === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_remove_event_listener_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         typeof target.removeEventListener === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_dispatch_event_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         typeof target.dispatchEvent === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_add_listener_basic() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let target = new EventTarget();
         let called = false;
         target.addEventListener('test', function() { called = true; });
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_event_target_dispatch_calls_listener() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let called = false;
         target.addEventListener('test', function() { called = true; });
         target.dispatchEvent(new Event('test'));
         called;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_remove_listener() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let called = false;
         function handler() { called = true; }
@@ -383,90 +514,114 @@ fn test_event_target_remove_listener() {
         target.removeEventListener('test', handler);
         target.dispatchEvent(new Event('test'));
         called;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
 #[test]
 fn test_event_target_multiple_listeners() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let count = 0;
         target.addEventListener('test', function() { count++; });
         target.addEventListener('test', function() { count++; });
         target.dispatchEvent(new Event('test'));
         count === 2;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_listener_receives_event() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let receivedEvent = null;
         target.addEventListener('test', function(e) { receivedEvent = e; });
         target.dispatchEvent(new Event('test'));
         receivedEvent instanceof Event;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_listener_receives_correct_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let eventType = null;
         target.addEventListener('custom', function(e) { eventType = e.type; });
         target.dispatchEvent(new Event('custom'));
         eventType === 'custom';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_once_option() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let count = 0;
         target.addEventListener('test', function() { count++; }, { once: true });
         target.dispatchEvent(new Event('test'));
         target.dispatchEvent(new Event('test'));
         count === 1;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_capture_option() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let target = new EventTarget();
         target.addEventListener('test', function() {}, { capture: true });
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_event_target_passive_option() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let target = new EventTarget();
         target.addEventListener('test', function() {}, { passive: true });
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_event_target_different_event_types() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let type1Called = false;
         let type2Called = false;
@@ -474,14 +629,18 @@ fn test_event_target_different_event_types() {
         target.addEventListener('type2', function() { type2Called = true; });
         target.dispatchEvent(new Event('type1'));
         type1Called && !type2Called;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_remove_only_matching_listener() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let count = 0;
         function handler1() { count++; }
@@ -491,62 +650,80 @@ fn test_event_target_remove_only_matching_listener() {
         target.removeEventListener('test', handler1);
         target.dispatchEvent(new Event('test'));
         count === 1;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_add_null_listener() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let target = new EventTarget();
         target.addEventListener('test', null);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_event_target_add_undefined_listener() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let target = new EventTarget();
         target.addEventListener('test', undefined);
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_event_target_dispatch_returns_boolean() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let returnValue = target.dispatchEvent(new Event('test'));
         typeof returnValue === 'boolean';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_dispatch_returns_true_when_not_prevented() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         target.addEventListener('test', function() {});
         target.dispatchEvent(new Event('test', { cancelable: true }));
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_target_dispatch_returns_false_when_prevented() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         target.addEventListener('test', function(e) { e.preventDefault(); });
         target.dispatchEvent(new Event('test', { cancelable: true }));
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), false);
 }
 
@@ -557,7 +734,9 @@ fn test_event_target_dispatch_returns_false_when_prevented() {
 #[test]
 fn test_event_prevent_default_in_listener() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let wasDefaultPrevented = false;
         target.addEventListener('test', function(e) {
@@ -566,7 +745,9 @@ fn test_event_prevent_default_in_listener() {
         });
         target.dispatchEvent(new Event('test', { cancelable: true }));
         wasDefaultPrevented;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -610,27 +791,37 @@ fn test_event_prevent_default_in_listener() {
 #[test]
 fn test_event_with_empty_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('');
         event.type === '';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_with_special_characters_type() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test-event.custom:123');
         event.type === 'test-event.custom:123';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_listener_exception_doesnt_stop_others() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let target = new EventTarget();
         let secondCalled = false;
         target.addEventListener('test', function() { throw new Error('test'); });
@@ -639,7 +830,9 @@ fn test_event_listener_exception_doesnt_stop_others() {
             target.dispatchEvent(new Event('test'));
         } catch(e) {}
         secondCalled;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -664,33 +857,41 @@ fn test_event_listener_exception_doesnt_stop_others() {
 #[test]
 fn test_event_multiple_prevent_default_calls() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let event = new Event('test', { cancelable: true });
         event.preventDefault();
         event.preventDefault();
         event.defaultPrevented;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_event_stop_propagation_call() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let event = new Event('test');
         event.stopPropagation();
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }
 
 #[test]
 fn test_event_stop_immediate_propagation_call() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context.eval(Source::from_bytes(
+        r#"
         let event = new Event('test');
         event.stopImmediatePropagation();
         true;
-    "#));
+    "#,
+    ));
     assert!(result.is_ok());
 }

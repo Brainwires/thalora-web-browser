@@ -4,17 +4,19 @@
 //! https://developer.mozilla.org/en-US/docs/Web/API/Path2D
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute,
 };
 use boa_gc::{Finalize, Trace};
-use tiny_skia::PathBuilder;
 use std::sync::{Arc, Mutex};
+use tiny_skia::PathBuilder;
 
 /// Internal path data
 #[derive(Debug, Clone)]
@@ -93,11 +95,29 @@ impl PathData {
         self.builder.line_to(x + width - r, y);
         self.arc_corner(x + width - r, y + r, r, -std::f32::consts::FRAC_PI_2, 0.0);
         self.builder.line_to(x + width, y + height - r);
-        self.arc_corner(x + width - r, y + height - r, r, 0.0, std::f32::consts::FRAC_PI_2);
+        self.arc_corner(
+            x + width - r,
+            y + height - r,
+            r,
+            0.0,
+            std::f32::consts::FRAC_PI_2,
+        );
         self.builder.line_to(x + r, y + height);
-        self.arc_corner(x + r, y + height - r, r, std::f32::consts::FRAC_PI_2, std::f32::consts::PI);
+        self.arc_corner(
+            x + r,
+            y + height - r,
+            r,
+            std::f32::consts::FRAC_PI_2,
+            std::f32::consts::PI,
+        );
         self.builder.line_to(x, y + r);
-        self.arc_corner(x + r, y + r, r, std::f32::consts::PI, -std::f32::consts::FRAC_PI_2);
+        self.arc_corner(
+            x + r,
+            y + r,
+            r,
+            std::f32::consts::PI,
+            -std::f32::consts::FRAC_PI_2,
+        );
         self.builder.close();
     }
 
@@ -117,7 +137,15 @@ impl PathData {
     }
 
     /// Add an arc to the path
-    pub fn arc(&mut self, x: f32, y: f32, radius: f32, start_angle: f32, end_angle: f32, counterclockwise: bool) {
+    pub fn arc(
+        &mut self,
+        x: f32,
+        y: f32,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+        counterclockwise: bool,
+    ) {
         let mut angle = start_angle;
         let end = if counterclockwise {
             if end_angle > start_angle {
@@ -348,11 +376,8 @@ impl BuiltInConstructor for Path2D {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::path_2d,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::path_2d, context)?;
 
         let path_data = Path2DData::new();
 
@@ -386,13 +411,13 @@ impl BuiltInConstructor for Path2D {
 // ============== Methods ==============
 
 fn add_path(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let path = args.get_or_undefined(0);
     if let Some(obj) = path.as_object() {
@@ -417,26 +442,26 @@ fn add_path(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResul
 }
 
 fn close_path(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     this_data.with_inner(|data| data.close_path());
     Ok(JsValue::undefined())
 }
 
 fn move_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -446,13 +471,13 @@ fn move_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn line_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -462,13 +487,13 @@ fn line_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn bezier_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let cp1x = args.get_or_undefined(0).to_number(context)? as f32;
     let cp1y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -481,14 +506,18 @@ fn bezier_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     Ok(JsValue::undefined())
 }
 
-fn quadratic_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+fn quadratic_curve_to(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let cpx = args.get_or_undefined(0).to_number(context)? as f32;
     let cpy = args.get_or_undefined(1).to_number(context)? as f32;
@@ -500,13 +529,13 @@ fn quadratic_curve_to(this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 fn arc(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -520,13 +549,13 @@ fn arc(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVa
 }
 
 fn arc_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x1 = args.get_or_undefined(0).to_number(context)? as f32;
     let y1 = args.get_or_undefined(1).to_number(context)? as f32;
@@ -539,13 +568,13 @@ fn arc_to(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
 }
 
 fn ellipse(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -557,19 +586,28 @@ fn ellipse(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
     let counterclockwise = args.get_or_undefined(7).to_boolean();
 
     this_data.with_inner(|data| {
-        data.ellipse(x, y, radius_x, radius_y, rotation, start_angle, end_angle, counterclockwise)
+        data.ellipse(
+            x,
+            y,
+            radius_x,
+            radius_y,
+            rotation,
+            start_angle,
+            end_angle,
+            counterclockwise,
+        )
     });
     Ok(JsValue::undefined())
 }
 
 fn rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;
@@ -581,13 +619,13 @@ fn rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsV
 }
 
 fn round_rect(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not an object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an object"))?;
 
-    let this_data = this_obj.downcast_ref::<Path2DData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("'this' is not a Path2D")
-    })?;
+    let this_data = this_obj
+        .downcast_ref::<Path2DData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let x = args.get_or_undefined(0).to_number(context)? as f32;
     let y = args.get_or_undefined(1).to_number(context)? as f32;

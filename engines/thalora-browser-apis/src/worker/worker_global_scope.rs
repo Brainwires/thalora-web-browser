@@ -3,26 +3,30 @@
 //! Implements DedicatedWorkerGlobalScope, SharedWorkerGlobalScope, and ServiceWorkerGlobalScope
 //! https://html.spec.whatwg.org/multipage/workers.html#the-workerglobalscope-common-interface
 
-use boa_engine::{
-    Context, JsResult, JsValue, JsNativeError, Source, JsArgs, js_string,
-    object::{JsObject, JsPromise},
-    builtins::BuiltInBuilder,
-    property::{PropertyDescriptorBuilder, Attribute},
+use crate::misc::structured_clone::{
+    StructuredCloneValue, TransferList, structured_clone, structured_deserialize,
 };
 use crate::worker::{
     worker_events::{WorkerEvent, dispatch_worker_event},
     worker_navigator::WorkerNavigator,
 };
-use crate::misc::structured_clone::{StructuredCloneValue, structured_clone, structured_deserialize, TransferList};
+use boa_engine::{
+    Context, JsArgs, JsNativeError, JsResult, JsValue, Source,
+    builtins::BuiltInBuilder,
+    js_string,
+    object::{JsObject, JsPromise},
+    property::{Attribute, PropertyDescriptorBuilder},
+};
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex};
-use crossbeam_channel::{Sender, Receiver, unbounded};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// Global registry for active worker scopes
-static WORKER_SCOPE_REGISTRY: OnceLock<Mutex<HashMap<usize, Arc<WorkerGlobalScope>>>> = OnceLock::new();
+static WORKER_SCOPE_REGISTRY: OnceLock<Mutex<HashMap<usize, Arc<WorkerGlobalScope>>>> =
+    OnceLock::new();
 
 /// Global counter for worker scope IDs
 static WORKER_SCOPE_ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
@@ -150,7 +154,12 @@ impl WorkerGlobalScope {
         let global = context.global_object();
 
         // Store the scope ID in the context for later retrieval
-        global.set(js_string!("__worker_scope_id__"), self.scope_id as f64, false, context)?;
+        global.set(
+            js_string!("__worker_scope_id__"),
+            self.scope_id as f64,
+            false,
+            context,
+        )?;
 
         // Add 'self' reference to global scope
         global.set(js_string!("self"), global.clone(), false, context)?;
@@ -203,11 +212,17 @@ impl WorkerGlobalScope {
         global.set(js_string!("close"), close_func, false, context)?;
 
         // Add importScripts function (for classic workers)
-        let import_scripts_func = BuiltInBuilder::callable(context.realm(), Self::import_scripts_impl)
-            .name(js_string!("importScripts"))
-            .build();
+        let import_scripts_func =
+            BuiltInBuilder::callable(context.realm(), Self::import_scripts_impl)
+                .name(js_string!("importScripts"))
+                .build();
 
-        global.set(js_string!("importScripts"), import_scripts_func, false, context)?;
+        global.set(
+            js_string!("importScripts"),
+            import_scripts_func,
+            false,
+            context,
+        )?;
 
         // Add WorkerLocation as 'location' property
         self.add_location_object(context)?;
@@ -265,7 +280,8 @@ impl WorkerGlobalScope {
                 event_obj.set(js_string!("cancelable"), false, false, context)?;
 
                 // Add ports array with the connecting port
-                let ports_array = boa_engine::builtins::array::Array::array_create(1, None, context)?;
+                let ports_array =
+                    boa_engine::builtins::array::Array::array_create(1, None, context)?;
                 ports_array.set(0, port_arg.clone(), true, context)?;
                 event_obj.set(js_string!("ports"), ports_array, false, context)?;
 
@@ -275,30 +291,42 @@ impl WorkerGlobalScope {
 
                 if !onconnect.is_null() && !onconnect.is_undefined() {
                     if let Some(handler) = onconnect.as_callable() {
-                        let _ = handler.call(&global.clone().into(), &[event_obj.clone().into()], context);
+                        let _ = handler.call(
+                            &global.clone().into(),
+                            &[event_obj.clone().into()],
+                            context,
+                        );
                     }
                 }
 
                 // Also dispatch to addEventListener listeners
                 // Try to get the EventTargetData from global scope
-                if let Some(target_data) = global.downcast_ref::<crate::events::event_target::EventTargetData>() {
+                if let Some(target_data) =
+                    global.downcast_ref::<crate::events::event_target::EventTargetData>()
+                {
                     let _ = target_data.dispatch_event(&event_obj, context);
                 } else {
                     // Fallback: dispatch via global dispatchEvent if available
                     let dispatch_event = global.get(js_string!("dispatchEvent"), context)?;
                     if let Some(dispatcher) = dispatch_event.as_callable() {
-                        let _ = dispatcher.call(&global.clone().into(), &[event_obj.into()], context);
+                        let _ =
+                            dispatcher.call(&global.clone().into(), &[event_obj.into()], context);
                     }
                 }
 
                 Ok(JsValue::undefined())
-            }
+            },
         )
         .name(js_string!("_dispatchConnect"))
         .build();
 
         // Store the dispatcher function for internal use (not exposed to JS)
-        global.set(js_string!("_dispatchConnect"), dispatch_connect, false, context)?;
+        global.set(
+            js_string!("_dispatchConnect"),
+            dispatch_connect,
+            false,
+            context,
+        )?;
 
         Ok(())
     }
@@ -317,21 +345,27 @@ impl WorkerGlobalScope {
         registration_obj.set(js_string!("installing"), JsValue::null(), false, context)?;
 
         // Add registration.update() method
-        let update_func = BuiltInBuilder::callable(context.realm(),
+        let update_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return a resolved promise for now
                 Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-            }
-        ).name(js_string!("update")).build();
+            },
+        )
+        .name(js_string!("update"))
+        .build();
         registration_obj.set(js_string!("update"), update_func, false, context)?;
 
         // Add registration.unregister() method
-        let unregister_func = BuiltInBuilder::callable(context.realm(),
+        let unregister_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return a resolved promise with true
                 Ok(JsPromise::resolve(JsValue::from(true), context)?.into())
-            }
-        ).name(js_string!("unregister")).build();
+            },
+        )
+        .name(js_string!("unregister"))
+        .build();
         registration_obj.set(js_string!("unregister"), unregister_func, false, context)?;
 
         global.set(js_string!("registration"), registration_obj, false, context)?;
@@ -340,40 +374,63 @@ impl WorkerGlobalScope {
         let clients_obj = JsObject::with_object_proto(context.intrinsics());
 
         // clients.get(id) - Get a client by ID
-        let clients_get_func = BuiltInBuilder::callable(context.realm(),
+        let clients_get_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return undefined (no client found) as resolved promise
                 Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-            }
-        ).name(js_string!("get")).build();
+            },
+        )
+        .name(js_string!("get"))
+        .build();
         clients_obj.set(js_string!("get"), clients_get_func, false, context)?;
 
         // clients.matchAll(options) - Get all matching clients
-        let clients_matchall_func = BuiltInBuilder::callable(context.realm(),
+        let clients_matchall_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return empty array as resolved promise
-                let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                let empty_array =
+                    boa_engine::builtins::array::Array::array_create(0, None, context)?;
                 Ok(JsPromise::resolve(empty_array, context)?.into())
-            }
-        ).name(js_string!("matchAll")).build();
-        clients_obj.set(js_string!("matchAll"), clients_matchall_func, false, context)?;
+            },
+        )
+        .name(js_string!("matchAll"))
+        .build();
+        clients_obj.set(
+            js_string!("matchAll"),
+            clients_matchall_func,
+            false,
+            context,
+        )?;
 
         // clients.claim() - Take control of all clients
-        let clients_claim_func = BuiltInBuilder::callable(context.realm(),
+        let clients_claim_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-            }
-        ).name(js_string!("claim")).build();
+            },
+        )
+        .name(js_string!("claim"))
+        .build();
         clients_obj.set(js_string!("claim"), clients_claim_func, false, context)?;
 
         // clients.openWindow(url) - Open a new window
-        let clients_openwindow_func = BuiltInBuilder::callable(context.realm(),
+        let clients_openwindow_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 // Return null (no window opened) as resolved promise
                 Ok(JsPromise::resolve(JsValue::null(), context)?.into())
-            }
-        ).name(js_string!("openWindow")).build();
-        clients_obj.set(js_string!("openWindow"), clients_openwindow_func, false, context)?;
+            },
+        )
+        .name(js_string!("openWindow"))
+        .build();
+        clients_obj.set(
+            js_string!("openWindow"),
+            clients_openwindow_func,
+            false,
+            context,
+        )?;
 
         global.set(js_string!("clients"), clients_obj, false, context)?;
 
@@ -381,119 +438,166 @@ impl WorkerGlobalScope {
         let caches_obj = JsObject::with_object_proto(context.intrinsics());
 
         // caches.open(cacheName) - Open a cache
-        let caches_open_func = BuiltInBuilder::callable(context.realm(),
+        let caches_open_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, args: &[JsValue], context: &mut Context| {
                 let cache_name = args.get_or_undefined(0).to_string(context)?;
 
                 // Create a stub Cache object
                 let cache_obj = JsObject::with_object_proto(context.intrinsics());
-                cache_obj.set(js_string!("name"), JsValue::from(cache_name), false, context)?;
+                cache_obj.set(
+                    js_string!("name"),
+                    JsValue::from(cache_name),
+                    false,
+                    context,
+                )?;
 
                 // Cache.match() method
-                let cache_match_func = BuiltInBuilder::callable(context.realm(),
+                let cache_match_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-                    }
-                ).name(js_string!("match")).build();
+                    },
+                )
+                .name(js_string!("match"))
+                .build();
                 cache_obj.set(js_string!("match"), cache_match_func, false, context)?;
 
                 // Cache.matchAll() method
-                let cache_matchall_func = BuiltInBuilder::callable(context.realm(),
+                let cache_matchall_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                        let empty_array =
+                            boa_engine::builtins::array::Array::array_create(0, None, context)?;
                         Ok(JsPromise::resolve(empty_array, context)?.into())
-                    }
-                ).name(js_string!("matchAll")).build();
+                    },
+                )
+                .name(js_string!("matchAll"))
+                .build();
                 cache_obj.set(js_string!("matchAll"), cache_matchall_func, false, context)?;
 
                 // Cache.add() method
-                let cache_add_func = BuiltInBuilder::callable(context.realm(),
+                let cache_add_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-                    }
-                ).name(js_string!("add")).build();
+                    },
+                )
+                .name(js_string!("add"))
+                .build();
                 cache_obj.set(js_string!("add"), cache_add_func, false, context)?;
 
                 // Cache.addAll() method
-                let cache_addall_func = BuiltInBuilder::callable(context.realm(),
+                let cache_addall_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-                    }
-                ).name(js_string!("addAll")).build();
+                    },
+                )
+                .name(js_string!("addAll"))
+                .build();
                 cache_obj.set(js_string!("addAll"), cache_addall_func, false, context)?;
 
                 // Cache.put() method
-                let cache_put_func = BuiltInBuilder::callable(context.realm(),
+                let cache_put_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-                    }
-                ).name(js_string!("put")).build();
+                    },
+                )
+                .name(js_string!("put"))
+                .build();
                 cache_obj.set(js_string!("put"), cache_put_func, false, context)?;
 
                 // Cache.delete() method
-                let cache_delete_func = BuiltInBuilder::callable(context.realm(),
+                let cache_delete_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                         Ok(JsPromise::resolve(JsValue::from(false), context)?.into())
-                    }
-                ).name(js_string!("delete")).build();
+                    },
+                )
+                .name(js_string!("delete"))
+                .build();
                 cache_obj.set(js_string!("delete"), cache_delete_func, false, context)?;
 
                 // Cache.keys() method
-                let cache_keys_func = BuiltInBuilder::callable(context.realm(),
+                let cache_keys_func = BuiltInBuilder::callable(
+                    context.realm(),
                     |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                        let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                        let empty_array =
+                            boa_engine::builtins::array::Array::array_create(0, None, context)?;
                         Ok(JsPromise::resolve(empty_array, context)?.into())
-                    }
-                ).name(js_string!("keys")).build();
+                    },
+                )
+                .name(js_string!("keys"))
+                .build();
                 cache_obj.set(js_string!("keys"), cache_keys_func, false, context)?;
 
                 Ok(JsPromise::resolve(cache_obj, context)?.into())
-            }
-        ).name(js_string!("open")).build();
+            },
+        )
+        .name(js_string!("open"))
+        .build();
         caches_obj.set(js_string!("open"), caches_open_func, false, context)?;
 
         // caches.match(request) - Search all caches
-        let caches_match_func = BuiltInBuilder::callable(context.realm(),
+        let caches_match_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-            }
-        ).name(js_string!("match")).build();
+            },
+        )
+        .name(js_string!("match"))
+        .build();
         caches_obj.set(js_string!("match"), caches_match_func, false, context)?;
 
         // caches.has(cacheName) - Check if cache exists
-        let caches_has_func = BuiltInBuilder::callable(context.realm(),
+        let caches_has_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 Ok(JsPromise::resolve(JsValue::from(false), context)?.into())
-            }
-        ).name(js_string!("has")).build();
+            },
+        )
+        .name(js_string!("has"))
+        .build();
         caches_obj.set(js_string!("has"), caches_has_func, false, context)?;
 
         // caches.delete(cacheName) - Delete a cache
-        let caches_delete_func = BuiltInBuilder::callable(context.realm(),
+        let caches_delete_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 Ok(JsPromise::resolve(JsValue::from(false), context)?.into())
-            }
-        ).name(js_string!("delete")).build();
+            },
+        )
+        .name(js_string!("delete"))
+        .build();
         caches_obj.set(js_string!("delete"), caches_delete_func, false, context)?;
 
         // caches.keys() - List all cache names
-        let caches_keys_func = BuiltInBuilder::callable(context.realm(),
+        let caches_keys_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
-                let empty_array = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+                let empty_array =
+                    boa_engine::builtins::array::Array::array_create(0, None, context)?;
                 Ok(JsPromise::resolve(empty_array, context)?.into())
-            }
-        ).name(js_string!("keys")).build();
+            },
+        )
+        .name(js_string!("keys"))
+        .build();
         caches_obj.set(js_string!("keys"), caches_keys_func, false, context)?;
 
         global.set(js_string!("caches"), caches_obj, false, context)?;
 
         // Add skipWaiting() function
-        let skip_waiting_func = BuiltInBuilder::callable(context.realm(),
+        let skip_waiting_func = BuiltInBuilder::callable(
+            context.realm(),
             |_this: &JsValue, _args: &[JsValue], context: &mut Context| {
                 eprintln!("ServiceWorker: skipWaiting() called");
                 Ok(JsPromise::resolve(JsValue::undefined(), context)?.into())
-            }
-        ).name(js_string!("skipWaiting")).build();
+            },
+        )
+        .name(js_string!("skipWaiting"))
+        .build();
         global.set(js_string!("skipWaiting"), skip_waiting_func, false, context)?;
 
         // Add event handler properties
@@ -555,12 +659,16 @@ impl WorkerGlobalScope {
                         let bytes = input.to_std_string_escaped().into_bytes();
 
                         // Create Uint8Array - simplified implementation
-                        let array = boa_engine::builtins::array::Array::array_create(bytes.len() as u64, None, context)?;
+                        let array = boa_engine::builtins::array::Array::array_create(
+                            bytes.len() as u64,
+                            None,
+                            context,
+                        )?;
                         for (i, byte) in bytes.iter().enumerate() {
                             array.set(i, JsValue::from(*byte), true, context)?;
                         }
                         Ok(array.into())
-                    }
+                    },
                 )
                 .name(js_string!("encode"))
                 .length(1)
@@ -568,7 +676,7 @@ impl WorkerGlobalScope {
 
                 encoder_obj.set(js_string!("encode"), encode_func, false, context)?;
                 Ok(encoder_obj.into())
-            }
+            },
         )
         .name(js_string!("TextEncoder"))
         .length(0)
@@ -595,7 +703,7 @@ impl WorkerGlobalScope {
                         } else {
                             Ok(js_string!("").into())
                         }
-                    }
+                    },
                 )
                 .name(js_string!("decode"))
                 .length(1)
@@ -603,7 +711,7 @@ impl WorkerGlobalScope {
 
                 decoder_obj.set(js_string!("decode"), decode_func, false, context)?;
                 Ok(decoder_obj.into())
-            }
+            },
         )
         .name(js_string!("TextDecoder"))
         .length(0)
@@ -623,10 +731,12 @@ impl WorkerGlobalScope {
             context.realm(),
             |_this: &JsValue, args: &[JsValue], context: &mut Context| {
                 let input = args.get_or_undefined(0).to_string(context)?;
-                let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD,
-                    input.to_std_string_escaped().as_bytes());
+                let encoded = base64::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    input.to_std_string_escaped().as_bytes(),
+                );
                 Ok(js_string!(encoded).into())
-            }
+            },
         )
         .name(js_string!("btoa"))
         .length(1)
@@ -639,17 +749,19 @@ impl WorkerGlobalScope {
             context.realm(),
             |_this: &JsValue, args: &[JsValue], context: &mut Context| {
                 let input = args.get_or_undefined(0).to_string(context)?;
-                match base64::Engine::decode(&base64::engine::general_purpose::STANDARD,
-                    input.to_std_string_escaped().as_bytes()) {
+                match base64::Engine::decode(
+                    &base64::engine::general_purpose::STANDARD,
+                    input.to_std_string_escaped().as_bytes(),
+                ) {
                     Ok(decoded) => {
                         let s = String::from_utf8_lossy(&decoded);
                         Ok(js_string!(s.to_string()).into())
                     }
                     Err(_) => Err(JsNativeError::typ()
                         .with_message("Invalid base64 string")
-                        .into())
+                        .into()),
                 }
-            }
+            },
         )
         .name(js_string!("atob"))
         .length(1)
@@ -671,16 +783,22 @@ impl WorkerGlobalScope {
 
                 // Use our structured clone implementation
                 let cloned = crate::misc::structured_clone::structured_clone(value, context, None)?;
-                let deserialized = crate::misc::structured_clone::structured_deserialize(&cloned, context)?;
+                let deserialized =
+                    crate::misc::structured_clone::structured_deserialize(&cloned, context)?;
 
                 Ok(deserialized)
-            }
+            },
         )
         .name(js_string!("structuredClone"))
         .length(1)
         .build();
 
-        global.set(js_string!("structuredClone"), structured_clone_func, false, context)?;
+        global.set(
+            js_string!("structuredClone"),
+            structured_clone_func,
+            false,
+            context,
+        )?;
 
         Ok(())
     }
@@ -710,13 +828,18 @@ impl WorkerGlobalScope {
                 }
 
                 Ok(JsValue::undefined())
-            }
+            },
         )
         .name(js_string!("queueMicrotask"))
         .length(1)
         .build();
 
-        global.set(js_string!("queueMicrotask"), queue_microtask_func, false, context)?;
+        global.set(
+            js_string!("queueMicrotask"),
+            queue_microtask_func,
+            false,
+            context,
+        )?;
 
         Ok(())
     }
@@ -726,17 +849,64 @@ impl WorkerGlobalScope {
         let location_obj = JsObject::with_object_proto(context.intrinsics());
 
         // Add location properties
-        location_obj.set(js_string!("href"), js_string!(self.location.href.clone()), false, context)?;
-        location_obj.set(js_string!("origin"), js_string!(self.location.origin.clone()), false, context)?;
-        location_obj.set(js_string!("protocol"), js_string!(self.location.protocol.clone()), false, context)?;
-        location_obj.set(js_string!("host"), js_string!(self.location.host.clone()), false, context)?;
-        location_obj.set(js_string!("hostname"), js_string!(self.location.hostname.clone()), false, context)?;
-        location_obj.set(js_string!("port"), js_string!(self.location.port.clone()), false, context)?;
-        location_obj.set(js_string!("pathname"), js_string!(self.location.pathname.clone()), false, context)?;
-        location_obj.set(js_string!("search"), js_string!(self.location.search.clone()), false, context)?;
-        location_obj.set(js_string!("hash"), js_string!(self.location.hash.clone()), false, context)?;
+        location_obj.set(
+            js_string!("href"),
+            js_string!(self.location.href.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("origin"),
+            js_string!(self.location.origin.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("protocol"),
+            js_string!(self.location.protocol.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("host"),
+            js_string!(self.location.host.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("hostname"),
+            js_string!(self.location.hostname.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("port"),
+            js_string!(self.location.port.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("pathname"),
+            js_string!(self.location.pathname.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("search"),
+            js_string!(self.location.search.clone()),
+            false,
+            context,
+        )?;
+        location_obj.set(
+            js_string!("hash"),
+            js_string!(self.location.hash.clone()),
+            false,
+            context,
+        )?;
 
-        context.global_object().set(js_string!("location"), location_obj, false, context)?;
+        context
+            .global_object()
+            .set(js_string!("location"), location_obj, false, context)?;
         Ok(())
     }
 
@@ -746,7 +916,9 @@ impl WorkerGlobalScope {
         let navigator_obj = WorkerNavigator::create(context)?;
 
         // Add navigator object to global scope
-        context.global_object().set(js_string!("navigator"), navigator_obj, false, context)?;
+        context
+            .global_object()
+            .set(js_string!("navigator"), navigator_obj, false, context)?;
         Ok(())
     }
 
@@ -759,7 +931,10 @@ impl WorkerGlobalScope {
                 .into());
         }
 
-        eprintln!("Executing script in worker global scope ({:?})", self.scope_type);
+        eprintln!(
+            "Executing script in worker global scope ({:?})",
+            self.scope_type
+        );
 
         // Execute the script
         let source = Source::from_bytes(script_content);
@@ -767,7 +942,10 @@ impl WorkerGlobalScope {
 
         match &result {
             Ok(value) => {
-                eprintln!("Worker script executed successfully, result: {:?}", value.get_type());
+                eprintln!(
+                    "Worker script executed successfully, result: {:?}",
+                    value.get_type()
+                );
             }
             Err(e) => {
                 eprintln!("Worker script execution error: {:?}", e);
@@ -788,7 +966,11 @@ impl WorkerGlobalScope {
     }
 
     /// Dispatch a message event in the worker
-    fn dispatch_message_event(&self, context: &mut Context, message: WorkerMessage) -> JsResult<()> {
+    fn dispatch_message_event(
+        &self,
+        context: &mut Context,
+        message: WorkerMessage,
+    ) -> JsResult<()> {
         let global = context.global_object();
 
         // Deserialize the structured clone back to JsValue
@@ -810,7 +992,7 @@ impl WorkerGlobalScope {
             let ports_array = boa_engine::builtins::array::Array::array_create(
                 message.ports.len() as u64,
                 None,
-                context
+                context,
             )?;
 
             for (i, port_id) in message.ports.iter().enumerate() {
@@ -818,7 +1000,12 @@ impl WorkerGlobalScope {
                 // In a full implementation, this would be a proper MessagePort
                 // connected to its entangled pair across the thread boundary
                 let port_obj = JsObject::with_object_proto(context.intrinsics());
-                port_obj.set(js_string!("id"), js_string!(port_id.clone()), false, context)?;
+                port_obj.set(
+                    js_string!("id"),
+                    js_string!(port_id.clone()),
+                    false,
+                    context,
+                )?;
                 ports_array.set(i, port_obj, false, context)?;
             }
 
@@ -840,7 +1027,11 @@ impl WorkerGlobalScope {
         if let Ok(onmessage) = global.get(js_string!("onmessage"), context) {
             if onmessage.is_callable() {
                 if let Some(func) = onmessage.as_callable() {
-                    let _ = func.call(&JsValue::from(global.clone()), &[JsValue::from(message_event)], context);
+                    let _ = func.call(
+                        &JsValue::from(global.clone()),
+                        &[JsValue::from(message_event)],
+                        context,
+                    );
                 }
             }
         }
@@ -945,11 +1136,7 @@ impl WorkerGlobalScope {
     /// The close() method sets the worker's closing flag to true.
     /// This prevents new tasks from being queued, and existing tasks
     /// will complete before the worker terminates.
-    fn close_impl(
-        _this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn close_impl(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         eprintln!("Worker close() called - setting closing flag");
 
         // Get the current worker scope and set its closing flag
@@ -989,7 +1176,8 @@ impl WorkerGlobalScope {
         };
 
         // Convert all arguments to URLs
-        let urls: Vec<String> = args.iter()
+        let urls: Vec<String> = args
+            .iter()
             .map(|arg| arg.to_string(context).map(|s| s.to_std_string_escaped()))
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -1008,7 +1196,12 @@ impl WorkerLocation {
         use url::Url;
 
         // Handle empty strings or inline scripts - use default location
-        if url_str.is_empty() || (!url_str.starts_with("http://") && !url_str.starts_with("https://") && !url_str.starts_with("data:") && !url_str.starts_with("blob:")) {
+        if url_str.is_empty()
+            || (!url_str.starts_with("http://")
+                && !url_str.starts_with("https://")
+                && !url_str.starts_with("data:")
+                && !url_str.starts_with("blob:"))
+        {
             return Ok(Self {
                 href: "about:blank".to_string(),
                 origin: "null".to_string(),
@@ -1022,9 +1215,8 @@ impl WorkerLocation {
             });
         }
 
-        let url = Url::parse(url_str).map_err(|_| {
-            JsNativeError::typ().with_message(format!("Invalid URL: {}", url_str))
-        })?;
+        let url = Url::parse(url_str)
+            .map_err(|_| JsNativeError::typ().with_message(format!("Invalid URL: {}", url_str)))?;
 
         Ok(Self {
             href: url.as_str().to_string(),
@@ -1034,8 +1226,12 @@ impl WorkerLocation {
             hostname: url.host_str().unwrap_or("").to_string(),
             port: url.port().map_or_else(|| "".to_string(), |p| p.to_string()),
             pathname: url.path().to_string(),
-            search: url.query().map_or_else(|| "".to_string(), |q| format!("?{}", q)),
-            hash: url.fragment().map_or_else(|| "".to_string(), |f| format!("#{}", f)),
+            search: url
+                .query()
+                .map_or_else(|| "".to_string(), |q| format!("?{}", q)),
+            hash: url
+                .fragment()
+                .map_or_else(|| "".to_string(), |f| format!("#{}", f)),
         })
     }
 }

@@ -2,9 +2,9 @@
 //!
 //! Transform feedback and uniform buffer operations for WebGL2.
 
-use boa_engine::{js_string, Context, JsArgs, JsObject, JsValue, NativeFunction};
+use boa_engine::{Context, JsArgs, JsObject, JsValue, NativeFunction, js_string};
 
-use super::context2::{get_object_id, WebGLTransformFeedback};
+use super::context2::{WebGLTransformFeedback, get_object_id};
 use crate::with_webgl2_context;
 
 /// Add transform feedback methods
@@ -32,7 +32,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteTransformFeedback
     obj.set(
@@ -47,7 +48,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindTransformFeedback
     obj.set(
@@ -67,7 +69,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // beginTransformFeedback
     obj.set(
@@ -87,7 +90,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // endTransformFeedback
     obj.set(
@@ -106,7 +110,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // pauseTransformFeedback
     obj.set(
@@ -125,7 +130,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // resumeTransformFeedback
     obj.set(
@@ -144,7 +150,8 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add uniform buffer methods
@@ -159,18 +166,18 @@ pub fn add_uniform_buffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // uniformBlockBinding
     obj.set(
         js_string!("uniformBlockBinding"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindBufferBase
     obj.set(
@@ -185,13 +192,17 @@ pub fn add_uniform_buffer_methods(obj: &JsObject, context: &mut Context) {
                 Some(get_object_id(args.get_or_undefined(2), ctx)?)
             };
 
-            data.uniform_buffer_bindings.lock().unwrap().insert(index, buffer_id);
+            data.uniform_buffer_bindings
+                .lock()
+                .unwrap()
+                .insert(index, buffer_id);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindBufferRange
     obj.set(
@@ -206,11 +217,15 @@ pub fn add_uniform_buffer_methods(obj: &JsObject, context: &mut Context) {
                 Some(get_object_id(args.get_or_undefined(2), ctx)?)
             };
 
-            data.uniform_buffer_bindings.lock().unwrap().insert(index, buffer_id);
+            data.uniform_buffer_bindings
+                .lock()
+                .unwrap()
+                .insert(index, buffer_id);
             Ok(JsValue::undefined())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

@@ -1,10 +1,7 @@
 //! Lock information structures for query() method.
 
-use boa_engine::{
-    object::ObjectInitializer,
-    Context, JsResult, JsValue, js_string,
-};
 use super::lock::LockMode;
+use boa_engine::{Context, JsResult, JsValue, js_string, object::ObjectInitializer};
 
 /// Information about a lock (held or pending).
 #[derive(Debug, Clone)]

@@ -81,10 +81,7 @@ impl MemoryBackend {
     }
 
     /// Get object store
-    fn get_store<'a>(
-        db: &'a MemoryDatabase,
-        store: &str,
-    ) -> Result<&'a MemoryObjectStore, String> {
+    fn get_store<'a>(db: &'a MemoryDatabase, store: &str) -> Result<&'a MemoryObjectStore, String> {
         db.object_stores
             .get(store)
             .ok_or_else(|| format!("Object store '{}' not found", store))
@@ -182,7 +179,11 @@ impl StorageBackend for MemoryBackend {
         Ok(())
     }
 
-    fn get_object_store_metadata(&self, db: &str, store: &str) -> Result<ObjectStoreMetadata, String> {
+    fn get_object_store_metadata(
+        &self,
+        db: &str,
+        store: &str,
+    ) -> Result<ObjectStoreMetadata, String> {
         let database = self.get_db(db)?;
         let obj_store = Self::get_store(database, store)?;
 
@@ -575,7 +576,11 @@ impl StorageBackend for MemoryBackend {
         Ok(count)
     }
 
-    fn begin_transaction(&mut self, stores: &[String], mode: TransactionMode) -> Result<TransactionHandle, String> {
+    fn begin_transaction(
+        &mut self,
+        stores: &[String],
+        mode: TransactionMode,
+    ) -> Result<TransactionHandle, String> {
         let transaction_id = self.transaction_counter.fetch_add(1, Ordering::SeqCst);
 
         let handle = TransactionHandle {
@@ -584,7 +589,8 @@ impl StorageBackend for MemoryBackend {
             stores: stores.to_vec(),
         };
 
-        self.active_transactions.insert(transaction_id, handle.clone());
+        self.active_transactions
+            .insert(transaction_id, handle.clone());
 
         Ok(handle)
     }

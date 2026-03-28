@@ -3,13 +3,12 @@
 //! Texture and framebuffer creation and manipulation operations.
 
 use boa_engine::{
-    js_string,
+    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
     object::builtins::JsArrayBuffer,
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
 };
 
 use super::buffer::{WebGLFramebuffer, WebGLRenderbuffer};
-use super::context::{get_object_id, WebGLRenderingContextData};
+use super::context::{WebGLRenderingContextData, get_object_id};
 use super::state::WebGLConstants;
 use super::texture::WebGLTexture;
 use crate::with_webgl_context;
@@ -32,7 +31,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindTexture
     obj.set(
@@ -72,7 +72,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // activeTexture
     obj.set(
@@ -87,7 +88,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // texImage2D
     obj.set(
@@ -107,18 +109,26 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
             let pixels = args.get_or_undefined(8);
             let pixel_data: Option<Vec<u8>> = if pixels.is_null() || pixels.is_undefined() {
                 None
-            } else if let Some(array_buffer) = pixels.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
+            } else if let Some(array_buffer) = pixels
+                .as_object()
+                .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+            {
                 let data_ref = array_buffer.data().expect("ArrayBuffer has no data");
                 Some((*data_ref).to_vec())
             } else if let Some(obj) = pixels.as_object() {
                 // Try typed array
                 if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx) {
-                    if let Some(ab) = buffer_prop.as_object().and_then(|o| JsArrayBuffer::from_object(o.clone()).ok()) {
-                        let byte_offset = obj.get(js_string!("byteOffset"), ctx)
+                    if let Some(ab) = buffer_prop
+                        .as_object()
+                        .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+                    {
+                        let byte_offset = obj
+                            .get(js_string!("byteOffset"), ctx)
                             .ok()
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
-                        let byte_length = obj.get(js_string!("byteLength"), ctx)
+                        let byte_length = obj
+                            .get(js_string!("byteLength"), ctx)
                             .ok()
                             .and_then(|v| v.to_index(ctx).ok())
                             .unwrap_or(0) as usize;
@@ -186,7 +196,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // texParameteri
     obj.set(
@@ -218,7 +229,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // generateMipmap
     obj.set(
@@ -248,7 +260,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteTexture
     obj.set(
@@ -265,7 +278,8 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add framebuffer methods
@@ -287,7 +301,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindFramebuffer
     obj.set(
@@ -307,7 +322,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // checkFramebufferStatus
     obj.set(
@@ -329,7 +345,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // framebufferTexture2D
     obj.set(
@@ -362,7 +379,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // createRenderbuffer
     obj.set(
@@ -381,7 +399,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindRenderbuffer
     obj.set(
@@ -401,7 +420,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // renderbufferStorage
     obj.set(
@@ -426,7 +446,8 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // framebufferRenderbuffer
     obj.set(
@@ -451,5 +472,6 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

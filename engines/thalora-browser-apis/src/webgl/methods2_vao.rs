@@ -2,10 +2,10 @@
 //!
 //! Vertex Array Object, buffer, and texture operations for WebGL2.
 
-use boa_engine::{js_string, Context, JsArgs, JsObject, JsValue, NativeFunction};
+use boa_engine::{Context, JsArgs, JsObject, JsValue, NativeFunction, js_string};
 
 use super::buffer::VertexAttribArray;
-use super::context2::{get_object_id, WebGLVertexArrayObject, MAX_VERTEX_ATTRIBS};
+use super::context2::{MAX_VERTEX_ATTRIBS, WebGLVertexArrayObject, get_object_id};
 use crate::with_webgl2_context;
 
 /// Add VAO methods
@@ -33,7 +33,8 @@ pub fn add_vao_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindVertexArray
     obj.set(
@@ -52,7 +53,8 @@ pub fn add_vao_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteVertexArray
     obj.set(
@@ -74,7 +76,8 @@ pub fn add_vao_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // isVertexArray
     obj.set(
@@ -83,13 +86,18 @@ pub fn add_vao_methods(obj: &JsObject, context: &mut Context) {
             with_webgl2_context!(this => _ctx_obj, data);
             let vao_id = get_object_id(args.get_or_undefined(0), ctx)?;
 
-            let exists = data.vertex_array_objects.lock().unwrap().contains_key(&vao_id);
+            let exists = data
+                .vertex_array_objects
+                .lock()
+                .unwrap()
+                .contains_key(&vao_id);
             Ok(JsValue::from(exists))
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add WebGL2 buffer methods
@@ -104,7 +112,8 @@ pub fn add_buffer2_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getBufferSubData
     obj.set(
@@ -116,7 +125,8 @@ pub fn add_buffer2_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add WebGL2 texture methods
@@ -131,49 +141,46 @@ pub fn add_texture2_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // texSubImage3D
     obj.set(
         js_string!("texSubImage3D"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // compressedTexImage3D
     obj.set(
         js_string!("compressedTexImage3D"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // texStorage2D
     obj.set(
         js_string!("texStorage2D"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // texStorage3D
     obj.set(
         js_string!("texStorage3D"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

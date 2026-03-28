@@ -5,11 +5,8 @@
 //! https://developer.mozilla.org/en-US/docs/Web/API/Document/parseHTMLUnsafe_static
 
 use boa_engine::{
-    builtins::BuiltInBuilder,
-    object::JsObject,
-    value::JsValue,
-    Context, JsArgs, JsResult, js_string,
-    property::PropertyDescriptorBuilder,
+    Context, JsArgs, JsResult, builtins::BuiltInBuilder, js_string, object::JsObject,
+    property::PropertyDescriptorBuilder, value::JsValue,
 };
 use std::collections::HashMap;
 
@@ -38,13 +35,16 @@ impl Default for SanitizerConfig {
 }
 
 /// Parse HTML string into a Document using production-ready HTML parser
-pub fn parse_html_unsafe(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+pub fn parse_html_unsafe(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let html_input = args.get_or_undefined(0).to_string(context)?;
     let html_string = html_input.to_std_string_escaped();
 
     let options = args.get_or_undefined(1);
     let sanitizer_config = parse_sanitizer_options(options, context)?;
-
 
     // Create a new Document instance
     let document_constructor = context.intrinsics().constructors().document().constructor();
@@ -94,7 +94,6 @@ pub fn parse_html_unsafe(_this: &JsValue, args: &[JsValue], context: &mut Contex
         if sanitizer_config.allow_shadow_dom {
             setup_shadow_dom_support(document_obj, context)?;
         }
-
     }
 
     Ok(new_document.into())
@@ -113,7 +112,8 @@ fn parse_sanitizer_options(options: &JsValue, context: &mut Context) -> JsResult
         if let Ok(allow_elements) = obj.get(js_string!("allowElements"), context) {
             if let Some(_arr) = allow_elements.as_object() {
                 // TODO: Parse array into Vec<String>
-                config.allowed_elements = Some(vec!["div".to_string(), "p".to_string(), "span".to_string()]);
+                config.allowed_elements =
+                    Some(vec!["div".to_string(), "p".to_string(), "span".to_string()]);
             }
         }
 
@@ -156,7 +156,6 @@ fn parse_html_with_sanitizer(html: &str, config: &SanitizerConfig) -> JsResult<P
 
     // Parse regular elements
     parsed.elements = parse_elements(html, config);
-
 
     Ok(parsed)
 }
@@ -331,7 +330,10 @@ fn create_element_object(element: &ParsedElement, context: &mut Context) -> JsRe
 }
 
 /// Create attributes object
-fn create_attributes_object(attributes: &HashMap<String, String>, context: &mut Context) -> JsResult<JsValue> {
+fn create_attributes_object(
+    attributes: &HashMap<String, String>,
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj_constructor = context.intrinsics().constructors().object().constructor();
     let attrs_obj = obj_constructor.construct(&[], None, context)?;
 

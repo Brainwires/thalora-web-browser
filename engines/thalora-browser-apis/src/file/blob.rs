@@ -5,21 +5,24 @@
 //!
 //! This implements the complete Blob interface with real binary data handling
 
-
-use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, promise::PromiseCapability},
-    object::JsObject,
-    value::{JsValue, IntegerOrInfinity},
-    Context, JsResult, js_string, JsNativeError, JsArgs,
-    realm::Realm, JsString, JsData,
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    property::Attribute
-};
 use crate::streams::readable_stream::{ReadableStreamData, StreamState};
+use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{
+        BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject,
+        promise::PromiseCapability,
+    },
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::JsObject,
+    property::Attribute,
+    realm::Realm,
+    value::{IntegerOrInfinity, JsValue},
+};
 use boa_gc::{Finalize, Trace};
-use std::sync::Arc;
-use std::{thread, sync::mpsc};
 use std::collections::VecDeque;
+use std::sync::Arc;
+use std::{sync::mpsc, thread};
 
 /// Simple start function for blob streams
 fn start_stream(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
@@ -34,7 +37,11 @@ fn pull_stream(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 /// Simple cancel function for blob streams
 fn cancel_stream(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let promise_constructor = context.intrinsics().constructors().promise().constructor();
-    boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[JsValue::undefined()], context)
+    boa_engine::builtins::promise::Promise::resolve(
+        &promise_constructor.into(),
+        &[JsValue::undefined()],
+        context,
+    )
 }
 
 /// Normalize line endings to the native platform format
@@ -186,7 +193,7 @@ impl BlobReadableStreamData {
         let chunk_data = &self.blob_data[self.position..end_pos];
 
         // Create a Uint8Array for the chunk with actual data
-        use boa_engine::object::builtins::{JsUint8Array, JsArrayBuffer, AlignedVec};
+        use boa_engine::object::builtins::{AlignedVec, JsArrayBuffer, JsUint8Array};
 
         // Create an AlignedVec from the chunk data (required by JsArrayBuffer)
         let aligned_data = AlignedVec::<u8>::from_iter(0, chunk_data.iter().copied());
@@ -233,13 +240,15 @@ impl IntrinsicObject for Blob {
                 js_string!("size"),
                 Some(get_size),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("type"),
                 Some(get_type),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .build();
     }
@@ -353,13 +362,13 @@ impl BuiltInConstructor for Blob {
 impl Blob {
     /// `Blob.prototype.slice(start, end, contentType)`
     fn slice(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let blob_obj = _this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("slice called on non-object")
-        })?;
+        let blob_obj = _this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("slice called on non-object"))?;
 
-        let blob_data = blob_obj.downcast_ref::<BlobData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("slice called on non-Blob object")
-        })?;
+        let blob_data = blob_obj
+            .downcast_ref::<BlobData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("slice called on non-Blob object"))?;
 
         let data_len = blob_data.size();
 
@@ -370,9 +379,7 @@ impl Blob {
             } else {
                 let start_int = start_val.to_integer_or_infinity(context)?;
                 match start_int {
-                    IntegerOrInfinity::Integer(i) if i < 0 => {
-                        (data_len as i64 + i).max(0) as usize
-                    }
+                    IntegerOrInfinity::Integer(i) if i < 0 => (data_len as i64 + i).max(0) as usize,
                     IntegerOrInfinity::Integer(i) => (i as usize).min(data_len),
                     IntegerOrInfinity::NegativeInfinity => 0,
                     IntegerOrInfinity::PositiveInfinity => data_len,
@@ -389,9 +396,7 @@ impl Blob {
             } else {
                 let end_int = end_val.to_integer_or_infinity(context)?;
                 match end_int {
-                    IntegerOrInfinity::Integer(i) if i < 0 => {
-                        (data_len as i64 + i).max(0) as usize
-                    }
+                    IntegerOrInfinity::Integer(i) if i < 0 => (data_len as i64 + i).max(0) as usize,
                     IntegerOrInfinity::Integer(i) => (i as usize).min(data_len),
                     IntegerOrInfinity::NegativeInfinity => 0,
                     IntegerOrInfinity::PositiveInfinity => data_len,
@@ -438,13 +443,13 @@ impl Blob {
 
     /// `Blob.prototype.stream()`
     fn stream(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let blob_obj = _this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("stream called on non-object")
-        })?;
+        let blob_obj = _this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("stream called on non-object"))?;
 
-        let blob_data = blob_obj.downcast_ref::<BlobData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("stream called on non-Blob object")
-        })?;
+        let blob_data = blob_obj
+            .downcast_ref::<BlobData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("stream called on non-Blob object"))?;
 
         // Create custom underlying source object for advanced streaming
         let underlying_source = Self::create_blob_underlying_source(blob_data.data(), context)?;
@@ -464,7 +469,10 @@ impl Blob {
     }
 
     /// Create a custom underlying source for blob streaming
-    fn create_blob_underlying_source(_blob_data: &Arc<Vec<u8>>, context: &mut Context) -> JsResult<JsValue> {
+    fn create_blob_underlying_source(
+        _blob_data: &Arc<Vec<u8>>,
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let underlying_source = JsObject::with_object_proto(context.intrinsics());
 
         // Create simple start function
@@ -498,24 +506,33 @@ impl Blob {
         // Set high water mark for optimal blob streaming
         // Higher values allow more chunks to be buffered, reducing backpressure
         let high_water_mark = 16; // Allow up to 16 chunks (16 * 64KB = 1MB buffer)
-        queuing_strategy.set(js_string!("highWaterMark"), JsValue::from(high_water_mark), false, context)?;
+        queuing_strategy.set(
+            js_string!("highWaterMark"),
+            JsValue::from(high_water_mark),
+            false,
+            context,
+        )?;
 
         // Set size function to calculate chunk size for backpressure
-        let size_fn = BuiltInBuilder::callable(context.realm(), |_this: &JsValue, args: &[JsValue], _ctx: &mut Context| {
-            // Return the size of the chunk for backpressure calculation
-            if let Some(chunk) = args.get(0) {
-                if let Some(chunk_obj) = chunk.as_object() {
-                    // For Uint8Array, return its byteLength
-                    if let Ok(byte_length) = chunk_obj.get(js_string!("byteLength"), _ctx) {
-                        return Ok(byte_length);
+        let size_fn = BuiltInBuilder::callable(
+            context.realm(),
+            |_this: &JsValue, args: &[JsValue], _ctx: &mut Context| {
+                // Return the size of the chunk for backpressure calculation
+                if let Some(chunk) = args.get(0) {
+                    if let Some(chunk_obj) = chunk.as_object() {
+                        // For Uint8Array, return its byteLength
+                        if let Ok(byte_length) = chunk_obj.get(js_string!("byteLength"), _ctx) {
+                            return Ok(byte_length);
+                        }
                     }
+                    // Default to 1 for non-array chunks
+                    Ok(JsValue::from(1))
+                } else {
+                    Ok(JsValue::from(0))
                 }
-                // Default to 1 for non-array chunks
-                Ok(JsValue::from(1))
-            } else {
-                Ok(JsValue::from(0))
-            }
-        }).build();
+            },
+        )
+        .build();
 
         queuing_strategy.set(js_string!("size"), size_fn, false, context)?;
 
@@ -524,13 +541,13 @@ impl Blob {
 
     /// `Blob.prototype.text()`
     fn text(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let blob_obj = _this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("text called on non-object")
-        })?;
+        let blob_obj = _this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("text called on non-object"))?;
 
-        let blob_data = blob_obj.downcast_ref::<BlobData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("text called on non-Blob object")
-        })?;
+        let blob_data = blob_obj
+            .downcast_ref::<BlobData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("text called on non-Blob object"))?;
 
         // Convert bytes to UTF-8 string
         let text = String::from_utf8_lossy(blob_data.data());
@@ -538,14 +555,22 @@ impl Blob {
 
         // Return a resolved Promise with the text
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[text_value], context)
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[text_value],
+            context,
+        )
     }
 
     /// `Blob.prototype.arrayBuffer()`
-    fn array_buffer(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let blob_obj = _this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("arrayBuffer called on non-object")
-        })?;
+    fn array_buffer(
+        _this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let blob_obj = _this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("arrayBuffer called on non-object"))?;
 
         let blob_data = blob_obj.downcast_ref::<BlobData>().ok_or_else(|| {
             JsNativeError::typ().with_message("arrayBuffer called on non-Blob object")
@@ -562,16 +587,23 @@ impl Blob {
 
         // Return resolved promise with ArrayBuffer
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
-        boa_engine::builtins::promise::Promise::resolve(&promise_constructor.into(), &[buffer_obj.into()], context)
+        boa_engine::builtins::promise::Promise::resolve(
+            &promise_constructor.into(),
+            &[buffer_obj.into()],
+            context,
+        )
     }
-
 }
 
 /// `get Blob.prototype.size`
-pub(crate) fn get_size(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let blob_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("size getter called on non-object")
-    })?;
+pub(crate) fn get_size(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let blob_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("size getter called on non-object"))?;
 
     let blob_data = blob_obj.downcast_ref::<BlobData>().ok_or_else(|| {
         JsNativeError::typ().with_message("size getter called on non-Blob object")
@@ -581,10 +613,14 @@ pub(crate) fn get_size(this: &JsValue, _args: &[JsValue], _context: &mut Context
 }
 
 /// `get Blob.prototype.type`
-pub(crate) fn get_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let blob_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("type getter called on non-object")
-    })?;
+pub(crate) fn get_type(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let blob_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("type getter called on non-object"))?;
 
     let blob_data = blob_obj.downcast_ref::<BlobData>().ok_or_else(|| {
         JsNativeError::typ().with_message("type getter called on non-Blob object")

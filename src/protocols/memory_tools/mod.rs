@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{MAX_QUERY_LENGTH, limit_input_length};
 
 // Submodules

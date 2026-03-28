@@ -5,16 +5,16 @@
 //!
 //! This implements the File interface which inherits from Blob
 
-
-use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
-    object::JsObject,
-    value::JsValue,
-    Context, JsResult, js_string, JsNativeError,
-    realm::Realm, JsString, JsData,
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors}
-};
 use crate::file::blob::BlobData;
+use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::JsObject,
+    realm::Realm,
+    value::JsValue,
+};
 use boa_gc::{Finalize, Trace};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -105,39 +105,42 @@ impl IntrinsicObject for File {
             .method(Self::text, js_string!("text"), 0)
             .method(Self::array_buffer, js_string!("arrayBuffer"), 0)
             .method(Self::bytes, js_string!("bytes"), 0)
-
             // File-specific properties
             .accessor(
                 js_string!("name"),
                 Some(get_name),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("lastModified"),
                 Some(get_last_modified),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("webkitRelativePath"),
                 Some(get_webkit_relative_path),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
-
             // Inherited Blob properties
             .accessor(
                 js_string!("size"),
                 Some(get_size),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("type"),
                 Some(get_type),
                 None,
-                boa_engine::property::Attribute::ENUMERABLE | boa_engine::property::Attribute::CONFIGURABLE,
+                boa_engine::property::Attribute::ENUMERABLE
+                    | boa_engine::property::Attribute::CONFIGURABLE,
             )
             .build();
     }
@@ -282,13 +285,13 @@ impl File {
     /// `File.prototype.slice(start, end, contentType)` - inherits from Blob
     fn slice(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         // Delegate to blob slice implementation but return a new File
-        let file_obj = _this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("slice called on non-object")
-        })?;
+        let file_obj = _this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("slice called on non-object"))?;
 
-        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("slice called on non-File object")
-        })?;
+        let file_data = file_obj
+            .downcast_ref::<FileData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("slice called on non-File object"))?;
 
         // Use blob slice logic from the blob module
         // For now, implement simplified version
@@ -378,13 +381,13 @@ impl File {
     ///
     /// Returns a ReadableStream that can be used to read the file's contents.
     fn stream(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let file_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("stream called on non-object")
-        })?;
+        let file_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("stream called on non-object"))?;
 
-        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("stream called on non-File object")
-        })?;
+        let file_data = file_obj
+            .downcast_ref::<FileData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("stream called on non-File object"))?;
 
         // Create a ReadableStream from the file data
         use crate::streams::readable_stream::ReadableStreamData;
@@ -401,11 +404,18 @@ impl File {
 
         let stream = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().readable_stream().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .readable_stream()
+                .prototype(),
             stream_data,
         );
 
-        eprintln!("File.stream(): Created ReadableStream with {} bytes", bytes.len());
+        eprintln!(
+            "File.stream(): Created ReadableStream with {} bytes",
+            bytes.len()
+        );
         Ok(stream.into())
     }
 
@@ -413,13 +423,13 @@ impl File {
     ///
     /// Returns a Promise that resolves to the file's contents as a UTF-8 string.
     fn text(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let file_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("text called on non-object")
-        })?;
+        let file_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("text called on non-object"))?;
 
-        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("text called on non-File object")
-        })?;
+        let file_data = file_obj
+            .downcast_ref::<FileData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("text called on non-File object"))?;
 
         // Convert bytes to UTF-8 string
         let text = String::from_utf8_lossy(file_data.blob_data.data());
@@ -430,7 +440,7 @@ impl File {
         boa_engine::builtins::promise::Promise::resolve(
             &promise_constructor.into(),
             &[text_value],
-            context
+            context,
         )
     }
 
@@ -438,9 +448,9 @@ impl File {
     ///
     /// Returns a Promise that resolves to the file's contents as an ArrayBuffer.
     fn array_buffer(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let file_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("arrayBuffer called on non-object")
-        })?;
+        let file_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("arrayBuffer called on non-object"))?;
 
         let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
             JsNativeError::typ().with_message("arrayBuffer called on non-File object")
@@ -455,7 +465,7 @@ impl File {
         boa_engine::builtins::promise::Promise::resolve(
             &promise_constructor.into(),
             &[array_buffer],
-            context
+            context,
         )
     }
 
@@ -463,13 +473,13 @@ impl File {
     ///
     /// Returns a Promise that resolves to the file's contents as a Uint8Array.
     fn bytes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let file_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("bytes called on non-object")
-        })?;
+        let file_obj = this
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("bytes called on non-object"))?;
 
-        let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("bytes called on non-File object")
-        })?;
+        let file_data = file_obj
+            .downcast_ref::<FileData>()
+            .ok_or_else(|| JsNativeError::typ().with_message("bytes called on non-File object"))?;
 
         // Create a Uint8Array from the file data
         let bytes = file_data.blob_data.data();
@@ -480,7 +490,7 @@ impl File {
         boa_engine::builtins::promise::Promise::resolve(
             &promise_constructor.into(),
             &[uint8array],
-            context
+            context,
         )
     }
 }
@@ -491,7 +501,11 @@ fn create_uint8array_from_bytes(bytes: &[u8], context: &mut Context) -> JsResult
     let byte_values: Vec<JsValue> = bytes.iter().map(|&b| JsValue::from(b)).collect();
 
     // Create a Uint8Array using its constructor with array of values
-    let uint8array_constructor = context.intrinsics().constructors().typed_uint8_array().constructor();
+    let uint8array_constructor = context
+        .intrinsics()
+        .constructors()
+        .typed_uint8_array()
+        .constructor();
 
     // Create a JS array with the byte values
     let js_array = boa_engine::object::JsArray::new(context)?;
@@ -503,7 +517,7 @@ fn create_uint8array_from_bytes(bytes: &[u8], context: &mut Context) -> JsResult
     let uint8array = uint8array_constructor.construct(
         &[js_array.into()],
         Some(&uint8array_constructor),
-        context
+        context,
     )?;
 
     Ok(uint8array.into())
@@ -524,22 +538,27 @@ fn create_array_buffer_from_bytes(bytes: &[u8], context: &mut Context) -> JsResu
     }
 
     // Fallback: create empty ArrayBuffer
-    let array_buffer_constructor = context.intrinsics().constructors().array_buffer().constructor();
+    let array_buffer_constructor = context
+        .intrinsics()
+        .constructors()
+        .array_buffer()
+        .constructor();
     let length = JsValue::from(bytes.len());
-    let array_buffer = array_buffer_constructor.construct(
-        &[length],
-        Some(&array_buffer_constructor),
-        context
-    )?;
+    let array_buffer =
+        array_buffer_constructor.construct(&[length], Some(&array_buffer_constructor), context)?;
 
     Ok(array_buffer.into())
 }
 
 /// `get File.prototype.name`
-pub(crate) fn get_name(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let file_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("name getter called on non-object")
-    })?;
+pub(crate) fn get_name(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let file_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("name getter called on non-object"))?;
 
     let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
         JsNativeError::typ().with_message("name getter called on non-File object")
@@ -549,7 +568,11 @@ pub(crate) fn get_name(this: &JsValue, _args: &[JsValue], _context: &mut Context
 }
 
 /// `get File.prototype.lastModified`
-pub(crate) fn get_last_modified(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn get_last_modified(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let file_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("lastModified getter called on non-object")
     })?;
@@ -562,7 +585,11 @@ pub(crate) fn get_last_modified(this: &JsValue, _args: &[JsValue], _context: &mu
 }
 
 /// `get File.prototype.webkitRelativePath`
-pub(crate) fn get_webkit_relative_path(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+pub(crate) fn get_webkit_relative_path(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let file_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("webkitRelativePath getter called on non-object")
     })?;
@@ -571,14 +598,20 @@ pub(crate) fn get_webkit_relative_path(this: &JsValue, _args: &[JsValue], _conte
         JsNativeError::typ().with_message("webkitRelativePath getter called on non-File object")
     })?;
 
-    Ok(JsValue::from(js_string!(file_data.webkit_relative_path.clone())))
+    Ok(JsValue::from(js_string!(
+        file_data.webkit_relative_path.clone()
+    )))
 }
 
 /// `get File.prototype.size` - inherits from Blob
-pub(crate) fn get_size(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let file_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("size getter called on non-object")
-    })?;
+pub(crate) fn get_size(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let file_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("size getter called on non-object"))?;
 
     let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
         JsNativeError::typ().with_message("size getter called on non-File object")
@@ -588,10 +621,14 @@ pub(crate) fn get_size(this: &JsValue, _args: &[JsValue], _context: &mut Context
 }
 
 /// `get File.prototype.type` - inherits from Blob
-pub(crate) fn get_type(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let file_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("type getter called on non-object")
-    })?;
+pub(crate) fn get_type(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let file_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("type getter called on non-object"))?;
 
     let file_data = file_obj.downcast_ref::<FileData>().ok_or_else(|| {
         JsNativeError::typ().with_message("type getter called on non-File object")

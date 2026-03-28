@@ -3,13 +3,13 @@
 //! In WASM builds, the browser's native ServiceWorker is used directly.
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 
@@ -42,7 +42,9 @@ impl BuiltInConstructor for ServiceWorker {
 
     fn constructor(_: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
         Err(JsNativeError::error()
-            .with_message("ServiceWorker is not available in WASM. Use the browser's native ServiceWorker.")
+            .with_message(
+                "ServiceWorker is not available in WASM. Use the browser's native ServiceWorker.",
+            )
             .into())
     }
 }

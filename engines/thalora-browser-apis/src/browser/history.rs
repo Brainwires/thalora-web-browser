@@ -4,13 +4,15 @@
 //! https://html.spec.whatwg.org/#the-history-interface
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -33,9 +35,10 @@ impl IntrinsicObject for History {
             .name(js_string!("get scrollRestoration"))
             .build();
 
-        let scroll_restoration_setter_func = BuiltInBuilder::callable(realm, set_scroll_restoration)
-            .name(js_string!("set scrollRestoration"))
-            .build();
+        let scroll_restoration_setter_func =
+            BuiltInBuilder::callable(realm, set_scroll_restoration)
+                .name(js_string!("set scrollRestoration"))
+                .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
@@ -86,11 +89,8 @@ impl BuiltInConstructor for History {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::history,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::history, context)?;
 
         let history_data = HistoryData::new();
 
@@ -131,7 +131,14 @@ impl std::fmt::Debug for HistoryData {
             .field("entries", &self.entries)
             .field("current_index", &self.current_index)
             .field("scroll_restoration", &self.scroll_restoration)
-            .field("on_change", &self.on_change.lock().map(|cb| cb.is_some()).unwrap_or(false))
+            .field(
+                "on_change",
+                &self
+                    .on_change
+                    .lock()
+                    .map(|cb| cb.is_some())
+                    .unwrap_or(false),
+            )
             .finish()
     }
 }
@@ -330,12 +337,12 @@ fn get_length(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
     })?;
 
     let value = {
-            let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("History.prototype.length called on non-History object")
-            })?;
-            history.get_length()
-        };
+        let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("History.prototype.length called on non-History object")
+        })?;
+        history.get_length()
+    };
     Ok(JsValue::from(value))
 }
 
@@ -346,13 +353,15 @@ fn get_state(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
     })?;
 
     let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("History.prototype.state called on non-History object")
+        JsNativeError::typ().with_message("History.prototype.state called on non-History object")
     })?;
 
     if let Some(state_json) = history.get_current_state() {
         // Parse JSON state
-        let parse_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.parse('{}')", state_json)));
+        let parse_result = context.eval(boa_engine::Source::from_bytes(&format!(
+            "JSON.parse('{}')",
+            state_json
+        )));
         match parse_result {
             Ok(value) => Ok(value),
             Err(_) => Ok(JsValue::null()),
@@ -363,25 +372,35 @@ fn get_state(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 }
 
 /// `History.prototype.scrollRestoration` getter
-fn get_scroll_restoration(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_scroll_restoration(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("History.prototype.scrollRestoration called on non-object")
+        JsNativeError::typ()
+            .with_message("History.prototype.scrollRestoration called on non-object")
     })?;
 
     let value = {
-            let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("History.prototype.scrollRestoration called on non-History object")
-            })?;
-            history.get_scroll_restoration()
-        };
+        let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("History.prototype.scrollRestoration called on non-History object")
+        })?;
+        history.get_scroll_restoration()
+    };
     Ok(JsString::from(value).into())
 }
 
 /// `History.prototype.scrollRestoration` setter
-fn set_scroll_restoration(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn set_scroll_restoration(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("History.prototype.scrollRestoration setter called on non-object")
+        JsNativeError::typ()
+            .with_message("History.prototype.scrollRestoration setter called on non-object")
     })?;
 
     let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
@@ -401,8 +420,7 @@ fn back(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<J
     })?;
 
     let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("History.prototype.back called on non-History object")
+        JsNativeError::typ().with_message("History.prototype.back called on non-History object")
     })?;
 
     history.back();
@@ -417,8 +435,7 @@ fn forward(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
     })?;
 
     let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("History.prototype.forward called on non-History object")
+        JsNativeError::typ().with_message("History.prototype.forward called on non-History object")
     })?;
 
     history.forward();
@@ -433,8 +450,7 @@ fn go(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVal
     })?;
 
     let history = this_obj.downcast_ref::<HistoryData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("History.prototype.go called on non-History object")
+        JsNativeError::typ().with_message("History.prototype.go called on non-History object")
     })?;
 
     let delta = args.get_or_undefined(0).to_i32(context)?;
@@ -463,7 +479,10 @@ fn push_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
         None
     } else {
         // Use JSON.stringify to serialize state
-        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
+        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!(
+            "JSON.stringify({})",
+            state.display()
+        )));
         match stringify_result {
             Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
             Err(_) => None,
@@ -505,7 +524,10 @@ fn replace_state(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
         None
     } else {
         // Use JSON.stringify to serialize state
-        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!("JSON.stringify({})", state.display())));
+        let stringify_result = context.eval(boa_engine::Source::from_bytes(&format!(
+            "JSON.stringify({})",
+            state.display()
+        )));
         match stringify_result {
             Ok(json_val) => Some(json_val.to_string(context)?.to_std_string_escaped()),
             Err(_) => None,

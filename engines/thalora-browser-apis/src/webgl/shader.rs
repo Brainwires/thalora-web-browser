@@ -109,9 +109,7 @@ impl WebGLShader {
     pub fn get_parameter(&self, pname: u32) -> Option<ShaderParameter> {
         match pname {
             WebGLConstants::SHADER_TYPE => Some(ShaderParameter::Int(self.shader_type as i32)),
-            WebGLConstants::DELETE_STATUS => {
-                Some(ShaderParameter::Bool(self.delete_pending))
-            }
+            WebGLConstants::DELETE_STATUS => Some(ShaderParameter::Bool(self.delete_pending)),
             WebGLConstants::COMPILE_STATUS => Some(ShaderParameter::Bool(self.compiled)),
             _ => None,
         }
@@ -184,9 +182,7 @@ fn convert_webgl1_to_es300(source: &str, shader_type: u32) -> String {
         // Add output variable declaration if gl_FragColor is used
         if !result.contains("out vec4 fragColor") && !result.contains("layout(location = 0) out") {
             // Find the position after precision declarations
-            let insert_pos = result
-                .find("void main")
-                .unwrap_or_else(|| result.len());
+            let insert_pos = result.find("void main").unwrap_or_else(|| result.len());
             result.insert_str(insert_pos, "out vec4 fragColor;\n");
         }
         result = result.replace("gl_FragColor", "fragColor");
@@ -476,7 +472,8 @@ impl WebGLProgram {
         let vertex_spirv = match module_to_spirv(vertex_module, naga::ShaderStage::Vertex) {
             Ok(spirv) => spirv,
             Err(err) => {
-                self.info_log = format!("ERROR: Failed to convert vertex shader to SPIR-V: {}", err);
+                self.info_log =
+                    format!("ERROR: Failed to convert vertex shader to SPIR-V: {}", err);
                 self.linked = false;
                 return;
             }
@@ -485,7 +482,10 @@ impl WebGLProgram {
         let fragment_spirv = match module_to_spirv(fragment_module, naga::ShaderStage::Fragment) {
             Ok(spirv) => spirv,
             Err(err) => {
-                self.info_log = format!("ERROR: Failed to convert fragment shader to SPIR-V: {}", err);
+                self.info_log = format!(
+                    "ERROR: Failed to convert fragment shader to SPIR-V: {}",
+                    err
+                );
                 self.linked = false;
                 return;
             }
@@ -579,7 +579,9 @@ fn naga_type_to_webgl(ty: &naga::TypeInner) -> u32 {
             naga::ScalarKind::Sint => WebGLConstants::INT,
             naga::ScalarKind::Uint => WebGLConstants::UNSIGNED_INT,
             naga::ScalarKind::Bool => WebGLConstants::BOOL,
-            naga::ScalarKind::AbstractInt | naga::ScalarKind::AbstractFloat => WebGLConstants::FLOAT,
+            naga::ScalarKind::AbstractInt | naga::ScalarKind::AbstractFloat => {
+                WebGLConstants::FLOAT
+            }
         },
         naga::TypeInner::Vector { size, scalar } => {
             let base = match scalar.kind {
@@ -602,14 +604,12 @@ fn naga_type_to_webgl(ty: &naga::TypeInner) -> u32 {
             };
             base
         }
-        naga::TypeInner::Matrix { columns, rows, .. } => {
-            match (columns, rows) {
-                (naga::VectorSize::Bi, naga::VectorSize::Bi) => WebGLConstants::FLOAT_MAT2,
-                (naga::VectorSize::Tri, naga::VectorSize::Tri) => WebGLConstants::FLOAT_MAT3,
-                (naga::VectorSize::Quad, naga::VectorSize::Quad) => WebGLConstants::FLOAT_MAT4,
-                _ => WebGLConstants::FLOAT_MAT4,
-            }
-        }
+        naga::TypeInner::Matrix { columns, rows, .. } => match (columns, rows) {
+            (naga::VectorSize::Bi, naga::VectorSize::Bi) => WebGLConstants::FLOAT_MAT2,
+            (naga::VectorSize::Tri, naga::VectorSize::Tri) => WebGLConstants::FLOAT_MAT3,
+            (naga::VectorSize::Quad, naga::VectorSize::Quad) => WebGLConstants::FLOAT_MAT4,
+            _ => WebGLConstants::FLOAT_MAT4,
+        },
         naga::TypeInner::Image { .. } => WebGLConstants::SAMPLER_2D,
         naga::TypeInner::Sampler { .. } => WebGLConstants::SAMPLER_2D,
         _ => WebGLConstants::FLOAT,
@@ -640,7 +640,8 @@ fn module_to_spirv(module: &naga::Module, _stage: naga::ShaderStage) -> Result<V
     };
 
     let mut output = Vec::new();
-    let mut writer = naga::back::spv::Writer::new(&options).map_err(|e| format!("Writer creation error: {:?}", e))?;
+    let mut writer = naga::back::spv::Writer::new(&options)
+        .map_err(|e| format!("Writer creation error: {:?}", e))?;
 
     writer
         .write(module, &info, None, &Default::default(), &mut output)

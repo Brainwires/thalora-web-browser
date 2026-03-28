@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::validate_cookie;
 use serde_json::Value;
 
@@ -26,7 +26,10 @@ impl NetworkTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::error(-1, format!("CDP Network domain enable failed: {:?}", response.error))
+                    McpResponse::error(
+                        -1,
+                        format!("CDP Network domain enable failed: {:?}", response.error),
+                    )
                 } else {
                     McpResponse::success(serde_json::json!({
                         "type": "text",
@@ -50,7 +53,10 @@ impl NetworkTools {
         let request_id = match args.get("request_id").and_then(|v| v.as_str()) {
             Some(id) => id,
             None => {
-                return McpResponse::error(-1, "Missing required parameter: request_id".to_string());
+                return McpResponse::error(
+                    -1,
+                    "Missing required parameter: request_id".to_string(),
+                );
             }
         };
 
@@ -66,7 +72,10 @@ impl NetworkTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::error(-1, format!("CDP Response body retrieval failed: {}", error.message))
+                    McpResponse::error(
+                        -1,
+                        format!("CDP Response body retrieval failed: {}", error.message),
+                    )
                 } else if let Some(result) = response.result {
                     McpResponse::success(serde_json::json!({
                         "type": "text",

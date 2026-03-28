@@ -1,9 +1,7 @@
 //! Implementation of the `Lock` interface.
 
+use boa_engine::{Context, JsData, JsNativeError, JsResult, JsString, JsValue};
 use boa_gc::{Finalize, Trace};
-use boa_engine::{
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
-};
 
 /// Lock mode enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,39 +58,35 @@ impl Lock {
     }
 
     /// Gets the lock name.
-    fn name_getter(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let obj = _this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Lock.prototype.name called on non-Lock object")
-            })?;
+    fn name_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let obj = _this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("Lock.prototype.name called on non-Lock object")
+        })?;
 
-        let lock = obj
-            .downcast_ref::<Lock>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Lock.prototype.name called on non-Lock object")
-            })?;
+        let lock = obj.downcast_ref::<Lock>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Lock.prototype.name called on non-Lock object")
+        })?;
 
         Ok(JsValue::from(JsString::from(lock.name.clone())))
     }
 
     /// Gets the lock mode.
-    fn mode_getter(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        let obj = _this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Lock.prototype.mode called on non-Lock object")
-            })?;
+    fn mode_getter(
+        _this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
+        let obj = _this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("Lock.prototype.mode called on non-Lock object")
+        })?;
 
-        let lock = obj
-            .downcast_ref::<Lock>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Lock.prototype.mode called on non-Lock object")
-            })?;
+        let lock = obj.downcast_ref::<Lock>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Lock.prototype.mode called on non-Lock object")
+        })?;
 
         Ok(JsValue::from(JsString::from(lock.mode.as_str())))
     }

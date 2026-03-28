@@ -2,7 +2,7 @@
 //!
 //! Adds WebGL 1.0 constants to context objects.
 
-use boa_engine::{js_string, Context, JsObject, JsValue};
+use boa_engine::{Context, JsObject, JsValue, js_string};
 
 use super::state::WebGLConstants;
 
@@ -36,7 +36,10 @@ pub fn add_webgl_constants(obj: &JsObject, context: &mut Context) {
         // Blend equations
         ("FUNC_ADD", WebGLConstants::FUNC_ADD),
         ("FUNC_SUBTRACT", WebGLConstants::FUNC_SUBTRACT),
-        ("FUNC_REVERSE_SUBTRACT", WebGLConstants::FUNC_REVERSE_SUBTRACT),
+        (
+            "FUNC_REVERSE_SUBTRACT",
+            WebGLConstants::FUNC_REVERSE_SUBTRACT,
+        ),
         // Data types
         ("BYTE", WebGLConstants::BYTE),
         ("UNSIGNED_BYTE", WebGLConstants::UNSIGNED_BYTE),
@@ -80,9 +83,18 @@ pub fn add_webgl_constants(obj: &JsObject, context: &mut Context) {
         ("TEXTURE_WRAP_T", WebGLConstants::TEXTURE_WRAP_T),
         ("NEAREST", WebGLConstants::NEAREST),
         ("LINEAR", WebGLConstants::LINEAR),
-        ("NEAREST_MIPMAP_NEAREST", WebGLConstants::NEAREST_MIPMAP_NEAREST),
-        ("LINEAR_MIPMAP_NEAREST", WebGLConstants::LINEAR_MIPMAP_NEAREST),
-        ("NEAREST_MIPMAP_LINEAR", WebGLConstants::NEAREST_MIPMAP_LINEAR),
+        (
+            "NEAREST_MIPMAP_NEAREST",
+            WebGLConstants::NEAREST_MIPMAP_NEAREST,
+        ),
+        (
+            "LINEAR_MIPMAP_NEAREST",
+            WebGLConstants::LINEAR_MIPMAP_NEAREST,
+        ),
+        (
+            "NEAREST_MIPMAP_LINEAR",
+            WebGLConstants::NEAREST_MIPMAP_LINEAR,
+        ),
         ("LINEAR_MIPMAP_LINEAR", WebGLConstants::LINEAR_MIPMAP_LINEAR),
         ("REPEAT", WebGLConstants::REPEAT),
         ("CLAMP_TO_EDGE", WebGLConstants::CLAMP_TO_EDGE),
@@ -132,7 +144,10 @@ pub fn add_webgl_constants(obj: &JsObject, context: &mut Context) {
         ("COLOR_ATTACHMENT0", WebGLConstants::COLOR_ATTACHMENT0),
         ("DEPTH_ATTACHMENT", WebGLConstants::DEPTH_ATTACHMENT),
         ("STENCIL_ATTACHMENT", WebGLConstants::STENCIL_ATTACHMENT),
-        ("DEPTH_STENCIL_ATTACHMENT", WebGLConstants::DEPTH_STENCIL_ATTACHMENT),
+        (
+            "DEPTH_STENCIL_ATTACHMENT",
+            WebGLConstants::DEPTH_STENCIL_ATTACHMENT,
+        ),
         ("FRAMEBUFFER_COMPLETE", WebGLConstants::FRAMEBUFFER_COMPLETE),
         // Errors
         ("NO_ERROR", WebGLConstants::NO_ERROR),
@@ -140,17 +155,29 @@ pub fn add_webgl_constants(obj: &JsObject, context: &mut Context) {
         ("INVALID_VALUE", WebGLConstants::INVALID_VALUE),
         ("INVALID_OPERATION", WebGLConstants::INVALID_OPERATION),
         ("OUT_OF_MEMORY", WebGLConstants::OUT_OF_MEMORY),
-        ("INVALID_FRAMEBUFFER_OPERATION", WebGLConstants::INVALID_FRAMEBUFFER_OPERATION),
+        (
+            "INVALID_FRAMEBUFFER_OPERATION",
+            WebGLConstants::INVALID_FRAMEBUFFER_OPERATION,
+        ),
         ("CONTEXT_LOST_WEBGL", WebGLConstants::CONTEXT_LOST_WEBGL),
         // Getting info
         ("VENDOR", WebGLConstants::VENDOR),
         ("RENDERER", WebGLConstants::RENDERER),
         ("VERSION", WebGLConstants::VERSION),
-        ("SHADING_LANGUAGE_VERSION", WebGLConstants::SHADING_LANGUAGE_VERSION),
+        (
+            "SHADING_LANGUAGE_VERSION",
+            WebGLConstants::SHADING_LANGUAGE_VERSION,
+        ),
         // Pixel storage
         ("UNPACK_FLIP_Y_WEBGL", WebGLConstants::UNPACK_FLIP_Y_WEBGL),
-        ("UNPACK_PREMULTIPLY_ALPHA_WEBGL", WebGLConstants::UNPACK_PREMULTIPLY_ALPHA_WEBGL),
-        ("UNPACK_COLORSPACE_CONVERSION_WEBGL", WebGLConstants::UNPACK_COLORSPACE_CONVERSION_WEBGL),
+        (
+            "UNPACK_PREMULTIPLY_ALPHA_WEBGL",
+            WebGLConstants::UNPACK_PREMULTIPLY_ALPHA_WEBGL,
+        ),
+        (
+            "UNPACK_COLORSPACE_CONVERSION_WEBGL",
+            WebGLConstants::UNPACK_COLORSPACE_CONVERSION_WEBGL,
+        ),
         ("UNPACK_ALIGNMENT", WebGLConstants::UNPACK_ALIGNMENT),
         ("PACK_ALIGNMENT", WebGLConstants::PACK_ALIGNMENT),
     ];

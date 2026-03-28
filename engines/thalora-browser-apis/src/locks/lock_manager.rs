@@ -1,19 +1,19 @@
 //! Implementation of the `LockManager` Web API.
 
-use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
+use boa_engine::context::intrinsics::StandardConstructor;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue, NativeFunction,
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
-    js_string, JsString,
+    js_string,
     object::{JsObject, JsPromise},
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue, NativeFunction,
 };
-use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
-use boa_engine::context::intrinsics::StandardConstructor;
+use boa_gc::{Finalize, Trace};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use super::lock::{Lock, LockMode};
 use super::lock_info::{LockInfo, LockManagerSnapshot};
@@ -52,19 +52,15 @@ impl LockManager {
     /// `navigator.locks.request(name, callback)`
     /// `navigator.locks.request(name, options, callback)`
     fn request(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("LockManager.prototype.request called on non-LockManager object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("LockManager.prototype.request called on non-LockManager object")
+        })?;
 
-        let lock_manager = obj
-            .downcast_ref::<LockManager>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("LockManager.prototype.request called on non-LockManager object")
-            })?;
+        let lock_manager = obj.downcast_ref::<LockManager>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("LockManager.prototype.request called on non-LockManager object")
+        })?;
 
         // Parse arguments - support both 2-arg and 3-arg forms
         let (name, _options, callback) = match args.len() {
@@ -127,7 +123,8 @@ impl LockManager {
             );
 
             // Call the callback with the lock
-            callback.as_callable()
+            callback
+                .as_callable()
                 .ok_or_else(|| JsNativeError::typ().with_message("callback is not callable"))?
                 .call(&JsValue::undefined(), &[lock_obj.into()], context)?
         } else {
@@ -149,25 +146,23 @@ impl LockManager {
 
         // Return a Promise that resolves with the callback result
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[callback_result], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[callback_result], context)?;
         Ok(JsValue::from(promise))
     }
 
     /// `navigator.locks.query()`
     fn query(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        let obj = this
-            .as_object()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("LockManager.prototype.query called on non-LockManager object")
-            })?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("LockManager.prototype.query called on non-LockManager object")
+        })?;
 
-        let lock_manager = obj
-            .downcast_ref::<LockManager>()
-            .ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("LockManager.prototype.query called on non-LockManager object")
-            })?;
+        let lock_manager = obj.downcast_ref::<LockManager>().ok_or_else(|| {
+            JsNativeError::typ()
+                .with_message("LockManager.prototype.query called on non-LockManager object")
+        })?;
 
         // Get current held locks
         let held = {
@@ -185,7 +180,9 @@ impl LockManager {
 
         // Return a Promise that resolves with the snapshot
         let (promise, resolvers) = JsPromise::new_pending(context);
-        resolvers.resolve.call(&JsValue::undefined(), &[snapshot_obj], context)?;
+        resolvers
+            .resolve
+            .call(&JsValue::undefined(), &[snapshot_obj], context)?;
         Ok(JsValue::from(promise))
     }
 }
@@ -212,8 +209,9 @@ impl BuiltInConstructor for LockManager {
     const PROTOTYPE_STORAGE_SLOTS: usize = 100;
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| constructors.lock_manager();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| constructors.lock_manager();
 
     fn constructor(
         _new_target: &JsValue,
@@ -226,4 +224,3 @@ impl BuiltInConstructor for LockManager {
             .into())
     }
 }
-

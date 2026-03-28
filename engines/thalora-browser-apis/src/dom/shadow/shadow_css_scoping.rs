@@ -3,17 +3,9 @@
 //! Implementation of WHATWG Shadow DOM CSS scoping algorithms
 //! https://drafts.csswg.org/css-scoping-1/
 
-use boa_engine::{
-    object::JsObject,
-    value::JsValue,
-    Context, JsResult, JsNativeError,
-};
-use crate::dom::{
-    element::ElementData,
-    shadow::shadow_root::ShadowRootData,
-    node::NodeData,
-};
-use boa_gc::{Finalize, Trace, GcRefCell};
+use crate::dom::{element::ElementData, node::NodeData, shadow::shadow_root::ShadowRootData};
+use boa_engine::{Context, JsNativeError, JsResult, object::JsObject, value::JsValue};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::{HashMap, HashSet};
 
 /// CSS selector scoping types
@@ -59,13 +51,13 @@ impl ScopedCSSRule {
         if trimmed == ":host" {
             ScopeType::Host
         } else if trimmed.starts_with(":host(") && trimmed.ends_with(')') {
-            let inner = &trimmed[6..trimmed.len()-1];
+            let inner = &trimmed[6..trimmed.len() - 1];
             ScopeType::HostFunction(inner.to_string())
         } else if trimmed.starts_with(":host-context(") && trimmed.ends_with(')') {
-            let inner = &trimmed[14..trimmed.len()-1];
+            let inner = &trimmed[14..trimmed.len() - 1];
             ScopeType::HostContext(inner.to_string())
         } else if trimmed.starts_with("::slotted(") && trimmed.ends_with(')') {
-            let inner = &trimmed[10..trimmed.len()-1];
+            let inner = &trimmed[10..trimmed.len() - 1];
             ScopeType::Slotted(inner.to_string())
         } else {
             ScopeType::Scoped(selector.to_string())
@@ -110,7 +102,7 @@ impl ShadowCSSScoping {
                     current_selector = selector.trim().to_string();
                     current_rule = Some(ScopedCSSRule::new(
                         current_selector.clone(),
-                        Some(shadow_root.clone())
+                        Some(shadow_root.clone()),
                     ));
                     in_rule = true;
                 }
@@ -126,7 +118,11 @@ impl ShadowCSSScoping {
                 let parts: Vec<&str> = trimmed.split(':').collect();
                 if parts.len() >= 2 {
                     let property = parts[0].trim().to_string();
-                    let value = parts[1..].join(":").trim().trim_end_matches(';').to_string();
+                    let value = parts[1..]
+                        .join(":")
+                        .trim()
+                        .trim_end_matches(';')
+                        .to_string();
 
                     if let Some(ref rule) = current_rule {
                         rule.add_property(property, value);
@@ -146,14 +142,11 @@ impl ShadowCSSScoping {
     ) -> JsResult<()> {
         let shadow_data = shadow_root
             .downcast_ref::<ShadowRootData>()
-            .ok_or_else(|| {
-                JsNativeError::typ().with_message("Object is not a ShadowRoot")
-            })?;
+            .ok_or_else(|| JsNativeError::typ().with_message("Object is not a ShadowRoot"))?;
 
-        let host = shadow_data.get_host()
-            .ok_or_else(|| {
-                JsNativeError::typ().with_message("Shadow root has no host")
-            })?;
+        let host = shadow_data
+            .get_host()
+            .ok_or_else(|| JsNativeError::typ().with_message("Shadow root has no host"))?;
 
         for rule in rules {
             match &rule.scope_type {
@@ -282,7 +275,9 @@ impl ShadowCSSScoping {
         let slots = Self::find_slots_in_tree(shadow_root);
 
         for slot in slots {
-            if let Some(slot_data) = slot.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>() {
+            if let Some(slot_data) =
+                slot.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>()
+            {
                 let assigned = slot_data.get_assigned_nodes();
                 slotted.extend(assigned);
             }
@@ -301,7 +296,10 @@ impl ShadowCSSScoping {
     /// Recursively collect slot elements
     fn collect_slots_recursive(node: &JsObject, slots: &mut Vec<JsObject>) {
         // Check if this node is a slot element
-        if node.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>().is_some() {
+        if node
+            .downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>()
+            .is_some()
+        {
             slots.push(node.clone());
         }
 
@@ -366,18 +364,27 @@ impl ShadowCSSScoping {
         // This implements the CSS inheritance isolation
 
         let inheritable_properties = vec![
-            "color", "font-family", "font-size", "font-style", "font-weight",
-            "line-height", "text-align", "text-indent", "letter-spacing",
-            "word-spacing", "white-space", "direction", "visibility"
+            "color",
+            "font-family",
+            "font-size",
+            "font-style",
+            "font-weight",
+            "line-height",
+            "text-align",
+            "text-indent",
+            "letter-spacing",
+            "word-spacing",
+            "white-space",
+            "direction",
+            "visibility",
         ];
 
         if let Some(shadow_data) = shadow_root.downcast_ref::<ShadowRootData>() {
             for property in inheritable_properties {
                 // Reset to initial value or inherit from host if needed
-                shadow_data.fragment_data().set_style_property(
-                    property.to_string(),
-                    "initial".to_string()
-                );
+                shadow_data
+                    .fragment_data()
+                    .set_style_property(property.to_string(), "initial".to_string());
             }
         }
 
@@ -391,8 +398,13 @@ impl ShadowCSSScoping {
 
         // Simple replacement for demonstration
         // In production, this would use proper CSS parsing
-        processed = processed.replace(":host", &format!("[data-shadow-host=\"{}\"]",
-            Self::get_element_id(host_element)));
+        processed = processed.replace(
+            ":host",
+            &format!(
+                "[data-shadow-host=\"{}\"]",
+                Self::get_element_id(host_element)
+            ),
+        );
 
         processed
     }
@@ -439,10 +451,7 @@ pub struct ShadowCSSCustomProperties;
 
 impl ShadowCSSCustomProperties {
     /// Process CSS custom properties with shadow DOM scoping
-    pub fn process_custom_properties(
-        css_text: &str,
-        shadow_root: &JsObject,
-    ) -> JsResult<String> {
+    pub fn process_custom_properties(css_text: &str, shadow_root: &JsObject) -> JsResult<String> {
         // Implementation of CSS custom properties scoping
         // Custom properties inherit across shadow boundaries unless explicitly reset
 
@@ -465,7 +474,10 @@ impl ShadowCSSCustomProperties {
 
         if let Some(shadow_data) = shadow_root.downcast_ref::<ShadowRootData>() {
             // Check shadow root styles
-            if let Some(value) = shadow_data.fragment_data().get_style_property(property_name) {
+            if let Some(value) = shadow_data
+                .fragment_data()
+                .get_style_property(property_name)
+            {
                 return Ok(Some(value));
             }
 

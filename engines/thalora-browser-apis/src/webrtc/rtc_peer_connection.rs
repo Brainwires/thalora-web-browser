@@ -8,40 +8,37 @@
 //! and monitor the connection, and to close the connection once it's no longer needed.
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsArgs, JsData, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
     },
 };
 use tokio::sync::Mutex as TokioMutex;
 use webrtc::{
     api::{
-        interceptor_registry::register_default_interceptors,
+        API, APIBuilder, interceptor_registry::register_default_interceptors,
         media_engine::MediaEngine,
-        APIBuilder,
-        API,
     },
     data_channel::RTCDataChannel,
     ice_transport::ice_server::RTCIceServer,
     interceptor::registry::Registry,
     peer_connection::{
-        configuration::RTCConfiguration,
+        RTCPeerConnection, configuration::RTCConfiguration,
         peer_connection_state::RTCPeerConnectionState,
         sdp::session_description::RTCSessionDescription,
-        RTCPeerConnection,
     },
 };
 
@@ -247,7 +244,8 @@ impl RTCPeerConnectionData {
 
     /// Set the ICE connection state
     pub fn set_ice_connection_state(&self, state: RTCIceConnectionState) {
-        self.ice_connection_state.store(state as u32, Ordering::Relaxed);
+        self.ice_connection_state
+            .store(state as u32, Ordering::Relaxed);
     }
 
     /// Get the current signaling state
@@ -284,8 +282,14 @@ pub struct WebRTCManager {
 impl std::fmt::Debug for WebRTCManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WebRTCManager")
-            .field("peer_connections", &"Arc<TokioMutex<HashMap<String, Arc<RTCPeerConnection>>>>")
-            .field("data_channels", &"Arc<TokioMutex<HashMap<String, Arc<RTCDataChannel>>>>")
+            .field(
+                "peer_connections",
+                &"Arc<TokioMutex<HashMap<String, Arc<RTCPeerConnection>>>>",
+            )
+            .field(
+                "data_channels",
+                &"Arc<TokioMutex<HashMap<String, Arc<RTCDataChannel>>>>",
+            )
             .field("api", &"Arc<webrtc::api::API>")
             .finish()
     }
@@ -332,19 +336,12 @@ impl WebRTCManager {
 
     /// Get a peer connection by ID
     pub async fn get_peer_connection(&self, id: &str) -> Option<Arc<RTCPeerConnection>> {
-        self.peer_connections
-            .lock()
-            .await
-            .get(id)
-            .cloned()
+        self.peer_connections.lock().await.get(id).cloned()
     }
 
     /// Remove a peer connection
     pub async fn remove_peer_connection(&self, id: &str) -> Option<Arc<RTCPeerConnection>> {
-        self.peer_connections
-            .lock()
-            .await
-            .remove(id)
+        self.peer_connections.lock().await.remove(id)
     }
 }
 
@@ -399,10 +396,22 @@ impl IntrinsicObject for RTCPeerConnectionBuiltin {
             // Methods
             .method(Self::create_offer, js_string!("createOffer"), 0)
             .method(Self::create_answer, js_string!("createAnswer"), 0)
-            .method(Self::set_local_description, js_string!("setLocalDescription"), 1)
-            .method(Self::set_remote_description, js_string!("setRemoteDescription"), 1)
+            .method(
+                Self::set_local_description,
+                js_string!("setLocalDescription"),
+                1,
+            )
+            .method(
+                Self::set_remote_description,
+                js_string!("setRemoteDescription"),
+                1,
+            )
             .method(Self::add_ice_candidate, js_string!("addIceCandidate"), 1)
-            .method(Self::create_data_channel, js_string!("createDataChannel"), 1)
+            .method(
+                Self::create_data_channel,
+                js_string!("createDataChannel"),
+                1,
+            )
             .method(Self::close, js_string!("close"), 0)
             // Event handlers
             .property(
@@ -479,8 +488,10 @@ impl BuiltInConstructor for RTCPeerConnectionBuiltin {
             context,
         )?;
 
-        let data = RTCPeerConnectionData::new()
-            .map_err(|e| JsNativeError::error().with_message(format!("Failed to create RTCPeerConnection: {}", e)))?;
+        let data = RTCPeerConnectionData::new().map_err(|e| {
+            JsNativeError::error()
+                .with_message(format!("Failed to create RTCPeerConnection: {}", e))
+        })?;
 
         let rtc_peer_connection = RTCPeerConnectionBuiltin { data };
 
@@ -496,7 +507,11 @@ impl BuiltInConstructor for RTCPeerConnectionBuiltin {
 
 impl RTCPeerConnectionBuiltin {
     /// Create an offer
-    fn create_offer(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn create_offer(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(_rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real offer creation
@@ -510,7 +525,9 @@ impl RTCPeerConnectionBuiltin {
                 )?;
                 offer_obj.set(
                     js_string!("sdp"),
-                    JsValue::from(js_string!("v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n")),
+                    JsValue::from(js_string!(
+                        "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n"
+                    )),
                     false,
                     _context,
                 )?;
@@ -522,7 +539,11 @@ impl RTCPeerConnectionBuiltin {
     }
 
     /// Create an answer
-    fn create_answer(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn create_answer(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(_rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real answer creation
@@ -535,7 +556,9 @@ impl RTCPeerConnectionBuiltin {
                 )?;
                 answer_obj.set(
                     js_string!("sdp"),
-                    JsValue::from(js_string!("v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n")),
+                    JsValue::from(js_string!(
+                        "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n"
+                    )),
                     false,
                     _context,
                 )?;
@@ -547,11 +570,17 @@ impl RTCPeerConnectionBuiltin {
     }
 
     /// Set local description
-    fn set_local_description(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn set_local_description(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real local description setting
-                rtc_pc.data.set_signaling_state(RTCSignalingState::HaveLocalOffer);
+                rtc_pc
+                    .data
+                    .set_signaling_state(RTCSignalingState::HaveLocalOffer);
                 return Ok(JsValue::undefined());
             }
         }
@@ -559,11 +588,17 @@ impl RTCPeerConnectionBuiltin {
     }
 
     /// Set remote description
-    fn set_remote_description(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn set_remote_description(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real remote description setting
-                rtc_pc.data.set_signaling_state(RTCSignalingState::HaveRemoteOffer);
+                rtc_pc
+                    .data
+                    .set_signaling_state(RTCSignalingState::HaveRemoteOffer);
                 return Ok(JsValue::undefined());
             }
         }
@@ -571,7 +606,11 @@ impl RTCPeerConnectionBuiltin {
     }
 
     /// Add ICE candidate
-    fn add_ice_candidate(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn add_ice_candidate(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(_rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 // TODO: Implement real ICE candidate addition
@@ -582,19 +621,18 @@ impl RTCPeerConnectionBuiltin {
     }
 
     /// Create data channel
-    fn create_data_channel(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn create_data_channel(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(_rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 let label = args.get_or_undefined(0).to_string(_context)?;
 
                 // TODO: Implement real data channel creation
                 let data_channel_obj = JsObject::default(_context.intrinsics());
-                data_channel_obj.set(
-                    js_string!("label"),
-                    JsValue::from(label),
-                    false,
-                    _context,
-                )?;
+                data_channel_obj.set(js_string!("label"), JsValue::from(label), false, _context)?;
                 data_channel_obj.set(
                     js_string!("readyState"),
                     JsValue::from(js_string!("connecting")),
@@ -612,8 +650,12 @@ impl RTCPeerConnectionBuiltin {
     fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                rtc_pc.data.set_connection_state(RTCPeerConnectionStateEnum::Closed);
-                rtc_pc.data.set_ice_connection_state(RTCIceConnectionState::Closed);
+                rtc_pc
+                    .data
+                    .set_connection_state(RTCPeerConnectionStateEnum::Closed);
+                rtc_pc
+                    .data
+                    .set_ice_connection_state(RTCIceConnectionState::Closed);
                 rtc_pc.data.set_signaling_state(RTCSignalingState::Closed);
             }
         }
@@ -622,7 +664,11 @@ impl RTCPeerConnectionBuiltin {
 }
 
 /// Get the connectionState property of RTCPeerConnection
-fn get_connection_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_connection_state(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(object) = this.as_object() {
         if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
             return Ok(rtc_pc.data.connection_state().into());
@@ -632,7 +678,11 @@ fn get_connection_state(this: &JsValue, _args: &[JsValue], _context: &mut Contex
 }
 
 /// Get the iceConnectionState property of RTCPeerConnection
-fn get_ice_connection_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_ice_connection_state(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(object) = this.as_object() {
         if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
             return Ok(rtc_pc.data.ice_connection_state().into());
@@ -642,7 +692,11 @@ fn get_ice_connection_state(this: &JsValue, _args: &[JsValue], _context: &mut Co
 }
 
 /// Get the iceGatheringState property of RTCPeerConnection
-fn get_ice_gathering_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_ice_gathering_state(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(object) = this.as_object() {
         if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
             return Ok(rtc_pc.data.ice_gathering_state().into());
@@ -652,7 +706,11 @@ fn get_ice_gathering_state(this: &JsValue, _args: &[JsValue], _context: &mut Con
 }
 
 /// Get the signalingState property of RTCPeerConnection
-fn get_signaling_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_signaling_state(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(object) = this.as_object() {
         if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
             return Ok(rtc_pc.data.signaling_state().into());

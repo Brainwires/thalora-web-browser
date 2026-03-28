@@ -3,11 +3,10 @@
 //! Context initialization methods and shader/program operations.
 
 use boa_engine::{
-    js_string,
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
+    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
 };
 
-use super::context::{get_object_id, get_parameter, WebGLRenderingContextData};
+use super::context::{WebGLRenderingContextData, get_object_id, get_parameter};
 use super::shader::{WebGLProgram, WebGLShader};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;
@@ -24,7 +23,8 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // isContextLost
     obj.set(
@@ -37,7 +37,8 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getParameter
     obj.set(
@@ -50,7 +51,8 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getExtension
     obj.set(
@@ -63,7 +65,8 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getSupportedExtensions
     obj.set(
@@ -75,7 +78,8 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getContextAttributes
     obj.set(
@@ -86,16 +90,37 @@ pub fn add_context_methods(obj: &JsObject, context: &mut Context) {
             obj.set(js_string!("depth"), JsValue::from(true), false, ctx)?;
             obj.set(js_string!("stencil"), JsValue::from(false), false, ctx)?;
             obj.set(js_string!("antialias"), JsValue::from(true), false, ctx)?;
-            obj.set(js_string!("premultipliedAlpha"), JsValue::from(true), false, ctx)?;
-            obj.set(js_string!("preserveDrawingBuffer"), JsValue::from(false), false, ctx)?;
-            obj.set(js_string!("powerPreference"), js_string!("default"), false, ctx)?;
-            obj.set(js_string!("failIfMajorPerformanceCaveat"), JsValue::from(false), false, ctx)?;
+            obj.set(
+                js_string!("premultipliedAlpha"),
+                JsValue::from(true),
+                false,
+                ctx,
+            )?;
+            obj.set(
+                js_string!("preserveDrawingBuffer"),
+                JsValue::from(false),
+                false,
+                ctx,
+            )?;
+            obj.set(
+                js_string!("powerPreference"),
+                js_string!("default"),
+                false,
+                ctx,
+            )?;
+            obj.set(
+                js_string!("failIfMajorPerformanceCaveat"),
+                JsValue::from(false),
+                false,
+                ctx,
+            )?;
             Ok(obj.into())
         })
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add shader methods
@@ -125,7 +150,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // shaderSource
     obj.set(
@@ -143,7 +169,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // compileShader
     obj.set(
@@ -160,7 +187,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getShaderParameter
     obj.set(
@@ -183,7 +211,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getShaderInfoLog
     obj.set(
@@ -200,7 +229,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getShaderSource
     obj.set(
@@ -217,7 +247,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteShader
     obj.set(
@@ -234,7 +265,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // createProgram
     obj.set(
@@ -253,7 +285,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // attachShader
     obj.set(
@@ -274,7 +307,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // detachShader
     obj.set(
@@ -295,7 +329,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // linkProgram
     obj.set(
@@ -313,7 +348,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // useProgram
     obj.set(
@@ -332,7 +368,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getProgramParameter
     obj.set(
@@ -355,7 +392,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getProgramInfoLog
     obj.set(
@@ -372,7 +410,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // validateProgram
     obj.set(
@@ -389,7 +428,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteProgram
     obj.set(
@@ -406,7 +446,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getUniformLocation
     obj.set(
@@ -417,10 +458,16 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let name = args.get_or_undefined(1).to_string(ctx)?;
 
             if let Some(program) = data.programs.lock().unwrap().get(&program_id) {
-                if let Some(location) = program.get_uniform_location(&name.to_std_string_escaped()) {
+                if let Some(location) = program.get_uniform_location(&name.to_std_string_escaped())
+                {
                     let loc_obj = JsObject::with_null_proto();
                     loc_obj.set(js_string!("_id"), JsValue::from(location.id), false, ctx)?;
-                    loc_obj.set(js_string!("_program"), JsValue::from(program_id), false, ctx)?;
+                    loc_obj.set(
+                        js_string!("_program"),
+                        JsValue::from(program_id),
+                        false,
+                        ctx,
+                    )?;
                     return Ok(loc_obj.into());
                 }
             }
@@ -429,7 +476,8 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getAttribLocation
     obj.set(
@@ -449,5 +497,6 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

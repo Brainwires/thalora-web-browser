@@ -59,7 +59,8 @@ impl McpTestHarness {
     /// Create a new MCP test harness with custom configuration
     pub fn with_config(config: McpTestConfig) -> Result<Self> {
         // Resolve the project root directory (tests run from project root)
-        let project_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let project_root =
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
         let release_binary = project_root.join("target/release/thalora");
         let debug_binary = project_root.join("target/debug/thalora");
 
@@ -236,14 +237,15 @@ impl McpTestHarness {
             let _ = tx.send((result, line, stdout_back));
         });
 
-        let (read_result, response_line, stdout_back) = match rx.recv_timeout(Duration::from_secs(30)) {
-            Ok(result) => result,
-            Err(_) => {
-                // Timeout: kill the subprocess to unblock the reader thread and clean up
-                let _ = self.process.kill();
-                bail!("Timeout waiting for MCP server response (30s)");
-            }
-        };
+        let (read_result, response_line, stdout_back) =
+            match rx.recv_timeout(Duration::from_secs(30)) {
+                Ok(result) => result,
+                Err(_) => {
+                    // Timeout: kill the subprocess to unblock the reader thread and clean up
+                    let _ = self.process.kill();
+                    bail!("Timeout waiting for MCP server response (30s)");
+                }
+            };
 
         // Restore stdout for future reads
         self.process.stdout = Some(stdout_back);

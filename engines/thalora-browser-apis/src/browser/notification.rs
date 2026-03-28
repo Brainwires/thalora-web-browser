@@ -6,14 +6,15 @@
 //! This provides notifications support for headless browser operation.
 
 use boa_engine::{
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction,
     builtins::promise::Promise,
-    object::{JsObject, ObjectInitializer, FunctionObjectBuilder},
+    js_string,
+    object::{FunctionObjectBuilder, JsObject, ObjectInitializer},
     property::Attribute,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string, NativeFunction,
 };
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// Notification permission state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +60,11 @@ struct NotificationData {
 }
 
 /// Notification constructor implementation
-fn notification_constructor(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn notification_constructor(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // Get title (required)
     let title = args.get_or_undefined(0);
     if title.is_undefined() {
@@ -135,19 +140,63 @@ fn notification_constructor(_this: &JsValue, args: &[JsValue], context: &mut Con
 
     // Create notification object
     let notification = ObjectInitializer::new(context)
-        .property(js_string!("title"), js_string!(title_str), Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("body"), js_string!(body), Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("icon"), js_string!(icon), Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("tag"), js_string!(tag), Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("requireInteraction"), require_interaction, Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("silent"), silent, Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("timestamp"), timestamp as f64, Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(
+            js_string!("title"),
+            js_string!(title_str),
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("body"),
+            js_string!(body),
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("icon"),
+            js_string!(icon),
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("tag"),
+            js_string!(tag),
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("requireInteraction"),
+            require_interaction,
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("silent"),
+            silent,
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("timestamp"),
+            timestamp as f64,
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
         .property(js_string!("_id"), id as f64, Attribute::all())
         // Event handlers (initially null)
-        .property(js_string!("onclick"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-        .property(js_string!("onclose"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-        .property(js_string!("onerror"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
-        .property(js_string!("onshow"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
+        .property(
+            js_string!("onclick"),
+            JsValue::null(),
+            Attribute::WRITABLE | Attribute::CONFIGURABLE,
+        )
+        .property(
+            js_string!("onclose"),
+            JsValue::null(),
+            Attribute::WRITABLE | Attribute::CONFIGURABLE,
+        )
+        .property(
+            js_string!("onerror"),
+            JsValue::null(),
+            Attribute::WRITABLE | Attribute::CONFIGURABLE,
+        )
+        .property(
+            js_string!("onshow"),
+            JsValue::null(),
+            Attribute::WRITABLE | Attribute::CONFIGURABLE,
+        )
         .function(
             NativeFunction::from_fn_ptr(notification_close),
             js_string!("close"),
@@ -180,7 +229,12 @@ pub fn create_notification_constructor(context: &mut Context) -> JsResult<JsObje
     .build();
 
     // Add static properties
-    constructor_obj.set(js_string!("permission"), js_string!("granted"), false, context)?;
+    constructor_obj.set(
+        js_string!("permission"),
+        js_string!("granted"),
+        false,
+        context,
+    )?;
 
     // Add requestPermission static method
     let request_permission = NativeFunction::from_fn_ptr(notification_request_permission);
@@ -198,7 +252,11 @@ pub fn create_notification_constructor(context: &mut Context) -> JsResult<JsObje
 }
 
 /// Notification.requestPermission() - Returns a Promise that resolves with the permission
-fn notification_request_permission(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn notification_request_permission(
+    _this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     // For headless browser, always return "granted"
     let permission = {
         let perm = NOTIFICATION_PERMISSION.lock().unwrap();
@@ -214,7 +272,11 @@ fn notification_request_permission(_this: &JsValue, _args: &[JsValue], context: 
 }
 
 /// Notification.prototype.close() - Closes the notification
-fn notification_close(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn notification_close(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Notification.close called on non-object")
     })?;

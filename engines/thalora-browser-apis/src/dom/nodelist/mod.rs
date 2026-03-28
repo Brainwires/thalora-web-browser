@@ -8,14 +8,14 @@
 //! - **Live NodeLists**: Always reflects current DOM state (e.g., Node.childNodes)
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    string::{StaticJsStrings, JsString},
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
+    string::{JsString, StaticJsStrings},
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex, Weak};
@@ -93,9 +93,7 @@ impl NodeListData {
     /// Get the nodes from the source (handles both static and live)
     fn get_nodes(&self) -> Vec<JsObject> {
         match &self.source {
-            NodeListSource::Static(arc) => {
-                arc.lock().unwrap().clone()
-            }
+            NodeListSource::Static(arc) => arc.lock().unwrap().clone(),
             NodeListSource::LiveChildNodes(weak) => {
                 // Upgrade weak reference to get current nodes
                 weak.upgrade()
@@ -109,11 +107,10 @@ impl NodeListData {
     pub fn length(&self) -> usize {
         match &self.source {
             NodeListSource::Static(arc) => arc.lock().unwrap().len(),
-            NodeListSource::LiveChildNodes(weak) => {
-                weak.upgrade()
-                    .map(|arc| arc.lock().unwrap().len())
-                    .unwrap_or(0)
-            }
+            NodeListSource::LiveChildNodes(weak) => weak
+                .upgrade()
+                .map(|arc| arc.lock().unwrap().len())
+                .unwrap_or(0),
         }
     }
 
@@ -121,10 +118,9 @@ impl NodeListData {
     pub fn get_item(&self, index: usize) -> Option<JsObject> {
         match &self.source {
             NodeListSource::Static(arc) => arc.lock().unwrap().get(index).cloned(),
-            NodeListSource::LiveChildNodes(weak) => {
-                weak.upgrade()
-                    .and_then(|arc| arc.lock().unwrap().get(index).cloned())
-            }
+            NodeListSource::LiveChildNodes(weak) => weak
+                .upgrade()
+                .and_then(|arc| arc.lock().unwrap().get(index).cloned()),
         }
     }
 
@@ -146,7 +142,9 @@ impl NodeListData {
     /// Live NodeLists are modified through their parent
     pub fn remove_node(&self, node: &JsObject) {
         if let NodeListSource::Static(arc) = &self.source {
-            arc.lock().unwrap().retain(|n| !std::ptr::eq(n.as_ref(), node.as_ref()));
+            arc.lock()
+                .unwrap()
+                .retain(|n| !std::ptr::eq(n.as_ref(), node.as_ref()));
         }
         // For live NodeLists, modifications go through the parent NodeData
     }
@@ -173,14 +171,17 @@ impl NodeListData {
     }
 
     /// `NodeList.prototype.length` getter
-    fn get_length_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_length_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeList.length called on non-object")
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.length called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.length called on non-NodeList object")
         })?;
 
         Ok(JsValue::new(nodelist_data.length() as i32))
@@ -193,8 +194,7 @@ impl NodeListData {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.item called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.item called on non-NodeList object")
         })?;
 
         let index = args.get_or_undefined(0).to_length(context)? as usize;
@@ -212,8 +212,7 @@ impl NodeListData {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.forEach called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.forEach called on non-NodeList object")
         })?;
 
         let callback = args.get_or_undefined(0);
@@ -244,8 +243,7 @@ impl NodeListData {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.keys called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.keys called on non-NodeList object")
         })?;
 
         // Create an array iterator over the indices
@@ -269,13 +267,13 @@ impl NodeListData {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.values called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.values called on non-NodeList object")
         })?;
 
         // Create an array with the node values
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
+        let array =
+            boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
             array.create_data_property_or_throw(i, node.clone(), context)?;
@@ -293,13 +291,13 @@ impl NodeListData {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.entries called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.entries called on non-NodeList object")
         })?;
 
         // Create an array of [index, node] pairs
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
+        let array =
+            boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
             let entry = boa_engine::builtins::array::Array::array_create(2, None, context)?;
@@ -320,7 +318,11 @@ pub struct NodeList;
 
 impl NodeList {
     /// Create a new static NodeList from a vector of nodes
-    pub fn create_from_nodes(nodes: Vec<JsObject>, live: bool, context: &mut Context) -> JsResult<JsObject> {
+    pub fn create_from_nodes(
+        nodes: Vec<JsObject>,
+        live: bool,
+        context: &mut Context,
+    ) -> JsResult<JsObject> {
         let nodelist_data = NodeListData::new(nodes, live);
 
         let nodelist_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -335,7 +337,10 @@ impl NodeList {
     /// Create a live NodeList that references a parent's child_nodes Arc.
     /// This is the proper implementation for Node.childNodes per DOM spec.
     /// The returned NodeList will always reflect the current state of the parent's children.
-    pub fn create_live_child_nodes(child_nodes_arc: Arc<Mutex<Vec<JsObject>>>, context: &mut Context) -> JsResult<JsObject> {
+    pub fn create_live_child_nodes(
+        child_nodes_arc: Arc<Mutex<Vec<JsObject>>>,
+        context: &mut Context,
+    ) -> JsResult<JsObject> {
         let nodelist_data = NodeListData::new_live(child_nodes_arc);
 
         let nodelist_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -348,7 +353,11 @@ impl NodeList {
     }
 
     /// Static method implementations for BuiltInBuilder
-    fn get_length_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_length_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeListData::get_length_accessor(this, args, context)
     }
 
@@ -358,8 +367,7 @@ impl NodeList {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.item called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.item called on non-NodeList object")
         })?;
 
         let index = args.get_or_undefined(0).to_length(context)? as usize;
@@ -375,8 +383,7 @@ impl NodeList {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.forEach called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.forEach called on non-NodeList object")
         })?;
 
         let callback = args.get_or_undefined(0);
@@ -406,8 +413,7 @@ impl NodeList {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.keys called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.keys called on non-NodeList object")
         })?;
 
         let length = nodelist_data.length();
@@ -427,12 +433,12 @@ impl NodeList {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.values called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.values called on non-NodeList object")
         })?;
 
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
+        let array =
+            boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
             array.create_data_property_or_throw(i, node.clone(), context)?;
@@ -447,12 +453,12 @@ impl NodeList {
         })?;
 
         let nodelist_data = this_obj.downcast_ref::<NodeListData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NodeList.entries called on non-NodeList object")
+            JsNativeError::typ().with_message("NodeList.entries called on non-NodeList object")
         })?;
 
         let nodes = nodelist_data.nodes();
-        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
+        let array =
+            boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
 
         for (i, node) in nodes.iter().enumerate() {
             let entry = boa_engine::builtins::array::Array::array_create(2, None, context)?;
@@ -529,8 +535,6 @@ impl BuiltInConstructor for NodeList {
         Ok(nodelist_obj.upcast().into())
     }
 }
-
-
 
 #[cfg(test)]
 mod tests;

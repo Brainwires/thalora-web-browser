@@ -14,35 +14,35 @@ pub mod state;
 #[cfg(feature = "native")]
 pub mod buffer;
 #[cfg(feature = "native")]
-pub mod shader;
-#[cfg(feature = "native")]
-pub mod texture;
-#[cfg(feature = "native")]
 pub mod context;
 #[cfg(feature = "native")]
-pub mod methods_shader;
+pub mod context2;
+#[cfg(feature = "native")]
+pub mod methods2_query;
+#[cfg(feature = "native")]
+pub mod methods2_transform;
+#[cfg(feature = "native")]
+pub mod methods2_vao;
 #[cfg(feature = "native")]
 pub mod methods_buffer;
+#[cfg(feature = "native")]
+pub mod methods_draw;
+#[cfg(feature = "native")]
+pub mod methods_shader;
 #[cfg(feature = "native")]
 pub mod methods_texture;
 #[cfg(feature = "native")]
 pub mod methods_uniform;
 #[cfg(feature = "native")]
-pub mod methods_draw;
+pub mod shader;
 #[cfg(feature = "native")]
-pub mod context2;
-#[cfg(feature = "native")]
-pub mod methods2_vao;
-#[cfg(feature = "native")]
-pub mod methods2_query;
-#[cfg(feature = "native")]
-pub mod methods2_transform;
+pub mod texture;
 
 // WASM stubs - actual WebGL is used through web-sys in JavaScript
 #[cfg(feature = "wasm")]
-pub mod context_wasm;
-#[cfg(feature = "wasm")]
 pub mod context2_wasm;
+#[cfg(feature = "wasm")]
+pub mod context_wasm;
 
 // Re-export WASM stubs with native module names for uniform API
 #[cfg(feature = "wasm")]

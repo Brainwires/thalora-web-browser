@@ -10,13 +10,13 @@ use super::key::IDBKey;
 use super::key_range::IDBKeyRange;
 use super::request::IDBRequest;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -26,12 +26,14 @@ fn json_stringify(value: &JsValue, context: &mut Context) -> JsResult<String> {
     // Get JSON global object
     let global = context.global_object();
     let json_obj = global.get(js_string!("JSON"), context)?;
-    let json_obj = json_obj.as_object()
+    let json_obj = json_obj
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON is not an object"))?;
 
     // Call JSON.stringify
     let stringify_fn = json_obj.get(js_string!("stringify"), context)?;
-    let stringify_fn = stringify_fn.as_callable()
+    let stringify_fn = stringify_fn
+        .as_callable()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON.stringify is not callable"))?;
 
     let result = stringify_fn.call(&JsValue::undefined(), &[value.clone()], context)?;
@@ -43,15 +45,21 @@ fn json_parse(json_str: &str, context: &mut Context) -> JsResult<JsValue> {
     // Get JSON global object
     let global = context.global_object();
     let json_obj = global.get(js_string!("JSON"), context)?;
-    let json_obj = json_obj.as_object()
+    let json_obj = json_obj
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON is not an object"))?;
 
     // Call JSON.parse
     let parse_fn = json_obj.get(js_string!("parse"), context)?;
-    let parse_fn = parse_fn.as_callable()
+    let parse_fn = parse_fn
+        .as_callable()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON.parse is not callable"))?;
 
-    parse_fn.call(&JsValue::undefined(), &[JsValue::from(JsString::from(json_str))], context)
+    parse_fn.call(
+        &JsValue::undefined(),
+        &[JsValue::from(JsString::from(json_str))],
+        context,
+    )
 }
 
 /// IDBObjectStore represents an object store
@@ -113,13 +121,13 @@ impl IDBObjectStore {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         Ok(JsValue::from(JsString::from(store.name.clone())))
     }
@@ -130,13 +138,13 @@ impl IDBObjectStore {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         if let Some(key_path) = &store.key_path {
             Ok(JsValue::from(JsString::from(key_path.clone())))
@@ -151,13 +159,13 @@ impl IDBObjectStore {
         _args: &[JsValue],
         _context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         Ok(JsValue::from(store.auto_increment))
     }
@@ -169,13 +177,13 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse value
         let value = args.get_or_undefined(0);
@@ -204,7 +212,8 @@ impl IDBObjectStore {
 
         let result_key = {
             let mut backend = backend.lock().unwrap();
-            backend.add(&db_name, &store_name, &key, value_bytes)
+            backend
+                .add(&db_name, &store_name, &key, value_bytes)
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -228,13 +237,13 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse value
         let value = args.get_or_undefined(0);
@@ -262,7 +271,8 @@ impl IDBObjectStore {
 
         let result_key = {
             let mut backend = backend.lock().unwrap();
-            backend.put(&db_name, &store_name, &key, value_bytes)
+            backend
+                .put(&db_name, &store_name, &key, value_bytes)
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -286,13 +296,13 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse key
         let key = IDBKey::from_js_value(args.get_or_undefined(0), context)?;
@@ -307,7 +317,8 @@ impl IDBObjectStore {
 
         let value_bytes = {
             let backend = backend.lock().unwrap();
-            backend.get(&db_name, &store_name, &key)
+            backend
+                .get(&db_name, &store_name, &key)
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -338,13 +349,13 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse key
         let key = IDBKey::from_js_value(args.get_or_undefined(0), context)?;
@@ -359,7 +370,8 @@ impl IDBObjectStore {
 
         {
             let mut backend = backend.lock().unwrap();
-            backend.delete(&db_name, &store_name, &key)
+            backend
+                .delete(&db_name, &store_name, &key)
                 .map_err(|e| JsNativeError::error().with_message(e))?;
         }
 
@@ -381,13 +393,13 @@ impl IDBObjectStore {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Create request
         let request = IDBRequest::new();
@@ -399,7 +411,8 @@ impl IDBObjectStore {
 
         {
             let mut backend = backend.lock().unwrap();
-            backend.clear(&db_name, &store_name)
+            backend
+                .clear(&db_name, &store_name)
                 .map_err(|e| JsNativeError::error().with_message(e))?;
         }
 
@@ -421,13 +434,13 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse key range (if provided)
         let range = if args.len() > 0 && !args[0].is_undefined() {
@@ -455,7 +468,8 @@ impl IDBObjectStore {
 
         let count = {
             let backend = backend.lock().unwrap();
-            backend.count(&db_name, &store_name, range.as_ref())
+            backend
+                .count(&db_name, &store_name, range.as_ref())
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -477,18 +491,20 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse range and count
         let range = if args.len() > 0 && !args[0].is_undefined() {
             if let Some(range_obj) = args[0].as_object() {
-                range_obj.downcast_ref::<IDBKeyRange>().map(|r| (*r).clone())
+                range_obj
+                    .downcast_ref::<IDBKeyRange>()
+                    .map(|r| (*r).clone())
             } else {
                 None
             }
@@ -512,7 +528,8 @@ impl IDBObjectStore {
 
         let values = {
             let backend = backend.lock().unwrap();
-            backend.get_all(&db_name, &store_name, range.as_ref(), count)
+            backend
+                .get_all(&db_name, &store_name, range.as_ref(), count)
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -545,13 +562,13 @@ impl IDBObjectStore {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
-        let store = obj.downcast_ref::<IDBObjectStore>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBObjectStore object"))?;
+        let store = obj.downcast_ref::<IDBObjectStore>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBObjectStore object")
+        })?;
 
         // Parse optional range
         let range = if args.len() > 0 && !args[0].is_undefined() {
@@ -565,8 +582,10 @@ impl IDBObjectStore {
                         // Try to parse as key and create only range
                         let key = IDBKey::from_js_value(&args[0], context)?;
                         // Create an "only" range (single value)
-                        Some(IDBKeyRange::new(Some(key.clone()), Some(key), false, false)
-                            .map_err(|e| JsNativeError::error().with_message(e))?)
+                        Some(
+                            IDBKeyRange::new(Some(key.clone()), Some(key), false, false)
+                                .map_err(|e| JsNativeError::error().with_message(e))?,
+                        )
                     }
                 } else {
                     None
@@ -575,8 +594,10 @@ impl IDBObjectStore {
                 // Parse as key and create only range
                 let key = IDBKey::from_js_value(&args[0], context)?;
                 // Create an "only" range (single value)
-                Some(IDBKeyRange::new(Some(key.clone()), Some(key), false, false)
-                    .map_err(|e| JsNativeError::error().with_message(e))?)
+                Some(
+                    IDBKeyRange::new(Some(key.clone()), Some(key), false, false)
+                        .map_err(|e| JsNativeError::error().with_message(e))?,
+                )
             }
         } else {
             None
@@ -599,7 +620,8 @@ impl IDBObjectStore {
             store.name.clone(),
             range,
             direction,
-        ).map_err(|e| JsNativeError::error().with_message(e))?;
+        )
+        .map_err(|e| JsNativeError::error().with_message(e))?;
 
         // Create cursor object
         let cursor_obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -628,25 +650,31 @@ impl IntrinsicObject for IDBObjectStore {
             // Properties
             .accessor(
                 js_string!("name"),
-                Some(BuiltInBuilder::callable(realm, Self::get_name)
-                    .name(js_string!("get name"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_name)
+                        .name(js_string!("get name"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("keyPath"),
-                Some(BuiltInBuilder::callable(realm, Self::get_key_path)
-                    .name(js_string!("get keyPath"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_key_path)
+                        .name(js_string!("get keyPath"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
             .accessor(
                 js_string!("autoIncrement"),
-                Some(BuiltInBuilder::callable(realm, Self::get_auto_increment)
-                    .name(js_string!("get autoIncrement"))
-                    .build()),
+                Some(
+                    BuiltInBuilder::callable(realm, Self::get_auto_increment)
+                        .name(js_string!("get autoIncrement"))
+                        .build(),
+                ),
                 None,
                 Attribute::CONFIGURABLE,
             )
@@ -672,13 +700,14 @@ impl BuiltInObject for IDBObjectStore {
 }
 
 impl BuiltInConstructor for IDBObjectStore {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Constructor properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Constructor properties
 
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |intrinsics| intrinsics.idb_object_store();
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |intrinsics| intrinsics.idb_object_store();
 
     fn constructor(
         _new_target: &JsValue,
@@ -697,7 +726,9 @@ impl Default for IDBObjectStore {
             name: String::new(),
             key_path: None,
             auto_increment: false,
-            backend: Arc::new(Mutex::new(Box::new(super::backend::memory::MemoryBackend::new()))),
+            backend: Arc::new(Mutex::new(Box::new(
+                super::backend::memory::MemoryBackend::new(),
+            ))),
             db_name: String::new(),
         }
     }

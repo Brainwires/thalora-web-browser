@@ -32,7 +32,9 @@ fn test_all_tools_enabled_by_default() {
 
     // Scraping tools (snapshot_url is the unified scraping tool)
     assert!(
-        tool_names.iter().any(|name| name == "snapshot_url" || name == "snapshot_url" || name.starts_with("scrape_")),
+        tool_names.iter().any(|name| name == "snapshot_url"
+            || name == "snapshot_url"
+            || name.starts_with("scrape_")),
         "Should have scraping tools enabled by default"
     );
 
@@ -91,7 +93,9 @@ fn test_ai_memory_tools_disabled() {
         "CDP tools should still be enabled"
     );
     assert!(
-        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should still be enabled"
     );
 
@@ -126,7 +130,9 @@ fn test_cdp_tools_disabled() {
         "AI memory tools should still be enabled"
     );
     assert!(
-        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should still be enabled"
     );
 
@@ -159,7 +165,9 @@ fn test_scraping_tools_disabled() {
 
     // Scraping tools should not be available
     assert!(
-        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        !tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
 
@@ -220,8 +228,9 @@ fn test_search_tools_disabled() {
 #[test]
 fn test_sessions_tools_disabled() {
     // CDP implies sessions, so both must be disabled to truly disable browser tools
-    let mut harness = create_harness_with_disabled_categories(&["THALORA_ENABLE_SESSIONS", "THALORA_ENABLE_CDP"])
-        .expect("Failed to create harness with disabled sessions");
+    let mut harness =
+        create_harness_with_disabled_categories(&["THALORA_ENABLE_SESSIONS", "THALORA_ENABLE_CDP"])
+            .expect("Failed to create harness with disabled sessions");
 
     let tools = harness.list_tools().expect("Should be able to list tools");
     let tool_names: Vec<String> = tools
@@ -307,7 +316,9 @@ fn test_cdp_enables_sessions_automatically() {
         "AI memory tools should be disabled"
     );
     assert!(
-        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        !tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
 
@@ -341,7 +352,9 @@ fn test_multiple_categories_disabled() {
         "AI memory tools should be disabled"
     );
     assert!(
-        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        !tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
     assert!(
@@ -393,7 +406,9 @@ fn test_only_specific_categories_enabled() {
 
     // Disabled categories should not be available
     assert!(
-        !tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        !tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be disabled"
     );
     assert!(
@@ -514,7 +529,9 @@ fn test_default_behavior_no_env_vars() {
         "Should have scraping tools available by default"
     );
     assert!(
-        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Should have scraping tools enabled by default"
     );
 
@@ -534,9 +551,7 @@ fn test_default_behavior_no_env_vars() {
     );
     // Search tools are included in minimal mode alongside scraping
     assert!(
-        tool_names
-            .iter()
-            .any(|name| name == "web_search"),
+        tool_names.iter().any(|name| name == "web_search"),
         "Search tools should be available in minimal mode"
     );
 
@@ -572,7 +587,9 @@ fn test_custom_environment_variables() {
         "AI memory tools should be enabled"
     );
     assert!(
-        tool_names.iter().any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
+        tool_names
+            .iter()
+            .any(|name| name == "snapshot_url" || name.starts_with("scrape_")),
         "Scraping tools should be enabled"
     );
     assert!(

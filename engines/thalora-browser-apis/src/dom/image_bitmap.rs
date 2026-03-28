@@ -4,13 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html#imagebitmap
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute,
 };
 use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
@@ -249,7 +251,7 @@ pub fn create_image_bitmap(
             } else {
                 // Image not loaded yet or failed
                 return context.eval(boa_engine::Source::from_bytes(
-                    "Promise.reject(new Error('Image is not loaded'))"
+                    "Promise.reject(new Error('Image is not loaded'))",
                 ));
             }
         }
@@ -258,7 +260,7 @@ pub fn create_image_bitmap(
         if let Some(bitmap_data) = obj.downcast_ref::<ImageBitmapData>() {
             if bitmap_data.is_closed() {
                 return context.eval(boa_engine::Source::from_bytes(
-                    "Promise.reject(new Error('ImageBitmap is closed'))"
+                    "Promise.reject(new Error('ImageBitmap is closed'))",
                 ));
             }
 
@@ -280,7 +282,7 @@ pub fn create_image_bitmap(
 
     // Unsupported source type
     context.eval(boa_engine::Source::from_bytes(
-        "Promise.reject(new TypeError('createImageBitmap: unsupported source type'))"
+        "Promise.reject(new TypeError('createImageBitmap: unsupported source type'))",
     ))
 }
 
@@ -295,14 +297,16 @@ mod tests {
         crate::initialize_browser_apis(&mut context).unwrap();
 
         // Direct construction should fail
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context.eval(Source::from_bytes(
+            r#"
             try {
                 new ImageBitmap();
                 false;
             } catch (e) {
                 e instanceof TypeError;
             }
-        "#));
+        "#,
+        ));
         assert!(result.is_ok());
         assert!(result.unwrap().to_boolean());
     }

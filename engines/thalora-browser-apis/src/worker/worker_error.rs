@@ -7,12 +7,10 @@
 //! - Security errors
 //! - Network errors
 
-
-use boa_engine::{
-    Context, JsResult, JsValue, JsNativeError, JsObject, js_string,
-    property::Attribute,
-};
 use crate::worker::worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event};
+use boa_engine::{
+    Context, JsNativeError, JsObject, JsResult, JsValue, js_string, property::Attribute,
+};
 use boa_gc::{Finalize, Trace};
 
 /// Types of worker errors according to WHATWG specification
@@ -123,14 +121,16 @@ impl WorkerError {
         let message = if let Some(error_obj) = error_object.as_object() {
             // Try to get the message property
             if let Ok(msg_val) = error_obj.get(js_string!("message"), context) {
-                msg_val.to_string(context)
+                msg_val
+                    .to_string(context)
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_else(|_| "Unknown error".to_string())
             } else {
                 "Unknown error".to_string()
             }
         } else {
-            error_object.to_string(context)
+            error_object
+                .to_string(context)
                 .map(|s| s.to_std_string_escaped())
                 .unwrap_or_else(|_| "Unknown error".to_string())
         };
@@ -153,9 +153,11 @@ impl WorkerError {
 
         // Create appropriate error type
         let error_constructor = match self.error_type {
-            WorkerErrorType::ScriptParseError => {
-                context.intrinsics().constructors().syntax_error().constructor()
-            }
+            WorkerErrorType::ScriptParseError => context
+                .intrinsics()
+                .constructors()
+                .syntax_error()
+                .constructor(),
             WorkerErrorType::SecurityError => {
                 // For now, use Error as SecurityError may not be implemented
                 context.intrinsics().constructors().error().constructor()
@@ -172,9 +174,7 @@ impl WorkerError {
                 // InvalidStateError - use Error for now
                 context.intrinsics().constructors().error().constructor()
             }
-            _ => {
-                context.intrinsics().constructors().error().constructor()
-            }
+            _ => context.intrinsics().constructors().error().constructor(),
         };
 
         let args = [js_string!(self.message.clone()).into()];
@@ -202,15 +202,11 @@ impl WorkerError {
     pub fn to_js_native_error(&self) -> JsNativeError {
         let message = self.message.clone();
         match self.error_type {
-            WorkerErrorType::ScriptParseError => {
-                JsNativeError::syntax().with_message(message)
-            }
+            WorkerErrorType::ScriptParseError => JsNativeError::syntax().with_message(message),
             WorkerErrorType::InvalidStateError | WorkerErrorType::TerminatedError => {
                 JsNativeError::typ().with_message(message)
             }
-            _ => {
-                JsNativeError::error().with_message(message)
-            }
+            _ => JsNativeError::error().with_message(message),
         }
     }
 }
@@ -464,10 +460,8 @@ pub mod error_helpers {
 
     /// Create a worker terminated error
     pub fn worker_terminated_error(operation: &str) -> JsNativeError {
-        JsNativeError::error().with_message(format!(
-            "Cannot {} - worker has been terminated",
-            operation
-        ))
+        JsNativeError::error()
+            .with_message(format!("Cannot {} - worker has been terminated", operation))
     }
 
     /// Create a security error
@@ -477,9 +471,6 @@ pub mod error_helpers {
 
     /// Create a network error
     pub fn network_error(url: &str, cause: &str) -> JsNativeError {
-        JsNativeError::error().with_message(format!(
-            "NetworkError loading '{}': {}",
-            url, cause
-        ))
+        JsNativeError::error().with_message(format!("NetworkError loading '{}': {}", url, cause))
     }
 }

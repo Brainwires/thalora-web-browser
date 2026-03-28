@@ -6,14 +6,15 @@
 //! This provides permission management for headless browser operation.
 
 use boa_engine::{
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction,
     builtins::promise::Promise,
+    js_string,
     object::{JsObject, ObjectInitializer},
     property::Attribute,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string, NativeFunction,
 };
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// Permission state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,12 +79,17 @@ pub fn create_permissions(context: &mut Context) -> JsResult<JsObject> {
 }
 
 /// Permissions.query(permissionDescriptor) - Returns a Promise that resolves with PermissionStatus
-fn permissions_query(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn permissions_query(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let descriptor = args.get_or_undefined(0);
 
     // Get permission name from descriptor
     let name = if let Some(desc_obj) = descriptor.as_object() {
-        desc_obj.get(js_string!("name"), context)?
+        desc_obj
+            .get(js_string!("name"), context)?
             .to_string(context)?
             .to_std_string_escaped()
     } else {
@@ -95,7 +101,10 @@ fn permissions_query(_this: &JsValue, args: &[JsValue], context: &mut Context) -
     // Get the permission state
     let state = {
         let states = PERMISSION_STATES.lock().unwrap();
-        states.get(&name).copied().unwrap_or(PermissionState::Prompt)
+        states
+            .get(&name)
+            .copied()
+            .unwrap_or(PermissionState::Prompt)
     };
 
     // Create PermissionStatus object
@@ -111,12 +120,17 @@ fn permissions_query(_this: &JsValue, args: &[JsValue], context: &mut Context) -
 }
 
 /// Permissions.request(permissionDescriptor) - Returns a Promise that resolves with PermissionStatus
-fn permissions_request(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn permissions_request(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let descriptor = args.get_or_undefined(0);
 
     // Get permission name from descriptor
     let name = if let Some(desc_obj) = descriptor.as_object() {
-        desc_obj.get(js_string!("name"), context)?
+        desc_obj
+            .get(js_string!("name"), context)?
             .to_string(context)?
             .to_std_string_escaped()
     } else {
@@ -144,12 +158,17 @@ fn permissions_request(_this: &JsValue, args: &[JsValue], context: &mut Context)
 }
 
 /// Permissions.revoke(permissionDescriptor) - Returns a Promise that resolves with PermissionStatus
-fn permissions_revoke(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn permissions_revoke(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let descriptor = args.get_or_undefined(0);
 
     // Get permission name from descriptor
     let name = if let Some(desc_obj) = descriptor.as_object() {
-        desc_obj.get(js_string!("name"), context)?
+        desc_obj
+            .get(js_string!("name"), context)?
             .to_string(context)?
             .to_std_string_escaped()
     } else {
@@ -177,12 +196,28 @@ fn permissions_revoke(_this: &JsValue, args: &[JsValue], context: &mut Context) 
 }
 
 /// Create a PermissionStatus object
-fn create_permission_status(name: &str, state: PermissionState, context: &mut Context) -> JsResult<JsObject> {
+fn create_permission_status(
+    name: &str,
+    state: PermissionState,
+    context: &mut Context,
+) -> JsResult<JsObject> {
     let status = ObjectInitializer::new(context)
-        .property(js_string!("name"), js_string!(name), Attribute::READONLY | Attribute::ENUMERABLE)
-        .property(js_string!("state"), js_string!(state.as_str()), Attribute::READONLY | Attribute::ENUMERABLE)
+        .property(
+            js_string!("name"),
+            js_string!(name),
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
+        .property(
+            js_string!("state"),
+            js_string!(state.as_str()),
+            Attribute::READONLY | Attribute::ENUMERABLE,
+        )
         // Event handlers
-        .property(js_string!("onchange"), JsValue::null(), Attribute::WRITABLE | Attribute::CONFIGURABLE)
+        .property(
+            js_string!("onchange"),
+            JsValue::null(),
+            Attribute::WRITABLE | Attribute::CONFIGURABLE,
+        )
         .build();
 
     Ok(status)

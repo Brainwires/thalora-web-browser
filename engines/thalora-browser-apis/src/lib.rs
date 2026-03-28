@@ -81,7 +81,7 @@ pub mod audit;
 
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
-    use boa_engine::builtins::{IntrinsicObject, BuiltInObject};
+    use boa_engine::builtins::{BuiltInObject, IntrinsicObject};
     use boa_engine::property::PropertyDescriptor;
 
     let realm = context.realm().clone();
@@ -311,7 +311,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         events::message_event::MessageEvent::NAME,
         PropertyDescriptor::builder()
-            .value(events::message_event::MessageEvent::get(context.intrinsics()))
+            .value(events::message_event::MessageEvent::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -383,7 +385,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         events::progress_event::ProgressEvent::NAME,
         PropertyDescriptor::builder()
-            .value(events::progress_event::ProgressEvent::get(context.intrinsics()))
+            .value(events::progress_event::ProgressEvent::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -393,7 +397,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         events::hash_change_event::HashChangeEvent::NAME,
         PropertyDescriptor::builder()
-            .value(events::hash_change_event::HashChangeEvent::get(context.intrinsics()))
+            .value(events::hash_change_event::HashChangeEvent::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -403,7 +409,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         events::pop_state_event::PopStateEvent::NAME,
         PropertyDescriptor::builder()
-            .value(events::pop_state_event::PopStateEvent::get(context.intrinsics()))
+            .value(events::pop_state_event::PopStateEvent::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -464,7 +472,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         fetch::xmlhttprequest::XmlHttpRequest::NAME,
         PropertyDescriptor::builder()
-            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -518,7 +528,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         observers::intersection_observer::IntersectionObserver::NAME,
         PropertyDescriptor::builder()
-            .value(observers::intersection_observer::IntersectionObserver::get(context.intrinsics()))
+            .value(observers::intersection_observer::IntersectionObserver::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -528,7 +540,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         observers::mutation_observer::MutationObserver::NAME,
         PropertyDescriptor::builder()
-            .value(observers::mutation_observer::MutationObserver::get(context.intrinsics()))
+            .value(observers::mutation_observer::MutationObserver::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -538,7 +552,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         observers::resize_observer::ResizeObserver::NAME,
         PropertyDescriptor::builder()
-            .value(observers::resize_observer::ResizeObserver::get(context.intrinsics()))
+            .value(observers::resize_observer::ResizeObserver::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -549,7 +565,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         observers::intersection_observer::IntersectionObserverEntry::NAME,
         PropertyDescriptor::builder()
-            .value(observers::intersection_observer::IntersectionObserverEntry::get(context.intrinsics()))
+            .value(
+                observers::intersection_observer::IntersectionObserverEntry::get(
+                    context.intrinsics(),
+                ),
+            )
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -560,7 +580,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         observers::mutation_observer::MutationRecord::NAME,
         PropertyDescriptor::builder()
-            .value(observers::mutation_observer::MutationRecord::get(context.intrinsics()))
+            .value(observers::mutation_observer::MutationRecord::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -571,7 +593,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         messaging::broadcast_channel::BroadcastChannel::NAME,
         PropertyDescriptor::builder()
-            .value(messaging::broadcast_channel::BroadcastChannel::get(context.intrinsics()))
+            .value(messaging::broadcast_channel::BroadcastChannel::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -581,7 +605,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         messaging::message_channel::MessageChannel::NAME,
         PropertyDescriptor::builder()
-            .value(messaging::message_channel::MessageChannel::get(context.intrinsics()))
+            .value(messaging::message_channel::MessageChannel::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -591,7 +617,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         messaging::message_port::MessagePort::NAME,
         PropertyDescriptor::builder()
-            .value(messaging::message_port::MessagePort::get(context.intrinsics()))
+            .value(messaging::message_port::MessagePort::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -602,7 +630,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         misc::abort_controller::AbortController::NAME,
         PropertyDescriptor::builder()
-            .value(misc::abort_controller::AbortController::get(context.intrinsics()))
+            .value(misc::abort_controller::AbortController::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -690,7 +720,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         streams::readable_stream::ReadableStream::NAME,
         PropertyDescriptor::builder()
-            .value(streams::readable_stream::ReadableStream::get(context.intrinsics()))
+            .value(streams::readable_stream::ReadableStream::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -700,7 +732,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         streams::writable_stream::WritableStream::NAME,
         PropertyDescriptor::builder()
-            .value(streams::writable_stream::WritableStream::get(context.intrinsics()))
+            .value(streams::writable_stream::WritableStream::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -710,7 +744,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         streams::transform_stream::TransformStream::NAME,
         PropertyDescriptor::builder()
-            .value(streams::transform_stream::TransformStream::get(context.intrinsics()))
+            .value(streams::transform_stream::TransformStream::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -720,7 +756,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         streams::queuing_strategy::CountQueuingStrategy::NAME,
         PropertyDescriptor::builder()
-            .value(streams::queuing_strategy::CountQueuingStrategy::get(context.intrinsics()))
+            .value(streams::queuing_strategy::CountQueuingStrategy::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -730,7 +768,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         streams::queuing_strategy::ByteLengthQueuingStrategy::NAME,
         PropertyDescriptor::builder()
-            .value(streams::queuing_strategy::ByteLengthQueuingStrategy::get(context.intrinsics()))
+            .value(streams::queuing_strategy::ByteLengthQueuingStrategy::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -801,7 +841,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         dom::character_data::CharacterData::NAME,
         PropertyDescriptor::builder()
-            .value(dom::character_data::CharacterData::get(context.intrinsics()))
+            .value(dom::character_data::CharacterData::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -821,7 +863,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         dom::document_fragment::DocumentFragment::NAME,
         PropertyDescriptor::builder()
-            .value(dom::document_fragment::DocumentFragment::get(context.intrinsics()))
+            .value(dom::document_fragment::DocumentFragment::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -886,7 +930,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         dom::htmlcollection::HTMLCollection::NAME,
         PropertyDescriptor::builder()
-            .value(dom::htmlcollection::HTMLCollection::get(context.intrinsics()))
+            .value(dom::htmlcollection::HTMLCollection::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -897,7 +943,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         dom::html_image_element::HTMLImageElement::NAME,
         PropertyDescriptor::builder()
-            .value(dom::html_image_element::HTMLImageElement::get(context.intrinsics()))
+            .value(dom::html_image_element::HTMLImageElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -908,7 +956,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         js_string!("Image"),
         PropertyDescriptor::builder()
-            .value(dom::html_image_element::HTMLImageElement::get(context.intrinsics()))
+            .value(dom::html_image_element::HTMLImageElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -956,7 +1006,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         dom::html_script_element::HTMLScriptElement::NAME,
         PropertyDescriptor::builder()
-            .value(dom::html_script_element::HTMLScriptElement::get(context.intrinsics()))
+            .value(dom::html_script_element::HTMLScriptElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -989,7 +1041,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         browser::cssom::CSSStyleDeclaration::NAME,
         PropertyDescriptor::builder()
-            .value(browser::cssom::CSSStyleDeclaration::get(context.intrinsics()))
+            .value(browser::cssom::CSSStyleDeclaration::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -998,7 +1052,12 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // getComputedStyle global function
     let get_computed_style_fn = browser::cssom::create_get_computed_style_function(context)?;
-    global_object.set(js_string!("getComputedStyle"), get_computed_style_fn, false, context)?;
+    global_object.set(
+        js_string!("getComputedStyle"),
+        get_computed_style_fn,
+        false,
+        context,
+    )?;
 
     // Canvas APIs
     global_object.define_property_or_throw(
@@ -1014,7 +1073,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         canvas::html_canvas_element::HTMLCanvasElement::NAME,
         PropertyDescriptor::builder()
-            .value(canvas::html_canvas_element::HTMLCanvasElement::get(context.intrinsics()))
+            .value(canvas::html_canvas_element::HTMLCanvasElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1024,7 +1085,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         canvas::rendering_context_2d::CanvasRenderingContext2D::NAME,
         PropertyDescriptor::builder()
-            .value(canvas::rendering_context_2d::CanvasRenderingContext2D::get(context.intrinsics()))
+            .value(canvas::rendering_context_2d::CanvasRenderingContext2D::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1034,7 +1097,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         canvas::offscreen_canvas::OffscreenCanvas::NAME,
         PropertyDescriptor::builder()
-            .value(canvas::offscreen_canvas::OffscreenCanvas::get(context.intrinsics()))
+            .value(canvas::offscreen_canvas::OffscreenCanvas::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1045,7 +1110,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         audio::html_audio_element::HTMLAudioElement::NAME,
         PropertyDescriptor::builder()
-            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .value(audio::html_audio_element::HTMLAudioElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1056,7 +1123,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         js_string!("Audio"),
         PropertyDescriptor::builder()
-            .value(audio::html_audio_element::HTMLAudioElement::get(context.intrinsics()))
+            .value(audio::html_audio_element::HTMLAudioElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1067,7 +1136,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         audio::audio_context::AudioContext::NAME,
         PropertyDescriptor::builder()
-            .value(audio::audio_context::AudioContext::get(context.intrinsics()))
+            .value(audio::audio_context::AudioContext::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1078,7 +1149,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         video::html_video_element::HTMLVideoElement::NAME,
         PropertyDescriptor::builder()
-            .value(video::html_video_element::HTMLVideoElement::get(context.intrinsics()))
+            .value(video::html_video_element::HTMLVideoElement::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1101,7 +1174,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         worker::service_worker::ServiceWorker::NAME,
         PropertyDescriptor::builder()
-            .value(worker::service_worker::ServiceWorker::get(context.intrinsics()))
+            .value(worker::service_worker::ServiceWorker::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1124,7 +1199,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     )?;
 
     // ClipboardItem constructor (Async Clipboard API)
-    let clipboard_item_constructor = browser::clipboard::create_clipboard_item_constructor(context)?;
+    let clipboard_item_constructor =
+        browser::clipboard::create_clipboard_item_constructor(context)?;
     global_object.define_property_or_throw(
         js_string!("ClipboardItem"),
         PropertyDescriptor::builder()
@@ -1171,18 +1247,21 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::storage_event::StorageEvent::NAME,
         PropertyDescriptor::builder()
-            .value(storage::storage_event::StorageEvent::get(context.intrinsics()))
+            .value(storage::storage_event::StorageEvent::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
         context,
     )?;
 
-
     global_object.define_property_or_throw(
         storage::storage_manager::StorageManager::NAME,
         PropertyDescriptor::builder()
-            .value(storage::storage_manager::StorageManager::get(context.intrinsics()))
+            .value(storage::storage_manager::StorageManager::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1193,7 +1272,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::factory::IDBFactory::NAME,
         PropertyDescriptor::builder()
-            .value(storage::indexed_db::factory::IDBFactory::get(context.intrinsics()))
+            .value(storage::indexed_db::factory::IDBFactory::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1204,7 +1285,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::key_range::IDBKeyRange::NAME,
         PropertyDescriptor::builder()
-            .value(storage::indexed_db::key_range::IDBKeyRange::get(context.intrinsics()))
+            .value(storage::indexed_db::key_range::IDBKeyRange::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1215,7 +1298,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::database::IDBDatabase::NAME,
         PropertyDescriptor::builder()
-            .value(storage::indexed_db::database::IDBDatabase::get(context.intrinsics()))
+            .value(storage::indexed_db::database::IDBDatabase::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1226,7 +1311,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::transaction::IDBTransaction::NAME,
         PropertyDescriptor::builder()
-            .value(storage::indexed_db::transaction::IDBTransaction::get(context.intrinsics()))
+            .value(storage::indexed_db::transaction::IDBTransaction::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1237,7 +1324,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::object_store::IDBObjectStore::NAME,
         PropertyDescriptor::builder()
-            .value(<storage::indexed_db::object_store::IDBObjectStore as IntrinsicObject>::get(context.intrinsics()))
+            .value(
+                <storage::indexed_db::object_store::IDBObjectStore as IntrinsicObject>::get(
+                    context.intrinsics(),
+                ),
+            )
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1248,7 +1339,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::cursor::IDBCursor::NAME,
         PropertyDescriptor::builder()
-            .value(storage::indexed_db::cursor::IDBCursor::get(context.intrinsics()))
+            .value(storage::indexed_db::cursor::IDBCursor::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1259,7 +1352,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::index::IDBIndex::NAME,
         PropertyDescriptor::builder()
-            .value(<storage::indexed_db::index::IDBIndex as IntrinsicObject>::get(context.intrinsics()))
+            .value(
+                <storage::indexed_db::index::IDBIndex as IntrinsicObject>::get(
+                    context.intrinsics(),
+                ),
+            )
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1270,7 +1367,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         storage::indexed_db::request::IDBRequest::NAME,
         PropertyDescriptor::builder()
-            .value(storage::indexed_db::request::IDBRequest::get(context.intrinsics()))
+            .value(storage::indexed_db::request::IDBRequest::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1298,9 +1397,16 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         &document_constructor.clone().into(),
         &document_args,
         context,
-    ).expect("failed to create document instance");
+    )
+    .expect("failed to create document instance");
 
-    global_object.set(boa_engine::js_string!("document"), document_instance, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("document"),
+            document_instance,
+            false,
+            context,
+        )
         .expect("failed to set global document");
 
     // Create a global window instance
@@ -1310,26 +1416,39 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         &window_constructor.clone().into(),
         &window_args,
         context,
-    ).expect("failed to create window instance");
+    )
+    .expect("failed to create window instance");
 
-    global_object.set(boa_engine::js_string!("window"), window_instance.clone(), false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("window"),
+            window_instance.clone(),
+            false,
+            context,
+        )
         .expect("failed to set global window");
 
     // Create navigator instance manually with proper prototype and data
-    let navigator_proto = global_object.get(browser::navigator::Navigator::NAME, context)?
+    let navigator_proto = global_object
+        .get(browser::navigator::Navigator::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
         .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
-        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Navigator prototype not found"))?;
+        .ok_or_else(|| {
+            boa_engine::JsNativeError::typ().with_message("Navigator prototype not found")
+        })?;
 
     let mut navigator_data = browser::navigator::Navigator::new();
 
     // Create StorageManager instance for navigator.storage
-    let storage_manager_proto = global_object.get(storage::storage_manager::StorageManager::NAME, context)?
+    let storage_manager_proto = global_object
+        .get(storage::storage_manager::StorageManager::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
         .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
-        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("StorageManager prototype not found"))?;
+        .ok_or_else(|| {
+            boa_engine::JsNativeError::typ().with_message("StorageManager prototype not found")
+        })?;
 
     let storage_manager_data = storage::storage_manager::StorageManager::new();
     let storage_manager_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
@@ -1339,11 +1458,14 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     );
 
     // Create LockManager instance for navigator.locks
-    let lock_manager_proto = global_object.get(locks::lock_manager::LockManager::NAME, context)?
+    let lock_manager_proto = global_object
+        .get(locks::lock_manager::LockManager::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
         .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
-        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("LockManager prototype not found"))?;
+        .ok_or_else(|| {
+            boa_engine::JsNativeError::typ().with_message("LockManager prototype not found")
+        })?;
 
     let lock_manager_data = locks::lock_manager::LockManager::new();
     let lock_manager_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
@@ -1366,27 +1488,36 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Set navigator.storage (this works with .set() because storage doesn't have a special getter)
     let navigator_generic = navigator_obj.upcast();
-    navigator_generic.set(
-        boa_engine::js_string!("storage"),
-        storage_manager_obj,
-        false,
-        context
-    ).expect("failed to set navigator.storage");
+    navigator_generic
+        .set(
+            boa_engine::js_string!("storage"),
+            storage_manager_obj,
+            false,
+            context,
+        )
+        .expect("failed to set navigator.storage");
 
-    let check_storage = navigator_generic.get(boa_engine::js_string!("storage"), context).unwrap();
-    eprintln!("DEBUG: After setting navigator.storage, get('storage') = {:?}", check_storage);
+    let check_storage = navigator_generic
+        .get(boa_engine::js_string!("storage"), context)
+        .unwrap();
+    eprintln!(
+        "DEBUG: After setting navigator.storage, get('storage') = {:?}",
+        check_storage
+    );
 
     // Set navigator.locks as a value property (not accessor) for proper descriptor
-    navigator_generic.define_property_or_throw(
-        boa_engine::js_string!("locks"),
-        boa_engine::property::PropertyDescriptor::builder()
-            .value(lock_manager_generic)
-            .writable(false)
-            .enumerable(true)
-            .configurable(true)
-            .build(),
-        context,
-    ).expect("failed to set navigator.locks");
+    navigator_generic
+        .define_property_or_throw(
+            boa_engine::js_string!("locks"),
+            boa_engine::property::PropertyDescriptor::builder()
+                .value(lock_manager_generic)
+                .writable(false)
+                .enumerable(true)
+                .configurable(true)
+                .build(),
+            context,
+        )
+        .expect("failed to set navigator.locks");
 
     let navigator_instance: boa_engine::JsValue = navigator_generic.into();
 
@@ -1400,21 +1531,25 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     }
 
     // Set as global navigator (same object as window.navigator)
-    global_object.define_property_or_throw(
-        boa_engine::js_string!("navigator"),
-        boa_engine::property::PropertyDescriptor::builder()
-            .value(navigator_instance.clone())
-            .writable(false)
-            .enumerable(true)
-            .configurable(true),
-        context,
-    ).expect("failed to set global navigator");
+    global_object
+        .define_property_or_throw(
+            boa_engine::js_string!("navigator"),
+            boa_engine::property::PropertyDescriptor::builder()
+                .value(navigator_instance.clone())
+                .writable(false)
+                .enumerable(true)
+                .configurable(true),
+            context,
+        )
+        .expect("failed to set global navigator");
 
     // Per Geolocation API spec, navigator.geolocation must always exist.
     // Set up via JS evaluation - provides standard interface with mock coordinates.
     {
         use boa_engine::Source;
-        context.eval(Source::from_bytes(r#"
+        context
+            .eval(Source::from_bytes(
+                r#"
             (function() {
                 var _watchId = 0;
                 var _mockPosition = {
@@ -1449,10 +1584,12 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
                     clearWatch: function(id) { /* no-op */ }
                 };
             })();
-        "#)).map_err(|e| {
-            boa_engine::JsNativeError::typ()
-                .with_message(format!("Failed to initialize geolocation: {}", e))
-        })?;
+        "#,
+            ))
+            .map_err(|e| {
+                boa_engine::JsNativeError::typ()
+                    .with_message(format!("Failed to initialize geolocation: {}", e))
+            })?;
     }
 
     // Create and set global location object
@@ -1462,22 +1599,37 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         &[],
         context,
     )?;
-    global_object.set(boa_engine::js_string!("location"), location_instance, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("location"),
+            location_instance,
+            false,
+            context,
+        )
         .expect("failed to set global location");
 
     // Create and set global history object
     let history_constructor = context.intrinsics().constructors().history().constructor();
-    let history_instance = browser::history::History::constructor(
-        &history_constructor.clone().into(),
-        &[],
-        context,
-    )?;
-    global_object.set(boa_engine::js_string!("history"), history_instance, false, context)
+    let history_instance =
+        browser::history::History::constructor(&history_constructor.clone().into(), &[], context)?;
+    global_object
+        .set(
+            boa_engine::js_string!("history"),
+            history_instance,
+            false,
+            context,
+        )
         .expect("failed to set global history");
 
     // Create and set global performance object
     let performance_instance = browser::performance::create_performance_object(context)?;
-    global_object.set(boa_engine::js_string!("performance"), performance_instance, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("performance"),
+            performance_instance,
+            false,
+            context,
+        )
         .expect("failed to set global performance");
 
     // Add EventTarget functionality to globalThis for WorkerGlobalScope compatibility
@@ -1491,64 +1643,97 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
             .writable(false)
             .enumerable(false)
             .configurable(false)
-            .build()
+            .build(),
     );
 
     // Create wrapper functions that retrieve the hidden event target and delegate to it
     let add_listener_fn = boa_engine::builtins::BuiltInBuilder::callable(
         context.realm(),
-        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+        |_this: &boa_engine::JsValue,
+         args: &[boa_engine::JsValue],
+         context: &mut boa_engine::Context| {
             let global = context.global_object();
-            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            let event_target =
+                global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
             events::event_target::EventTarget::add_event_listener(&event_target, args, context)
-        }
+        },
     )
     .name(boa_engine::js_string!("addEventListener"))
     .length(2)
     .build();
-    global_object.set(boa_engine::js_string!("addEventListener"), add_listener_fn, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("addEventListener"),
+            add_listener_fn,
+            false,
+            context,
+        )
         .expect("failed to set global addEventListener");
 
     let remove_listener_fn = boa_engine::builtins::BuiltInBuilder::callable(
         context.realm(),
-        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+        |_this: &boa_engine::JsValue,
+         args: &[boa_engine::JsValue],
+         context: &mut boa_engine::Context| {
             let global = context.global_object();
-            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            let event_target =
+                global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
             events::event_target::EventTarget::remove_event_listener(&event_target, args, context)
-        }
+        },
     )
     .name(boa_engine::js_string!("removeEventListener"))
     .length(2)
     .build();
-    global_object.set(boa_engine::js_string!("removeEventListener"), remove_listener_fn, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("removeEventListener"),
+            remove_listener_fn,
+            false,
+            context,
+        )
         .expect("failed to set global removeEventListener");
 
     let dispatch_fn = boa_engine::builtins::BuiltInBuilder::callable(
         context.realm(),
-        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+        |_this: &boa_engine::JsValue,
+         args: &[boa_engine::JsValue],
+         context: &mut boa_engine::Context| {
             let global = context.global_object();
-            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            let event_target =
+                global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
             events::event_target::EventTarget::dispatch_event(&event_target, args, context)
-        }
+        },
     )
     .name(boa_engine::js_string!("dispatchEvent"))
     .length(1)
     .build();
-    global_object.set(boa_engine::js_string!("dispatchEvent"), dispatch_fn, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("dispatchEvent"),
+            dispatch_fn,
+            false,
+            context,
+        )
         .expect("failed to set global dispatchEvent");
 
     // postMessage global function (for window.postMessage behavior)
     let post_message_fn = boa_engine::builtins::BuiltInBuilder::callable(
         context.realm(),
-        |_this: &boa_engine::JsValue, args: &[boa_engine::JsValue], context: &mut boa_engine::Context| {
+        |_this: &boa_engine::JsValue,
+         args: &[boa_engine::JsValue],
+         context: &mut boa_engine::Context| {
             // Create a MessageEvent with the data and dispatch it
-            let message = args.get(0).cloned().unwrap_or(boa_engine::JsValue::undefined());
+            let message = args
+                .get(0)
+                .cloned()
+                .unwrap_or(boa_engine::JsValue::undefined());
             let _origin = args.get(1).cloned().unwrap_or(js_string!("*").into());
 
             // For now, just dispatch a message event to self (in a full implementation,
             // this would be used for cross-origin messaging)
             let global = context.global_object();
-            let event_target = global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
+            let event_target =
+                global.get(boa_engine::js_string!("__globalEventTarget__"), context)?;
 
             // Create a MessageEvent-like object
             let event_obj = boa_engine::JsObject::with_null_proto();
@@ -1556,22 +1741,35 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
             event_obj.set(js_string!("data"), message, false, context)?;
 
             // Dispatch the event
-            events::event_target::EventTarget::dispatch_event(&event_target, &[event_obj.into()], context)
-        }
+            events::event_target::EventTarget::dispatch_event(
+                &event_target,
+                &[event_obj.into()],
+                context,
+            )
+        },
     )
     .name(boa_engine::js_string!("postMessage"))
     .length(1)
     .build();
-    global_object.set(boa_engine::js_string!("postMessage"), post_message_fn, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("postMessage"),
+            post_message_fn,
+            false,
+            context,
+        )
         .expect("failed to set global postMessage");
 
     // Create localStorage and sessionStorage instances
     // Storage constructor cannot be called directly, so we create instances manually
-    let storage_proto = global_object.get(storage::storage::Storage::NAME, context)?
+    let storage_proto = global_object
+        .get(storage::storage::Storage::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
         .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
-        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("Storage prototype not found"))?;
+        .ok_or_else(|| {
+            boa_engine::JsNativeError::typ().with_message("Storage prototype not found")
+        })?;
 
     // Create localStorage instance with persistence enabled
     let local_storage_data = storage::storage::Storage::new("localStorage");
@@ -1592,14 +1790,19 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     let session_storage: boa_engine::JsValue = session_storage_obj.into();
 
     // Create indexedDB instance (same pattern as Storage)
-    let idb_factory_proto = global_object.get(storage::indexed_db::factory::IDBFactory::NAME, context)?
+    let idb_factory_proto = global_object
+        .get(storage::indexed_db::factory::IDBFactory::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
         .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
-        .ok_or_else(|| boa_engine::JsNativeError::typ().with_message("IDBFactory prototype not found"))?;
+        .ok_or_else(|| {
+            boa_engine::JsNativeError::typ().with_message("IDBFactory prototype not found")
+        })?;
 
-    let indexed_db_factory_data = storage::indexed_db::factory::IDBFactory::new()
-        .map_err(|e| boa_engine::JsNativeError::error().with_message(format!("Failed to create IndexedDB factory: {}", e)))?;
+    let indexed_db_factory_data = storage::indexed_db::factory::IDBFactory::new().map_err(|e| {
+        boa_engine::JsNativeError::error()
+            .with_message(format!("Failed to create IndexedDB factory: {}", e))
+    })?;
 
     let indexed_db_obj = boa_engine::JsObject::from_proto_and_data_with_shared_shape(
         context.root_shape(),
@@ -1610,20 +1813,56 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 
     // Set on window object (must be done BEFORE window is finalized)
     if let Some(window_obj) = window_instance.as_object() {
-        window_obj.set(boa_engine::js_string!("localStorage"), local_storage.clone(), false, context)
+        window_obj
+            .set(
+                boa_engine::js_string!("localStorage"),
+                local_storage.clone(),
+                false,
+                context,
+            )
             .expect("failed to set window.localStorage");
-        window_obj.set(boa_engine::js_string!("sessionStorage"), session_storage.clone(), false, context)
+        window_obj
+            .set(
+                boa_engine::js_string!("sessionStorage"),
+                session_storage.clone(),
+                false,
+                context,
+            )
             .expect("failed to set window.sessionStorage");
-        window_obj.set(boa_engine::js_string!("indexedDB"), indexed_db.clone(), false, context)
+        window_obj
+            .set(
+                boa_engine::js_string!("indexedDB"),
+                indexed_db.clone(),
+                false,
+                context,
+            )
             .expect("failed to set window.indexedDB");
     }
 
     // Set as globals
-    global_object.set(boa_engine::js_string!("localStorage"), local_storage, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("localStorage"),
+            local_storage,
+            false,
+            context,
+        )
         .expect("failed to set global localStorage");
-    global_object.set(boa_engine::js_string!("sessionStorage"), session_storage, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("sessionStorage"),
+            session_storage,
+            false,
+            context,
+        )
         .expect("failed to set global sessionStorage");
-    global_object.set(boa_engine::js_string!("indexedDB"), indexed_db, false, context)
+    global_object
+        .set(
+            boa_engine::js_string!("indexedDB"),
+            indexed_db,
+            false,
+            context,
+        )
         .expect("failed to set global indexedDB");
 
     // Register file picker global functions
@@ -1675,7 +1914,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         fetch::xmlhttprequest::XmlHttpRequest::NAME,
         PropertyDescriptor::builder()
-            .value(fetch::xmlhttprequest::XmlHttpRequest::get(context.intrinsics()))
+            .value(fetch::xmlhttprequest::XmlHttpRequest::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1686,7 +1927,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         webrtc::rtc_peer_connection::RTCPeerConnectionBuiltin::NAME,
         PropertyDescriptor::builder()
-            .value(webrtc::rtc_peer_connection::RTCPeerConnectionBuiltin::get(context.intrinsics()))
+            .value(webrtc::rtc_peer_connection::RTCPeerConnectionBuiltin::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),
@@ -1828,7 +2071,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
 }
 
 // Re-export commonly used Boa types for tests
-pub use boa_engine::{Context, JsValue, JsString, Source, js_string, JsResult, JsNativeError};
+pub use boa_engine::{Context, JsNativeError, JsResult, JsString, JsValue, Source, js_string};
 
 /// Test infrastructure
 #[cfg(test)]
@@ -1881,7 +2124,11 @@ mod test_utils {
         }
 
         /// Create an AssertThrows action (called assert_native_error in tests)
-        pub fn assert_native_error(code: &'static str, kind: JsNativeErrorKind, message: &'static str) -> Self {
+        pub fn assert_native_error(
+            code: &'static str,
+            kind: JsNativeErrorKind,
+            message: &'static str,
+        ) -> Self {
             TestAction::AssertThrows(code, kind, Some(message))
         }
     }
@@ -1908,7 +2155,8 @@ mod test_utils {
         let mut context = Context::default();
 
         // Initialize all browser APIs that the test might need
-        crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs in test context");
+        crate::initialize_browser_apis(&mut context)
+            .expect("Failed to initialize browser APIs in test context");
 
         for action in actions {
             match action {
@@ -1993,49 +2241,67 @@ mod test_utils {
 }
 #[cfg(test)]
 mod debug_navigator_locks {
-    use crate::{Context, Source, JsValue, JsString};
+    use crate::{Context, JsString, JsValue, Source};
 
     #[test]
     fn debug_locks() {
         let mut context = Context::default();
         crate::initialize_browser_apis(&mut context).unwrap();
-        
+
         println!("=== Testing LockManager ===");
-        
+
         // 1. Does LockManager constructor exist?
-        let result = context.eval(Source::from_bytes("typeof LockManager")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof LockManager"))
+            .unwrap();
         println!("1. typeof LockManager = {:?}", result);
-        
+
         // 2. Does LockManager.prototype.request exist?
-        let result = context.eval(Source::from_bytes("typeof LockManager.prototype.request")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof LockManager.prototype.request"))
+            .unwrap();
         println!("2. typeof LockManager.prototype.request = {:?}", result);
-        
+
         // 3. Does global navigator exist?
-        let result = context.eval(Source::from_bytes("typeof navigator")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof navigator"))
+            .unwrap();
         println!("3. typeof navigator = {:?}", result);
-        
+
         // 4. Does navigator.locks exist?
-        let result = context.eval(Source::from_bytes("typeof navigator.locks")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof navigator.locks"))
+            .unwrap();
         println!("4. typeof navigator.locks = {:?}", result);
-        
+
         // 5. Are navigator and window.navigator the same object?
-        let result = context.eval(Source::from_bytes("navigator === window.navigator")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("navigator === window.navigator"))
+            .unwrap();
         println!("5. navigator === window.navigator: {:?}", result);
-        
+
         // 6. Does window.navigator have locks?
-        let result = context.eval(Source::from_bytes("typeof window.navigator.locks")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof window.navigator.locks"))
+            .unwrap();
         println!("6. typeof window.navigator.locks = {:?}", result);
-        
+
         // 7. Check what properties navigator has
-        let result = context.eval(Source::from_bytes("Object.keys(navigator)")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("Object.keys(navigator)"))
+            .unwrap();
         println!("7. Object.keys(navigator) = {:?}", result);
 
         // 8. Does navigator.storage work?
-        let result = context.eval(Source::from_bytes("typeof navigator.storage")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof navigator.storage"))
+            .unwrap();
         println!("8. typeof navigator.storage = {:?}", result);
 
         // 9. Does window.navigator.storage work?
-        let result = context.eval(Source::from_bytes("typeof window.navigator.storage")).unwrap();
+        let result = context
+            .eval(Source::from_bytes("typeof window.navigator.storage"))
+            .unwrap();
         println!("9. typeof window.navigator.storage = {:?}", result);
     }
 }

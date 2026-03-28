@@ -4,18 +4,20 @@
 //! https://html.spec.whatwg.org/multipage/embedded-content.html#htmlimageelement
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject, FunctionObjectBuilder},
+    js_string,
+    native_function::NativeFunction,
+    object::{FunctionObjectBuilder, JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute,
-    native_function::NativeFunction,
 };
 use boa_gc::{Finalize, Trace};
+use image::{DynamicImage, GenericImageView, ImageFormat};
 use std::sync::{Arc, Mutex};
-use image::{DynamicImage, ImageFormat, GenericImageView};
 
 /// Image loading state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,7 +118,10 @@ impl HTMLImageElementData {
 
     /// Get complete status
     pub fn is_complete(&self) -> bool {
-        matches!(*self.load_state.lock().unwrap(), ImageLoadState::Complete | ImageLoadState::Broken)
+        matches!(
+            *self.load_state.lock().unwrap(),
+            ImageLoadState::Complete | ImageLoadState::Broken
+        )
     }
 
     /// Get natural width
@@ -405,11 +410,8 @@ impl BuiltInConstructor for HTMLImageElement {
         }
 
         // Create the object with prototype and data
-        let obj = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            prototype,
-            data,
-        );
+        let obj =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
 
         Ok(obj.into())
     }
@@ -431,7 +433,10 @@ fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let value = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
 
             // Update the src
             *data.src.lock().unwrap() = value.clone();
@@ -457,24 +462,30 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
                                     }
                                     Err(e) => {
                                         *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                        *data.error_message.lock().unwrap() = Some(format!("Failed to read response: {}", e));
+                                        *data.error_message.lock().unwrap() =
+                                            Some(format!("Failed to read response: {}", e));
                                     }
                                 }
                             } else {
                                 *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                *data.error_message.lock().unwrap() = Some(format!("HTTP error: {}", response.status()));
+                                *data.error_message.lock().unwrap() =
+                                    Some(format!("HTTP error: {}", response.status()));
                             }
                         }
                         Err(e) => {
                             *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                            *data.error_message.lock().unwrap() = Some(format!("Network error: {}", e));
+                            *data.error_message.lock().unwrap() =
+                                Some(format!("Network error: {}", e));
                         }
                     }
                 } else if value.starts_with("data:") {
                     // Handle data URLs
                     if let Some(base64_start) = value.find("base64,") {
                         let base64_data = &value[base64_start + 7..];
-                        match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64_data) {
+                        match base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            base64_data,
+                        ) {
                             Ok(bytes) => {
                                 if let Err(e) = data.load_from_bytes(&bytes) {
                                     eprintln!("Image decode error from data URL: {}", e);
@@ -482,7 +493,8 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
                             }
                             Err(e) => {
                                 *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                *data.error_message.lock().unwrap() = Some(format!("Invalid base64: {}", e));
+                                *data.error_message.lock().unwrap() =
+                                    Some(format!("Invalid base64: {}", e));
                             }
                         }
                     }
@@ -511,7 +523,10 @@ fn get_alt(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 fn set_alt(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let value = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             *data.alt.lock().unwrap() = value;
             return Ok(JsValue::undefined());
         }
@@ -571,7 +586,11 @@ fn set_height(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsRes
         .into())
 }
 
-fn get_natural_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_natural_width(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
             return Ok(JsValue::from(*data.natural_width.lock().unwrap()));
@@ -582,7 +601,11 @@ fn get_natural_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) 
         .into())
 }
 
-fn get_natural_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_natural_height(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
             return Ok(JsValue::from(*data.natural_height.lock().unwrap()));
@@ -624,7 +647,11 @@ fn get_current_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
         .into())
 }
 
-fn get_cross_origin(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_cross_origin(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
             if let Some(ref value) = *data.cross_origin.lock().unwrap() {
@@ -644,7 +671,10 @@ fn set_cross_origin(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
             if args.get_or_undefined(0).is_null() {
                 *data.cross_origin.lock().unwrap() = None;
             } else {
-                let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+                let value = args
+                    .get_or_undefined(0)
+                    .to_string(context)?
+                    .to_std_string_escaped();
                 *data.cross_origin.lock().unwrap() = Some(value);
             }
             return Ok(JsValue::undefined());
@@ -692,7 +722,10 @@ fn get_loading(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
 fn set_loading(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let value = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             // Normalize to valid values: "eager" or "lazy"
             let normalized = match value.to_lowercase().as_str() {
                 "lazy" => "lazy",
@@ -721,7 +754,10 @@ fn get_decoding(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 fn set_decoding(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     if let Some(obj) = this.as_object() {
         if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let value = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             // Normalize to valid values: "sync", "async", or "auto"
             let normalized = match value.to_lowercase().as_str() {
                 "sync" => "sync",
@@ -757,7 +793,11 @@ fn decode(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<
                 }
                 ImageLoadState::Broken => {
                     // Failed to decode, return rejected promise
-                    let error_msg = data.error_message.lock().unwrap().clone()
+                    let error_msg = data
+                        .error_message
+                        .lock()
+                        .unwrap()
+                        .clone()
                         .unwrap_or_else(|| "Image decoding failed".to_string());
                     let code = format!("Promise.reject(new Error({:?}))", error_msg);
                     context.eval(boa_engine::Source::from_bytes(&code))
@@ -765,18 +805,18 @@ fn decode(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<
                 ImageLoadState::Empty => {
                     // No source set, return rejected promise
                     context.eval(boa_engine::Source::from_bytes(
-                        "Promise.reject(new Error('No image source specified'))"
+                        "Promise.reject(new Error('No image source specified'))",
                     ))
                 }
             }
         } else {
             context.eval(boa_engine::Source::from_bytes(
-                "Promise.reject(new TypeError(\"'this' is not an HTMLImageElement\"))"
+                "Promise.reject(new TypeError(\"'this' is not an HTMLImageElement\"))",
             ))
         }
     } else {
         context.eval(boa_engine::Source::from_bytes(
-            "Promise.reject(new TypeError(\"'this' is not an HTMLImageElement\"))"
+            "Promise.reject(new TypeError(\"'this' is not an HTMLImageElement\"))",
         ))
     }
 }
@@ -792,10 +832,12 @@ mod tests {
         crate::initialize_browser_apis(&mut context).unwrap();
 
         // Test basic constructor
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context.eval(Source::from_bytes(
+            r#"
             let img = new HTMLImageElement();
             img.tagName === 'IMG' && img.naturalWidth === 0 && img.complete === true
-        "#));
+        "#,
+        ));
         assert!(result.is_ok());
         assert!(result.unwrap().to_boolean());
     }
@@ -805,10 +847,12 @@ mod tests {
         let mut context = Context::default();
         crate::initialize_browser_apis(&mut context).unwrap();
 
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context.eval(Source::from_bytes(
+            r#"
             let img = new HTMLImageElement(100, 200);
             img.width === 100 && img.height === 200
-        "#));
+        "#,
+        ));
         assert!(result.is_ok());
         assert!(result.unwrap().to_boolean());
     }
@@ -818,7 +862,8 @@ mod tests {
         let mut context = Context::default();
         crate::initialize_browser_apis(&mut context).unwrap();
 
-        let result = context.eval(Source::from_bytes(r#"
+        let result = context.eval(Source::from_bytes(
+            r#"
             let img = new HTMLImageElement();
             img.alt = 'Test image';
             img.crossOrigin = 'anonymous';
@@ -829,7 +874,8 @@ mod tests {
             img.crossOrigin === 'anonymous' &&
             img.loading === 'lazy' &&
             img.decoding === 'async'
-        "#));
+        "#,
+        ));
         assert!(result.is_ok());
         assert!(result.unwrap().to_boolean());
     }

@@ -4,15 +4,15 @@
 //! https://dom.spec.whatwg.org/#interface-namednodemap
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     property::Attribute,
+    property::PropertyDescriptorBuilder,
     realm::Realm,
     string::JsString,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
-    property::PropertyDescriptorBuilder,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -39,7 +39,10 @@ impl NamedNodeMapData {
     }
 
     /// Create from a HashMap of attributes
-    pub fn from_attributes(attrs: HashMap<String, String>, context: &mut Context) -> JsResult<Self> {
+    pub fn from_attributes(
+        attrs: HashMap<String, String>,
+        context: &mut Context,
+    ) -> JsResult<Self> {
         let data = Self::new();
         for (name, value) in attrs {
             // Create Attr object
@@ -96,7 +99,10 @@ impl NamedNodeMapData {
                 context,
             )?;
 
-            data.attributes.lock().unwrap().insert(name.clone(), attr_generic.clone());
+            data.attributes
+                .lock()
+                .unwrap()
+                .insert(name.clone(), attr_generic.clone());
             data.order.lock().unwrap().push(name);
         }
         Ok(data)
@@ -150,7 +156,11 @@ impl NamedNodeMap {
         let data = NamedNodeMapData::new();
         let obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().namednodemap().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .namednodemap()
+                .prototype(),
             data,
         );
         Ok(obj.upcast())
@@ -177,8 +187,7 @@ impl NamedNodeMap {
         })?;
 
         let data = this_obj.downcast_ref::<NamedNodeMapData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("NamedNodeMap.item called on non-NamedNodeMap object")
+            JsNativeError::typ().with_message("NamedNodeMap.item called on non-NamedNodeMap object")
         })?;
 
         let index = args.get_or_undefined(0).to_length(context)? as usize;
@@ -190,7 +199,11 @@ impl NamedNodeMap {
     }
 
     /// `NamedNodeMap.prototype.getNamedItem(name)`
-    fn get_named_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_named_item(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NamedNodeMap.getNamedItem called on non-object")
         })?;
@@ -210,7 +223,11 @@ impl NamedNodeMap {
     }
 
     /// `NamedNodeMap.prototype.setNamedItem(attr)`
-    fn set_named_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_named_item(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NamedNodeMap.setNamedItem called on non-object")
         })?;
@@ -236,7 +253,11 @@ impl NamedNodeMap {
     }
 
     /// `NamedNodeMap.prototype.removeNamedItem(name)`
-    fn remove_named_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn remove_named_item(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NamedNodeMap.removeNamedItem called on non-object")
         })?;
@@ -309,7 +330,11 @@ impl BuiltInConstructor for NamedNodeMap {
         let data = NamedNodeMapData::new();
         let obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().namednodemap().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .namednodemap()
+                .prototype(),
             data,
         );
 

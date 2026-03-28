@@ -1,8 +1,8 @@
 //! Script loading utilities for worker threads
 
-use boa_engine::{Context, JsResult, JsValue, JsNativeError, Source};
-use url::Url;
+use boa_engine::{Context, JsNativeError, JsResult, JsValue, Source};
 use std::sync::Arc;
+use url::Url;
 
 use crate::worker::worker_global_scope::WorkerGlobalScope;
 
@@ -39,20 +39,24 @@ pub fn extract_from_data_url(data_url: &str) -> JsResult<String> {
         // Check if base64 encoded
         if data_url[..comma_pos].contains(";base64") {
             use base64::{Engine as _, engine::general_purpose};
-            let decoded = general_purpose::STANDARD.decode(content)
-                .map_err(|e| JsNativeError::error()
-                    .with_message(format!("Failed to decode base64 data URL: {}", e)))?;
-            String::from_utf8(decoded)
-                .map_err(|e| JsNativeError::error()
+            let decoded = general_purpose::STANDARD.decode(content).map_err(|e| {
+                JsNativeError::error()
+                    .with_message(format!("Failed to decode base64 data URL: {}", e))
+            })?;
+            String::from_utf8(decoded).map_err(|e| {
+                JsNativeError::error()
                     .with_message(format!("Invalid UTF-8 in data URL: {}", e))
-                    .into())
+                    .into()
+            })
         } else {
             // URL decode the content
             urlencoding::decode(content)
                 .map(|s| s.to_string())
-                .map_err(|e| JsNativeError::error()
-                    .with_message(format!("Failed to decode data URL: {}", e))
-                    .into())
+                .map_err(|e| {
+                    JsNativeError::error()
+                        .with_message(format!("Failed to decode data URL: {}", e))
+                        .into()
+                })
         }
     } else {
         Err(JsNativeError::error()
@@ -69,24 +73,31 @@ fn fetch_script_from_url(url: &str) -> JsResult<String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
-        .map_err(|e| JsNativeError::error()
-            .with_message(format!("Failed to create HTTP client: {}", e)))?;
+        .map_err(|e| {
+            JsNativeError::error().with_message(format!("Failed to create HTTP client: {}", e))
+        })?;
 
-    let response = client.get(url)
+    let response = client
+        .get(url)
         .header("Accept", "application/javascript, text/javascript, */*")
         .send()
-        .map_err(|e| JsNativeError::error()
-            .with_message(format!("Failed to fetch worker script: {}", e)))?;
+        .map_err(|e| {
+            JsNativeError::error().with_message(format!("Failed to fetch worker script: {}", e))
+        })?;
 
     // Check for successful response
     if !response.status().is_success() {
         return Err(JsNativeError::error()
-            .with_message(format!("Failed to fetch worker script: HTTP {}", response.status()))
+            .with_message(format!(
+                "Failed to fetch worker script: HTTP {}",
+                response.status()
+            ))
             .into());
     }
 
     // Get content type to verify it's JavaScript
-    let content_type = response.headers()
+    let content_type = response
+        .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
@@ -97,12 +108,16 @@ fn fetch_script_from_url(url: &str) -> JsResult<String> {
         || content_type.is_empty(); // Some servers don't set content-type
 
     if !is_javascript && !content_type.contains("application/octet-stream") {
-        eprintln!("[Worker] Warning: Script content-type is '{}', expected JavaScript", content_type);
+        eprintln!(
+            "[Worker] Warning: Script content-type is '{}', expected JavaScript",
+            content_type
+        );
     }
 
     // Read the response body as text
-    response.text()
-        .map_err(|e| JsNativeError::error()
+    response.text().map_err(|e| {
+        JsNativeError::error()
             .with_message(format!("Failed to read worker script response: {}", e))
-            .into())
+            .into()
+    })
 }

@@ -3,12 +3,12 @@
 //! In WASM builds, WebRTC is handled by the browser's native RTCPeerConnection.
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
     realm::Realm,
-    Context, JsData, JsNativeError, JsResult, JsString, JsValue,
     string::StaticJsStrings,
 };
 use boa_gc::{Finalize, Trace};
@@ -23,8 +23,7 @@ pub struct RTCPeerConnection;
 
 impl IntrinsicObject for RTCPeerConnection {
     fn init(realm: &Realm) {
-        BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .build();
+        BuiltInBuilder::from_standard_constructor::<Self>(realm).build();
     }
 
     fn get(intrinsics: &Intrinsics) -> JsObject {
@@ -49,7 +48,9 @@ impl BuiltInConstructor for RTCPeerConnection {
         _context: &mut Context,
     ) -> JsResult<JsValue> {
         Err(JsNativeError::error()
-            .with_message("RTCPeerConnection is not available in WASM. Use the browser's native WebRTC API.")
+            .with_message(
+                "RTCPeerConnection is not available in WASM. Use the browser's native WebRTC API.",
+            )
             .into())
     }
 }

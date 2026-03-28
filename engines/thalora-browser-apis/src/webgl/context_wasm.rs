@@ -4,12 +4,12 @@
 //! This module provides placeholder types for API compatibility.
 
 use boa_engine::{
+    Context, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
     context::intrinsics::Intrinsics,
     js_string,
     object::{FunctionObjectBuilder, JsObject},
     realm::Realm,
-    Context, JsData, JsNativeError, JsResult, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 

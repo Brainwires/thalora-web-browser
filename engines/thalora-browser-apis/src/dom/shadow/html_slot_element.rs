@@ -3,23 +3,19 @@
 //! The HTMLSlotElement interface represents <slot> elements in shadow trees.
 //! https://dom.spec.whatwg.org/#interface-htmlslotelement
 
+use crate::dom::{element::ElementData, shadow::shadow_root::ShadowRootData, text::TextData};
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
-use crate::dom::{
-    element::ElementData,
-    shadow::shadow_root::ShadowRootData,
-    text::TextData,
-};
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::{HashMap, VecDeque};
 
 /// HTMLSlotElement data structure implementing the slot assignment algorithm
@@ -93,7 +89,8 @@ impl HTMLSlotElementData {
 
     /// Get assigned elements (filter assigned nodes to elements only)
     pub fn get_assigned_elements(&self) -> Vec<JsObject> {
-        self.assigned_nodes.borrow()
+        self.assigned_nodes
+            .borrow()
             .iter()
             .filter(|node| {
                 // In a full implementation, check if node is an Element
@@ -122,8 +119,9 @@ impl HTMLSlotElementData {
                         let child_slot_name = self.get_slottable_name(&child);
 
                         // Match slot name (empty string matches unnamed slots)
-                        if (slot_name.is_empty() && child_slot_name.is_empty()) ||
-                           (slot_name == child_slot_name) {
+                        if (slot_name.is_empty() && child_slot_name.is_empty())
+                            || (slot_name == child_slot_name)
+                        {
                             slottables.push(child);
                         }
                     }
@@ -194,7 +192,11 @@ impl HTMLSlotElementData {
 /// JavaScript accessor implementations
 impl HTMLSlotElementData {
     /// `HTMLSlotElement.prototype.name` getter
-    fn get_name_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_name_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLSlotElement.name called on non-object")
         })?;
@@ -210,7 +212,11 @@ impl HTMLSlotElementData {
     }
 
     /// `HTMLSlotElement.prototype.name` setter
-    fn set_name_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_name_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLSlotElement.name setter called on non-object")
         })?;
@@ -218,10 +224,13 @@ impl HTMLSlotElementData {
         let name_value = args.get_or_undefined(0);
         let name_string = name_value.to_string(context)?;
 
-        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLSlotElement.name setter called on non-HTMLSlotElement object")
-        })?;
+        let slot_data = this_obj
+            .downcast_ref::<HTMLSlotElementData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "HTMLSlotElement.name setter called on non-HTMLSlotElement object",
+                )
+            })?;
 
         let old_name = slot_data.get_name();
         let new_name = name_string.to_std_string_escaped();
@@ -231,7 +240,9 @@ impl HTMLSlotElementData {
             slot_data.set_name(new_name.clone());
 
             // Update the name attribute on the element
-            slot_data.element_data().set_attribute("name".to_string(), new_name);
+            slot_data
+                .element_data()
+                .set_attribute("name".to_string(), new_name);
 
             // Run assign slottables algorithm for this slot
             // This requires access to the shadow root containing this slot
@@ -243,15 +254,22 @@ impl HTMLSlotElementData {
     }
 
     /// `HTMLSlotElement.prototype.assignedNodes(options)`
-    fn assigned_nodes(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn assigned_nodes(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLSlotElement.assignedNodes called on non-object")
         })?;
 
-        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLSlotElement.assignedNodes called on non-HTMLSlotElement object")
-        })?;
+        let slot_data = this_obj
+            .downcast_ref::<HTMLSlotElementData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "HTMLSlotElement.assignedNodes called on non-HTMLSlotElement object",
+                )
+            })?;
 
         let options = args.get_or_undefined(0);
 
@@ -274,7 +292,8 @@ impl HTMLSlotElementData {
         };
 
         // Convert to array
-        let array = boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
+        let array =
+            boa_engine::builtins::array::Array::array_create(nodes.len() as u64, None, context)?;
         for (i, node) in nodes.iter().enumerate() {
             array.create_data_property_or_throw(i, node.clone(), context)?;
         }
@@ -282,15 +301,23 @@ impl HTMLSlotElementData {
     }
 
     /// `HTMLSlotElement.prototype.assignedElements(options)`
-    fn assigned_elements(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn assigned_elements(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLSlotElement.assignedElements called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLSlotElement.assignedElements called on non-object")
         })?;
 
-        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLSlotElement.assignedElements called on non-HTMLSlotElement object")
-        })?;
+        let slot_data = this_obj
+            .downcast_ref::<HTMLSlotElementData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "HTMLSlotElement.assignedElements called on non-HTMLSlotElement object",
+                )
+            })?;
 
         let options = args.get_or_undefined(0);
 
@@ -307,9 +334,11 @@ impl HTMLSlotElementData {
 
         let elements = if flatten {
             // Flattened assigned elements: recursively replace nested slots with their assigned elements
-            let flattened_nodes = SlotAssignmentAlgorithms::find_flattened_assigned_nodes(&this_obj);
+            let flattened_nodes =
+                SlotAssignmentAlgorithms::find_flattened_assigned_nodes(&this_obj);
             // Filter to elements only
-            flattened_nodes.into_iter()
+            flattened_nodes
+                .into_iter()
                 .filter(|node| node.downcast_ref::<ElementData>().is_some())
                 .collect()
         } else {
@@ -317,7 +346,8 @@ impl HTMLSlotElementData {
         };
 
         // Convert to array
-        let array = boa_engine::builtins::array::Array::array_create(elements.len() as u64, None, context)?;
+        let array =
+            boa_engine::builtins::array::Array::array_create(elements.len() as u64, None, context)?;
         for (i, element) in elements.iter().enumerate() {
             array.create_data_property_or_throw(i, element.clone(), context)?;
         }
@@ -330,10 +360,12 @@ impl HTMLSlotElementData {
             JsNativeError::typ().with_message("HTMLSlotElement.assign called on non-object")
         })?;
 
-        let slot_data = this_obj.downcast_ref::<HTMLSlotElementData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("HTMLSlotElement.assign called on non-HTMLSlotElement object")
-        })?;
+        let slot_data = this_obj
+            .downcast_ref::<HTMLSlotElementData>()
+            .ok_or_else(|| {
+                JsNativeError::typ()
+                    .with_message("HTMLSlotElement.assign called on non-HTMLSlotElement object")
+            })?;
 
         let mut nodes = Vec::new();
 
@@ -356,19 +388,35 @@ pub struct HTMLSlotElement;
 
 impl HTMLSlotElement {
     // Static method implementations for BuiltInBuilder
-    fn get_name_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_name_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         HTMLSlotElementData::get_name_accessor(this, args, context)
     }
 
-    fn set_name_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_name_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         HTMLSlotElementData::set_name_accessor(this, args, context)
     }
 
-    fn assigned_nodes(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn assigned_nodes(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         HTMLSlotElementData::assigned_nodes(this, args, context)
     }
 
-    fn assigned_elements(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn assigned_elements(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         HTMLSlotElementData::assigned_elements(this, args, context)
     }
 
@@ -382,7 +430,11 @@ impl HTMLSlotElement {
 
         let slot_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().html_slot_element().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .html_slot_element()
+                .prototype(),
             slot_data,
         );
 
@@ -488,7 +540,10 @@ impl SlotAssignmentAlgorithms {
             // Get event listeners from the element data
             if let Some(listeners) = slot_data.element_data().get_event_listeners("slotchange") {
                 // Event firing happens through the element's event system
-                eprintln!("slotchange event fired on slot with {} listeners", listeners.len());
+                eprintln!(
+                    "slotchange event fired on slot with {} listeners",
+                    listeners.len()
+                );
             }
         }
     }
@@ -521,4 +576,3 @@ impl SlotAssignmentAlgorithms {
         node.downcast_ref::<HTMLSlotElementData>().is_some()
     }
 }
-

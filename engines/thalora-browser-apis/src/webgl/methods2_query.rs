@@ -2,9 +2,9 @@
 //!
 //! Query objects, sampler objects, and sync objects for WebGL2.
 
-use boa_engine::{js_string, Context, JsArgs, JsObject, JsValue, NativeFunction};
+use boa_engine::{Context, JsArgs, JsObject, JsValue, NativeFunction, js_string};
 
-use super::context2::{get_object_id, WebGLQuery, WebGLSampler, WebGLSync};
+use super::context2::{WebGLQuery, WebGLSampler, WebGLSync, get_object_id};
 use super::state::{WebGL2Constants, WebGLConstants};
 use crate::with_webgl2_context;
 
@@ -33,7 +33,8 @@ pub fn add_query_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteQuery
     obj.set(
@@ -48,7 +49,8 @@ pub fn add_query_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // beginQuery
     obj.set(
@@ -66,18 +68,18 @@ pub fn add_query_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // endQuery
     obj.set(
         js_string!("endQuery"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getQueryParameter
     obj.set(
@@ -97,7 +99,8 @@ pub fn add_query_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add sampler methods
@@ -132,7 +135,8 @@ pub fn add_sampler_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteSampler
     obj.set(
@@ -147,18 +151,18 @@ pub fn add_sampler_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // bindSampler
     obj.set(
         js_string!("bindSampler"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // samplerParameteri
     obj.set(
@@ -184,7 +188,8 @@ pub fn add_sampler_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Add sync methods
@@ -211,7 +216,8 @@ pub fn add_sync_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // deleteSync
     obj.set(
@@ -226,7 +232,8 @@ pub fn add_sync_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // clientWaitSync
     obj.set(
@@ -248,18 +255,18 @@ pub fn add_sync_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // waitSync
     obj.set(
         js_string!("waitSync"),
-        NativeFunction::from_fn_ptr(|_this, _args, _ctx| {
-            Ok(JsValue::undefined())
-        })
-        .to_js_function(context.realm()),
+        NativeFunction::from_fn_ptr(|_this, _args, _ctx| Ok(JsValue::undefined()))
+            .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 
     // getSyncParameter
     obj.set(
@@ -279,5 +286,6 @@ pub fn add_sync_methods(obj: &JsObject, context: &mut Context) {
         .to_js_function(context.realm()),
         false,
         context,
-    ).unwrap();
+    )
+    .unwrap();
 }

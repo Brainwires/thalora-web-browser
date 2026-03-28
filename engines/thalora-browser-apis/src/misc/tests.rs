@@ -1,14 +1,13 @@
 //! Comprehensive test suite for Miscellaneous APIs
 //! Tests AbortController, CSS, Form elements, and StructuredClone
 
-use crate::boa_engine::{Context, Source, JsValue};
 use crate::boa_engine::string::JsString;
+use crate::boa_engine::{Context, JsValue, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {
     let mut context = Context::default();
-    crate::initialize_browser_apis(&mut context)
-        .expect("Failed to initialize browser APIs");
+    crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
     context
 }
 
@@ -19,50 +18,68 @@ fn create_test_context() -> Context {
 #[test]
 fn test_abort_controller_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof AbortController")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof AbortController"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_abort_controller_constructor_basic() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let controller = new AbortController();
         controller !== null && controller !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_abort_controller_signal_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let controller = new AbortController();
         typeof controller.signal === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_abort_controller_abort_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let controller = new AbortController();
         typeof controller.abort === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_abort_controller_signal_aborted() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let controller = new AbortController();
         let initialAborted = controller.signal.aborted;
         controller.abort();
         let afterAborted = controller.signal.aborted;
         initialAborted === false && afterAborted === true;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -80,18 +97,26 @@ fn test_css_exists() {
 #[test]
 fn test_css_supports_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof CSS.supports === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_css_escape_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof CSS.escape === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -102,37 +127,51 @@ fn test_css_escape_method() {
 #[test]
 fn test_html_form_element_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof HTMLFormElement")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof HTMLFormElement"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_html_form_element_constructor_basic() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let form = new HTMLFormElement();
         form !== null && form !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_html_form_element_submit_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let form = new HTMLFormElement();
         typeof form.submit === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_html_form_element_reset_method() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let form = new HTMLFormElement();
         typeof form.reset === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -143,38 +182,52 @@ fn test_html_form_element_reset_method() {
 #[test]
 fn test_html_input_element_constructor_exists() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes("typeof HTMLInputElement")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof HTMLInputElement"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 }
 
 #[test]
 fn test_html_input_element_constructor_basic() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let input = new HTMLInputElement();
         input !== null && input !== undefined;
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_html_input_element_value_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let input = new HTMLInputElement();
         input.value = 'test';
         input.value === 'test';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_html_input_element_type_property() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let input = new HTMLInputElement();
         typeof input.type === 'string';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -185,40 +238,56 @@ fn test_html_input_element_type_property() {
 #[test]
 fn test_abort_controller_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'AbortController');
         desc !== undefined && typeof desc.value === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_css_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'CSS');
         desc !== undefined && typeof desc.value === 'object';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_html_form_element_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'HTMLFormElement');
         desc !== undefined && typeof desc.value === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_html_input_element_property_descriptor() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let desc = Object.getOwnPropertyDescriptor(globalThis, 'HTMLInputElement');
         desc !== undefined && typeof desc.value === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
@@ -229,7 +298,9 @@ fn test_html_input_element_property_descriptor() {
 #[test]
 fn test_abort_controller_basic_usage() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         let controller = new AbortController();
         let wasAborted = false;
         controller.signal.addEventListener('abort', () => {
@@ -237,18 +308,24 @@ fn test_abort_controller_basic_usage() {
         });
         controller.abort();
         true; // Can't test wasAborted in sync execution
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }
 
 #[test]
 fn test_all_misc_apis_available() {
     let mut context = create_test_context();
-    let result = context.eval(Source::from_bytes(r#"
+    let result = context
+        .eval(Source::from_bytes(
+            r#"
         typeof AbortController === 'function' &&
         typeof CSS === 'object' &&
         typeof HTMLFormElement === 'function' &&
         typeof HTMLInputElement === 'function';
-    "#)).unwrap();
+    "#,
+        ))
+        .unwrap();
     assert_eq!(result.to_boolean(), true);
 }

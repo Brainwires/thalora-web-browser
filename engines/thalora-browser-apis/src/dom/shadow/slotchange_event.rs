@@ -3,21 +3,13 @@
 //! Implementation of slotchange events according to WHATWG DOM specification
 //! https://dom.spec.whatwg.org/#mutation-algorithms
 
-use boa_engine::{
-    object::JsObject,
-    value::JsValue,
-    Context, JsResult, JsNativeError,
-    js_string,
-};
 use crate::dom::{
     element::ElementData,
-    shadow::{
-        html_slot_element::HTMLSlotElementData,
-        shadow_root::ShadowRootData,
-    },
+    shadow::{html_slot_element::HTMLSlotElementData, shadow_root::ShadowRootData},
 };
 use crate::events::event::EventData;
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_engine::{Context, JsNativeError, JsResult, js_string, object::JsObject, value::JsValue};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// SlotChange event system for managing slot assignment changes
@@ -261,10 +253,7 @@ impl SlotChangeEventSystem {
         for slot in slots {
             if let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>() {
                 let current_assigned = slot_data.get_assigned_nodes();
-                let previous_assigned = previous_assignments
-                    .get(slot)
-                    .cloned()
-                    .unwrap_or_default();
+                let previous_assigned = previous_assignments.get(slot).cloned().unwrap_or_default();
 
                 // Check if assignment changed
                 if !Self::assignments_are_equal(&current_assigned, &previous_assigned) {
@@ -414,16 +403,13 @@ impl SlotAssignmentTracker {
     }
 
     /// Update assignments and track changes
-    pub fn update_assignment(
-        &self,
-        slot: &JsObject,
-        new_assignment: Vec<JsObject>,
-    ) -> bool {
+    pub fn update_assignment(&self, slot: &JsObject, new_assignment: Vec<JsObject>) -> bool {
         let mut assignments = self.previous_assignments.borrow_mut();
         let old_assignment = assignments.get(slot).cloned().unwrap_or_default();
 
         // Check if assignment changed
-        let changed = !SlotChangeEventSystem::assignments_are_equal(&new_assignment, &old_assignment);
+        let changed =
+            !SlotChangeEventSystem::assignments_are_equal(&new_assignment, &old_assignment);
 
         if changed {
             assignments.insert(slot.clone(), new_assignment);

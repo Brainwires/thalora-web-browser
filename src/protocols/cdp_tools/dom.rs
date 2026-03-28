@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 use serde_json::Value;
 
 /// DOM domain - DOM queries, manipulation, and CSS inspection
@@ -21,7 +21,10 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::error(-1, format!("CDP DOM domain enable failed: {:?}", response.error))
+                    McpResponse::error(
+                        -1,
+                        format!("CDP DOM domain enable failed: {:?}", response.error),
+                    )
                 } else {
                     McpResponse::success(serde_json::json!({
                         "type": "text",
@@ -52,7 +55,10 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::error(-1, format!("CDP DOM document retrieval failed: {}", error.message))
+                    McpResponse::error(
+                        -1,
+                        format!("CDP DOM document retrieval failed: {}", error.message),
+                    )
                 } else if let Some(result) = response.result {
                     McpResponse::success(serde_json::json!({
                         "type": "text",

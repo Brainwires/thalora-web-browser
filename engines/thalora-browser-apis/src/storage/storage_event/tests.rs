@@ -1,6 +1,6 @@
 //! Tests for the StorageEvent API implementation
 
-use crate::{Context, JsValue, Source, JsString};
+use crate::{Context, JsString, JsValue, Source};
 
 #[test]
 fn test_storage_event_constructor() {
@@ -8,11 +8,15 @@ fn test_storage_event_constructor() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Test that StorageEvent constructor exists
-    let result = context.eval(Source::from_bytes("typeof StorageEvent")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("typeof StorageEvent"))
+        .unwrap();
     assert_eq!(result, JsValue::from(JsString::from("function")));
 
     // Test creating a basic StorageEvent
-    let result = context.eval(Source::from_bytes("new StorageEvent('storage')")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("new StorageEvent('storage')"))
+        .unwrap();
     assert!(result.is_object());
 
     // Test creating a StorageEvent with init data
@@ -57,7 +61,9 @@ fn test_storage_event_properties() {
     assert_eq!(result, JsValue::from(false));
 
     // Test cancelable property
-    let result = context.eval(Source::from_bytes("event.cancelable")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("event.cancelable"))
+        .unwrap();
     assert_eq!(result, JsValue::from(false));
 }
 
@@ -92,7 +98,11 @@ fn test_storage_event_init_storage_event() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a StorageEvent
-    context.eval(Source::from_bytes("var event = new StorageEvent('storage')")).unwrap();
+    context
+        .eval(Source::from_bytes(
+            "var event = new StorageEvent('storage')",
+        ))
+        .unwrap();
 
     // Use initStorageEvent to set properties
     context.eval(Source::from_bytes(
@@ -119,7 +129,11 @@ fn test_storage_event_default_values() {
     crate::initialize_browser_apis(&mut context).expect("Failed to initialize browser APIs");
 
     // Create a StorageEvent with minimal arguments
-    context.eval(Source::from_bytes("var event = new StorageEvent('storage')")).unwrap();
+    context
+        .eval(Source::from_bytes(
+            "var event = new StorageEvent('storage')",
+        ))
+        .unwrap();
 
     // Test default values
     let result = context.eval(Source::from_bytes("event.key")).unwrap();
@@ -134,6 +148,8 @@ fn test_storage_event_default_values() {
     let result = context.eval(Source::from_bytes("event.url")).unwrap();
     assert_eq!(result, JsValue::from(JsString::from("about:blank")));
 
-    let result = context.eval(Source::from_bytes("event.storageArea")).unwrap();
+    let result = context
+        .eval(Source::from_bytes("event.storageArea"))
+        .unwrap();
     assert!(result.is_null());
 }

@@ -5,21 +5,22 @@
 //!
 //! This implements the complete WebSocket interface with real networking
 
-
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
+use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use futures_util::{SinkExt, StreamExt};
 use url::Url;
 
 /// JavaScript `WebSocket` builtin implementation.
@@ -147,7 +148,11 @@ impl IntrinsicObject for WebSocket {
             // Methods
             .method(Self::send, js_string!("send"), 1)
             .method(Self::close, js_string!("close"), 0)
-            .method(Self::dispatch_pending_events, js_string!("dispatchEvents"), 0)
+            .method(
+                Self::dispatch_pending_events,
+                js_string!("dispatchEvents"),
+                0,
+            )
             .build();
     }
 
@@ -208,7 +213,8 @@ impl BuiltInConstructor for WebSocket {
             vec![protocols_str.to_std_string_escaped()]
         } else if let Some(protocols_obj) = protocols_arg.as_object() {
             // Array of protocols
-            let length = protocols_obj.get(js_string!("length"), context)?
+            let length = protocols_obj
+                .get(js_string!("length"), context)?
                 .to_length(context)?;
             let mut protos = Vec::with_capacity(length as usize);
             for i in 0..length {
@@ -217,7 +223,9 @@ impl BuiltInConstructor for WebSocket {
 
                 // Validate protocol (no control characters, spaces, or commas)
                 if proto_str.is_empty()
-                    || proto_str.chars().any(|c| c.is_ascii_control() || c == ' ' || c == ',')
+                    || proto_str
+                        .chars()
+                        .any(|c| c.is_ascii_control() || c == ' ' || c == ',')
                 {
                     return Err(JsNativeError::syntax()
                         .with_message("Invalid WebSocket subprotocol")
@@ -240,7 +248,8 @@ impl BuiltInConstructor for WebSocket {
         };
 
         // Create the WebSocket object
-        let proto = get_prototype_from_constructor(new_target, StandardConstructors::websocket, context)?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::websocket, context)?;
         let websocket_data = WebSocketData::new(url_str, protocols);
         let websocket_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -282,7 +291,7 @@ impl WebSocket {
                             connect_async(&url_str).await
                         } else {
                             Err(tokio_tungstenite::tungstenite::Error::Url(
-                                tokio_tungstenite::tungstenite::error::UrlError::NoPathOrQuery
+                                tokio_tungstenite::tungstenite::error::UrlError::NoPathOrQuery,
                             ))
                         };
 
@@ -326,7 +335,7 @@ impl WebSocket {
                                                 // Convert binary to base64 for storage
                                                 let encoded = base64::Engine::encode(
                                                     &base64::engine::general_purpose::STANDARD,
-                                                    &data
+                                                    &data,
                                                 );
                                                 conn.pending_events.push(PendingEvent::Message {
                                                     data: encoded,
@@ -398,7 +407,11 @@ impl WebSocket {
     }
 
     /// Dispatch pending events to JavaScript handlers
-    fn dispatch_pending_events(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn dispatch_pending_events(
+        this: &JsValue,
+        _args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("WebSocket method called on non-object")
         })?;
@@ -428,7 +441,11 @@ impl WebSocket {
                         let _ = func.call(&this_obj.clone().into(), &[event.into()], context);
                     }
                 }
-                PendingEvent::Close { code, reason, was_clean } => {
+                PendingEvent::Close {
+                    code,
+                    reason,
+                    was_clean,
+                } => {
                     // Call onclose handler
                     let handler = this_obj.get(js_string!("onclose"), context)?;
                     if let Some(func) = handler.as_callable() {
@@ -459,11 +476,7 @@ impl WebSocket {
     }
 
     /// `WebSocket.prototype.send(data)`
-    fn send(
-        this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn send(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("WebSocket.prototype.send called on non-object")
         })?;
@@ -496,11 +509,7 @@ impl WebSocket {
     }
 
     /// `WebSocket.prototype.close(code, reason)`
-    fn close(
-        this: &JsValue,
-        args: &[JsValue],
-        _context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn close(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("WebSocket.prototype.close called on non-object")
         })?;
@@ -546,16 +555,33 @@ enum ReadyState {
 #[derive(Debug, Clone)]
 enum PendingEvent {
     Open,
-    Close { code: u16, reason: String, was_clean: bool },
-    Error { message: String },
-    Message { data: String, is_binary: bool },
+    Close {
+        code: u16,
+        reason: String,
+        was_clean: bool,
+    },
+    Error {
+        message: String,
+    },
+    Message {
+        data: String,
+        is_binary: bool,
+    },
 }
 
 /// Connection state
 #[derive(Debug)]
 struct Connection {
     state: ReadyState,
-    stream: Option<Arc<Mutex<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>>>,
+    stream: Option<
+        Arc<
+            Mutex<
+                tokio_tungstenite::WebSocketStream<
+                    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+                >,
+            >,
+        >,
+    >,
     buffered_amount: u64,
     pending_events: Vec<PendingEvent>,
     selected_protocol: String,
@@ -631,13 +657,15 @@ fn get_url(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> 
 
 fn get_ready_state(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.readyState getter called on non-object")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.readyState getter called on non-object")
     })?;
 
     // Clone the Arc to avoid lifetime issues with GcRef
     let connection = {
         let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("WebSocket.prototype.readyState getter called on non-WebSocket")
+            JsNativeError::typ()
+                .with_message("WebSocket.prototype.readyState getter called on non-WebSocket")
         })?;
         data.connection.clone()
     };
@@ -655,13 +683,15 @@ fn get_ready_state(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
 
 fn get_buffered_amount(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.bufferedAmount getter called on non-object")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.bufferedAmount getter called on non-object")
     })?;
 
     // Clone the Arc to avoid lifetime issues with GcRef
     let connection = {
         let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("WebSocket.prototype.bufferedAmount getter called on non-WebSocket")
+            JsNativeError::typ()
+                .with_message("WebSocket.prototype.bufferedAmount getter called on non-WebSocket")
         })?;
         data.connection.clone()
     };
@@ -677,24 +707,28 @@ fn get_buffered_amount(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResu
 
 fn get_extensions(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.extensions getter called on non-object")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.extensions getter called on non-object")
     })?;
 
     let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.extensions getter called on non-WebSocket")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.extensions getter called on non-WebSocket")
     })?;
     Ok(JsValue::from(js_string!(data.extensions.clone())))
 }
 
 fn get_protocol(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-object")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.protocol getter called on non-object")
     })?;
 
     // Get selected protocol from connection state
     let connection = {
         let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
-            JsNativeError::typ().with_message("WebSocket.prototype.protocol getter called on non-WebSocket")
+            JsNativeError::typ()
+                .with_message("WebSocket.prototype.protocol getter called on non-WebSocket")
         })?;
         data.connection.clone()
     };
@@ -710,11 +744,13 @@ fn get_protocol(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsVa
 
 fn get_binary_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.binaryType getter called on non-object")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.binaryType getter called on non-object")
     })?;
 
     let data = this_obj.downcast_ref::<WebSocketData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("WebSocket.prototype.binaryType getter called on non-WebSocket")
+        JsNativeError::typ()
+            .with_message("WebSocket.prototype.binaryType getter called on non-WebSocket")
     })?;
     Ok(JsValue::from(js_string!(data.binary_type.clone())))
 }
@@ -722,7 +758,12 @@ fn get_binary_type(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
 // Event creation helpers
 
 /// Create a basic Event object
-fn create_event(event_type: &str, bubbles: bool, cancelable: bool, context: &mut Context) -> JsResult<JsObject> {
+fn create_event(
+    event_type: &str,
+    bubbles: bool,
+    cancelable: bool,
+    context: &mut Context,
+) -> JsResult<JsObject> {
     let event_constructor = context.intrinsics().constructors().event().constructor();
 
     // Create event init dict
@@ -739,21 +780,35 @@ fn create_event(event_type: &str, bubbles: bool, cancelable: bool, context: &mut
 }
 
 /// Create a CloseEvent object for WebSocket close events
-fn create_close_event(code: u16, reason: &str, was_clean: bool, context: &mut Context) -> JsResult<JsObject> {
+fn create_close_event(
+    code: u16,
+    reason: &str,
+    was_clean: bool,
+    context: &mut Context,
+) -> JsResult<JsObject> {
     // Use standard Event as base and add CloseEvent-specific properties
     let event = create_event("close", false, false, context)?;
 
     // Add CloseEvent-specific properties
     event.set(js_string!("code"), JsValue::from(code), false, context)?;
     event.set(js_string!("reason"), js_string!(reason), false, context)?;
-    event.set(js_string!("wasClean"), JsValue::from(was_clean), false, context)?;
+    event.set(
+        js_string!("wasClean"),
+        JsValue::from(was_clean),
+        false,
+        context,
+    )?;
 
     Ok(event)
 }
 
 /// Create a MessageEvent object for WebSocket messages
 fn create_message_event(data: &str, context: &mut Context) -> JsResult<JsObject> {
-    let message_event_constructor = context.intrinsics().constructors().message_event().constructor();
+    let message_event_constructor = context
+        .intrinsics()
+        .constructors()
+        .message_event()
+        .constructor();
 
     // Create event init dict with data
     let event_init = boa_engine::object::ObjectInitializer::new(context)

@@ -4,15 +4,15 @@
 //! https://html.spec.whatwg.org/multipage/forms.html#the-form-element
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
@@ -88,18 +88,20 @@ impl IntrinsicObject for ValidityState {
         let type_mismatch_getter = BuiltInBuilder::callable(realm, validity_type_mismatch_getter)
             .name(js_string!("get typeMismatch"))
             .build();
-        let pattern_mismatch_getter = BuiltInBuilder::callable(realm, validity_pattern_mismatch_getter)
-            .name(js_string!("get patternMismatch"))
-            .build();
+        let pattern_mismatch_getter =
+            BuiltInBuilder::callable(realm, validity_pattern_mismatch_getter)
+                .name(js_string!("get patternMismatch"))
+                .build();
         let too_long_getter = BuiltInBuilder::callable(realm, validity_too_long_getter)
             .name(js_string!("get tooLong"))
             .build();
         let too_short_getter = BuiltInBuilder::callable(realm, validity_too_short_getter)
             .name(js_string!("get tooShort"))
             .build();
-        let range_underflow_getter = BuiltInBuilder::callable(realm, validity_range_underflow_getter)
-            .name(js_string!("get rangeUnderflow"))
-            .build();
+        let range_underflow_getter =
+            BuiltInBuilder::callable(realm, validity_range_underflow_getter)
+                .name(js_string!("get rangeUnderflow"))
+                .build();
         let range_overflow_getter = BuiltInBuilder::callable(realm, validity_range_overflow_getter)
             .name(js_string!("get rangeOverflow"))
             .build();
@@ -114,17 +116,72 @@ impl IntrinsicObject for ValidityState {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("valid"), Some(valid_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("valueMissing"), Some(value_missing_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("typeMismatch"), Some(type_mismatch_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("patternMismatch"), Some(pattern_mismatch_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("tooLong"), Some(too_long_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("tooShort"), Some(too_short_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("rangeUnderflow"), Some(range_underflow_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("rangeOverflow"), Some(range_overflow_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("stepMismatch"), Some(step_mismatch_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("badInput"), Some(bad_input_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("customError"), Some(custom_error_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("valid"),
+                Some(valid_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("valueMissing"),
+                Some(value_missing_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("typeMismatch"),
+                Some(type_mismatch_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("patternMismatch"),
+                Some(pattern_mismatch_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("tooLong"),
+                Some(too_long_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("tooShort"),
+                Some(too_short_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("rangeUnderflow"),
+                Some(range_underflow_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("rangeOverflow"),
+                Some(range_overflow_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("stepMismatch"),
+                Some(step_mismatch_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("badInput"),
+                Some(bad_input_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("customError"),
+                Some(custom_error_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -157,88 +214,154 @@ impl BuiltInConstructor for ValidityState {
 }
 
 // ValidityState getters
-fn validity_valid_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_valid_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.is_valid()));
     }
     Ok(JsValue::from(true))
 }
 
-fn validity_value_missing_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_value_missing_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.value_missing));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_type_mismatch_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_type_mismatch_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.type_mismatch));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_pattern_mismatch_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_pattern_mismatch_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.pattern_mismatch));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_too_long_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_too_long_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.too_long));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_too_short_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_too_short_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.too_short));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_range_underflow_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_range_underflow_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.range_underflow));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_range_overflow_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_range_overflow_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.range_overflow));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_step_mismatch_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_step_mismatch_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.step_mismatch));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_bad_input_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_bad_input_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.bad_input));
     }
     Ok(JsValue::from(false))
 }
 
-fn validity_custom_error_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn validity_custom_error_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(validity) = obj.downcast_ref::<ValidityState>() {
         return Ok(JsValue::from(validity.custom_error));
     }
@@ -363,13 +486,48 @@ impl IntrinsicObject for HTMLFormElement {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("action"), Some(action_getter), Some(action_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("method"), Some(method_getter), Some(method_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("name"), Some(name_getter), Some(name_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("enctype"), Some(enctype_getter), Some(enctype_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("target"), Some(target_getter), Some(target_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("noValidate"), Some(novalidate_getter), Some(novalidate_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("length"), Some(length_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("action"),
+                Some(action_getter),
+                Some(action_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("method"),
+                Some(method_getter),
+                Some(method_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("name"),
+                Some(name_getter),
+                Some(name_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("enctype"),
+                Some(enctype_getter),
+                Some(enctype_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("target"),
+                Some(target_getter),
+                Some(target_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("noValidate"),
+                Some(novalidate_getter),
+                Some(novalidate_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("length"),
+                Some(length_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(Self::submit, js_string!("submit"), 0)
             .method(Self::reset, js_string!("reset"), 0)
             .method(Self::check_validity, js_string!("checkValidity"), 0)
@@ -414,11 +572,8 @@ impl BuiltInConstructor for HTMLFormElement {
         )?;
 
         let form = HTMLFormElement::new();
-        let form_obj = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            prototype,
-            form,
-        );
+        let form_obj =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, form);
 
         // Add elements collection property
         let form_generic = form_obj.upcast();
@@ -445,35 +600,70 @@ impl BuiltInConstructor for HTMLFormElement {
 }
 
 // HTMLFormElement property getters/setters
-fn form_action_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_action_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        return Ok(JsValue::from(js_string!(form.action.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            form.action.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn form_action_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_action_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *form.action.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn form_method_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_method_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        return Ok(JsValue::from(js_string!(form.method.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            form.method.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("get")))
 }
 
-fn form_method_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_method_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped().to_lowercase();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped()
+            .to_lowercase();
         // Normalize method
         let normalized = match value.as_str() {
             "post" => "post",
@@ -485,8 +675,14 @@ fn form_method_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -
     Ok(JsValue::undefined())
 }
 
-fn form_name_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_name_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
         return Ok(JsValue::from(js_string!(form.name.lock().unwrap().clone())));
     }
@@ -494,26 +690,51 @@ fn form_name_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
 }
 
 fn form_name_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *form.name.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn form_enctype_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_enctype_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        return Ok(JsValue::from(js_string!(form.enctype.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            form.enctype.lock().unwrap().clone()
+        )));
     }
-    Ok(JsValue::from(js_string!("application/x-www-form-urlencoded")))
+    Ok(JsValue::from(js_string!(
+        "application/x-www-form-urlencoded"
+    )))
 }
 
-fn form_enctype_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_enctype_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped().to_lowercase();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped()
+            .to_lowercase();
         // Normalize enctype
         let normalized = match value.as_str() {
             "multipart/form-data" => "multipart/form-data",
@@ -525,33 +746,62 @@ fn form_enctype_setter(this: &JsValue, args: &[JsValue], context: &mut Context) 
     Ok(JsValue::undefined())
 }
 
-fn form_target_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_target_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        return Ok(JsValue::from(js_string!(form.target.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            form.target.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn form_target_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_target_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *form.target.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn form_novalidate_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_novalidate_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
         return Ok(JsValue::from(*form.no_validate.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn form_novalidate_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_novalidate_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *form.no_validate.lock().unwrap() = value;
@@ -559,8 +809,14 @@ fn form_novalidate_setter(this: &JsValue, args: &[JsValue], _context: &mut Conte
     Ok(JsValue::undefined())
 }
 
-fn form_length_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn form_length_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(form) = obj.downcast_ref::<HTMLFormElement>() {
         return Ok(JsValue::from(form.elements_length() as i32));
     }
@@ -612,7 +868,11 @@ impl HTMLFormElement {
     }
 
     /// HTMLFormElement.checkValidity() method
-    fn check_validity(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn check_validity(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLFormElement.checkValidity called on non-object")
         })?;
@@ -632,7 +892,11 @@ impl HTMLFormElement {
     }
 
     /// HTMLFormElement.reportValidity() method
-    fn report_validity(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn report_validity(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLFormElement.reportValidity called on non-object")
         })?;
@@ -650,7 +914,11 @@ impl HTMLFormElement {
     }
 
     /// HTMLFormElement.requestSubmit() method
-    fn request_submit(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn request_submit(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let _this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLFormElement.requestSubmit called on non-object")
         })?;
@@ -719,7 +987,8 @@ impl BuiltInConstructor for HTMLFormControlsCollection {
 impl HTMLFormControlsCollection {
     fn item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLFormControlsCollection.item called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLFormControlsCollection.item called on non-object")
         })?;
 
         if let Some(collection) = this_obj.downcast_ref::<HTMLFormControlsCollection>() {
@@ -737,7 +1006,8 @@ impl HTMLFormControlsCollection {
 
     fn named_item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLFormControlsCollection.namedItem called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLFormControlsCollection.namedItem called on non-object")
         })?;
 
         if let Some(collection) = this_obj.downcast_ref::<HTMLFormControlsCollection>() {
@@ -891,7 +1161,10 @@ impl HTMLInputElement {
                 }
             }
             "url" => {
-                if !value.is_empty() && !value.starts_with("http://") && !value.starts_with("https://") {
+                if !value.is_empty()
+                    && !value.starts_with("http://")
+                    && !value.starts_with("https://")
+                {
                     validity.type_mismatch = true;
                 }
             }
@@ -932,44 +1205,147 @@ impl HTMLInputElement {
 impl IntrinsicObject for HTMLInputElement {
     fn init(realm: &Realm) {
         // Create getters/setters for all properties
-        let name_getter = BuiltInBuilder::callable(realm, input_name_getter).name(js_string!("get name")).build();
-        let name_setter = BuiltInBuilder::callable(realm, input_name_setter).name(js_string!("set name")).build();
-        let value_getter = BuiltInBuilder::callable(realm, input_value_getter).name(js_string!("get value")).build();
-        let value_setter = BuiltInBuilder::callable(realm, input_value_setter).name(js_string!("set value")).build();
-        let type_getter = BuiltInBuilder::callable(realm, input_type_getter).name(js_string!("get type")).build();
-        let type_setter = BuiltInBuilder::callable(realm, input_type_setter).name(js_string!("set type")).build();
-        let checked_getter = BuiltInBuilder::callable(realm, input_checked_getter).name(js_string!("get checked")).build();
-        let checked_setter = BuiltInBuilder::callable(realm, input_checked_setter).name(js_string!("set checked")).build();
-        let disabled_getter = BuiltInBuilder::callable(realm, input_disabled_getter).name(js_string!("get disabled")).build();
-        let disabled_setter = BuiltInBuilder::callable(realm, input_disabled_setter).name(js_string!("set disabled")).build();
-        let required_getter = BuiltInBuilder::callable(realm, input_required_getter).name(js_string!("get required")).build();
-        let required_setter = BuiltInBuilder::callable(realm, input_required_setter).name(js_string!("set required")).build();
-        let placeholder_getter = BuiltInBuilder::callable(realm, input_placeholder_getter).name(js_string!("get placeholder")).build();
-        let placeholder_setter = BuiltInBuilder::callable(realm, input_placeholder_setter).name(js_string!("set placeholder")).build();
-        let readonly_getter = BuiltInBuilder::callable(realm, input_readonly_getter).name(js_string!("get readOnly")).build();
-        let readonly_setter = BuiltInBuilder::callable(realm, input_readonly_setter).name(js_string!("set readOnly")).build();
-        let pattern_getter = BuiltInBuilder::callable(realm, input_pattern_getter).name(js_string!("get pattern")).build();
-        let pattern_setter = BuiltInBuilder::callable(realm, input_pattern_setter).name(js_string!("set pattern")).build();
-        let minlength_getter = BuiltInBuilder::callable(realm, input_minlength_getter).name(js_string!("get minLength")).build();
-        let minlength_setter = BuiltInBuilder::callable(realm, input_minlength_setter).name(js_string!("set minLength")).build();
-        let maxlength_getter = BuiltInBuilder::callable(realm, input_maxlength_getter).name(js_string!("get maxLength")).build();
-        let maxlength_setter = BuiltInBuilder::callable(realm, input_maxlength_setter).name(js_string!("set maxLength")).build();
+        let name_getter = BuiltInBuilder::callable(realm, input_name_getter)
+            .name(js_string!("get name"))
+            .build();
+        let name_setter = BuiltInBuilder::callable(realm, input_name_setter)
+            .name(js_string!("set name"))
+            .build();
+        let value_getter = BuiltInBuilder::callable(realm, input_value_getter)
+            .name(js_string!("get value"))
+            .build();
+        let value_setter = BuiltInBuilder::callable(realm, input_value_setter)
+            .name(js_string!("set value"))
+            .build();
+        let type_getter = BuiltInBuilder::callable(realm, input_type_getter)
+            .name(js_string!("get type"))
+            .build();
+        let type_setter = BuiltInBuilder::callable(realm, input_type_setter)
+            .name(js_string!("set type"))
+            .build();
+        let checked_getter = BuiltInBuilder::callable(realm, input_checked_getter)
+            .name(js_string!("get checked"))
+            .build();
+        let checked_setter = BuiltInBuilder::callable(realm, input_checked_setter)
+            .name(js_string!("set checked"))
+            .build();
+        let disabled_getter = BuiltInBuilder::callable(realm, input_disabled_getter)
+            .name(js_string!("get disabled"))
+            .build();
+        let disabled_setter = BuiltInBuilder::callable(realm, input_disabled_setter)
+            .name(js_string!("set disabled"))
+            .build();
+        let required_getter = BuiltInBuilder::callable(realm, input_required_getter)
+            .name(js_string!("get required"))
+            .build();
+        let required_setter = BuiltInBuilder::callable(realm, input_required_setter)
+            .name(js_string!("set required"))
+            .build();
+        let placeholder_getter = BuiltInBuilder::callable(realm, input_placeholder_getter)
+            .name(js_string!("get placeholder"))
+            .build();
+        let placeholder_setter = BuiltInBuilder::callable(realm, input_placeholder_setter)
+            .name(js_string!("set placeholder"))
+            .build();
+        let readonly_getter = BuiltInBuilder::callable(realm, input_readonly_getter)
+            .name(js_string!("get readOnly"))
+            .build();
+        let readonly_setter = BuiltInBuilder::callable(realm, input_readonly_setter)
+            .name(js_string!("set readOnly"))
+            .build();
+        let pattern_getter = BuiltInBuilder::callable(realm, input_pattern_getter)
+            .name(js_string!("get pattern"))
+            .build();
+        let pattern_setter = BuiltInBuilder::callable(realm, input_pattern_setter)
+            .name(js_string!("set pattern"))
+            .build();
+        let minlength_getter = BuiltInBuilder::callable(realm, input_minlength_getter)
+            .name(js_string!("get minLength"))
+            .build();
+        let minlength_setter = BuiltInBuilder::callable(realm, input_minlength_setter)
+            .name(js_string!("set minLength"))
+            .build();
+        let maxlength_getter = BuiltInBuilder::callable(realm, input_maxlength_getter)
+            .name(js_string!("get maxLength"))
+            .build();
+        let maxlength_setter = BuiltInBuilder::callable(realm, input_maxlength_setter)
+            .name(js_string!("set maxLength"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("name"), Some(name_getter), Some(name_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("value"), Some(value_getter), Some(value_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("type"), Some(type_getter), Some(type_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("checked"), Some(checked_getter), Some(checked_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("disabled"), Some(disabled_getter), Some(disabled_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("required"), Some(required_getter), Some(required_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("placeholder"), Some(placeholder_getter), Some(placeholder_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("readOnly"), Some(readonly_getter), Some(readonly_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("pattern"), Some(pattern_getter), Some(pattern_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("minLength"), Some(minlength_getter), Some(minlength_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("maxLength"), Some(maxlength_getter), Some(maxlength_setter), Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("name"),
+                Some(name_getter),
+                Some(name_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("value"),
+                Some(value_getter),
+                Some(value_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("type"),
+                Some(type_getter),
+                Some(type_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("checked"),
+                Some(checked_getter),
+                Some(checked_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("disabled"),
+                Some(disabled_getter),
+                Some(disabled_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("required"),
+                Some(required_getter),
+                Some(required_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("placeholder"),
+                Some(placeholder_getter),
+                Some(placeholder_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("readOnly"),
+                Some(readonly_getter),
+                Some(readonly_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("pattern"),
+                Some(pattern_getter),
+                Some(pattern_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("minLength"),
+                Some(minlength_getter),
+                Some(minlength_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("maxLength"),
+                Some(maxlength_getter),
+                Some(maxlength_setter),
+                Attribute::CONFIGURABLE,
+            )
             .method(Self::check_validity, js_string!("checkValidity"), 0)
             .method(Self::report_validity, js_string!("reportValidity"), 0)
-            .method(Self::set_custom_validity, js_string!("setCustomValidity"), 1)
+            .method(
+                Self::set_custom_validity,
+                js_string!("setCustomValidity"),
+                1,
+            )
             .method(Self::focus, js_string!("focus"), 0)
             .method(Self::blur, js_string!("blur"), 0)
             .method(Self::click, js_string!("click"), 0)
@@ -1012,11 +1388,8 @@ impl BuiltInConstructor for HTMLInputElement {
         )?;
 
         let input = HTMLInputElement::new();
-        let input_obj = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            prototype,
-            input,
-        );
+        let input_obj =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, input);
 
         // Create validity object
         let validity_data = ValidityState::new();
@@ -1043,67 +1416,123 @@ impl BuiltInConstructor for HTMLInputElement {
 }
 
 // HTMLInputElement property getters/setters
-fn input_name_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_name_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        return Ok(JsValue::from(js_string!(input.name.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            input.name.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
 fn input_name_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *input.name.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn input_value_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_value_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        return Ok(JsValue::from(js_string!(input.value.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            input.value.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn input_value_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_value_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *input.value.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn input_type_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_type_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        return Ok(JsValue::from(js_string!(input.input_type.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            input.input_type.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("text")))
 }
 
 fn input_type_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped().to_lowercase();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped()
+            .to_lowercase();
         *input.input_type.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn input_checked_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_checked_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         return Ok(JsValue::from(*input.checked.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn input_checked_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_checked_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *input.checked.lock().unwrap() = value;
@@ -1111,16 +1540,28 @@ fn input_checked_setter(this: &JsValue, args: &[JsValue], _context: &mut Context
     Ok(JsValue::undefined())
 }
 
-fn input_disabled_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_disabled_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         return Ok(JsValue::from(*input.disabled.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn input_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_disabled_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *input.disabled.lock().unwrap() = value;
@@ -1128,16 +1569,28 @@ fn input_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Contex
     Ok(JsValue::undefined())
 }
 
-fn input_required_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_required_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         return Ok(JsValue::from(*input.required.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn input_required_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_required_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *input.required.lock().unwrap() = value;
@@ -1145,33 +1598,62 @@ fn input_required_setter(this: &JsValue, args: &[JsValue], _context: &mut Contex
     Ok(JsValue::undefined())
 }
 
-fn input_placeholder_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_placeholder_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        return Ok(JsValue::from(js_string!(input.placeholder.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            input.placeholder.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn input_placeholder_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_placeholder_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *input.placeholder.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn input_readonly_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_readonly_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         return Ok(JsValue::from(*input.readonly.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn input_readonly_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_readonly_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *input.readonly.lock().unwrap() = value;
@@ -1179,33 +1661,62 @@ fn input_readonly_setter(this: &JsValue, args: &[JsValue], _context: &mut Contex
     Ok(JsValue::undefined())
 }
 
-fn input_pattern_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_pattern_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        return Ok(JsValue::from(js_string!(input.pattern.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            input.pattern.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn input_pattern_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_pattern_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *input.pattern.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn input_minlength_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_minlength_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         return Ok(JsValue::from(*input.min_length.lock().unwrap()));
     }
     Ok(JsValue::from(-1))
 }
 
-fn input_minlength_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_minlength_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         let value = args.get_or_undefined(0).to_number(context)? as i32;
         *input.min_length.lock().unwrap() = value;
@@ -1213,16 +1724,28 @@ fn input_minlength_setter(this: &JsValue, args: &[JsValue], context: &mut Contex
     Ok(JsValue::undefined())
 }
 
-fn input_maxlength_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_maxlength_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         return Ok(JsValue::from(*input.max_length.lock().unwrap()));
     }
     Ok(JsValue::from(-1))
 }
 
-fn input_maxlength_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn input_maxlength_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
         let value = args.get_or_undefined(0).to_number(context)? as i32;
         *input.max_length.lock().unwrap() = value;
@@ -1232,7 +1755,11 @@ fn input_maxlength_setter(this: &JsValue, args: &[JsValue], context: &mut Contex
 
 impl HTMLInputElement {
     /// checkValidity() method
-    fn check_validity(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn check_validity(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLInputElement.checkValidity called on non-object")
         })?;
@@ -1246,9 +1773,14 @@ impl HTMLInputElement {
     }
 
     /// reportValidity() method
-    fn report_validity(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn report_validity(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLInputElement.reportValidity called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLInputElement.reportValidity called on non-object")
         })?;
 
         if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
@@ -1261,13 +1793,21 @@ impl HTMLInputElement {
     }
 
     /// setCustomValidity(message) method
-    fn set_custom_validity(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_custom_validity(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLInputElement.setCustomValidity called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLInputElement.setCustomValidity called on non-object")
         })?;
 
         if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
-            let message = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let message = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             *input.custom_validity_message.lock().unwrap() = message;
         }
 
@@ -1359,31 +1899,96 @@ impl HTMLSelectElement {
 
 impl IntrinsicObject for HTMLSelectElement {
     fn init(realm: &Realm) {
-        let name_getter = BuiltInBuilder::callable(realm, select_name_getter).name(js_string!("get name")).build();
-        let name_setter = BuiltInBuilder::callable(realm, select_name_setter).name(js_string!("set name")).build();
-        let value_getter = BuiltInBuilder::callable(realm, select_value_getter).name(js_string!("get value")).build();
-        let value_setter = BuiltInBuilder::callable(realm, select_value_setter).name(js_string!("set value")).build();
-        let selected_index_getter = BuiltInBuilder::callable(realm, select_selected_index_getter).name(js_string!("get selectedIndex")).build();
-        let selected_index_setter = BuiltInBuilder::callable(realm, select_selected_index_setter).name(js_string!("set selectedIndex")).build();
-        let multiple_getter = BuiltInBuilder::callable(realm, select_multiple_getter).name(js_string!("get multiple")).build();
-        let multiple_setter = BuiltInBuilder::callable(realm, select_multiple_setter).name(js_string!("set multiple")).build();
-        let disabled_getter = BuiltInBuilder::callable(realm, select_disabled_getter).name(js_string!("get disabled")).build();
-        let disabled_setter = BuiltInBuilder::callable(realm, select_disabled_setter).name(js_string!("set disabled")).build();
-        let required_getter = BuiltInBuilder::callable(realm, select_required_getter).name(js_string!("get required")).build();
-        let required_setter = BuiltInBuilder::callable(realm, select_required_setter).name(js_string!("set required")).build();
-        let length_getter = BuiltInBuilder::callable(realm, select_length_getter).name(js_string!("get length")).build();
+        let name_getter = BuiltInBuilder::callable(realm, select_name_getter)
+            .name(js_string!("get name"))
+            .build();
+        let name_setter = BuiltInBuilder::callable(realm, select_name_setter)
+            .name(js_string!("set name"))
+            .build();
+        let value_getter = BuiltInBuilder::callable(realm, select_value_getter)
+            .name(js_string!("get value"))
+            .build();
+        let value_setter = BuiltInBuilder::callable(realm, select_value_setter)
+            .name(js_string!("set value"))
+            .build();
+        let selected_index_getter = BuiltInBuilder::callable(realm, select_selected_index_getter)
+            .name(js_string!("get selectedIndex"))
+            .build();
+        let selected_index_setter = BuiltInBuilder::callable(realm, select_selected_index_setter)
+            .name(js_string!("set selectedIndex"))
+            .build();
+        let multiple_getter = BuiltInBuilder::callable(realm, select_multiple_getter)
+            .name(js_string!("get multiple"))
+            .build();
+        let multiple_setter = BuiltInBuilder::callable(realm, select_multiple_setter)
+            .name(js_string!("set multiple"))
+            .build();
+        let disabled_getter = BuiltInBuilder::callable(realm, select_disabled_getter)
+            .name(js_string!("get disabled"))
+            .build();
+        let disabled_setter = BuiltInBuilder::callable(realm, select_disabled_setter)
+            .name(js_string!("set disabled"))
+            .build();
+        let required_getter = BuiltInBuilder::callable(realm, select_required_getter)
+            .name(js_string!("get required"))
+            .build();
+        let required_setter = BuiltInBuilder::callable(realm, select_required_setter)
+            .name(js_string!("set required"))
+            .build();
+        let length_getter = BuiltInBuilder::callable(realm, select_length_getter)
+            .name(js_string!("get length"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("name"), Some(name_getter), Some(name_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("value"), Some(value_getter), Some(value_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("selectedIndex"), Some(selected_index_getter), Some(selected_index_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("multiple"), Some(multiple_getter), Some(multiple_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("disabled"), Some(disabled_getter), Some(disabled_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("required"), Some(required_getter), Some(required_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("length"), Some(length_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("name"),
+                Some(name_getter),
+                Some(name_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("value"),
+                Some(value_getter),
+                Some(value_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("selectedIndex"),
+                Some(selected_index_getter),
+                Some(selected_index_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("multiple"),
+                Some(multiple_getter),
+                Some(multiple_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("disabled"),
+                Some(disabled_getter),
+                Some(disabled_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("required"),
+                Some(required_getter),
+                Some(required_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("length"),
+                Some(length_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .method(Self::check_validity, js_string!("checkValidity"), 0)
             .method(Self::report_validity, js_string!("reportValidity"), 0)
-            .method(Self::set_custom_validity, js_string!("setCustomValidity"), 1)
+            .method(
+                Self::set_custom_validity,
+                js_string!("setCustomValidity"),
+                1,
+            )
             .method(Self::add, js_string!("add"), 1)
             .method(Self::remove, js_string!("remove"), 0)
             .method(Self::item, js_string!("item"), 1)
@@ -1437,50 +2042,96 @@ impl BuiltInConstructor for HTMLSelectElement {
 }
 
 // HTMLSelectElement property getters/setters
-fn select_name_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_name_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
-        return Ok(JsValue::from(js_string!(select.name.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            select.name.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn select_name_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_name_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *select.name.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn select_value_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_value_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
-        return Ok(JsValue::from(js_string!(select.value.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            select.value.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn select_value_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_value_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *select.value.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn select_selected_index_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_selected_index_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         return Ok(JsValue::from(*select.selected_index.lock().unwrap()));
     }
     Ok(JsValue::from(-1))
 }
 
-fn select_selected_index_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_selected_index_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         let value = args.get_or_undefined(0).to_number(context)? as i32;
         *select.selected_index.lock().unwrap() = value;
@@ -1488,16 +2139,28 @@ fn select_selected_index_setter(this: &JsValue, args: &[JsValue], context: &mut 
     Ok(JsValue::undefined())
 }
 
-fn select_multiple_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_multiple_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         return Ok(JsValue::from(*select.multiple.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn select_multiple_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_multiple_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *select.multiple.lock().unwrap() = value;
@@ -1505,16 +2168,28 @@ fn select_multiple_setter(this: &JsValue, args: &[JsValue], _context: &mut Conte
     Ok(JsValue::undefined())
 }
 
-fn select_disabled_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_disabled_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         return Ok(JsValue::from(*select.disabled.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn select_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_disabled_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *select.disabled.lock().unwrap() = value;
@@ -1522,16 +2197,28 @@ fn select_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Conte
     Ok(JsValue::undefined())
 }
 
-fn select_required_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_required_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         return Ok(JsValue::from(*select.required.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn select_required_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_required_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *select.required.lock().unwrap() = value;
@@ -1539,8 +2226,14 @@ fn select_required_setter(this: &JsValue, args: &[JsValue], _context: &mut Conte
     Ok(JsValue::undefined())
 }
 
-fn select_length_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn select_length_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
         return Ok(JsValue::from(select.options.lock().unwrap().len() as i32));
     }
@@ -1548,9 +2241,14 @@ fn select_length_getter(this: &JsValue, _args: &[JsValue], _context: &mut Contex
 }
 
 impl HTMLSelectElement {
-    fn check_validity(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn check_validity(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLSelectElement.checkValidity called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLSelectElement.checkValidity called on non-object")
         })?;
 
         if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
@@ -1565,17 +2263,29 @@ impl HTMLSelectElement {
         Ok(JsValue::from(true))
     }
 
-    fn report_validity(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn report_validity(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::check_validity(this, args, context)
     }
 
-    fn set_custom_validity(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_custom_validity(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLSelectElement.setCustomValidity called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLSelectElement.setCustomValidity called on non-object")
         })?;
 
         if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
-            let message = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let message = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             *select.custom_validity_message.lock().unwrap() = message;
         }
 
@@ -1635,7 +2345,10 @@ impl HTMLSelectElement {
         })?;
 
         if let Some(select) = obj.downcast_ref::<HTMLSelectElement>() {
-            let name = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let name = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             let options = select.options.lock().unwrap();
             for option in options.iter() {
                 if let Ok(option_name) = option.get(js_string!("name"), context) {
@@ -1712,35 +2425,111 @@ impl HTMLTextAreaElement {
 
 impl IntrinsicObject for HTMLTextAreaElement {
     fn init(realm: &Realm) {
-        let name_getter = BuiltInBuilder::callable(realm, textarea_name_getter).name(js_string!("get name")).build();
-        let name_setter = BuiltInBuilder::callable(realm, textarea_name_setter).name(js_string!("set name")).build();
-        let value_getter = BuiltInBuilder::callable(realm, textarea_value_getter).name(js_string!("get value")).build();
-        let value_setter = BuiltInBuilder::callable(realm, textarea_value_setter).name(js_string!("set value")).build();
-        let placeholder_getter = BuiltInBuilder::callable(realm, textarea_placeholder_getter).name(js_string!("get placeholder")).build();
-        let placeholder_setter = BuiltInBuilder::callable(realm, textarea_placeholder_setter).name(js_string!("set placeholder")).build();
-        let rows_getter = BuiltInBuilder::callable(realm, textarea_rows_getter).name(js_string!("get rows")).build();
-        let rows_setter = BuiltInBuilder::callable(realm, textarea_rows_setter).name(js_string!("set rows")).build();
-        let cols_getter = BuiltInBuilder::callable(realm, textarea_cols_getter).name(js_string!("get cols")).build();
-        let cols_setter = BuiltInBuilder::callable(realm, textarea_cols_setter).name(js_string!("set cols")).build();
-        let disabled_getter = BuiltInBuilder::callable(realm, textarea_disabled_getter).name(js_string!("get disabled")).build();
-        let disabled_setter = BuiltInBuilder::callable(realm, textarea_disabled_setter).name(js_string!("set disabled")).build();
-        let required_getter = BuiltInBuilder::callable(realm, textarea_required_getter).name(js_string!("get required")).build();
-        let required_setter = BuiltInBuilder::callable(realm, textarea_required_setter).name(js_string!("set required")).build();
-        let readonly_getter = BuiltInBuilder::callable(realm, textarea_readonly_getter).name(js_string!("get readOnly")).build();
-        let readonly_setter = BuiltInBuilder::callable(realm, textarea_readonly_setter).name(js_string!("set readOnly")).build();
+        let name_getter = BuiltInBuilder::callable(realm, textarea_name_getter)
+            .name(js_string!("get name"))
+            .build();
+        let name_setter = BuiltInBuilder::callable(realm, textarea_name_setter)
+            .name(js_string!("set name"))
+            .build();
+        let value_getter = BuiltInBuilder::callable(realm, textarea_value_getter)
+            .name(js_string!("get value"))
+            .build();
+        let value_setter = BuiltInBuilder::callable(realm, textarea_value_setter)
+            .name(js_string!("set value"))
+            .build();
+        let placeholder_getter = BuiltInBuilder::callable(realm, textarea_placeholder_getter)
+            .name(js_string!("get placeholder"))
+            .build();
+        let placeholder_setter = BuiltInBuilder::callable(realm, textarea_placeholder_setter)
+            .name(js_string!("set placeholder"))
+            .build();
+        let rows_getter = BuiltInBuilder::callable(realm, textarea_rows_getter)
+            .name(js_string!("get rows"))
+            .build();
+        let rows_setter = BuiltInBuilder::callable(realm, textarea_rows_setter)
+            .name(js_string!("set rows"))
+            .build();
+        let cols_getter = BuiltInBuilder::callable(realm, textarea_cols_getter)
+            .name(js_string!("get cols"))
+            .build();
+        let cols_setter = BuiltInBuilder::callable(realm, textarea_cols_setter)
+            .name(js_string!("set cols"))
+            .build();
+        let disabled_getter = BuiltInBuilder::callable(realm, textarea_disabled_getter)
+            .name(js_string!("get disabled"))
+            .build();
+        let disabled_setter = BuiltInBuilder::callable(realm, textarea_disabled_setter)
+            .name(js_string!("set disabled"))
+            .build();
+        let required_getter = BuiltInBuilder::callable(realm, textarea_required_getter)
+            .name(js_string!("get required"))
+            .build();
+        let required_setter = BuiltInBuilder::callable(realm, textarea_required_setter)
+            .name(js_string!("set required"))
+            .build();
+        let readonly_getter = BuiltInBuilder::callable(realm, textarea_readonly_getter)
+            .name(js_string!("get readOnly"))
+            .build();
+        let readonly_setter = BuiltInBuilder::callable(realm, textarea_readonly_setter)
+            .name(js_string!("set readOnly"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("name"), Some(name_getter), Some(name_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("value"), Some(value_getter), Some(value_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("placeholder"), Some(placeholder_getter), Some(placeholder_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("rows"), Some(rows_getter), Some(rows_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("cols"), Some(cols_getter), Some(cols_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("disabled"), Some(disabled_getter), Some(disabled_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("required"), Some(required_getter), Some(required_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("readOnly"), Some(readonly_getter), Some(readonly_setter), Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("name"),
+                Some(name_getter),
+                Some(name_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("value"),
+                Some(value_getter),
+                Some(value_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("placeholder"),
+                Some(placeholder_getter),
+                Some(placeholder_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("rows"),
+                Some(rows_getter),
+                Some(rows_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("cols"),
+                Some(cols_getter),
+                Some(cols_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("disabled"),
+                Some(disabled_getter),
+                Some(disabled_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("required"),
+                Some(required_getter),
+                Some(required_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("readOnly"),
+                Some(readonly_getter),
+                Some(readonly_setter),
+                Attribute::CONFIGURABLE,
+            )
             .method(Self::check_validity, js_string!("checkValidity"), 0)
             .method(Self::report_validity, js_string!("reportValidity"), 0)
-            .method(Self::set_custom_validity, js_string!("setCustomValidity"), 1)
+            .method(
+                Self::set_custom_validity,
+                js_string!("setCustomValidity"),
+                1,
+            )
             .method(Self::select, js_string!("select"), 0)
             .build();
     }
@@ -1791,67 +2580,130 @@ impl BuiltInConstructor for HTMLTextAreaElement {
 }
 
 // HTMLTextAreaElement property getters/setters
-fn textarea_name_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_name_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-        return Ok(JsValue::from(js_string!(textarea.name.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            textarea.name.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn textarea_name_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_name_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *textarea.name.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn textarea_value_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_value_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-        return Ok(JsValue::from(js_string!(textarea.value.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            textarea.value.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn textarea_value_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_value_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *textarea.value.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn textarea_placeholder_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_placeholder_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-        return Ok(JsValue::from(js_string!(textarea.placeholder.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            textarea.placeholder.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn textarea_placeholder_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_placeholder_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *textarea.placeholder.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn textarea_rows_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_rows_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         return Ok(JsValue::from(*textarea.rows.lock().unwrap()));
     }
     Ok(JsValue::from(2))
 }
 
-fn textarea_rows_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_rows_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         let value = args.get_or_undefined(0).to_number(context)? as u32;
         *textarea.rows.lock().unwrap() = value;
@@ -1859,16 +2711,28 @@ fn textarea_rows_setter(this: &JsValue, args: &[JsValue], context: &mut Context)
     Ok(JsValue::undefined())
 }
 
-fn textarea_cols_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_cols_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         return Ok(JsValue::from(*textarea.cols.lock().unwrap()));
     }
     Ok(JsValue::from(20))
 }
 
-fn textarea_cols_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_cols_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         let value = args.get_or_undefined(0).to_number(context)? as u32;
         *textarea.cols.lock().unwrap() = value;
@@ -1876,16 +2740,28 @@ fn textarea_cols_setter(this: &JsValue, args: &[JsValue], context: &mut Context)
     Ok(JsValue::undefined())
 }
 
-fn textarea_disabled_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_disabled_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         return Ok(JsValue::from(*textarea.disabled.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn textarea_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_disabled_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *textarea.disabled.lock().unwrap() = value;
@@ -1893,16 +2769,28 @@ fn textarea_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Con
     Ok(JsValue::undefined())
 }
 
-fn textarea_required_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_required_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         return Ok(JsValue::from(*textarea.required.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn textarea_required_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_required_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *textarea.required.lock().unwrap() = value;
@@ -1910,16 +2798,28 @@ fn textarea_required_setter(this: &JsValue, args: &[JsValue], _context: &mut Con
     Ok(JsValue::undefined())
 }
 
-fn textarea_readonly_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_readonly_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         return Ok(JsValue::from(*textarea.readonly.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn textarea_readonly_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn textarea_readonly_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *textarea.readonly.lock().unwrap() = value;
@@ -1928,9 +2828,14 @@ fn textarea_readonly_setter(this: &JsValue, args: &[JsValue], _context: &mut Con
 }
 
 impl HTMLTextAreaElement {
-    fn check_validity(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn check_validity(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLTextAreaElement.checkValidity called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLTextAreaElement.checkValidity called on non-object")
         })?;
 
         if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
@@ -1959,17 +2864,29 @@ impl HTMLTextAreaElement {
         Ok(JsValue::from(true))
     }
 
-    fn report_validity(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn report_validity(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         Self::check_validity(this, args, context)
     }
 
-    fn set_custom_validity(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_custom_validity(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLTextAreaElement.setCustomValidity called on non-object")
+            JsNativeError::typ()
+                .with_message("HTMLTextAreaElement.setCustomValidity called on non-object")
         })?;
 
         if let Some(textarea) = obj.downcast_ref::<HTMLTextAreaElement>() {
-            let message = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+            let message = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
             *textarea.custom_validity_message.lock().unwrap() = message;
         }
 
@@ -2024,22 +2941,65 @@ impl HTMLOptionElement {
 
 impl IntrinsicObject for HTMLOptionElement {
     fn init(realm: &Realm) {
-        let value_getter = BuiltInBuilder::callable(realm, option_value_getter).name(js_string!("get value")).build();
-        let value_setter = BuiltInBuilder::callable(realm, option_value_setter).name(js_string!("set value")).build();
-        let text_getter = BuiltInBuilder::callable(realm, option_text_getter).name(js_string!("get text")).build();
-        let text_setter = BuiltInBuilder::callable(realm, option_text_setter).name(js_string!("set text")).build();
-        let selected_getter = BuiltInBuilder::callable(realm, option_selected_getter).name(js_string!("get selected")).build();
-        let selected_setter = BuiltInBuilder::callable(realm, option_selected_setter).name(js_string!("set selected")).build();
-        let disabled_getter = BuiltInBuilder::callable(realm, option_disabled_getter).name(js_string!("get disabled")).build();
-        let disabled_setter = BuiltInBuilder::callable(realm, option_disabled_setter).name(js_string!("set disabled")).build();
-        let index_getter = BuiltInBuilder::callable(realm, option_index_getter).name(js_string!("get index")).build();
+        let value_getter = BuiltInBuilder::callable(realm, option_value_getter)
+            .name(js_string!("get value"))
+            .build();
+        let value_setter = BuiltInBuilder::callable(realm, option_value_setter)
+            .name(js_string!("set value"))
+            .build();
+        let text_getter = BuiltInBuilder::callable(realm, option_text_getter)
+            .name(js_string!("get text"))
+            .build();
+        let text_setter = BuiltInBuilder::callable(realm, option_text_setter)
+            .name(js_string!("set text"))
+            .build();
+        let selected_getter = BuiltInBuilder::callable(realm, option_selected_getter)
+            .name(js_string!("get selected"))
+            .build();
+        let selected_setter = BuiltInBuilder::callable(realm, option_selected_setter)
+            .name(js_string!("set selected"))
+            .build();
+        let disabled_getter = BuiltInBuilder::callable(realm, option_disabled_getter)
+            .name(js_string!("get disabled"))
+            .build();
+        let disabled_setter = BuiltInBuilder::callable(realm, option_disabled_setter)
+            .name(js_string!("set disabled"))
+            .build();
+        let index_getter = BuiltInBuilder::callable(realm, option_index_getter)
+            .name(js_string!("get index"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("value"), Some(value_getter), Some(value_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("text"), Some(text_getter), Some(text_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("selected"), Some(selected_getter), Some(selected_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("disabled"), Some(disabled_getter), Some(disabled_setter), Attribute::CONFIGURABLE)
-            .accessor(js_string!("index"), Some(index_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("value"),
+                Some(value_getter),
+                Some(value_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("text"),
+                Some(text_getter),
+                Some(text_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("selected"),
+                Some(selected_getter),
+                Some(selected_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("disabled"),
+                Some(disabled_getter),
+                Some(disabled_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("index"),
+                Some(index_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -2113,55 +3073,101 @@ impl BuiltInConstructor for HTMLOptionElement {
 }
 
 // HTMLOptionElement property getters/setters
-fn option_value_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_value_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
         let value = option.value.lock().unwrap();
         if value.is_empty() {
             // If value is empty, return text
-            return Ok(JsValue::from(js_string!(option.text.lock().unwrap().clone())));
+            return Ok(JsValue::from(js_string!(
+                option.text.lock().unwrap().clone()
+            )));
         }
         return Ok(JsValue::from(js_string!(value.clone())));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn option_value_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_value_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *option.value.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn option_text_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_text_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
-        return Ok(JsValue::from(js_string!(option.text.lock().unwrap().clone())));
+        return Ok(JsValue::from(js_string!(
+            option.text.lock().unwrap().clone()
+        )));
     }
     Ok(JsValue::from(js_string!("")))
 }
 
-fn option_text_setter(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_text_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
-        let value = args.get_or_undefined(0).to_string(context)?.to_std_string_escaped();
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
         *option.text.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
 }
 
-fn option_selected_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_selected_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
         return Ok(JsValue::from(*option.selected.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn option_selected_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_selected_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *option.selected.lock().unwrap() = value;
@@ -2169,16 +3175,28 @@ fn option_selected_setter(this: &JsValue, args: &[JsValue], _context: &mut Conte
     Ok(JsValue::undefined())
 }
 
-fn option_disabled_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_disabled_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
         return Ok(JsValue::from(*option.disabled.lock().unwrap()));
     }
     Ok(JsValue::from(false))
 }
 
-fn option_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_disabled_setter(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
         let value = args.get_or_undefined(0).to_boolean();
         *option.disabled.lock().unwrap() = value;
@@ -2186,8 +3204,14 @@ fn option_disabled_setter(this: &JsValue, args: &[JsValue], _context: &mut Conte
     Ok(JsValue::undefined())
 }
 
-fn option_index_getter(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let obj = this.as_object().ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+fn option_index_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
     if let Some(option) = obj.downcast_ref::<HTMLOptionElement>() {
         return Ok(JsValue::from(*option.index.lock().unwrap()));
     }

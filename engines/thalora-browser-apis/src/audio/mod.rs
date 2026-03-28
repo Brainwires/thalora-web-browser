@@ -8,25 +8,25 @@
 
 // Native implementation using rodio
 #[cfg(feature = "native")]
-pub mod html_audio_element;
-#[cfg(feature = "native")]
 pub mod audio_context;
+#[cfg(feature = "native")]
+pub mod html_audio_element;
 
 // WASM stubs - actual audio is used through web-sys
 #[cfg(feature = "wasm")]
-pub mod html_audio_element_wasm;
-#[cfg(feature = "wasm")]
 pub mod audio_context_wasm;
+#[cfg(feature = "wasm")]
+pub mod html_audio_element_wasm;
 
 // Re-export WASM stubs with native module names for uniform API
 #[cfg(feature = "wasm")]
-pub use html_audio_element_wasm as html_audio_element;
-#[cfg(feature = "wasm")]
 pub use audio_context_wasm as audio_context;
+#[cfg(feature = "wasm")]
+pub use html_audio_element_wasm as html_audio_element;
 
 #[cfg(test)]
 mod tests;
 
 // Re-exports at module level
-pub use html_audio_element::HTMLAudioElement;
 pub use audio_context::AudioContext;
+pub use html_audio_element::HTMLAudioElement;

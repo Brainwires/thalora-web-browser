@@ -6,18 +6,19 @@
 //! This implements the complete MutationObserver interface for watching DOM changes
 
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     value::JsValue,
-    Context, JsArgs, JsNativeError, JsResult, js_string,
-    realm::Realm, JsData, JsString,
-    property::Attribute
 };
 use boa_gc::{Finalize, Trace};
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use once_cell::sync::Lazy;
 
 // Global registry of active mutation observers for DOM integration
 static MUTATION_OBSERVERS: Lazy<Arc<Mutex<Vec<WeakObserverRef>>>> =
@@ -89,7 +90,7 @@ impl BuiltInConstructor for MutationObserver {
         let observer_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             prototype,
-            observer_data
+            observer_data,
         );
 
         Ok(observer_obj.into())
@@ -143,7 +144,9 @@ impl MutationObserver {
             }
 
             // Parse characterDataOldValue option
-            if let Ok(char_old_value) = options_obj.get(js_string!("characterDataOldValue"), context) {
+            if let Ok(char_old_value) =
+                options_obj.get(js_string!("characterDataOldValue"), context)
+            {
                 config.character_data_old_value = Some(char_old_value.to_boolean());
             }
 
@@ -201,10 +204,13 @@ impl MutationObserver {
         // Update observer data
         if let Some(mut observer_data) = observer_obj.downcast_mut::<MutationObserverData>() {
             let target_id = format!("{:p}", target_obj.as_ref());
-            observer_data.observations.insert(target_id, ObservationEntry {
-                target: target_obj,
-                config,
-            });
+            observer_data.observations.insert(
+                target_id,
+                ObservationEntry {
+                    target: target_obj,
+                    config,
+                },
+            );
             observer_data.is_observing = true;
         }
 
@@ -232,20 +238,20 @@ impl MutationObserver {
             JsNativeError::typ().with_message("MutationObserver.takeRecords called on non-object")
         })?;
 
-        let mut observer_data = observer_obj.downcast_mut::<MutationObserverData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("MutationObserver.takeRecords called on non-MutationObserver object")
-        })?;
+        let mut observer_data = observer_obj
+            .downcast_mut::<MutationObserverData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "MutationObserver.takeRecords called on non-MutationObserver object",
+                )
+            })?;
 
         // Take records and clear the queue
         let records = std::mem::take(&mut observer_data.records);
 
         // Create JavaScript array of MutationRecord objects
-        let records_array = boa_engine::builtins::array::Array::array_create(
-            records.len() as u64,
-            None,
-            context,
-        )?;
+        let records_array =
+            boa_engine::builtins::array::Array::array_create(records.len() as u64, None, context)?;
 
         for (index, record) in records.into_iter().enumerate() {
             let record_obj = record.to_js_object(context)?;
@@ -500,12 +506,19 @@ impl MutationRecordData {
         for (i, node) in self.removed_nodes.iter().enumerate() {
             removed_nodes_array.set(i, node.clone(), false, context)?;
         }
-        obj.set(js_string!("removedNodes"), removed_nodes_array, false, context)?;
+        obj.set(
+            js_string!("removedNodes"),
+            removed_nodes_array,
+            false,
+            context,
+        )?;
 
         // Set previousSibling
         obj.set(
             js_string!("previousSibling"),
-            self.previous_sibling.clone().map_or(JsValue::null(), |s| s.into()),
+            self.previous_sibling
+                .clone()
+                .map_or(JsValue::null(), |s| s.into()),
             false,
             context,
         )?;
@@ -513,7 +526,9 @@ impl MutationRecordData {
         // Set nextSibling
         obj.set(
             js_string!("nextSibling"),
-            self.next_sibling.clone().map_or(JsValue::null(), |s| s.into()),
+            self.next_sibling
+                .clone()
+                .map_or(JsValue::null(), |s| s.into()),
             false,
             context,
         )?;
@@ -521,7 +536,9 @@ impl MutationRecordData {
         // Set attributeName
         obj.set(
             js_string!("attributeName"),
-            self.attribute_name.as_ref().map_or(JsValue::null(), |n| js_string!(n.as_str()).into()),
+            self.attribute_name
+                .as_ref()
+                .map_or(JsValue::null(), |n| js_string!(n.as_str()).into()),
             false,
             context,
         )?;
@@ -529,7 +546,9 @@ impl MutationRecordData {
         // Set attributeNamespace
         obj.set(
             js_string!("attributeNamespace"),
-            self.attribute_namespace.as_ref().map_or(JsValue::null(), |n| js_string!(n.as_str()).into()),
+            self.attribute_namespace
+                .as_ref()
+                .map_or(JsValue::null(), |n| js_string!(n.as_str()).into()),
             false,
             context,
         )?;
@@ -537,7 +556,9 @@ impl MutationRecordData {
         // Set oldValue
         obj.set(
             js_string!("oldValue"),
-            self.old_value.as_ref().map_or(JsValue::null(), |v| js_string!(v.as_str()).into()),
+            self.old_value
+                .as_ref()
+                .map_or(JsValue::null(), |v| js_string!(v.as_str()).into()),
             false,
             context,
         )?;
@@ -596,15 +617,60 @@ impl IntrinsicObject for MutationRecord {
             .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
-            .accessor(js_string!("type"), Some(type_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("target"), Some(target_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("addedNodes"), Some(added_nodes_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("removedNodes"), Some(removed_nodes_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("previousSibling"), Some(previous_sibling_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("nextSibling"), Some(next_sibling_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("attributeName"), Some(attribute_name_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("attributeNamespace"), Some(attribute_namespace_getter), None, Attribute::CONFIGURABLE)
-            .accessor(js_string!("oldValue"), Some(old_value_getter), None, Attribute::CONFIGURABLE)
+            .accessor(
+                js_string!("type"),
+                Some(type_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("target"),
+                Some(target_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("addedNodes"),
+                Some(added_nodes_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("removedNodes"),
+                Some(removed_nodes_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("previousSibling"),
+                Some(previous_sibling_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("nextSibling"),
+                Some(next_sibling_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("attributeName"),
+                Some(attribute_name_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("attributeNamespace"),
+                Some(attribute_namespace_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("oldValue"),
+                Some(old_value_getter),
+                None,
+                Attribute::CONFIGURABLE,
+            )
             .build();
     }
 
@@ -687,7 +753,11 @@ fn get_attribute_name(this: &JsValue, _: &[JsValue], context: &mut Context) -> J
     obj.get(js_string!("attributeName"), context)
 }
 
-fn get_attribute_namespace(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_attribute_namespace(
+    this: &JsValue,
+    _: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("MutationRecord getter called on non-object")
     })?;

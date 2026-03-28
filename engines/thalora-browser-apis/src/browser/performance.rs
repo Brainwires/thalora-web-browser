@@ -7,19 +7,19 @@
 //!
 //! This implements the complete Performance interface for real timing measurements
 
-
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInBuilder, BuiltInObject, BuiltInConstructor, array::Array},
-    object::JsObject,
-    value::JsValue,
-    Context, JsArgs, JsResult, js_string,
-    realm::Realm, JsString, JsData,
+    Context, JsArgs, JsData, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject, array::Array},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::JsObject,
     property::{Attribute, PropertyDescriptor},
+    realm::Realm,
+    value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// Get high-resolution time in milliseconds
@@ -168,9 +168,9 @@ static PERFORMANCE_STATE: OnceLock<Arc<Mutex<PerformanceState>>> = OnceLock::new
 
 /// Get or initialize the global performance state
 fn get_performance_state() -> Arc<Mutex<PerformanceState>> {
-    PERFORMANCE_STATE.get_or_init(|| {
-        Arc::new(Mutex::new(PerformanceState::default()))
-    }).clone()
+    PERFORMANCE_STATE
+        .get_or_init(|| Arc::new(Mutex::new(PerformanceState::default())))
+        .clone()
 }
 
 /// Performance object providing timing and measurement capabilities
@@ -225,8 +225,8 @@ impl BuiltInObject for Performance {
 
 impl BuiltInConstructor for Performance {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Number of prototype properties
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Number of static properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Number of prototype properties
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Number of static properties
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
         StandardConstructors::performance;
@@ -270,11 +270,17 @@ pub fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
         .build();
     performance_obj.set(js_string!("clearMarks"), clear_marks_func, false, context)?;
 
-    let clear_measures_func = BuiltInBuilder::callable(context.realm(), Performance::clear_measures)
-        .name(js_string!("clearMeasures"))
-        .length(0)
-        .build();
-    performance_obj.set(js_string!("clearMeasures"), clear_measures_func, false, context)?;
+    let clear_measures_func =
+        BuiltInBuilder::callable(context.realm(), Performance::clear_measures)
+            .name(js_string!("clearMeasures"))
+            .length(0)
+            .build();
+    performance_obj.set(
+        js_string!("clearMeasures"),
+        clear_measures_func,
+        false,
+        context,
+    )?;
 
     let get_entries_func = BuiltInBuilder::callable(context.realm(), Performance::get_entries)
         .name(js_string!("getEntries"))
@@ -282,17 +288,29 @@ pub fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
         .build();
     performance_obj.set(js_string!("getEntries"), get_entries_func, false, context)?;
 
-    let get_entries_by_type_func = BuiltInBuilder::callable(context.realm(), Performance::get_entries_by_type)
-        .name(js_string!("getEntriesByType"))
-        .length(1)
-        .build();
-    performance_obj.set(js_string!("getEntriesByType"), get_entries_by_type_func, false, context)?;
+    let get_entries_by_type_func =
+        BuiltInBuilder::callable(context.realm(), Performance::get_entries_by_type)
+            .name(js_string!("getEntriesByType"))
+            .length(1)
+            .build();
+    performance_obj.set(
+        js_string!("getEntriesByType"),
+        get_entries_by_type_func,
+        false,
+        context,
+    )?;
 
-    let get_entries_by_name_func = BuiltInBuilder::callable(context.realm(), Performance::get_entries_by_name)
-        .name(js_string!("getEntriesByName"))
-        .length(2)
-        .build();
-    performance_obj.set(js_string!("getEntriesByName"), get_entries_by_name_func, false, context)?;
+    let get_entries_by_name_func =
+        BuiltInBuilder::callable(context.realm(), Performance::get_entries_by_name)
+            .name(js_string!("getEntriesByName"))
+            .length(2)
+            .build();
+    performance_obj.set(
+        js_string!("getEntriesByName"),
+        get_entries_by_name_func,
+        false,
+        context,
+    )?;
 
     // Add readonly properties with proper descriptors
     let state = get_performance_state();
@@ -324,7 +342,9 @@ pub fn create_performance_object(context: &mut Context) -> JsResult<JsValue> {
 }
 
 impl Performance {
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &boa_engine::context::intrinsics::StandardConstructor =
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &boa_engine::context::intrinsics::StandardConstructor =
         boa_engine::context::intrinsics::StandardConstructors::performance;
 
     /// `performance.now()` - Returns current high-resolution time
@@ -430,7 +450,11 @@ impl Performance {
 
             let state = get_performance_state();
             let state = state.lock().unwrap();
-            state.mark_map.get(&end_mark_str).copied().unwrap_or(performance_now())
+            state
+                .mark_map
+                .get(&end_mark_str)
+                .copied()
+                .unwrap_or(performance_now())
         } else {
             performance_now()
         };
@@ -507,31 +531,44 @@ impl Performance {
         if args.is_empty() || args[0].is_undefined() {
             // Clear all marks
             state.mark_map.clear();
-            state.entries.retain(|entry| !matches!(entry.entry_type, PerformanceEntryType::Mark));
+            state
+                .entries
+                .retain(|entry| !matches!(entry.entry_type, PerformanceEntryType::Mark));
         } else {
             // Clear specific mark
             let name = args[0].to_string(context)?;
             let name_str = name.to_std_string_lossy();
             state.mark_map.remove(&name_str);
-            state.entries.retain(|entry| !(matches!(entry.entry_type, PerformanceEntryType::Mark) && entry.name == name_str));
+            state.entries.retain(|entry| {
+                !(matches!(entry.entry_type, PerformanceEntryType::Mark) && entry.name == name_str)
+            });
         }
 
         Ok(JsValue::undefined())
     }
 
     /// `performance.clearMeasures(name?)` - Removes measures from the timeline
-    fn clear_measures(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn clear_measures(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let state = get_performance_state();
         let mut state = state.lock().unwrap();
 
         if args.is_empty() || args[0].is_undefined() {
             // Clear all measures
-            state.entries.retain(|entry| !matches!(entry.entry_type, PerformanceEntryType::Measure));
+            state
+                .entries
+                .retain(|entry| !matches!(entry.entry_type, PerformanceEntryType::Measure));
         } else {
             // Clear specific measure
             let name = args[0].to_string(context)?;
             let name_str = name.to_std_string_lossy();
-            state.entries.retain(|entry| !(matches!(entry.entry_type, PerformanceEntryType::Measure) && entry.name == name_str));
+            state.entries.retain(|entry| {
+                !(matches!(entry.entry_type, PerformanceEntryType::Measure)
+                    && entry.name == name_str)
+            });
         }
 
         Ok(JsValue::undefined())
@@ -542,7 +579,9 @@ impl Performance {
         let state = get_performance_state();
         let state = state.lock().unwrap();
 
-        let entries: Vec<JsValue> = state.entries.iter()
+        let entries: Vec<JsValue> = state
+            .entries
+            .iter()
             .map(|entry| Self::entry_to_js_object(entry, context))
             .collect::<JsResult<Vec<_>>>()?;
 
@@ -550,14 +589,20 @@ impl Performance {
     }
 
     /// `performance.getEntriesByType(type)` - Returns entries filtered by type
-    fn get_entries_by_type(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_entries_by_type(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let entry_type = args.get_or_undefined(0).to_string(context)?;
         let type_str = entry_type.to_std_string_lossy();
 
         let state = get_performance_state();
         let state = state.lock().unwrap();
 
-        let entries: Vec<JsValue> = state.entries.iter()
+        let entries: Vec<JsValue> = state
+            .entries
+            .iter()
             .filter(|entry| entry.entry_type.as_str() == type_str)
             .map(|entry| Self::entry_to_js_object(entry, context))
             .collect::<JsResult<Vec<_>>>()?;
@@ -566,7 +611,11 @@ impl Performance {
     }
 
     /// `performance.getEntriesByName(name, type?)` - Returns entries filtered by name and optionally type
-    fn get_entries_by_name(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_entries_by_name(
+        _this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let name = args.get_or_undefined(0).to_string(context)?;
         let name_str = name.to_std_string_lossy();
 
@@ -580,10 +629,14 @@ impl Performance {
         let state = get_performance_state();
         let state = state.lock().unwrap();
 
-        let entries: Vec<JsValue> = state.entries.iter()
+        let entries: Vec<JsValue> = state
+            .entries
+            .iter()
             .filter(|entry| {
-                entry.name == name_str &&
-                type_filter.as_ref().map_or(true, |t| entry.entry_type.as_str() == t)
+                entry.name == name_str
+                    && type_filter
+                        .as_ref()
+                        .map_or(true, |t| entry.entry_type.as_str() == t)
             })
             .map(|entry| Self::entry_to_js_object(entry, context))
             .collect::<JsResult<Vec<_>>>()?;

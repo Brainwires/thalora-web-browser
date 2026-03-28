@@ -1,13 +1,13 @@
 //! Command handling for worker threads
 
-use boa_engine::{Context, JsResult, JsValue, JsNativeError};
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
+use boa_engine::{Context, JsNativeError, JsResult, JsValue};
 use crossbeam_channel::Sender;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
-use crate::worker::worker_global_scope::WorkerGlobalScope;
-use crate::misc::structured_clone::structured_deserialize;
 use super::types::{WorkerCommand, WorkerEvent, WorkerStatus};
+use crate::misc::structured_clone::structured_deserialize;
+use crate::worker::worker_global_scope::WorkerGlobalScope;
 
 /// Handle a command from the main thread
 pub fn handle_command(
@@ -41,7 +41,7 @@ pub fn handle_command(
         WorkerCommand::PostMessage { message } => {
             // Forward the message to the WorkerGlobalScope's message channel
             if let Some(sender) = worker_scope.get_main_thread_sender() {
-                use crate::worker::worker_global_scope::{WorkerMessage, MessageSource};
+                use crate::worker::worker_global_scope::{MessageSource, WorkerMessage};
 
                 let worker_msg = WorkerMessage {
                     data: message,

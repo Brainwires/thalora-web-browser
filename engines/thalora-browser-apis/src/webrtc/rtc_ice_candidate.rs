@@ -7,22 +7,22 @@
 //! Establishment (ICE) configuration which may be used to establish an RTCPeerConnection.
 
 use boa_engine::{
+    Context, JsArgs, JsData, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
-    Context, JsArgs, JsData, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
     },
 };
 use tokio::sync::Mutex as TokioMutex;
@@ -152,7 +152,10 @@ pub struct IceCandidateManager {
 impl std::fmt::Debug for IceCandidateManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IceCandidateManager")
-            .field("candidates", &"Arc<TokioMutex<HashMap<String, Arc<RTCIceCandidate>>>>")
+            .field(
+                "candidates",
+                &"Arc<TokioMutex<HashMap<String, Arc<RTCIceCandidate>>>>",
+            )
             .field("candidate_counter", &self.candidate_counter)
             .finish()
     }
@@ -282,7 +285,8 @@ impl BuiltInConstructor for RTCIceCandidateBuiltin {
         } else {
             // Parse the RTCIceCandidateInit dictionary
             let candidate_obj = candidate_init.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("RTCIceCandidate constructor requires an object or null")
+                JsNativeError::typ()
+                    .with_message("RTCIceCandidate constructor requires an object or null")
             })?;
 
             // Extract candidate string
@@ -301,19 +305,26 @@ impl BuiltInConstructor for RTCIceCandidateBuiltin {
 
             // Extract sdpMLineIndex (optional)
             let sdp_m_line_index_value = candidate_obj.get(js_string!("sdpMLineIndex"), context)?;
-            let sdp_m_line_index = if sdp_m_line_index_value.is_null() || sdp_m_line_index_value.is_undefined() {
-                None
-            } else {
-                Some(sdp_m_line_index_value.to_u32(context)? as u16)
-            };
+            let sdp_m_line_index =
+                if sdp_m_line_index_value.is_null() || sdp_m_line_index_value.is_undefined() {
+                    None
+                } else {
+                    Some(sdp_m_line_index_value.to_u32(context)? as u16)
+                };
 
             // Extract usernameFragment (optional)
-            let username_fragment_value = candidate_obj.get(js_string!("usernameFragment"), context)?;
-            let username_fragment = if username_fragment_value.is_null() || username_fragment_value.is_undefined() {
-                None
-            } else {
-                Some(username_fragment_value.to_string(context)?.to_std_string_escaped())
-            };
+            let username_fragment_value =
+                candidate_obj.get(js_string!("usernameFragment"), context)?;
+            let username_fragment =
+                if username_fragment_value.is_null() || username_fragment_value.is_undefined() {
+                    None
+                } else {
+                    Some(
+                        username_fragment_value
+                            .to_string(context)?
+                            .to_std_string_escaped(),
+                    )
+                };
 
             // Create RTCIceCandidateInit
             let candidate_init = RTCIceCandidateInit {
@@ -325,7 +336,8 @@ impl BuiltInConstructor for RTCIceCandidateBuiltin {
 
             // Create the RTCIceCandidateData
             RTCIceCandidateData::new(candidate_init).map_err(|e| {
-                JsNativeError::typ().with_message(format!("Failed to create RTCIceCandidate: {}", e))
+                JsNativeError::typ()
+                    .with_message(format!("Failed to create RTCIceCandidate: {}", e))
             })?
         };
 

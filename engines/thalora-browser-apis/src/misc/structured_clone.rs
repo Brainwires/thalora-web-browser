@@ -3,18 +3,18 @@
 //! Implements the structured cloning algorithm as defined in:
 //! https://html.spec.whatwg.org/multipage/structured-data.html#structured-cloning
 
-
 use boa_engine::{
-    Context, JsResult, JsValue, JsNativeError, JsObject, js_string,
-    object::{JsArray, builtins::{JsArrayBuffer, JsMap, JsSet, AlignedVec}},
-    builtins::{
-        date::Date,
-        regexp::RegExp,
+    Context, JsNativeError, JsObject, JsResult, JsValue,
+    builtins::{date::Date, regexp::RegExp},
+    js_string,
+    object::{
+        JsArray,
+        builtins::{AlignedVec, JsArrayBuffer, JsMap, JsSet},
     },
     value::Type,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use serde::{Serialize, Deserialize};
 
 /// Structured clone result - can be serialized across threads
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,18 +28,35 @@ pub enum StructuredCloneValue {
     Array(Vec<StructuredCloneValue>),
     Object(HashMap<String, StructuredCloneValue>),
     Date(f64), // Stored as timestamp
-    RegExp { pattern: String, flags: String },
+    RegExp {
+        pattern: String,
+        flags: String,
+    },
     Map(Vec<(StructuredCloneValue, StructuredCloneValue)>),
     Set(Vec<StructuredCloneValue>),
     ArrayBuffer(Vec<u8>),
     // Transferable objects - these are moved, not copied
-    TransferredArrayBuffer { data: Vec<u8>, detach_key: Option<String> },
-    TransferredMessagePort { port_id: usize },
+    TransferredArrayBuffer {
+        data: Vec<u8>,
+        detach_key: Option<String>,
+    },
+    TransferredMessagePort {
+        port_id: usize,
+    },
     // Additional transferable types (stubs for future implementation)
-    TransferredOffscreenCanvas { width: u32, height: u32 },
-    TransferredReadableStream { stream_id: usize },
-    TransferredWritableStream { stream_id: usize },
-    TransferredTransformStream { stream_id: usize },
+    TransferredOffscreenCanvas {
+        width: u32,
+        height: u32,
+    },
+    TransferredReadableStream {
+        stream_id: usize,
+    },
+    TransferredWritableStream {
+        stream_id: usize,
+    },
+    TransferredTransformStream {
+        stream_id: usize,
+    },
 }
 
 /// Transfer list for transferable objects
@@ -99,12 +116,18 @@ impl TransferList {
     /// Check if an object is transferable according to WHATWG specification
     fn is_transferable_object(obj: &JsObject) -> bool {
         // Check for ArrayBuffer
-        if obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>().is_some() {
+        if obj
+            .downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
+            .is_some()
+        {
             return true;
         }
 
         // Check for MessagePort
-        if obj.downcast_ref::<crate::messaging::message_port::MessagePortData>().is_some() {
+        if obj
+            .downcast_ref::<crate::messaging::message_port::MessagePortData>()
+            .is_some()
+        {
             return true;
         }
 
@@ -121,7 +144,10 @@ impl TransferList {
     pub fn get_message_port_ids(&self) -> Vec<usize> {
         let mut ids = Vec::new();
         for (index, obj) in self.objects.iter().enumerate() {
-            if obj.downcast_ref::<crate::messaging::message_port::MessagePortData>().is_some() {
+            if obj
+                .downcast_ref::<crate::messaging::message_port::MessagePortData>()
+                .is_some()
+            {
                 // Use the index as a simple ID for now
                 // In a full implementation, we'd extract the actual port ID
                 ids.push(index);
@@ -132,16 +158,18 @@ impl TransferList {
 
     /// Check if this transfer list contains any MessagePorts
     pub fn has_message_ports(&self) -> bool {
-        self.objects.iter().any(|obj|
-            obj.downcast_ref::<crate::messaging::message_port::MessagePortData>().is_some()
-        )
+        self.objects.iter().any(|obj| {
+            obj.downcast_ref::<crate::messaging::message_port::MessagePortData>()
+                .is_some()
+        })
     }
 
     /// Check if this transfer list contains any ArrayBuffers
     pub fn has_array_buffers(&self) -> bool {
-        self.objects.iter().any(|obj|
-            obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>().is_some()
-        )
+        self.objects.iter().any(|obj| {
+            obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
+                .is_some()
+        })
     }
 }
 
@@ -182,17 +210,17 @@ impl StructuredClone {
             Type::Number => Ok(StructuredCloneValue::Number(value.as_number().unwrap())),
             Type::String => {
                 let js_string = value.as_string().unwrap();
-                Ok(StructuredCloneValue::String(js_string.to_std_string_escaped()))
+                Ok(StructuredCloneValue::String(
+                    js_string.to_std_string_escaped(),
+                ))
             }
             Type::BigInt => {
                 let bigint_str = value.to_string(context)?.to_std_string_escaped();
                 Ok(StructuredCloneValue::BigInt(bigint_str))
             }
-            Type::Symbol => {
-                Err(JsNativeError::typ()
-                    .with_message("Symbols cannot be cloned")
-                    .into())
-            }
+            Type::Symbol => Err(JsNativeError::typ()
+                .with_message("Symbols cannot be cloned")
+                .into()),
             Type::Object => {
                 let obj = value.as_object().unwrap();
 
@@ -239,7 +267,9 @@ impl StructuredClone {
             Self::clone_map(obj, context, memory, transfer_list)
         } else if JsSet::from_object(obj.clone()).is_ok() {
             Self::clone_set(obj, context, memory, transfer_list)
-        } else if let Some(array_buffer) = obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>() {
+        } else if let Some(array_buffer) =
+            obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
+        {
             // ArrayBuffer that's not being transferred should be cloned
             Self::clone_array_buffer(&*array_buffer, context)
         } else {
@@ -249,17 +279,18 @@ impl StructuredClone {
     }
 
     /// Transfer an object (move ownership, don't clone)
-    fn transfer_object(
-        obj: &JsObject,
-        context: &mut Context,
-    ) -> JsResult<StructuredCloneValue> {
+    fn transfer_object(obj: &JsObject, context: &mut Context) -> JsResult<StructuredCloneValue> {
         // Handle ArrayBuffer transfer
-        if let Some(array_buffer) = obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>() {
+        if let Some(array_buffer) =
+            obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
+        {
             return Self::transfer_array_buffer(obj, &*array_buffer, context);
         }
 
         // Handle MessagePort transfer
-        if let Some(port_data) = obj.downcast_ref::<crate::messaging::message_port::MessagePortData>() {
+        if let Some(port_data) =
+            obj.downcast_ref::<crate::messaging::message_port::MessagePortData>()
+        {
             return Self::transfer_message_port(&*port_data);
         }
 
@@ -333,7 +364,8 @@ impl StructuredClone {
 
             // Generate a detach key based on the buffer identity
             // The detach key can be used to verify transfer authorization
-            let detach_key = format!("transfer-{}-{}",
+            let detach_key = format!(
+                "transfer-{}-{}",
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
@@ -341,7 +373,11 @@ impl StructuredClone {
                 data.len()
             );
 
-            eprintln!("Transferring ArrayBuffer ({} bytes) with detach_key: {}", data.len(), detach_key);
+            eprintln!(
+                "Transferring ArrayBuffer ({} bytes) with detach_key: {}",
+                data.len(),
+                detach_key
+            );
 
             // Note: In a full implementation, we would call array_buffer.detach() here
             // to make the original ArrayBuffer unusable. This requires mutable access
@@ -385,7 +421,8 @@ impl StructuredClone {
 
         for i in 0..length {
             let element = array.get(i, context)?;
-            let cloned_element = Self::internal_structured_clone(&element, context, memory, transfer_list)?;
+            let cloned_element =
+                Self::internal_structured_clone(&element, context, memory, transfer_list)?;
             cloned_array.push(cloned_element);
         }
 
@@ -399,7 +436,10 @@ impl StructuredClone {
     }
 
     /// Clone a RegExp object
-    fn clone_regexp(regexp_data: &RegExp, _context: &mut Context) -> JsResult<StructuredCloneValue> {
+    fn clone_regexp(
+        regexp_data: &RegExp,
+        _context: &mut Context,
+    ) -> JsResult<StructuredCloneValue> {
         let pattern = regexp_data.get_original_source().to_std_string_escaped();
         let flags = regexp_data.get_original_flags().to_std_string_escaped();
         Ok(StructuredCloneValue::RegExp { pattern, flags })
@@ -435,8 +475,18 @@ impl StructuredClone {
                                     let pair = JsArray::from_object(pair_obj.clone())?;
                                     let key = pair.get(0, context)?;
                                     let val = pair.get(1, context)?;
-                                    let cloned_key = Self::internal_structured_clone(&key, context, memory, transfer_list)?;
-                                    let cloned_val = Self::internal_structured_clone(&val, context, memory, transfer_list)?;
+                                    let cloned_key = Self::internal_structured_clone(
+                                        &key,
+                                        context,
+                                        memory,
+                                        transfer_list,
+                                    )?;
+                                    let cloned_val = Self::internal_structured_clone(
+                                        &val,
+                                        context,
+                                        memory,
+                                        transfer_list,
+                                    )?;
                                     entries.push((cloned_key, cloned_val));
                                 }
                             }
@@ -473,7 +523,12 @@ impl StructuredClone {
                                 break;
                             }
                             let value = result_obj.get(js_string!("value"), context)?;
-                            let cloned_value = Self::internal_structured_clone(&value, context, memory, transfer_list)?;
+                            let cloned_value = Self::internal_structured_clone(
+                                &value,
+                                context,
+                                memory,
+                                transfer_list,
+                            )?;
                             values.push(cloned_value);
                         }
                     }
@@ -498,7 +553,8 @@ impl StructuredClone {
         for key in keys {
             let property_key = key.to_string();
             if let Ok(value) = obj.get(key, context) {
-                let cloned_value = Self::internal_structured_clone(&value, context, memory, transfer_list)?;
+                let cloned_value =
+                    Self::internal_structured_clone(&value, context, memory, transfer_list)?;
                 cloned_object.insert(property_key, cloned_value);
             }
         }
@@ -527,28 +583,21 @@ impl StructuredClone {
                     Ok(JsValue::from(0.0))
                 }
             }
-            StructuredCloneValue::Array(arr) => {
-                Self::deserialize_array(arr, context, memory)
-            }
-            StructuredCloneValue::Object(obj) => {
-                Self::deserialize_object(obj, context, memory)
-            }
-            StructuredCloneValue::Date(timestamp) => {
-                Self::deserialize_date(*timestamp, context)
-            }
+            StructuredCloneValue::Array(arr) => Self::deserialize_array(arr, context, memory),
+            StructuredCloneValue::Object(obj) => Self::deserialize_object(obj, context, memory),
+            StructuredCloneValue::Date(timestamp) => Self::deserialize_date(*timestamp, context),
             StructuredCloneValue::RegExp { pattern, flags } => {
                 Self::deserialize_regexp(pattern, flags, context)
             }
-            StructuredCloneValue::Map(entries) => {
-                Self::deserialize_map(entries, context, memory)
-            }
-            StructuredCloneValue::Set(values) => {
-                Self::deserialize_set(values, context, memory)
-            }
+            StructuredCloneValue::Map(entries) => Self::deserialize_map(entries, context, memory),
+            StructuredCloneValue::Set(values) => Self::deserialize_set(values, context, memory),
             StructuredCloneValue::ArrayBuffer(data) => {
                 Self::deserialize_array_buffer(data, context)
             }
-            StructuredCloneValue::TransferredArrayBuffer { data, detach_key: _ } => {
+            StructuredCloneValue::TransferredArrayBuffer {
+                data,
+                detach_key: _,
+            } => {
                 // For transferred ArrayBuffers, create a new one with the transferred data
                 Self::deserialize_array_buffer(data, context)
             }
@@ -560,7 +609,10 @@ impl StructuredClone {
                 // 1. Global PORT_REGISTRY singleton
                 // 2. Port ID to channel mapping
                 // 3. Re-entanglement logic for transferred ports
-                eprintln!("Warning: MessagePort deserialization not implemented (port_id: {})", port_id);
+                eprintln!(
+                    "Warning: MessagePort deserialization not implemented (port_id: {})",
+                    port_id
+                );
                 Ok(JsValue::undefined())
             }
             StructuredCloneValue::TransferredOffscreenCanvas { width, height } => {
@@ -568,21 +620,30 @@ impl StructuredClone {
                 let canvas_obj = JsObject::with_object_proto(context.intrinsics());
                 canvas_obj.set(js_string!("width"), JsValue::from(*width), false, context)?;
                 canvas_obj.set(js_string!("height"), JsValue::from(*height), false, context)?;
-                eprintln!("Deserialized transferred OffscreenCanvas ({}x{})", width, height);
+                eprintln!(
+                    "Deserialized transferred OffscreenCanvas ({}x{})",
+                    width, height
+                );
                 Ok(canvas_obj.into())
             }
             StructuredCloneValue::TransferredReadableStream { stream_id } => {
                 // Stub - create a placeholder ReadableStream-like object
                 let stream_obj = JsObject::with_object_proto(context.intrinsics());
                 stream_obj.set(js_string!("locked"), JsValue::from(false), false, context)?;
-                eprintln!("Warning: ReadableStream deserialization not fully implemented (stream_id: {})", stream_id);
+                eprintln!(
+                    "Warning: ReadableStream deserialization not fully implemented (stream_id: {})",
+                    stream_id
+                );
                 Ok(stream_obj.into())
             }
             StructuredCloneValue::TransferredWritableStream { stream_id } => {
                 // Stub - create a placeholder WritableStream-like object
                 let stream_obj = JsObject::with_object_proto(context.intrinsics());
                 stream_obj.set(js_string!("locked"), JsValue::from(false), false, context)?;
-                eprintln!("Warning: WritableStream deserialization not fully implemented (stream_id: {})", stream_id);
+                eprintln!(
+                    "Warning: WritableStream deserialization not fully implemented (stream_id: {})",
+                    stream_id
+                );
                 Ok(stream_obj.into())
             }
             StructuredCloneValue::TransferredTransformStream { stream_id } => {
@@ -594,7 +655,10 @@ impl StructuredClone {
                 writable.set(js_string!("locked"), JsValue::from(false), false, context)?;
                 stream_obj.set(js_string!("readable"), readable, false, context)?;
                 stream_obj.set(js_string!("writable"), writable, false, context)?;
-                eprintln!("Warning: TransformStream deserialization not fully implemented (stream_id: {})", stream_id);
+                eprintln!(
+                    "Warning: TransformStream deserialization not fully implemented (stream_id: {})",
+                    stream_id
+                );
                 Ok(stream_obj.into())
             }
         }
@@ -609,7 +673,8 @@ impl StructuredClone {
         let js_array = JsArray::new(context)?;
 
         for (index, element) in arr.iter().enumerate() {
-            let deserialized_element = Self::internal_structured_deserialize(element, context, memory)?;
+            let deserialized_element =
+                Self::internal_structured_deserialize(element, context, memory)?;
             js_array.set(index, deserialized_element, true, context)?;
         }
 
@@ -637,18 +702,19 @@ impl StructuredClone {
         let date_constructor = context.intrinsics().constructors().date().constructor();
         let args = [JsValue::from(timestamp)];
         let new_target = Some(&date_constructor);
-        Ok(date_constructor.construct(&args, new_target, context)?.into())
+        Ok(date_constructor
+            .construct(&args, new_target, context)?
+            .into())
     }
 
     /// Deserialize a RegExp object
     fn deserialize_regexp(pattern: &str, flags: &str, context: &mut Context) -> JsResult<JsValue> {
         let regexp_constructor = context.intrinsics().constructors().regexp().constructor();
-        let args = [
-            js_string!(pattern).into(),
-            js_string!(flags).into(),
-        ];
+        let args = [js_string!(pattern).into(), js_string!(flags).into()];
         let new_target = Some(&regexp_constructor);
-        Ok(regexp_constructor.construct(&args, new_target, context)?.into())
+        Ok(regexp_constructor
+            .construct(&args, new_target, context)?
+            .into())
     }
 
     /// Deserialize an ArrayBuffer object
@@ -706,15 +772,18 @@ impl StructuredClone {
         Ok(set_obj.into())
     }
 
-
     /// Serialize a structured clone value to bytes for cross-thread transfer
-    pub fn serialize_to_bytes(value: &StructuredCloneValue) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn serialize_to_bytes(
+        value: &StructuredCloneValue,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
         let serialized = serde_json::to_vec(value)?;
         Ok(serialized)
     }
 
     /// Deserialize a structured clone value from bytes
-    pub fn deserialize_from_bytes(bytes: &[u8]) -> Result<StructuredCloneValue, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn deserialize_from_bytes(
+        bytes: &[u8],
+    ) -> Result<StructuredCloneValue, Box<dyn std::error::Error + Send + Sync>> {
         let value = serde_json::from_slice(bytes)?;
         Ok(value)
     }
@@ -787,9 +856,15 @@ mod tests {
 
         if let StructuredCloneValue::Array(arr) = cloned {
             assert_eq!(arr.len(), 3);
-            assert!(matches!(arr[0], StructuredCloneValue::Number(n) if (n - 1.0).abs() < f64::EPSILON));
-            assert!(matches!(arr[1], StructuredCloneValue::Number(n) if (n - 2.0).abs() < f64::EPSILON));
-            assert!(matches!(arr[2], StructuredCloneValue::Number(n) if (n - 3.0).abs() < f64::EPSILON));
+            assert!(
+                matches!(arr[0], StructuredCloneValue::Number(n) if (n - 1.0).abs() < f64::EPSILON)
+            );
+            assert!(
+                matches!(arr[1], StructuredCloneValue::Number(n) if (n - 2.0).abs() < f64::EPSILON)
+            );
+            assert!(
+                matches!(arr[2], StructuredCloneValue::Number(n) if (n - 3.0).abs() < f64::EPSILON)
+            );
         } else {
             panic!("Expected Array");
         }
@@ -800,15 +875,21 @@ mod tests {
         let mut context = Context::default();
 
         let obj = JsObject::with_object_proto(context.intrinsics());
-        obj.set(js_string!("name"), js_string!("test"), true, &mut context).unwrap();
-        obj.set(js_string!("value"), JsValue::from(123), true, &mut context).unwrap();
+        obj.set(js_string!("name"), js_string!("test"), true, &mut context)
+            .unwrap();
+        obj.set(js_string!("value"), JsValue::from(123), true, &mut context)
+            .unwrap();
 
         let cloned = structured_clone(&obj.into(), &mut context, None).unwrap();
 
         if let StructuredCloneValue::Object(map) = cloned {
             assert_eq!(map.len(), 2);
-            assert!(matches!(map.get("name"), Some(StructuredCloneValue::String(s)) if s == "test"));
-            assert!(matches!(map.get("value"), Some(StructuredCloneValue::Number(n)) if (*n - 123.0).abs() < f64::EPSILON));
+            assert!(
+                matches!(map.get("name"), Some(StructuredCloneValue::String(s)) if s == "test")
+            );
+            assert!(
+                matches!(map.get("value"), Some(StructuredCloneValue::Number(n)) if (*n - 123.0).abs() < f64::EPSILON)
+            );
         } else {
             panic!("Expected Object");
         }
@@ -828,7 +909,10 @@ mod tests {
         let original: JsValue = js_string!("hello world").into();
         let cloned = structured_clone(&original, &mut context, None).unwrap();
         let restored = structured_deserialize(&cloned, &mut context).unwrap();
-        assert_eq!(restored.as_string().unwrap().to_std_string_escaped(), "hello world");
+        assert_eq!(
+            restored.as_string().unwrap().to_std_string_escaped(),
+            "hello world"
+        );
 
         // Test boolean roundtrip
         let original = JsValue::from(true);
@@ -857,7 +941,10 @@ mod tests {
     #[test]
     fn test_serialize_deserialize_bytes() {
         let value = StructuredCloneValue::Object(HashMap::from([
-            ("key".to_string(), StructuredCloneValue::String("value".to_string())),
+            (
+                "key".to_string(),
+                StructuredCloneValue::String("value".to_string()),
+            ),
             ("num".to_string(), StructuredCloneValue::Number(42.0)),
         ]));
 
@@ -865,8 +952,12 @@ mod tests {
         let restored = StructuredClone::deserialize_from_bytes(&bytes).unwrap();
 
         if let StructuredCloneValue::Object(map) = restored {
-            assert!(matches!(map.get("key"), Some(StructuredCloneValue::String(s)) if s == "value"));
-            assert!(matches!(map.get("num"), Some(StructuredCloneValue::Number(n)) if (*n - 42.0).abs() < f64::EPSILON));
+            assert!(
+                matches!(map.get("key"), Some(StructuredCloneValue::String(s)) if s == "value")
+            );
+            assert!(
+                matches!(map.get("num"), Some(StructuredCloneValue::Number(n)) if (*n - 42.0).abs() < f64::EPSILON)
+            );
         } else {
             panic!("Expected Object");
         }
@@ -876,8 +967,14 @@ mod tests {
     fn test_clone_map_value() {
         // Test that Map enum variant serializes correctly
         let map_value = StructuredCloneValue::Map(vec![
-            (StructuredCloneValue::String("key1".to_string()), StructuredCloneValue::Number(1.0)),
-            (StructuredCloneValue::String("key2".to_string()), StructuredCloneValue::Number(2.0)),
+            (
+                StructuredCloneValue::String("key1".to_string()),
+                StructuredCloneValue::Number(1.0),
+            ),
+            (
+                StructuredCloneValue::String("key2".to_string()),
+                StructuredCloneValue::Number(2.0),
+            ),
         ]);
 
         let bytes = StructuredClone::serialize_to_bytes(&map_value).unwrap();

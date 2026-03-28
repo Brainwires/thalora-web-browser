@@ -3,21 +3,20 @@
 //! The Selection API represents the text selection in a document.
 //! This module provides the native Selection implementation for the Boa JavaScript engine.
 
-use boa_gc::{Finalize, Trace};
 use boa_engine::{
-    builtins::{IntrinsicObject, BuiltInObject, BuiltInConstructor},
-    js_string, JsString, JsArgs, JsData,
+    Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsString, JsValue,
+    builtins::BuiltInBuilder,
+    builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
+    object::internal_methods::get_prototype_from_constructor,
     property::Attribute,
     realm::Realm,
-    Context, JsNativeError, JsObject, JsResult, JsValue,
-    builtins::BuiltInBuilder,
     string::StaticJsStrings,
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::internal_methods::get_prototype_from_constructor,
 };
+use boa_gc::{Finalize, Trace};
 
 use super::frame_selection::{FrameSelection, SelectionOptions};
-
 
 /// The Selection object represents the text selection made by the user.
 /// This is the JavaScript API layer that delegates to FrameSelection for internal state.
@@ -76,8 +75,8 @@ impl SelectionData {
     fn get_range_count(&self) -> u32 {
         match self.frame_selection.get_selection_type() {
             super::frame_selection::SelectionType::None => 0,
-            super::frame_selection::SelectionType::Caret |
-            super::frame_selection::SelectionType::Range => 1,
+            super::frame_selection::SelectionType::Caret
+            | super::frame_selection::SelectionType::Range => 1,
         }
     }
 
@@ -131,14 +130,25 @@ impl SelectionData {
     }
 
     /// Set selection using FrameSelection with proper options
-    fn set_selection(&mut self, anchor_node: Option<JsValue>, anchor_offset: u32,
-                    focus_node: Option<JsValue>, focus_offset: u32,
-                    is_directional: bool) -> JsResult<()> {
+    fn set_selection(
+        &mut self,
+        anchor_node: Option<JsValue>,
+        anchor_offset: u32,
+        focus_node: Option<JsValue>,
+        focus_offset: u32,
+        is_directional: bool,
+    ) -> JsResult<()> {
         let options = SelectionOptions::builder()
             .is_directional(is_directional)
             .build();
 
-        self.frame_selection.set_selection(anchor_node, anchor_offset, focus_node, focus_offset, options)
+        self.frame_selection.set_selection(
+            anchor_node,
+            anchor_offset,
+            focus_node,
+            focus_offset,
+            options,
+        )
     }
 
     /// Clear selection using FrameSelection
@@ -169,9 +179,7 @@ impl SelectionData {
 
                 // Update FrameSelection with range boundaries
                 // anchor = start, focus = end
-                let options = SelectionOptions::builder()
-                    .is_directional(false)
-                    .build();
+                let options = SelectionOptions::builder().is_directional(false).build();
 
                 self.frame_selection.set_selection(
                     start_container,
@@ -328,8 +336,10 @@ impl BuiltInConstructor for Selection {
         }
 
         let data = SelectionData::new();
-        let prototype = get_prototype_from_constructor(new_target, StandardConstructors::selection, context)?;
-        let selection = JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::selection, context)?;
+        let selection =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), prototype, data);
         Ok(selection.into())
     }
 }
@@ -354,12 +364,11 @@ fn get_anchor_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult
     })?;
 
     let value = {
-            let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Selection method called on non-Selection object")
-            })?;
-            selection_data.get_anchor_offset()
-        };
+        let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Selection method called on non-Selection object")
+        })?;
+        selection_data.get_anchor_offset()
+    };
     Ok(JsValue::from(value))
 }
 
@@ -383,12 +392,11 @@ fn get_focus_offset(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
     })?;
 
     let value = {
-            let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Selection method called on non-Selection object")
-            })?;
-            selection_data.get_focus_offset()
-        };
+        let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Selection method called on non-Selection object")
+        })?;
+        selection_data.get_focus_offset()
+    };
     Ok(JsValue::from(value))
 }
 
@@ -399,12 +407,11 @@ fn get_is_collapsed(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<
     })?;
 
     let value = {
-            let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Selection method called on non-Selection object")
-            })?;
-            selection_data.is_collapsed()
-        };
+        let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Selection method called on non-Selection object")
+        })?;
+        selection_data.is_collapsed()
+    };
     Ok(JsValue::from(value))
 }
 
@@ -415,12 +422,11 @@ fn get_range_count(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<J
     })?;
 
     let value = {
-            let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("Selection method called on non-Selection object")
-            })?;
-            selection_data.get_range_count()
-        };
+        let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("Selection method called on non-Selection object")
+        })?;
+        selection_data.get_range_count()
+    };
     Ok(JsValue::from(value))
 }
 
@@ -488,10 +494,9 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("'this' is not a Selection object")
-    })?;
+    let selection_data = this_obj
+        .downcast_ref::<SelectionData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Selection object"))?;
 
     let index = args.get_or_undefined(0).to_integer_or_infinity(context)?;
 
@@ -503,130 +508,162 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     };
 
     if index_f64 < 0.0 || index_f64 >= selection_data.get_range_count() as f64 {
-        return Err(JsNativeError::range().with_message("Index out of range").into());
+        return Err(JsNativeError::range()
+            .with_message("Index out of range")
+            .into());
     }
 
     let index = index_f64 as usize;
     if let Some(range) = selection_data.ranges.get(index) {
-            Ok(range.clone())
-        } else {
-            // Create a proper Range object using FrameSelection data
-            let range_constructor = context.intrinsics().constructors().range().constructor();
-            let range_prototype = range_constructor.prototype();
+        Ok(range.clone())
+    } else {
+        // Create a proper Range object using FrameSelection data
+        let range_constructor = context.intrinsics().constructors().range().constructor();
+        let range_prototype = range_constructor.prototype();
 
-            // Create range data based on current selection
-            let range_data = crate::dom::range::RangeData::new();
-            let range_obj = JsObject::from_proto_and_data_with_shared_shape(
-                context.root_shape(),
-                range_prototype.clone(),
-                range_data
-            );
+        // Create range data based on current selection
+        let range_data = crate::dom::range::RangeData::new();
+        let range_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            range_prototype.clone(),
+            range_data,
+        );
 
-            // Set range boundaries from selection - note: range_obj is already JsObject<RangeData>
-            // So we access the data directly without needing upcast/downcast
-            let range_generic = range_obj.upcast();
-            if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
-                if let Some(mut range_data_ref) = range_generic.downcast_mut::<crate::dom::range::RangeData>() {
-                    let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
-                    let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
-                }
+        // Set range boundaries from selection - note: range_obj is already JsObject<RangeData>
+        // So we access the data directly without needing upcast/downcast
+        let range_generic = range_obj.upcast();
+        if let (Some(anchor), Some(focus)) = (
+            selection_data.get_anchor_node(),
+            selection_data.get_focus_node(),
+        ) {
+            if let Some(mut range_data_ref) =
+                range_generic.downcast_mut::<crate::dom::range::RangeData>()
+            {
+                let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
+                let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
             }
-
-            Ok(range_generic.into())
         }
+
+        Ok(range_generic.into())
+    }
 }
 
 /// Get composed ranges (Chrome 137 feature) with enhanced Shadow DOM support.
-fn get_composed_ranges(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_composed_ranges(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
 
-    let selection_data = this_obj.downcast_ref::<SelectionData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("'this' is not a Selection object")
-    })?;
+    let selection_data = this_obj
+        .downcast_ref::<SelectionData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Selection object"))?;
 
     let shadow_roots = args.get_or_undefined(0);
 
     // Enhanced implementation with Shadow DOM support
     let mut composed_ranges: Vec<JsValue> = Vec::new();
 
-        // Check if we have a valid selection
-        if selection_data.get_range_count() > 0 {
-            // Create a Range object for the current selection
-            let range_constructor = context.intrinsics().constructors().range().constructor();
-            let range_prototype = range_constructor.prototype();
+    // Check if we have a valid selection
+    if selection_data.get_range_count() > 0 {
+        // Create a Range object for the current selection
+        let range_constructor = context.intrinsics().constructors().range().constructor();
+        let range_prototype = range_constructor.prototype();
 
-            // Create range data based on current selection
-            let range_data = crate::dom::range::RangeData::new();
-            let range_obj = JsObject::from_proto_and_data_with_shared_shape(
-                context.root_shape(),
-                range_prototype.clone(),
-                range_data
-            );
+        // Create range data based on current selection
+        let range_data = crate::dom::range::RangeData::new();
+        let range_obj = JsObject::from_proto_and_data_with_shared_shape(
+            context.root_shape(),
+            range_prototype.clone(),
+            range_data,
+        );
 
-            // Set range boundaries from selection - note: range_obj is already JsObject<RangeData>
-            // So we access the data directly without needing upcast/downcast
-            let range_generic = range_obj.upcast();
-            if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
-                if let Some(mut range_data_ref) = range_generic.downcast_mut::<crate::dom::range::RangeData>() {
-                    let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
-                    let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
-                }
+        // Set range boundaries from selection - note: range_obj is already JsObject<RangeData>
+        // So we access the data directly without needing upcast/downcast
+        let range_generic = range_obj.upcast();
+        if let (Some(anchor), Some(focus)) = (
+            selection_data.get_anchor_node(),
+            selection_data.get_focus_node(),
+        ) {
+            if let Some(mut range_data_ref) =
+                range_generic.downcast_mut::<crate::dom::range::RangeData>()
+            {
+                let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
+                let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
             }
+        }
 
-            composed_ranges.push(range_generic.into());
+        composed_ranges.push(range_generic.into());
 
-            // Enhanced Shadow DOM support
-            if !shadow_roots.is_null() && !shadow_roots.is_undefined() {
-                // Check if shadow_roots is an array
-                if let Some(shadow_roots_obj) = shadow_roots.as_object() {
-                    if shadow_roots_obj.is_array() {
-                        // Process each shadow root for additional ranges
-                        // In a real implementation, this would:
-                        // 1. Traverse each shadow root's DOM tree
-                        // 2. Find intersections with the main selection
-                        // 3. Create Range objects for each shadow tree segment
-                        // 4. Handle slotted content and distribution
+        // Enhanced Shadow DOM support
+        if !shadow_roots.is_null() && !shadow_roots.is_undefined() {
+            // Check if shadow_roots is an array
+            if let Some(shadow_roots_obj) = shadow_roots.as_object() {
+                if shadow_roots_obj.is_array() {
+                    // Process each shadow root for additional ranges
+                    // In a real implementation, this would:
+                    // 1. Traverse each shadow root's DOM tree
+                    // 2. Find intersections with the main selection
+                    // 3. Create Range objects for each shadow tree segment
+                    // 4. Handle slotted content and distribution
 
-                        eprintln!("Selection.getComposedRanges: Processing {} shadow roots",
-                                shadow_roots_obj.get(js_string!("length"), context)?
-                                    .to_integer_or_infinity(context)?
-                                    .as_integer().unwrap_or(0));
+                    eprintln!(
+                        "Selection.getComposedRanges: Processing {} shadow roots",
+                        shadow_roots_obj
+                            .get(js_string!("length"), context)?
+                            .to_integer_or_infinity(context)?
+                            .as_integer()
+                            .unwrap_or(0)
+                    );
 
-                        // For now, we'll create placeholder ranges for demonstration
-                        // In reality, these would be computed based on shadow tree analysis
-                        for _i in 0..1 { // Placeholder: one additional range per shadow root
-                            let shadow_range_data = crate::dom::range::RangeData::new();
-                            let shadow_range_obj = JsObject::from_proto_and_data_with_shared_shape(
-                                context.root_shape(),
-                                range_prototype.clone(),
-                                shadow_range_data
-                            );
-                            composed_ranges.push(shadow_range_obj.into());
-                        }
+                    // For now, we'll create placeholder ranges for demonstration
+                    // In reality, these would be computed based on shadow tree analysis
+                    for _i in 0..1 {
+                        // Placeholder: one additional range per shadow root
+                        let shadow_range_data = crate::dom::range::RangeData::new();
+                        let shadow_range_obj = JsObject::from_proto_and_data_with_shared_shape(
+                            context.root_shape(),
+                            range_prototype.clone(),
+                            shadow_range_data,
+                        );
+                        composed_ranges.push(shadow_range_obj.into());
                     }
                 }
             }
         }
+    }
 
-        // Create array of composed ranges
-        let array = boa_engine::builtins::array::Array::array_create(composed_ranges.len() as u64, None, context)?;
-        for (i, range) in composed_ranges.into_iter().enumerate() {
-            array.set(i, range, true, context)?;
-        }
+    // Create array of composed ranges
+    let array = boa_engine::builtins::array::Array::array_create(
+        composed_ranges.len() as u64,
+        None,
+        context,
+    )?;
+    for (i, range) in composed_ranges.into_iter().enumerate() {
+        array.set(i, range, true, context)?;
+    }
 
-        eprintln!("Selection.getComposedRanges: Returned {} ranges with Shadow DOM support",
-                array.get(js_string!("length"), context)?
-                    .to_integer_or_infinity(context)?
-                    .as_integer().unwrap_or(0));
+    eprintln!(
+        "Selection.getComposedRanges: Returned {} ranges with Shadow DOM support",
+        array
+            .get(js_string!("length"), context)?
+            .to_integer_or_infinity(context)?
+            .as_integer()
+            .unwrap_or(0)
+    );
 
-        Ok(array.into())
+    Ok(array.into())
 }
 
 /// Set the selection base and extent.
-fn set_base_and_extent(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn set_base_and_extent(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
@@ -648,7 +685,7 @@ fn set_base_and_extent(this: &JsValue, args: &[JsValue], context: &mut Context) 
             anchor_offset,
             Some(focus_node.clone()),
             focus_offset,
-            false // Default to non-directional
+            false, // Default to non-directional
         )?;
         eprintln!("Selection.setBaseAndExtent called - delegated to FrameSelection");
     }
@@ -674,7 +711,7 @@ fn collapse(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
             offset,
             Some(node.clone()),
             offset,
-            false
+            false,
         )?;
         eprintln!("Selection.collapse called - delegated to FrameSelection");
     }
@@ -696,15 +733,23 @@ fn modify(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         // In a real implementation, this would use FrameSelection to modify the selection
         // based on the alter ("move", "extend"), direction ("forward", "backward", etc.),
         // and granularity ("character", "word", "sentence", "line", etc.)
-        eprintln!("Selection.modify called with alter: '{}', direction: '{}', granularity: '{}'",
-                alter.to_std_string_escaped(), direction.to_std_string_escaped(), granularity.to_std_string_escaped());
+        eprintln!(
+            "Selection.modify called with alter: '{}', direction: '{}', granularity: '{}'",
+            alter.to_std_string_escaped(),
+            direction.to_std_string_escaped(),
+            granularity.to_std_string_escaped()
+        );
     }
 
     Ok(JsValue::undefined())
 }
 
 /// Convert the selection to a string representation.
-fn selection_to_string(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn selection_to_string(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
@@ -724,7 +769,11 @@ fn selection_to_string(this: &JsValue, _args: &[JsValue], _context: &mut Context
 }
 
 /// Collapse the selection to the start of the first range.
-fn collapse_to_start(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn collapse_to_start(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
@@ -737,7 +786,7 @@ fn collapse_to_start(this: &JsValue, _args: &[JsValue], _context: &mut Context) 
                 offset,
                 Some(anchor),
                 offset,
-                false
+                false,
             )?;
         }
         eprintln!("Selection.collapseToStart called - delegated to FrameSelection");
@@ -760,7 +809,7 @@ fn collapse_to_end(this: &JsValue, _args: &[JsValue], _context: &mut Context) ->
                 offset,
                 Some(focus),
                 offset,
-                false
+                false,
             )?;
         }
         eprintln!("Selection.collapseToEnd called - delegated to FrameSelection");
@@ -791,7 +840,7 @@ fn extend(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
             anchor_offset,
             Some(node.clone()),
             offset,
-            true // Directional
+            true, // Directional
         )?;
         eprintln!("Selection.extend called - delegated to FrameSelection");
     }
@@ -800,7 +849,11 @@ fn extend(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
 }
 
 /// Select all children of the specified node.
-fn select_all_children(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn select_all_children(
+    this: &JsValue,
+    args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
@@ -815,7 +868,7 @@ fn select_all_children(this: &JsValue, args: &[JsValue], _context: &mut Context)
             0,
             Some(node.clone()),
             1, // Placeholder: would be actual child count
-            false
+            false,
         )?;
         eprintln!("Selection.selectAllChildren called - delegated to FrameSelection");
     }
@@ -824,7 +877,11 @@ fn select_all_children(this: &JsValue, args: &[JsValue], _context: &mut Context)
 }
 
 /// Delete the contents of the selection from the document.
-fn delete_from_document(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn delete_from_document(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;
@@ -854,13 +911,19 @@ fn contains_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 
     // In a real implementation, this would check if the node is contained in any range
     // For now, do a simple check against anchor/focus nodes
-    let contains = if let (Some(anchor), Some(focus)) = (selection_data.get_anchor_node(), selection_data.get_focus_node()) {
+    let contains = if let (Some(anchor), Some(focus)) = (
+        selection_data.get_anchor_node(),
+        selection_data.get_focus_node(),
+    ) {
         // Simplified containment check
         node.strict_equals(&anchor) || node.strict_equals(&focus) || allow_partial_containment
     } else {
         false
     };
 
-    eprintln!("Selection.containsNode called with allowPartialContainment: {} - delegated to FrameSelection", allow_partial_containment);
+    eprintln!(
+        "Selection.containsNode called with allowPartialContainment: {} - delegated to FrameSelection",
+        allow_partial_containment
+    );
     Ok(JsValue::from(contains))
 }

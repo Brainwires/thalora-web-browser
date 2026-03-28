@@ -4,21 +4,21 @@
 //! It represents a single node in the document tree.
 //! https://dom.spec.whatwg.org/#interface-node
 
+use crate::dom::text::TextData;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use crate::dom::text::TextData;
+use std::sync::{Arc, Mutex};
 
 /// Node types as defined by the DOM specification
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
@@ -124,7 +124,7 @@ impl NodeData {
             NodeType::Document => "#document".to_string(),
             NodeType::DocumentFragment => "#document-fragment".to_string(),
             NodeType::DocumentType => "html".to_string(), // Default, can be changed
-            NodeType::Attribute => "".to_string(), // Will be set by Attr
+            NodeType::Attribute => "".to_string(),        // Will be set by Attr
             NodeType::CDataSection => "#cdata-section".to_string(),
             NodeType::ProcessingInstruction => "".to_string(),
             NodeType::Node => "#node".to_string(), // Will be set by PI
@@ -297,11 +297,7 @@ impl NodeData {
                 // Concatenate text content of all text node descendants
                 let mut text = String::new();
                 self.collect_text_content(&mut text);
-                if text.is_empty() {
-                    None
-                } else {
-                    Some(text)
-                }
+                if text.is_empty() { None } else { Some(text) }
             }
             NodeType::Text | NodeType::Comment | NodeType::ProcessingInstruction => {
                 self.get_node_value()
@@ -390,11 +386,23 @@ impl IntrinsicObject for NodeData {
             .static_method(Self::normalize, js_string!("normalize"), 0)
             .static_method(Self::is_equal_node, js_string!("isEqualNode"), 1)
             .static_method(Self::is_same_node, js_string!("isSameNode"), 1)
-            .static_method(Self::compare_document_position, js_string!("compareDocumentPosition"), 1)
+            .static_method(
+                Self::compare_document_position,
+                js_string!("compareDocumentPosition"),
+                1,
+            )
             .static_method(Self::contains, js_string!("contains"), 1)
             .static_method(Self::lookup_prefix, js_string!("lookupPrefix"), 1)
-            .static_method(Self::lookup_namespace_uri, js_string!("lookupNamespaceURI"), 1)
-            .static_method(Self::is_default_namespace, js_string!("isDefaultNamespace"), 1)
+            .static_method(
+                Self::lookup_namespace_uri,
+                js_string!("lookupNamespaceURI"),
+                1,
+            )
+            .static_method(
+                Self::is_default_namespace,
+                js_string!("isDefaultNamespace"),
+                1,
+            )
             .static_method(Self::has_child_nodes_method, js_string!("hasChildNodes"), 0)
             .static_method(Self::get_root_node, js_string!("getRootNode"), 0)
             .build();
@@ -428,11 +436,8 @@ impl BuiltInConstructor for NodeData {
                 .into());
         }
 
-        let prototype = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::node,
-            context,
-        )?;
+        let prototype =
+            get_prototype_from_constructor(new_target, StandardConstructors::node, context)?;
 
         // Abstract interface - cannot be constructed directly
         Err(JsNativeError::typ()
@@ -469,8 +474,7 @@ impl NodeData {
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.nodeType called on non-Node object")
+            JsNativeError::typ().with_message("Node.nodeType called on non-Node object")
         })?;
 
         let node_type_value = match node.get_node_type() {
@@ -494,35 +498,26 @@ impl NodeData {
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.nodeName called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.nodeName called on non-Node object")
             })?;
 
-
             node.get_node_name()
-
-
         };
         Ok(JsValue::from(js_string!(value)))
     }
 
-    fn get_node_value_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_node_value_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.nodeValue called on non-object")
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.nodeValue called on non-Node object")
+            JsNativeError::typ().with_message("Node.nodeValue called on non-Node object")
         })?;
 
         match node.get_node_value() {
@@ -531,14 +526,17 @@ impl NodeData {
         }
     }
 
-    fn set_node_value_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_node_value_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.nodeValue setter called on non-object")
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.nodeValue setter called on non-Node object")
+            JsNativeError::typ().with_message("Node.nodeValue setter called on non-Node object")
         })?;
 
         let value = args.get_or_undefined(0);
@@ -557,67 +555,49 @@ impl NodeData {
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.baseURI called on non-Node object")
+            JsNativeError::typ().with_message("Node.baseURI called on non-Node object")
         })?;
 
         match node.get_base_uri() {
-                Some(uri) => Ok(JsValue::from(js_string!(uri))),
-                None => Ok(JsValue::null()),
-
+            Some(uri) => Ok(JsValue::from(js_string!(uri))),
+            None => Ok(JsValue::null()),
         }
     }
 
-    fn get_is_connected_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_is_connected_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.isConnected called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.isConnected called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.isConnected called on non-Node object")
             })?;
 
-
             node.is_connected()
-
-
         };
         Ok(JsValue::from(value))
     }
 
-    fn get_owner_document_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_owner_document_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.ownerDocument called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.ownerDocument called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.ownerDocument called on non-Node object")
             })?;
 
-
             node.get_owner_document()
-
-
         };
         match value {
             Some(doc) => Ok(doc.into()),
@@ -625,29 +605,21 @@ impl NodeData {
         }
     }
 
-    fn get_parent_node_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_parent_node_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.parentNode called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.parentNode called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.parentNode called on non-Node object")
             })?;
 
-
             node.get_parent_node()
-
-
         };
         match value {
             Some(parent) => Ok(parent.into()),
@@ -655,7 +627,11 @@ impl NodeData {
         }
     }
 
-    fn get_child_nodes_accessor(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_child_nodes_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         use crate::dom::nodelist::NodeList;
 
         let this_obj = this.as_object().ok_or_else(|| {
@@ -663,8 +639,7 @@ impl NodeData {
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.childNodes called on non-Node object")
+            JsNativeError::typ().with_message("Node.childNodes called on non-Node object")
         })?;
 
         // Return a live NodeList that always reflects the current children
@@ -675,29 +650,21 @@ impl NodeData {
         Ok(nodelist.into())
     }
 
-    fn get_first_child_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_first_child_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.firstChild called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.firstChild called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.firstChild called on non-Node object")
             })?;
 
-
             node.get_first_child()
-
-
         };
         match value {
             Some(child) => Ok(child.into()),
@@ -705,29 +672,21 @@ impl NodeData {
         }
     }
 
-    fn get_last_child_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_last_child_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.lastChild called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.lastChild called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.lastChild called on non-Node object")
             })?;
 
-
             node.get_last_child()
-
-
         };
         match value {
             Some(child) => Ok(child.into()),
@@ -735,29 +694,21 @@ impl NodeData {
         }
     }
 
-    fn get_previous_sibling_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_previous_sibling_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.previousSibling called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.previousSibling called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.previousSibling called on non-Node object")
             })?;
 
-
             node.get_previous_sibling()
-
-
         };
         match value {
             Some(sibling) => Ok(sibling.into()),
@@ -765,29 +716,21 @@ impl NodeData {
         }
     }
 
-    fn get_next_sibling_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_next_sibling_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.nextSibling called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.nextSibling called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.nextSibling called on non-Node object")
             })?;
 
-
             node.get_next_sibling()
-
-
         };
         match value {
             Some(sibling) => Ok(sibling.into()),
@@ -795,31 +738,36 @@ impl NodeData {
         }
     }
 
-    fn get_text_content_accessor(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
+    fn get_text_content_accessor(
+        this: &JsValue,
+        _: &[JsValue],
+        _: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.textContent called on non-object")
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.textContent called on non-Node object")
+            JsNativeError::typ().with_message("Node.textContent called on non-Node object")
         })?;
 
         match node.get_text_content() {
-                Some(content) => Ok(JsValue::from(js_string!(content))),
-                None => Ok(JsValue::null()),
-
+            Some(content) => Ok(JsValue::from(js_string!(content))),
+            None => Ok(JsValue::null()),
         }
     }
 
-    fn set_text_content_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_text_content_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.textContent setter called on non-object")
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.textContent setter called on non-Node object")
+            JsNativeError::typ().with_message("Node.textContent setter called on non-Node object")
         })?;
 
         let value = args.get_or_undefined(0);
@@ -883,14 +831,12 @@ impl NodeData {
         })?;
 
         let parent_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.appendChild called on non-Node object")
+            JsNativeError::typ().with_message("Node.appendChild called on non-Node object")
         })?;
 
         let child_clone = child_obj.clone();
         let child_node = child_clone.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.appendChild: child must be a Node")
+            JsNativeError::typ().with_message("Node.appendChild: child must be a Node")
         })?;
 
         // Remove child from its current parent if it has one
@@ -929,18 +875,20 @@ impl NodeData {
         })?;
 
         let parent_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.removeChild called on non-Node object")
+            JsNativeError::typ().with_message("Node.removeChild called on non-Node object")
         })?;
 
         let child_clone = child_obj.clone();
         let child_node = child_clone.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.removeChild: child must be a Node")
+            JsNativeError::typ().with_message("Node.removeChild: child must be a Node")
         })?;
 
         // Check if child is actually a child of this node
-        if !parent_node.get_child_nodes().iter().any(|c| JsObject::equals(c, &child_obj)) {
+        if !parent_node
+            .get_child_nodes()
+            .iter()
+            .any(|c| JsObject::equals(c, &child_obj))
+        {
             return Err(JsNativeError::typ()
                 .with_message("Node.removeChild: child is not a child of this node")
                 .into());
@@ -974,7 +922,11 @@ impl NodeData {
     }
 
     /// `Node.prototype.insertBefore(newNode, referenceNode)`
-    fn insert_before(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn insert_before(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.insertBefore called on non-object")
         })?;
@@ -987,14 +939,12 @@ impl NodeData {
         })?;
 
         let parent_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.insertBefore called on non-Node object")
+            JsNativeError::typ().with_message("Node.insertBefore called on non-Node object")
         })?;
 
         let new_node_clone = new_node_obj.clone();
         let new_node_data = new_node_clone.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.insertBefore: newNode must be a Node")
+            JsNativeError::typ().with_message("Node.insertBefore: newNode must be a Node")
         })?;
 
         let children = parent_node.get_child_nodes();
@@ -1004,13 +954,18 @@ impl NodeData {
             children.len()
         } else {
             let reference_obj = reference_node_arg.as_object().ok_or_else(|| {
-                JsNativeError::typ().with_message("Node.insertBefore: referenceNode must be a Node or null")
+                JsNativeError::typ()
+                    .with_message("Node.insertBefore: referenceNode must be a Node or null")
             })?;
 
             // Find the index of the reference node
-            children.iter().position(|c| JsObject::equals(c, &reference_obj))
+            children
+                .iter()
+                .position(|c| JsObject::equals(c, &reference_obj))
                 .ok_or_else(|| {
-                    JsNativeError::typ().with_message("Node.insertBefore: referenceNode is not a child of this node")
+                    JsNativeError::typ().with_message(
+                        "Node.insertBefore: referenceNode is not a child of this node",
+                    )
                 })?
         };
 
@@ -1029,8 +984,16 @@ impl NodeData {
         let updated_children = parent_node.get_child_nodes();
         for (i, child) in updated_children.iter().enumerate() {
             if let Some(child_data) = child.downcast_ref::<NodeData>() {
-                let prev = if i > 0 { Some(updated_children[i - 1].clone()) } else { None };
-                let next = if i < updated_children.len() - 1 { Some(updated_children[i + 1].clone()) } else { None };
+                let prev = if i > 0 {
+                    Some(updated_children[i - 1].clone())
+                } else {
+                    None
+                };
+                let next = if i < updated_children.len() - 1 {
+                    Some(updated_children[i + 1].clone())
+                } else {
+                    None
+                };
 
                 child_data.set_previous_sibling(prev);
                 child_data.set_next_sibling(next);
@@ -1059,8 +1022,7 @@ impl NodeData {
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.cloneNode called on non-Node object")
+            JsNativeError::typ().with_message("Node.cloneNode called on non-Node object")
         })?;
 
         let deep = args.get_or_undefined(0).to_boolean();
@@ -1080,7 +1042,8 @@ impl NodeData {
         // If deep cloning, clone all child nodes recursively
         if deep {
             for child in node.get_child_nodes() {
-                let cloned_child = Self::clone_node(&child.into(), &[JsValue::from(true)], context)?;
+                let cloned_child =
+                    Self::clone_node(&child.into(), &[JsValue::from(true)], context)?;
                 Self::append_child(&cloned_obj.clone().into(), &[cloned_child], context)?;
             }
         }
@@ -1097,8 +1060,7 @@ impl NodeData {
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.normalize called on non-Node object")
+            JsNativeError::typ().with_message("Node.normalize called on non-Node object")
         })?;
 
         // Get all child nodes
@@ -1129,7 +1091,9 @@ impl NodeData {
                         // Update the first text node with merged content or mark for removal if empty
                         if merged_text.is_empty() {
                             to_remove.push(start_idx);
-                        } else if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
+                        } else if let Some(first_text_data) =
+                            children[start_idx].downcast_ref::<NodeData>()
+                        {
                             first_text_data.set_node_value(Some(merged_text.clone()));
                         }
                         text_start_index = None;
@@ -1191,7 +1155,9 @@ impl NodeData {
                     if let Some(start_idx) = text_start_index {
                         if merged_text.is_empty() {
                             to_remove.push(start_idx);
-                        } else if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
+                        } else if let Some(first_text_data) =
+                            children[start_idx].downcast_ref::<NodeData>()
+                        {
                             first_text_data.set_node_value(Some(merged_text.clone()));
                         }
                         text_start_index = None;
@@ -1221,7 +1187,11 @@ impl NodeData {
     }
 
     /// `Node.prototype.isEqualNode(otherNode)`
-    fn is_equal_node(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn is_equal_node(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.isEqualNode called on non-object")
         })?;
@@ -1236,19 +1206,17 @@ impl NodeData {
         })?;
 
         let this_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.isEqualNode called on non-Node object")
+            JsNativeError::typ().with_message("Node.isEqualNode called on non-Node object")
         })?;
 
         let other_node = other_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.isEqualNode: other is not a Node object")
+            JsNativeError::typ().with_message("Node.isEqualNode: other is not a Node object")
         })?;
 
         // Two nodes are equal if they have the same type, name, value, and children
-        let equal = this_node.get_node_type() == other_node.get_node_type() &&
-                   this_node.get_node_name() == other_node.get_node_name() &&
-                   this_node.get_node_value() == other_node.get_node_value();
+        let equal = this_node.get_node_type() == other_node.get_node_type()
+            && this_node.get_node_name() == other_node.get_node_name()
+            && this_node.get_node_value() == other_node.get_node_value();
 
         Ok(JsValue::from(equal))
     }
@@ -1273,7 +1241,11 @@ impl NodeData {
 
     /// `Node.prototype.compareDocumentPosition(other)`
     /// Returns a bitmask indicating the position of other relative to this node.
-    fn compare_document_position(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn compare_document_position(
+        this: &JsValue,
+        args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.compareDocumentPosition called on non-object")
         })?;
@@ -1310,16 +1282,16 @@ impl NodeData {
             (Some(ref r1), Some(ref r2)) if !JsObject::equals(r1, r2) => {
                 // Disconnected - use arbitrary but consistent ordering based on implementation
                 return Ok(JsValue::from(
-                    Self::DOCUMENT_POSITION_DISCONNECTED |
-                    Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
-                    Self::DOCUMENT_POSITION_PRECEDING // Arbitrary but consistent
+                    Self::DOCUMENT_POSITION_DISCONNECTED
+                        | Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+                        | Self::DOCUMENT_POSITION_PRECEDING, // Arbitrary but consistent
                 ));
             }
             (None, _) | (_, None) => {
                 return Ok(JsValue::from(
-                    Self::DOCUMENT_POSITION_DISCONNECTED |
-                    Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC |
-                    Self::DOCUMENT_POSITION_PRECEDING
+                    Self::DOCUMENT_POSITION_DISCONNECTED
+                        | Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC
+                        | Self::DOCUMENT_POSITION_PRECEDING,
                 ));
             }
             _ => {}
@@ -1330,7 +1302,7 @@ impl NodeData {
         for ancestor in &this_ancestors {
             if JsObject::equals(ancestor, &other_obj) {
                 return Ok(JsValue::from(
-                    Self::DOCUMENT_POSITION_CONTAINS | Self::DOCUMENT_POSITION_PRECEDING
+                    Self::DOCUMENT_POSITION_CONTAINS | Self::DOCUMENT_POSITION_PRECEDING,
                 ));
             }
         }
@@ -1339,7 +1311,7 @@ impl NodeData {
         for ancestor in &other_ancestors {
             if JsObject::equals(ancestor, &this_obj) {
                 return Ok(JsValue::from(
-                    Self::DOCUMENT_POSITION_CONTAINED_BY | Self::DOCUMENT_POSITION_FOLLOWING
+                    Self::DOCUMENT_POSITION_CONTAINED_BY | Self::DOCUMENT_POSITION_FOLLOWING,
                 ));
             }
         }
@@ -1400,7 +1372,9 @@ impl NodeData {
         }
 
         // Default fallback
-        Ok(JsValue::from(Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC))
+        Ok(JsValue::from(
+            Self::DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC,
+        ))
     }
 
     /// Helper to get the ancestor chain from a node up to the root
@@ -1450,13 +1424,11 @@ impl NodeData {
         }
 
         let _this_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.contains called on non-Node object")
+            JsNativeError::typ().with_message("Node.contains called on non-Node object")
         })?;
 
         let other_node = other_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.contains: other is not a Node object")
+            JsNativeError::typ().with_message("Node.contains: other is not a Node object")
         })?;
 
         // Walk up the ancestor chain of other_node to see if we find this_node
@@ -1492,8 +1464,7 @@ impl NodeData {
         }
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.lookupPrefix called on non-Node object")
+            JsNativeError::typ().with_message("Node.lookupPrefix called on non-Node object")
         })?;
 
         // Walk up the tree looking for namespace declarations
@@ -1534,7 +1505,11 @@ impl NodeData {
     ///
     /// Per DOM spec: https://dom.spec.whatwg.org/#dom-node-lookupnamespaceuri
     /// When prefix is null/empty, returns the default namespace (same as isDefaultNamespace checks)
-    fn lookup_namespace_uri(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn lookup_namespace_uri(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.lookupNamespaceURI called on non-object")
         })?;
@@ -1544,17 +1519,12 @@ impl NodeData {
             None
         } else {
             let p = prefix_arg.to_string(context)?.to_std_string_escaped();
-            if p.is_empty() {
-                None
-            } else {
-                Some(p)
-            }
+            if p.is_empty() { None } else { Some(p) }
         };
 
         // Validate that this is a Node object
         let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.lookupNamespaceURI called on non-Node object")
+            JsNativeError::typ().with_message("Node.lookupNamespaceURI called on non-Node object")
         })?;
 
         // For null/empty prefix, use the shared default namespace lookup
@@ -1614,10 +1584,20 @@ impl NodeData {
                                 // In a full implementation, this would come from the element's namespaceURI
                                 // For now, infer from common prefixes
                                 match prefix {
-                                    "svg" => return Ok(js_string!("http://www.w3.org/2000/svg").into()),
-                                    "math" => return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into()),
-                                    "xlink" => return Ok(js_string!("http://www.w3.org/1999/xlink").into()),
-                                    "xhtml" => return Ok(js_string!("http://www.w3.org/1999/xhtml").into()),
+                                    "svg" => {
+                                        return Ok(js_string!("http://www.w3.org/2000/svg").into());
+                                    }
+                                    "math" => {
+                                        return Ok(
+                                            js_string!("http://www.w3.org/1998/Math/MathML").into()
+                                        );
+                                    }
+                                    "xlink" => {
+                                        return Ok(js_string!("http://www.w3.org/1999/xlink").into());
+                                    }
+                                    "xhtml" => {
+                                        return Ok(js_string!("http://www.w3.org/1999/xhtml").into());
+                                    }
                                     _ => {}
                                 }
                             }
@@ -1626,7 +1606,9 @@ impl NodeData {
                         // Common namespace prefixes - these are conventions but browsers recognize them
                         match prefix {
                             "svg" => return Ok(js_string!("http://www.w3.org/2000/svg").into()),
-                            "math" => return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into()),
+                            "math" => {
+                                return Ok(js_string!("http://www.w3.org/1998/Math/MathML").into());
+                            }
                             "xlink" => return Ok(js_string!("http://www.w3.org/1999/xlink").into()),
                             "xhtml" => return Ok(js_string!("http://www.w3.org/1999/xhtml").into()),
                             _ => {}
@@ -1658,7 +1640,11 @@ impl NodeData {
     ///
     /// Per DOM spec: https://dom.spec.whatwg.org/#dom-node-isdefaultnamespace
     /// This is equivalent to: node.lookupNamespaceURI(null) === namespaceURI
-    fn is_default_namespace(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn is_default_namespace(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.isDefaultNamespace called on non-object")
         })?;
@@ -1669,17 +1655,12 @@ impl NodeData {
             None
         } else {
             let ns = namespace_arg.to_string(context)?.to_std_string_escaped();
-            if ns.is_empty() {
-                None
-            } else {
-                Some(ns)
-            }
+            if ns.is_empty() { None } else { Some(ns) }
         };
 
         // Validate that this is a Node object
         let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.isDefaultNamespace called on non-Node object")
+            JsNativeError::typ().with_message("Node.isDefaultNamespace called on non-Node object")
         })?;
 
         // Per DOM spec, isDefaultNamespace returns true if:
@@ -1749,7 +1730,10 @@ impl NodeData {
                         // For HTML-like elements (any element with uppercase name typically)
                         // that are not connected, we still can infer HTML namespace
                         // This matches browser behavior where HTML elements are implicitly in XHTML ns
-                        if node_name.chars().all(|c| c.is_ascii_alphabetic() || c == '-') {
+                        if node_name
+                            .chars()
+                            .all(|c| c.is_ascii_alphabetic() || c == '-')
+                        {
                             // Likely an HTML element - return XHTML namespace
                             return Ok(Some("http://www.w3.org/1999/xhtml".to_string()));
                         }
@@ -1788,42 +1772,37 @@ impl NodeData {
     }
 
     /// `Node.prototype.hasChildNodes()`
-    fn has_child_nodes_method(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn has_child_nodes_method(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.hasChildNodes called on non-object")
         })?;
 
         let value = {
-
-
             let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-
-
-                JsNativeError::typ()
-
-
-                    .with_message("Node.hasChildNodes called on non-Node object")
-
-
+                JsNativeError::typ().with_message("Node.hasChildNodes called on non-Node object")
             })?;
 
-
             node.has_child_nodes()
-
-
         };
         Ok(JsValue::from(value))
     }
 
     /// `Node.prototype.getRootNode(options)`
-    fn get_root_node(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_root_node(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.getRootNode called on non-object")
         })?;
 
         let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("Node.getRootNode called on non-Node object")
+            JsNativeError::typ().with_message("Node.getRootNode called on non-Node object")
         })?;
 
         // Walk up to the root node
@@ -1881,7 +1860,11 @@ impl Node {
         NodeData::is_same_node(this, args, context)
     }
 
-    fn compare_document_position(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn compare_document_position(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::compare_document_position(this, args, context)
     }
 
@@ -1893,15 +1876,27 @@ impl Node {
         NodeData::lookup_prefix(this, args, context)
     }
 
-    fn lookup_namespace_uri(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn lookup_namespace_uri(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::lookup_namespace_uri(this, args, context)
     }
 
-    fn is_default_namespace(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn is_default_namespace(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::is_default_namespace(this, args, context)
     }
 
-    fn has_child_nodes_method(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn has_child_nodes_method(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::has_child_nodes_method(this, args, context)
     }
 
@@ -1909,47 +1904,91 @@ impl Node {
         NodeData::get_root_node(this, args, context)
     }
 
-    fn get_node_type_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_node_type_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_node_type_accessor(this, args, context)
     }
 
-    fn get_node_name_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_node_name_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_node_name_accessor(this, args, context)
     }
 
-    fn get_node_value_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_node_value_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_node_value_accessor(this, args, context)
     }
 
-    fn set_node_value_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_node_value_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::set_node_value_accessor(this, args, context)
     }
 
-    fn get_parent_node_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_parent_node_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_parent_node_accessor(this, args, context)
     }
 
-    fn get_child_nodes_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_child_nodes_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_child_nodes_accessor(this, args, context)
     }
 
-    fn get_first_child_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_first_child_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_first_child_accessor(this, args, context)
     }
 
-    fn get_last_child_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_last_child_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_last_child_accessor(this, args, context)
     }
 
-    fn get_previous_sibling_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_previous_sibling_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_previous_sibling_accessor(this, args, context)
     }
 
-    fn get_next_sibling_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_next_sibling_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_next_sibling_accessor(this, args, context)
     }
 
-    fn get_owner_document_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_owner_document_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         NodeData::get_owner_document_accessor(this, args, context)
     }
 }
@@ -1958,18 +1997,28 @@ impl IntrinsicObject for Node {
     fn init(realm: &Realm) {
         let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Node -> EventTarget
-            .inherits(Some(realm.intrinsics().constructors().event_target().prototype()))
+            .inherits(Some(
+                realm.intrinsics().constructors().event_target().prototype(),
+            ))
             .static_property(js_string!("ELEMENT_NODE"), 1, Attribute::READONLY)
             .static_property(js_string!("ATTRIBUTE_NODE"), 2, Attribute::READONLY)
             .static_property(js_string!("TEXT_NODE"), 3, Attribute::READONLY)
             .static_property(js_string!("CDATA_SECTION_NODE"), 4, Attribute::READONLY)
             .static_property(js_string!("ENTITY_REFERENCE_NODE"), 5, Attribute::READONLY)
             .static_property(js_string!("ENTITY_NODE"), 6, Attribute::READONLY)
-            .static_property(js_string!("PROCESSING_INSTRUCTION_NODE"), 7, Attribute::READONLY)
+            .static_property(
+                js_string!("PROCESSING_INSTRUCTION_NODE"),
+                7,
+                Attribute::READONLY,
+            )
             .static_property(js_string!("COMMENT_NODE"), 8, Attribute::READONLY)
             .static_property(js_string!("DOCUMENT_NODE"), 9, Attribute::READONLY)
             .static_property(js_string!("DOCUMENT_TYPE_NODE"), 10, Attribute::READONLY)
-            .static_property(js_string!("DOCUMENT_FRAGMENT_NODE"), 11, Attribute::READONLY)
+            .static_property(
+                js_string!("DOCUMENT_FRAGMENT_NODE"),
+                11,
+                Attribute::READONLY,
+            )
             .static_property(js_string!("NOTATION_NODE"), 12, Attribute::READONLY)
             .method(Self::append_child, js_string!("appendChild"), 1)
             .method(Self::insert_before, js_string!("insertBefore"), 2)
@@ -1979,11 +2028,23 @@ impl IntrinsicObject for Node {
             .method(Self::normalize, js_string!("normalize"), 0)
             .method(Self::is_equal_node, js_string!("isEqualNode"), 1)
             .method(Self::is_same_node, js_string!("isSameNode"), 1)
-            .method(Self::compare_document_position, js_string!("compareDocumentPosition"), 1)
+            .method(
+                Self::compare_document_position,
+                js_string!("compareDocumentPosition"),
+                1,
+            )
             .method(Self::contains, js_string!("contains"), 1)
             .method(Self::lookup_prefix, js_string!("lookupPrefix"), 1)
-            .method(Self::lookup_namespace_uri, js_string!("lookupNamespaceURI"), 1)
-            .method(Self::is_default_namespace, js_string!("isDefaultNamespace"), 1)
+            .method(
+                Self::lookup_namespace_uri,
+                js_string!("lookupNamespaceURI"),
+                1,
+            )
+            .method(
+                Self::is_default_namespace,
+                js_string!("isDefaultNamespace"),
+                1,
+            )
             .method(Self::has_child_nodes_method, js_string!("hasChildNodes"), 0)
             .method(Self::get_root_node, js_string!("getRootNode"), 0)
             .method(Self::get_node_type_accessor, js_string!("nodeType"), 0)
@@ -1993,9 +2054,21 @@ impl IntrinsicObject for Node {
             .method(Self::get_child_nodes_accessor, js_string!("childNodes"), 0)
             .method(Self::get_first_child_accessor, js_string!("firstChild"), 0)
             .method(Self::get_last_child_accessor, js_string!("lastChild"), 0)
-            .method(Self::get_previous_sibling_accessor, js_string!("previousSibling"), 0)
-            .method(Self::get_next_sibling_accessor, js_string!("nextSibling"), 0)
-            .method(Self::get_owner_document_accessor, js_string!("ownerDocument"), 0)
+            .method(
+                Self::get_previous_sibling_accessor,
+                js_string!("previousSibling"),
+                0,
+            )
+            .method(
+                Self::get_next_sibling_accessor,
+                js_string!("nextSibling"),
+                0,
+            )
+            .method(
+                Self::get_owner_document_accessor,
+                js_string!("ownerDocument"),
+                0,
+            )
             .build();
     }
 

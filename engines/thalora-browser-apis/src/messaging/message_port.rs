@@ -6,17 +6,19 @@
 //! This implements the complete MessagePort interface for Channel Messaging API
 
 use boa_engine::{
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInConstructor, BuiltInBuilder},
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    js_string,
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
+    realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult, js_string,
-    JsString, realm::Realm, property::Attribute
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::{Arc, Mutex};
 use crossbeam_channel::{Receiver, Sender, unbounded};
+use std::sync::{Arc, Mutex};
 
 /// MessagePort state for communication between ports
 #[derive(Debug, Clone, Trace, Finalize, JsData)]
@@ -99,7 +101,11 @@ impl MessagePortData {
 
     /// Creates a MessagePort object from MessagePortData for use in JavaScript
     pub fn create_js_object(&self, context: &mut Context) -> JsResult<JsObject> {
-        let proto = context.intrinsics().constructors().message_port().prototype();
+        let proto = context
+            .intrinsics()
+            .constructors()
+            .message_port()
+            .prototype();
         let object = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
             proto,
@@ -181,8 +187,7 @@ fn post_message(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsR
     })?;
 
     let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("MessagePort.postMessage called on invalid object")
+        JsNativeError::typ().with_message("MessagePort.postMessage called on invalid object")
     })?;
 
     let message = args.get_or_undefined(0);
@@ -197,13 +202,12 @@ fn start(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     })?;
 
     {
-            let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("MessagePort.start called on invalid object")
-            })?;
-            data.start();
-        }
-        Ok(JsValue::undefined())
+        let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("MessagePort.start called on invalid object")
+        })?;
+        data.start();
+    }
+    Ok(JsValue::undefined())
 }
 
 /// `MessagePort.prototype.close()`
@@ -213,11 +217,10 @@ fn close(this: &JsValue, _: &[JsValue], _: &mut Context) -> JsResult<JsValue> {
     })?;
 
     {
-            let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
-                JsNativeError::typ()
-                    .with_message("MessagePort.close called on invalid object")
-            })?;
-            data.close();
-        }
-        Ok(JsValue::undefined())
+        let data = this_obj.downcast_ref::<MessagePortData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("MessagePort.close called on invalid object")
+        })?;
+        data.close();
+    }
+    Ok(JsValue::undefined())
 }

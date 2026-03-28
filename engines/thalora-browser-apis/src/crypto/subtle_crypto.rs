@@ -11,14 +11,13 @@
 use std::sync::Arc;
 
 use boa_engine::{
-    js_string,
-    object::{builtins::JsPromise, ObjectInitializer},
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction,
+    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
+    object::{ObjectInitializer, builtins::JsPromise},
 };
 use zeroize::Zeroizing;
 
 use super::crypto_key::{
-    get_crypto_key_data, parse_key_usages, Algorithm, CryptoKeyData, KeyMaterial, KeyType, KeyUsage,
+    Algorithm, CryptoKeyData, KeyMaterial, KeyType, KeyUsage, get_crypto_key_data, parse_key_usages,
 };
 
 /// SubtleCrypto implementation
@@ -153,11 +152,7 @@ impl SubtleCrypto {
     /// `subtle.generateKey(algorithm, extractable, keyUsages)`
     ///
     /// Generates a new key or key pair.
-    fn generate_key(
-        _this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn generate_key(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let algorithm = Algorithm::from_js_value(args.get_or_undefined(0), context)?;
         let extractable = args.get_or_undefined(1).to_boolean();
         let usages = parse_key_usages(args.get_or_undefined(2), context)?;
@@ -177,7 +172,9 @@ impl SubtleCrypto {
         use rand::RngCore;
 
         match algorithm {
-            Algorithm::AesGcm { length } | Algorithm::AesCbc { length } | Algorithm::AesCtr { length } => {
+            Algorithm::AesGcm { length }
+            | Algorithm::AesCbc { length }
+            | Algorithm::AesCtr { length } => {
                 // Validate key length
                 if length != 128 && length != 192 && length != 256 {
                     return Err(JsNativeError::typ()
@@ -217,7 +214,10 @@ impl SubtleCrypto {
                 rand::thread_rng().fill_bytes(&mut key_bytes);
 
                 // Reconstruct the algorithm
-                let alg = Algorithm::Hmac { hash: hash.clone(), length };
+                let alg = Algorithm::Hmac {
+                    hash: hash.clone(),
+                    length,
+                };
 
                 let key_data = CryptoKeyData::new(
                     KeyType::Secret,
@@ -232,13 +232,27 @@ impl SubtleCrypto {
 
             Algorithm::Ecdsa { ref named_curve } | Algorithm::Ecdh { ref named_curve } => {
                 let curve = named_curve.clone();
-                let alg = Algorithm::Ecdsa { named_curve: curve.clone() };
+                let alg = Algorithm::Ecdsa {
+                    named_curve: curve.clone(),
+                };
                 Self::generate_ec_key_pair(&curve, extractable, alg, usages, context)
             }
 
-            Algorithm::RsaOaep { modulus_length, ref public_exponent, ref hash }
-            | Algorithm::RsaPss { modulus_length, ref public_exponent, ref hash }
-            | Algorithm::RsassaPkcs1v15 { modulus_length, ref public_exponent, ref hash } => {
+            Algorithm::RsaOaep {
+                modulus_length,
+                ref public_exponent,
+                ref hash,
+            }
+            | Algorithm::RsaPss {
+                modulus_length,
+                ref public_exponent,
+                ref hash,
+            }
+            | Algorithm::RsassaPkcs1v15 {
+                modulus_length,
+                ref public_exponent,
+                ref hash,
+            } => {
                 let alg = Algorithm::RsaOaep {
                     modulus_length,
                     public_exponent: public_exponent.clone(),
@@ -364,7 +378,7 @@ impl SubtleCrypto {
         usages: Vec<KeyUsage>,
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        use rsa::{RsaPrivateKey, traits::PublicKeyParts, pkcs8::EncodePrivateKey};
+        use rsa::{RsaPrivateKey, pkcs8::EncodePrivateKey, traits::PublicKeyParts};
 
         // Validate modulus length
         if modulus_length < 1024 || modulus_length > 4096 {
@@ -375,8 +389,9 @@ impl SubtleCrypto {
 
         // Generate RSA key pair
         let mut rng = rand::thread_rng();
-        let private_key = RsaPrivateKey::new(&mut rng, modulus_length as usize)
-            .map_err(|e| JsNativeError::error().with_message(format!("RSA key generation failed: {}", e)))?;
+        let private_key = RsaPrivateKey::new(&mut rng, modulus_length as usize).map_err(|e| {
+            JsNativeError::error().with_message(format!("RSA key generation failed: {}", e))
+        })?;
 
         let public_key = private_key.to_public_key();
 
@@ -386,8 +401,9 @@ impl SubtleCrypto {
 
         // For private key material, we serialize to PKCS8 and store as raw bytes
         // This is a simplified approach - in a full implementation you'd extract individual components
-        let private_key_der = private_key.to_pkcs8_der()
-            .map_err(|e| JsNativeError::error().with_message(format!("Failed to encode private key: {}", e)))?;
+        let private_key_der = private_key.to_pkcs8_der().map_err(|e| {
+            JsNativeError::error().with_message(format!("Failed to encode private key: {}", e))
+        })?;
         let d = Zeroizing::new(private_key_der.as_bytes().to_vec());
         let p = Zeroizing::new(Vec::new()); // Stored in PKCS8 blob
         let q = Zeroizing::new(Vec::new()); // Stored in PKCS8 blob
@@ -479,14 +495,10 @@ impl SubtleCrypto {
                 let raw_bytes = Self::get_buffer_source(key_data, context)?;
                 Self::import_raw_key(raw_bytes, algorithm, extractable, usages, context)
             }
-            "jwk" => {
-                Self::import_jwk_key(key_data, algorithm, extractable, usages, context)
-            }
-            "spki" | "pkcs8" => {
-                Err(JsNativeError::typ()
-                    .with_message(format!("Key format '{}' is not yet implemented", format))
-                    .into())
-            }
+            "jwk" => Self::import_jwk_key(key_data, algorithm, extractable, usages, context),
+            "spki" | "pkcs8" => Err(JsNativeError::typ()
+                .with_message(format!("Key format '{}' is not yet implemented", format))
+                .into()),
             _ => Err(JsNativeError::typ()
                 .with_message(format!("Unknown key format: {}", format))
                 .into()),
@@ -580,27 +592,23 @@ impl SubtleCrypto {
         context: &mut Context,
     ) -> JsResult<JsValue> {
         match format {
-            "raw" => {
-                match &key.material {
-                    KeyMaterial::Symmetric(bytes) => {
-                        let array_buffer = Self::create_array_buffer(bytes.as_ref(), context)?;
-                        Ok(array_buffer.into())
-                    }
-                    _ => Err(JsNativeError::typ()
-                        .with_message("Only symmetric keys can be exported in raw format")
-                        .into()),
+            "raw" => match &key.material {
+                KeyMaterial::Symmetric(bytes) => {
+                    let array_buffer = Self::create_array_buffer(bytes.as_ref(), context)?;
+                    Ok(array_buffer.into())
                 }
-            }
+                _ => Err(JsNativeError::typ()
+                    .with_message("Only symmetric keys can be exported in raw format")
+                    .into()),
+            },
             "jwk" => {
                 // Create JWK object
                 let jwk = Self::export_as_jwk(key, context)?;
                 Ok(jwk.into())
             }
-            "spki" | "pkcs8" => {
-                Err(JsNativeError::typ()
-                    .with_message(format!("Export format '{}' is not yet implemented", format))
-                    .into())
-            }
+            "spki" | "pkcs8" => Err(JsNativeError::typ()
+                .with_message(format!("Export format '{}' is not yet implemented", format))
+                .into()),
             _ => Err(JsNativeError::typ()
                 .with_message(format!("Unknown export format: {}", format))
                 .into()),
@@ -655,14 +663,10 @@ impl SubtleCrypto {
                 jwk.set(js_string!("k"), js_string!(k), false, context)?;
             }
             KeyMaterial::EcPublic { x, y } | KeyMaterial::EcPrivate { x, y, .. } => {
-                let x_b64 = base64::Engine::encode(
-                    &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-                    x,
-                );
-                let y_b64 = base64::Engine::encode(
-                    &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-                    y,
-                );
+                let x_b64 =
+                    base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, x);
+                let y_b64 =
+                    base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, y);
                 jwk.set(js_string!("x"), js_string!(x_b64), false, context)?;
                 jwk.set(js_string!("y"), js_string!(y_b64), false, context)?;
 
@@ -722,9 +726,9 @@ impl SubtleCrypto {
         context: &mut Context,
     ) -> JsResult<Vec<u8>> {
         // Parse algorithm with encryption-specific parameters
-        let algorithm_obj = algorithm_val.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Algorithm must be an object")
-        })?;
+        let algorithm_obj = algorithm_val
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Algorithm must be an object"))?;
 
         let name = algorithm_obj
             .get(js_string!("name"), context)?
@@ -748,15 +752,15 @@ impl SubtleCrypto {
     }
 
     fn aes_gcm_encrypt(key: &CryptoKeyData, iv: &[u8], data: &[u8]) -> JsResult<Vec<u8>> {
-        use aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit, aead::Aead};
         use aes_gcm::Nonce;
+        use aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit, aead::Aead};
 
         let key_bytes = match &key.material {
             KeyMaterial::Symmetric(k) => k.as_ref().as_slice(),
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for AES-GCM")
-                    .into())
+                    .into());
             }
         };
 
@@ -764,18 +768,24 @@ impl SubtleCrypto {
 
         match key_bytes.len() {
             16 => {
-                let cipher = Aes128Gcm::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("AES-GCM error: {}", e)))?;
-                cipher
-                    .encrypt(nonce, data)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Encryption failed: {}", e)).into())
+                let cipher = Aes128Gcm::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("AES-GCM error: {}", e))
+                })?;
+                cipher.encrypt(nonce, data).map_err(|e| {
+                    JsNativeError::error()
+                        .with_message(format!("Encryption failed: {}", e))
+                        .into()
+                })
             }
             32 => {
-                let cipher = Aes256Gcm::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("AES-GCM error: {}", e)))?;
-                cipher
-                    .encrypt(nonce, data)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Encryption failed: {}", e)).into())
+                let cipher = Aes256Gcm::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("AES-GCM error: {}", e))
+                })?;
+                cipher.encrypt(nonce, data).map_err(|e| {
+                    JsNativeError::error()
+                        .with_message(format!("Encryption failed: {}", e))
+                        .into()
+                })
             }
             _ => Err(JsNativeError::typ()
                 .with_message("Invalid AES key length")
@@ -785,14 +795,17 @@ impl SubtleCrypto {
 
     fn aes_cbc_encrypt(key: &CryptoKeyData, iv: &[u8], data: &[u8]) -> JsResult<Vec<u8>> {
         use aes::Aes128;
-        use cbc::{Encryptor, cipher::{BlockEncryptMut, KeyIvInit, block_padding::Pkcs7}};
+        use cbc::{
+            Encryptor,
+            cipher::{BlockEncryptMut, KeyIvInit, block_padding::Pkcs7},
+        };
 
         let key_bytes = match &key.material {
             KeyMaterial::Symmetric(k) => k.as_ref().as_slice(),
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for AES-CBC")
-                    .into())
+                    .into());
             }
         };
 
@@ -834,9 +847,9 @@ impl SubtleCrypto {
         data: &[u8],
         context: &mut Context,
     ) -> JsResult<Vec<u8>> {
-        let algorithm_obj = algorithm_val.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Algorithm must be an object")
-        })?;
+        let algorithm_obj = algorithm_val
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Algorithm must be an object"))?;
 
         let name = algorithm_obj
             .get(js_string!("name"), context)?
@@ -860,15 +873,15 @@ impl SubtleCrypto {
     }
 
     fn aes_gcm_decrypt(key: &CryptoKeyData, iv: &[u8], data: &[u8]) -> JsResult<Vec<u8>> {
-        use aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit, aead::Aead};
         use aes_gcm::Nonce;
+        use aes_gcm::{Aes128Gcm, Aes256Gcm, KeyInit, aead::Aead};
 
         let key_bytes = match &key.material {
             KeyMaterial::Symmetric(k) => k.as_ref().as_slice(),
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for AES-GCM")
-                    .into())
+                    .into());
             }
         };
 
@@ -876,18 +889,24 @@ impl SubtleCrypto {
 
         match key_bytes.len() {
             16 => {
-                let cipher = Aes128Gcm::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("AES-GCM error: {}", e)))?;
-                cipher
-                    .decrypt(nonce, data)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Decryption failed: {}", e)).into())
+                let cipher = Aes128Gcm::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("AES-GCM error: {}", e))
+                })?;
+                cipher.decrypt(nonce, data).map_err(|e| {
+                    JsNativeError::error()
+                        .with_message(format!("Decryption failed: {}", e))
+                        .into()
+                })
             }
             32 => {
-                let cipher = Aes256Gcm::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("AES-GCM error: {}", e)))?;
-                cipher
-                    .decrypt(nonce, data)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Decryption failed: {}", e)).into())
+                let cipher = Aes256Gcm::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("AES-GCM error: {}", e))
+                })?;
+                cipher.decrypt(nonce, data).map_err(|e| {
+                    JsNativeError::error()
+                        .with_message(format!("Decryption failed: {}", e))
+                        .into()
+                })
             }
             _ => Err(JsNativeError::typ()
                 .with_message("Invalid AES key length")
@@ -897,14 +916,17 @@ impl SubtleCrypto {
 
     fn aes_cbc_decrypt(key: &CryptoKeyData, iv: &[u8], data: &[u8]) -> JsResult<Vec<u8>> {
         use aes::Aes128;
-        use cbc::{Decryptor, cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7}};
+        use cbc::{
+            Decryptor,
+            cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7},
+        };
 
         let key_bytes = match &key.material {
             KeyMaterial::Symmetric(k) => k.as_ref().as_slice(),
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for AES-CBC")
-                    .into())
+                    .into());
             }
         };
 
@@ -918,9 +940,11 @@ impl SubtleCrypto {
         let cipher = Aes128CbcDec::new_from_slices(key_bytes, iv)
             .map_err(|e| JsNativeError::error().with_message(format!("AES-CBC error: {}", e)))?;
 
-        cipher
-            .decrypt_padded_vec_mut::<Pkcs7>(data)
-            .map_err(|e| JsNativeError::error().with_message(format!("Decryption failed: {}", e)).into())
+        cipher.decrypt_padded_vec_mut::<Pkcs7>(data).map_err(|e| {
+            JsNativeError::error()
+                .with_message(format!("Decryption failed: {}", e))
+                .into()
+        })
     }
 
     // ========================================================================
@@ -958,11 +982,12 @@ impl SubtleCrypto {
             (Algorithm::Hmac { .. }, Algorithm::Hmac { hash, .. }) => {
                 Self::hmac_sign(key, hash, data)
             }
-            (Algorithm::Ecdsa { named_curve }, Algorithm::Ecdsa { named_curve: key_curve })
-                if named_curve == key_curve =>
-            {
-                Self::ecdsa_sign(key, named_curve, data)
-            }
+            (
+                Algorithm::Ecdsa { named_curve },
+                Algorithm::Ecdsa {
+                    named_curve: key_curve,
+                },
+            ) if named_curve == key_curve => Self::ecdsa_sign(key, named_curve, data),
             _ => Err(JsNativeError::typ()
                 .with_message("Algorithm mismatch for signing")
                 .into()),
@@ -979,32 +1004,36 @@ impl SubtleCrypto {
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for HMAC")
-                    .into())
+                    .into());
             }
         };
 
         match hash {
             Algorithm::Sha1 => {
-                let mut mac = Hmac::<Sha1>::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HMAC error: {}", e)))?;
+                let mut mac = Hmac::<Sha1>::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HMAC error: {}", e))
+                })?;
                 mac.update(data);
                 Ok(mac.finalize().into_bytes().to_vec())
             }
             Algorithm::Sha256 => {
-                let mut mac = Hmac::<Sha256>::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HMAC error: {}", e)))?;
+                let mut mac = Hmac::<Sha256>::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HMAC error: {}", e))
+                })?;
                 mac.update(data);
                 Ok(mac.finalize().into_bytes().to_vec())
             }
             Algorithm::Sha384 => {
-                let mut mac = Hmac::<Sha384>::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HMAC error: {}", e)))?;
+                let mut mac = Hmac::<Sha384>::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HMAC error: {}", e))
+                })?;
                 mac.update(data);
                 Ok(mac.finalize().into_bytes().to_vec())
             }
             Algorithm::Sha512 => {
-                let mut mac = Hmac::<Sha512>::new_from_slice(key_bytes)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HMAC error: {}", e)))?;
+                let mut mac = Hmac::<Sha512>::new_from_slice(key_bytes).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HMAC error: {}", e))
+                })?;
                 mac.update(data);
                 Ok(mac.finalize().into_bytes().to_vec())
             }
@@ -1022,7 +1051,7 @@ impl SubtleCrypto {
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for ECDSA signing")
-                    .into())
+                    .into());
             }
         };
 
@@ -1030,8 +1059,9 @@ impl SubtleCrypto {
             "P-256" => {
                 use p256::ecdsa::{SigningKey, signature::Signer};
 
-                let signing_key = SigningKey::from_slice(d)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Invalid key: {}", e)))?;
+                let signing_key = SigningKey::from_slice(d).map_err(|e| {
+                    JsNativeError::error().with_message(format!("Invalid key: {}", e))
+                })?;
 
                 let signature: p256::ecdsa::Signature = signing_key.sign(data);
                 Ok(signature.to_vec())
@@ -1039,8 +1069,9 @@ impl SubtleCrypto {
             "P-384" => {
                 use p384::ecdsa::{SigningKey, signature::Signer};
 
-                let signing_key = SigningKey::from_slice(d)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Invalid key: {}", e)))?;
+                let signing_key = SigningKey::from_slice(d).map_err(|e| {
+                    JsNativeError::error().with_message(format!("Invalid key: {}", e))
+                })?;
 
                 let signature: p384::ecdsa::Signature = signing_key.sign(data);
                 Ok(signature.to_vec())
@@ -1083,11 +1114,12 @@ impl SubtleCrypto {
             (Algorithm::Hmac { .. }, Algorithm::Hmac { hash, .. }) => {
                 Self::hmac_verify(key, hash, signature, data)
             }
-            (Algorithm::Ecdsa { named_curve }, Algorithm::Ecdsa { named_curve: key_curve })
-                if named_curve == key_curve =>
-            {
-                Self::ecdsa_verify(key, named_curve, signature, data)
-            }
+            (
+                Algorithm::Ecdsa { named_curve },
+                Algorithm::Ecdsa {
+                    named_curve: key_curve,
+                },
+            ) if named_curve == key_curve => Self::ecdsa_verify(key, named_curve, signature, data),
             _ => Err(JsNativeError::typ()
                 .with_message("Algorithm mismatch for verification")
                 .into()),
@@ -1122,42 +1154,38 @@ impl SubtleCrypto {
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for ECDSA verification")
-                    .into())
+                    .into());
             }
         };
 
         match curve {
             "P-256" => {
-                use p256::ecdsa::{VerifyingKey, signature::Verifier};
                 use p256::EncodedPoint;
+                use p256::ecdsa::{VerifyingKey, signature::Verifier};
 
-                let point = EncodedPoint::from_affine_coordinates(
-                    x.into(),
-                    y.into(),
-                    false,
-                );
-                let verifying_key = VerifyingKey::from_encoded_point(&point)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Invalid key: {}", e)))?;
+                let point = EncodedPoint::from_affine_coordinates(x.into(), y.into(), false);
+                let verifying_key = VerifyingKey::from_encoded_point(&point).map_err(|e| {
+                    JsNativeError::error().with_message(format!("Invalid key: {}", e))
+                })?;
 
-                let sig = p256::ecdsa::Signature::from_slice(signature)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Invalid signature: {}", e)))?;
+                let sig = p256::ecdsa::Signature::from_slice(signature).map_err(|e| {
+                    JsNativeError::error().with_message(format!("Invalid signature: {}", e))
+                })?;
 
                 Ok(verifying_key.verify(data, &sig).is_ok())
             }
             "P-384" => {
-                use p384::ecdsa::{VerifyingKey, signature::Verifier};
                 use p384::EncodedPoint;
+                use p384::ecdsa::{VerifyingKey, signature::Verifier};
 
-                let point = EncodedPoint::from_affine_coordinates(
-                    x.into(),
-                    y.into(),
-                    false,
-                );
-                let verifying_key = VerifyingKey::from_encoded_point(&point)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Invalid key: {}", e)))?;
+                let point = EncodedPoint::from_affine_coordinates(x.into(), y.into(), false);
+                let verifying_key = VerifyingKey::from_encoded_point(&point).map_err(|e| {
+                    JsNativeError::error().with_message(format!("Invalid key: {}", e))
+                })?;
 
-                let sig = p384::ecdsa::Signature::from_slice(signature)
-                    .map_err(|e| JsNativeError::error().with_message(format!("Invalid signature: {}", e)))?;
+                let sig = p384::ecdsa::Signature::from_slice(signature).map_err(|e| {
+                    JsNativeError::error().with_message(format!("Invalid signature: {}", e))
+                })?;
 
                 Ok(verifying_key.verify(data, &sig).is_ok())
             }
@@ -1187,21 +1215,19 @@ impl SubtleCrypto {
 
         // Determine required key length from derived algorithm
         let length = match &derived_algorithm {
-            Algorithm::AesGcm { length } | Algorithm::AesCbc { length } | Algorithm::AesCtr { length } => {
-                *length as usize
-            }
-            Algorithm::Hmac { length, hash } => {
-                length.unwrap_or_else(|| match hash.as_ref() {
-                    Algorithm::Sha256 => 256,
-                    Algorithm::Sha384 => 384,
-                    Algorithm::Sha512 => 512,
-                    _ => 256,
-                }) as usize
-            }
+            Algorithm::AesGcm { length }
+            | Algorithm::AesCbc { length }
+            | Algorithm::AesCtr { length } => *length as usize,
+            Algorithm::Hmac { length, hash } => length.unwrap_or_else(|| match hash.as_ref() {
+                Algorithm::Sha256 => 256,
+                Algorithm::Sha384 => 384,
+                Algorithm::Sha512 => 512,
+                _ => 256,
+            }) as usize,
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Cannot determine key length for derived algorithm")
-                    .into())
+                    .into());
             }
         };
 
@@ -1245,9 +1271,9 @@ impl SubtleCrypto {
         length: usize,
         context: &mut Context,
     ) -> JsResult<Vec<u8>> {
-        let algorithm_obj = algorithm_val.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("Algorithm must be an object")
-        })?;
+        let algorithm_obj = algorithm_val
+            .as_object()
+            .ok_or_else(|| JsNativeError::typ().with_message("Algorithm must be an object"))?;
 
         let name = algorithm_obj
             .get(js_string!("name"), context)?
@@ -1300,7 +1326,7 @@ impl SubtleCrypto {
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for PBKDF2")
-                    .into())
+                    .into());
             }
         };
 
@@ -1322,7 +1348,7 @@ impl SubtleCrypto {
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Unsupported hash for PBKDF2")
-                    .into())
+                    .into());
             }
         }
 
@@ -1345,7 +1371,7 @@ impl SubtleCrypto {
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Invalid key type for HKDF")
-                    .into())
+                    .into());
             }
         };
 
@@ -1354,28 +1380,32 @@ impl SubtleCrypto {
         match hash {
             Algorithm::Sha1 => {
                 let hk = Hkdf::<Sha1>::new(Some(salt), ikm);
-                hk.expand(info, &mut output)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HKDF error: {}", e)))?;
+                hk.expand(info, &mut output).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HKDF error: {}", e))
+                })?;
             }
             Algorithm::Sha256 => {
                 let hk = Hkdf::<Sha256>::new(Some(salt), ikm);
-                hk.expand(info, &mut output)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HKDF error: {}", e)))?;
+                hk.expand(info, &mut output).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HKDF error: {}", e))
+                })?;
             }
             Algorithm::Sha384 => {
                 let hk = Hkdf::<Sha384>::new(Some(salt), ikm);
-                hk.expand(info, &mut output)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HKDF error: {}", e)))?;
+                hk.expand(info, &mut output).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HKDF error: {}", e))
+                })?;
             }
             Algorithm::Sha512 => {
                 let hk = Hkdf::<Sha512>::new(Some(salt), ikm);
-                hk.expand(info, &mut output)
-                    .map_err(|e| JsNativeError::error().with_message(format!("HKDF error: {}", e)))?;
+                hk.expand(info, &mut output).map_err(|e| {
+                    JsNativeError::error().with_message(format!("HKDF error: {}", e))
+                })?;
             }
             _ => {
                 return Err(JsNativeError::typ()
                     .with_message("Unsupported hash for HKDF")
-                    .into())
+                    .into());
             }
         }
 
@@ -1416,16 +1446,16 @@ impl SubtleCrypto {
             // If JWK, serialize to JSON
             if format == "jwk" {
                 let json = serde_json::to_vec(&Self::js_object_to_json(&exported_obj, context)?)
-                    .map_err(|e| JsNativeError::error().with_message(format!("JSON error: {}", e)))?;
+                    .map_err(|e| {
+                        JsNativeError::error().with_message(format!("JSON error: {}", e))
+                    })?;
                 json
             } else {
                 // ArrayBuffer
                 Self::get_buffer_source(&exported, context)?
             }
         } else {
-            return Err(JsNativeError::typ()
-                .with_message("Export failed")
-                .into());
+            return Err(JsNativeError::typ().with_message("Export failed").into());
         };
 
         // Encrypt the exported key
@@ -1505,7 +1535,10 @@ impl SubtleCrypto {
         let _source_obj = if buffer_val.is_undefined() {
             obj.clone()
         } else {
-            buffer_val.as_object().map(|o| o.clone()).unwrap_or_else(|| obj.clone())
+            buffer_val
+                .as_object()
+                .map(|o| o.clone())
+                .unwrap_or_else(|| obj.clone())
         };
 
         // Get byteOffset if present
@@ -1516,9 +1549,7 @@ impl SubtleCrypto {
             .unwrap_or(0);
 
         // Try to access as Uint8Array view
-        let length = obj
-            .get(js_string!("length"), context)?
-            .to_u32(context)?;
+        let length = obj.get(js_string!("length"), context)?.to_u32(context)?;
 
         for i in 0..length {
             let val = obj.get(i, context)?.to_u32(context)? as u8;
@@ -1543,7 +1574,11 @@ impl SubtleCrypto {
         // Create Uint8Array first, then extract its buffer
         let byte_values: Vec<JsValue> = bytes.iter().map(|&b| JsValue::from(b)).collect();
 
-        let uint8array_constructor = context.intrinsics().constructors().typed_uint8_array().constructor();
+        let uint8array_constructor = context
+            .intrinsics()
+            .constructors()
+            .typed_uint8_array()
+            .constructor();
 
         // Create a JS array with the byte values
         let js_array = boa_engine::object::builtins::JsArray::new(context)?;
@@ -1555,7 +1590,7 @@ impl SubtleCrypto {
         let uint8array_obj = uint8array_constructor.construct(
             &[js_array.into()],
             Some(&uint8array_constructor),
-            context
+            context,
         )?;
 
         // Get the buffer property from the Uint8Array
@@ -1565,22 +1600,23 @@ impl SubtleCrypto {
         }
 
         // Fallback: create ArrayBuffer directly
-        let array_buffer_constructor = context.intrinsics().constructors().array_buffer().constructor();
+        let array_buffer_constructor = context
+            .intrinsics()
+            .constructors()
+            .array_buffer()
+            .constructor();
         let length = JsValue::from(bytes.len());
         let array_buffer_obj = array_buffer_constructor.construct(
             &[length],
             Some(&array_buffer_constructor),
-            context
+            context,
         )?;
 
         Ok(array_buffer_obj)
     }
 
     /// Convert JsObject to serde_json::Value
-    fn js_object_to_json(
-        obj: &JsObject,
-        context: &mut Context,
-    ) -> JsResult<serde_json::Value> {
+    fn js_object_to_json(obj: &JsObject, context: &mut Context) -> JsResult<serde_json::Value> {
         // Simple conversion for JWK export
         let mut map = serde_json::Map::new();
 
@@ -1597,10 +1633,7 @@ impl SubtleCrypto {
         Ok(serde_json::Value::Object(map))
     }
 
-    fn js_value_to_json(
-        val: &JsValue,
-        context: &mut Context,
-    ) -> JsResult<serde_json::Value> {
+    fn js_value_to_json(val: &JsValue, context: &mut Context) -> JsResult<serde_json::Value> {
         if val.is_undefined() || val.is_null() {
             Ok(serde_json::Value::Null)
         } else if let Some(b) = val.as_boolean() {

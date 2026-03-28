@@ -3,19 +3,19 @@
 //! The ShadowRoot interface represents the root node of a DOM subtree that is rendered separately from a document's main DOM tree.
 //! https://dom.spec.whatwg.org/#interface-shadowroot
 
+use crate::dom::document_fragment::DocumentFragmentData;
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{internal_methods::get_prototype_from_constructor, JsObject},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::{Attribute, PropertyDescriptorBuilder},
     realm::Realm,
-    string::{StaticJsStrings, JsString},
+    string::{JsString, StaticJsStrings},
     value::JsValue,
-    Context, JsArgs, JsData, JsNativeError, JsResult,
 };
-use crate::dom::document_fragment::DocumentFragmentData;
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::HashMap;
 
 /// Shadow DOM modes
@@ -62,7 +62,12 @@ pub struct ShadowRootData {
 
 impl ShadowRootData {
     /// Create a new ShadowRoot with specified options
-    pub fn new(mode: ShadowRootMode, clonable: bool, serializable: bool, delegates_focus: bool) -> Self {
+    pub fn new(
+        mode: ShadowRootMode,
+        clonable: bool,
+        serializable: bool,
+        delegates_focus: bool,
+    ) -> Self {
         Self {
             fragment_data: DocumentFragmentData::new(),
             mode,
@@ -118,7 +123,9 @@ impl ShadowRootData {
 
     /// Remove slottable element
     pub fn remove_slottable(&self, slottable: &JsObject) {
-        self.slottables.borrow_mut().retain(|s| !JsObject::equals(s, slottable));
+        self.slottables
+            .borrow_mut()
+            .retain(|s| !JsObject::equals(s, slottable));
     }
 
     /// Get all slottables
@@ -144,7 +151,9 @@ impl ShadowRootData {
         // Traverse child nodes looking for slot elements
         let children = self.fragment_data().get_children();
         for child in &children {
-            if let Some(_slot_data) = child.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>() {
+            if let Some(_slot_data) =
+                child.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>()
+            {
                 slots.push(child.clone());
             }
             // Recursively check child elements
@@ -161,7 +170,9 @@ impl ShadowRootData {
         if let Some(element_data) = node.downcast_ref::<crate::dom::element::ElementData>() {
             let children = element_data.get_children();
             for child in &children {
-                if let Some(_slot_data) = child.downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>() {
+                if let Some(_slot_data) = child
+                    .downcast_ref::<crate::dom::shadow::html_slot_element::HTMLSlotElementData>(
+                ) {
                     slots.push(child.clone());
                 }
                 // Recursively check child elements
@@ -244,7 +255,9 @@ impl ShadowRootData {
     /// Compute composed path for event retargeting
     pub fn compute_composed_path(&self, target: JsObject, composed: bool) -> Vec<JsObject> {
         // Use the proper WHATWG event path computation
-        crate::dom::shadow::shadow_tree_traversal::EventPath::compute_composed_path(&target, composed)
+        crate::dom::shadow::shadow_tree_traversal::EventPath::compute_composed_path(
+            &target, composed,
+        )
     }
 
     /// Retarget an event for Shadow DOM encapsulation
@@ -267,7 +280,7 @@ impl ShadowRootData {
     pub fn should_event_cross_boundary(&self, composed: bool) -> bool {
         match self.mode() {
             ShadowRootMode::Open => composed, // Open roots allow composed events to cross
-            ShadowRootMode::Closed => false, // Closed roots block all events at boundary
+            ShadowRootMode::Closed => false,  // Closed roots block all events at boundary
         }
     }
 
@@ -285,21 +298,28 @@ impl ShadowRootData {
 /// JavaScript accessor implementations
 impl ShadowRootData {
     /// `ShadowRoot.prototype.mode` getter
-    fn get_mode_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_mode_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.mode called on non-object")
         })?;
 
         let shadow_data = this_obj.downcast_ref::<ShadowRootData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("ShadowRoot.mode called on non-ShadowRoot object")
+            JsNativeError::typ().with_message("ShadowRoot.mode called on non-ShadowRoot object")
         })?;
 
         Ok(JsValue::from(js_string!(shadow_data.mode().to_string())))
     }
 
     /// `ShadowRoot.prototype.clonable` getter
-    fn get_clonable_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_clonable_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.clonable called on non-object")
         })?;
@@ -315,7 +335,11 @@ impl ShadowRootData {
     }
 
     /// `ShadowRoot.prototype.serializable` getter
-    fn get_serializable_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_serializable_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.serializable called on non-object")
         })?;
@@ -331,7 +355,11 @@ impl ShadowRootData {
     }
 
     /// `ShadowRoot.prototype.delegatesFocus` getter
-    fn get_delegates_focus_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_delegates_focus_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.delegatesFocus called on non-object")
         })?;
@@ -347,7 +375,11 @@ impl ShadowRootData {
     }
 
     /// `ShadowRoot.prototype.host` getter
-    fn get_host_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_host_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.host called on non-object")
         })?;
@@ -366,7 +398,11 @@ impl ShadowRootData {
     }
 
     /// `ShadowRoot.prototype.innerHTML` getter
-    fn get_inner_html_accessor(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    fn get_inner_html_accessor(
+        this: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.innerHTML called on non-object")
         })?;
@@ -381,7 +417,11 @@ impl ShadowRootData {
     }
 
     /// `ShadowRoot.prototype.innerHTML` setter
-    fn set_inner_html_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_inner_html_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ShadowRoot.innerHTML setter called on non-object")
         })?;
@@ -395,9 +435,8 @@ impl ShadowRootData {
         })?;
 
         match shadow_data.set_inner_html(&html_string.to_std_string_escaped()) {
-                Ok(()) => Ok(JsValue::undefined()),
-                Err(err) => Err(JsNativeError::error().with_message(err).into()),
-
+            Ok(()) => Ok(JsValue::undefined()),
+            Err(err) => Err(JsNativeError::error().with_message(err).into()),
         }
     }
 
@@ -408,8 +447,7 @@ impl ShadowRootData {
         })?;
 
         let shadow_data = this_obj.downcast_ref::<ShadowRootData>().ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("ShadowRoot.getHTML called on non-ShadowRoot object")
+            JsNativeError::typ().with_message("ShadowRoot.getHTML called on non-ShadowRoot object")
         })?;
 
         let html = shadow_data.get_inner_html();
@@ -423,31 +461,59 @@ pub struct ShadowRoot;
 
 impl ShadowRoot {
     // Static method implementations for BuiltInBuilder
-    fn get_mode_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_mode_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::get_mode_accessor(this, args, context)
     }
 
-    fn get_clonable_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_clonable_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::get_clonable_accessor(this, args, context)
     }
 
-    fn get_serializable_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_serializable_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::get_serializable_accessor(this, args, context)
     }
 
-    fn get_delegates_focus_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_delegates_focus_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::get_delegates_focus_accessor(this, args, context)
     }
 
-    fn get_host_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_host_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::get_host_accessor(this, args, context)
     }
 
-    fn get_inner_html_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_inner_html_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::get_inner_html_accessor(this, args, context)
     }
 
-    fn set_inner_html_accessor(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn set_inner_html_accessor(
+        this: &JsValue,
+        args: &[JsValue],
+        context: &mut Context,
+    ) -> JsResult<JsValue> {
         ShadowRootData::set_inner_html_accessor(this, args, context)
     }
 
@@ -470,7 +536,11 @@ impl ShadowRoot {
 
         let shadow_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
-            context.intrinsics().constructors().document_fragment().prototype(),
+            context
+                .intrinsics()
+                .constructors()
+                .document_fragment()
+                .prototype(),
             shadow_data,
         );
 
@@ -478,21 +548,28 @@ impl ShadowRoot {
         // This ensures the properties are available even if prototype setup is incomplete
         use boa_engine::property::{Attribute, PropertyDescriptorBuilder};
 
-        let mode_get_func = BuiltInBuilder::callable(context.realm(), ShadowRootData::get_mode_accessor)
-            .name(js_string!("get mode"))
-            .build();
-        let clonable_get_func = BuiltInBuilder::callable(context.realm(), ShadowRootData::get_clonable_accessor)
-            .name(js_string!("get clonable"))
-            .build();
-        let serializable_get_func = BuiltInBuilder::callable(context.realm(), ShadowRootData::get_serializable_accessor)
-            .name(js_string!("get serializable"))
-            .build();
-        let delegates_focus_get_func = BuiltInBuilder::callable(context.realm(), ShadowRootData::get_delegates_focus_accessor)
-            .name(js_string!("get delegatesFocus"))
-            .build();
-        let host_get_func = BuiltInBuilder::callable(context.realm(), ShadowRootData::get_host_accessor)
-            .name(js_string!("get host"))
-            .build();
+        let mode_get_func =
+            BuiltInBuilder::callable(context.realm(), ShadowRootData::get_mode_accessor)
+                .name(js_string!("get mode"))
+                .build();
+        let clonable_get_func =
+            BuiltInBuilder::callable(context.realm(), ShadowRootData::get_clonable_accessor)
+                .name(js_string!("get clonable"))
+                .build();
+        let serializable_get_func =
+            BuiltInBuilder::callable(context.realm(), ShadowRootData::get_serializable_accessor)
+                .name(js_string!("get serializable"))
+                .build();
+        let delegates_focus_get_func = BuiltInBuilder::callable(
+            context.realm(),
+            ShadowRootData::get_delegates_focus_accessor,
+        )
+        .name(js_string!("get delegatesFocus"))
+        .build();
+        let host_get_func =
+            BuiltInBuilder::callable(context.realm(), ShadowRootData::get_host_accessor)
+                .name(js_string!("get host"))
+                .build();
         let get_html_func = BuiltInBuilder::callable(context.realm(), ShadowRootData::get_html)
             .name(js_string!("getHTML"))
             .build();
@@ -594,12 +671,14 @@ impl IntrinsicObject for ShadowRoot {
         let clonable_get_func = BuiltInBuilder::callable(realm, Self::get_clonable_accessor)
             .name(js_string!("get clonable"))
             .build();
-        let serializable_get_func = BuiltInBuilder::callable(realm, Self::get_serializable_accessor)
-            .name(js_string!("get serializable"))
-            .build();
-        let delegates_focus_get_func = BuiltInBuilder::callable(realm, Self::get_delegates_focus_accessor)
-            .name(js_string!("get delegatesFocus"))
-            .build();
+        let serializable_get_func =
+            BuiltInBuilder::callable(realm, Self::get_serializable_accessor)
+                .name(js_string!("get serializable"))
+                .build();
+        let delegates_focus_get_func =
+            BuiltInBuilder::callable(realm, Self::get_delegates_focus_accessor)
+                .name(js_string!("get delegatesFocus"))
+                .build();
         let host_get_func = BuiltInBuilder::callable(realm, Self::get_host_accessor)
             .name(js_string!("get host"))
             .build();
@@ -682,4 +761,3 @@ impl BuiltInConstructor for ShadowRoot {
             .into());
     }
 }
-

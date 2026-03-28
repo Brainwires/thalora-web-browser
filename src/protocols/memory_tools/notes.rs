@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::features::ai_memory::{AiMemoryHeap, NotePriority};
-use crate::protocols::mcp::{McpResponse};
+use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{MAX_CONTENT_LENGTH, MAX_KEY_LENGTH, limit_input_length};
 
 /// Handle storing a note in AI memory

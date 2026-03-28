@@ -17,7 +17,10 @@ impl McpServer {
                 let key = match arguments.get("key").and_then(|v| v.as_str()) {
                     Some(key) => key,
                     None => {
-                        return McpResponse::error(-1, "Missing required parameter: key".to_string());
+                        return McpResponse::error(
+                            -1,
+                            "Missing required parameter: key".to_string(),
+                        );
                     }
                 };
 

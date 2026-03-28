@@ -5,18 +5,18 @@
 //!
 //! Spec: https://w3c.github.io/IndexedDB/#factory-interface
 
-use super::backend::{StorageBackend, SledBackend};
+use super::backend::{SledBackend, StorageBackend};
 use super::database::IDBDatabase;
 use super::key::IDBKey;
-use super::request::{IDBRequest, IDBOpenDBRequest};
+use super::request::{IDBOpenDBRequest, IDBRequest};
 use boa_engine::{
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::path::PathBuf;
@@ -88,19 +88,20 @@ impl IDBFactory {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBFactory object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBFactory object")
+        })?;
 
-        let factory = obj.downcast_ref::<IDBFactory>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBFactory object"))?;
+        let factory = obj.downcast_ref::<IDBFactory>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBFactory object")
+        })?;
 
         // Parse arguments
         let name = args.get_or_undefined(0).to_string(context)?;
         let name_str = name.to_std_string_escaped();
 
-        let version = args.get(1)
+        let version = args
+            .get(1)
             .map(|v| v.to_u32(context))
             .transpose()?
             .unwrap_or(1);
@@ -146,7 +147,7 @@ impl IDBFactory {
                     request_clone.trigger_upgradeneeded(
                         handle.old_version,
                         handle.version,
-                        context
+                        context,
                     )?;
                 }
 
@@ -183,13 +184,13 @@ impl IDBFactory {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBFactory object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBFactory object")
+        })?;
 
-        let factory = obj.downcast_ref::<IDBFactory>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBFactory object"))?;
+        let factory = obj.downcast_ref::<IDBFactory>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBFactory object")
+        })?;
 
         let name = args.get_or_undefined(0).to_string(context)?;
         let name_str = name.to_std_string_escaped();
@@ -230,18 +231,19 @@ impl IDBFactory {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        let obj = this.as_object()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBFactory object"))?;
+        let obj = this.as_object().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBFactory object")
+        })?;
 
-        let factory = obj.downcast_ref::<IDBFactory>()
-            .ok_or_else(|| JsNativeError::typ()
-                .with_message("'this' is not an IDBFactory object"))?;
+        let factory = obj.downcast_ref::<IDBFactory>().ok_or_else(|| {
+            JsNativeError::typ().with_message("'this' is not an IDBFactory object")
+        })?;
 
         let backend = factory.backend.clone();
         let databases = {
             let backend = backend.lock().unwrap();
-            backend.databases()
+            backend
+                .databases()
                 .map_err(|e| JsNativeError::error().with_message(e))?
         };
 
@@ -251,8 +253,18 @@ impl IDBFactory {
 
         for (i, (name, version)) in databases.iter().enumerate() {
             let db_info = JsObject::with_object_proto(context.intrinsics());
-            db_info.set(js_string!("name"), JsValue::from(JsString::from(name.clone())), false, context)?;
-            db_info.set(js_string!("version"), JsValue::from(*version), false, context)?;
+            db_info.set(
+                js_string!("name"),
+                JsValue::from(JsString::from(name.clone())),
+                false,
+                context,
+            )?;
+            db_info.set(
+                js_string!("version"),
+                JsValue::from(*version),
+                false,
+                context,
+            )?;
 
             array.set(i, db_info, true, context)?;
         }
@@ -312,15 +324,16 @@ impl BuiltInObject for IDBFactory {
 }
 
 impl BuiltInConstructor for IDBFactory {
-    const PROTOTYPE_STORAGE_SLOTS: usize = 100;  // Estimated prototype property count
-    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100;  // Constructor properties
+    const PROTOTYPE_STORAGE_SLOTS: usize = 100; // Estimated prototype property count
+    const CONSTRUCTOR_STORAGE_SLOTS: usize = 100; // Constructor properties
 
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
 
-    const STANDARD_CONSTRUCTOR: fn(&boa_engine::context::intrinsics::StandardConstructors) -> &StandardConstructor =
-        |constructors| {
-            constructors.idb_factory()  // Use IDBFactory's own intrinsic slot
-        };
+    const STANDARD_CONSTRUCTOR: fn(
+        &boa_engine::context::intrinsics::StandardConstructors,
+    ) -> &StandardConstructor = |constructors| {
+        constructors.idb_factory() // Use IDBFactory's own intrinsic slot
+    };
 
     fn constructor(
         _new_target: &JsValue,

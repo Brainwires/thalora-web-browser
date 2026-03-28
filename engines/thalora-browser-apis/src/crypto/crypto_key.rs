@@ -10,9 +10,8 @@
 use std::sync::Arc;
 
 use boa_engine::{
-    Context, JsData, JsNativeError, JsObject, JsResult, JsValue,
-    js_string, object::ObjectInitializer, property::Attribute,
-    NativeFunction,
+    Context, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
+    object::ObjectInitializer, property::Attribute,
 };
 use boa_gc::{Finalize, Trace};
 use zeroize::Zeroizing;
@@ -90,9 +89,15 @@ pub enum Algorithm {
     Sha512,
 
     // Symmetric encryption
-    AesGcm { length: u16 },
-    AesCbc { length: u16 },
-    AesCtr { length: u16 },
+    AesGcm {
+        length: u16,
+    },
+    AesCbc {
+        length: u16,
+    },
+    AesCtr {
+        length: u16,
+    },
 
     // Asymmetric encryption
     RsaOaep {
@@ -112,15 +117,22 @@ pub enum Algorithm {
     },
 
     // Elliptic curve
-    Ecdsa { named_curve: String },
-    Ecdh { named_curve: String },
+    Ecdsa {
+        named_curve: String,
+    },
+    Ecdh {
+        named_curve: String,
+    },
 
     // Key derivation
     Pbkdf2,
     Hkdf,
 
     // Message authentication
-    Hmac { hash: Box<Algorithm>, length: Option<u32> },
+    Hmac {
+        hash: Box<Algorithm>,
+        length: Option<u32>,
+    },
 }
 
 impl Algorithm {
@@ -170,23 +182,17 @@ impl Algorithm {
             "SHA-512" => Ok(Algorithm::Sha512),
 
             "AES-GCM" => {
-                let length = obj
-                    .get(js_string!("length"), context)?
-                    .to_u32(context)? as u16;
+                let length = obj.get(js_string!("length"), context)?.to_u32(context)? as u16;
                 Ok(Algorithm::AesGcm { length })
             }
 
             "AES-CBC" => {
-                let length = obj
-                    .get(js_string!("length"), context)?
-                    .to_u32(context)? as u16;
+                let length = obj.get(js_string!("length"), context)?.to_u32(context)? as u16;
                 Ok(Algorithm::AesCbc { length })
             }
 
             "AES-CTR" => {
-                let length = obj
-                    .get(js_string!("length"), context)?
-                    .to_u32(context)? as u16;
+                let length = obj.get(js_string!("length"), context)?.to_u32(context)? as u16;
                 Ok(Algorithm::AesCtr { length })
             }
 
@@ -301,7 +307,9 @@ impl Algorithm {
             JsNativeError::typ().with_message("publicExponent must be a Uint8Array")
         })?;
 
-        let length = exp_obj.get(js_string!("length"), context)?.to_u32(context)?;
+        let length = exp_obj
+            .get(js_string!("length"), context)?
+            .to_u32(context)?;
         let mut bytes = Vec::with_capacity(length as usize);
         for i in 0..length {
             let byte = exp_obj.get(i, context)?.to_u32(context)? as u8;
@@ -328,12 +336,29 @@ impl Algorithm {
             Algorithm::AesGcm { length }
             | Algorithm::AesCbc { length }
             | Algorithm::AesCtr { length } => {
-                obj.set(js_string!("length"), JsValue::from(*length as u32), false, context)?;
+                obj.set(
+                    js_string!("length"),
+                    JsValue::from(*length as u32),
+                    false,
+                    context,
+                )?;
             }
 
-            Algorithm::RsaOaep { modulus_length, hash, .. }
-            | Algorithm::RsaPss { modulus_length, hash, .. }
-            | Algorithm::RsassaPkcs1v15 { modulus_length, hash, .. } => {
+            Algorithm::RsaOaep {
+                modulus_length,
+                hash,
+                ..
+            }
+            | Algorithm::RsaPss {
+                modulus_length,
+                hash,
+                ..
+            }
+            | Algorithm::RsassaPkcs1v15 {
+                modulus_length,
+                hash,
+                ..
+            } => {
                 obj.set(
                     js_string!("modulusLength"),
                     JsValue::from(*modulus_length),
@@ -382,10 +407,7 @@ pub enum KeyMaterial {
     /// Raw symmetric key bytes (zeroized on drop)
     Symmetric(Arc<Zeroizing<Vec<u8>>>),
     /// RSA key pair components
-    RsaPublic {
-        n: Vec<u8>,
-        e: Vec<u8>,
-    },
+    RsaPublic { n: Vec<u8>, e: Vec<u8> },
     RsaPrivate {
         n: Vec<u8>,
         e: Vec<u8>,
@@ -394,10 +416,7 @@ pub enum KeyMaterial {
         q: Arc<Zeroizing<Vec<u8>>>,
     },
     /// EC key components
-    EcPublic {
-        x: Vec<u8>,
-        y: Vec<u8>,
-    },
+    EcPublic { x: Vec<u8>, y: Vec<u8> },
     EcPrivate {
         x: Vec<u8>,
         y: Vec<u8>,
@@ -494,8 +513,7 @@ impl CryptoKeyData {
             .iter()
             .map(|u| JsValue::from(js_string!(u.as_str())))
             .collect();
-        let usages_array =
-            boa_engine::object::builtins::JsArray::from_iter(usages, context);
+        let usages_array = boa_engine::object::builtins::JsArray::from_iter(usages, context);
         obj.set(js_string!("usages"), usages_array, false, context)?;
 
         Ok(obj)
@@ -504,9 +522,9 @@ impl CryptoKeyData {
 
 /// Parse key usages from JS array
 pub fn parse_key_usages(value: &JsValue, context: &mut Context) -> JsResult<Vec<KeyUsage>> {
-    let array = value.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("keyUsages must be an array")
-    })?;
+    let array = value
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("keyUsages must be an array"))?;
 
     let length = array.get(js_string!("length"), context)?.to_u32(context)?;
     let mut usages = Vec::with_capacity(length as usize);
@@ -530,13 +548,13 @@ pub fn parse_key_usages(value: &JsValue, context: &mut Context) -> JsResult<Vec<
 
 /// Extract CryptoKeyData from a JsValue
 pub fn get_crypto_key_data(value: &JsValue) -> JsResult<CryptoKeyData> {
-    let obj = value.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("Value is not a CryptoKey")
-    })?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("Value is not a CryptoKey"))?;
 
-    let data = obj.downcast_ref::<CryptoKeyData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("Value is not a CryptoKey")
-    })?;
+    let data = obj
+        .downcast_ref::<CryptoKeyData>()
+        .ok_or_else(|| JsNativeError::typ().with_message("Value is not a CryptoKey"))?;
 
     Ok(data.clone())
 }

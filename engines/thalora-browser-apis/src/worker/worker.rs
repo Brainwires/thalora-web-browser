@@ -6,20 +6,24 @@
 //! This implements the complete Worker interface with real JavaScript execution
 
 use boa_engine::{
-    Context, JsResult, JsValue, JsNativeError, JsArgs, js_string, JsString,
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
+    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    js_string,
     object::JsObject,
     property::Attribute,
-    builtins::{BuiltInObject, IntrinsicObject, BuiltInBuilder, BuiltInConstructor},
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     realm::Realm,
     string::StaticJsStrings,
-    JsData,
 };
-use boa_gc::{Finalize, Trace, GcRefCell};
+use boa_gc::{Finalize, GcRefCell, Trace};
 use std::sync::{Arc, Mutex};
 
-use crate::worker::worker_thread::{WorkerThread, WorkerConfig, WorkerType, WorkerCommand, WorkerEvent};
-use crate::misc::structured_clone::{structured_clone, structured_deserialize, StructuredCloneValue};
+use crate::misc::structured_clone::{
+    StructuredCloneValue, structured_clone, structured_deserialize,
+};
+use crate::worker::worker_thread::{
+    WorkerCommand, WorkerConfig, WorkerEvent, WorkerThread, WorkerType,
+};
 
 /// Worker object data
 #[derive(Trace, Finalize, JsData)]
@@ -83,11 +87,8 @@ impl Worker {
     /// Create a JS object from Worker data
     pub fn create_js_object(self, context: &mut Context) -> JsResult<JsObject> {
         let proto = context.intrinsics().constructors().worker().prototype();
-        let object = JsObject::from_proto_and_data_with_shared_shape(
-            context.root_shape(),
-            proto,
-            self,
-        );
+        let object =
+            JsObject::from_proto_and_data_with_shared_shape(context.root_shape(), proto, self);
         Ok(object.upcast())
     }
 
@@ -118,7 +119,6 @@ impl Worker {
         Ok(options)
     }
 
-
     /// Poll for events from the worker and dispatch them
     pub fn poll_events(&self, worker_obj: &JsObject, context: &mut Context) -> JsResult<()> {
         if let Ok(worker_thread_lock) = self.worker_thread.lock() {
@@ -129,8 +129,15 @@ impl Worker {
                         WorkerEvent::Message { data } => {
                             self.dispatch_message_event(worker_obj, data, context)?;
                         }
-                        WorkerEvent::Error { message, filename, lineno, colno } => {
-                            self.dispatch_error_event(worker_obj, message, filename, lineno, colno, context)?;
+                        WorkerEvent::Error {
+                            message,
+                            filename,
+                            lineno,
+                            colno,
+                        } => {
+                            self.dispatch_error_event(
+                                worker_obj, message, filename, lineno, colno, context,
+                            )?;
                         }
                         WorkerEvent::Terminated => {
                             // Worker terminated
@@ -168,7 +175,11 @@ impl Worker {
         // Call onmessage handler if set
         if let Some(handler) = self.onmessage.borrow().as_ref() {
             if handler.is_callable() {
-                let _ = handler.call(&JsValue::from(worker_obj.clone()), &[event.clone().into()], context);
+                let _ = handler.call(
+                    &JsValue::from(worker_obj.clone()),
+                    &[event.clone().into()],
+                    context,
+                );
             }
         }
 
@@ -193,7 +204,11 @@ impl Worker {
         // Call onerror handler if set
         if let Some(handler) = self.onerror.borrow().as_ref() {
             if handler.is_callable() {
-                let _ = handler.call(&JsValue::from(worker_obj.clone()), &[error_obj.into()], context);
+                let _ = handler.call(
+                    &JsValue::from(worker_obj.clone()),
+                    &[error_obj.into()],
+                    context,
+                );
             }
         }
 
@@ -211,9 +226,7 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
             .into());
     }
 
-    let script_url_str = script_url
-        .to_string(context)?
-        .to_std_string_escaped();
+    let script_url_str = script_url.to_string(context)?.to_std_string_escaped();
 
     // Validate URL - must be a valid absolute URL per spec
     if url::Url::parse(&script_url_str).is_err() {
@@ -238,9 +251,12 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
     // Set scriptURL property on the worker instance (non-standard but widely supported)
     worker_obj.set(
         js_string!("scriptURL"),
-        JsValue::from(js_string!(worker_obj.downcast_ref::<Worker>()
-            .map(|w| w.script_url.clone())
-            .unwrap_or_default())),
+        JsValue::from(js_string!(
+            worker_obj
+                .downcast_ref::<Worker>()
+                .map(|w| w.script_url.clone())
+                .unwrap_or_default()
+        )),
         false,
         context,
     )?;
@@ -250,11 +266,13 @@ fn worker_constructor(args: &[JsValue], context: &mut Context) -> JsResult<JsVal
 
 /// `Worker.prototype.postMessage(message)`
 fn post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
-        .ok_or_else(|| JsNativeError::typ().with_message("Worker.postMessage called on non-object"))?;
+    let worker_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Worker.postMessage called on non-object")
+    })?;
 
-    let worker = worker_obj.downcast_ref::<Worker>()
-        .ok_or_else(|| JsNativeError::typ().with_message("Worker.postMessage called on wrong type"))?;
+    let worker = worker_obj.downcast_ref::<Worker>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Worker.postMessage called on wrong type")
+    })?;
 
     // Get the message
     let message = args.get_or_undefined(0);
@@ -265,8 +283,11 @@ fn post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     // Send to worker thread
     if let Ok(worker_thread_lock) = worker.worker_thread.lock() {
         if let Some(ref worker_thread) = *worker_thread_lock {
-            worker_thread.send_command(WorkerCommand::PostMessage { message: cloned })
-                .map_err(|e| JsNativeError::error().with_message(format!("Failed to post message: {:?}", e)))?;
+            worker_thread
+                .send_command(WorkerCommand::PostMessage { message: cloned })
+                .map_err(|e| {
+                    JsNativeError::error().with_message(format!("Failed to post message: {:?}", e))
+                })?;
         } else {
             return Err(JsNativeError::error()
                 .with_message("Worker has been terminated")
@@ -279,11 +300,13 @@ fn post_message(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
 
 /// `Worker.prototype.terminate()`
 fn terminate(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
-        .ok_or_else(|| JsNativeError::typ().with_message("Worker.terminate called on non-object"))?;
+    let worker_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("Worker.terminate called on non-object")
+    })?;
 
-    let worker = worker_obj.downcast_ref::<Worker>()
-        .ok_or_else(|| JsNativeError::typ().with_message("Worker.terminate called on wrong type"))?;
+    let worker = worker_obj.downcast_ref::<Worker>().ok_or_else(|| {
+        JsNativeError::typ().with_message("Worker.terminate called on wrong type")
+    })?;
 
     // Terminate the worker
     if let Ok(mut worker_thread_lock) = worker.worker_thread.lock() {
@@ -367,15 +390,13 @@ impl BuiltInConstructor for WorkerConstructor {
 }
 
 /// Getter for onmessage
-fn get_onmessage(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
+fn get_onmessage(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let worker_obj = this
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("get onmessage called on non-object"))?;
 
-    let worker = worker_obj.downcast_ref::<Worker>()
+    let worker = worker_obj
+        .downcast_ref::<Worker>()
         .ok_or_else(|| JsNativeError::typ().with_message("get onmessage called on wrong type"))?;
 
     let handler = worker.onmessage.borrow().clone();
@@ -383,15 +404,13 @@ fn get_onmessage(
 }
 
 /// Setter for onmessage
-fn set_onmessage(
-    this: &JsValue,
-    args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
+fn set_onmessage(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let worker_obj = this
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("set onmessage called on non-object"))?;
 
-    let worker = worker_obj.downcast_ref::<Worker>()
+    let worker = worker_obj
+        .downcast_ref::<Worker>()
         .ok_or_else(|| JsNativeError::typ().with_message("set onmessage called on wrong type"))?;
 
     let handler = args.get_or_undefined(0);
@@ -405,15 +424,13 @@ fn set_onmessage(
 }
 
 /// Getter for onerror
-fn get_onerror(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
+fn get_onerror(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let worker_obj = this
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("get onerror called on non-object"))?;
 
-    let worker = worker_obj.downcast_ref::<Worker>()
+    let worker = worker_obj
+        .downcast_ref::<Worker>()
         .ok_or_else(|| JsNativeError::typ().with_message("get onerror called on wrong type"))?;
 
     let handler = worker.onerror.borrow().clone();
@@ -421,15 +438,13 @@ fn get_onerror(
 }
 
 /// Setter for onerror
-fn set_onerror(
-    this: &JsValue,
-    args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
-    let worker_obj = this.as_object()
+fn set_onerror(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let worker_obj = this
+        .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("set onerror called on non-object"))?;
 
-    let worker = worker_obj.downcast_ref::<Worker>()
+    let worker = worker_obj
+        .downcast_ref::<Worker>()
         .ok_or_else(|| JsNativeError::typ().with_message("set onerror called on wrong type"))?;
 
     let handler = args.get_or_undefined(0);
@@ -450,12 +465,7 @@ pub fn register_worker_api(context: &mut Context) -> JsResult<()> {
     WorkerConstructor::init(context.realm());
     let worker_constructor = WorkerConstructor::get(context.intrinsics());
 
-    global.set(
-        js_string!("Worker"),
-        worker_constructor,
-        false,
-        context,
-    )?;
+    global.set(js_string!("Worker"), worker_constructor, false, context)?;
 
     Ok(())
 }
