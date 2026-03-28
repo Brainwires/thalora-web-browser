@@ -3,10 +3,10 @@
 //! Implementation of WHATWG Shadow DOM CSS scoping algorithms
 //! https://drafts.csswg.org/css-scoping-1/
 
-use crate::dom::{element::ElementData, node::NodeData, shadow::shadow_root::ShadowRootData};
-use boa_engine::{Context, JsNativeError, JsResult, object::JsObject, value::JsValue};
+use crate::dom::{element::ElementData, shadow::shadow_root::ShadowRootData};
+use boa_engine::{Context, JsNativeError, JsResult, object::JsObject};
 use boa_gc::{Finalize, GcRefCell, Trace};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// CSS selector scoping types
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
@@ -192,7 +192,7 @@ impl ShadowCSSScoping {
     fn apply_styles_to_element(
         element: &JsObject,
         rule: &ScopedCSSRule,
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<()> {
         if let Some(element_data) = element.downcast_ref::<ElementData>() {
             let properties = rule.get_properties();
@@ -437,7 +437,7 @@ impl ShadowCSSScoping {
         // Ensure :host selectors are used correctly
         // :host must be at the beginning of compound selectors
 
-        let mut validated = css_text.to_string();
+        let validated = css_text.to_string();
 
         // This is a simplified validation
         // Production would need full CSS parser
@@ -451,11 +451,11 @@ pub struct ShadowCSSCustomProperties;
 
 impl ShadowCSSCustomProperties {
     /// Process CSS custom properties with shadow DOM scoping
-    pub fn process_custom_properties(css_text: &str, shadow_root: &JsObject) -> JsResult<String> {
+    pub fn process_custom_properties(css_text: &str, _shadow_root: &JsObject) -> JsResult<String> {
         // Implementation of CSS custom properties scoping
         // Custom properties inherit across shadow boundaries unless explicitly reset
 
-        let mut processed = css_text.to_string();
+        let processed = css_text.to_string();
 
         // Process --* custom properties
         // These should inherit from the host unless overridden
@@ -467,7 +467,7 @@ impl ShadowCSSCustomProperties {
     pub fn resolve_custom_property(
         property_name: &str,
         shadow_root: &JsObject,
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<Option<String>> {
         // Look up custom property value in shadow tree context
         // If not found, look in host context

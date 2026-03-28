@@ -12,15 +12,14 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{JsObject, internal_methods::get_prototype_from_constructor},
-    property::{Attribute, PropertyDescriptorBuilder},
+    object::JsObject,
+    property::Attribute,
     realm::Realm,
     string::{JsString, StaticJsStrings},
     value::JsValue,
 };
 use boa_gc::GcRefCell;
 use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
 
 /// DocumentFragment data structure for lightweight document containers
 #[derive(Debug, Trace, Finalize, JsData)]

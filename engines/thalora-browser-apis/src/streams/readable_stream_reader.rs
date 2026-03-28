@@ -9,8 +9,6 @@ use boa_engine::{
     builtins::{BuiltInBuilder, promise::Promise},
     js_string,
     object::JsObject,
-    property::Attribute,
-    realm::Realm,
     value::JsValue,
 };
 use boa_gc::{Finalize, Trace};

@@ -4,18 +4,17 @@
 //! https://url.spec.whatwg.org/
 
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{FunctionObjectBuilder, JsObject, internal_methods::get_prototype_from_constructor},
-    property::{Attribute, PropertyDescriptorBuilder},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
 
 // ============================================================================
 // URL

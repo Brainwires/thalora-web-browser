@@ -10,8 +10,7 @@ use crate::dom::{
         shadow_root::{ShadowRootData, ShadowRootMode},
     },
 };
-use boa_engine::{Context, JsNativeError, JsResult, object::JsObject, value::JsValue};
-use boa_gc::{Finalize, GcRefCell, Trace};
+use boa_engine::{Context, JsNativeError, JsResult, object::JsObject};
 use std::collections::HashMap;
 
 /// Declarative Shadow DOM parser for template elements
@@ -471,7 +470,7 @@ impl DeclarativeShadowDOMParser {
 
     /// Process nested declarative shadow roots within content
     fn process_nested_declarative_shadows(
-        parent_shadow_root: &JsObject,
+        _parent_shadow_root: &JsObject,
         content: &str,
         context: &mut Context,
     ) -> JsResult<()> {
@@ -490,7 +489,7 @@ impl DeclarativeShadowDOMParser {
     /// Validate declarative shadow root according to WHATWG rules
     pub fn validate_declarative_shadow_root(
         template_element: &JsObject,
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<bool> {
         // Check if element can have a shadow root (from element validation)
         if let Some(element_data) = template_element.downcast_ref::<ElementData>() {

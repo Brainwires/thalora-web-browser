@@ -51,14 +51,14 @@ pub struct IDBRequest {
 }
 
 unsafe impl Trace for IDBRequest {
-    unsafe fn trace(&self, tracer: &mut boa_gc::Tracer) {
+    unsafe fn trace(&self, tracer: &mut boa_gc::Tracer) { unsafe {
         if let Some(source) = &self.source {
             source.trace(tracer);
         }
         if let Some(transaction) = &self.transaction {
             transaction.trace(tracer);
         }
-    }
+    }}
 
     unsafe fn trace_non_roots(&self) {
         // Trace non-root objects
@@ -505,9 +505,9 @@ pub struct IDBOpenDBRequest {
 }
 
 unsafe impl Trace for IDBOpenDBRequest {
-    unsafe fn trace(&self, tracer: &mut boa_gc::Tracer) {
+    unsafe fn trace(&self, tracer: &mut boa_gc::Tracer) { unsafe {
         self.base.trace(tracer);
-    }
+    }}
 
     unsafe fn trace_non_roots(&self) {}
 

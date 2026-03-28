@@ -19,7 +19,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use crossbeam_channel::{Receiver, Sender, unbounded};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 use url::Url;
 
@@ -299,7 +299,7 @@ impl ServiceWorker {
                             .to_u32(context)? as usize;
                         let mut port_ids = Vec::with_capacity(length);
                         for i in 0..length {
-                            if let Ok(item) = transfer_array.get(i, context) {
+                            if let Ok(_item) = transfer_array.get(i, context) {
                                 // Store a string representation of the transferable
                                 port_ids.push(format!("transfer-{}", i));
                             }

@@ -3,20 +3,17 @@
 //! Handles fetching, parsing, and executing JavaScript files in isolated Worker contexts
 
 use crate::misc::structured_clone::{
-    StructuredCloneValue, TransferList, structured_clone, structured_deserialize,
+    StructuredCloneValue, TransferList, structured_clone,
 };
 use crate::worker::{
-    worker_error::{WorkerError, WorkerErrorHandler, WorkerErrorType, error_helpers},
-    worker_events::{WorkerEvent, WorkerEventType, dispatch_worker_event},
+    worker_error::error_helpers,
     worker_global_scope::{MessageSource, WorkerGlobalScope, WorkerGlobalScopeType, WorkerMessage},
 };
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, JsValue, Source, js_string, module::Module,
+    Context, JsResult, JsValue, Source, module::Module,
     object::JsObject,
 };
-use boa_gc::{Finalize, Trace};
 use std::sync::{Arc, Mutex};
-use tokio::sync::RwLock;
 use url::Url;
 
 /// Worker script execution context
@@ -154,7 +151,7 @@ impl WorkerExecutionContext {
 
         // For now, use the simpler load_link_evaluate approach
         // In a full implementation, we would handle module loading asynchronously
-        let promise = module.load_link_evaluate(&mut worker_context);
+        let _promise = module.load_link_evaluate(&mut worker_context);
 
         // Since we can't easily await JsPromise here, we'll use a simplified approach
         // In a real implementation, this would need proper async handling
@@ -322,7 +319,7 @@ impl WorkerExecutionContext {
         let result = execution_scope.execute_script(&mut worker_context, script_content);
 
         match result {
-            Ok(value) => {
+            Ok(_value) => {
                 eprintln!("Worker script executed successfully in isolated context");
 
                 // Process any pending messages from main thread

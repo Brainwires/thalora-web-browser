@@ -7,7 +7,6 @@
 
 use boa_engine::{
     Context, JsData, JsResult, JsValue, builtins::BuiltInBuilder, js_string, object::JsObject,
-    property::Attribute, string::StaticJsStrings,
 };
 use boa_gc::{Finalize, Trace};
 

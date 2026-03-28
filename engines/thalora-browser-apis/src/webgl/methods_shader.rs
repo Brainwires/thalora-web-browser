@@ -3,10 +3,10 @@
 //! Context initialization methods and shader/program operations.
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
+    Context, JsArgs, JsObject, JsValue, NativeFunction, js_string,
 };
 
-use super::context::{WebGLRenderingContextData, get_object_id, get_parameter};
+use super::context::{get_object_id, get_parameter};
 use super::shader::{WebGLProgram, WebGLShader};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;

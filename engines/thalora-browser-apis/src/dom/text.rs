@@ -10,8 +10,8 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{JsObject, internal_methods::get_prototype_from_constructor},
-    property::{Attribute, PropertyDescriptorBuilder},
+    object::JsObject,
+    property::Attribute,
     realm::Realm,
     string::{JsString, StaticJsStrings},
     value::JsValue,
@@ -212,8 +212,8 @@ impl TextData {
     /// Delegate to CharacterData methods
     fn get_data_accessor(
         this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
+        _args: &[JsValue],
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
         let this_obj = this
             .as_object()
@@ -252,8 +252,8 @@ impl TextData {
 
     fn get_length_accessor(
         this: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
+        _args: &[JsValue],
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
         let this_obj = this
             .as_object()

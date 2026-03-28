@@ -8,15 +8,14 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    native_function::NativeFunction,
-    object::{FunctionObjectBuilder, JsObject, internal_methods::get_prototype_from_constructor},
+    object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use image::{DynamicImage, GenericImageView, ImageFormat};
+use image::GenericImageView;
 use std::sync::{Arc, Mutex};
 
 /// Image loading state

@@ -151,8 +151,8 @@ impl IDBKey {
 
         if is_typed_array {
             // For typed arrays, use the buffer property and byteOffset
-            let buffer = obj.get(js_string!("buffer"), context).ok()?;
-            let byte_offset = obj
+            let _buffer = obj.get(js_string!("buffer"), context).ok()?;
+            let _byte_offset = obj
                 .get(js_string!("byteOffset"), context)
                 .ok()?
                 .as_number()

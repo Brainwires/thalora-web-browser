@@ -21,16 +21,12 @@ use boa_gc::{Finalize, Trace};
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU32, Ordering},
     },
 };
 use tokio::sync::Mutex as TokioMutex;
-use webrtc::{
-    ice_transport::ice_candidate::RTCIceCandidate,
-    ice_transport::ice_candidate_type::RTCIceCandidateType,
-    ice_transport::ice_protocol::RTCIceProtocol,
-};
+use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 
 /// RTCIceCandidate initialization dictionary
 #[derive(Debug, Clone)]

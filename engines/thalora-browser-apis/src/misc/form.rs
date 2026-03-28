@@ -3037,7 +3037,7 @@ impl BuiltInConstructor for HTMLOptionElement {
             context,
         )?;
 
-        let mut option = HTMLOptionElement::new();
+        let option = HTMLOptionElement::new();
 
         // Optional constructor arguments: text, value, defaultSelected, selected
         if let Some(text_arg) = args.get(0) {

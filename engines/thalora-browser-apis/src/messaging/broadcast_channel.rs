@@ -20,7 +20,7 @@ use boa_gc::{Finalize, Trace};
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 /// Global registry for BroadcastChannel instances
 /// Stores weak references to all active channels, grouped by channel name

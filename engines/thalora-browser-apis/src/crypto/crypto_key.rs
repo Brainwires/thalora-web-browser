@@ -10,8 +10,8 @@
 use std::sync::Arc;
 
 use boa_engine::{
-    Context, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
-    object::ObjectInitializer, property::Attribute,
+    Context, JsData, JsNativeError, JsObject, JsResult, JsValue, js_string,
+    object::ObjectInitializer,
 };
 use boa_gc::{Finalize, Trace};
 use zeroize::Zeroizing;

@@ -10,7 +10,7 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    object::JsObject,
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,

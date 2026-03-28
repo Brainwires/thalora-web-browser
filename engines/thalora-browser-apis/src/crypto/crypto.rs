@@ -109,7 +109,6 @@ impl Crypto {
         let mut random_bytes = vec![0u8; byte_length as usize];
 
         #[cfg(all(
-            feature = "js",
             target_family = "wasm",
             not(any(target_os = "emscripten", target_os = "wasi"))
         ))]
@@ -119,7 +118,6 @@ impl Crypto {
                     .with_message("Failed to execute 'getRandomValues' on 'Crypto': Unable to generate random values."))?;
         }
         #[cfg(not(all(
-            feature = "js",
             target_family = "wasm",
             not(any(target_os = "emscripten", target_os = "wasi"))
         )))]
@@ -201,7 +199,6 @@ impl Crypto {
         let mut bytes = [0u8; 16];
 
         #[cfg(all(
-            feature = "js",
             target_family = "wasm",
             not(any(target_os = "emscripten", target_os = "wasi"))
         ))]
@@ -213,7 +210,6 @@ impl Crypto {
             })?;
         }
         #[cfg(not(all(
-            feature = "js",
             target_family = "wasm",
             not(any(target_os = "emscripten", target_os = "wasi"))
         )))]

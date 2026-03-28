@@ -69,20 +69,20 @@ impl IntrinsicObject for Window {
         //     .name(js_string!("get indexedDB"))
         //     .build();
 
-        let get_selection_func = BuiltInBuilder::callable(realm, get_selection)
+        let _get_selection_func = BuiltInBuilder::callable(realm, get_selection)
             .name(js_string!("getSelection"))
             .build();
 
         // File System API functions
-        let show_open_file_picker_func = BuiltInBuilder::callable(realm, show_open_file_picker)
+        let _show_open_file_picker_func = BuiltInBuilder::callable(realm, show_open_file_picker)
             .name(js_string!("showOpenFilePicker"))
             .build();
 
-        let show_save_file_picker_func = BuiltInBuilder::callable(realm, show_save_file_picker)
+        let _show_save_file_picker_func = BuiltInBuilder::callable(realm, show_save_file_picker)
             .name(js_string!("showSaveFilePicker"))
             .build();
 
-        let show_directory_picker_func = BuiltInBuilder::callable(realm, show_directory_picker)
+        let _show_directory_picker_func = BuiltInBuilder::callable(realm, show_directory_picker)
             .name(js_string!("showDirectoryPicker"))
             .build();
 

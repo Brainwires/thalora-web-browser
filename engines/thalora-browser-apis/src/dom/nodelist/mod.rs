@@ -407,7 +407,7 @@ impl NodeList {
         Ok(JsValue::undefined())
     }
 
-    fn keys(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn keys(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeList.keys called on non-object")
         })?;
@@ -427,7 +427,7 @@ impl NodeList {
         Ok(array.into())
     }
 
-    fn values(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn values(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeList.values called on non-object")
         })?;
@@ -447,7 +447,7 @@ impl NodeList {
         Ok(array.into())
     }
 
-    fn entries(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn entries(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("NodeList.entries called on non-object")
         })?;

@@ -26,7 +26,7 @@ impl DOMTokenListData {
         Self { element }
     }
 
-    fn class_name(&self, context: &mut Context) -> Option<String> {
+    fn class_name(&self, _context: &mut Context) -> Option<String> {
         if let Some(ed) = self.element.downcast_ref::<ElementData>() {
             Some(ed.get_class_name())
         } else {
@@ -35,7 +35,7 @@ impl DOMTokenListData {
     }
 
     fn set_class_name(&self, value: String) {
-        if let Some(mut ed) = self.element.downcast_mut::<ElementData>() {
+        if let Some(ed) = self.element.downcast_mut::<ElementData>() {
             ed.set_class_name(value);
         }
     }
@@ -221,27 +221,27 @@ impl DOMTokenList {
 
 impl IntrinsicObject for DOMTokenList {
     fn init(realm: &Realm) {
-        let contains_func = BuiltInBuilder::callable(realm, Self::contains)
+        let _contains_func = BuiltInBuilder::callable(realm, Self::contains)
             .name(js_string!("contains"))
             .length(1)
             .build();
 
-        let add_func = BuiltInBuilder::callable(realm, Self::add)
+        let _add_func = BuiltInBuilder::callable(realm, Self::add)
             .name(js_string!("add"))
             .length(1)
             .build();
 
-        let remove_func = BuiltInBuilder::callable(realm, Self::remove)
+        let _remove_func = BuiltInBuilder::callable(realm, Self::remove)
             .name(js_string!("remove"))
             .length(1)
             .build();
 
-        let toggle_func = BuiltInBuilder::callable(realm, Self::toggle)
+        let _toggle_func = BuiltInBuilder::callable(realm, Self::toggle)
             .name(js_string!("toggle"))
             .length(1)
             .build();
 
-        let item_func = BuiltInBuilder::callable(realm, Self::item)
+        let _item_func = BuiltInBuilder::callable(realm, Self::item)
             .name(js_string!("item"))
             .length(1)
             .build();

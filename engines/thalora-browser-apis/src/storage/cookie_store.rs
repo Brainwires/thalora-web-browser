@@ -15,7 +15,6 @@ use boa_engine::{
     context::intrinsics::Intrinsics,
     js_string,
     object::{JsObject, JsPromise},
-    property::Attribute,
     realm::Realm,
 };
 use boa_gc::{Finalize, Trace};
@@ -294,7 +293,7 @@ impl CookieStore {
 
     /// `cookieStore.getAll(name)` or `cookieStore.getAll(options)`
     /// Returns a Promise that resolves to an array of cookie objects
-    fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn get_all(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         let obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("'this' is not a CookieStore object")
         })?;

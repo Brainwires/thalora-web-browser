@@ -192,7 +192,7 @@ impl Performance {
 impl IntrinsicObject for Performance {
     fn init(realm: &Realm) {
         // Performance builtin initialization
-        let performance_obj = BuiltInBuilder::with_intrinsic::<Self>(realm)
+        let _performance_obj = BuiltInBuilder::with_intrinsic::<Self>(realm)
             .static_method(Self::now, js_string!("now"), 0)
             .static_method(Self::mark, js_string!("mark"), 1)
             .static_method(Self::measure, js_string!("measure"), 3)
@@ -232,9 +232,9 @@ impl BuiltInConstructor for Performance {
         StandardConstructors::performance;
 
     fn constructor(
-        new_target: &JsValue,
-        args: &[JsValue],
-        context: &mut Context,
+        _new_target: &JsValue,
+        _args: &[JsValue],
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
         // Performance constructor is not meant to be called directly
         Ok(JsValue::undefined())

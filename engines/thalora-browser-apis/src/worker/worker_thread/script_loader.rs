@@ -1,8 +1,7 @@
 //! Script loading utilities for worker threads
 
-use boa_engine::{Context, JsNativeError, JsResult, JsValue, Source};
+use boa_engine::{Context, JsNativeError, JsResult, JsValue};
 use std::sync::Arc;
-use url::Url;
 
 use crate::worker::worker_global_scope::WorkerGlobalScope;
 

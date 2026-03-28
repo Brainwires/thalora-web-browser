@@ -5,12 +5,10 @@
 
 use crate::dom::{
     element::ElementData,
-    node::NodeData,
     shadow::{html_slot_element::HTMLSlotElementData, shadow_root::ShadowRootData},
 };
-use boa_engine::{Context, JsResult, object::JsObject, value::JsValue};
+use boa_engine::object::JsObject;
 use boa_gc::{Finalize, Trace};
-use std::collections::{HashSet, VecDeque};
 
 /// Shadow-including tree traversal order types
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]

@@ -6,6 +6,8 @@
 // (passed to BuiltInBuilder::callable()) but the compiler doesn't detect them as "used".
 // Additionally, some stub implementations for WASM exist for API compatibility.
 #![allow(dead_code)]
+#![allow(unreachable_pub)]
+#![allow(unused_qualifications)]
 
 // Re-export Boa engine types needed for API bindings
 pub use boa_engine;

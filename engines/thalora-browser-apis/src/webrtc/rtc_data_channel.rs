@@ -13,7 +13,7 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    object::{JsObject, internal_methods::get_prototype_from_constructor},
+    object::JsObject,
     property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
@@ -23,7 +23,7 @@ use bytes::Bytes;
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU32, Ordering},
     },
 };
@@ -235,7 +235,7 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
                 .name(js_string!("get bufferedAmountLowThreshold"))
                 .build();
 
-        let set_buffered_amount_low_threshold =
+        let _set_buffered_amount_low_threshold =
             BuiltInBuilder::callable(realm, Self::set_buffered_amount_low_threshold)
                 .name(js_string!("set bufferedAmountLowThreshold"))
                 .build();
@@ -244,7 +244,7 @@ impl IntrinsicObject for RTCDataChannelBuiltin {
             .name(js_string!("get binaryType"))
             .build();
 
-        let set_binary_type = BuiltInBuilder::callable(realm, Self::set_binary_type)
+        let _set_binary_type = BuiltInBuilder::callable(realm, Self::set_binary_type)
             .name(js_string!("set binaryType"))
             .build();
 
@@ -317,7 +317,7 @@ impl BuiltInConstructor for RTCDataChannelBuiltin {
     fn constructor(
         _new_target: &JsValue,
         _args: &[JsValue],
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
         Err(JsNativeError::typ()
             .with_message("RTCDataChannel constructor cannot be called directly")
@@ -481,7 +481,7 @@ impl RTCDataChannelBuiltin {
             JsNativeError::typ().with_message("RTCDataChannel method called on non-object")
         })?;
 
-        let data = obj.downcast_ref::<RTCDataChannelData>().ok_or_else(|| {
+        let _data = obj.downcast_ref::<RTCDataChannelData>().ok_or_else(|| {
             JsNativeError::typ().with_message("RTCDataChannel method called on wrong object type")
         })?;
 
@@ -594,7 +594,7 @@ impl RTCDataChannelBuiltin {
             JsNativeError::typ().with_message("RTCDataChannel method called on wrong object type")
         })?;
 
-        if let Some(channel) = data.channel() {
+        if let Some(_channel) = data.channel() {
             // Close the data channel
             // Real implementation would use: channel.close().await;
             // For now, just log the operation
@@ -620,7 +620,7 @@ impl RTCDataChannelBuiltin {
 
         let message_data = args.get_or_undefined(0);
 
-        if let Some(channel) = data.channel() {
+        if let Some(_channel) = data.channel() {
             // Convert JavaScript value to bytes
             let bytes = if message_data.is_string() {
                 let string_data = message_data.to_string(context)?;

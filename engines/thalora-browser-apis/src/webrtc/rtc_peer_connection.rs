@@ -22,14 +22,14 @@ use boa_gc::{Finalize, Trace};
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU32, Ordering},
     },
 };
 use tokio::sync::Mutex as TokioMutex;
 use webrtc::{
     api::{
-        API, APIBuilder, interceptor_registry::register_default_interceptors,
+        APIBuilder, interceptor_registry::register_default_interceptors,
         media_engine::MediaEngine,
     },
     data_channel::RTCDataChannel,
@@ -38,7 +38,6 @@ use webrtc::{
     peer_connection::{
         RTCPeerConnection, configuration::RTCConfiguration,
         peer_connection_state::RTCPeerConnectionState,
-        sdp::session_description::RTCSessionDescription,
     },
 };
 

@@ -21,7 +21,7 @@ use boa_gc::{Finalize, Trace};
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU32, Ordering},
     },
 };

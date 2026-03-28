@@ -12,7 +12,6 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     error::JsNativeError,
     js_string,
-    native_function::NativeFunction,
     object::{JsObject, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
@@ -23,7 +22,6 @@ use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use reqwest::Client;
 use std::{
-    collections::HashMap,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU32, Ordering},

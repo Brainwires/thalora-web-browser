@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
+    Context, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
     object::{FunctionObjectBuilder, ObjectInitializer},
     realm::Realm,
 };

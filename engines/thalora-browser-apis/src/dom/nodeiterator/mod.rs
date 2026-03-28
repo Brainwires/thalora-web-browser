@@ -4,7 +4,7 @@
 //! https://dom.spec.whatwg.org/#interface-nodeiterator
 
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsValue,
+    Context, JsData, JsNativeError, JsResult, JsValue,
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,

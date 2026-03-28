@@ -9,14 +9,13 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{JsObject, internal_methods::get_prototype_from_constructor},
-    property::{Attribute, PropertyDescriptorBuilder},
+    object::JsObject,
+    property::Attribute,
     realm::Realm,
     string::{JsString, StaticJsStrings},
     value::JsValue,
 };
 use boa_gc::{Finalize, GcRefCell, Trace};
-use std::collections::{HashMap, VecDeque};
 
 /// HTMLSlotElement data structure implementing the slot assignment algorithm
 #[derive(Debug, Trace, Finalize, JsData)]
@@ -92,7 +91,7 @@ impl HTMLSlotElementData {
         self.assigned_nodes
             .borrow()
             .iter()
-            .filter(|node| {
+            .filter(|_node| {
                 // In a full implementation, check if node is an Element
                 // For now, assume all assigned nodes are elements
                 true
@@ -133,7 +132,7 @@ impl HTMLSlotElementData {
     }
 
     /// Check if a node is slottable
-    fn is_slottable(&self, node: &JsObject) -> bool {
+    fn is_slottable(&self, _node: &JsObject) -> bool {
         // Per WHATWG spec: Elements and Text nodes are slottable
         // For now, assume all nodes are slottable (simplified)
         true
@@ -355,7 +354,7 @@ impl HTMLSlotElementData {
     }
 
     /// `HTMLSlotElement.prototype.assign(...nodes)` (for manual slot assignment)
-    fn assign(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn assign(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let this_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("HTMLSlotElement.assign called on non-object")
         })?;

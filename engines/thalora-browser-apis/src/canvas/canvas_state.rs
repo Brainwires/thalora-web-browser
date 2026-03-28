@@ -2,7 +2,6 @@
 //!
 //! Manages the drawing state including transforms, styles, and clipping regions.
 
-use std::sync::{Arc, Mutex};
 use tiny_skia::{
     Color, FillRule, LineCap, LineJoin, Paint, Path, PathBuilder, Pixmap, Stroke, Transform,
 };

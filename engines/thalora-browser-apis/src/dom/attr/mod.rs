@@ -12,7 +12,7 @@ use boa_engine::{
     object::JsObject,
     property::Attribute,
     realm::Realm,
-    string::{JsString, StaticJsStrings},
+    string::JsString,
 };
 use boa_gc::{Finalize, GcRefCell, Trace};
 

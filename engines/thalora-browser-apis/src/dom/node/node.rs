@@ -11,13 +11,12 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{JsObject, internal_methods::get_prototype_from_constructor},
-    property::{Attribute, PropertyDescriptorBuilder},
+    property::Attribute,
     realm::Realm,
     string::{JsString, StaticJsStrings},
     value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// Node types as defined by the DOM specification
@@ -147,7 +146,7 @@ impl NodeData {
 
     /// Create a new NodeData with specified type and name
     pub fn with_name(node_type: NodeType, name: String) -> Self {
-        let mut node = Self::new(node_type);
+        let node = Self::new(node_type);
         *node.node_name.lock().unwrap() = name;
         node
     }
@@ -436,7 +435,7 @@ impl BuiltInConstructor for NodeData {
                 .into());
         }
 
-        let prototype =
+        let _prototype =
             get_prototype_from_constructor(new_target, StandardConstructors::node, context)?;
 
         // Abstract interface - cannot be constructed directly
@@ -1260,12 +1259,12 @@ impl NodeData {
             return Ok(JsValue::from(0u32));
         }
 
-        let this_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        let _this_node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.compareDocumentPosition called on non-Node object")
         })?;
 
-        let other_node = other_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        let _other_node = other_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("Node.compareDocumentPosition: other is not a Node object")
         })?;
@@ -1463,7 +1462,7 @@ impl NodeData {
             return Ok(JsValue::null());
         }
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.lookupPrefix called on non-Node object")
         })?;
 
@@ -1473,7 +1472,7 @@ impl NodeData {
             if let Some(current_node) = current_obj.downcast_ref::<NodeData>() {
                 // For Element nodes, check xmlns: attributes
                 if current_node.get_node_type() == NodeType::Element {
-                    let node_name = current_node.get_node_name();
+                    let _node_name = current_node.get_node_name();
                     // Check if this element declares the namespace with a prefix
                     // In a real implementation, we'd check attributes like xmlns:prefix="namespace"
                     // For now, check common prefixes based on namespace
@@ -1801,7 +1800,7 @@ impl NodeData {
             JsNativeError::typ().with_message("Node.getRootNode called on non-object")
         })?;
 
-        let node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
+        let _node = this_obj.downcast_ref::<NodeData>().ok_or_else(|| {
             JsNativeError::typ().with_message("Node.getRootNode called on non-Node object")
         })?;
 

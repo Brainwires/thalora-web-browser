@@ -25,48 +25,48 @@ pub struct Css;
 
 impl IntrinsicObject for Css {
     fn init(realm: &Realm) {
-        let supports_func = BuiltInBuilder::callable(realm, supports)
+        let _supports_func = BuiltInBuilder::callable(realm, supports)
             .name(js_string!("supports"))
             .length(1)
             .build();
 
-        let register_property_func = BuiltInBuilder::callable(realm, register_property)
+        let _register_property_func = BuiltInBuilder::callable(realm, register_property)
             .name(js_string!("registerProperty"))
             .length(1)
             .build();
 
         // CSS unit constructors
-        let number_func = BuiltInBuilder::callable(realm, css_number)
+        let _number_func = BuiltInBuilder::callable(realm, css_number)
             .name(js_string!("number"))
             .length(1)
             .build();
 
-        let px_func = BuiltInBuilder::callable(realm, css_px)
+        let _px_func = BuiltInBuilder::callable(realm, css_px)
             .name(js_string!("px"))
             .length(1)
             .build();
 
-        let percent_func = BuiltInBuilder::callable(realm, css_percent)
+        let _percent_func = BuiltInBuilder::callable(realm, css_percent)
             .name(js_string!("percent"))
             .length(1)
             .build();
 
-        let em_func = BuiltInBuilder::callable(realm, css_em)
+        let _em_func = BuiltInBuilder::callable(realm, css_em)
             .name(js_string!("em"))
             .length(1)
             .build();
 
-        let rem_func = BuiltInBuilder::callable(realm, css_rem)
+        let _rem_func = BuiltInBuilder::callable(realm, css_rem)
             .name(js_string!("rem"))
             .length(1)
             .build();
 
-        let vw_func = BuiltInBuilder::callable(realm, css_vw)
+        let _vw_func = BuiltInBuilder::callable(realm, css_vw)
             .name(js_string!("vw"))
             .length(1)
             .build();
 
-        let vh_func = BuiltInBuilder::callable(realm, css_vh)
+        let _vh_func = BuiltInBuilder::callable(realm, css_vh)
             .name(js_string!("vh"))
             .length(1)
             .build();

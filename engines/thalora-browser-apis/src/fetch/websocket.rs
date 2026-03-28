@@ -306,7 +306,7 @@ impl WebSocket {
                                     .to_string();
 
                                 let (write, read) = ws_stream.split();
-                                let stream_write = Arc::new(Mutex::new(write));
+                                let _stream_write = Arc::new(Mutex::new(write));
                                 let stream_read = Arc::new(Mutex::new(read));
 
                                 // Update connection state and queue open event

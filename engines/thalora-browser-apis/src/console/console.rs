@@ -6,7 +6,7 @@
 //! This implements the complete Console interface for debugging and logging
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, JsValue, NativeFunction, js_string,
+    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string,
     object::ObjectInitializer,
 };
 use once_cell::sync::Lazy;
@@ -169,7 +169,7 @@ impl Console {
     }
 
     /// console.assert()
-    fn assert(_: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn assert(_: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let condition = args.get_or_undefined(0).to_boolean();
         if !condition {
             let message = Self::format_args(&args[1..]);

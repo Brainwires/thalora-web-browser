@@ -160,7 +160,7 @@ impl SelectionData {
 
     /// Add range to selection with FrameSelection integration
     fn add_range(&mut self, range: JsValue) -> JsResult<()> {
-        use boa_engine::JsNativeError;
+        
 
         // Clear existing ranges (Selection API typically supports only one range)
         self.ranges.clear();
@@ -729,7 +729,7 @@ fn modify(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     let direction = args.get_or_undefined(1).to_string(context)?;
     let granularity = args.get_or_undefined(2).to_string(context)?;
 
-    if let Some(selection_data) = this_obj.downcast_ref::<SelectionData>() {
+    if let Some(_selection_data) = this_obj.downcast_ref::<SelectionData>() {
         // In a real implementation, this would use FrameSelection to modify the selection
         // based on the alter ("move", "extend"), direction ("forward", "backward", etc.),
         // and granularity ("character", "word", "sentence", "line", etc.)
@@ -897,7 +897,7 @@ fn delete_from_document(
 }
 
 /// Check if the selection contains the specified node.
-fn contains_node(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn contains_node(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Selection method called on non-object")
     })?;

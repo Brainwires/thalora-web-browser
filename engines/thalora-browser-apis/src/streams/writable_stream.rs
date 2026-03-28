@@ -294,7 +294,7 @@ impl WritableStreamDefaultWriter {
                 .with_message("WritableStreamDefaultWriter.prototype.abort called on non-object")
         })?;
 
-        let reason = args.get_or_undefined(0);
+        let _reason = args.get_or_undefined(0);
 
         if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
             if let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>() {
@@ -556,7 +556,7 @@ struct WritableStreamData {
 impl WritableStreamData {
     fn new(underlying_sink: JsValue, queuing_strategy: JsValue) -> Self {
         // Extract high water mark from queuing strategy
-        let high_water_mark = if let Some(strategy_obj) = queuing_strategy.as_object() {
+        let high_water_mark = if let Some(_strategy_obj) = queuing_strategy.as_object() {
             // Try to get highWaterMark property - simplified for now
             1.0 // Default high water mark
         } else {

@@ -10,7 +10,6 @@ use boa_engine::{
     js_string,
     object::JsObject,
     property::Attribute,
-    property::PropertyDescriptorBuilder,
     realm::Realm,
     string::JsString,
 };

@@ -9,8 +9,8 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
-    object::{JsObject, internal_methods::get_prototype_from_constructor},
-    property::{Attribute, PropertyDescriptorBuilder},
+    object::JsObject,
+    property::Attribute,
     realm::Realm,
     string::{JsString, StaticJsStrings},
     value::JsValue,
@@ -190,7 +190,7 @@ impl ShadowRootData {
     }
 
     /// Set style isolation flag
-    pub fn set_style_isolated(&self, isolated: bool) {
+    pub fn set_style_isolated(&self, _isolated: bool) {
         // This would be stored in a field if needed for implementation
         // For now, shadow roots are always style-isolated per spec
     }
@@ -546,7 +546,7 @@ impl ShadowRoot {
 
         // Manually install properties using the ShadowRoot constructor logic
         // This ensures the properties are available even if prototype setup is incomplete
-        use boa_engine::property::{Attribute, PropertyDescriptorBuilder};
+        use boa_engine::property::PropertyDescriptorBuilder;
 
         let mode_get_func =
             BuiltInBuilder::callable(context.realm(), ShadowRootData::get_mode_accessor)
@@ -750,9 +750,9 @@ impl BuiltInConstructor for ShadowRoot {
         StandardConstructors::shadow_root;
 
     fn constructor(
-        new_target: &JsValue,
+        _new_target: &JsValue,
         _args: &[JsValue],
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
         // ShadowRoot constructor should not be called directly
         // ShadowRoot instances are created through Element.attachShadow()

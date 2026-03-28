@@ -29,10 +29,9 @@ use boa_engine::{
     builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::Intrinsics,
     js_string,
-    object::{CONSTRUCTOR, JsPromise, PROTOTYPE},
-    property::{Attribute, PropertyDescriptor, PropertyDescriptorBuilder},
+    object::JsPromise,
+    property::PropertyDescriptor,
     string::StaticJsStrings,
-    value::TryFromJs,
 };
 use boa_gc::{Finalize, Trace, Tracer};
 

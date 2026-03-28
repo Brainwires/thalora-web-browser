@@ -259,7 +259,7 @@ impl BuiltInConstructor for AudioContext {
 
 // === Property Getters ===
 
-fn get_state(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn get_state(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this = _this
         .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an AudioContext"))?;
@@ -860,7 +860,7 @@ fn create_audio_param(
 
 // === Node Methods ===
 
-fn node_connect(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn node_connect(_this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let _destination = args.get_or_undefined(0);
     // In a real implementation, this would establish the audio connection
     // For now, just return the destination for chaining

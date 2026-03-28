@@ -433,7 +433,7 @@ impl IDBCursor {
             JsNativeError::typ().with_message("'this' is not an IDBCursor object")
         })?;
 
-        let cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
+        let _cursor = obj.downcast_ref::<IDBCursor>().ok_or_else(|| {
             JsNativeError::typ().with_message("'this' is not an IDBCursor object")
         })?;
 

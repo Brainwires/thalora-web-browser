@@ -308,7 +308,7 @@ fn convert_to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
     let _options = args.get(0);
 
     // Get the image data and create a promise
-    if let Some((_width, _height, data)) = canvas_data.get_image_data() {
+    if let Some((_width, _height, _data)) = canvas_data.get_image_data() {
         // Create the pixel data
         let state = canvas_data.state.lock().unwrap();
         if let Some(ref s) = *state {

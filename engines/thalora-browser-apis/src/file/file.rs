@@ -16,7 +16,6 @@ use boa_engine::{
     value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// JavaScript `File` constructor implementation.

@@ -7,7 +7,6 @@
 use super::key::IDBKey;
 use super::key_range::IDBKeyRange;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 pub mod memory;
 

@@ -13,7 +13,7 @@ use boa_engine::{
         FunctionObjectBuilder, JsObject, builtins::JsUint8Array,
         internal_methods::get_prototype_from_constructor,
     },
-    property::{Attribute, PropertyDescriptorBuilder},
+    property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
@@ -306,7 +306,7 @@ pub struct TextDecoderData {
 fn get_decoder_encoding(
     this: &JsValue,
     _args: &[JsValue],
-    context: &mut Context,
+    _context: &mut Context,
 ) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("TextDecoder.prototype.encoding called on non-object")

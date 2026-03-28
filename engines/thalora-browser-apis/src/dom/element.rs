@@ -558,7 +558,7 @@ impl ElementData {
     }
 
     pub fn with_tag_name(tag_name: String) -> Self {
-        let mut data = Self::new();
+        let data = Self::new();
         *data.tag_name.lock().unwrap() = tag_name;
         data
     }
@@ -730,7 +730,7 @@ impl ElementData {
         // but then we were overwriting the ENTIRE document with just that element's HTML.
 
         // Get access to the Document's HTML content through the global sync
-        let dom_sync = GLOBAL_DOM_SYNC.get_or_init(|| DomSync::new());
+        let _dom_sync = GLOBAL_DOM_SYNC.get_or_init(|| DomSync::new());
 
         // Instead of overwriting the entire document with just this element,
         // we need to tell the document that this specific element has changed.
@@ -1539,8 +1539,8 @@ fn get_style(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResu
 
     for property in css_properties {
         // Create getter for this property
-        let prop_name = property.replace("-", "_"); // Convert kebab-case to snake_case for JS
-        let property_copy = property.to_string();
+        let _prop_name = property.replace("-", "_"); // Convert kebab-case to snake_case for JS
+        let _property_copy = property.to_string();
 
         // This would need proper closure binding in real implementation
         // For now, return empty style object
@@ -2078,7 +2078,7 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 // ============================================================================
 
 /// `Element.prototype.insertBefore(newNode, referenceNode)`
-fn insert_before(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn insert_before(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.insertBefore called on non-object")
     })?;
@@ -2113,7 +2113,7 @@ fn insert_before(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 }
 
 /// `Element.prototype.replaceChild(newChild, oldChild)`
-fn replace_child(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+fn replace_child(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("Element.prototype.replaceChild called on non-object")
     })?;

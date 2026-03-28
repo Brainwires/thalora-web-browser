@@ -10,7 +10,6 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
-    property::Attribute,
     realm::Realm,
     string::{JsString, StaticJsStrings},
 };

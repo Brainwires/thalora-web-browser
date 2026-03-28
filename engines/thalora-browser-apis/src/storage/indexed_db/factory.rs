@@ -15,7 +15,6 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor},
     js_string,
     object::JsObject,
-    property::Attribute,
     realm::Realm,
 };
 use boa_gc::{Finalize, Trace};

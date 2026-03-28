@@ -6,14 +6,13 @@
 //! The ServiceWorkerContainer provides the main entry point for service worker
 //! registration and management via navigator.serviceWorker
 
-use crate::events::event_target::EventTarget;
 use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
-    builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
+    builtins::{BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{JsObject, ObjectInitializer},
-    property::{Attribute, PropertyDescriptor},
+    property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
@@ -21,8 +20,6 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::sync::Mutex as AsyncMutex;
-use url::Url;
 
 /// JavaScript `ServiceWorkerContainer` builtin implementation.
 #[derive(Debug, Copy, Clone)]

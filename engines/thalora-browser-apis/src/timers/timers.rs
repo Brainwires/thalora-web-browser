@@ -6,7 +6,7 @@
 //! This implements the complete Timer interface with basic synchronous scheduling
 
 use boa_engine::{
-    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string, object::ObjectInitializer,
+    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string,
 };
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -125,7 +125,7 @@ impl Timers {
     fn request_animation_frame(
         _: &JsValue,
         args: &[JsValue],
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<JsValue> {
         // requestAnimationFrame is essentially setTimeout with ~16ms delay
         // In headless mode, we just schedule it like a timer

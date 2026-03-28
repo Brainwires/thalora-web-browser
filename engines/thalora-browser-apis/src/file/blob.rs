@@ -5,24 +5,21 @@
 //!
 //! This implements the complete Blob interface with real binary data handling
 
-use crate::streams::readable_stream::{ReadableStreamData, StreamState};
+use crate::streams::readable_stream::StreamState;
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
+    Context, JsData, JsNativeError, JsResult, JsString,
     builtins::{
         BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject,
-        promise::PromiseCapability,
     },
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
-    property::Attribute,
     realm::Realm,
     value::{IntegerOrInfinity, JsValue},
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::{sync::mpsc, thread};
 
 /// Simple start function for blob streams
 fn start_stream(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {

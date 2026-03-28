@@ -3,8 +3,7 @@
 //! Implements the synchronous script loading mechanism for workers as defined in:
 //! https://html.spec.whatwg.org/multipage/workers.html#dom-workerglobalscope-importscripts
 
-use boa_engine::{Context, JsNativeError, JsResult, JsValue, Source, js_string};
-use std::sync::Arc;
+use boa_engine::{Context, JsNativeError, JsResult, JsValue, Source};
 use std::time::Duration;
 use url::Url;
 

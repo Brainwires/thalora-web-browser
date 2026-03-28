@@ -5,7 +5,7 @@
 use boa_engine::{Context, JsArgs, JsObject, JsValue, NativeFunction, js_string};
 
 use super::buffer::VertexAttribArray;
-use super::context2::{MAX_VERTEX_ATTRIBS, WebGLVertexArrayObject, get_object_id};
+use super::context2::{WebGLVertexArrayObject, get_object_id};
 use crate::with_webgl2_context;
 
 /// Add VAO methods

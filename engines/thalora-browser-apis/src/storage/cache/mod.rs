@@ -9,17 +9,16 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{JsObject, builtins::JsPromise},
-    property::Attribute,
     realm::Realm,
     string::JsString,
 };
-use boa_gc::{Finalize, GcRefCell, Trace};
+use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// Internal cache entry storing request/response pairs
 #[derive(Debug, Clone)]
-struct CacheEntry {
+pub struct CacheEntry {
     url: String,
     body: Vec<u8>,
     headers: HashMap<String, String>,

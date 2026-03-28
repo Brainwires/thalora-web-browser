@@ -127,7 +127,7 @@ impl Navigator {
 
 impl IntrinsicObject for Navigator {
     fn init(realm: &Realm) {
-        let locks_getter_func = BuiltInBuilder::callable(realm, Self::locks_getter)
+        let _locks_getter_func = BuiltInBuilder::callable(realm, Self::locks_getter)
             .name(js_string!("get locks"))
             .build();
 

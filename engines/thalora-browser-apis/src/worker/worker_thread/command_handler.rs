@@ -1,12 +1,11 @@
 //! Command handling for worker threads
 
-use boa_engine::{Context, JsNativeError, JsResult, JsValue};
+use boa_engine::{Context, JsNativeError, JsResult};
 use crossbeam_channel::Sender;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::types::{WorkerCommand, WorkerEvent, WorkerStatus};
-use crate::misc::structured_clone::structured_deserialize;
 use crate::worker::worker_global_scope::WorkerGlobalScope;
 
 /// Handle a command from the main thread

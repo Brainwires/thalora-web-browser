@@ -6,7 +6,7 @@
 //! Note: Thalora is a HEADLESS browser - GUI-related APIs (alert, confirm,
 //! visual rendering, etc.) are intentionally stubbed or omitted.
 
-use crate::boa_engine::{Context, JsValue, Source};
+use crate::boa_engine::{Context, Source};
 use std::collections::HashMap;
 
 /// API priority for coverage tracking

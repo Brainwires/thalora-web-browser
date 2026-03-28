@@ -7,7 +7,7 @@
 
 use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string,
-    object::{FunctionObjectBuilder, JsObject, ObjectInitializer},
+    object::ObjectInitializer,
     property::Attribute,
     value::JsValue,
 };

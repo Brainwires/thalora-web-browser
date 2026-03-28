@@ -8,7 +8,7 @@ use crate::dom::{
     shadow::{html_slot_element::HTMLSlotElementData, shadow_root::ShadowRootData},
 };
 use crate::events::event::EventData;
-use boa_engine::{Context, JsNativeError, JsResult, js_string, object::JsObject, value::JsValue};
+use boa_engine::{Context, JsResult, object::JsObject, value::JsValue};
 use boa_gc::{Finalize, GcRefCell, Trace};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -19,7 +19,7 @@ impl SlotChangeEventSystem {
     /// Fire slotchange event on affected slots after slot assignment changes
     /// This implements the WHATWG algorithm for signaling slot changes
     pub fn signal_slot_change(slot: &JsObject, context: &mut Context) -> JsResult<()> {
-        if let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>() {
+        if let Some(_slot_data) = slot.downcast_ref::<HTMLSlotElementData>() {
             // Check if the slot is connected (has a root)
             if !Self::is_slot_connected(slot) {
                 return Ok(());
@@ -124,14 +124,14 @@ impl SlotChangeEventSystem {
     }
 
     /// Get slotchange event queue from context
-    fn get_slotchange_event_queue(context: &mut Context) -> VecDeque<JsObject> {
+    fn get_slotchange_event_queue(_context: &mut Context) -> VecDeque<JsObject> {
         // In a real implementation, this would be stored in the context
         // For now, return empty queue
         VecDeque::new()
     }
 
     /// Set slotchange event queue in context
-    fn set_slotchange_event_queue(context: &mut Context, queue: VecDeque<JsObject>) {
+    fn set_slotchange_event_queue(_context: &mut Context, _queue: VecDeque<JsObject>) {
         // In a real implementation, this would store the queue in the context
         // For now, this is a no-op
     }
@@ -187,7 +187,7 @@ impl SlotChangeEventSystem {
     fn perform_slot_assignment(
         shadow_root: &JsObject,
         slots: &[JsObject],
-        context: &mut Context,
+        _context: &mut Context,
     ) -> JsResult<()> {
         if let Some(shadow_data) = shadow_root.downcast_ref::<ShadowRootData>() {
             let slottables = shadow_data.get_slottables();
@@ -316,7 +316,7 @@ impl SlotChangeEventSystem {
 
     /// Handle slot attribute changes
     pub fn handle_slot_attribute_change(
-        slottable: &JsObject,
+        _slottable: &JsObject,
         old_value: Option<String>,
         new_value: Option<String>,
         shadow_root: &JsObject,
@@ -501,7 +501,7 @@ impl SlotMutationObserver {
 
     /// Find slots affected by attribute changes
     fn find_slots_affected_by_attribute_change(
-        element: &JsObject,
+        _element: &JsObject,
         shadow_root: &JsObject,
     ) -> Vec<JsObject> {
         // This would need to check both old and new slot assignments

@@ -3,12 +3,11 @@
 use boa_engine::builtins::{BuiltInConstructor, BuiltInObject, IntrinsicObject};
 use boa_engine::context::intrinsics::StandardConstructor;
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue, NativeFunction,
+    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, JsValue,
     builtins::BuiltInBuilder,
     context::intrinsics::Intrinsics,
     js_string,
     object::{JsObject, JsPromise},
-    property::Attribute,
     realm::Realm,
 };
 use boa_gc::{Finalize, Trace};

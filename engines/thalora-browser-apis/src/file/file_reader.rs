@@ -20,8 +20,6 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::thread;
-use std::time::Duration;
 
 /// FileReader ready states
 #[derive(Debug, Clone, PartialEq, Trace, Finalize)]

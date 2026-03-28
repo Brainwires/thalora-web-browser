@@ -449,8 +449,8 @@ impl DocumentData {
     /// Add form metadata that can be used when creating form elements in JavaScript
     fn add_form_metadata(&self, form_id: String, inputs: Vec<(String, String, String)>) {
         // Create an HTMLFormElement with proper elements collection
-        use crate::misc::form::{HTMLFormControlsCollection, HTMLFormElement, HTMLInputElement};
-        use boa_engine::{Context, js_string, object::ObjectInitializer};
+        
+        
 
         // For now, store the metadata - we'll need a context to create the actual objects
         // This processing happens at document level so all forms are known before JavaScript queries them
@@ -712,7 +712,7 @@ fn create_element(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         )?;
 
         // Add getAttribute method that Google's code uses
-        let get_attribute_func = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+        let get_attribute_func = BuiltInBuilder::callable(context.realm(), |_this, args, ctx| {
             let attr_name = args.get_or_undefined(0).to_string(ctx)?;
             let attr_name_str = attr_name.to_std_string_escaped();
 
@@ -1080,7 +1080,7 @@ fn create_real_element_from_html(
 
                 // Add getAttribute method that Google's code needs
                 let get_attribute_func =
-                    BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
+                    BuiltInBuilder::callable(context.realm(), |_this, args, ctx| {
                         let attr_name = args.get_or_undefined(0).to_string(ctx)?;
                         let attr_name_str = attr_name.to_std_string_escaped();
 
@@ -1926,7 +1926,7 @@ fn create_node_iterator(
 
 /// Canvas `getContext(contextType)` method implementation
 fn canvas_get_context(
-    this: &JsValue,
+    _this: &JsValue,
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
@@ -2152,7 +2152,7 @@ fn canvas_get_context(
 
 /// Canvas `toDataURL(type, quality)` method implementation
 fn canvas_to_data_url(
-    this: &JsValue,
+    _this: &JsValue,
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {

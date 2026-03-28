@@ -139,7 +139,7 @@ impl ResizeObserver {
     }
 
     /// `ResizeObserver.prototype.unobserve()` method
-    fn unobserve(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+    fn unobserve(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
         let observer_obj = this.as_object().ok_or_else(|| {
             JsNativeError::typ().with_message("ResizeObserver.unobserve called on non-object")
         })?;

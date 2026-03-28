@@ -3,11 +3,10 @@
 //! Drawing operations and state management.
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
-    object::builtins::JsArrayBuffer, property::Attribute,
+    Context, JsArgs, JsObject, JsValue, NativeFunction, js_string,
+    object::builtins::JsArrayBuffer,
 };
 
-use super::context::{WebGLRenderingContextData, get_object_id};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;
 

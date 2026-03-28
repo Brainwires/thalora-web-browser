@@ -6,16 +6,12 @@
 use crate::misc::structured_clone::{
     StructuredCloneValue, TransferList, structured_clone, structured_deserialize,
 };
-use crate::worker::{
-    worker_events::{WorkerEvent, dispatch_worker_event},
-    worker_navigator::WorkerNavigator,
-};
+use crate::worker::worker_navigator::WorkerNavigator;
 use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, JsValue, Source,
     builtins::BuiltInBuilder,
     js_string,
     object::{JsObject, JsPromise},
-    property::{Attribute, PropertyDescriptorBuilder},
 };
 use boa_gc::{Finalize, Trace};
 use crossbeam_channel::{Receiver, Sender, unbounded};
@@ -192,8 +188,8 @@ impl WorkerGlobalScope {
     /// Add base WorkerGlobalScope APIs
     fn add_worker_global_scope_apis(&self, context: &mut Context) -> JsResult<()> {
         let global = context.global_object();
-        let closing = self.closing.clone();
-        let main_sender = self.main_thread_sender.clone();
+        let _closing = self.closing.clone();
+        let _main_sender = self.main_thread_sender.clone();
 
         // Add postMessage function
         let post_message_func = BuiltInBuilder::callable(context.realm(), Self::post_message_impl)
@@ -693,11 +689,11 @@ impl WorkerGlobalScope {
                 // Add decode method
                 let decode_func = BuiltInBuilder::callable(
                     context.realm(),
-                    |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                    |_this: &JsValue, args: &[JsValue], _context: &mut Context| {
                         let input = args.get_or_undefined(0);
 
                         // Try to get bytes from TypedArray
-                        if let Some(obj) = input.as_object() {
+                        if let Some(_obj) = input.as_object() {
                             // For now, simplified - would need proper TypedArray handling
                             Ok(js_string!("").into())
                         } else {
@@ -819,7 +815,7 @@ impl WorkerGlobalScope {
                 }
 
                 // Queue the microtask via Boa's job queue
-                context.run_jobs();
+                let _ = context.run_jobs();
 
                 // For now, execute immediately as a simplified implementation
                 // Real implementation would queue to event loop
@@ -980,7 +976,7 @@ impl WorkerGlobalScope {
         let origin = match message.source {
             MessageSource::MainThread => Some("main"),
             MessageSource::Worker => Some("worker"),
-            MessageSource::SharedWorkerPort(ref port_name) => Some("sharedworker"),
+            MessageSource::SharedWorkerPort(_port_name) => Some("sharedworker"),
         };
 
         // Create MessagePort array from transferred port identifiers

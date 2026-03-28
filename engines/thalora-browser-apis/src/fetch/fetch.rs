@@ -12,7 +12,7 @@ use boa_engine::{
     job::NativeAsyncJob,
     js_string,
     object::{
-        JsObject, PROTOTYPE, builtins::JsPromise, internal_methods::get_prototype_from_constructor,
+        JsObject, builtins::JsPromise, internal_methods::get_prototype_from_constructor,
     },
     property::Attribute,
     realm::Realm,
@@ -307,7 +307,7 @@ impl BuiltInConstructor for Request {
         }
 
         let input = args.get_or_undefined(0);
-        let init = args.get_or_undefined(1);
+        let _init = args.get_or_undefined(1);
 
         // Parse URL
         let url = input.to_string(context)?.to_std_string_escaped();

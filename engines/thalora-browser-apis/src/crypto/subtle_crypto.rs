@@ -280,7 +280,6 @@ impl SubtleCrypto {
         match named_curve {
             "P-256" => {
                 use p256::ecdsa::SigningKey;
-                use p256::elliptic_curve::sec1::ToEncodedPoint;
 
                 let signing_key = SigningKey::random(&mut rand::thread_rng());
                 let verifying_key = signing_key.verifying_key();
@@ -296,7 +295,6 @@ impl SubtleCrypto {
             }
             "P-384" => {
                 use p384::ecdsa::SigningKey;
-                use p384::elliptic_curve::sec1::ToEncodedPoint;
 
                 let signing_key = SigningKey::random(&mut rand::thread_rng());
                 let verifying_key = signing_key.verifying_key();
@@ -1044,7 +1042,7 @@ impl SubtleCrypto {
     }
 
     fn ecdsa_sign(key: &CryptoKeyData, curve: &str, data: &[u8]) -> JsResult<Vec<u8>> {
-        use sha2::{Digest, Sha256, Sha384};
+        
 
         let d = match &key.material {
             KeyMaterial::EcPrivate { d, .. } => d.as_ref().as_slice(),
@@ -1542,7 +1540,7 @@ impl SubtleCrypto {
         };
 
         // Get byteOffset if present
-        let byte_offset = obj
+        let _byte_offset = obj
             .get(js_string!("byteOffset"), context)
             .unwrap_or(JsValue::from(0))
             .to_u32(context)

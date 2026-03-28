@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use boa_engine::{
     Context, JsData, JsNativeError, JsObject, JsResult, JsValue, NativeFunction, js_string,
-    object::{FunctionObjectBuilder, Object, ObjectInitializer},
+    object::{FunctionObjectBuilder, ObjectInitializer},
     realm::Realm,
 };
 use boa_gc::{Finalize, Trace};

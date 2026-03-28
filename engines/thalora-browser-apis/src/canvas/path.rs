@@ -9,7 +9,6 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{JsObject, internal_methods::get_prototype_from_constructor},
-    property::Attribute,
     realm::Realm,
     string::StaticJsStrings,
     value::JsValue,
@@ -427,7 +426,7 @@ fn add_path(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResul
 
             // For now, we'll just copy the path operations
             // A full implementation would merge the path builders
-            this_data.with_inner(|data| {
+            this_data.with_inner(|_data| {
                 // Copy the other path's builder
                 let other_builder = other.builder;
                 if let Some(path) = other_builder.finish() {

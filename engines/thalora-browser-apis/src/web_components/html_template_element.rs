@@ -7,19 +7,14 @@
 //! https://html.spec.whatwg.org/multipage/scripting.html#the-template-element
 
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString, NativeFunction,
-    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
-    context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction,
     js_string,
     object::{
-        FunctionObjectBuilder, JsObject, ObjectInitializer,
-        internal_methods::get_prototype_from_constructor,
+        FunctionObjectBuilder, ObjectInitializer,
     },
     property::Attribute,
-    realm::Realm,
     value::JsValue,
 };
-use boa_gc::{Finalize, Trace};
 
 /// JavaScript `HTMLTemplateElement` implementation.
 #[derive(Debug, Copy, Clone)]
@@ -253,7 +248,7 @@ impl HTMLTemplateElement {
 
     /// cloneNode for document fragment
     fn fragment_clone_node(
-        this: &JsValue,
+        _this: &JsValue,
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
