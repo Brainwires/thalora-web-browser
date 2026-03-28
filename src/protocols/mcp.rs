@@ -1,178 +1,55 @@
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "method")]
-pub enum McpRequest {
-    #[serde(rename = "initialize")]
-    Initialize {
-        #[serde(default)]
-        params: Value,
-    },
-    #[serde(rename = "tools/list")]
-    ListTools,
-    #[serde(rename = "tools/call")]
-    CallTool {
-        #[serde(rename = "params")]
-        params: ToolCall,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "method")]
-pub enum McpNotification {
-    #[serde(rename = "notifications/cancelled")]
-    Cancelled {
-        #[serde(default)]
-        params: Value,
-    },
-    #[serde(rename = "notifications/initialized")]
-    Initialized {
-        #[serde(default)]
-        params: Value,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ToolCall {
-    pub name: String,
-    pub arguments: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InitializeResult {
-    #[serde(rename = "protocolVersion")]
-    pub protocol_version: String,
-    pub capabilities: Value,
-    #[serde(rename = "serverInfo")]
-    pub server_info: Value,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum McpResponse {
-    Initialize {
-        result: InitializeResult,
-    },
-    ListTools {
-        result: ListToolsResult,
-    },
-    ToolResult {
-        content: Vec<Value>,
-        #[serde(rename = "isError")]
-        is_error: bool,
-    },
-    Error {
-        error: String,
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ListToolsResult {
-    pub tools: Vec<Value>,
+/// Internal tool response type used by all MCP handler code.
+///
+/// `McpResponse` is our own struct so that handler files compile without any
+/// knowledge of rmcp types and without naming collisions.  When the
+/// `http-transport` feature is enabled, `service.rs` converts `McpResponse`
+/// into rmcp's `CallToolResult` via the `From` impl at the bottom.
+#[derive(Debug)]
+pub struct McpResponse {
+    pub content: Vec<serde_json::Value>,
+    pub is_error: bool,
 }
 
 impl McpResponse {
-    /// Construct a success response wrapping arbitrary JSON value(s).
-    /// Many call sites expect a `success` helper taking a `serde_json::Value`.
-    pub fn success(value: Value) -> Self {
-        // Try to normalize into ToolResult when possible (array or single value)
-        if value.is_array() {
-            // from_value consumes, so clone to preserve original for fallback.
-            if let Ok(vec) = serde_json::from_value::<Vec<Value>>(value.clone()) {
-                return McpResponse::ToolResult {
-                    content: vec,
-                    is_error: false,
-                };
-            }
-        }
-
-        // Otherwise wrap the single value into a ToolResult.content
-        McpResponse::ToolResult {
-            content: vec![value],
-            is_error: false,
-        }
+    /// Create a successful response wrapping `value`.
+    /// If `value` is a JSON array each element becomes a content item;
+    /// otherwise the value is wrapped in a single-element list.
+    pub fn success(value: serde_json::Value) -> Self {
+        let content = if let Some(arr) = value.as_array() {
+            arr.clone()
+        } else {
+            vec![value]
+        };
+        Self { content, is_error: false }
     }
 
-    /// Construct an error response. The code is currently ignored by the enum shape
-    /// but callers pass an int and message; we'll include message in `Error`.
+    /// Create an error response with a human-readable `message`.
+    /// The `_code` parameter is accepted for API compatibility but unused —
+    /// the MCP spec communicates errors via `is_error: true` in the result.
     pub fn error(_code: i32, message: String) -> Self {
-        McpResponse::Error { error: message }
+        Self {
+            content: vec![serde_json::json!({"type": "text", "text": message})],
+            is_error: true,
+        }
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct McpMessage {
-    pub jsonrpc: String,
-    pub id: Option<Value>,
-    #[serde(flatten)]
-    pub content: McpMessageContent,
-}
-
-// Custom serializer to properly wrap ToolResult and Error in "result" field
-impl Serialize for McpMessage {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeMap;
-        let mut map = serializer.serialize_map(None)?;
-
-        map.serialize_entry("jsonrpc", &self.jsonrpc)?;
-        if let Some(ref id) = self.id {
-            map.serialize_entry("id", id)?;
+/// Convert our internal `McpResponse` to rmcp's `CallToolResult` at the
+/// service boundary.  This is the single point where internal types are
+/// bridged to the rmcp wire format.
+#[cfg(feature = "http-transport")]
+impl From<McpResponse> for rmcp::model::CallToolResult {
+    fn from(r: McpResponse) -> Self {
+        use rmcp::model::Content;
+        let content: Vec<Content> = r
+            .content
+            .into_iter()
+            .filter_map(|v| serde_json::from_value(v).ok())
+            .collect();
+        if r.is_error {
+            Self::error(content)
+        } else {
+            Self::success(content)
         }
-
-        // Handle response wrapping
-        match &self.content {
-            McpMessageContent::Response(response) => {
-                match response {
-                    McpResponse::Initialize { result } => {
-                        map.serialize_entry("result", result)?;
-                    }
-                    McpResponse::ListTools { result } => {
-                        map.serialize_entry("result", result)?;
-                    }
-                    McpResponse::ToolResult { content, is_error } => {
-                        // Wrap ToolResult fields in a "result" object
-                        let result_obj = serde_json::json!({
-                            "content": content,
-                            "isError": is_error
-                        });
-                        map.serialize_entry("result", &result_obj)?;
-                    }
-                    McpResponse::Error { error } => {
-                        // Wrap error string in proper error object
-                        let error_obj = serde_json::json!({
-                            "code": -1,
-                            "message": error
-                        });
-                        map.serialize_entry("error", &error_obj)?;
-                    }
-                }
-            }
-            McpMessageContent::Request(_) => {
-                // Requests use flatten normally
-                return Err(serde::ser::Error::custom(
-                    "Cannot serialize requests in McpMessage",
-                ));
-            }
-        }
-
-        map.end()
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum McpMessageContent {
-    Request(McpRequest),
-    Response(McpResponse),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ToolResult {
-    pub content: Vec<Value>,
-    #[serde(rename = "isError")]
-    pub is_error: bool,
 }

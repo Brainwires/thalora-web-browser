@@ -2,7 +2,7 @@ use chrono::Utc;
 use serde_json::Value;
 
 use crate::features::ai_memory::{AiMemoryHeap, ResearchEntry};
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use crate::protocols::security::{MAX_CONTENT_LENGTH, MAX_KEY_LENGTH, limit_input_length};
 
 /// Handle storing research data in AI memory
@@ -10,73 +10,37 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
     let key = match args.get("key").and_then(|v| v.as_str()) {
         Some(key) => key,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: key"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: key".to_string());
         }
     };
 
     // SECURITY: Validate key length to prevent DoS attacks
     if let Err(e) = limit_input_length(key, MAX_KEY_LENGTH, "Research key") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let topic = match args.get("topic").and_then(|v| v.as_str()) {
         Some(topic) => topic,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: topic"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: topic".to_string());
         }
     };
 
     // SECURITY: Validate topic length
     if let Err(e) = limit_input_length(topic, MAX_CONTENT_LENGTH, "Topic") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let summary = match args.get("summary").and_then(|v| v.as_str()) {
         Some(summary) => summary,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: summary"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: summary".to_string());
         }
     };
 
     // SECURITY: Validate summary length
     if let Err(e) = limit_input_length(summary, MAX_CONTENT_LENGTH, "Summary") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let findings = args
@@ -137,19 +101,10 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
     };
 
     match ai_memory.store_research(key, research_entry) {
-        Ok(_) => McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Research entry '{}' stored successfully in AI memory heap", key)
-            })],
-            is_error: false,
-        },
-        Err(e) => McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Failed to store research entry: {}", e)
-            })],
-            is_error: true,
-        },
+        Ok(_) => McpResponse::success(serde_json::json!({
+            "type": "text",
+            "text": format!("Research entry '{}' stored successfully in AI memory heap", key)
+        })),
+        Err(e) => McpResponse::error(-1, format!("Failed to store research entry: {}", e)),
     }
 }

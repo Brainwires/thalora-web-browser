@@ -3,14 +3,10 @@ use futures::FutureExt;
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
-use tracing::{error, info, trace};
+use tracing::{error, info};
 use vfs::VfsInstance;
 
 use crate::engine::browser::HeadlessWebBrowser;
-use crate::protocols::mcp::{
-    InitializeResult, McpMessage, McpMessageContent, McpNotification, McpRequest, McpResponse,
-};
 // websocket API is now natively implemented in Boa engine
 // DOM is now natively handled by Boa engine
 use crate::engine::EngineConfig;
@@ -196,209 +192,29 @@ impl McpServer {
         self.session_manager.shutdown().await;
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        let stdin = tokio::io::stdin();
-        let mut reader = AsyncBufReader::new(stdin);
-        let mut stdout = tokio::io::stdout();
+    /// Run the MCP server over stdio using rmcp.
+    ///
+    /// Uses `tokio::task::LocalSet` so the `!Send` boa engine (`Rc`-based) is safe.
+    #[cfg(feature = "http-transport")]
+    pub async fn run(self) -> Result<()> {
+        use rmcp::ServiceExt;
+        use crate::protocols::mcp_server::service::McpServerService;
 
-        // Configure idle timeout - if no input received for this duration, exit gracefully
-        // Default: 5 minutes, can be overridden with THALORA_IDLE_TIMEOUT_SECS env var
-        let idle_timeout_secs = std::env::var("THALORA_IDLE_TIMEOUT_SECS")
-            .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(300); // 5 minutes default
-
-        let idle_timeout = std::time::Duration::from_secs(idle_timeout_secs);
-
-        trace!(
-            "MCP Server starting stdio loop (idle timeout: {}s)",
-            idle_timeout_secs
-        );
-
-        loop {
-            trace!("Waiting for input...");
-            let mut line = String::new();
-
-            // Use timeout on the read operation to prevent hanging forever
-            let read_result = tokio::time::timeout(idle_timeout, reader.read_line(&mut line)).await;
-
-            match read_result {
-                Ok(Ok(0)) => {
-                    trace!("EOF received, shutting down");
-                    break;
-                }
-                Ok(Err(e)) => {
-                    error!("Failed to read from stdin: {}", e);
-                    break;
-                }
-                Err(_) => {
-                    // Timeout occurred - no input received for idle_timeout duration
-                    trace!(
-                        "Idle timeout reached ({}s with no input), shutting down",
-                        idle_timeout_secs
-                    );
-                    eprintln!(
-                        "⏱️ MCP Server idle timeout reached ({}s), shutting down gracefully",
-                        idle_timeout_secs
-                    );
-                    break;
-                }
-                Ok(Ok(n)) => {
-                    trace!("Read {} bytes from stdin", n);
-                    let line = line.trim();
-                    if line.is_empty() {
-                        trace!("Empty line, continuing");
-                        continue;
-                    }
-
-                    trace!("Parsing JSON: {}", line);
-
-                    // First, check if this is a notification (no 'id' field) or a request (has 'id' field)
-                    let parsed: serde_json::Value = match serde_json::from_str(line) {
-                        Ok(v) => {
-                            trace!("JSON parsed successfully");
-                            v
-                        }
-                        Err(e) => {
-                            error!("Failed to parse JSON: {}", e);
-                            continue;
-                        }
-                    };
-
-                    // Check if this is a request (has non-null id) or notification (no id or null id)
-                    let request_id = parsed.get("id").filter(|id| !id.is_null());
-
-                    if let Some(request_id) = request_id {
-                        trace!("Handling request with id: {}", request_id);
-                        // This is a request - parse as McpRequest and send response
-                        match serde_json::from_value::<McpRequest>(parsed.clone()) {
-                            Ok(request) => {
-                                trace!("Request parsed, calling handler");
-                                let response = AssertUnwindSafe(self.handle_request(request))
-                                    .catch_unwind()
-                                    .await
-                                    .unwrap_or_else(|payload| {
-                                        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
-                                            s.to_string()
-                                        } else if let Some(s) = payload.downcast_ref::<String>() {
-                                            s.clone()
-                                        } else {
-                                            "unknown panic".to_string()
-                                        };
-                                        eprintln!("PANIC caught in request handler: {}", msg);
-                                        McpResponse::error(
-                                            -32603,
-                                            format!("Internal server error: {}", msg),
-                                        )
-                                    });
-                                trace!("Handler returned, preparing response");
-
-                                // Wrap response in proper JSON-RPC 2.0 format
-                                let message = McpMessage {
-                                    jsonrpc: "2.0".to_string(),
-                                    id: Some(request_id.clone()),
-                                    content: McpMessageContent::Response(response),
-                                };
-
-                                trace!("Serializing response");
-                                let response_json = serde_json::to_string(&message)?;
-                                trace!("Writing response to stdout: {} bytes", response_json.len());
-                                stdout.write_all(response_json.as_bytes()).await?;
-                                stdout.write_all(b"\n").await?;
-                                trace!("Flushing stdout");
-                                stdout.flush().await?;
-                                trace!("Response sent successfully");
-                            }
-                            Err(e) => {
-                                error!("Failed to parse request: {}", e);
-
-                                // Send a JSON-RPC error response to stdout for invalid methods
-                                let error_response = McpResponse::Error {
-                                    error: format!("Invalid method or malformed request: {}", e),
-                                };
-
-                                // Wrap error in proper JSON-RPC 2.0 format
-                                let message = McpMessage {
-                                    jsonrpc: "2.0".to_string(),
-                                    id: Some(request_id.clone()),
-                                    content: McpMessageContent::Response(error_response),
-                                };
-
-                                let response_json = serde_json::to_string(&message)?;
-                                stdout.write_all(response_json.as_bytes()).await?;
-                                stdout.write_all(b"\n").await?;
-                                stdout.flush().await?;
-                            }
-                        }
-                    } else {
-                        // This is a notification - parse as McpNotification and handle without response
-                        match serde_json::from_value::<McpNotification>(parsed) {
-                            Ok(notification) => {
-                                self.handle_notification(notification).await;
-                                // Notifications don't require responses
-                            }
-                            Err(e) => {
-                                error!("Failed to parse notification: {}", e);
-                                // For notifications, we don't send error responses
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Cleanup all sessions before shutting down
-        self.cleanup().await;
-        Ok(())
-    }
-
-    pub(super) async fn handle_request(&mut self, request: McpRequest) -> McpResponse {
-        info!("Handling request: {:?}", request);
-
-        match request {
-            McpRequest::Initialize { .. } => {
-                let result = InitializeResult {
-                    protocol_version: "2024-11-05".to_string(),
-                    capabilities: serde_json::json!({
-                        "tools": {}
-                    }),
-                    server_info: serde_json::json!({
-                        "name": "thalora-mcp-server",
-                        "version": "1.0.0"
-                    }),
-                };
-                McpResponse::Initialize { result }
-            }
-            McpRequest::ListTools => {
-                use crate::protocols::mcp::ListToolsResult;
-                McpResponse::ListTools {
-                    result: ListToolsResult {
-                        tools: self.get_tool_definitions(),
-                    },
-                }
-            }
-            McpRequest::CallTool { params } => {
-                let tool_name = params.name;
-                let arguments = params.arguments;
-                self.call_tool(tool_name.to_string(), arguments).await
-            }
-        }
-    }
-
-    pub(super) async fn handle_notification(&mut self, notification: McpNotification) {
-        info!("Handling notification: {:?}", notification);
-
-        match notification {
-            McpNotification::Cancelled { .. } => {
-                // Handle cancellation notification
-                // For now, we just log it - in a more complex implementation
-                // we might track and cancel ongoing operations
-                info!("Received cancellation notification");
-            }
-            McpNotification::Initialized { .. } => {
-                // Handle initialization complete notification
-                info!("Received initialization notification");
-            }
-        }
+        let local = tokio::task::LocalSet::new();
+        let service = McpServerService::new(self);
+        let (stdin, stdout) = rmcp::transport::io::stdio();
+        local
+            .run_until(async move {
+                let running = service
+                    .serve((stdin, stdout))
+                    .await
+                    .map_err(|e| anyhow::anyhow!("MCP server error: {e}"))?;
+                running
+                    .waiting()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("MCP server wait error: {e}"))?;
+                Ok(())
+            })
+            .await
     }
 }

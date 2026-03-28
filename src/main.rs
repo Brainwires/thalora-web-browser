@@ -96,6 +96,18 @@ enum Commands {
         /// Equivalent to setting THALORA_PRESET=brainclaw.
         #[arg(long = "brainclaw", help = "Enable BrainClaw preset (scraping + search + sessions + CDP + agent-friendly aliases)")]
         brainclaw: bool,
+
+        /// Transport: 'stdio' (default) or 'http'
+        #[arg(long = "transport", default_value = "stdio")]
+        transport: String,
+
+        /// Host to bind to (HTTP transport only)
+        #[arg(long = "host", default_value = "0.0.0.0")]
+        host: String,
+
+        /// Port to listen on (HTTP transport only)
+        #[arg(long = "port", default_value_t = 8080u16)]
+        port: u16,
     },
     /// Run as browser session process
     Session {
@@ -179,29 +191,44 @@ async fn main() -> Result<()> {
             // Run as display server
             run_display_server(host, port).await
         }
-        Some(Commands::Server { mcp_mode, brainclaw }) => {
+        Some(Commands::Server { mcp_mode, brainclaw, transport, host, port }) => {
             // Run as MCP server with specified mode
             // SAFETY: This is called at program startup before any threads are spawned
             unsafe { std::env::set_var("THALORA_MCP_MODE", &mcp_mode) };
             if brainclaw {
                 // SAFETY: called at startup before any threads are spawned
                 unsafe { std::env::set_var("THALORA_PRESET", "brainclaw") };
-                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset]", mcp_mode);
+                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [BrainClaw preset] [{transport}]", mcp_mode);
             } else {
-                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
+                eprintln!("🚀 Starting Thalora MCP Server in '{}' mode [{transport}]", mcp_mode);
             }
 
-            let mut server = McpServer::new_with_engine(engine_config);
+            if transport == "http" {
+                #[cfg(feature = "http-transport")]
+                {
+                    tokio::select! {
+                        result = protocols::mcp_server::http_transport::run_http_transport(engine_config, host, port) => result,
+                        _ = shutdown_signal => {
+                            eprintln!("🛑 MCP Server received shutdown signal");
+                            Ok(())
+                        }
+                    }
+                }
+                #[cfg(not(feature = "http-transport"))]
+                {
+                    anyhow::bail!("HTTP transport not compiled in (missing http-transport feature)")
+                }
+            } else {
+                let server = McpServer::new_with_engine(engine_config);
 
-            // Run server with signal handling
-            tokio::select! {
-                result = server.run() => result,
-                _ = shutdown_signal => {
-                    eprintln!("🛑 MCP Server received shutdown signal, cleaning up...");
-                    request_shutdown();
-                    server.cleanup().await;
-                    eprintln!("✅ MCP Server shutdown complete");
-                    Ok(())
+                // Run server with signal handling
+                tokio::select! {
+                    result = server.run() => result,
+                    _ = shutdown_signal => {
+                        eprintln!("🛑 MCP Server received shutdown signal");
+                        request_shutdown();
+                        Ok(())
+                    }
                 }
             }
         }
@@ -219,16 +246,14 @@ async fn main() -> Result<()> {
                 eprintln!("🚀 Starting Thalora MCP Server in '{}' mode", mcp_mode);
             }
 
-            let mut server = McpServer::new_with_engine(engine_config);
+            let server = McpServer::new_with_engine(engine_config);
 
             // Run server with signal handling
             tokio::select! {
                 result = server.run() => result,
                 _ = shutdown_signal => {
-                    eprintln!("🛑 MCP Server received shutdown signal, cleaning up...");
+                    eprintln!("🛑 MCP Server received shutdown signal");
                     request_shutdown();
-                    server.cleanup().await;
-                    eprintln!("✅ MCP Server shutdown complete");
                     Ok(())
                 }
             }

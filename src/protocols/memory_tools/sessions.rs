@@ -1,33 +1,21 @@
 use serde_json::Value;
 
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 
 /// Handle starting a new session in AI memory
 pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> McpResponse {
     let session_id = match args.get("session_id").and_then(|v| v.as_str()) {
         Some(session_id) => session_id,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: session_id"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: session_id".to_string());
         }
     };
 
     let description = match args.get("description").and_then(|v| v.as_str()) {
         Some(description) => description,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: description"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: description".to_string());
         }
     };
 
@@ -42,20 +30,11 @@ pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> 
         .unwrap_or_else(Vec::new);
 
     match ai_memory.start_session(session_id, description, objectives) {
-        Ok(_) => McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Session '{}' started successfully in AI memory heap", session_id)
-            })],
-            is_error: false,
-        },
-        Err(e) => McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Failed to start session: {}", e)
-            })],
-            is_error: true,
-        },
+        Ok(_) => McpResponse::success(serde_json::json!({
+            "type": "text",
+            "text": format!("Session '{}' started successfully in AI memory heap", session_id)
+        })),
+        Err(e) => McpResponse::error(-1, format!("Failed to start session: {}", e)),
     }
 }
 
@@ -64,13 +43,7 @@ pub async fn handle_update_session(args: Value, ai_memory: &mut AiMemoryHeap) ->
     let session_id = match args.get("session_id").and_then(|v| v.as_str()) {
         Some(session_id) => session_id,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: session_id"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: session_id".to_string());
         }
     };
 
@@ -81,37 +54,19 @@ pub async fn handle_update_session(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 progress_key,
                 progress_value.clone(),
             ) {
-                Ok(_) => McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("Session '{}' progress updated: {} = {:?}", session_id, progress_key, progress_value)
-                    })],
-                    is_error: false,
-                },
-                Err(e) => McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("Failed to update session progress: {}", e)
-                    })],
-                    is_error: true,
-                },
+                Ok(_) => McpResponse::success(serde_json::json!({
+                    "type": "text",
+                    "text": format!("Session '{}' progress updated: {} = {:?}", session_id, progress_key, progress_value)
+                })),
+                Err(e) => McpResponse::error(-1, format!("Failed to update session progress: {}", e)),
             }
         } else {
-            McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: progress_value"
-                })],
-                is_error: true,
-            }
+            McpResponse::error(-1, "Missing required parameter: progress_value".to_string())
         }
     } else {
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": "No progress_key provided - no updates made"
-            })],
-            is_error: false,
-        }
+        McpResponse::success(serde_json::json!({
+            "type": "text",
+            "text": "No progress_key provided - no updates made"
+        }))
     }
 }

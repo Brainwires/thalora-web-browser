@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use crate::protocols::security::validate_cookie;
 use serde_json::Value;
 
@@ -26,37 +26,19 @@ impl NetworkTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Network domain enable failed: {:?}", response.error)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP Network domain enable failed: {:?}", response.error))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "CDP Network domain enabled successfully"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "CDP Network domain enabled successfully"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "CDP Network domain enabled"
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Network domain enable error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": "CDP Network domain enabled"
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP Network domain enable error: {}", e)),
         }
     }
 
@@ -68,13 +50,7 @@ impl NetworkTools {
         let request_id = match args.get("request_id").and_then(|v| v.as_str()) {
             Some(id) => id,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: request_id"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: request_id".to_string());
             }
         };
 
@@ -90,45 +66,24 @@ impl NetworkTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Response body retrieval failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP Response body retrieval failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Response body for request {}: {}", request_id, result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Response body for request {}: {}", request_id, result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Response body for request {} retrieved", request_id)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Response body for request {} retrieved", request_id)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Response body for request {} retrieved", request_id)
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Response body retrieval error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": format!("CDP Response body for request {} retrieved", request_id)
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP Response body retrieval error: {}", e)),
         }
     }
 
@@ -152,45 +107,21 @@ impl NetworkTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Get cookies failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Get cookies failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Cookies: {}", result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("Cookies: {}", result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "No cookies found"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "No cookies found"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP get cookies error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP get cookies error: {}", err)),
         }
     }
 
@@ -198,38 +129,20 @@ impl NetworkTools {
         let name = match args.get("name").and_then(|v| v.as_str()) {
             Some(n) => n,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: name"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: name".to_string());
             }
         };
 
         let value = match args.get("value").and_then(|v| v.as_str()) {
             Some(v) => v,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: value"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: value".to_string());
             }
         };
 
         // SECURITY: Validate cookie name and value to prevent injection attacks (CWE-113)
         if let Err(e) = validate_cookie(name, value) {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("Invalid cookie: {}", e)
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, format!("Invalid cookie: {}", e));
         }
 
         let domain = args.get("domain").and_then(|v| v.as_str());
@@ -265,37 +178,16 @@ impl NetworkTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Set cookie failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Set cookie failed: {}", error.message))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Cookie '{}' set successfully", name)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("Cookie '{}' set successfully", name)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP set cookie error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP set cookie error: {}", err)),
         }
     }
 }

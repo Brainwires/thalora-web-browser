@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use serde_json::Value;
 
 /// Debugger domain - Breakpoints, stepping, and script debugging
@@ -25,37 +25,19 @@ impl DebuggerTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Debugger domain enable failed: {:?}", response.error)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP Debugger domain enable failed: {:?}", response.error))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "CDP Debugger domain enabled successfully"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "CDP Debugger domain enabled successfully"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "CDP Debugger domain enabled"
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Debugger domain enable error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": "CDP Debugger domain enabled"
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP Debugger domain enable error: {}", e)),
         }
     }
 
@@ -63,13 +45,7 @@ impl DebuggerTools {
         let line_number = match args.get("line_number").and_then(|v| v.as_i64()) {
             Some(line) => line,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: line_number"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: line_number".to_string());
             }
         };
 
@@ -88,45 +64,24 @@ impl DebuggerTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Breakpoint set failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP Breakpoint set failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Breakpoint set successfully at line {} in {}: {}", line_number, url, result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Breakpoint set successfully at line {} in {}: {}", line_number, url, result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Breakpoint set at line {} in {}", line_number, url)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP Breakpoint set at line {} in {}", line_number, url)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Breakpoint set at line {} in {}", line_number, url)
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Breakpoint set error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": format!("CDP Breakpoint set at line {} in {}", line_number, url)
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP Breakpoint set error: {}", e)),
         }
     }
 }

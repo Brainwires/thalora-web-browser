@@ -17,13 +17,7 @@ impl McpServer {
                 let key = match arguments.get("key").and_then(|v| v.as_str()) {
                     Some(key) => key,
                     None => {
-                        return McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": "Missing required parameter: key"
-                            })],
-                            is_error: true,
-                        };
+                        return McpResponse::error(-1, "Missing required parameter: key".to_string());
                     }
                 };
 
@@ -253,20 +247,11 @@ impl McpServer {
         };
 
         match result {
-            Ok(value) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| format!("{}", value))
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("Error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(value) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| format!("{}", value))
+            })),
+            Err(e) => McpResponse::error(-1, format!("Error: {e}")),
         }
     }
 }

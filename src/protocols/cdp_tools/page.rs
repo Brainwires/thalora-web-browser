@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use serde_json::Value;
 
 /// Page domain - Page reload, screenshots, navigation, and lifecycle events
@@ -44,56 +44,29 @@ impl PageTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Screenshot failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Screenshot failed: {}", error.message))
                 } else if let Some(result) = response.result {
                     if let Some(data) = result.get("data") {
-                        McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "image",
-                                "data": data,
-                                "mimeType": format!("image/{}", format)
-                            })],
-                            is_error: false,
-                        }
+                        McpResponse::success(serde_json::json!({
+                            "type": "image",
+                            "data": data,
+                            "mimeType": format!("image/{}", format)
+                        }))
                     } else {
-                        McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": format!("Screenshot captured: {}", result)
-                            })],
-                            is_error: false,
-                        }
+                        McpResponse::success(serde_json::json!({
+                            "type": "text",
+                            "text": format!("Screenshot captured: {}", result)
+                        }))
                     }
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "Screenshot capture completed"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "Screenshot capture completed"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP screenshot error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP screenshot error: {}", err)),
         }
     }
 
@@ -115,42 +88,21 @@ impl PageTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Page reload failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Page reload failed: {}", error.message))
                 } else {
                     let cache_msg = if ignore_cache {
                         " (ignoring cache)"
                     } else {
                         ""
                     };
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Page reloaded successfully{}", cache_msg)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("Page reloaded successfully{}", cache_msg)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP page reload error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP page reload error: {}", err)),
         }
     }
 }

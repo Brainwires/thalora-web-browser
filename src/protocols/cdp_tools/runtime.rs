@@ -1,6 +1,6 @@
 use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use crate::protocols::security::{MAX_JS_CODE_LENGTH, limit_input_length, sanitize_session_id};
 use serde_json::Value;
 use std::sync::Arc;
@@ -31,37 +31,19 @@ impl RuntimeTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP Runtime domain enable failed: {:?}", response.error)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP Runtime domain enable failed: {:?}", response.error))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "CDP Runtime domain enabled successfully"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "CDP Runtime domain enabled successfully"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "CDP Runtime domain enabled (no response)"
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP Runtime domain enable error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": "CDP Runtime domain enabled (no response)"
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP Runtime domain enable error: {}", e)),
         }
     }
 
@@ -73,13 +55,7 @@ impl RuntimeTools {
         let expression = match args.get("expression").and_then(|v| v.as_str()) {
             Some(expr) => expr,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: expression"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: expression".to_string());
             }
         };
 
@@ -92,22 +68,10 @@ impl RuntimeTools {
         // SECURITY: Validate input lengths to prevent DoS attacks
         if let Err(e) = limit_input_length(expression, MAX_JS_CODE_LENGTH, "JavaScript expression")
         {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("Input validation failed: {}", e)
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, format!("Input validation failed: {}", e));
         }
         if let Err(e) = sanitize_session_id(session_id) {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("Session ID validation failed: {}", e)
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, format!("Session ID validation failed: {}", e));
         }
 
         let browser = self.browser_tools.get_or_create_session(session_id, false);
@@ -120,39 +84,24 @@ impl RuntimeTools {
                     Ok(js_result) => {
                         // Try to parse as different types
                         if js_result == "true" || js_result == "false" {
-                            response = McpResponse::ToolResult {
-                                content: vec![serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript result (boolean): {}", js_result)
-                                })],
-                                is_error: false,
-                            };
+                            response = McpResponse::success(serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript result (boolean): {}", js_result)
+                            }));
                         } else if let Ok(num) = js_result.parse::<f64>() {
-                            response = McpResponse::ToolResult {
-                                content: vec![serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript result (number): {}", num)
-                                })],
-                                is_error: false,
-                            };
+                            response = McpResponse::success(serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript result (number): {}", num)
+                            }));
                         } else {
-                            response = McpResponse::ToolResult {
-                                content: vec![serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("JavaScript result: {}", js_result)
-                                })],
-                                is_error: false,
-                            };
+                            response = McpResponse::success(serde_json::json!({
+                                "type": "text",
+                                "text": format!("JavaScript result: {}", js_result)
+                            }));
                         }
                     }
                     Err(e) => {
-                        response = McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": format!("JavaScript execution error: {}", e)
-                            })],
-                            is_error: true,
-                        };
+                        response = McpResponse::error(-1, format!("JavaScript execution error: {}", e));
                     }
                 }
             }
@@ -171,48 +120,27 @@ impl RuntimeTools {
                 match cdp_server.handle_message(CdpMessage::Command(command)) {
                     Ok(Some(CdpMessage::Response(cdp_response))) => {
                         if let Some(error) = cdp_response.error {
-                            response = McpResponse::ToolResult {
-                                content: vec![serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("CDP JavaScript evaluation failed: {}", error.message)
-                                })],
-                                is_error: true,
-                            };
+                            response = McpResponse::error(-1, format!("CDP JavaScript evaluation failed: {}", error.message));
                         } else if let Some(result) = cdp_response.result {
-                            response = McpResponse::ToolResult {
-                                content: vec![serde_json::json!({
-                                    "type": "text",
-                                    "text": format!("CDP JavaScript evaluation result: {}", result)
-                                })],
-                                is_error: false,
-                            };
+                            response = McpResponse::success(serde_json::json!({
+                                "type": "text",
+                                "text": format!("CDP JavaScript evaluation result: {}", result)
+                            }));
                         } else {
-                            response = McpResponse::ToolResult {
-                                content: vec![serde_json::json!({
-                                    "type": "text",
-                                    "text": "CDP JavaScript evaluation completed (no result)"
-                                })],
-                                is_error: false,
-                            };
+                            response = McpResponse::success(serde_json::json!({
+                                "type": "text",
+                                "text": "CDP JavaScript evaluation completed (no result)"
+                            }));
                         }
                     }
                     Ok(_) => {
-                        response = McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": "CDP JavaScript evaluation completed (no response)"
-                            })],
-                            is_error: false,
-                        };
+                        response = McpResponse::success(serde_json::json!({
+                            "type": "text",
+                            "text": "CDP JavaScript evaluation completed (no response)"
+                        }));
                     }
                     Err(e) => {
-                        response = McpResponse::ToolResult {
-                            content: vec![serde_json::json!({
-                                "type": "text",
-                                "text": format!("CDP JavaScript evaluation error: {}", e)
-                            })],
-                            is_error: true,
-                        };
+                        response = McpResponse::error(-1, format!("CDP JavaScript evaluation error: {}", e));
                     }
                 }
             }
@@ -267,50 +195,26 @@ impl RuntimeTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Get console messages failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Get console messages failed: {}", error.message))
                 } else if let Some(result) = response.result {
                     let filtered_msg = if let Some(level) = level {
                         format!("Console messages (filtered by {}): {}", level, result)
                     } else {
                         format!("Console messages: {}", result)
                     };
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": filtered_msg
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": filtered_msg
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "No console messages available"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "No console messages available"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP get console messages error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP get console messages error: {}", err)),
         }
     }
 }

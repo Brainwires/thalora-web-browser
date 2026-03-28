@@ -41,7 +41,7 @@ pub(crate) use features::is_brainclaw_preset;
 */
 
 impl McpServer {
-    pub(super) fn get_tool_definitions(&self) -> Vec<Value> {
+    pub(crate) fn get_tool_definitions(&self) -> Vec<Value> {
         let mut tools = Vec::new();
 
         // Check MCP mode
@@ -105,7 +105,7 @@ impl McpServer {
         tools
     }
 
-    pub(super) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
+    pub(crate) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
         eprintln!(
             "🔍 DEBUG: call_tool - Tool: {}, Arguments: {}",
             name, arguments
@@ -183,13 +183,8 @@ impl McpServer {
         eprintln!("🔧 Tool execution completed: {} (took {:?})", name, elapsed);
 
         // Log if the response indicates an error
-        if let McpResponse::ToolResult {
-            is_error: true,
-            content,
-            ..
-        } = &resp
-        {
-            eprintln!("⚠️ Tool {} returned error: {:?}", name, content);
+        if resp.is_error {
+            eprintln!("⚠️ Tool {} returned error: {:?}", name, resp.content);
         }
 
         // Lifecycle:

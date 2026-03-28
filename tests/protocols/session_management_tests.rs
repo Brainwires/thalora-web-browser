@@ -13,39 +13,23 @@ fn create_test_browser_tools() -> BrowserTools {
 
 /// Helper function to extract text content from MCP response
 fn extract_response_text(response: &McpResponse) -> Option<String> {
-    match &response {
-        McpResponse::ToolResult { content, .. } => {
-            if let Some(first_content) = content.first() {
-                first_content
-                    .get("text")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
+    response
+        .content
+        .first()
+        .and_then(|v| v.get("text"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 /// Helper function to extract JSON content from MCP response
 #[allow(dead_code)]
 fn extract_response_json(response: &McpResponse) -> Option<Value> {
-    match &response {
-        McpResponse::ToolResult { content, .. } => {
-            if let Some(first_content) = content.first() {
-                if let Some(text) = first_content.get("text").and_then(|v| v.as_str()) {
-                    // Try to parse the text as JSON
-                    serde_json::from_str(text).ok()
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
+    response
+        .content
+        .first()
+        .and_then(|v| v.get("text"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| serde_json::from_str(s).ok())
 }
 
 #[tokio::test]
@@ -61,20 +45,15 @@ async fn test_session_management_create() {
 
     let response = browser_tools.handle_session_management(args).await;
 
-    match &response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Session creation should not error");
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.is_error, "Session creation should not error");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("test_session_1") || text.contains("created"),
-                    "Response should mention session ID or creation: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("test_session_1") || text.contains("created"),
+            "Response should mention session ID or creation: {}",
+            text
+        );
     }
 }
 
@@ -91,20 +70,15 @@ async fn test_session_management_create_persistent() {
 
     let response = browser_tools.handle_session_management(args).await;
 
-    match &response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Persistent session creation should not error");
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.is_error, "Persistent session creation should not error");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("persistent_session") && text.contains("persistent"),
-                    "Response should mention session ID and persistence: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("persistent_session") && text.contains("persistent"),
+            "Response should mention session ID and persistence: {}",
+            text
+        );
     }
 }
 
@@ -127,20 +101,15 @@ async fn test_session_management_list() {
 
     let response = browser_tools.handle_session_management(list_args).await;
 
-    match &response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Session listing should not error");
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.is_error, "Session listing should not error");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("sessions") || text.contains("list_test_session"),
-                    "Response should mention sessions or the created session: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("sessions") || text.contains("list_test_session"),
+            "Response should mention sessions or the created session: {}",
+            text
+        );
     }
 }
 
@@ -164,23 +133,15 @@ async fn test_session_management_info() {
 
     let response = browser_tools.handle_session_management(info_args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            // Note: This might error if session doesn't exist in the implementation
-            assert!(!content.is_empty(), "Response should have content");
+    // Note: This might error if session doesn't exist in the implementation
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("info_test_session") || text.contains("Session not found"),
-                    "Response should mention session ID or not found: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("info_test_session") || text.contains("Session not found"),
+            "Response should mention session ID or not found: {}",
+            text
+        );
     }
 }
 
@@ -204,21 +165,16 @@ async fn test_session_management_close() {
 
     let response = browser_tools.handle_session_management(close_args).await;
 
-    match &response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Session closing should not error");
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.is_error, "Session closing should not error");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("close_test_session")
-                        && (text.contains("closed") || text.contains("true")),
-                    "Response should mention session ID and closure: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("close_test_session")
+                && (text.contains("closed") || text.contains("true")),
+            "Response should mention session ID and closure: {}",
+            text
+        );
     }
 }
 
@@ -234,20 +190,15 @@ async fn test_session_management_cleanup() {
 
     let response = browser_tools.handle_session_management(cleanup_args).await;
 
-    match &response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Session cleanup should not error");
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.is_error, "Session cleanup should not error");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("cleaned_up") || text.contains("cleanup"),
-                    "Response should mention cleanup: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("cleaned_up") || text.contains("cleanup"),
+            "Response should mention cleanup: {}",
+            text
+        );
     }
 }
 
@@ -262,17 +213,15 @@ async fn test_session_management_invalid_action() {
 
     let response = browser_tools.handle_session_management(args).await;
 
-    match &response {
-        McpResponse::Error { error } => {
-            // Invalid action should return an error
-            assert!(
-                error.contains("Unknown action") || error.contains("invalid_action"),
-                "Error should mention unknown action: {}",
-                error
-            );
-            eprintln!("INFO: Invalid action handled correctly: {}", error);
-        }
-        _ => panic!("Expected Error response for invalid action"),
+    // Invalid action should return an error
+    assert!(response.is_error, "Expected error response for invalid action");
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("Unknown action") || text.contains("invalid_action"),
+            "Error should mention unknown action: {}",
+            text
+        );
+        eprintln!("INFO: Invalid action handled correctly: {}", text);
     }
 }
 
@@ -285,22 +234,14 @@ async fn test_browser_get_page_content() {
 
     let response = browser_tools.handle_get_page_content(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("content") || text.contains("url") || text.contains("session_id"),
-                    "Response should mention content, URL, or session ID: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("content") || text.contains("url") || text.contains("session_id"),
+            "Response should mention content, URL, or session ID: {}",
+            text
+        );
     }
 }
 
@@ -315,24 +256,16 @@ async fn test_browser_get_page_content_with_session() {
 
     let response = browser_tools.handle_get_page_content(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("content_test_session")
-                        || text.contains("content")
-                        || text.contains("url"),
-                    "Response should mention session ID, content, or URL: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("content_test_session")
+                || text.contains("content")
+                || text.contains("url"),
+            "Response should mention session ID, content, or URL: {}",
+            text
+        );
     }
 }
 
@@ -345,24 +278,16 @@ async fn test_browser_navigate_back() {
 
     let response = browser_tools.handle_navigate_back(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("back")
-                        || text.contains("Cannot go back")
-                        || text.contains("success"),
-                    "Response should mention navigation or inability to go back: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("back")
+                || text.contains("Cannot go back")
+                || text.contains("success"),
+            "Response should mention navigation or inability to go back: {}",
+            text
+        );
     }
 }
 
@@ -377,24 +302,16 @@ async fn test_browser_navigate_back_with_session() {
 
     let response = browser_tools.handle_navigate_back(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("back")
-                        || text.contains("Cannot go back")
-                        || text.contains("success"),
-                    "Response should mention navigation: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("back")
+                || text.contains("Cannot go back")
+                || text.contains("success"),
+            "Response should mention navigation: {}",
+            text
+        );
     }
 }
 
@@ -407,24 +324,16 @@ async fn test_browser_navigate_forward() {
 
     let response = browser_tools.handle_navigate_forward(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("forward")
-                        || text.contains("Cannot go forward")
-                        || text.contains("success"),
-                    "Response should mention navigation or inability to go forward: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("forward")
+                || text.contains("Cannot go forward")
+                || text.contains("success"),
+            "Response should mention navigation or inability to go forward: {}",
+            text
+        );
     }
 }
 
@@ -439,24 +348,16 @@ async fn test_browser_navigate_forward_with_session() {
 
     let response = browser_tools.handle_navigate_forward(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
+    assert!(!response.content.is_empty(), "Response should have content");
 
-            if let Some(text) = extract_response_text(&response) {
-                assert!(
-                    text.contains("forward")
-                        || text.contains("Cannot go forward")
-                        || text.contains("success"),
-                    "Response should mention navigation: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("forward")
+                || text.contains("Cannot go forward")
+                || text.contains("success"),
+            "Response should mention navigation: {}",
+            text
+        );
     }
 }
 
@@ -472,13 +373,7 @@ async fn test_session_integration_with_browser_tools() {
         "persistent": false
     });
     let create_response = browser_tools.handle_session_management(create_args).await;
-
-    match &create_response {
-        McpResponse::ToolResult { is_error, .. } => {
-            assert!(!is_error, "Session creation should succeed");
-        }
-        _ => panic!("Expected ToolResult response for session creation"),
-    }
+    assert!(!create_response.is_error, "Session creation should succeed");
 
     // Test click element with the session
     let click_args = json!({
@@ -487,22 +382,20 @@ async fn test_session_integration_with_browser_tools() {
     });
     let click_response = browser_tools.handle_click_element(click_args).await;
 
-    match click_response {
-        McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Click response should have content");
-        }
-        McpResponse::Error { error } => {
-            // Expected - clicking on non-existent elements should return an error
+    if click_response.is_error {
+        // Expected - clicking on non-existent elements should return an error
+        if let Some(text) = extract_response_text(&click_response) {
             assert!(
-                error.contains("Failed to click element")
-                    || error.contains("element")
-                    || error.contains("selector"),
+                text.contains("Failed to click element")
+                    || text.contains("element")
+                    || text.contains("selector"),
                 "Error should mention click failure: {}",
-                error
+                text
             );
-            eprintln!("INFO: Click element test handled expected error: {}", error);
+            eprintln!("INFO: Click element test handled expected error: {}", text);
         }
-        _ => panic!("Expected ToolResult or Error response for click element"),
+    } else {
+        assert!(!click_response.content.is_empty(), "Click response should have content");
     }
 
     // Test form filling with the session
@@ -512,20 +405,18 @@ async fn test_session_integration_with_browser_tools() {
     });
     let form_response = browser_tools.handle_fill_form(form_args).await;
 
-    match form_response {
-        McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Form response should have content");
-        }
-        McpResponse::Error { error } => {
-            // Expected - filling forms on pages with no forms should return an error
+    if form_response.is_error {
+        // Expected - filling forms on pages with no forms should return an error
+        if let Some(text) = extract_response_text(&form_response) {
             assert!(
-                error.contains("form") || error.contains("Form") || error.contains("fill"),
+                text.contains("form") || text.contains("Form") || text.contains("fill"),
                 "Error should mention form filling failure: {}",
-                error
+                text
             );
-            eprintln!("INFO: Form filling test handled expected error: {}", error);
+            eprintln!("INFO: Form filling test handled expected error: {}", text);
         }
-        _ => panic!("Expected ToolResult or Error response for form filling"),
+    } else {
+        assert!(!form_response.content.is_empty(), "Form response should have content");
     }
 
     // Get page content for the session
@@ -533,13 +424,7 @@ async fn test_session_integration_with_browser_tools() {
         "session_id": "integration_session"
     });
     let content_response = browser_tools.handle_get_page_content(content_args).await;
-
-    match content_response {
-        McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Content response should have content");
-        }
-        _ => panic!("Expected ToolResult response for page content"),
-    }
+    assert!(!content_response.content.is_empty(), "Content response should have content");
 
     // Close the session
     let close_args = json!({
@@ -547,13 +432,7 @@ async fn test_session_integration_with_browser_tools() {
         "session_id": "integration_session"
     });
     let close_response = browser_tools.handle_session_management(close_args).await;
-
-    match &close_response {
-        McpResponse::ToolResult { is_error, .. } => {
-            assert!(!is_error, "Session closing should succeed");
-        }
-        _ => panic!("Expected ToolResult response for session closing"),
-    }
+    assert!(!close_response.is_error, "Session closing should succeed");
 }
 
 /// Test session persistence and cleanup functionality
@@ -577,17 +456,11 @@ async fn test_session_persistence_workflow() {
             "persistent": persistent
         });
         let response = browser_tools.handle_session_management(create_args).await;
-
-        match &response {
-            McpResponse::ToolResult { is_error, .. } => {
-                assert!(
-                    !is_error,
-                    "Session creation should succeed for {}",
-                    session_id
-                );
-            }
-            _ => panic!("Expected ToolResult response for session creation"),
-        }
+        assert!(
+            !response.is_error,
+            "Session creation should succeed for {}",
+            session_id
+        );
     }
 
     // List all sessions
@@ -595,14 +468,8 @@ async fn test_session_persistence_workflow() {
         "action": "list"
     });
     let list_response = browser_tools.handle_session_management(list_args).await;
-
-    match &list_response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Session listing should succeed");
-            assert!(!content.is_empty(), "List response should have content");
-        }
-        _ => panic!("Expected ToolResult response for session listing"),
-    }
+    assert!(!list_response.is_error, "Session listing should succeed");
+    assert!(!list_response.content.is_empty(), "List response should have content");
 
     // Test cleanup (should remove non-persistent sessions older than threshold)
     let cleanup_args = json!({
@@ -610,13 +477,7 @@ async fn test_session_persistence_workflow() {
         "max_age_seconds": 0  // Clean up all non-persistent sessions
     });
     let cleanup_response = browser_tools.handle_session_management(cleanup_args).await;
-
-    match &cleanup_response {
-        McpResponse::ToolResult { is_error, .. } => {
-            assert!(!is_error, "Session cleanup should succeed");
-        }
-        _ => panic!("Expected ToolResult response for session cleanup"),
-    }
+    assert!(!cleanup_response.is_error, "Session cleanup should succeed");
 
     // Close remaining persistent sessions
     for (session_id, persistent) in &sessions {
@@ -641,20 +502,15 @@ async fn test_session_error_handling() {
     });
     let response = browser_tools.handle_session_management(args).await;
 
-    match &response {
-        McpResponse::Error { error } => {
-            // Missing action parameter should return an error
-            assert!(
-                error.contains("Unknown action") || error.contains("action"),
-                "Error should mention missing/unknown action: {}",
-                error
-            );
-            eprintln!(
-                "INFO: Missing action parameter handled correctly: {}",
-                error
-            );
-        }
-        _ => panic!("Expected Error response for missing action parameter"),
+    // Missing action parameter should return an error
+    assert!(response.is_error, "Expected error for missing action parameter");
+    if let Some(text) = extract_response_text(&response) {
+        assert!(
+            text.contains("Unknown action") || text.contains("action"),
+            "Error should mention missing/unknown action: {}",
+            text
+        );
+        eprintln!("INFO: Missing action parameter handled correctly: {}", text);
     }
 
     // Test info for non-existent session
@@ -664,20 +520,15 @@ async fn test_session_error_handling() {
     });
     let info_response = browser_tools.handle_session_management(info_args).await;
 
-    match &info_response {
-        McpResponse::Error { error } => {
-            // Non-existent session info should return an error
-            assert!(
-                error.contains("Session not found") || error.contains("not found"),
-                "Error should mention session not found: {}",
-                error
-            );
-            eprintln!(
-                "INFO: Non-existent session info handled correctly: {}",
-                error
-            );
-        }
-        _ => panic!("Expected Error response for non-existent session info"),
+    // Non-existent session info should return an error
+    assert!(info_response.is_error, "Expected error for non-existent session info");
+    if let Some(text) = extract_response_text(&info_response) {
+        assert!(
+            text.contains("Session not found") || text.contains("not found"),
+            "Error should mention session not found: {}",
+            text
+        );
+        eprintln!("INFO: Non-existent session info handled correctly: {}", text);
     }
 
     // Test close for non-existent session
@@ -687,18 +538,13 @@ async fn test_session_error_handling() {
     });
     let close_response = browser_tools.handle_session_management(close_args).await;
 
-    match &close_response {
-        McpResponse::ToolResult { content, .. } => {
-            assert!(!content.is_empty(), "Response should have content");
-            if let Some(text) = extract_response_text(&close_response) {
-                assert!(
-                    text.contains("closed") || text.contains("false"),
-                    "Response should indicate session was not found or closed: {}",
-                    text
-                );
-            }
-        }
-        _ => panic!("Expected ToolResult response"),
+    assert!(!close_response.content.is_empty(), "Response should have content");
+    if let Some(text) = extract_response_text(&close_response) {
+        assert!(
+            text.contains("closed") || text.contains("false"),
+            "Response should indicate session was not found or closed: {}",
+            text
+        );
     }
 }
 
@@ -711,21 +557,15 @@ async fn test_browser_refresh_page() {
 
     let response = browser_tools.handle_refresh_page(args).await;
 
-    match &response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Response should have content");
-        }
-        McpResponse::Error { error } => {
+    assert!(!response.content.is_empty(), "Response should have content");
+    if response.is_error {
+        if let Some(text) = extract_response_text(&response) {
             assert!(
-                error.contains("No current URL") || error.contains("Failed to refresh"),
+                text.contains("No current URL") || text.contains("Failed to refresh"),
                 "Error should mention no current URL: {}",
-                error
+                text
             );
         }
-        _ => panic!("Expected ToolResult or Error response"),
     }
 }
 
@@ -743,35 +583,23 @@ async fn test_browser_navigation_workflow() {
 
     let navigate_response = browser_tools.handle_navigate_to(navigate_args).await;
 
-    match &navigate_response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Navigation should not error");
-            assert!(!content.is_empty(), "Navigate response should have content");
+    if navigate_response.is_error {
+        // Network errors are acceptable in test environment
+        if let Some(text) = extract_response_text(&navigate_response) {
+            eprintln!("INFO: Navigation test handled network error: {}", text);
         }
-        McpResponse::Error { error } => {
-            // Network errors are acceptable in test environment
-            eprintln!("INFO: Navigation test handled network error: {}", error);
-            return; // Skip rest of test if we can't navigate
-        }
-        _ => panic!("Expected ToolResult or Error response for navigation"),
+        return; // Skip rest of test if we can't navigate
     }
+    assert!(!navigate_response.content.is_empty(), "Navigate response should have content");
 
     // Step 2: Get page content to verify session state
     let content_args = json!({
         "session_id": session_id
     });
 
-    let content_response = browser_tools
-        .handle_get_page_content(content_args.clone())
-        .await;
-
-    match &content_response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!is_error, "Get page content should not error");
-            assert!(!content.is_empty(), "Content response should have content");
-        }
-        _ => panic!("Expected ToolResult response for page content"),
-    }
+    let content_response = browser_tools.handle_get_page_content(content_args).await;
+    assert!(!content_response.is_error, "Get page content should not error");
+    assert!(!content_response.content.is_empty(), "Content response should have content");
 
     // Step 3: Test refresh functionality - should work now that we have a current URL
     let refresh_args = json!({
@@ -779,17 +607,11 @@ async fn test_browser_navigation_workflow() {
     });
 
     let refresh_response = browser_tools.handle_refresh_page(refresh_args).await;
-
-    match &refresh_response {
-        McpResponse::ToolResult { content, is_error } => {
-            assert!(!content.is_empty(), "Refresh response should have content");
-            // Refresh should succeed or fail gracefully
+    assert!(!refresh_response.content.is_empty(), "Refresh response should have content");
+    if refresh_response.is_error {
+        if let Some(text) = extract_response_text(&refresh_response) {
+            eprintln!("INFO: Refresh test handled error: {}", text);
         }
-        McpResponse::Error { error } => {
-            // Acceptable if there are network issues or session state problems
-            eprintln!("INFO: Refresh test handled error: {}", error);
-        }
-        _ => panic!("Expected ToolResult or Error response for refresh"),
     }
 
     // Step 4: Test back navigation (should report cannot go back since only one page)
@@ -798,14 +620,5 @@ async fn test_browser_navigation_workflow() {
     });
 
     let back_response = browser_tools.handle_navigate_back(back_args).await;
-
-    match &back_response {
-        McpResponse::ToolResult {
-            content,
-            is_error: _,
-        } => {
-            assert!(!content.is_empty(), "Back response should have content");
-        }
-        _ => panic!("Expected ToolResult response for back navigation"),
-    }
+    assert!(!back_response.content.is_empty(), "Back response should have content");
 }

@@ -1,5 +1,5 @@
 use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use serde_json::Value;
 
 /// DOM domain - DOM queries, manipulation, and CSS inspection
@@ -21,37 +21,19 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if response.error.is_some() {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP DOM domain enable failed: {:?}", response.error)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP DOM domain enable failed: {:?}", response.error))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "CDP DOM domain enabled successfully"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "CDP DOM domain enabled successfully"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "CDP DOM domain enabled"
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP DOM domain enable error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": "CDP DOM domain enabled"
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP DOM domain enable error: {}", e)),
         }
     }
 
@@ -70,45 +52,24 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP DOM document retrieval failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("CDP DOM document retrieval failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("CDP DOM document retrieved: {}", result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("CDP DOM document retrieved: {}", result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": "CDP DOM document retrieved"
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": "CDP DOM document retrieved"
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "CDP DOM document retrieved"
-                })],
-                is_error: false,
-            },
-            Err(e) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP DOM document retrieval error: {}", e)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::success(serde_json::json!({
+                "type": "text",
+                "text": "CDP DOM document retrieved"
+            })),
+            Err(e) => McpResponse::error(-1, format!("CDP DOM document retrieval error: {}", e)),
         }
     }
 
@@ -116,13 +77,7 @@ impl DomTools {
         let selector = match args.get("selector").and_then(|v| v.as_str()) {
             Some(sel) => sel,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: selector"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: selector".to_string());
             }
         };
 
@@ -141,45 +96,21 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("DOM query selector failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("DOM query selector failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Element found with selector '{}': {}", selector, result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("Element found with selector '{}': {}", selector, result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("No element found with selector: {}", selector)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("No element found with selector: {}", selector)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP query selector error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP query selector error: {}", err)),
         }
     }
 
@@ -187,13 +118,7 @@ impl DomTools {
         let node_id = match args.get("node_id").and_then(|v| v.as_i64()) {
             Some(id) => id,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: node_id"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: node_id".to_string());
             }
         };
 
@@ -209,45 +134,21 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Get attributes failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Get attributes failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Attributes for node {}: {}", node_id, result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("Attributes for node {}: {}", node_id, result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("No attributes found for node: {}", node_id)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("No attributes found for node: {}", node_id)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP get attributes error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP get attributes error: {}", err)),
         }
     }
 
@@ -259,13 +160,7 @@ impl DomTools {
         let node_id = match args.get("node_id").and_then(|v| v.as_i64()) {
             Some(id) => id,
             None => {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": "Missing required parameter: node_id"
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, "Missing required parameter: node_id".to_string());
             }
         };
 
@@ -281,45 +176,21 @@ impl DomTools {
         match cdp_server.handle_message(CdpMessage::Command(command)) {
             Ok(Some(CdpMessage::Response(response))) => {
                 if let Some(error) = response.error {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Get computed style failed: {}", error.message)
-                        })],
-                        is_error: true,
-                    }
+                    McpResponse::error(-1, format!("Get computed style failed: {}", error.message))
                 } else if let Some(result) = response.result {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("Computed styles for node {}: {}", node_id, result)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("Computed styles for node {}: {}", node_id, result)
+                    }))
                 } else {
-                    McpResponse::ToolResult {
-                        content: vec![serde_json::json!({
-                            "type": "text",
-                            "text": format!("No computed styles found for node: {}", node_id)
-                        })],
-                        is_error: false,
-                    }
+                    McpResponse::success(serde_json::json!({
+                        "type": "text",
+                        "text": format!("No computed styles found for node: {}", node_id)
+                    }))
                 }
             }
-            Ok(_) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "No response from CDP server"
-                })],
-                is_error: true,
-            },
-            Err(err) => McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": format!("CDP get computed style error: {}", err)
-                })],
-                is_error: true,
-            },
+            Ok(_) => McpResponse::error(-1, "No response from CDP server".to_string()),
+            Err(err) => McpResponse::error(-1, format!("CDP get computed style error: {}", err)),
         }
     }
 }

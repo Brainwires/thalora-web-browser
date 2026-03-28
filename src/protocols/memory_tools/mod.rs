@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use crate::protocols::security::{MAX_QUERY_LENGTH, limit_input_length};
 
 // Submodules
@@ -85,13 +85,7 @@ impl MemoryTools {
         // SECURITY: Validate query length if provided
         if let Some(q) = query {
             if let Err(e) = limit_input_length(q, MAX_QUERY_LENGTH, "Search query") {
-                return McpResponse::ToolResult {
-                    content: vec![serde_json::json!({
-                        "type": "text",
-                        "text": format!("Input validation failed: {}", e)
-                    })],
-                    is_error: true,
-                };
+                return McpResponse::error(-1, format!("Input validation failed: {}", e));
             }
         }
 
@@ -149,13 +143,10 @@ impl MemoryTools {
             _ => {}
         }
 
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": serde_json::to_string_pretty(&results).unwrap_or_default()
-            })],
-            is_error: false,
-        }
+        McpResponse::success(serde_json::json!({
+            "type": "text",
+            "text": serde_json::to_string_pretty(&results).unwrap_or_default()
+        }))
     }
 
     // Session operations
@@ -195,12 +186,9 @@ impl MemoryTools {
             "version": stats.version
         });
 
-        McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": serde_json::to_string_pretty(&stats_json).unwrap_or_default()
-            })],
-            is_error: false,
-        }
+        McpResponse::success(serde_json::json!({
+            "type": "text",
+            "text": serde_json::to_string_pretty(&stats_json).unwrap_or_default()
+        }))
     }
 }

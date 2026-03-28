@@ -23,7 +23,7 @@ COPY --from=builder /build/target/release/thalora /usr/local/bin/thalora
 USER thalora
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s CMD curl -f http://localhost:8080/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s CMD curl -sf http://localhost:8080/health || exit 1
 
 ENV THALORA_SILENT=1
 ENTRYPOINT ["thalora", "server", "--transport", "http", "--host", "0.0.0.0", "--port", "8080"]

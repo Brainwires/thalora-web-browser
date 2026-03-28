@@ -160,6 +160,17 @@ reqwest_cookie_store = { version = "0.9", optional = true }
 # IP address parsing and validation for SSRF prevention
 ipnetwork = "0.20"
 
+# MCP protocol — official Rust SDK (stdio + Streamable HTTP transports)
+rmcp = { version = "1.3.0", features = [
+    "server",
+    "macros",
+    "transport-io",
+    "local",          # relaxes ServerHandler: Send+Sync → Sized+'static for !Send Boa engine
+], optional = true }
+
+# HTTP server layer for /health endpoint + MCP HTTP transport
+axum = { version = "0.8", optional = true }
+
 # CDP (Chrome DevTools Protocol) support
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -200,6 +211,9 @@ default = ["desktop"]
 # Internal feature for binary builds (gates clap + tokio-util)
 _bin = ["dep:clap", "dep:tokio-util"]
 
+# Streamable HTTP MCP transport via rmcp + axum /health endpoint
+http-transport = ["dep:rmcp", "dep:axum"]
+
 # Core networking and browser engine — enables FFI, protocols, web search
 core = [
     "dep:tokio",
@@ -214,7 +228,7 @@ core = [
 ]
 
 # Desktop build — MCP server binary + FFI library for .NET GUI
-desktop = ["core", "_bin"]
+desktop = ["core", "_bin", "http-transport"]
 
 # Full native build — all platform-specific dependencies (may require ffmpeg)
 native = [

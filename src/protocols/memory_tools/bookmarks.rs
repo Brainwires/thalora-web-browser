@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::features::ai_memory::AiMemoryHeap;
-use crate::protocols::mcp::McpResponse;
+use crate::protocols::mcp::{McpResponse};
 use crate::protocols::security::{
     MAX_CONTENT_LENGTH, MAX_KEY_LENGTH, MAX_URL_LENGTH, limit_input_length,
 };
@@ -11,73 +11,37 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
     let key = match args.get("key").and_then(|v| v.as_str()) {
         Some(key) => key,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: key"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: key".to_string());
         }
     };
 
     // SECURITY: Validate key length
     if let Err(e) = limit_input_length(key, MAX_KEY_LENGTH, "Bookmark key") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let url = match args.get("url").and_then(|v| v.as_str()) {
         Some(url) => url,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: url"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: url".to_string());
         }
     };
 
     // SECURITY: Validate URL length
     if let Err(e) = limit_input_length(url, MAX_URL_LENGTH, "Bookmark URL") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let title = match args.get("title").and_then(|v| v.as_str()) {
         Some(title) => title,
         None => {
-            return McpResponse::ToolResult {
-                content: vec![serde_json::json!({
-                    "type": "text",
-                    "text": "Missing required parameter: title"
-                })],
-                is_error: true,
-            };
+            return McpResponse::error(-1, "Missing required parameter: title".to_string());
         }
     };
 
     // SECURITY: Validate title length
     if let Err(e) = limit_input_length(title, MAX_KEY_LENGTH, "Bookmark title") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let description = args
@@ -91,22 +55,10 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
 
     // SECURITY: Validate optional fields
     if let Err(e) = limit_input_length(description, MAX_CONTENT_LENGTH, "Description") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
     if let Err(e) = limit_input_length(content_preview, MAX_CONTENT_LENGTH, "Content preview") {
-        return McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Input validation failed: {}", e)
-            })],
-            is_error: true,
-        };
+        return McpResponse::error(-1, format!("Input validation failed: {}", e));
     }
 
     let tags = args
@@ -120,19 +72,10 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
         .unwrap_or_else(Vec::new);
 
     match ai_memory.store_bookmark(key, url, title, description, content_preview, tags) {
-        Ok(_) => McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Bookmark '{}' stored successfully in AI memory heap", title)
-            })],
-            is_error: false,
-        },
-        Err(e) => McpResponse::ToolResult {
-            content: vec![serde_json::json!({
-                "type": "text",
-                "text": format!("Failed to store bookmark: {}", e)
-            })],
-            is_error: true,
-        },
+        Ok(_) => McpResponse::success(serde_json::json!({
+            "type": "text",
+            "text": format!("Bookmark '{}' stored successfully in AI memory heap", title)
+        })),
+        Err(e) => McpResponse::error(-1, format!("Failed to store bookmark: {}", e)),
     }
 }
