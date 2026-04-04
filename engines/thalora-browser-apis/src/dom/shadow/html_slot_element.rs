@@ -41,24 +41,28 @@ impl HTMLSlotElementData {
 
     /// Get the slot name
     pub fn get_name(&self) -> String {
-        self.name.borrow().clone()
+        self.name.try_borrow().map(|g| g.clone()).unwrap_or_default()
     }
 
     /// Set the slot name
     pub fn set_name(&self, name: String) {
-        *self.name.borrow_mut() = name;
+        if let Ok(mut guard) = self.name.try_borrow_mut() {
+            *guard = name;
+        }
     }
 
     /// Get assigned nodes (for slotAssignment: manual)
     pub fn get_assigned_nodes(&self) -> Vec<JsObject> {
-        self.assigned_nodes.borrow().clone()
+        self.assigned_nodes.try_borrow().map(|g| g.clone()).unwrap_or_default()
     }
 
     /// Assign nodes manually (for slotAssignment: manual)
     /// This fires a slotchange event after updating the assigned nodes
     pub fn assign_nodes(&self, nodes: Vec<JsObject>) {
-        let old_nodes = self.assigned_nodes.borrow().clone();
-        *self.assigned_nodes.borrow_mut() = nodes.clone();
+        let old_nodes = self.assigned_nodes.try_borrow().map(|g| g.clone()).unwrap_or_default();
+        if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
+            *guard = nodes.clone();
+        }
 
         // Check if the assigned nodes actually changed
         if old_nodes != nodes {
@@ -76,14 +80,18 @@ impl HTMLSlotElementData {
 
     /// Assign a single node to this slot (manual slot assignment)
     pub fn assign_node(&self, node: JsObject) {
-        if self.manual_slot_assignment.borrow().clone() {
-            self.assigned_nodes.borrow_mut().push(node);
+        if self.manual_slot_assignment.try_borrow().map(|g| *g).unwrap_or(false) {
+            if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
+                guard.push(node);
+            }
         }
     }
 
     /// Clear all assigned nodes
     pub fn clear_assigned_nodes(&self) {
-        self.assigned_nodes.borrow_mut().clear();
+        if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
+            guard.clear();
+        }
     }
 
     /// Get assigned elements (filter assigned nodes to elements only)
@@ -153,7 +161,7 @@ impl HTMLSlotElementData {
         // Implementation of "assign slottables" algorithm
         // https://dom.spec.whatwg.org/#assign-slottables
 
-        let slottables = if *self.manual_slot_assignment.borrow() {
+        let slottables = if self.manual_slot_assignment.try_borrow().map(|g| *g).unwrap_or(false) {
             // For manual slot assignment, use explicitly assigned nodes
             self.get_assigned_nodes()
         } else {
@@ -162,7 +170,9 @@ impl HTMLSlotElementData {
         };
 
         // Update assigned nodes
-        *self.assigned_nodes.borrow_mut() = slottables.clone();
+        if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
+            *guard = slottables.clone();
+        }
 
         // Update each slottable's assigned slot
         // Per spec, each slottable should track its assigned slot

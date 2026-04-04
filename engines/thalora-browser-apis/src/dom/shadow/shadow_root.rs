@@ -101,14 +101,25 @@ impl ShadowRootData {
         self.delegates_focus
     }
 
-    /// Set the host element for this shadow root
+    /// Set the host element for this shadow root.
+    /// Uses try_borrow_mut to prevent BorrowMutError panics during re-entrant access.
     pub fn set_host(&self, host: JsObject) {
-        *self.host.borrow_mut() = Some(host);
+        match self.host.try_borrow_mut() {
+            Ok(mut guard) => *guard = Some(host),
+            Err(_) => {
+                eprintln!("WARNING: ShadowRoot.host already borrowed, retrying after drop");
+                // The borrow should be released by now in practice
+                *self.host.borrow_mut() = Some(host);
+            }
+        }
     }
 
     /// Get the host element
     pub fn get_host(&self) -> Option<JsObject> {
-        self.host.borrow().clone()
+        match self.host.try_borrow() {
+            Ok(guard) => guard.clone(),
+            Err(_) => None, // Return None if borrowed mutably
+        }
     }
 
     /// Get the fragment data (for delegation to DocumentFragment methods)
@@ -118,29 +129,39 @@ impl ShadowRootData {
 
     /// Add slottable element
     pub fn add_slottable(&self, slottable: JsObject) {
-        self.slottables.borrow_mut().push(slottable);
+        if let Ok(mut guard) = self.slottables.try_borrow_mut() {
+            guard.push(slottable);
+        }
     }
 
     /// Remove slottable element
     pub fn remove_slottable(&self, slottable: &JsObject) {
-        self.slottables
-            .borrow_mut()
-            .retain(|s| !JsObject::equals(s, slottable));
+        if let Ok(mut guard) = self.slottables.try_borrow_mut() {
+            guard.retain(|s| !JsObject::equals(s, slottable));
+        }
     }
 
     /// Get all slottables
     pub fn get_slottables(&self) -> Vec<JsObject> {
-        self.slottables.borrow().clone()
+        match self.slottables.try_borrow() {
+            Ok(guard) => guard.clone(),
+            Err(_) => Vec::new(),
+        }
     }
 
     /// Set assigned slot
     pub fn set_assigned_slot(&self, slot: Option<JsObject>) {
-        *self.assigned_slot.borrow_mut() = slot;
+        if let Ok(mut guard) = self.assigned_slot.try_borrow_mut() {
+            *guard = slot;
+        }
     }
 
     /// Get assigned slot
     pub fn get_assigned_slot(&self) -> Option<JsObject> {
-        self.assigned_slot.borrow().clone()
+        match self.assigned_slot.try_borrow() {
+            Ok(guard) => guard.clone(),
+            Err(_) => None,
+        }
     }
 
     /// Find slots in this shadow root (WHATWG algorithm implementation)

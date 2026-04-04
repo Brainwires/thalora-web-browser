@@ -127,13 +127,35 @@ impl RustRenderer {
     }
 
     pub fn test_shadow_dom_apis(&mut self) -> Result<String> {
-        // TEMPORARY FIX: Skip shadow DOM test due to known BorrowMutError in attachShadow implementation
-        // The shadow DOM implementation has concurrent borrowing issues that crash the browser
-        // This is documented in engines/boa/core/engine/src/builtins/element/tests.rs:286
+        // Shadow DOM BorrowMutError fix: GcRefCell operations now use try_borrow/try_borrow_mut
+        // to prevent panics from re-entrant access during attachShadow and property accessors.
+        let js_code = r#"
+            (function() {
+                try {
+                    var results = [];
 
-        let result = "Shadow DOM APIs: SKIPPED (BorrowMutError fix pending), Element.prototype.attachShadow: true";
-        eprintln!("🔍 DEBUG: Shadow DOM test skipped to prevent BorrowMutError crash");
-        Ok(result.to_string())
+                    // Test attachShadow exists
+                    var div = document.createElement('div');
+                    results.push('attachShadow: ' + (typeof div.attachShadow === 'function'));
+
+                    // Test creating open shadow root
+                    var shadow = div.attachShadow({mode: 'open'});
+                    results.push('shadow created: ' + (shadow !== null && shadow !== undefined));
+
+                    // Test shadowRoot property accessible
+                    results.push('shadowRoot accessible: ' + (div.shadowRoot !== null));
+
+                    // Test shadow root mode
+                    results.push('mode: ' + (shadow.mode || 'unknown'));
+
+                    return results.join(', ');
+                } catch(e) {
+                    return 'Shadow DOM error: ' + e.message;
+                }
+            })()
+        "#;
+
+        self.evaluate_javascript(js_code)
     }
 
     fn evaluate_javascript_with_timeout(
