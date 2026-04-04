@@ -68,11 +68,22 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         .map_err(|_| JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string)))?;
 
     // Parse init options
-    let (method, headers, body) = if !init.is_undefined() {
+    let fetch_init = if !init.is_undefined() {
         parse_fetch_init(init, context)?
     } else {
-        ("GET".to_string(), HashMap::new(), None)
+        FetchInit {
+            method: "GET".to_string(),
+            headers: HashMap::new(),
+            body: None,
+            mode: "cors".to_string(),
+            credentials: "same-origin".to_string(),
+        }
     };
+    let method = fetch_init.method;
+    let headers = fetch_init.headers;
+    let body = fetch_init.body;
+    let mode = fetch_init.mode;
+    let _credentials = fetch_init.credentials;
 
     // Create a new pending Promise and return it immediately
     let (promise, resolvers) = JsPromise::new_pending(context);
@@ -82,14 +93,43 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
         NativeAsyncJob::new(async move |context| {
             // Perform HTTP request in the background
             let client = reqwest::Client::new();
+
+            // CORS preflight for non-simple cross-origin requests
+            if mode == "cors" && !is_cors_simple_request(&method, &headers) {
+                // Collect custom header names for Access-Control-Request-Headers
+                let safelisted = ["accept", "accept-language", "content-language", "content-type", "user-agent"];
+                let custom_headers: Vec<String> = headers.keys()
+                    .filter(|k| !safelisted.contains(&k.to_lowercase().as_str()))
+                    .cloned()
+                    .collect();
+
+                let mut preflight = client.request(reqwest::Method::OPTIONS, &url_string)
+                    .header("Access-Control-Request-Method", &method);
+
+                if !custom_headers.is_empty() {
+                    preflight = preflight.header(
+                        "Access-Control-Request-Headers",
+                        custom_headers.join(", "),
+                    );
+                }
+
+                // Send preflight — failures are non-fatal for a headless browser
+                if let Ok(preflight_resp) = preflight.send().await {
+                    let status = preflight_resp.status().as_u16();
+                    if status < 200 || status >= 300 {
+                        eprintln!("⚠️  CORS preflight returned status {}", status);
+                    }
+                }
+            }
+
             let mut request_builder = client.request(
                 reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
                 &url_string,
             );
 
             // Add headers
-            for (key, value) in headers {
-                request_builder = request_builder.header(&key, &value);
+            for (key, value) in &headers {
+                request_builder = request_builder.header(key, value);
             }
 
             // Add body if present
@@ -120,9 +160,11 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                         }
                     }
 
-                    // Determine response type based on CORS headers
+                    // Determine response type based on CORS headers and request mode
                     let has_acao = response_headers.contains_key("access-control-allow-origin");
-                    let response_type = if has_acao {
+                    let response_type = if mode == "no-cors" {
+                        "opaque"
+                    } else if has_acao {
                         "cors"
                     } else {
                         "basic"
@@ -226,10 +268,19 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
 }
 
 /// Parse fetch init options
+/// Parsed fetch init options
+struct FetchInit {
+    method: String,
+    headers: HashMap<String, String>,
+    body: Option<String>,
+    mode: String,
+    credentials: String,
+}
+
 fn parse_fetch_init(
     init: &JsValue,
     context: &mut Context,
-) -> JsResult<(String, HashMap<String, String>, Option<String>)> {
+) -> JsResult<FetchInit> {
     let init_obj = init
         .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("fetch init must be an object"))?;
@@ -293,7 +344,78 @@ fn parse_fetch_init(
         None
     };
 
-    Ok((method, headers, body))
+    // Mode (cors, no-cors, same-origin, navigate)
+    let mode = if let Ok(mode_val) = init_obj.get(js_string!("mode"), context) {
+        if !mode_val.is_undefined() {
+            mode_val.to_string(context)?.to_std_string_escaped()
+        } else {
+            "cors".to_string()
+        }
+    } else {
+        "cors".to_string()
+    };
+
+    // Credentials (omit, same-origin, include)
+    let credentials = if let Ok(cred_val) = init_obj.get(js_string!("credentials"), context) {
+        if !cred_val.is_undefined() {
+            cred_val.to_string(context)?.to_std_string_escaped()
+        } else {
+            "same-origin".to_string()
+        }
+    } else {
+        "same-origin".to_string()
+    };
+
+    Ok(FetchInit { method, headers, body, mode, credentials })
+}
+
+/// Check if a request is a CORS "simple request" that doesn't need preflight.
+fn is_cors_simple_request(method: &str, headers: &HashMap<String, String>) -> bool {
+    // Simple methods
+    if !matches!(method, "GET" | "HEAD" | "POST") {
+        return false;
+    }
+
+    // CORS-safelisted headers (case-insensitive check)
+    let safelisted = ["accept", "accept-language", "content-language", "content-type"];
+    let simple_content_types = [
+        "application/x-www-form-urlencoded",
+        "multipart/form-data",
+        "text/plain",
+    ];
+
+    for (key, value) in headers {
+        let key_lower = key.to_lowercase();
+        if key_lower == "user-agent" {
+            continue; // We always add this, it's fine
+        }
+        if !safelisted.contains(&key_lower.as_str()) {
+            return false; // Non-safelisted header = not simple
+        }
+        if key_lower == "content-type" {
+            let ct_lower = value.to_lowercase();
+            if !simple_content_types.iter().any(|&t| ct_lower.starts_with(t)) {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+/// Check if two URLs have the same origin (scheme + host + port).
+fn same_origin(url_a: &str, url_b: &str) -> bool {
+    let parse = |u: &str| -> Option<(String, String, u16)> {
+        let p = url::Url::parse(u).ok()?;
+        let scheme = p.scheme().to_string();
+        let host = p.host_str()?.to_string();
+        let port = p.port_or_known_default().unwrap_or(if scheme == "https" { 443 } else { 80 });
+        Some((scheme, host, port))
+    };
+    match (parse(url_a), parse(url_b)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// JavaScript `Request` constructor implementation.
@@ -354,6 +476,8 @@ impl BuiltInConstructor for Request {
             method: "GET".to_string(),
             headers: HashMap::new(),
             body: None,
+            mode: "cors".to_string(),
+            credentials: "same-origin".to_string(),
         };
         let request_obj = JsObject::from_proto_and_data_with_shared_shape(
             context.root_shape(),
@@ -741,6 +865,10 @@ struct RequestData {
     headers: HashMap<String, String>,
     #[unsafe_ignore_trace]
     body: Option<String>,
+    #[unsafe_ignore_trace]
+    mode: String,
+    #[unsafe_ignore_trace]
+    credentials: String,
 }
 
 /// Internal data for Response instances
