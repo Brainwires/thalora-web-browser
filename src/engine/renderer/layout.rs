@@ -293,9 +293,10 @@ impl LayoutEngine {
         if let Some(ref display) = styles.display {
             taffy_style.display = match display.as_str() {
                 "none" => Display::None,
-                "flex" => Display::Flex,
-                "grid" => Display::Grid,
-                "block" => Display::Block,
+                "flex" | "inline-flex" => Display::Flex,
+                "grid" | "inline-grid" => Display::Grid,
+                "block" | "list-item" | "table" | "table-row" | "table-cell" => Display::Block,
+                "inline" | "inline-block" => Display::Block, // taffy lacks inline; page_layout handles inline flow
                 _ => Display::Block,
             };
         }

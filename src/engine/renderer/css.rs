@@ -115,6 +115,11 @@ pub struct ComputedStyles {
     pub border_bottom: Option<BorderStyles>,
     pub border_left: Option<BorderStyles>,
 
+    /// Float property (left, right, none)
+    pub float: Option<String>,
+    /// Clear property (left, right, both, none)
+    pub clear: Option<String>,
+
     /// All other properties as key-value pairs
     #[serde(flatten)]
     pub other: HashMap<String, String>,
@@ -838,6 +843,8 @@ impl CssProcessor {
                             styles.gap = Some(value);
                         }
                     }
+                    "float" => styles.float = Some(value),
+                    "clear" => styles.clear = Some(value),
                     _ => {
                         // Store everything else in the 'other' map
                         styles.other.insert(prop, value);
@@ -2513,6 +2520,8 @@ impl CssProcessor {
                         styles.gap = Some(clean_value);
                     }
                 }
+                "float" => styles.float = Some(clean_value),
+                "clear" => styles.clear = Some(clean_value),
                 _ => {
                     styles.other.insert(prop.clone(), clean_value);
                 }
