@@ -1,4 +1,5 @@
 // Tool definition modules - each containing schema definitions for different tool categories
+mod accessibility;
 mod advanced;
 mod brainclaw;
 mod browser;
@@ -10,6 +11,7 @@ mod session;
 mod wasm_debug;
 
 // Re-export all tool definition functions
+pub(crate) use accessibility::get_accessibility_tool_definitions;
 pub(crate) use advanced::get_advanced_tool_definitions;
 pub(crate) use brainclaw::get_brainclaw_alias_tool_definitions;
 pub(crate) use browser::get_browser_automation_tool_definitions;

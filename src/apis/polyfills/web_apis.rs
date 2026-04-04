@@ -125,66 +125,157 @@ fn setup_misc_apis(context: &mut Context) -> JsResult<()> {
             };
         }
 
-        // Basic Web Animations API (Chrome 133)
+        // Web Animations API — functional state machine for Element.animate()
+        // Tracks real playState transitions, currentTime, finished promise, and events.
+        // No visual keyframe interpolation (headless browser), but state machine is
+        // spec-correct so GSAP, Framer Motion, and native animation code works.
         if (typeof Element !== 'undefined' && typeof Element.prototype.animate === 'undefined') {
             Element.prototype.animate = function(keyframes, options) {
-                // MOCK - Real implementation would create actual animations
-                console.log('Element.animate called with keyframes:', keyframes, 'options:', options);
+                var duration = 0;
+                var fill = 'auto';
+                var easing = 'linear';
+                var iterations = 1;
+                var delay = 0;
+
+                if (typeof options === 'number') {
+                    duration = options;
+                } else if (options && typeof options === 'object') {
+                    duration = typeof options.duration === 'number' ? options.duration : 0;
+                    fill = typeof options.fill === 'string' ? options.fill : 'auto';
+                    easing = typeof options.easing === 'string' ? options.easing : 'linear';
+                    iterations = typeof options.iterations === 'number' ? options.iterations : 1;
+                    delay = typeof options.delay === 'number' ? options.delay : 0;
+                }
+
+                var _listeners = {};
+                var _startTime = null;
+                var _pausedTime = null;
+                var _finishedResolve = null;
+                var _finishedReject = null;
+                var _readyResolve = null;
+                var _timerId = null;
 
                 var animation = {
-                    currentTime: 0,
                     playbackRate: 1,
-                    playState: 'running',
-                    startTime: Date.now(),
+                    playState: 'idle',
+                    startTime: null,
+                    duration: duration,
+                    fill: fill,
+                    easing: easing,
+                    iterations: iterations,
+                    delay: delay,
+                    effect: { target: this },
+                    id: '',
+
+                    get currentTime() {
+                        if (this.playState === 'idle') return null;
+                        if (this.playState === 'finished') return this.duration;
+                        if (this.playState === 'paused') return _pausedTime || 0;
+                        if (_startTime === null) return 0;
+                        var elapsed = (Date.now() - _startTime) * this.playbackRate;
+                        return Math.max(0, Math.min(elapsed, this.duration));
+                    },
+                    set currentTime(value) {
+                        _pausedTime = value;
+                        if (this.playState === 'running') {
+                            _startTime = Date.now() - (value / this.playbackRate);
+                        }
+                    },
+
+                    finished: new Promise(function(resolve, reject) {
+                        _finishedResolve = resolve;
+                        _finishedReject = reject;
+                    }),
+
+                    ready: new Promise(function(resolve) {
+                        _readyResolve = resolve;
+                    }),
 
                     play: function() {
+                        if (this.playState === 'paused') {
+                            _startTime = Date.now() - ((_pausedTime || 0) / this.playbackRate);
+                            _pausedTime = null;
+                        } else {
+                            _startTime = Date.now();
+                        }
+                        this.startTime = _startTime;
                         this.playState = 'running';
-                        console.log('Animation play()');
+                        if (_readyResolve) { _readyResolve(this); _readyResolve = null; }
+                        this._scheduleFinish();
                     },
 
                     pause: function() {
-                        this.playState = 'paused';
-                        console.log('Animation pause()');
+                        if (this.playState === 'running') {
+                            _pausedTime = this.currentTime;
+                            this.playState = 'paused';
+                            if (_timerId) { clearTimeout(_timerId); _timerId = null; }
+                        }
                     },
 
                     cancel: function() {
                         this.playState = 'idle';
-                        console.log('Animation cancel()');
+                        _startTime = null;
+                        _pausedTime = null;
+                        if (_timerId) { clearTimeout(_timerId); _timerId = null; }
+                        if (_finishedReject) {
+                            try { _finishedReject(new DOMException('The animation was cancelled.', 'AbortError')); } catch(e) {}
+                            _finishedReject = null;
+                            _finishedResolve = null;
+                        }
+                        this._fireEvent('cancel');
                     },
 
                     finish: function() {
                         this.playState = 'finished';
-                        console.log('Animation finish()');
+                        if (_timerId) { clearTimeout(_timerId); _timerId = null; }
+                        if (_finishedResolve) { _finishedResolve(this); _finishedResolve = null; }
+                        this._fireEvent('finish');
                     },
 
                     reverse: function() {
                         this.playbackRate *= -1;
-                        console.log('Animation reverse()');
+                        if (this.playState === 'running') {
+                            _startTime = Date.now();
+                            this._scheduleFinish();
+                        }
+                    },
+
+                    _scheduleFinish: function() {
+                        if (_timerId) { clearTimeout(_timerId); _timerId = null; }
+                        if (this.duration > 0 && this.playbackRate > 0) {
+                            var remaining = this.duration - (this.currentTime || 0);
+                            var self = this;
+                            _timerId = setTimeout(function() {
+                                if (self.playState === 'running') {
+                                    self.finish();
+                                }
+                            }, Math.max(0, remaining / this.playbackRate + this.delay));
+                        }
                     },
 
                     addEventListener: function(type, listener) {
-                        console.log('Animation event listener added:', type);
+                        if (!_listeners[type]) _listeners[type] = [];
+                        _listeners[type].push(listener);
                     },
 
                     removeEventListener: function(type, listener) {
-                        console.log('Animation event listener removed:', type);
-                    }
+                        if (!_listeners[type]) return;
+                        _listeners[type] = _listeners[type].filter(function(l) { return l !== listener; });
+                    },
+
+                    _fireEvent: function(type) {
+                        var evts = _listeners[type] || [];
+                        for (var i = 0; i < evts.length; i++) {
+                            try { evts[i]({ type: type, target: this, currentTime: this.currentTime }); } catch(e) {}
+                        }
+                    },
+
+                    onfinish: null,
+                    oncancel: null
                 };
 
-                // Set duration from options
-                if (options && typeof options === 'object') {
-                    if (typeof options.duration === 'number') {
-                        animation.duration = options.duration;
-                    }
-                    if (typeof options.fill === 'string') {
-                        animation.fill = options.fill;
-                    }
-                    if (typeof options.easing === 'string') {
-                        animation.easing = options.easing;
-                    }
-                } else if (typeof options === 'number') {
-                    animation.duration = options;
-                }
+                // Auto-play on creation (per spec)
+                animation.play();
 
                 return animation;
             };

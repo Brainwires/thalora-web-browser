@@ -1,3 +1,4 @@
+pub mod accessibility;
 pub mod types;
 
 // Browser core is only available for native builds (requires reqwest, tokio, etc.)

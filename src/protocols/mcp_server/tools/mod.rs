@@ -97,6 +97,9 @@ impl McpServer {
             tools.extend(get_wasm_debug_tool_definitions());
         }
 
+        // Accessibility Tools - Always enabled for AI semantic understanding
+        tools.extend(get_accessibility_tool_definitions());
+
         // BrainClaw preset — add agent-friendly alias tools on top of the full toolset
         if is_brainclaw_preset() {
             tools.extend(get_brainclaw_alias_tool_definitions());

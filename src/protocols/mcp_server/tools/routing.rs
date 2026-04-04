@@ -200,6 +200,26 @@ impl McpServer {
             | "wasm_debug_call_function"
             | "wasm_debug_profile_function" => self.route_wasm_debug_tool(name, arguments).await,
 
+            // Accessibility tools
+            "get_accessibility_tree" => {
+                let session_id = arguments.get("session_id").and_then(|v| v.as_str()).unwrap_or("default");
+                let max_depth = arguments.get("max_depth").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+
+                let browser = self.browser_tools.get_or_create_session(session_id, false);
+                match browser.lock() {
+                    Ok(guard) => {
+                        let content = guard.get_current_content();
+                        if content.is_empty() {
+                            McpResponse::error(-1, "No page content available. Navigate to a page first.".to_string())
+                        } else {
+                            let tree = crate::engine::browser::accessibility::build_accessibility_tree(&content, max_depth);
+                            McpResponse::success(tree)
+                        }
+                    }
+                    Err(_) => McpResponse::error(-1, "Failed to acquire browser lock".to_string()),
+                }
+            }
+
             // Unknown/Unhandled tool
             _ => McpResponse::error(-32601, format!("Tool not found: {}", name)),
         }
