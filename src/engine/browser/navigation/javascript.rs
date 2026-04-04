@@ -289,9 +289,9 @@ impl super::super::HeadlessWebBrowser {
                         );
                         external_scripts_fetched += 1;
 
-                        // Execute the fetched script
-                        match self.execute_javascript(&script_content).await {
-                            Ok(result) => {
+                        // Execute the fetched script (page context — allows eval/Function/etc.)
+                        match self.execute_page_javascript(&script_content).await {
+                            Ok(_result) => {
                                 scripts_executed += 1;
                                 eprintln!("🔍 DEBUG: External script executed successfully");
                             }
@@ -324,9 +324,9 @@ impl super::super::HeadlessWebBrowser {
                     script_content.len()
                 );
 
-                // Execute the script through the JavaScript engine
-                match self.execute_javascript(&script_content).await {
-                    Ok(result) => {
+                // Execute the script through the JavaScript engine (page context — allows eval/Function/etc.)
+                match self.execute_page_javascript(&script_content).await {
+                    Ok(_result) => {
                         scripts_executed += 1;
                         eprintln!("🔍 DEBUG: Inline script executed successfully");
                     }

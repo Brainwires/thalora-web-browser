@@ -23,6 +23,13 @@ impl RustRenderer {
         self.evaluate_javascript_with_timeout(js_code, Duration::from_secs(5))
     }
 
+    /// Execute JavaScript from page-loaded `<script>` tags (trusted context).
+    /// Uses relaxed security that allows eval, Function, document.write, WebAssembly
+    /// since these are standard browser features used by real websites.
+    pub fn evaluate_page_javascript(&mut self, js_code: &str) -> Result<String> {
+        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_secs(5))
+    }
+
     /// Execute JavaScript for browser interactions without wrapper interference
     pub fn evaluate_javascript_direct(&mut self, js_code: &str) -> Result<String> {
         // Security check
@@ -222,6 +229,54 @@ impl RustRenderer {
                     // Try to get more info from the JsError
                     eprintln!("   Full error: {:#?}", e);
                     Ok("undefined".to_string()) // Return success with undefined result
+                }
+            }
+        } else {
+            Ok("undefined".to_string())
+        }
+    }
+
+    /// Execute page-loaded JavaScript with timeout (trusted context).
+    /// Allows eval, Function, document.write, WebAssembly — standard browser behavior.
+    /// Still blocks prototype pollution, constructor chains, and Node.js APIs.
+    fn evaluate_page_javascript_with_timeout(
+        &mut self,
+        js_code: &str,
+        timeout_duration: Duration,
+    ) -> Result<String> {
+        // Page script security check (relaxed — allows eval/Function/document.write/WASM)
+        if !self.is_safe_page_javascript(js_code) {
+            return Err(anyhow!("Page script contains dangerous code (prototype pollution or Node.js APIs)"));
+        }
+
+        let source = Source::from_bytes(js_code);
+
+        if let Some(ctx) = &mut self.js_context {
+            // SECURITY: Set execution deadline to enforce timeout
+            let deadline = Instant::now() + timeout_duration;
+            ctx.runtime_limits_mut().set_execution_deadline(deadline);
+
+            let result = ctx.eval(source);
+
+            // SECURITY: Always clear the deadline after execution
+            ctx.runtime_limits_mut().clear_execution_deadline();
+
+            match result {
+                Ok(value) => {
+                    let result = self.js_value_to_string(value);
+                    Ok(result)
+                }
+                Err(e) => {
+                    let error_str = format!("{}", e);
+                    if error_str.contains("timeout") || error_str.contains("ExecutionTimeout") {
+                        return Err(anyhow!(
+                            "JavaScript execution timeout after {:?}",
+                            timeout_duration
+                        ));
+                    }
+                    // Page scripts often have recoverable errors — don't abort
+                    eprintln!("⚠️  Page script execution error: {}", e);
+                    Ok("undefined".to_string())
                 }
             }
         } else {

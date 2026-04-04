@@ -40,6 +40,7 @@ boa_gc = { path = "../boa/core/gc" }
 
 # Async runtime and utilities (native only)
 tokio = { version = "1.0", features = ["full"], optional = true }
+async-trait = "0.1"
 futures-util = "0.3"
 futures-channel = "0.3"
 crossbeam-channel = "0.5"
@@ -105,8 +106,8 @@ digest = "0.10"
 generic-array = "0.14"
 zeroize = "1.7"
 
-# WebRTC (native only)
-webrtc = { version = "0.10", optional = true }
+# WebRTC (native only) — Brainwires fork with 95%+ W3C compliance
+webrtc = { git = "https://github.com/Brainwires/webrtc-rs", optional = true }
 
 # WebAssembly runtime (native only - can't run wasmtime inside WASM)
 wasmtime = { version = "21.0", features = ["component-model", "async", "runtime", "cranelift", "cache", "pooling-allocator"], optional = true }

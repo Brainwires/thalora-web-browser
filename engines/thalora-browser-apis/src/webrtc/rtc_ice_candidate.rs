@@ -26,7 +26,7 @@ use std::{
     },
 };
 use tokio::sync::Mutex as TokioMutex;
-use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
+use webrtc::peer_connection::RTCIceCandidate;
 
 /// RTCIceCandidate initialization dictionary
 #[derive(Debug, Clone)]

@@ -68,6 +68,63 @@ fn setup_misc_apis(context: &mut Context) -> JsResult<()> {
 
         // TextEncoder/TextDecoder are now natively implemented in Boa engine
 
+        // requestIdleCallback / cancelIdleCallback (used by React concurrent mode)
+        if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'undefined') {
+            window.requestIdleCallback = function(callback, options) {
+                var timeout = (options && options.timeout) || 50;
+                var start = Date.now();
+                return setTimeout(function() {
+                    callback({
+                        didTimeout: Date.now() - start >= timeout,
+                        timeRemaining: function() {
+                            return Math.max(0, 50 - (Date.now() - start));
+                        }
+                    });
+                }, 1);
+            };
+
+            window.cancelIdleCallback = function(id) {
+                clearTimeout(id);
+            };
+        }
+
+        // navigator.sendBeacon (used by analytics on page unload)
+        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'undefined') {
+            navigator.sendBeacon = function(url, data) {
+                try {
+                    // Fire-and-forget POST request using fetch
+                    var init = {
+                        method: 'POST',
+                        keepalive: true,
+                        credentials: 'include'
+                    };
+                    if (data !== undefined && data !== null) {
+                        if (typeof data === 'string') {
+                            init.body = data;
+                            init.headers = { 'Content-Type': 'text/plain;charset=UTF-8' };
+                        } else if (typeof Blob !== 'undefined' && data instanceof Blob) {
+                            init.body = data;
+                            if (data.type) {
+                                init.headers = { 'Content-Type': data.type };
+                            }
+                        } else if (typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams) {
+                            init.body = data.toString();
+                            init.headers = { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' };
+                        } else if (typeof FormData !== 'undefined' && data instanceof FormData) {
+                            init.body = data;
+                            // Let fetch set the Content-Type with boundary for FormData
+                        } else {
+                            init.body = String(data);
+                        }
+                    }
+                    fetch(url, init).catch(function() {});
+                    return true;
+                } catch(e) {
+                    return false;
+                }
+            };
+        }
+
         // Basic Web Animations API (Chrome 133)
         if (typeof Element !== 'undefined' && typeof Element.prototype.animate === 'undefined') {
             Element.prototype.animate = function(keyframes, options) {

@@ -75,13 +75,8 @@ wasmprinter = { version = "0.2", optional = true }
 sysinfo = { version = "0.31", optional = true }
 # ipgeolocate removed - was unused and its reqwest 0.11 default-tls conflicted with BoringSSL from rquest
 
-# WebRTC implementation (native only)
-webrtc = { version = "0.11", optional = true }
-webrtc-util = { version = "0.8", optional = true }
-webrtc-data = { version = "0.7", optional = true }
-webrtc-media = { version = "0.6", optional = true }
-webrtc-ice = { version = "0.10", optional = true }
-webrtc-dtls = { version = "0.7", optional = true }
+# WebRTC implementation (native only) — Brainwires fork with 95%+ W3C compliance
+webrtc = { git = "https://github.com/Brainwires/webrtc-rs", optional = true }
 
 # Audio/Media processing (native only)
 cpal = { version = "0.15", optional = true }
@@ -239,11 +234,6 @@ native = [
     "dep:rodio",
     "dep:ffmpeg-next",
     "dep:webrtc",
-    "dep:webrtc-util",
-    "dep:webrtc-data",
-    "dep:webrtc-media",
-    "dep:webrtc-ice",
-    "dep:webrtc-dtls",
     "dep:sysinfo",
     "dep:wasmtime",
     "dep:wasmtime-wasi",

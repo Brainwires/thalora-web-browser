@@ -244,6 +244,16 @@ impl HeadlessWebBrowser {
         }
     }
 
+    /// Execute JavaScript from page-loaded `<script>` tags (trusted context).
+    /// Uses relaxed security that allows eval, Function, document.write, WebAssembly.
+    pub async fn execute_page_javascript(&mut self, js_code: &str) -> Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.evaluate_page_javascript(js_code)
+        } else {
+            Err(anyhow::anyhow!("Renderer not available"))
+        }
+    }
+
     pub fn create_standard_browser_headers(&self, url: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
 

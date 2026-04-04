@@ -26,9 +26,9 @@ use std::{
     },
 };
 use tokio::sync::Mutex as TokioMutex;
-use webrtc::{
-    peer_connection::sdp::sdp_type::RTCSdpType,
-    peer_connection::sdp::session_description::RTCSessionDescription as WebRTCSessionDescription,
+use webrtc::peer_connection::{
+    RTCSdpType,
+    RTCSessionDescription as WebRTCSessionDescription,
 };
 
 /// RTCSessionDescription type enumeration according to WHATWG specification

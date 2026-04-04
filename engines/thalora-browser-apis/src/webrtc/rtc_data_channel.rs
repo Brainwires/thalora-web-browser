@@ -19,7 +19,7 @@ use boa_engine::{
     string::StaticJsStrings,
 };
 use boa_gc::{Finalize, Trace};
-use bytes::Bytes;
+// bytes::BytesMut used inline for data channel messages
 use std::{
     collections::HashMap,
     sync::{
@@ -29,8 +29,9 @@ use std::{
 };
 use tokio::sync::Mutex as TokioMutex;
 use webrtc::data_channel::{
-    RTCDataChannel, data_channel_message::DataChannelMessage,
-    data_channel_state::RTCDataChannelState,
+    DataChannel as WebRTCDataChannel,
+    RTCDataChannelMessage as DataChannelMessage,
+    RTCDataChannelState,
 };
 
 /// RTCDataChannel states according to WHATWG specification
@@ -71,7 +72,7 @@ impl From<RTCDataChannelState> for RTCDataChannelStateEnum {
 #[derive(Trace, Finalize, JsData)]
 pub struct RTCDataChannelData {
     #[unsafe_ignore_trace]
-    channel: Option<Arc<RTCDataChannel>>,
+    channel: Option<Arc<dyn WebRTCDataChannel>>,
     channel_id: String,
     label: String,
     ordered: bool,
@@ -101,7 +102,7 @@ impl std::fmt::Debug for RTCDataChannelData {
 
 impl RTCDataChannelData {
     /// Create a new RTCDataChannelData instance
-    pub fn new(channel: Arc<RTCDataChannel>, channel_id: String, label: String) -> Self {
+    pub fn new(channel: Arc<dyn WebRTCDataChannel>, channel_id: String, label: String) -> Self {
         Self {
             channel: Some(channel),
             channel_id,
@@ -117,7 +118,7 @@ impl RTCDataChannelData {
     }
 
     /// Get the data channel reference
-    pub fn channel(&self) -> Option<&Arc<RTCDataChannel>> {
+    pub fn channel(&self) -> Option<&Arc<dyn WebRTCDataChannel>> {
         self.channel.as_ref()
     }
 
@@ -134,7 +135,7 @@ impl RTCDataChannelData {
 
 /// Global DataChannel manager for managing data channels
 pub struct DataChannelManager {
-    channels: Arc<TokioMutex<HashMap<String, Arc<RTCDataChannel>>>>,
+    channels: Arc<TokioMutex<HashMap<String, Arc<dyn WebRTCDataChannel>>>>,
     channel_counter: AtomicU32,
 }
 
@@ -143,7 +144,7 @@ impl std::fmt::Debug for DataChannelManager {
         f.debug_struct("DataChannelManager")
             .field(
                 "channels",
-                &"Arc<TokioMutex<HashMap<String, Arc<RTCDataChannel>>>>",
+                &"Arc<TokioMutex<HashMap<String, Arc<dyn WebRTCDataChannel>>>>",
             )
             .field("channel_counter", &self.channel_counter)
             .finish()
@@ -166,17 +167,17 @@ impl DataChannelManager {
     }
 
     /// Register a data channel
-    pub async fn register_channel(&self, id: String, channel: Arc<RTCDataChannel>) {
+    pub async fn register_channel(&self, id: String, channel: Arc<dyn WebRTCDataChannel>) {
         self.channels.lock().await.insert(id, channel);
     }
 
     /// Get a data channel by ID
-    pub async fn get_channel(&self, id: &str) -> Option<Arc<RTCDataChannel>> {
+    pub async fn get_channel(&self, id: &str) -> Option<Arc<dyn WebRTCDataChannel>> {
         self.channels.lock().await.get(id).cloned()
     }
 
     /// Remove a data channel
-    pub async fn remove_channel(&self, id: &str) -> Option<Arc<RTCDataChannel>> {
+    pub async fn remove_channel(&self, id: &str) -> Option<Arc<dyn WebRTCDataChannel>> {
         self.channels.lock().await.remove(id)
     }
 }
@@ -624,11 +625,11 @@ impl RTCDataChannelBuiltin {
             // Convert JavaScript value to bytes
             let bytes = if message_data.is_string() {
                 let string_data = message_data.to_string(context)?;
-                Bytes::from(string_data.to_std_string_escaped().into_bytes())
+                bytes::BytesMut::from(string_data.to_std_string_escaped().as_bytes())
             } else {
                 // For now, convert other types to string representation
                 let string_data = message_data.to_string(context)?;
-                Bytes::from(string_data.to_std_string_escaped().into_bytes())
+                bytes::BytesMut::from(string_data.to_std_string_escaped().as_bytes())
             };
 
             // Create data channel message

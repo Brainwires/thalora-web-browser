@@ -2,6 +2,25 @@ use anyhow::{Result, anyhow};
 use regex::Regex;
 use std::sync::OnceLock;
 
+/// Execution context for JavaScript security validation.
+///
+/// Page-loaded scripts (from `<script>` tags in HTML) are trusted because they come
+/// from the website itself — blocking eval/Function/document.write in page scripts
+/// breaks Webpack, Google Tag Manager, analytics, and most real-world websites.
+///
+/// AI-injected scripts (from MCP tools, CDP evaluate, etc.) are untrusted and get
+/// the full restrictive security policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecurityContext {
+    /// Scripts from `<script>` tags, external JS files, and page-initiated code.
+    /// Allows eval(), Function(), document.write(), WebAssembly — standard browser behavior.
+    /// Still blocks prototype pollution, constructor chains, and Node.js APIs.
+    PageScript,
+    /// Scripts injected by AI agents via MCP tools or CDP.
+    /// Full restrictive policy: blocks eval, Function, document.write, WebAssembly, etc.
+    AiInjected,
+}
+
 /// JavaScript security validator using comprehensive regex patterns
 /// This provides strong security without external AST parsing dependencies
 pub struct JavaScriptSecurityValidator {
@@ -16,9 +35,9 @@ impl JavaScriptSecurityValidator {
         }
     }
 
-    /// Validate JavaScript code for security risks
+    /// Validate JavaScript code for security risks (AI-injected context by default).
     ///
-    /// SECURITY POLICY (HARD BLOCKS):
+    /// SECURITY POLICY (HARD BLOCKS for AiInjected context):
     /// - Block eval() calls (arbitrary code execution)
     /// - Block Function() constructor (dynamic code generation)
     /// - Block setTimeout/setInterval with string arguments (code execution)
@@ -33,9 +52,21 @@ impl JavaScriptSecurityValidator {
     /// - window[key], self[key] (standard JS pattern; eval-bracket already caught separately)
     /// - Symbol, Reflect, Proxy (standard ES6+ features used by Vue, React, etc.)
     ///
-    /// This implements comprehensive regex-based detection that is much harder to bypass
-    /// than the previous simple pattern matching.
+    /// For PageScript context, eval/Function/document.write/WebAssembly are allowed
+    /// since they are standard browser features used by real websites (Webpack, GTM, etc.).
     pub fn is_safe_javascript(&self, js_code: &str) -> Result<()> {
+        self.validate(js_code, SecurityContext::AiInjected)
+    }
+
+    /// Validate JavaScript from page-loaded scripts (`<script>` tags, external JS files).
+    /// Uses a relaxed policy that allows eval, Function, document.write, and WebAssembly
+    /// since these are standard browser features used by real websites.
+    pub fn is_safe_page_javascript(&self, js_code: &str) -> Result<()> {
+        self.validate(js_code, SecurityContext::PageScript)
+    }
+
+    /// Core validation with configurable security context.
+    pub fn validate(&self, js_code: &str, context: SecurityContext) -> Result<()> {
         // Size limit check
         if js_code.len() > self.max_code_size {
             return Err(anyhow!(
@@ -50,26 +81,30 @@ impl JavaScriptSecurityValidator {
             return Ok(());
         }
 
-        // CRITICAL: Check for bypass vectors in original code
-        self.check_eval_bracket(js_code)?;
+        // Always check for bypass vectors in original code
         self.check_proto_bracket(js_code)?;
-        self.check_escape_sequences(js_code)?;
 
         // Remove comments and strings to prevent false positives for other checks
         let code_without_comments = self.remove_comments_and_strings(js_code);
 
-        // Check for dangerous patterns in sanitized code
-        self.check_eval(&code_without_comments)?;
-        self.check_function_constructor(&code_without_comments)?;
-        self.check_timeout_with_strings(js_code)?; // Check original for string detection
+        // Always block prototype pollution and Node.js APIs regardless of context
         self.check_proto_pollution(&code_without_comments)?;
         self.check_constructor_access(&code_without_comments)?;
-        self.check_constructor_after_literal(&code_without_comments)?;
-        self.check_async_generator_constructor(&code_without_comments)?;
-        self.check_with_statement(&code_without_comments)?;
-        self.check_document_write(&code_without_comments)?;
-        self.check_webassembly(&code_without_comments)?;
         self.check_node_apis(&code_without_comments)?;
+
+        // Additional restrictions for AI-injected scripts only
+        if context == SecurityContext::AiInjected {
+            self.check_eval_bracket(js_code)?;
+            self.check_escape_sequences(js_code)?;
+            self.check_eval(&code_without_comments)?;
+            self.check_function_constructor(&code_without_comments)?;
+            self.check_timeout_with_strings(js_code)?;
+            self.check_constructor_after_literal(&code_without_comments)?;
+            self.check_async_generator_constructor(&code_without_comments)?;
+            self.check_with_statement(&code_without_comments)?;
+            self.check_document_write(&code_without_comments)?;
+            self.check_webassembly(&code_without_comments)?;
+        }
 
         Ok(())
     }
@@ -941,5 +976,85 @@ mod tests {
         "#;
 
         assert!(validator.is_safe_javascript(safe_code).is_ok());
+    }
+
+    // === SecurityContext tests ===
+
+    #[test]
+    fn test_page_script_allows_eval() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // eval is blocked for AI-injected scripts
+        assert!(validator.validate("eval('1+1')", SecurityContext::AiInjected).is_err());
+
+        // eval is allowed for page scripts (Webpack, GTM, analytics use it)
+        assert!(validator.validate("eval('1+1')", SecurityContext::PageScript).is_ok());
+    }
+
+    #[test]
+    fn test_page_script_allows_function_constructor() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // Function() blocked for AI, allowed for page
+        assert!(validator.validate("new Function('return 1')()", SecurityContext::AiInjected).is_err());
+        assert!(validator.validate("new Function('return 1')()", SecurityContext::PageScript).is_ok());
+    }
+
+    #[test]
+    fn test_page_script_allows_document_write() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // document.write blocked for AI, allowed for page
+        assert!(validator.validate("document.write('<p>Hello</p>')", SecurityContext::AiInjected).is_err());
+        assert!(validator.validate("document.write('<p>Hello</p>')", SecurityContext::PageScript).is_ok());
+    }
+
+    #[test]
+    fn test_page_script_allows_webassembly() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // WebAssembly blocked for AI, allowed for page
+        assert!(validator.validate("WebAssembly.instantiate(buffer)", SecurityContext::AiInjected).is_err());
+        assert!(validator.validate("WebAssembly.instantiate(buffer)", SecurityContext::PageScript).is_ok());
+    }
+
+    #[test]
+    fn test_page_script_still_blocks_proto_pollution() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // Prototype pollution blocked for BOTH contexts
+        assert!(validator.validate("obj.__proto__ = {}", SecurityContext::PageScript).is_err());
+        assert!(validator.validate("obj['__proto__'] = {}", SecurityContext::PageScript).is_err());
+    }
+
+    #[test]
+    fn test_page_script_still_blocks_node_apis() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // Node.js APIs blocked for BOTH contexts
+        assert!(validator.validate("require('fs')", SecurityContext::PageScript).is_err());
+        assert!(validator.validate("process.exit()", SecurityContext::PageScript).is_err());
+    }
+
+    #[test]
+    fn test_page_script_still_blocks_constructor_chains() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // constructor.constructor blocked for BOTH contexts
+        assert!(validator.validate("obj.constructor.constructor('code')()", SecurityContext::PageScript).is_err());
+    }
+
+    #[test]
+    fn test_is_safe_page_javascript_convenience() {
+        let validator = JavaScriptSecurityValidator::new();
+
+        // Convenience method should use PageScript context
+        assert!(validator.is_safe_page_javascript("eval('1+1')").is_ok());
+        assert!(validator.is_safe_page_javascript("new Function('return 1')()").is_ok());
+        assert!(validator.is_safe_page_javascript("document.write('<p>hi</p>')").is_ok());
+
+        // But still block dangerous patterns
+        assert!(validator.is_safe_page_javascript("obj.__proto__ = {}").is_err());
+        assert!(validator.is_safe_page_javascript("require('child_process')").is_err());
     }
 }
