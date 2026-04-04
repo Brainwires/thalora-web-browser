@@ -99,75 +99,230 @@ impl EventTargetData {
         }
     }
 
-    /// Dispatch an event to all matching listeners
-    pub fn dispatch_event(&self, event: &JsObject, context: &mut Context) -> JsResult<bool> {
-        // Get event type
-        let event_type = if let Ok(type_prop) = event.get(js_string!("type"), context) {
-            if let Ok(type_str) = type_prop.to_string(context) {
-                type_str.to_std_string_escaped()
-            } else {
-                return Ok(true);
+    /// Fire listeners on this target for the given event type and phase.
+    /// Returns true if stopImmediatePropagation was called.
+    pub(crate) fn fire_listeners(
+        &self,
+        event: &JsObject,
+        event_type: &str,
+        phase: &super::event::EventPhase,
+        context: &mut Context,
+    ) -> JsResult<bool> {
+        let listeners_copy = {
+            let borrowed = self.listeners.borrow();
+            match borrowed.get(event_type) {
+                Some(listeners) => listeners.clone(),
+                None => return Ok(false),
             }
+        };
+
+        let mut once_indices = Vec::new();
+        let mut stop_immediate = false;
+
+        for (index, listener) in listeners_copy.iter().enumerate() {
+            if !listener.is_active() {
+                continue;
+            }
+
+            // Filter by phase: capture listeners fire during capture phase,
+            // non-capture listeners fire during bubble phase.
+            // At target phase, ALL listeners fire regardless of capture flag.
+            match phase {
+                super::event::EventPhase::CapturingPhase => {
+                    if !listener.capture {
+                        continue;
+                    }
+                }
+                super::event::EventPhase::BubblingPhase => {
+                    if listener.capture {
+                        continue;
+                    }
+                }
+                super::event::EventPhase::AtTarget => {
+                    // Fire all listeners at target phase
+                }
+                super::event::EventPhase::None => continue,
+            }
+
+            // Call the listener
+            if let Some(func) = listener.callback.as_callable() {
+                let _ = func.call(&JsValue::undefined(), &[event.clone().into()], context);
+            }
+
+            if listener.once {
+                once_indices.push(index);
+            }
+
+            // Check stopImmediatePropagation on the EventData
+            if let Some(event_data) = event.downcast_ref::<super::event::EventData>() {
+                if event_data.should_stop_immediate_propagation() {
+                    stop_immediate = true;
+                    break;
+                }
+            }
+        }
+
+        // Remove "once" listeners
+        if !once_indices.is_empty() {
+            once_indices.reverse();
+            if let Ok(mut map) = self.listeners.try_borrow_mut() {
+                if let Some(listeners) = map.get_mut(event_type) {
+                    for index in once_indices {
+                        if index < listeners.len() {
+                            listeners.remove(index);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(stop_immediate)
+    }
+
+    /// Dispatch an event with full DOM spec 3-phase propagation.
+    ///
+    /// 1. Build event path: walk parentNode from target to root
+    /// 2. Capture phase: root → target (exclusive), fire capture listeners
+    /// 3. Target phase: fire ALL listeners on target
+    /// 4. Bubble phase: target parent → root, fire non-capture listeners (if bubbles)
+    ///
+    /// Sets event.target, event.currentTarget, event.eventPhase at each step.
+    /// Respects stopPropagation and stopImmediatePropagation.
+    pub fn dispatch_event(
+        &self,
+        event: &JsObject,
+        target: &JsObject,
+        context: &mut Context,
+    ) -> JsResult<bool> {
+        use super::event::{EventData, EventPhase};
+
+        // Extract event type
+        let event_type = if let Ok(type_prop) = event.get(js_string!("type"), context) {
+            type_prop.to_string(context).map(|s| s.to_std_string_escaped()).unwrap_or_default()
         } else {
             return Ok(true);
         };
 
-        // Check if event has dispatch flag set (should throw error)
-        // For now, we'll skip this check as it requires Event internal state
+        if event_type.is_empty() {
+            return Ok(true);
+        }
 
-        let mut prevent_default_called = false;
+        // Read bubbles flag
+        let bubbles = event
+            .downcast_ref::<EventData>()
+            .map(|d| d.get_bubbles())
+            .unwrap_or(false);
 
-        // Get listeners for this event type
-        let mut indices_to_remove = Vec::new();
+        // Set event.target
+        if let Some(mut event_data) = event.downcast_mut::<EventData>() {
+            event_data.set_target(Some(target.clone()));
+        }
+        // Also set on the JS object for code that reads .target directly
+        let _ = event.set(js_string!("target"), target.clone(), false, context);
 
-        if let Some(listeners) = self.listeners.borrow().get(&event_type) {
-            let listeners_copy = listeners.clone();
-
-            for (index, listener) in listeners_copy.iter().enumerate() {
-                if !listener.is_active() {
-                    continue;
-                }
-
-                // Call the listener
-                // Use public API - get callable and call it
-                if let Some(func) = listener.callback.as_callable() {
-                    let result = func.call(&JsValue::undefined(), &[event.clone().into()], context);
-
-                    // Check if preventDefault was called on the event
-                    if let Ok(default_prevented) =
-                        event.get(js_string!("defaultPrevented"), context)
-                    {
-                        if default_prevented.to_boolean() {
-                            prevent_default_called = true;
+        // Build event path: walk parentNode from target to root
+        let mut path: Vec<JsObject> = Vec::new();
+        {
+            let mut current = target.clone();
+            loop {
+                let parent = current.get(js_string!("parentNode"), context);
+                match parent {
+                    Ok(ref val) if !val.is_null() && !val.is_undefined() => {
+                        if let Some(parent_obj) = val.as_object() {
+                            path.push(parent_obj.clone());
+                            current = parent_obj.clone();
+                        } else {
+                            break;
                         }
                     }
+                    _ => break,
+                }
+            }
+        }
+        path.reverse(); // Now root → ... → target's parent
 
-                    // Handle errors in event handlers
-                    if result.is_err() {
-                        // In browsers, errors in event handlers are typically logged but don't stop other handlers
-                        // For now, we'll continue processing
+        // === CAPTURE PHASE: root → target (exclusive) ===
+        for node in &path {
+            if let Some(mut event_data) = event.downcast_mut::<EventData>() {
+                event_data.set_phase(EventPhase::CapturingPhase);
+                event_data.set_current_target(Some(node.clone()));
+            }
+            let _ = event.set(js_string!("currentTarget"), node.clone(), false, context);
+            let _ = event.set(js_string!("eventPhase"), JsValue::from(1), false, context);
+
+            // Fire capture listeners on this node
+            if let Some(target_data) = node.downcast_ref::<EventTargetData>() {
+                target_data.fire_listeners(event, &event_type, &EventPhase::CapturingPhase, context)?;
+            }
+
+            // Check stopPropagation
+            if let Some(ed) = event.downcast_ref::<EventData>() {
+                if ed.should_stop_propagation() {
+                    break;
+                }
+            }
+        }
+
+        // === TARGET PHASE ===
+        let stopped = event.downcast_ref::<EventData>()
+            .map(|d| d.should_stop_propagation())
+            .unwrap_or(false);
+
+        if !stopped {
+            if let Some(mut event_data) = event.downcast_mut::<EventData>() {
+                event_data.set_phase(EventPhase::AtTarget);
+                event_data.set_current_target(Some(target.clone()));
+            }
+            let _ = event.set(js_string!("currentTarget"), target.clone(), false, context);
+            let _ = event.set(js_string!("eventPhase"), JsValue::from(2), false, context);
+
+            // Fire ALL listeners on target (capture and non-capture)
+            self.fire_listeners(event, &event_type, &EventPhase::AtTarget, context)?;
+        }
+
+        // === BUBBLE PHASE: target parent → root ===
+        if bubbles {
+            let stopped = event.downcast_ref::<EventData>()
+                .map(|d| d.should_stop_propagation())
+                .unwrap_or(false);
+
+            if !stopped {
+                // path is root→...→target_parent, iterate in reverse for bubble
+                for node in path.iter().rev() {
+                    if let Some(mut event_data) = event.downcast_mut::<EventData>() {
+                        event_data.set_phase(EventPhase::BubblingPhase);
+                        event_data.set_current_target(Some(node.clone()));
+                    }
+                    let _ = event.set(js_string!("currentTarget"), node.clone(), false, context);
+                    let _ = event.set(js_string!("eventPhase"), JsValue::from(3), false, context);
+
+                    if let Some(target_data) = node.downcast_ref::<EventTargetData>() {
+                        target_data.fire_listeners(event, &event_type, &EventPhase::BubblingPhase, context)?;
+                    }
+
+                    if let Some(ed) = event.downcast_ref::<EventData>() {
+                        if ed.should_stop_propagation() {
+                            break;
+                        }
                     }
                 }
-
-                // Mark listener for removal if it was marked as "once"
-                if listener.once {
-                    indices_to_remove.push(index);
-                }
             }
         }
 
-        // Remove "once" listeners in reverse order to maintain correct indices
-        indices_to_remove.reverse();
-        for index in indices_to_remove {
-            if let Some(listeners) = self.listeners.borrow_mut().get_mut(&event_type) {
-                if index < listeners.len() {
-                    listeners.remove(index);
-                }
-            }
+        // Reset phase and currentTarget after dispatch
+        if let Some(mut event_data) = event.downcast_mut::<EventData>() {
+            event_data.set_phase(EventPhase::None);
+            event_data.set_current_target(None);
         }
+        let _ = event.set(js_string!("currentTarget"), JsValue::null(), false, context);
+        let _ = event.set(js_string!("eventPhase"), JsValue::from(0), false, context);
 
-        // Return true if no listener called preventDefault
-        Ok(!prevent_default_called)
+        // Return true if preventDefault was NOT called
+        if let Some(event_data) = event.downcast_ref::<EventData>() {
+            Ok(!event_data.get_default_prevented())
+        } else {
+            Ok(true)
+        }
     }
 }
 
@@ -303,7 +458,7 @@ impl EventTarget {
         let event_arg = args.get_or_undefined(0);
 
         if let Some(event_obj) = event_arg.as_object() {
-            let result = target_data.dispatch_event(&event_obj, context)?;
+            let result = target_data.dispatch_event(&event_obj, &this_obj, context)?;
             Ok(JsValue::new(result))
         } else {
             Err(JsNativeError::typ()

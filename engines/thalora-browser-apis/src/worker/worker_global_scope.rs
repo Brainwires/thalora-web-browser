@@ -300,7 +300,7 @@ impl WorkerGlobalScope {
                 if let Some(target_data) =
                     global.downcast_ref::<crate::events::event_target::EventTargetData>()
                 {
-                    let _ = target_data.dispatch_event(&event_obj, context);
+                    let _ = target_data.dispatch_event(&event_obj, &global, context);
                 } else {
                     // Fallback: dispatch via global dispatchEvent if available
                     let dispatch_event = global.get(js_string!("dispatchEvent"), context)?;

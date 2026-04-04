@@ -2037,39 +2037,33 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         JsNativeError::typ().with_message("Element.prototype.dispatchEvent called on non-object")
     })?;
 
-    let element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
+    // Verify this is an Element
+    let _element = this_obj.downcast_ref::<ElementData>().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("Element.prototype.dispatchEvent called on non-Element object")
     })?;
 
-    let event = args.get_or_undefined(0);
+    let event_arg = args.get_or_undefined(0);
+    let event_obj = event_arg.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("dispatchEvent requires an Event object")
+    })?;
 
-    // Get event type from event object
-    if event.is_object() {
-        if let Some(event_obj) = event.as_object() {
-            // Get the 'type' property from the event object
-            let event_type_value = event_obj
-                .get(js_string!("type"), context)
-                .unwrap_or(JsValue::undefined());
-
-            if !event_type_value.is_undefined() {
-                let event_type = event_type_value.to_string(context)?;
-                element.dispatch_event(&event_type.to_std_string_escaped(), &event, context)?;
-                Ok(JsValue::from(true)) // Return true (event was dispatched successfully)
-            } else {
-                Err(JsNativeError::typ()
-                    .with_message("Event object must have a 'type' property")
-                    .into())
-            }
-        } else {
-            Err(JsNativeError::typ()
-                .with_message("dispatchEvent requires an Event object")
-                .into())
-        }
+    // Use spec-compliant 3-phase dispatch via EventTargetData
+    if let Some(target_data) = this_obj.downcast_ref::<crate::events::event_target::EventTargetData>() {
+        let result = target_data.dispatch_event(&event_obj, &this_obj, context)?;
+        Ok(JsValue::from(result))
     } else {
-        Err(JsNativeError::typ()
-            .with_message("dispatchEvent requires an Event object")
-            .into())
+        // Fallback: Element doesn't have EventTargetData, fire element's own listeners
+        let event_type_value = event_obj
+            .get(js_string!("type"), context)
+            .unwrap_or(JsValue::undefined());
+
+        if !event_type_value.is_undefined() {
+            let event_type = event_type_value.to_string(context)?;
+            let element = this_obj.downcast_ref::<ElementData>().unwrap();
+            element.dispatch_event(&event_type.to_std_string_escaped(), &event_arg, context)?;
+        }
+        Ok(JsValue::from(true))
     }
 }
 
