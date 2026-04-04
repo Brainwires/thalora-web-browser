@@ -48,6 +48,18 @@ impl super::super::HeadlessWebBrowser {
                 }
                 e
             })?;
+
+        // Extract security headers before consuming response body
+        let csp_header = response
+            .headers()
+            .get("content-security-policy")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        if let Some(ref csp) = csp_header {
+            eprintln!("🔒 CSP: Content-Security-Policy header found: {}",
+                if csp.len() > 100 { &csp[..100] } else { csp });
+        }
+
         let content = response.text().await?;
 
         // Store the current content and URL

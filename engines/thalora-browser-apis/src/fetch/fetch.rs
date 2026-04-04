@@ -120,6 +120,14 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                         }
                     }
 
+                    // Determine response type based on CORS headers
+                    let has_acao = response_headers.contains_key("access-control-allow-origin");
+                    let response_type = if has_acao {
+                        "cors"
+                    } else {
+                        "basic"
+                    };
+
                     // Get response body
                     let body_result = response.text().await;
                     match body_result {
@@ -157,6 +165,27 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                             drop(response_obj.set(
                                 js_string!("url"),
                                 JsValue::from(js_string!(url_string)),
+                                false,
+                                context,
+                            ));
+                            // Set response type per Fetch spec
+                            drop(response_obj.set(
+                                js_string!("type"),
+                                JsValue::from(js_string!(response_type)),
+                                false,
+                                context,
+                            ));
+                            // Redirected flag
+                            drop(response_obj.set(
+                                js_string!("redirected"),
+                                JsValue::from(false),
+                                false,
+                                context,
+                            ));
+                            // Body used flag
+                            drop(response_obj.set(
+                                js_string!("bodyUsed"),
+                                JsValue::from(false),
                                 false,
                                 context,
                             ));
