@@ -38,6 +38,8 @@ pub struct HeadlessWebBrowser {
     pub(super) bypass_cache: bool,
     /// Queue of history events from JS History API for GUI synchronization
     pub(super) history_events: Arc<Mutex<Vec<HistoryEvent>>>,
+    /// Parsed Content-Security-Policy for the current page
+    pub(super) csp_policy: Option<super::navigation::csp::CspPolicy>,
 }
 
 impl HeadlessWebBrowser {
@@ -104,6 +106,7 @@ impl HeadlessWebBrowser {
             resource_cache: ResourceCache::default(),
             bypass_cache: false,
             history_events: Arc::new(Mutex::new(Vec::new())),
+            csp_policy: None,
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));

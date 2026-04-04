@@ -7,6 +7,42 @@ use tokio::time::{Duration, sleep};
 use crate::engine::browser::types::NavigationMode;
 use crate::engine::security::SsrfProtection;
 
+/// Verify Subresource Integrity (SRI) hash for fetched resources.
+/// The `integrity` attribute contains one or more `<algorithm>-<base64hash>` tokens.
+/// Returns true if ANY token matches (per spec, any match = pass).
+fn verify_integrity(content: &[u8], integrity_attr: &str) -> bool {
+    use base64::Engine as _;
+    use digest::Digest;
+
+    for token in integrity_attr.split_whitespace() {
+        let Some((algo, expected_b64)) = token.split_once('-') else {
+            continue;
+        };
+
+        let computed = match algo {
+            "sha256" => {
+                let hash = sha2::Sha256::digest(content);
+                base64::engine::general_purpose::STANDARD.encode(hash)
+            }
+            "sha384" => {
+                let hash = sha2::Sha384::digest(content);
+                base64::engine::general_purpose::STANDARD.encode(hash)
+            }
+            "sha512" => {
+                let hash = sha2::Sha512::digest(content);
+                base64::engine::general_purpose::STANDARD.encode(hash)
+            }
+            _ => continue, // Unknown algorithm, skip
+        };
+
+        if computed == expected_b64 {
+            return true; // Any match passes
+        }
+    }
+
+    false // No tokens matched
+}
+
 impl super::super::HeadlessWebBrowser {
     /// Navigate to URL with full control over waiting behavior
     ///
@@ -49,7 +85,7 @@ impl super::super::HeadlessWebBrowser {
                 e
             })?;
 
-        // Extract security headers before consuming response body
+        // Extract and parse Content-Security-Policy header
         let csp_header = response
             .headers()
             .get("content-security-policy")
@@ -58,6 +94,9 @@ impl super::super::HeadlessWebBrowser {
         if let Some(ref csp) = csp_header {
             eprintln!("🔒 CSP: Content-Security-Policy header found: {}",
                 if csp.len() > 100 { &csp[..100] } else { csp });
+            self.csp_policy = Some(super::csp::CspPolicy::parse(csp));
+        } else {
+            self.csp_policy = None;
         }
 
         let content = response.text().await?;
@@ -287,10 +326,25 @@ impl super::super::HeadlessWebBrowser {
             if let Some(src) = script_element.value().attr("src") {
                 eprintln!("🔍 DEBUG: Found external script: {}", src);
 
+                // Extract SRI integrity attribute if present
+                let integrity = script_element.value().attr("integrity");
+
                 // Resolve the URL (handle relative paths, protocol-relative URLs)
                 let script_url = self.resolve_script_url(&base_url, src)?;
 
                 eprintln!("🔍 DEBUG: Fetching external script from: {}", script_url);
+
+                // CSP: Check if this external script URL is allowed
+                if let Some(ref csp) = self.csp_policy {
+                    if !csp.allows_external_script(&script_url, self.current_url.as_deref()) {
+                        scripts_failed += 1;
+                        eprintln!(
+                            "🔒 CSP: External script blocked by Content-Security-Policy: {}",
+                            script_url
+                        );
+                        continue;
+                    }
+                }
 
                 // Fetch the external script
                 match self.fetch_external_script(&script_url).await {
@@ -300,6 +354,26 @@ impl super::super::HeadlessWebBrowser {
                             script_content.len()
                         );
                         external_scripts_fetched += 1;
+
+                        // SRI: Verify integrity hash if attribute is present
+                        if let Some(integrity_value) = integrity {
+                            if !integrity_value.is_empty()
+                                && !verify_integrity(
+                                    script_content.as_bytes(),
+                                    integrity_value,
+                                )
+                            {
+                                scripts_failed += 1;
+                                eprintln!(
+                                    "🔒 SRI: Integrity check FAILED for {}, blocking execution",
+                                    script_url
+                                );
+                                continue; // Skip this script
+                            }
+                            if !integrity_value.is_empty() {
+                                eprintln!("🔒 SRI: Integrity check passed for {}", script_url);
+                            }
+                        }
 
                         // Execute the fetched script (page context — allows eval/Function/etc.)
                         match self.execute_page_javascript(&script_content).await {
@@ -329,6 +403,18 @@ impl super::super::HeadlessWebBrowser {
 
                 if script_content.trim().is_empty() {
                     continue;
+                }
+
+                // CSP: Check if inline scripts are allowed
+                if let Some(ref csp) = self.csp_policy {
+                    let nonce = script_element.value().attr("nonce");
+                    if !csp.allows_inline_script(nonce, None) {
+                        scripts_failed += 1;
+                        eprintln!(
+                            "🔒 CSP: Inline script blocked by Content-Security-Policy (no matching nonce/unsafe-inline)"
+                        );
+                        continue;
+                    }
                 }
 
                 eprintln!(
