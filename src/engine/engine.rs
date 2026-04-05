@@ -4,8 +4,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 use thalora_browser_apis::boa_engine::{
-    Context, JsValue, Source, js_string, module::IdleModuleLoader,
+    Context, JsValue, Source, js_string,
 };
+use crate::engine::browser::module_loader::HttpModuleLoader;
 use tokio::sync::Mutex;
 
 use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;
@@ -32,7 +33,7 @@ struct TimerHandle {
 impl JavaScriptEngine {
     pub fn new() -> Result<Self> {
         let mut context = Context::builder()
-            .module_loader(Rc::new(IdleModuleLoader))
+            .module_loader(Rc::new(HttpModuleLoader::new("about:blank")))
             .build()
             .map_err(|e| anyhow!("failed to build JS context: {}", e))?;
         let timers = Arc::new(Mutex::new(HashMap::new()));

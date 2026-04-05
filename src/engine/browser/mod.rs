@@ -1,4 +1,6 @@
 pub mod accessibility;
+#[cfg(feature = "core")]
+pub mod module_loader;
 pub mod types;
 
 // Browser core is only available for native builds (requires reqwest, tokio, etc.)

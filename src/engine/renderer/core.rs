@@ -3,7 +3,8 @@ use crate::engine::engine_trait::EngineType;
 use anyhow::Result;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use thalora_browser_apis::boa_engine::{Context, module::IdleModuleLoader};
+use thalora_browser_apis::boa_engine::Context;
+use crate::engine::browser::module_loader::HttpModuleLoader;
 // events API is now natively implemented in Boa engine
 // WebAssembly is now natively implemented in Boa engine
 
@@ -31,7 +32,7 @@ impl RustRenderer {
         match engine_type {
             EngineType::Boa => {
                 let mut context = Context::builder()
-                    .module_loader(Rc::new(IdleModuleLoader))
+                    .module_loader(Rc::new(HttpModuleLoader::new("about:blank")))
                     .build()
                     .expect("failed to build JS context");
 

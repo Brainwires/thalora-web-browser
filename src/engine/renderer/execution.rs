@@ -1,8 +1,9 @@
 use crate::engine::renderer::core::RustRenderer;
 use anyhow::{Result, anyhow};
 use std::error::Error;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use thalora_browser_apis::boa_engine::Source;
+use thalora_browser_apis::boa_engine::{Source, module::Module};
 
 impl RustRenderer {
     pub fn handle_google_challenge(&mut self, js_code: &str) -> Result<String> {
@@ -303,6 +304,44 @@ impl RustRenderer {
             }
         } else {
             Ok("undefined".to_string())
+        }
+    }
+
+    /// Evaluate JavaScript source as an ES module.
+    ///
+    /// Parses the source as a module (not a classic script), then loads
+    /// dependencies, links, and evaluates. The URL is used as the module's
+    /// path for relative import resolution in subsequent imports.
+    pub fn evaluate_module(&mut self, source: &str, url: &str) -> Result<String> {
+        if let Some(ctx) = &mut self.js_context {
+            // Use URL-as-PathBuf so referrer.path() works for child imports
+            let path = PathBuf::from(url);
+            let src = Source::from_bytes(source.as_bytes()).with_path(&path);
+
+            // Parse as ES module
+            let module = Module::parse(src, None, ctx)
+                .map_err(|e| anyhow!("Module parse error for '{}': {}", url, e))?;
+
+            // Load dependencies, link, and evaluate
+            let _promise = module.load_link_evaluate(ctx);
+
+            // Flush the job queue to drive async module loading
+            if let Err(e) = ctx.run_jobs() {
+                eprintln!("⚠️  Module job queue error for '{}': {}", url, e);
+            }
+
+            Ok("module evaluated".to_string())
+        } else {
+            Err(anyhow!("JavaScript context not available"))
+        }
+    }
+
+    /// Update the HTTP module loader's base URL for relative import resolution.
+    pub fn set_module_base_url(&mut self, url: &str) {
+        if let Some(ctx) = &self.js_context {
+            if let Some(loader) = ctx.downcast_module_loader::<crate::engine::browser::module_loader::HttpModuleLoader>() {
+                loader.set_base_url(url);
+            }
         }
     }
 }

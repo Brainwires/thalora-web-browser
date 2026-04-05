@@ -105,6 +105,9 @@ impl super::super::HeadlessWebBrowser {
         self.current_content = content.clone();
         self.current_url = Some(url.to_string());
 
+        // Update ES module loader base URL for relative import resolution
+        self.set_module_base_url(url);
+
         eprintln!("🔍 DEBUG: Content length: {} characters", content.len());
 
         // Fetch external stylesheets from <link rel="stylesheet"> tags
@@ -305,6 +308,55 @@ impl super::super::HeadlessWebBrowser {
             {
                 eprintln!("🔍 DEBUG: Skipping script with type: {}", script_type);
                 continue;
+            }
+
+            // ES Module scripts are always deferred per spec — only execute in deferred pass
+            if script_type == "module" {
+                if !only_deferred {
+                    continue; // Skip modules in non-deferred pass
+                }
+
+                if let Some(src) = script_element.value().attr("src") {
+                    // External module
+                    let script_url = self.resolve_script_url(&base_url, src)?;
+                    eprintln!("🔍 DEBUG: Fetching external module from: {}", script_url);
+
+                    match self.fetch_external_script(&script_url).await {
+                        Ok(module_source) => {
+                            match self.execute_module(&module_source, &script_url).await {
+                                Ok(_) => {
+                                    scripts_executed += 1;
+                                    eprintln!("🔍 DEBUG: External module executed successfully");
+                                }
+                                Err(e) => {
+                                    scripts_failed += 1;
+                                    eprintln!("⚠️  WARNING: External module execution failed: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            scripts_failed += 1;
+                            eprintln!("⚠️  WARNING: Failed to fetch external module {}: {}", src, e);
+                        }
+                    }
+                } else {
+                    // Inline module
+                    let module_source: String = script_element.text().collect();
+                    if !module_source.trim().is_empty() {
+                        eprintln!("🔍 DEBUG: Executing inline module ({} chars)", module_source.len());
+                        match self.execute_module(&module_source, &base_url).await {
+                            Ok(_) => {
+                                scripts_executed += 1;
+                                eprintln!("🔍 DEBUG: Inline module executed successfully");
+                            }
+                            Err(e) => {
+                                scripts_failed += 1;
+                                eprintln!("⚠️  WARNING: Inline module execution failed: {}", e);
+                            }
+                        }
+                    }
+                }
+                continue; // Module handled — skip classic script path
             }
 
             // Check for async/defer attributes

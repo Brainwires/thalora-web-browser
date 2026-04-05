@@ -257,6 +257,22 @@ impl HeadlessWebBrowser {
         }
     }
 
+    /// Execute JavaScript source as an ES module (trusted page context).
+    pub async fn execute_module(&mut self, source: &str, url: &str) -> Result<String> {
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.evaluate_module(source, url)
+        } else {
+            Err(anyhow::anyhow!("Renderer not available"))
+        }
+    }
+
+    /// Update the HTTP module loader's base URL for relative import resolution.
+    pub fn set_module_base_url(&mut self, url: &str) {
+        if let Some(ref mut renderer) = self.renderer {
+            renderer.set_module_base_url(url);
+        }
+    }
+
     pub fn create_standard_browser_headers(&self, url: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
 
