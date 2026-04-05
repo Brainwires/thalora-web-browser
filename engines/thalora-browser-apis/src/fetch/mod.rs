@@ -36,5 +36,8 @@ pub mod websocket_wasm;
 #[cfg(feature = "wasm")]
 pub use websocket_wasm as websocket;
 
+/// Service Worker fetch event interception
+pub mod sw_fetch_intercept;
+
 #[cfg(test)]
 mod tests;

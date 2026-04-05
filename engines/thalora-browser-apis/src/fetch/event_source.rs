@@ -242,6 +242,20 @@ impl BuiltInConstructor for EventSource {
             JsNativeError::syntax().with_message("Invalid URL provided to EventSource constructor")
         })?;
 
+        // CSP: Check connect-src before opening the EventSource connection
+        if !crate::csp::csp_allows_connect(&url_str) {
+            eprintln!(
+                "🔒 CSP: EventSource blocked by connect-src: {}",
+                url_str
+            );
+            return Err(JsNativeError::typ()
+                .with_message(format!(
+                    "Refused to connect to '{}' because it violates the following Content Security Policy directive: \"connect-src\"",
+                    url_str
+                ))
+                .into());
+        }
+
         // 2. Parse eventSourceInitDict
         let with_credentials = if let Some(init_dict) = args.get(1) {
             if init_dict.is_object() {

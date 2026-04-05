@@ -105,6 +105,16 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     let mode = fetch_init.mode;
     let _credentials = fetch_init.credentials;
 
+    // Service Worker fetch interception:
+    // Before making a network request, check if an active service worker controls
+    // this URL. If so, dispatch a FetchEvent and use the response if respondWith() was called.
+    if let Ok(Some(sw_response)) =
+        crate::fetch::sw_fetch_intercept::try_sw_fetch_intercept(&url_string, &method, &headers, context)
+    {
+        // The service worker provided a response via respondWith()
+        return Ok(JsPromise::resolve(sw_response, context)?.into());
+    }
+
     // Create a new pending Promise and return it immediately
     let (promise, resolvers) = JsPromise::new_pending(context);
 

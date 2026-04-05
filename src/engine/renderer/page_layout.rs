@@ -10,6 +10,153 @@ use scraper::{ElementRef, Html, Node, Selector};
 use std::collections::HashMap;
 use std::time::Instant;
 
+/// Document compatibility mode per HTML5 spec §13.2.3.3.
+/// Determined by inspecting the DOCTYPE declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocumentMode {
+    /// Standards mode: `<!DOCTYPE html>` or valid HTML5 DOCTYPE
+    Standards,
+    /// Almost standards mode (limited quirks): HTML 4.01 Transitional/Frameset with system ID
+    AlmostStandards,
+    /// Quirks mode: no DOCTYPE, legacy DOCTYPEs, or missing system ID on transitional DOCTYPEs
+    Quirks,
+}
+
+/// Detect the document compatibility mode from the parsed HTML document.
+///
+/// Implements the DOCTYPE sniffing algorithm from the HTML5 spec:
+/// - No DOCTYPE → Quirks
+/// - `<!DOCTYPE html>` (no public/system ID) → Standards
+/// - Known quirks-mode public IDs → Quirks
+/// - Transitional/Frameset with system ID → AlmostStandards
+/// - Everything else with `html` name → Standards
+pub fn detect_document_mode(document: &Html) -> DocumentMode {
+    // Walk the document tree to find the doctype node
+    let tree = document.tree.root();
+    let mut doctype_found = false;
+    let mut doctype_name = String::new();
+    let mut public_id = String::new();
+    let mut system_id = String::new();
+
+    for child in tree.children() {
+        if let Some(dt) = child.value().as_doctype() {
+            doctype_found = true;
+            doctype_name = dt.name().to_lowercase();
+            public_id = dt.public_id().to_lowercase();
+            system_id = dt.system_id().to_lowercase();
+            break;
+        }
+    }
+
+    if !doctype_found {
+        return DocumentMode::Quirks;
+    }
+
+    // DOCTYPE name must be "html" for standards mode
+    if doctype_name != "html" {
+        return DocumentMode::Quirks;
+    }
+
+    // `<!DOCTYPE html>` with no public/system ID → Standards (HTML5)
+    if public_id.is_empty() && system_id.is_empty() {
+        return DocumentMode::Standards;
+    }
+
+    // `<!DOCTYPE html SYSTEM "about:legacy-compat">` → Standards (HTML5 legacy-compat)
+    if public_id.is_empty() && system_id == "about:legacy-compat" {
+        return DocumentMode::Standards;
+    }
+
+    // Known quirks-mode public ID prefixes (per HTML5 spec §13.2.3.3)
+    let quirks_public_prefixes = [
+        "+//silmaril//dtd html pro v0r11 19970101//",
+        "-//as//dtd html 3.0 aswedit 7//",
+        "-//advasoft ltd//dtd html 3.0 aswedit 7//",
+        "-//ietf//dtd html 2.0 level 1//",
+        "-//ietf//dtd html 2.0 level 2//",
+        "-//ietf//dtd html 2.0 strict level 1//",
+        "-//ietf//dtd html 2.0 strict level 2//",
+        "-//ietf//dtd html 2.0 strict//",
+        "-//ietf//dtd html 2.0//",
+        "-//ietf//dtd html 2.1e//",
+        "-//ietf//dtd html 3.0//",
+        "-//ietf//dtd html 3.2 final//",
+        "-//ietf//dtd html 3.2//",
+        "-//ietf//dtd html 3//",
+        "-//ietf//dtd html level 0//",
+        "-//ietf//dtd html level 1//",
+        "-//ietf//dtd html level 2//",
+        "-//ietf//dtd html level 3//",
+        "-//ietf//dtd html strict level 0//",
+        "-//ietf//dtd html strict level 1//",
+        "-//ietf//dtd html strict level 2//",
+        "-//ietf//dtd html strict level 3//",
+        "-//ietf//dtd html strict//",
+        "-//ietf//dtd html//",
+        "-//metrius//dtd metrius presentational//",
+        "-//microsoft//dtd internet explorer 2.0 html strict//",
+        "-//microsoft//dtd internet explorer 2.0 html//",
+        "-//microsoft//dtd internet explorer 2.0 tables//",
+        "-//microsoft//dtd internet explorer 3.0 html strict//",
+        "-//microsoft//dtd internet explorer 3.0 html//",
+        "-//microsoft//dtd internet explorer 3.0 tables//",
+        "-//netscape comm. corp.//dtd html//",
+        "-//netscape comm. corp.//dtd strict html//",
+        "-//o'reilly and associates//dtd html 2.0//",
+        "-//o'reilly and associates//dtd html extended 1.0//",
+        "-//o'reilly and associates//dtd html extended relaxed 1.0//",
+        "-//sq//dtd html 2.0 hotmetal + extensions//",
+        "-//softquad software//dtd hotmetal pro 6.0::19990601::extensions to html 4.0//",
+        "-//softquad//dtd hotmetal pro 4.0::19971010::extensions to html 4.0//",
+        "-//spyglass//dtd html 2.0 extended//",
+        "-//sun microsystems corp.//dtd hotjava html//",
+        "-//sun microsystems corp.//dtd hotjava strict html//",
+        "-//w3c//dtd html 3 1995-03-24//",
+        "-//w3c//dtd html 3.2 draft//",
+        "-//w3c//dtd html 3.2 final//",
+        "-//w3c//dtd html 3.2//",
+        "-//w3c//dtd html 3.2s draft//",
+        "-//w3c//dtd html 4.0 frameset//",
+        "-//w3c//dtd html 4.0 transitional//",
+        "-//w3c//dtd html experimental 19960712//",
+        "-//w3c//dtd html experimental 970421//",
+        "-//w3c//dtd w3 html//",
+        "-//w3o//dtd w3 html 3.0//",
+        "-//webtechs//dtd mozilla html 2.0//",
+        "-//webtechs//dtd mozilla html//",
+    ];
+
+    for prefix in &quirks_public_prefixes {
+        if public_id.starts_with(prefix) {
+            return DocumentMode::Quirks;
+        }
+    }
+
+    // HTML 4.01 Transitional/Frameset without system ID → Quirks
+    let transitional_public = "-//w3c//dtd html 4.01 transitional//";
+    let frameset_public = "-//w3c//dtd html 4.01 frameset//";
+    if (public_id.starts_with(transitional_public) || public_id.starts_with(frameset_public))
+        && system_id.is_empty()
+    {
+        return DocumentMode::Quirks;
+    }
+
+    // HTML 4.01 Transitional/Frameset WITH system ID → AlmostStandards
+    if public_id.starts_with(transitional_public) || public_id.starts_with(frameset_public) {
+        return DocumentMode::AlmostStandards;
+    }
+
+    // XHTML 1.0 Transitional/Frameset → AlmostStandards
+    let xhtml_transitional = "-//w3c//dtd xhtml 1.0 transitional//";
+    let xhtml_frameset = "-//w3c//dtd xhtml 1.0 frameset//";
+    if public_id.starts_with(xhtml_transitional) || public_id.starts_with(xhtml_frameset) {
+        return DocumentMode::AlmostStandards;
+    }
+
+    // Default for any other DOCTYPE html with a public ID → Standards
+    DocumentMode::Standards
+}
+
 use super::css::{BorderStyles, BoxModel, ComputedStyles, CssProcessor};
 
 /// CSS counter state machine for `counter-reset`, `counter-increment`, and `counter()`.
@@ -308,7 +455,7 @@ use super::styled_tree::{ResolvedStyles, StyleBoxSides, StyledElement, StyledTre
 
 /// User-agent default styles for block-level elements.
 /// These mirror the CSS 2.1 spec defaults that browsers apply.
-fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
+fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles, doc_mode: DocumentMode) {
     match tag {
         "html" => {
             if styles.display.is_none() {
@@ -696,6 +843,39 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles) {
         }
         _ => {}
     }
+
+    // Quirks mode behavioral differences
+    if doc_mode == DocumentMode::Quirks {
+        // In quirks mode, table cells don't inherit font-size from ancestors
+        // (they use the initial value of medium/16px instead)
+        if matches!(tag, "td" | "th") {
+            if styles.font_size.is_none() {
+                styles.font_size = Some("16px".to_string());
+            }
+        }
+
+        // In quirks mode, the default box model is border-box for certain form elements
+        // This doesn't directly apply as a CSS property since taffy only supports border-box,
+        // but we note it for width/height calculation: in quirks mode, width/height
+        // includes padding+border (IE box model) so we DON'T inflate by padding+border
+        // in the layout engine. We signal this via the "other" map.
+        if matches!(
+            tag,
+            "input" | "textarea" | "select" | "button" | "table" | "img"
+        ) {
+            styles
+                .other
+                .entry("box-sizing".to_string())
+                .or_insert_with(|| "border-box".to_string());
+        }
+
+        // In quirks mode, body height fills the viewport by default
+        if tag == "body" {
+            if styles.min_height.is_none() {
+                styles.min_height = Some("100%".to_string());
+            }
+        }
+    }
 }
 
 /// Tags that should be skipped during layout (metadata/invisible/non-renderable).
@@ -745,6 +925,15 @@ pub fn compute_styled_tree_with_css(
         parse_start.elapsed().as_millis(),
         html.len()
     );
+
+    // Detect document compatibility mode from DOCTYPE
+    let doc_mode = detect_document_mode(&document);
+    if doc_mode != DocumentMode::Standards {
+        eprintln!(
+            "[QUIRKS] Document mode: {:?} (may affect box model and CSS defaults)",
+            doc_mode
+        );
+    }
 
     // Step 0: Extract html element's classes for CSS custom property scoping.
     // Selectors like `html.skin-theme-clientpref-night` define dark-mode CSS variables
@@ -903,6 +1092,7 @@ fn build_styled_element_from_dom(
     element_selectors: &mut HashMap<String, String>,
     depth: u32,
     counter_state: &mut CounterState,
+    doc_mode: DocumentMode,
 ) -> StyledElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
@@ -925,7 +1115,7 @@ fn build_styled_element_from_dom(
     }
 
     // Apply UA defaults
-    apply_ua_defaults(&tag, &mut styles);
+    apply_ua_defaults(&tag, &mut styles, doc_mode);
 
     // Default display for elements if not set
     if styles.display.is_none() {
@@ -1779,7 +1969,7 @@ fn build_layout_tree_from_dom(
     }
 
     // Apply UA defaults (only for properties not already set by CSS)
-    apply_ua_defaults(&tag, &mut styles);
+    apply_ua_defaults(&tag, &mut styles, doc_mode);
 
     // Capture HTML attributes that affect rendering
     if tag == "img" {

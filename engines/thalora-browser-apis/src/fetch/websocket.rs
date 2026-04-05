@@ -205,6 +205,20 @@ impl BuiltInConstructor for WebSocket {
                 .into());
         }
 
+        // CSP: Check connect-src before opening the WebSocket
+        if !crate::csp::csp_allows_connect(&url_str) {
+            eprintln!(
+                "🔒 CSP: WebSocket blocked by connect-src: {}",
+                url_str
+            );
+            return Err(JsNativeError::typ()
+                .with_message(format!(
+                    "Refused to connect to '{}' because it violates the following Content Security Policy directive: \"connect-src\"",
+                    url_str
+                ))
+                .into());
+        }
+
         // Parse protocols - can be a string or array of strings
         let protocols = if protocols_arg.is_undefined() || protocols_arg.is_null() {
             Vec::new()

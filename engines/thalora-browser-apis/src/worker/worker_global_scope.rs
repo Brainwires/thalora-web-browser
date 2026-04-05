@@ -9,7 +9,7 @@ use crate::misc::structured_clone::{
 use crate::worker::worker_navigator::WorkerNavigator;
 use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, JsValue, Source,
-    builtins::BuiltInBuilder,
+    builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
     js_string,
     object::{JsObject, JsPromise},
 };
@@ -603,6 +603,69 @@ impl WorkerGlobalScope {
         global.set(js_string!("onmessage"), JsValue::null(), false, context)?;
         global.set(js_string!("onpush"), JsValue::null(), false, context)?;
         global.set(js_string!("onsync"), JsValue::null(), false, context)?;
+
+        // Register FetchEvent constructor in the service worker global scope
+        crate::events::fetch_event::FetchEvent::init(context.realm());
+        let fetch_event_constructor =
+            crate::events::fetch_event::FetchEvent::get(context.intrinsics());
+        global.set(
+            js_string!("FetchEvent"),
+            fetch_event_constructor,
+            false,
+            context,
+        )?;
+
+        // Add internal fetch event dispatch function (used by the SW fetch intercept mechanism)
+        // Takes a pre-constructed FetchEvent as its sole argument, dispatches it to
+        // onfetch / addEventListener handlers, and returns the response or null.
+        let dispatch_fetch = BuiltInBuilder::callable(
+            context.realm(),
+            |_this: &JsValue, args: &[JsValue], context: &mut Context| {
+                let fetch_event_val = args.get_or_undefined(0);
+                let fetch_event_obj = fetch_event_val.as_object().ok_or_else(|| {
+                    JsNativeError::typ()
+                        .with_message("_dispatchFetch requires a FetchEvent argument")
+                })?;
+
+                let global = context.global_object();
+
+                // Try onfetch handler first
+                let onfetch = global.get(js_string!("onfetch"), context)?;
+                let mut handler_called = false;
+
+                if !onfetch.is_null() && !onfetch.is_undefined() {
+                    if let Some(handler) = onfetch.as_callable() {
+                        handler.call(
+                            &global.clone().into(),
+                            &[fetch_event_val.clone()],
+                            context,
+                        )?;
+                        handler_called = true;
+                    }
+                }
+
+                // Also try dispatchEvent for addEventListener-based handlers
+                if !handler_called {
+                    let dispatch_event_val = global.get(js_string!("dispatchEvent"), context)?;
+                    if let Some(dispatcher) = dispatch_event_val.as_callable() {
+                        let _ = dispatcher.call(
+                            &global.clone().into(),
+                            &[fetch_event_val.clone()],
+                            context,
+                        );
+                    }
+                }
+
+                // Check if respondWith was called
+                match crate::events::fetch_event::get_fetch_event_response(&fetch_event_obj) {
+                    Some(response) => Ok(response),
+                    None => Ok(JsValue::null()),
+                }
+            },
+        )
+        .name(js_string!("_dispatchFetch"))
+        .build();
+        global.set(js_string!("_dispatchFetch"), dispatch_fetch, false, context)?;
 
         Ok(())
     }
