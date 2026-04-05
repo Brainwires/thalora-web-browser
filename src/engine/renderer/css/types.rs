@@ -285,6 +285,8 @@ pub struct CssProcessor {
     pub(crate) custom_properties: HashMap<String, String>,
     /// Viewport width for media query evaluation
     pub(crate) viewport_width: f32,
+    /// Viewport height for container query evaluation
+    pub(crate) viewport_height: f32,
     /// Classes on the <html> element (for scoping custom property selectors)
     pub(crate) html_classes: Vec<String>,
     /// Source order counter

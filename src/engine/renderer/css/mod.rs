@@ -3,6 +3,7 @@
 //! Provides CSS parsing, style computation, and minification using the
 //! lightningcss library for high-performance CSS processing.
 
+mod container;
 mod declarations;
 mod matching;
 mod media;
@@ -27,6 +28,7 @@ impl CssProcessor {
             sources: Vec::new(),
             custom_properties: HashMap::new(),
             viewport_width: 1024.0,
+            viewport_height: 768.0,
             html_classes: Vec::new(),
             source_order_counter: 0,
             compiled_rules: Vec::new(),
@@ -46,6 +48,28 @@ impl CssProcessor {
             sources: Vec::new(),
             custom_properties: HashMap::new(),
             viewport_width,
+            viewport_height: 768.0,
+            html_classes: Vec::new(),
+            source_order_counter: 0,
+            compiled_rules: Vec::new(),
+            rule_index: None,
+            keyframes: HashMap::new(),
+            font_faces: Vec::new(),
+            layer_order: HashMap::new(),
+            layer_order_counter: 0,
+            current_layer: None,
+        }
+    }
+
+    /// Create a new CSS processor with specific viewport dimensions for
+    /// media query and container query evaluation
+    pub fn new_with_viewport_and_height(viewport_width: f32, viewport_height: f32) -> Self {
+        Self {
+            rules: Vec::new(),
+            sources: Vec::new(),
+            custom_properties: HashMap::new(),
+            viewport_width,
+            viewport_height,
             html_classes: Vec::new(),
             source_order_counter: 0,
             compiled_rules: Vec::new(),

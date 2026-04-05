@@ -240,6 +240,20 @@ impl XmlHttpRequest {
             None
         };
 
+        // CSP: Check connect-src before making the request
+        if !crate::csp::csp_allows_connect(&xhr_data.request_url) {
+            eprintln!(
+                "🔒 CSP: XMLHttpRequest blocked by connect-src: {}",
+                xhr_data.request_url
+            );
+            return Err(JsNativeError::typ()
+                .with_message(format!(
+                    "Refused to connect to '{}' because it violates the following Content Security Policy directive: \"connect-src\"",
+                    xhr_data.request_url
+                ))
+                .into());
+        }
+
         // Clone data for async operation
         let method = xhr_data.request_method.clone();
         let url = xhr_data.request_url.clone();

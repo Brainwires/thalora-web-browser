@@ -768,7 +768,7 @@ pub fn compute_styled_tree_with_css(
 
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
     let ext_css_start = Instant::now();
-    let mut css_processor = CssProcessor::new_with_viewport(viewport_w);
+    let mut css_processor = CssProcessor::new_with_viewport_and_height(viewport_w, viewport_h);
     css_processor.set_html_classes(html_classes);
     for css_text in external_css {
         if !css_text.trim().is_empty() {
@@ -784,12 +784,18 @@ pub fn compute_styled_tree_with_css(
     );
 
     // Step 1b: Then parse <style> blocks (higher source-order precedence)
+    // CSP: Check if inline styles are allowed before parsing <style> blocks
     let inline_css_start = Instant::now();
     let style_selector = Selector::parse("style").unwrap();
     let mut style_block_count = 0u32;
+    let csp_allows_inline = thalora_browser_apis::csp::csp_allows_inline_style();
     for style_el in document.select(&style_selector) {
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
+            if !csp_allows_inline {
+                eprintln!("🔒 CSP: Inline <style> block blocked by style-src (missing 'unsafe-inline')");
+                continue;
+            }
             style_block_count += 1;
             if let Err(e) = css_processor.parse(&css_text) {
                 eprintln!("[styled_tree] Failed to parse <style> block: {}", e);
@@ -1064,7 +1070,15 @@ fn build_styled_element_from_dom(
     };
 
     let img_src = if tag == "img" {
-        el.attr("src").map(|s| s.to_string())
+        el.attr("src").and_then(|s| {
+            // CSP: Check img-src before allowing the image URL
+            if thalora_browser_apis::csp::csp_allows_image(s) {
+                Some(s.to_string())
+            } else {
+                eprintln!("🔒 CSP: Image blocked by img-src: {}", s);
+                None
+            }
+        })
     } else {
         None
     };
@@ -1598,7 +1612,7 @@ pub fn compute_page_layout_with_css(
     let document = Html::parse_document(html);
 
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
-    let mut css_processor = CssProcessor::new_with_viewport(viewport_w);
+    let mut css_processor = CssProcessor::new_with_viewport_and_height(viewport_w, viewport_h);
     for css_text in external_css {
         if !css_text.trim().is_empty() {
             if let Err(e) = css_processor.parse(css_text) {
@@ -1608,10 +1622,16 @@ pub fn compute_page_layout_with_css(
     }
 
     // Step 1b: Then parse <style> blocks (higher source-order precedence, overrides external)
+    // CSP: Check if inline styles are allowed
     let style_selector = Selector::parse("style").unwrap();
+    let csp_allows_inline_legacy = thalora_browser_apis::csp::csp_allows_inline_style();
     for style_el in document.select(&style_selector) {
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
+            if !csp_allows_inline_legacy {
+                eprintln!("🔒 CSP: Inline <style> block blocked by style-src (missing 'unsafe-inline')");
+                continue;
+            }
             // lightningcss may fail on malformed CSS — log and skip
             if let Err(e) = css_processor.parse(&css_text) {
                 eprintln!("[page_layout] Failed to parse <style> block: {}", e);
@@ -1764,9 +1784,14 @@ fn build_layout_tree_from_dom(
     // Capture HTML attributes that affect rendering
     if tag == "img" {
         if let Some(src) = el.attr("src") {
-            styles
-                .other
-                .insert("__img_src".to_string(), src.to_string());
+            // CSP: Check img-src before allowing the image URL
+            if thalora_browser_apis::csp::csp_allows_image(src) {
+                styles
+                    .other
+                    .insert("__img_src".to_string(), src.to_string());
+            } else {
+                eprintln!("🔒 CSP: Image blocked by img-src: {}", src);
+            }
         }
         // Use alt text as fallback display content and store separately for the styled tree
         if let Some(alt) = el.attr("alt") {

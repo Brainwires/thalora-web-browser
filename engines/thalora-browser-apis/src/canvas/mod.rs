@@ -4,6 +4,7 @@
 //! https://html.spec.whatwg.org/multipage/canvas.html
 
 pub mod canvas_state;
+pub mod canvas_text;
 pub mod html_canvas_element;
 pub mod offscreen_canvas;
 pub mod path;

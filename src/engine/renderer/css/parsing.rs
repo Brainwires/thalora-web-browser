@@ -694,11 +694,18 @@ impl CssProcessor {
                     self.process_rules(&layer_rule.rules.0);
                 }
                 CssRule::Container(container_rule) => {
-                    // @container: permissive strategy — always include inner rules.
-                    // Without layout integration we can't evaluate the container
-                    // condition, but dropping rules entirely breaks more sites than
-                    // including them unconditionally.
-                    self.process_rules(&container_rule.rules.0);
+                    // @container: evaluate the container condition against the
+                    // viewport dimensions as an approximation. This handles the
+                    // common case (`@container (min-width: 768px)`) correctly for
+                    // most responsive layouts. When full two-pass layout is
+                    // implemented, actual container sizes will be used instead.
+                    let matches = match &container_rule.condition {
+                        Some(condition) => self.evaluate_container_condition(condition),
+                        None => true, // No condition means always match
+                    };
+                    if matches {
+                        self.process_rules(&container_rule.rules.0);
+                    }
                 }
                 CssRule::Nesting(nesting_rule) => {
                     // CSS @nest rule: treat the inner style rule as a regular style rule

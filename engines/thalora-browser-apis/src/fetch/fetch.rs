@@ -73,6 +73,20 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     let _url = Url::parse(&url_string)
         .map_err(|_| JsNativeError::typ().with_message(format!("Invalid URL: {}", url_string)))?;
 
+    // CSP: Check connect-src before making the request
+    if !crate::csp::csp_allows_connect(&url_string) {
+        eprintln!(
+            "🔒 CSP: fetch() blocked by connect-src: {}",
+            url_string
+        );
+        return Err(JsNativeError::typ()
+            .with_message(format!(
+                "Refused to connect to '{}' because it violates the following Content Security Policy directive: \"connect-src\"",
+                url_string
+            ))
+            .into());
+    }
+
     // Parse init options
     let fetch_init = if !init.is_undefined() {
         parse_fetch_init(init, context)?

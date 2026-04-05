@@ -108,6 +108,10 @@ impl super::super::HeadlessWebBrowser {
             self.csp_policy = None;
         }
 
+        // Synchronize CSP state to the browser-apis crate for cross-crate enforcement
+        // (fetch connect-src, eval blocking, etc.)
+        self.sync_csp_to_browser_apis();
+
         // Extract and parse Strict-Transport-Security (HSTS) header
         if let Some(hsts_value) = response
             .headers()
@@ -251,6 +255,11 @@ impl super::super::HeadlessWebBrowser {
         // If wait_for_js is enabled, execute page scripts and wait for completion
         if wait_for_js {
             eprintln!("🔍 DEBUG: wait_for_js enabled, executing page scripts");
+
+            // CSP: Install eval/Function blocking if 'unsafe-eval' is not allowed
+            if let Some(ref mut renderer) = self.renderer {
+                renderer.install_csp_eval_block();
+            }
 
             // Execute non-deferred inline scripts from the page
             self.execute_page_scripts(&content, false).await?;
@@ -925,6 +934,42 @@ impl super::super::HeadlessWebBrowser {
         }
 
         Ok(content)
+    }
+
+    /// Synchronize the main crate's CspPolicy to the browser-apis crate's shared CSP state.
+    /// This enables cross-crate enforcement (fetch connect-src, eval blocking, etc.).
+    fn sync_csp_to_browser_apis(&self) {
+        use super::csp::SourceExpression;
+        use thalora_browser_apis::csp::{CspSource, CspState};
+
+        fn convert_sources(sources: &[SourceExpression]) -> Vec<CspSource> {
+            sources
+                .iter()
+                .filter_map(|s| match s {
+                    SourceExpression::OriginSelf => Some(CspSource::OriginSelf),
+                    SourceExpression::UnsafeInline => Some(CspSource::UnsafeInline),
+                    SourceExpression::UnsafeEval => Some(CspSource::UnsafeEval),
+                    SourceExpression::None => Some(CspSource::None),
+                    SourceExpression::Url(u) => Some(CspSource::Url(u.clone())),
+                    // Nonce, Hash, StrictDynamic are not needed for URL-based checks
+                    _ => None,
+                })
+                .collect()
+        }
+
+        if let Some(ref csp) = self.csp_policy {
+            thalora_browser_apis::csp::set_csp_state(CspState {
+                page_url: self.current_url.clone(),
+                has_policy: csp.has_policy(),
+                allows_eval: csp.allows_eval(),
+                connect_src: convert_sources(&csp.connect_src),
+                img_src: convert_sources(&csp.img_src),
+                style_src: convert_sources(&csp.style_src),
+                default_src: convert_sources(&csp.default_src),
+            });
+        } else {
+            thalora_browser_apis::csp::clear_csp_state();
+        }
     }
 
     /// Resolve a script URL relative to the base URL

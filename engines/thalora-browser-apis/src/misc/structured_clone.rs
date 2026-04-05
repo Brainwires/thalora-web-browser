@@ -43,6 +43,37 @@ pub enum StructuredCloneValue {
     TransferredMessagePort {
         port_id: usize,
     },
+    /// Error object (name, message, stack)
+    Error {
+        name: String,
+        message: String,
+        stack: Option<String>,
+    },
+    /// Blob data with MIME type
+    Blob {
+        data: Vec<u8>,
+        content_type: String,
+    },
+    /// File data with name and MIME type
+    File {
+        data: Vec<u8>,
+        name: String,
+        content_type: String,
+        last_modified: f64,
+    },
+    /// ImageData (width, height, RGBA pixel data)
+    ImageData {
+        width: u32,
+        height: u32,
+        data: Vec<u8>,
+    },
+    /// CryptoKey (serialized key data)
+    CryptoKey {
+        algorithm: String,
+        key_type: String,
+        extractable: bool,
+        usages: Vec<String>,
+    },
     // Additional transferable types (stubs for future implementation)
     TransferredOffscreenCanvas {
         width: u32,
@@ -273,6 +304,118 @@ impl StructuredClone {
             // ArrayBuffer that's not being transferred should be cloned
             Self::clone_array_buffer(&*array_buffer, context)
         } else {
+            // Check for Error objects
+            let name = obj
+                .get(js_string!("name"), context)
+                .ok()
+                .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()));
+            if let Some(ref err_name) = name {
+                if matches!(
+                    err_name.as_str(),
+                    "Error"
+                        | "TypeError"
+                        | "RangeError"
+                        | "SyntaxError"
+                        | "ReferenceError"
+                        | "EvalError"
+                        | "URIError"
+                ) {
+                    let message = obj
+                        .get(js_string!("message"), context)
+                        .ok()
+                        .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+                        .unwrap_or_default();
+                    let stack = obj
+                        .get(js_string!("stack"), context)
+                        .ok()
+                        .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()));
+                    return Ok(StructuredCloneValue::Error {
+                        name: err_name.clone(),
+                        message,
+                        stack,
+                    });
+                }
+            }
+
+            // Check for Blob-like objects
+            let has_size = obj.has_property(js_string!("size"), context).unwrap_or(false);
+            let has_type = obj.has_property(js_string!("type"), context).unwrap_or(false);
+            if has_size && has_type {
+                let content_type = obj
+                    .get(js_string!("type"), context)
+                    .ok()
+                    .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+                    .unwrap_or_default();
+                // Check if it has a "name" property (File extends Blob)
+                let has_name = obj.has_property(js_string!("name"), context).unwrap_or(false);
+                let has_last_modified = obj
+                    .has_property(js_string!("lastModified"), context)
+                    .unwrap_or(false);
+
+                if has_name && has_last_modified {
+                    let file_name = obj
+                        .get(js_string!("name"), context)
+                        .ok()
+                        .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+                        .unwrap_or_default();
+                    let last_modified = obj
+                        .get(js_string!("lastModified"), context)
+                        .ok()
+                        .and_then(|v| v.as_number())
+                        .unwrap_or(0.0);
+                    return Ok(StructuredCloneValue::File {
+                        data: Vec::new(), // Data extraction requires async arrayBuffer()
+                        name: file_name,
+                        content_type,
+                        last_modified,
+                    });
+                }
+
+                return Ok(StructuredCloneValue::Blob {
+                    data: Vec::new(), // Data extraction requires async arrayBuffer()
+                    content_type,
+                });
+            }
+
+            // Check for ImageData-like objects (width, height, data)
+            let has_width = obj.has_property(js_string!("width"), context).unwrap_or(false);
+            let has_height = obj.has_property(js_string!("height"), context).unwrap_or(false);
+            let has_data = obj.has_property(js_string!("data"), context).unwrap_or(false);
+            if has_width && has_height && has_data {
+                let width = obj
+                    .get(js_string!("width"), context)
+                    .ok()
+                    .and_then(|v| v.as_number())
+                    .unwrap_or(0.0) as u32;
+                let height = obj
+                    .get(js_string!("height"), context)
+                    .ok()
+                    .and_then(|v| v.as_number())
+                    .unwrap_or(0.0) as u32;
+                // Try to extract data from Uint8ClampedArray
+                let data_val = obj.get(js_string!("data"), context).ok();
+                let pixel_data = if let Some(ref dv) = data_val {
+                    if let Some(data_obj) = dv.as_object() {
+                        if let Some(ab) = data_obj
+                            .downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
+                        {
+                            ab.data().map(|d| d.to_vec()).unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                return Ok(StructuredCloneValue::ImageData {
+                    width,
+                    height,
+                    data: pixel_data,
+                });
+            }
+
             // Handle plain objects
             Self::clone_plain_object(obj, context, memory, transfer_list)
         }
@@ -660,6 +803,144 @@ impl StructuredClone {
                     stream_id
                 );
                 Ok(stream_obj.into())
+            }
+            StructuredCloneValue::Error {
+                name,
+                message,
+                stack,
+            } => {
+                // Create an Error object with the preserved name, message, and stack
+                let err_obj = JsObject::with_object_proto(context.intrinsics());
+                err_obj.set(
+                    js_string!("name"),
+                    js_string!(name.clone()),
+                    false,
+                    context,
+                )?;
+                err_obj.set(
+                    js_string!("message"),
+                    js_string!(message.clone()),
+                    false,
+                    context,
+                )?;
+                if let Some(stack_str) = stack {
+                    err_obj.set(
+                        js_string!("stack"),
+                        js_string!(stack_str.clone()),
+                        false,
+                        context,
+                    )?;
+                }
+                Ok(err_obj.into())
+            }
+            StructuredCloneValue::Blob {
+                data,
+                content_type,
+            } => {
+                let blob_obj = JsObject::with_object_proto(context.intrinsics());
+                blob_obj.set(
+                    js_string!("size"),
+                    JsValue::from(data.len() as f64),
+                    false,
+                    context,
+                )?;
+                blob_obj.set(
+                    js_string!("type"),
+                    js_string!(content_type.clone()),
+                    false,
+                    context,
+                )?;
+                Ok(blob_obj.into())
+            }
+            StructuredCloneValue::File {
+                data,
+                name,
+                content_type,
+                last_modified,
+            } => {
+                let file_obj = JsObject::with_object_proto(context.intrinsics());
+                file_obj.set(
+                    js_string!("name"),
+                    js_string!(name.clone()),
+                    false,
+                    context,
+                )?;
+                file_obj.set(
+                    js_string!("size"),
+                    JsValue::from(data.len() as f64),
+                    false,
+                    context,
+                )?;
+                file_obj.set(
+                    js_string!("type"),
+                    js_string!(content_type.clone()),
+                    false,
+                    context,
+                )?;
+                file_obj.set(
+                    js_string!("lastModified"),
+                    JsValue::from(*last_modified),
+                    false,
+                    context,
+                )?;
+                Ok(file_obj.into())
+            }
+            StructuredCloneValue::ImageData {
+                width,
+                height,
+                data,
+            } => {
+                let img_obj = JsObject::with_object_proto(context.intrinsics());
+                img_obj.set(
+                    js_string!("width"),
+                    JsValue::from(*width),
+                    false,
+                    context,
+                )?;
+                img_obj.set(
+                    js_string!("height"),
+                    JsValue::from(*height),
+                    false,
+                    context,
+                )?;
+                // Create the pixel data as an ArrayBuffer
+                let aligned = AlignedVec::from_iter(64, data.iter().copied());
+                let buffer = JsArrayBuffer::from_byte_block(aligned, context)?;
+                img_obj.set(js_string!("data"), buffer, false, context)?;
+                Ok(img_obj.into())
+            }
+            StructuredCloneValue::CryptoKey {
+                algorithm,
+                key_type,
+                extractable,
+                usages,
+            } => {
+                let key_obj = JsObject::with_object_proto(context.intrinsics());
+                key_obj.set(
+                    js_string!("algorithm"),
+                    js_string!(algorithm.clone()),
+                    false,
+                    context,
+                )?;
+                key_obj.set(
+                    js_string!("type"),
+                    js_string!(key_type.clone()),
+                    false,
+                    context,
+                )?;
+                key_obj.set(
+                    js_string!("extractable"),
+                    JsValue::from(*extractable),
+                    false,
+                    context,
+                )?;
+                let usages_arr = JsArray::new(context)?;
+                for (i, usage) in usages.iter().enumerate() {
+                    usages_arr.set(i as u32, js_string!(usage.clone()), false, context)?;
+                }
+                let usages_val: JsValue = usages_arr.into();
+                key_obj.set(js_string!("usages"), usages_val, false, context)?;
+                Ok(key_obj.into())
             }
         }
     }

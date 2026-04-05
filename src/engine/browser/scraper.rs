@@ -83,6 +83,12 @@ impl WebScraper {
             for element in document.select(&selector) {
                 if let Some(src) = element.value().attr("src") {
                     if let Ok(url) = self.resolve_url(base_url, src) {
+                        // CSP: Check img-src before including the image
+                        if !thalora_browser_apis::csp::csp_allows_image(&url) {
+                            eprintln!("🔒 CSP: Image blocked by img-src: {}", url);
+                            continue;
+                        }
+
                         let alt = element.value().attr("alt").map(|s| s.to_string());
                         let title = element.value().attr("title").map(|s| s.to_string());
 

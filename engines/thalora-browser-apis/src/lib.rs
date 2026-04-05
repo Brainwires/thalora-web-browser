@@ -81,6 +81,9 @@ pub mod intl;
 // Audit module for Web API coverage testing
 pub mod audit;
 
+// CSP shared state for cross-crate enforcement
+pub mod csp;
+
 /// Initialize all browser APIs in a Boa context
 pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()> {
     use boa_engine::builtins::{BuiltInObject, IntrinsicObject};
