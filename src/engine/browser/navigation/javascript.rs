@@ -7,40 +7,9 @@ use tokio::time::{Duration, sleep};
 use crate::engine::browser::types::NavigationMode;
 use crate::engine::security::SsrfProtection;
 
-/// Verify Subresource Integrity (SRI) hash for fetched resources.
-/// The `integrity` attribute contains one or more `<algorithm>-<base64hash>` tokens.
-/// Returns true if ANY token matches (per spec, any match = pass).
+/// Re-export SRI verification from shared module
 fn verify_integrity(content: &[u8], integrity_attr: &str) -> bool {
-    use base64::Engine as _;
-    use digest::Digest;
-
-    for token in integrity_attr.split_whitespace() {
-        let Some((algo, expected_b64)) = token.split_once('-') else {
-            continue;
-        };
-
-        let computed = match algo {
-            "sha256" => {
-                let hash = sha2::Sha256::digest(content);
-                base64::engine::general_purpose::STANDARD.encode(hash)
-            }
-            "sha384" => {
-                let hash = sha2::Sha384::digest(content);
-                base64::engine::general_purpose::STANDARD.encode(hash)
-            }
-            "sha512" => {
-                let hash = sha2::Sha512::digest(content);
-                base64::engine::general_purpose::STANDARD.encode(hash)
-            }
-            _ => continue, // Unknown algorithm, skip
-        };
-
-        if computed == expected_b64 {
-            return true; // Any match passes
-        }
-    }
-
-    false // No tokens matched
+    super::sri::verify_integrity(content, integrity_attr)
 }
 
 impl super::super::HeadlessWebBrowser {
@@ -1076,6 +1045,9 @@ impl super::super::HeadlessWebBrowser {
 
         let mut stylesheet_urls = Vec::new();
 
+        // Collect integrity attributes alongside URLs for SRI verification
+        let mut integrity_map: HashMap<String, String> = HashMap::new();
+
         for link_element in document.select(&link_selector) {
             // Only process <link rel="stylesheet"> elements
             let rel = link_element.value().attr("rel").unwrap_or("");
@@ -1090,7 +1062,27 @@ impl super::super::HeadlessWebBrowser {
                 // Resolve relative URLs
                 match self.resolve_script_url(&base_url, href) {
                     Ok(resolved_url) => {
+                        // Mixed content blocking: block HTTP stylesheets on HTTPS pages
+                        if super::mixed_content::should_block_mixed_content(
+                            &base_url,
+                            &resolved_url,
+                            super::mixed_content::ResourceType::Stylesheet,
+                        ) == super::mixed_content::MixedContentResult::Block
+                        {
+                            eprintln!(
+                                "🔒 BLOCKED: Mixed content stylesheet {} on HTTPS page",
+                                resolved_url
+                            );
+                            continue;
+                        }
+
                         eprintln!("🔍 DEBUG: Found external stylesheet: {}", resolved_url);
+
+                        // Store integrity attribute for SRI verification after fetch
+                        if let Some(integrity) = link_element.value().attr("integrity") {
+                            integrity_map.insert(resolved_url.clone(), integrity.to_string());
+                        }
+
                         stylesheet_urls.push(resolved_url);
                     }
                     Err(e) => {
@@ -1166,6 +1158,17 @@ impl super::super::HeadlessWebBrowser {
             for (result, (idx, url)) in results.into_iter().zip(uncached.iter()) {
                 match result {
                     Ok((fetched_url, content)) => {
+                        // SRI verification for stylesheets with integrity attribute
+                        if let Some(integrity) = integrity_map.get(&fetched_url) {
+                            if !super::sri::verify_integrity(content.as_bytes(), integrity) {
+                                eprintln!(
+                                    "🔒 BLOCKED: SRI integrity check failed for stylesheet {}",
+                                    fetched_url
+                                );
+                                continue;
+                            }
+                        }
+
                         eprintln!(
                             "🔍 DEBUG: CACHE MISS (stylesheet) fetched: {} ({} chars)",
                             fetched_url,

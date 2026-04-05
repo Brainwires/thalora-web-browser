@@ -250,6 +250,14 @@ impl RustRenderer {
                                 if let Some(document_data) = document_obj.downcast_ref::<thalora_browser_apis::dom::document::DocumentData>() {
                                     document_data.set_html_content(html_content);
                                     document_data.set_ready_state("complete");
+
+                                    // Compute layout and store geometry data on the document
+                                    // so getBoundingClientRect() and offset* properties return
+                                    // real values computed by the taffy layout engine.
+                                    if let Ok(layout_result) = super::page_layout::compute_page_layout(html_content, 1024.0, 768.0) {
+                                        let rects = super::layout_bridge::flatten_layout_to_rects(&layout_result);
+                                        document_data.set_layout_data(rects);
+                                    }
                                 }
                             }
                         }

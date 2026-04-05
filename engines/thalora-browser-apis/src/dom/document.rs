@@ -317,6 +317,36 @@ pub struct DocumentData {
     event_listeners: Arc<Mutex<HashMap<String, Vec<JsValue>>>>,
     #[unsafe_ignore_trace]
     html_content: Arc<Mutex<String>>,
+    /// Cached layout geometry data keyed by CSS selector path
+    #[unsafe_ignore_trace]
+    layout_rects: Arc<Mutex<HashMap<String, LayoutRect>>>,
+}
+
+/// Cached layout rectangle for an element, computed by the layout engine
+#[derive(Debug, Clone)]
+pub struct LayoutRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    /// Content box (excluding padding/border)
+    pub content_x: f64,
+    pub content_y: f64,
+    pub content_width: f64,
+    pub content_height: f64,
+    /// Box model sides
+    pub padding_top: f64,
+    pub padding_right: f64,
+    pub padding_bottom: f64,
+    pub padding_left: f64,
+    pub border_top: f64,
+    pub border_right: f64,
+    pub border_bottom: f64,
+    pub border_left: f64,
+    pub margin_top: f64,
+    pub margin_right: f64,
+    pub margin_bottom: f64,
+    pub margin_left: f64,
 }
 
 impl DocumentData {
@@ -333,6 +363,7 @@ impl DocumentData {
             elements: Arc::new(Mutex::new(HashMap::new())),
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             html_content: Arc::new(Mutex::new("".to_string())),
+            layout_rects: Arc::new(Mutex::new(HashMap::new())),
         };
 
         // Set up DOM sync bridge - connect Element changes to Document updates
@@ -361,7 +392,20 @@ impl DocumentData {
 
     pub fn set_html_content(&self, html: &str) {
         *self.html_content.lock().unwrap() = html.to_string();
+        // Clear stale layout data when HTML changes
+        self.layout_rects.lock().unwrap().clear();
         self.process_forms_in_html(html);
+    }
+
+    /// Store layout geometry data computed by the layout engine.
+    /// Keys are CSS selector paths (e.g., "html>body>div:nth-child(1)>p:nth-child(2)").
+    pub fn set_layout_data(&self, rects: HashMap<String, LayoutRect>) {
+        *self.layout_rects.lock().unwrap() = rects;
+    }
+
+    /// Look up cached layout rect for an element by its CSS selector path
+    pub fn get_layout_rect(&self, css_path: &str) -> Option<LayoutRect> {
+        self.layout_rects.lock().unwrap().get(css_path).cloned()
     }
 
     pub fn update_html_from_dom(&self, html: &str) {
@@ -915,8 +959,11 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         html_content.len()
     );
 
+    // Get cached layout data for geometry injection
+    let layout_rects = document.layout_rects.lock().unwrap().clone();
+
     // Use real DOM implementation with scraper library
-    if let Some(element) = create_real_element_from_html(context, &selector_str, &html_content)? {
+    if let Some(element) = create_real_element_from_html(context, &selector_str, &html_content, &layout_rects)? {
         return Ok(element.into());
     }
 
@@ -929,6 +976,7 @@ fn create_real_element_from_html(
     context: &mut Context,
     selector: &str,
     html_content: &str,
+    layout_rects: &HashMap<String, LayoutRect>,
 ) -> JsResult<Option<JsObject>> {
     // Use the scraper crate to parse real HTML and find elements
     let document = scraper::Html::parse_document(html_content);
@@ -970,6 +1018,16 @@ fn create_real_element_from_html(
                     false,
                     context,
                 )?;
+            }
+
+            // Inject layout geometry from cached layout data
+            if !layout_rects.is_empty() {
+                let css_path = css_path_for_scraper_element(&element_ref);
+                if let Some(rect) = layout_rects.get(&css_path) {
+                    if let Some(element_data) = element_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                        element_data.set_bounding_rect(rect.x, rect.y, rect.width, rect.height);
+                    }
+                }
             }
 
             // Set text content
@@ -3153,4 +3211,48 @@ fn get_active_element(
         document.add_element("body".to_string(), body_element.clone());
         Ok(body_element.into())
     }
+}
+
+/// Compute a unique CSS selector path for a scraper ElementRef.
+///
+/// Produces paths like: "html>body:nth-child(1)>div:nth-child(1)>p:nth-child(2)"
+/// These paths are deterministic for a given HTML document and match the paths
+/// produced by the layout bridge's `flatten_layout_to_rects`.
+fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    let mut current = Some(*element_ref);
+
+    while let Some(el) = current {
+        let tag = el.value().name().to_lowercase();
+
+        // Count this element's position among same-tag siblings
+        let nth = if let Some(parent) = el.parent() {
+            let mut count = 0u32;
+            for sibling in parent.children() {
+                if let Some(sibling_el) = scraper::ElementRef::wrap(sibling) {
+                    if sibling_el.value().name().eq_ignore_ascii_case(&tag) {
+                        count += 1;
+                        if sibling_el == el {
+                            break;
+                        }
+                    }
+                }
+            }
+            count
+        } else {
+            1
+        };
+
+        // Root element (html) doesn't get nth-child
+        if el.parent().and_then(|p| scraper::ElementRef::wrap(p)).is_none() {
+            parts.push(tag);
+        } else {
+            parts.push(format!("{}:nth-child({})", tag, nth));
+        }
+
+        current = el.parent().and_then(|p| scraper::ElementRef::wrap(p));
+    }
+
+    parts.reverse();
+    parts.join(">")
 }

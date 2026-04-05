@@ -13,6 +13,8 @@ pub(crate) mod csp;
 mod forms;
 pub mod hsts;
 mod javascript;
+pub(crate) mod mixed_content;
+pub(crate) mod sri;
 mod state;
 
 // Re-export all public navigation methods

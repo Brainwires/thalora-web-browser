@@ -214,6 +214,9 @@ impl MutationObserver {
             observer_data.is_observing = true;
         }
 
+        // Register in global observer registry for mutation notifications
+        register_observer(observer_obj.clone());
+
         Ok(JsValue::undefined())
     }
 
@@ -228,6 +231,9 @@ impl MutationObserver {
             observer_data.records.clear();
             observer_data.is_observing = false;
         }
+
+        // Unregister from global observer registry
+        unregister_observer(&observer_obj);
 
         Ok(JsValue::undefined())
     }
@@ -769,4 +775,181 @@ fn get_old_value(this: &JsValue, _: &[JsValue], context: &mut Context) -> JsResu
         JsNativeError::typ().with_message("MutationRecord getter called on non-object")
     })?;
     obj.get(js_string!("oldValue"), context)
+}
+
+// --- Global MutationObserver notification system ---
+
+use std::cell::RefCell;
+
+thread_local! {
+    /// Thread-local registry of active observer objects for notification dispatch.
+    /// Boa's JsObject is !Send, so we use thread_local instead of a global static.
+    static OBSERVER_REGISTRY: RefCell<Vec<JsObject>> = RefCell::new(Vec::new());
+}
+
+/// Register an observer in the thread-local registry for notification dispatch.
+pub fn register_observer(observer: JsObject) {
+    OBSERVER_REGISTRY.with(|registry| {
+        let mut reg = registry.borrow_mut();
+        // Avoid duplicate registration (compare by pointer)
+        let ptr = observer.as_ref() as *const _ as usize;
+        if !reg.iter().any(|o| o.as_ref() as *const _ as usize == ptr) {
+            reg.push(observer);
+        }
+    });
+}
+
+/// Unregister an observer from the thread-local registry.
+pub fn unregister_observer(observer: &JsObject) {
+    OBSERVER_REGISTRY.with(|registry| {
+        let mut reg = registry.borrow_mut();
+        let ptr = observer.as_ref() as *const _ as usize;
+        reg.retain(|o| o.as_ref() as *const _ as usize != ptr);
+    });
+}
+
+/// Notify all registered MutationObservers about a mutation.
+///
+/// This should be called by DOM mutation methods (setAttribute, appendChild, etc.)
+/// when they modify the DOM. The function checks each observer's target and config
+/// to determine if the mutation should be recorded.
+///
+/// For `subtree: true`, this checks if `mutated_node` is a descendant of the
+/// observer's target by walking up the parent chain.
+///
+/// `mutated_node_ptr` is the pointer-as-string ID of the node that was mutated.
+/// `parent_ptrs` is a list of ancestor pointer IDs (from mutated node up to root),
+/// used for subtree matching.
+pub fn notify_attribute_mutation(
+    mutated_node: &JsObject,
+    attribute_name: &str,
+    old_value: Option<String>,
+) {
+    let target_id = format!("{:p}", mutated_node.as_ref());
+
+    OBSERVER_REGISTRY.with(|registry| {
+        let observers = registry.borrow().clone();
+        for observer_obj in &observers {
+            if let Some(mut observer_data) = observer_obj.downcast_mut::<MutationObserverData>() {
+                let mut should_record = false;
+                let mut record_old_value = false;
+
+                // Check direct target match
+                if let Some(config) = observer_data.get_config(&target_id) {
+                    if config.should_observe_attribute(attribute_name) {
+                        should_record = true;
+                        record_old_value = config.attribute_old_value.unwrap_or(false);
+                    }
+                }
+
+                // Check subtree observations
+                if !should_record {
+                    for (_, entry) in &observer_data.observations {
+                        if entry.config.subtree
+                            && entry.config.should_observe_attribute(attribute_name)
+                        {
+                            if is_descendant_of(mutated_node, &entry.target) {
+                                should_record = true;
+                                record_old_value =
+                                    entry.config.attribute_old_value.unwrap_or(false);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if should_record {
+                    let record = MutationRecordData::attributes(
+                        mutated_node.clone(),
+                        attribute_name.to_string(),
+                        None,
+                        if record_old_value {
+                            old_value.clone()
+                        } else {
+                            None
+                        },
+                    );
+                    observer_data.queue_record(record);
+                }
+            }
+        }
+    });
+}
+
+/// Notify about childList mutations (appendChild, removeChild, etc.)
+pub fn notify_child_list_mutation(
+    parent_node: &JsObject,
+    added_nodes: Vec<JsObject>,
+    removed_nodes: Vec<JsObject>,
+    previous_sibling: Option<JsObject>,
+    next_sibling: Option<JsObject>,
+) {
+    let target_id = format!("{:p}", parent_node.as_ref());
+
+    OBSERVER_REGISTRY.with(|registry| {
+        let observers = registry.borrow().clone();
+        for observer_obj in &observers {
+            if let Some(mut observer_data) = observer_obj.downcast_mut::<MutationObserverData>() {
+                let mut should_record = false;
+
+                if let Some(config) = observer_data.get_config(&target_id) {
+                    if config.child_list {
+                        should_record = true;
+                    }
+                }
+
+                // Check subtree observations
+                if !should_record {
+                    for (_, entry) in &observer_data.observations {
+                        if entry.config.subtree && entry.config.child_list {
+                            if is_descendant_of(parent_node, &entry.target)
+                                || std::ptr::eq(parent_node.as_ref(), entry.target.as_ref())
+                            {
+                                should_record = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if should_record {
+                    let record = MutationRecordData::child_list(
+                        parent_node.clone(),
+                        added_nodes.clone(),
+                        removed_nodes.clone(),
+                        previous_sibling.clone(),
+                        next_sibling.clone(),
+                    );
+                    observer_data.queue_record(record);
+                }
+            }
+        }
+    });
+}
+
+/// Check if `node` is a descendant of `ancestor` by walking up the parent chain.
+fn is_descendant_of(node: &JsObject, ancestor: &JsObject) -> bool {
+    use crate::dom::element::ElementData;
+
+    // Walk up the parent chain from node
+    let mut current = node.clone();
+    for _ in 0..100 {
+        // Safety limit to prevent infinite loops
+        let parent = if let Some(element_data) = current.downcast_ref::<ElementData>() {
+            element_data.get_parent_node()
+        } else {
+            None
+        };
+
+        match parent {
+            Some(p) => {
+                if std::ptr::eq(p.as_ref(), ancestor.as_ref()) {
+                    return true;
+                }
+                current = p;
+            }
+            None => break,
+        }
+    }
+    false
 }

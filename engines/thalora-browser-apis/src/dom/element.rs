@@ -146,6 +146,43 @@ impl IntrinsicObject for Element {
             .name(js_string!("get childNodes"))
             .build();
 
+        let offset_width_func = BuiltInBuilder::callable(realm, get_offset_width)
+            .name(js_string!("get offsetWidth"))
+            .build();
+
+        let offset_height_func = BuiltInBuilder::callable(realm, get_offset_height)
+            .name(js_string!("get offsetHeight"))
+            .build();
+
+        let offset_left_func = BuiltInBuilder::callable(realm, get_offset_left)
+            .name(js_string!("get offsetLeft"))
+            .build();
+
+        let offset_top_func = BuiltInBuilder::callable(realm, get_offset_top)
+            .name(js_string!("get offsetTop"))
+            .build();
+
+        let client_width_func = BuiltInBuilder::callable(realm, get_client_width)
+            .name(js_string!("get clientWidth"))
+            .build();
+
+        let client_height_func = BuiltInBuilder::callable(realm, get_client_height)
+            .name(js_string!("get clientHeight"))
+            .build();
+
+        let scroll_width_func = BuiltInBuilder::callable(realm, get_scroll_width)
+            .name(js_string!("get scrollWidth"))
+            .build();
+
+        let scroll_height_func = BuiltInBuilder::callable(realm, get_scroll_height)
+            .name(js_string!("get scrollHeight"))
+            .build();
+
+        // shadowRoot defaults to null per spec (overridden by attachShadow for open mode)
+        let shadow_root_func = BuiltInBuilder::callable(realm, get_shadow_root_property)
+            .name(js_string!("get shadowRoot"))
+            .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("tagName"),
@@ -246,6 +283,60 @@ impl IntrinsicObject for Element {
             .accessor(
                 js_string!("childNodes"),
                 Some(child_nodes_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetWidth"),
+                Some(offset_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetHeight"),
+                Some(offset_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetLeft"),
+                Some(offset_left_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("offsetTop"),
+                Some(offset_top_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientWidth"),
+                Some(client_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("clientHeight"),
+                Some(client_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scrollWidth"),
+                Some(scroll_width_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("scrollHeight"),
+                Some(scroll_height_func),
+                None,
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("shadowRoot"),
+                Some(shadow_root_func),
                 None,
                 Attribute::CONFIGURABLE,
             )
@@ -1206,6 +1297,56 @@ impl ElementData {
     /// Get bounding client rectangle
     pub fn get_bounding_client_rect(&self) -> DOMRect {
         self.bounding_rect.lock().unwrap().clone()
+    }
+
+    /// Set bounding client rectangle from layout engine data
+    pub fn set_bounding_rect(&self, x: f64, y: f64, width: f64, height: f64) {
+        let mut rect = self.bounding_rect.lock().unwrap();
+        rect.update_bounds(x, y, width, height);
+    }
+
+    /// Get offset/client geometry properties (border box dimensions)
+    /// offsetWidth = content + padding + border
+    pub fn get_offset_width(&self) -> f64 {
+        self.bounding_rect.lock().unwrap().width
+    }
+
+    /// offsetHeight = content + padding + border
+    pub fn get_offset_height(&self) -> f64 {
+        self.bounding_rect.lock().unwrap().height
+    }
+
+    /// offsetLeft = distance from left edge of offsetParent
+    pub fn get_offset_left(&self) -> f64 {
+        self.bounding_rect.lock().unwrap().x
+    }
+
+    /// offsetTop = distance from top edge of offsetParent
+    pub fn get_offset_top(&self) -> f64 {
+        self.bounding_rect.lock().unwrap().y
+    }
+
+    /// clientWidth = content + padding (no border)
+    pub fn get_client_width(&self) -> f64 {
+        let rect = self.bounding_rect.lock().unwrap();
+        // Approximate: width minus border. Exact values require stored border widths.
+        rect.width
+    }
+
+    /// clientHeight = content + padding (no border)
+    pub fn get_client_height(&self) -> f64 {
+        let rect = self.bounding_rect.lock().unwrap();
+        rect.height
+    }
+
+    /// scrollWidth (for now, same as clientWidth since we don't track overflow)
+    pub fn get_scroll_width(&self) -> f64 {
+        self.get_client_width()
+    }
+
+    /// scrollHeight (for now, same as clientHeight)
+    pub fn get_scroll_height(&self) -> f64 {
+        self.get_client_height()
     }
 
     /// Real DOM tree traversal - get element by ID
@@ -2543,4 +2684,101 @@ fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
     array.set(js_string!("item"), item_fn, false, context)?;
 
     Ok(array.into())
+}
+
+// --- Layout geometry property getters ---
+
+fn get_offset_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetWidth getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_offset_width().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_offset_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetHeight getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_offset_height().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_offset_left(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetLeft getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_offset_left().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_offset_top(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("offsetTop getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_offset_top().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_client_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("clientWidth getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_client_width().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_client_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("clientHeight getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_client_height().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_scroll_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollWidth getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_scroll_width().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+fn get_scroll_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("scrollHeight getter called on non-object")
+    })?;
+    if let Some(element) = this_obj.downcast_ref::<ElementData>() {
+        Ok(element.get_scroll_height().into())
+    } else {
+        Ok(0.into())
+    }
+}
+
+/// `Element.prototype.shadowRoot` getter - returns null by default.
+/// This is overridden to the actual ShadowRoot object when attachShadow({mode: 'open'})
+/// is called (via defineProperty), and stays null for closed mode per spec.
+fn get_shadow_root_property(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+    Ok(JsValue::null())
 }

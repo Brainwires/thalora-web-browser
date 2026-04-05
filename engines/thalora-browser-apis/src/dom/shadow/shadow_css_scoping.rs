@@ -19,6 +19,9 @@ pub enum ScopeType {
     HostContext(String),
     /// ::slotted() selector - matches slotted elements
     Slotted(String),
+    /// ::part() pseudo-element - matches elements with a matching `part` attribute
+    /// inside the shadow tree. Parts do NOT pierce nested shadow boundaries.
+    Part(String),
     /// Regular scoped selector
     Scoped(String),
 }
@@ -59,6 +62,9 @@ impl ScopedCSSRule {
         } else if trimmed.starts_with("::slotted(") && trimmed.ends_with(')') {
             let inner = &trimmed[10..trimmed.len() - 1];
             ScopeType::Slotted(inner.to_string())
+        } else if trimmed.starts_with("::part(") && trimmed.ends_with(')') {
+            let inner = &trimmed[7..trimmed.len() - 1];
+            ScopeType::Part(inner.trim().to_string())
         } else {
             ScopeType::Scoped(selector.to_string())
         }
@@ -173,6 +179,15 @@ impl ShadowCSSScoping {
                         if Self::element_matches_selector(&element, selector) {
                             Self::apply_styles_to_element(&element, rule, context)?;
                         }
+                    }
+                }
+                ScopeType::Part(part_name) => {
+                    // ::part() matches elements inside the shadow tree that have
+                    // a `part` attribute containing the specified name.
+                    // Parts do NOT pierce nested shadow boundaries per spec.
+                    let elements = Self::get_elements_with_part(shadow_root, part_name);
+                    for element in elements {
+                        Self::apply_styles_to_element(&element, rule, context)?;
                     }
                 }
                 ScopeType::Scoped(selector) => {
@@ -311,6 +326,37 @@ impl ShadowCSSScoping {
     }
 
     /// Query elements in shadow tree using selector
+    /// Find elements with a matching `part` attribute within the shadow tree.
+    /// Per spec, ::part() does NOT pierce nested shadow boundaries.
+    fn get_elements_with_part(shadow_root: &JsObject, part_name: &str) -> Vec<JsObject> {
+        let mut matches = Vec::new();
+        Self::find_parts_recursive(shadow_root, part_name, &mut matches);
+        matches
+    }
+
+    /// Recursively find elements with a matching part attribute.
+    /// Stops at nested shadow boundaries (does not descend into child shadow roots).
+    fn find_parts_recursive(node: &JsObject, part_name: &str, matches: &mut Vec<JsObject>) {
+        let children = Self::get_child_nodes(node);
+        for child in &children {
+            if let Some(element_data) = child.downcast_ref::<ElementData>() {
+                // Check if this element has a `part` attribute containing the target name
+                if let Some(part_attr) = element_data.get_attribute("part") {
+                    // The part attribute can contain space-separated names
+                    if part_attr.split_whitespace().any(|p| p == part_name) {
+                        matches.push(child.clone());
+                    }
+                }
+
+                // Do NOT descend into nested shadow roots (per spec)
+                if element_data.get_shadow_root().is_some() {
+                    continue;
+                }
+            }
+            Self::find_parts_recursive(child, part_name, matches);
+        }
+    }
+
     fn query_shadow_tree(shadow_root: &JsObject, selector: &str) -> Vec<JsObject> {
         let mut matches = Vec::new();
         Self::query_recursive(shadow_root, selector, &mut matches);
