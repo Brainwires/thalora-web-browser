@@ -10,3 +10,5 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+toml_edit = "0.22"
+walkdir = "2.5"
