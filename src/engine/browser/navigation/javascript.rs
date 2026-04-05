@@ -99,6 +99,25 @@ impl super::super::HeadlessWebBrowser {
             self.csp_policy = None;
         }
 
+        // Extract and parse Permissions-Policy header (or legacy Feature-Policy)
+        let permissions_header = response
+            .headers()
+            .get("permissions-policy")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        let feature_policy_header = response
+            .headers()
+            .get("feature-policy")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        if let Some(ref pp) = permissions_header {
+            self.permissions_policy = Some(super::csp::PermissionsPolicy::parse(pp));
+        } else if let Some(ref fp) = feature_policy_header {
+            self.permissions_policy = Some(super::csp::PermissionsPolicy::parse_legacy(fp));
+        } else {
+            self.permissions_policy = None;
+        }
+
         let content = response.text().await?;
 
         // Store the current content and URL
@@ -287,6 +306,90 @@ impl super::super::HeadlessWebBrowser {
             .clone()
             .unwrap_or_else(|| "https://example.com".to_string());
 
+        // Pre-fetch async external scripts in parallel for better performance.
+        // Collect URLs first, then fetch all at once, then execute as they arrive.
+        if !only_deferred {
+            let mut async_scripts: Vec<(String, Option<String>)> = Vec::new(); // (url, integrity)
+            for script_element in document.select(&script_selector) {
+                let script_type = script_element.value().attr("type").unwrap_or("text/javascript");
+                let is_rocket_loader = script_type.ends_with("-text/javascript");
+                let is_js = is_rocket_loader
+                    || script_type == "text/javascript"
+                    || script_type == "application/javascript"
+                    || script_type.is_empty();
+                if !is_js || script_type == "module" {
+                    continue;
+                }
+                let is_async = script_element.value().attr("async").is_some();
+                let is_defer = script_element.value().attr("defer").is_some();
+                if is_async && !is_defer {
+                    if let Some(src) = script_element.value().attr("src") {
+                        if let Ok(url) = self.resolve_script_url(&base_url, src) {
+                            let integrity = script_element.value().attr("integrity").map(|s| s.to_string());
+                            async_scripts.push((url, integrity));
+                        }
+                    }
+                }
+            }
+
+            if !async_scripts.is_empty() {
+                eprintln!(
+                    "🔍 DEBUG: Pre-fetching {} async scripts in parallel",
+                    async_scripts.len()
+                );
+                // Fetch all async scripts in parallel
+                let fetch_futures: Vec<_> = async_scripts
+                    .iter()
+                    .map(|(url, _)| {
+                        let client = reqwest::Client::new();
+                        let url = url.clone();
+                        async move {
+                            let result = client
+                                .get(&url)
+                                .timeout(std::time::Duration::from_secs(30))
+                                .send()
+                                .await;
+                            match result {
+                                Ok(resp) => resp.text().await.ok().map(|text| (url, text)),
+                                Err(_) => None,
+                            }
+                        }
+                    })
+                    .collect();
+
+                let results = futures::future::join_all(fetch_futures).await;
+
+                // Execute each async script as it was fetched
+                for (i, result) in results.into_iter().enumerate() {
+                    if let Some((url, content)) = result {
+                        // SRI check
+                        if let Some(ref integrity_value) = async_scripts[i].1 {
+                            if !integrity_value.is_empty()
+                                && !verify_integrity(content.as_bytes(), integrity_value)
+                            {
+                                scripts_failed += 1;
+                                eprintln!("🔒 SRI: Async script integrity check FAILED for {}", url);
+                                continue;
+                            }
+                        }
+                        external_scripts_fetched += 1;
+                        match self.execute_page_javascript(&content).await {
+                            Ok(_) => {
+                                scripts_executed += 1;
+                                eprintln!("🔍 DEBUG: Async script executed: {}", url);
+                            }
+                            Err(e) => {
+                                scripts_failed += 1;
+                                eprintln!("⚠️  WARNING: Async script failed: {}: {}", url, e);
+                            }
+                        }
+                    } else {
+                        scripts_failed += 1;
+                    }
+                }
+            }
+        }
+
         for script_element in document.select(&script_selector) {
             // Get the script type attribute
             let script_type = script_element
@@ -362,6 +465,11 @@ impl super::super::HeadlessWebBrowser {
             // Check for async/defer attributes
             let is_async = script_element.value().attr("async").is_some();
             let is_defer = script_element.value().attr("defer").is_some();
+
+            // Skip async external scripts in the main loop — already executed in parallel above
+            if is_async && !only_deferred && script_element.value().attr("src").is_some() {
+                continue;
+            }
 
             // Filter based on what we're executing in this pass
             if only_deferred && !is_defer {

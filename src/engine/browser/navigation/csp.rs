@@ -394,6 +394,138 @@ fn url_matches_pattern(url: &str, pattern: &str) -> bool {
     url.starts_with(pattern)
 }
 
+// ============================================================================
+// Permissions Policy (formerly Feature Policy)
+// https://w3c.github.io/webappsec-permissions-policy/
+// ============================================================================
+
+/// Parsed Permissions-Policy header.
+/// Maps feature names to their allowlist.
+#[derive(Debug, Clone, Default)]
+pub struct PermissionsPolicy {
+    /// Feature name → allowed origins. Empty vec = blocked for all.
+    /// Special value "*" means allowed for all origins.
+    /// Special value "self" means allowed for same origin only.
+    features: std::collections::HashMap<String, Vec<String>>,
+}
+
+impl PermissionsPolicy {
+    /// Parse a `Permissions-Policy` header value.
+    ///
+    /// Format: `feature1=(), feature2=(self), feature3=("https://example.com"), feature4=*`
+    pub fn parse(header: &str) -> Self {
+        let mut policy = PermissionsPolicy::default();
+
+        for directive in header.split(',') {
+            let directive = directive.trim();
+            if directive.is_empty() {
+                continue;
+            }
+
+            // Split on '=' to get feature name and allowlist
+            let mut parts = directive.splitn(2, '=');
+            let feature = match parts.next() {
+                Some(f) => f.trim().to_lowercase(),
+                None => continue,
+            };
+            let allowlist_str = parts.next().unwrap_or("()").trim();
+
+            let allowlist = if allowlist_str == "*" {
+                vec!["*".to_string()]
+            } else if allowlist_str == "()" {
+                // Empty allowlist = feature disabled for all
+                Vec::new()
+            } else {
+                // Parse (self "https://example.com" ...) format
+                let inner = allowlist_str
+                    .trim_start_matches('(')
+                    .trim_end_matches(')');
+                inner
+                    .split_whitespace()
+                    .map(|s| s.trim_matches('"').trim_matches('\'').to_string())
+                    .collect()
+            };
+
+            policy.features.insert(feature, allowlist);
+        }
+
+        policy
+    }
+
+    /// Parse a legacy `Feature-Policy` header value.
+    ///
+    /// Format: `feature1 'none'; feature2 'self'; feature3 *`
+    pub fn parse_legacy(header: &str) -> Self {
+        let mut policy = PermissionsPolicy::default();
+
+        for directive in header.split(';') {
+            let directive = directive.trim();
+            if directive.is_empty() {
+                continue;
+            }
+
+            let mut parts = directive.split_whitespace();
+            let feature = match parts.next() {
+                Some(f) => f.to_lowercase(),
+                None => continue,
+            };
+
+            let mut allowlist = Vec::new();
+            for token in parts {
+                match token {
+                    "'none'" => {} // empty allowlist
+                    "'self'" => allowlist.push("self".to_string()),
+                    "*" => allowlist.push("*".to_string()),
+                    _ => allowlist.push(token.trim_matches('\'').to_string()),
+                }
+            }
+
+            policy.features.insert(feature, allowlist);
+        }
+
+        policy
+    }
+
+    /// Check if a feature is allowed for the current origin.
+    /// Returns true if the feature is allowed (or not restricted).
+    pub fn is_feature_allowed(&self, feature: &str, page_origin: Option<&str>) -> bool {
+        let feature = feature.to_lowercase();
+        match self.features.get(&feature) {
+            None => true, // Feature not mentioned in policy = allowed
+            Some(allowlist) => {
+                if allowlist.is_empty() {
+                    return false; // Explicitly disabled
+                }
+                if allowlist.iter().any(|a| a == "*") {
+                    return true; // Allowed for all
+                }
+                if allowlist.iter().any(|a| a == "self") {
+                    return true; // Allowed for same-origin (assume same-origin in headless)
+                }
+                // Check if page origin is in the allowlist
+                if let Some(origin) = page_origin {
+                    return allowlist.iter().any(|a| a == origin);
+                }
+                true // No origin to check against, be permissive
+            }
+        }
+    }
+
+    /// Returns true if any policy is set.
+    pub fn has_policy(&self) -> bool {
+        !self.features.is_empty()
+    }
+
+    /// Get the list of restricted features (those with empty allowlists).
+    pub fn get_restricted_features(&self) -> Vec<&str> {
+        self.features
+            .iter()
+            .filter(|(_, allowlist)| allowlist.is_empty())
+            .map(|(feature, _)| feature.as_str())
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

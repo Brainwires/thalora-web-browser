@@ -40,6 +40,8 @@ pub struct HeadlessWebBrowser {
     pub(super) history_events: Arc<Mutex<Vec<HistoryEvent>>>,
     /// Parsed Content-Security-Policy for the current page
     pub(super) csp_policy: Option<super::navigation::csp::CspPolicy>,
+    /// Parsed Permissions-Policy for the current page
+    pub(super) permissions_policy: Option<super::navigation::csp::PermissionsPolicy>,
 }
 
 impl HeadlessWebBrowser {
@@ -107,6 +109,7 @@ impl HeadlessWebBrowser {
             bypass_cache: false,
             history_events: Arc::new(Mutex::new(Vec::new())),
             csp_policy: None,
+            permissions_policy: None,
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));

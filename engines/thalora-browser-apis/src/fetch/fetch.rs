@@ -21,7 +21,13 @@ use boa_engine::{
 use boa_gc::{Finalize, Trace};
 use reqwest;
 use std::collections::HashMap;
+use std::sync::Mutex;
 use url::Url;
+
+/// Simple CORS preflight cache: (origin, method) → expiry time.
+/// Caches successful preflight results per Access-Control-Max-Age.
+static PREFLIGHT_CACHE: std::sync::LazyLock<Mutex<HashMap<(String, String), std::time::Instant>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// JavaScript `fetch()` global function implementation.
 #[derive(Debug, Copy, Clone)]
@@ -95,7 +101,25 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
             let client = reqwest::Client::new();
 
             // CORS preflight for non-simple cross-origin requests
-            if mode == "cors" && !is_cors_simple_request(&method, &headers) {
+            // Check preflight cache first
+            let cache_key = {
+                let origin = Url::parse(&url_string)
+                    .ok()
+                    .and_then(|u| u.host_str().map(|h| h.to_string()))
+                    .unwrap_or_default();
+                (origin, method.clone())
+            };
+            let preflight_cached = PREFLIGHT_CACHE
+                .lock()
+                .ok()
+                .and_then(|cache| {
+                    cache
+                        .get(&cache_key)
+                        .map(|expiry| std::time::Instant::now() < *expiry)
+                })
+                .unwrap_or(false);
+
+            if mode == "cors" && !is_cors_simple_request(&method, &headers) && !preflight_cached {
                 // Collect custom header names for Access-Control-Request-Headers
                 let safelisted = ["accept", "accept-language", "content-language", "content-type", "user-agent"];
                 let custom_headers: Vec<String> = headers.keys()
@@ -162,6 +186,28 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                                     "⚠️  CORS: custom headers {:?} not all in Access-Control-Allow-Headers: {}",
                                     custom_headers, allowed_headers
                                 );
+                            }
+                        }
+
+                        // Cache successful preflight result per Access-Control-Max-Age
+                        let max_age = preflight_resp
+                            .headers()
+                            .get("access-control-max-age")
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|v| v.parse::<u64>().ok())
+                            .unwrap_or(5); // Default 5 seconds per spec
+                        if max_age > 0 {
+                            if let Ok(mut cache) = PREFLIGHT_CACHE.lock() {
+                                cache.insert(
+                                    cache_key.clone(),
+                                    std::time::Instant::now()
+                                        + std::time::Duration::from_secs(max_age),
+                                );
+                                // Evict expired entries periodically (keep cache bounded)
+                                if cache.len() > 100 {
+                                    let now = std::time::Instant::now();
+                                    cache.retain(|_, expiry| *expiry > now);
+                                }
                             }
                         }
                     }

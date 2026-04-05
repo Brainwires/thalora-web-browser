@@ -1861,35 +1861,80 @@ fn exec_command(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsR
 /// `document.write(...)` — Concatenates all arguments and appends them to the document body.
 ///
 /// In a real browser, document.write() inserts into the parser stream during parsing.
-/// In our headless implementation, we pragmatically insert the content as innerHTML
-/// into the document body after the fact. This covers the common use case of analytics
-/// and ad tag injection without requiring incremental parsing.
-fn document_write(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
+/// In our headless implementation, we pragmatically create a container element with
+/// the written content as innerHTML and append it to the document body. This covers
+/// the common use case of analytics and ad tag injection (e.g., Google Analytics,
+/// ad networks) without requiring incremental parsing.
+fn document_write(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // Concatenate all arguments into a single string (per spec)
     let mut content = String::new();
     for arg in args {
         content.push_str(&arg.to_string(context)?.to_std_string_escaped());
     }
 
-    // In a headless browser, document.write after parsing is complete would normally
-    // replace the entire document. We take the pragmatic approach of appending to body
-    // as a no-op equivalent — the content is available for DOM queries but doesn't
-    // replace the page. This matches what most analytics/ad scripts expect.
-    //
-    // The content string is stored for potential later processing but we don't
-    // modify the DOM tree here since we don't have access to the parsed HTML tree
-    // from within the Boa context.
+    // Skip empty writes
+    if content.is_empty() {
+        return Ok(JsValue::undefined());
+    }
+
+    // Get the document's body element to append content
+    let this_obj = match this.as_object() {
+        Some(obj) => obj,
+        None => return Ok(JsValue::undefined()),
+    };
+
+    let document = match this_obj.downcast_ref::<DocumentData>() {
+        Some(doc) => doc,
+        None => return Ok(JsValue::undefined()),
+    };
+
+    // Create a wrapper element to hold the written content
+    let element_constructor = context.intrinsics().constructors().element().constructor();
+    let wrapper = crate::dom::element::Element::constructor(
+        &element_constructor.clone().into(),
+        &[],
+        context,
+    )?;
+
+    if let Some(wrapper_obj) = wrapper.as_object() {
+        // Set tag name to SPAN (lightweight inline container)
+        if let Some(element_data) =
+            wrapper_obj.downcast_ref::<crate::dom::element::ElementData>()
+        {
+            element_data.set_tag_name("SPAN".to_string());
+            // Set the innerHTML to the written content
+            element_data.set_inner_html(content);
+        }
+
+        // Mark as document.write output with a data attribute
+        wrapper_obj.set(
+            js_string!("tagName"),
+            JsValue::from(js_string!("SPAN")),
+            false,
+            context,
+        )?;
+
+        // Append to body's children via the document's element registry
+        // Store under a unique key so multiple writes don't overwrite each other
+        let write_key = format!("__docwrite_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0));
+        document.add_element(write_key, wrapper_obj.clone());
+    }
+
     Ok(JsValue::undefined())
 }
 
 /// `document.writeln(...)` — Same as document.write() but appends a newline.
 fn document_writeln(
-    _this: &JsValue,
+    this: &JsValue,
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    // writeln is identical to write but appends "\n"
-    document_write(_this, args, context)
+    // writeln is identical to write but appends "\n" — in DOM terms,
+    // the newline has no visual effect (HTML collapses whitespace)
+    document_write(this, args, context)
 }
 
 /// `Document.prototype.createTreeWalker(root, whatToShow, filter)`

@@ -290,8 +290,27 @@ pub struct CssProcessor {
     compiled_rules: Vec<CompiledRule>,
     /// Indexed rule lookup for O(1) candidate selection per element
     rule_index: Option<RuleIndex>,
-    /// Known @keyframes names (for @supports animation-name checks and future use)
-    keyframes: HashMap<String, bool>,
+    /// Known @keyframes: name → serialized CSS declarations per stop (e.g., "from", "to", "50%")
+    keyframes: HashMap<String, Vec<(String, HashMap<String, String>)>>,
+    /// Known @font-face declarations: font-family → src URL(s) and descriptors
+    font_faces: Vec<FontFaceEntry>,
+}
+
+/// A parsed @font-face rule entry
+#[derive(Debug, Clone)]
+pub struct FontFaceEntry {
+    /// The font-family name
+    pub family: String,
+    /// The src value (url, format)
+    pub src: String,
+    /// Font weight (e.g., "400", "bold", "100 900")
+    pub weight: Option<String>,
+    /// Font style (e.g., "normal", "italic")
+    pub style: Option<String>,
+    /// Font display (e.g., "swap", "block", "fallback")
+    pub display: Option<String>,
+    /// Unicode range (e.g., "U+0000-00FF")
+    pub unicode_range: Option<String>,
 }
 
 impl CssProcessor {
@@ -307,6 +326,7 @@ impl CssProcessor {
             compiled_rules: Vec::new(),
             rule_index: None,
             keyframes: HashMap::new(),
+            font_faces: Vec::new(),
         }
     }
 
@@ -322,6 +342,7 @@ impl CssProcessor {
             compiled_rules: Vec::new(),
             rule_index: None,
             keyframes: HashMap::new(),
+            font_faces: Vec::new(),
         }
     }
 
@@ -1242,18 +1263,100 @@ impl CssProcessor {
                     self.process_rules(&starting_style_rule.rules.0);
                 }
                 CssRule::Keyframes(keyframes_rule) => {
-                    // Store @keyframes for later reference by animation-name.
-                    // Convert keyframes to a serialized form for computed style queries.
+                    // Store @keyframes with full declaration data per keyframe stop.
                     let name = keyframes_rule
                         .name
                         .to_css_string(PrinterOptions::default())
                         .unwrap_or_default();
                     if !name.is_empty() {
-                        self.keyframes.insert(name, true);
+                        let mut stops = Vec::new();
+                        for keyframe in &keyframes_rule.keyframes {
+                            let selector_str = keyframe
+                                .selectors
+                                .iter()
+                                .map(|s| {
+                                    s.to_css_string(PrinterOptions::default())
+                                        .unwrap_or_default()
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            let mut decls = HashMap::new();
+                            for decl in keyframe.declarations.declarations.iter() {
+                                let prop = decl
+                                    .property_id()
+                                    .to_css_string(PrinterOptions::default())
+                                    .unwrap_or_default();
+                                let val = decl
+                                    .value_to_css_string(PrinterOptions::default())
+                                    .unwrap_or_default();
+                                decls.insert(prop, val);
+                            }
+                            stops.push((selector_str, decls));
+                        }
+                        self.keyframes.insert(name, stops);
+                    }
+                }
+                CssRule::FontFace(font_face_rule) => {
+                    // Store @font-face for font resolution using the typed property API.
+                    let mut family = String::new();
+                    let mut src = String::new();
+                    let mut weight = None;
+                    let mut style = None;
+                    let mut unicode_range = None;
+
+                    for prop in &font_face_rule.properties {
+                        match prop {
+                            lightningcss::rules::font_face::FontFaceProperty::FontFamily(ff) => {
+                                family = ff
+                                    .to_css_string(PrinterOptions::default())
+                                    .unwrap_or_default()
+                                    .trim_matches('"')
+                                    .trim_matches('\'')
+                                    .to_string();
+                            }
+                            lightningcss::rules::font_face::FontFaceProperty::Source(sources) => {
+                                let parts: Vec<String> = sources
+                                    .iter()
+                                    .filter_map(|s| {
+                                        s.to_css_string(PrinterOptions::default()).ok()
+                                    })
+                                    .collect();
+                                src = parts.join(", ");
+                            }
+                            lightningcss::rules::font_face::FontFaceProperty::FontWeight(w) => {
+                                weight = w.to_css_string(PrinterOptions::default()).ok();
+                            }
+                            lightningcss::rules::font_face::FontFaceProperty::FontStyle(s) => {
+                                style = s.to_css_string(PrinterOptions::default()).ok();
+                            }
+                            lightningcss::rules::font_face::FontFaceProperty::UnicodeRange(
+                                ranges,
+                            ) => {
+                                let parts: Vec<String> = ranges
+                                    .iter()
+                                    .filter_map(|r| {
+                                        r.to_css_string(PrinterOptions::default()).ok()
+                                    })
+                                    .collect();
+                                unicode_range = Some(parts.join(", "));
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if !family.is_empty() {
+                        self.font_faces.push(FontFaceEntry {
+                            family,
+                            src,
+                            weight,
+                            style,
+                            display: None, // font-display is not in the typed enum
+                            unicode_range,
+                        });
                     }
                 }
                 _ => {
-                    // Skip @font-face, @import, @font-palette-values, etc.
+                    // Skip @import, @font-palette-values, etc.
                 }
             }
         }
@@ -2214,11 +2317,28 @@ impl CssProcessor {
         &self.custom_properties
     }
 
+    /// Get all known @font-face entries
+    pub fn get_font_faces(&self) -> &[FontFaceEntry] {
+        &self.font_faces
+    }
+
+    /// Get keyframe stops for a named animation
+    pub fn get_keyframes(&self, name: &str) -> Option<&Vec<(String, HashMap<String, String>)>> {
+        self.keyframes.get(name)
+    }
+
+    /// Check if a keyframes animation name is defined
+    pub fn has_keyframes(&self, name: &str) -> bool {
+        self.keyframes.contains_key(name)
+    }
+
     /// Clear all parsed rules
     pub fn clear(&mut self) {
         self.rules.clear();
         self.sources.clear();
         self.custom_properties.clear();
+        self.keyframes.clear();
+        self.font_faces.clear();
         self.source_order_counter = 0;
     }
 
@@ -2310,6 +2430,146 @@ impl CssProcessor {
                 "hover" | "active" | "focus" | "focus-visible" | "focus-within" => {
                     // Interactive pseudo-classes don't apply during static rendering
                     false
+                }
+                "target" => {
+                    // :target matches the element whose ID equals the URL fragment.
+                    // In headless mode we don't have a URL fragment, so never matches.
+                    false
+                }
+                "lang" => {
+                    // :lang(xx) matches elements with a lang attribute matching xx
+                    let lang_arg = pseudo_part
+                        .strip_prefix("lang(")
+                        .and_then(|s| s.strip_suffix(')'))
+                        .unwrap_or("")
+                        .trim()
+                        .trim_matches('"')
+                        .trim_matches('\'');
+                    if !lang_arg.is_empty() {
+                        // Check the element and ancestors for lang attribute
+                        if let Some(el_lang) = el.attr("lang").or_else(|| el.attr("xml:lang")) {
+                            let matches_lang = el_lang == lang_arg
+                                || el_lang.starts_with(&format!("{}-", lang_arg));
+                            if matches_lang {
+                                return if base.is_empty() {
+                                    true
+                                } else {
+                                    Self::simple_selector_matches(base, tag_name, el)
+                                };
+                            }
+                        }
+                    }
+                    false
+                }
+                "empty" => {
+                    // :empty matches elements with no children (no child elements or text nodes)
+                    // In our scraper-based model, we can't check children directly
+                    // from the Element alone, so match base and let scraper handle it
+                    // via the preprocessed selector path. As a fallback, assume false.
+                    false
+                }
+                "enabled" => {
+                    // :enabled matches form elements that are not disabled
+                    let is_form_el = matches!(
+                        tag_name,
+                        "input" | "select" | "textarea" | "button" | "fieldset"
+                    );
+                    if is_form_el && el.attr("disabled").is_none() {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "disabled" => {
+                    // :disabled matches form elements with disabled attribute
+                    if el.attr("disabled").is_some() {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "checked" => {
+                    // :checked matches checked checkboxes/radio buttons and selected options
+                    let is_checked = el.attr("checked").is_some() || el.attr("selected").is_some();
+                    if is_checked {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "required" => {
+                    if el.attr("required").is_some() {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "optional" => {
+                    let is_form_el = matches!(tag_name, "input" | "select" | "textarea");
+                    if is_form_el && el.attr("required").is_none() {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "read-only" => {
+                    let is_readonly = el.attr("readonly").is_some()
+                        || el.attr("disabled").is_some()
+                        || !matches!(tag_name, "input" | "textarea");
+                    if is_readonly {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "read-write" => {
+                    let is_editable = matches!(tag_name, "input" | "textarea")
+                        && el.attr("readonly").is_none()
+                        && el.attr("disabled").is_none();
+                    if is_editable {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "placeholder-shown" => {
+                    // :placeholder-shown matches inputs with placeholder visible (value is empty)
+                    // In static rendering, assume placeholder is shown if element has placeholder attr
+                    if el.attr("placeholder").is_some() {
+                        if base.is_empty() {
+                            return true;
+                        }
+                        return Self::simple_selector_matches(base, tag_name, el);
+                    }
+                    false
+                }
+                "first-child" | "last-child" | "only-child" | "first-of-type"
+                | "last-of-type" | "only-of-type" => {
+                    // Structural pseudo-classes — these should ideally be handled by
+                    // scraper's selector matching. If we got here, scraper couldn't
+                    // parse the full selector. Try matching just the base.
+                    if base.is_empty() {
+                        return false;
+                    }
+                    Self::simple_selector_matches(base, tag_name, el)
+                }
+                "root" => {
+                    // :root matches the document element (html)
+                    tag_name == "html"
                 }
                 // Pseudo-elements create virtual elements inside the target — their styles
                 // must NOT apply to the element itself. Both CSS2 (single colon) and CSS3
