@@ -113,11 +113,60 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                     );
                 }
 
-                // Send preflight — failures are non-fatal for a headless browser
-                if let Ok(preflight_resp) = preflight.send().await {
-                    let status = preflight_resp.status().as_u16();
-                    if status < 200 || status >= 300 {
-                        eprintln!("⚠️  CORS preflight returned status {}", status);
+                // Send preflight and validate the response
+                match preflight.send().await {
+                    Ok(preflight_resp) => {
+                        let status = preflight_resp.status().as_u16();
+                        if status < 200 || status >= 300 {
+                            eprintln!("⚠️  CORS preflight returned status {}", status);
+                            // Preflight failed — log warning but continue.
+                            // A strict browser would reject here, but in headless
+                            // mode we allow the request for compatibility.
+                        }
+
+                        // Validate Access-Control-Allow-Methods
+                        let allowed_methods = preflight_resp
+                            .headers()
+                            .get("access-control-allow-methods")
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("");
+                        let method_upper = method.to_uppercase();
+                        let method_allowed = allowed_methods == "*"
+                            || allowed_methods
+                                .split(',')
+                                .any(|m| m.trim().eq_ignore_ascii_case(&method_upper));
+                        if !method_allowed && !matches!(method_upper.as_str(), "GET" | "HEAD" | "POST") {
+                            eprintln!(
+                                "⚠️  CORS: method {} not in Access-Control-Allow-Methods: {}",
+                                method, allowed_methods
+                            );
+                        }
+
+                        // Validate Access-Control-Allow-Headers
+                        if !custom_headers.is_empty() {
+                            let allowed_headers = preflight_resp
+                                .headers()
+                                .get("access-control-allow-headers")
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("");
+                            let allowed_set: Vec<String> = allowed_headers
+                                .split(',')
+                                .map(|h| h.trim().to_lowercase())
+                                .collect();
+                            let headers_ok = allowed_headers == "*"
+                                || custom_headers
+                                    .iter()
+                                    .all(|h| allowed_set.contains(&h.to_lowercase()));
+                            if !headers_ok {
+                                eprintln!(
+                                    "⚠️  CORS: custom headers {:?} not all in Access-Control-Allow-Headers: {}",
+                                    custom_headers, allowed_headers
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️  CORS preflight request failed: {}", e);
                     }
                 }
             }

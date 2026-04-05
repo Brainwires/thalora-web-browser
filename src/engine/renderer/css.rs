@@ -6,6 +6,7 @@
 use anyhow::{Context, Result};
 use lightningcss::declaration::DeclarationBlock;
 use lightningcss::properties::Property;
+use lightningcss::rules::supports::SupportsCondition;
 use lightningcss::rules::CssRule;
 use lightningcss::selector::{Component, Selector};
 use lightningcss::stylesheet::{MinifyOptions, ParserOptions, PrinterOptions, StyleSheet};
@@ -120,6 +121,82 @@ pub struct ComputedStyles {
     /// Clear property (left, right, both, none)
     pub clear: Option<String>,
 
+    // --- Visual transform/effect properties (promoted for getComputedStyle support) ---
+    /// CSS transform (e.g., "rotate(45deg)", "translateX(10px)")
+    pub transform: Option<String>,
+    /// CSS transform-origin
+    pub transform_origin: Option<String>,
+    /// CSS filter (e.g., "blur(5px)", "brightness(0.8)")
+    pub filter: Option<String>,
+    /// CSS backdrop-filter
+    pub backdrop_filter: Option<String>,
+    /// CSS animation shorthand
+    pub animation: Option<String>,
+    /// CSS animation-name
+    pub animation_name: Option<String>,
+    /// CSS animation-duration
+    pub animation_duration: Option<String>,
+    /// CSS transition shorthand
+    pub transition: Option<String>,
+    /// CSS clip-path
+    pub clip_path: Option<String>,
+    /// CSS mask / -webkit-mask
+    pub mask: Option<String>,
+    /// CSS mix-blend-mode
+    pub mix_blend_mode: Option<String>,
+    /// CSS object-fit (for images/video)
+    pub object_fit: Option<String>,
+    /// CSS object-position
+    pub object_position: Option<String>,
+    /// CSS box-shadow
+    pub box_shadow: Option<String>,
+    /// CSS text-shadow
+    pub text_shadow: Option<String>,
+    /// CSS outline
+    pub outline: Option<String>,
+    /// CSS overflow-x
+    pub overflow_x: Option<String>,
+    /// CSS overflow-y
+    pub overflow_y: Option<String>,
+    /// CSS text-overflow
+    pub text_overflow: Option<String>,
+    /// CSS word-break
+    pub word_break: Option<String>,
+    /// CSS overflow-wrap / word-wrap
+    pub overflow_wrap: Option<String>,
+    /// CSS vertical-align
+    pub vertical_align: Option<String>,
+    /// CSS content (for ::before/::after)
+    pub content: Option<String>,
+    /// CSS pointer-events
+    pub pointer_events: Option<String>,
+    /// CSS user-select
+    pub user_select: Option<String>,
+    /// CSS appearance / -webkit-appearance
+    pub appearance: Option<String>,
+    /// CSS will-change
+    pub will_change: Option<String>,
+    /// CSS contain
+    pub contain: Option<String>,
+    /// CSS container-type
+    pub container_type: Option<String>,
+    /// CSS aspect-ratio
+    pub aspect_ratio: Option<String>,
+    /// CSS justify-self
+    pub justify_self: Option<String>,
+    /// CSS place-items
+    pub place_items: Option<String>,
+    /// CSS place-content
+    pub place_content: Option<String>,
+    /// CSS gap (alias: column-gap, row-gap handled separately)
+    pub row_gap: Option<String>,
+    /// CSS column-count
+    pub column_count: Option<String>,
+    /// CSS direction (ltr, rtl)
+    pub direction: Option<String>,
+    /// CSS writing-mode
+    pub writing_mode: Option<String>,
+
     /// All other properties as key-value pairs
     #[serde(flatten)]
     pub other: HashMap<String, String>,
@@ -213,6 +290,8 @@ pub struct CssProcessor {
     compiled_rules: Vec<CompiledRule>,
     /// Indexed rule lookup for O(1) candidate selection per element
     rule_index: Option<RuleIndex>,
+    /// Known @keyframes names (for @supports animation-name checks and future use)
+    keyframes: HashMap<String, bool>,
 }
 
 impl CssProcessor {
@@ -227,6 +306,7 @@ impl CssProcessor {
             source_order_counter: 0,
             compiled_rules: Vec::new(),
             rule_index: None,
+            keyframes: HashMap::new(),
         }
     }
 
@@ -241,6 +321,7 @@ impl CssProcessor {
             source_order_counter: 0,
             compiled_rules: Vec::new(),
             rule_index: None,
+            keyframes: HashMap::new(),
         }
     }
 
@@ -305,6 +386,10 @@ impl CssProcessor {
                 } else {
                     preprocessed
                 };
+
+                // Preprocess :is(), :where(), :has() before compilation.
+                // scraper doesn't support these natively.
+                let sel_to_compile = Self::preprocess_modern_pseudos(&sel_to_compile);
 
                 // Compile the full selector
                 let compiled = scraper::Selector::parse(&sel_to_compile).ok();
@@ -1120,8 +1205,55 @@ impl CssProcessor {
                         self.process_rules(&media_rule.rules.0);
                     }
                 }
+                CssRule::Supports(supports_rule) => {
+                    // Evaluate @supports condition — if the browser supports the
+                    // declared property/value, process inner rules
+                    if self.evaluate_supports_condition(&supports_rule.condition) {
+                        self.process_rules(&supports_rule.rules.0);
+                    }
+                }
+                CssRule::LayerBlock(layer_rule) => {
+                    // @layer block: process inner rules transparently (source order).
+                    // Full cascade layer priority ordering is not yet implemented,
+                    // but this is far better than silently dropping the rules.
+                    self.process_rules(&layer_rule.rules.0);
+                }
+                CssRule::Container(container_rule) => {
+                    // @container: permissive strategy — always include inner rules.
+                    // Without layout integration we can't evaluate the container
+                    // condition, but dropping rules entirely breaks more sites than
+                    // including them unconditionally.
+                    self.process_rules(&container_rule.rules.0);
+                }
+                CssRule::Nesting(nesting_rule) => {
+                    // CSS @nest rule: treat the inner style rule as a regular style rule
+                    self.process_rules(&[CssRule::Style(nesting_rule.style.clone())]);
+                }
+                CssRule::Scope(scope_rule) => {
+                    // @scope: process inner rules transparently.
+                    // Proper scoping (scope_start/scope_end selectors) is not yet
+                    // implemented, but including the rules prevents content loss.
+                    self.process_rules(&scope_rule.rules.0);
+                }
+                CssRule::StartingStyle(starting_style_rule) => {
+                    // @starting-style: process inner rules. These define initial
+                    // styles for transition origins — include them so JS can read
+                    // the computed values even without transition support.
+                    self.process_rules(&starting_style_rule.rules.0);
+                }
+                CssRule::Keyframes(keyframes_rule) => {
+                    // Store @keyframes for later reference by animation-name.
+                    // Convert keyframes to a serialized form for computed style queries.
+                    let name = keyframes_rule
+                        .name
+                        .to_css_string(PrinterOptions::default())
+                        .unwrap_or_default();
+                    if !name.is_empty() {
+                        self.keyframes.insert(name, true);
+                    }
+                }
                 _ => {
-                    // Skip @font-face, @keyframes, @import, etc.
+                    // Skip @font-face, @import, @font-palette-values, etc.
                 }
             }
         }
@@ -1247,6 +1379,22 @@ impl CssProcessor {
                 value_str == "light"
             }
             "prefers-reduced-motion" => value_str == "no-preference",
+            "prefers-contrast" => value_str == "no-preference",
+            "prefers-reduced-transparency" => value_str == "no-preference",
+            "forced-colors" => value_str == "none",
+            "orientation" => {
+                // Assume landscape for a headless viewport wider than tall
+                value_str == "landscape"
+            }
+            "hover" => value_str == "hover",
+            "any-hover" => value_str == "hover",
+            "pointer" => value_str == "fine",
+            "any-pointer" => value_str == "fine",
+            "color" => true,
+            "color-gamut" => value_str == "srgb",
+            "display-mode" => value_str == "browser",
+            "scripting" => value_str == "enabled",
+            "update" => value_str == "fast",
             _ => true, // Unknown features — assume match to be permissive
         }
     }
@@ -1352,6 +1500,35 @@ impl CssProcessor {
 
         // Fallback: try parsing the whole expression as a single value
         Self::parse_media_length(expr)
+    }
+
+    /// Evaluate an `@supports` condition.
+    /// A headless browser that uses lightningcss for parsing can claim support for any
+    /// property/value that lightningcss successfully parses. For `not`, `and`, `or`
+    /// combinators we evaluate recursively.
+    fn evaluate_supports_condition(&self, condition: &SupportsCondition) -> bool {
+        match condition {
+            SupportsCondition::Not(inner) => !self.evaluate_supports_condition(inner),
+            SupportsCondition::And(conditions) => {
+                conditions.iter().all(|c| self.evaluate_supports_condition(c))
+            }
+            SupportsCondition::Or(conditions) => {
+                conditions.iter().any(|c| self.evaluate_supports_condition(c))
+            }
+            SupportsCondition::Declaration { property_id: _, value: _ } => {
+                // If lightningcss parsed this declaration successfully, we "support" it.
+                // The mere presence of a Declaration variant means it was parseable.
+                true
+            }
+            SupportsCondition::Selector(_) => {
+                // selector() function in @supports — be permissive
+                true
+            }
+            SupportsCondition::Unknown(_) => {
+                // Unknown conditions (e.g., future syntax) — be conservative
+                false
+            }
+        }
     }
 
     /// Resolve CSS `var()` references in a property value.
@@ -1609,6 +1786,7 @@ impl CssProcessor {
                 } else {
                     preprocessed_slow
                 };
+                let sel_slow = Self::preprocess_modern_pseudos(&sel_slow);
                 let sel_slow = sel_slow.as_str();
                 if let Ok(parsed_selector) = scraper::Selector::parse(sel_slow) {
                     if parsed_selector.matches(element) {
@@ -1794,6 +1972,102 @@ impl CssProcessor {
         result.trim().to_string()
     }
 
+    /// Preprocess CSS selectors containing `:is()`, `:where()`, and `:has()`
+    /// that scraper cannot parse natively.
+    ///
+    /// Strategy:
+    /// - `:is(X)` / `:where(X)`: If the argument is a single simple selector,
+    ///   replace the pseudo-function with just the argument (e.g., `div:is(.foo)` → `div.foo`).
+    ///   If the argument is a selector list, extract the first alternative as a best-effort.
+    /// - `:has(...)`: Strip entirely — the base selector still matches the element.
+    ///   This is an over-match (less specific), but far better than not matching at all.
+    fn preprocess_modern_pseudos(selector: &str) -> String {
+        let mut result = selector.to_string();
+
+        // Process :has(...) — strip entirely (best-effort: match base selector)
+        loop {
+            if let Some(start) = result.find(":has(") {
+                if let Some(end) = Self::find_matching_paren(&result, start + 4) {
+                    result = format!("{}{}", &result[..start], &result[end + 1..]);
+                    continue;
+                }
+            }
+            break;
+        }
+
+        // Process :is(...) — replace with the contained selector
+        loop {
+            if let Some(start) = result.find(":is(") {
+                if let Some(end) = Self::find_matching_paren(&result, start + 3) {
+                    let inner = &result[start + 4..end].trim().to_string();
+                    // Use the first selector alternative from the list
+                    let first_alt = inner.split(',').next().unwrap_or("").trim();
+                    // If the first alt looks like a simple selector (class, tag, id),
+                    // substitute it directly
+                    if !first_alt.is_empty() {
+                        result =
+                            format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
+                        continue;
+                    } else {
+                        // Empty :is() — remove it
+                        result = format!("{}{}", &result[..start], &result[end + 1..]);
+                        continue;
+                    }
+                }
+            }
+            break;
+        }
+
+        // Process :where(...) — same as :is() but zero specificity (we don't track that
+        // difference yet, but at least the rules won't be dropped)
+        loop {
+            if let Some(start) = result.find(":where(") {
+                if let Some(end) = Self::find_matching_paren(&result, start + 6) {
+                    let inner = &result[start + 7..end].trim().to_string();
+                    let first_alt = inner.split(',').next().unwrap_or("").trim();
+                    if !first_alt.is_empty() {
+                        result =
+                            format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
+                        continue;
+                    } else {
+                        result = format!("{}{}", &result[..start], &result[end + 1..]);
+                        continue;
+                    }
+                }
+            }
+            break;
+        }
+
+        let trimmed = result.trim().to_string();
+        if trimmed.is_empty() {
+            selector.to_string()
+        } else {
+            trimmed
+        }
+    }
+
+    /// Find the index of the closing parenthesis that matches the opening paren at `open_pos`.
+    fn find_matching_paren(s: &str, open_pos: usize) -> Option<usize> {
+        let bytes = s.as_bytes();
+        if open_pos >= bytes.len() || bytes[open_pos] != b'(' {
+            return None;
+        }
+        let mut depth = 1;
+        for i in (open_pos + 1)..bytes.len() {
+            match bytes[i] {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
     /// Get computed style for a specific property
     pub fn get_property(&self, selector: &str, property: &str) -> Option<String> {
         let styles = self.compute_style(selector);
@@ -1817,6 +2091,65 @@ impl CssProcessor {
             "visibility" => styles.visibility,
             "opacity" => styles.opacity.map(|o| o.to_string()),
             "z-index" => styles.z_index.map(|z| z.to_string()),
+            "flex-wrap" => styles.flex_wrap,
+            "align-self" => styles.align_self,
+            "flex-grow" => styles.flex_grow,
+            "flex-shrink" => styles.flex_shrink,
+            "flex-basis" => styles.flex_basis,
+            "min-width" => styles.min_width,
+            "min-height" => styles.min_height,
+            "max-width" => styles.max_width,
+            "max-height" => styles.max_height,
+            "font-style" => styles.font_style,
+            "line-height" => styles.line_height,
+            "text-align" => styles.text_align,
+            "text-decoration" => styles.text_decoration,
+            "text-transform" => styles.text_transform,
+            "white-space" => styles.white_space,
+            "letter-spacing" => styles.letter_spacing,
+            "word-spacing" => styles.word_spacing,
+            "border-radius" => styles.border_radius,
+            "list-style-type" => styles.list_style_type,
+            "cursor" => styles.cursor,
+            "grid-template-columns" => styles.grid_template_columns,
+            "grid-template-rows" => styles.grid_template_rows,
+            "grid-template-areas" => styles.grid_template_areas,
+            "grid-area" => styles.grid_area,
+            "float" => styles.float,
+            "clear" => styles.clear,
+            "transform" => styles.transform,
+            "transform-origin" => styles.transform_origin,
+            "filter" => styles.filter,
+            "backdrop-filter" => styles.backdrop_filter,
+            "animation" => styles.animation,
+            "animation-name" => styles.animation_name,
+            "animation-duration" => styles.animation_duration,
+            "transition" => styles.transition,
+            "clip-path" => styles.clip_path,
+            "mask" => styles.mask,
+            "mix-blend-mode" => styles.mix_blend_mode,
+            "object-fit" => styles.object_fit,
+            "object-position" => styles.object_position,
+            "box-shadow" => styles.box_shadow,
+            "text-shadow" => styles.text_shadow,
+            "outline" => styles.outline,
+            "overflow-x" => styles.overflow_x,
+            "overflow-y" => styles.overflow_y,
+            "text-overflow" => styles.text_overflow,
+            "word-break" => styles.word_break,
+            "overflow-wrap" => styles.overflow_wrap,
+            "vertical-align" => styles.vertical_align,
+            "content" => styles.content,
+            "pointer-events" => styles.pointer_events,
+            "user-select" => styles.user_select,
+            "appearance" => styles.appearance,
+            "will-change" => styles.will_change,
+            "contain" => styles.contain,
+            "container-type" => styles.container_type,
+            "aspect-ratio" => styles.aspect_ratio,
+            "justify-self" => styles.justify_self,
+            "direction" => styles.direction,
+            "writing-mode" => styles.writing_mode,
             _ => styles.other.get(property).cloned(),
         }
     }
@@ -2522,6 +2855,127 @@ impl CssProcessor {
                 }
                 "float" => styles.float = Some(clean_value),
                 "clear" => styles.clear = Some(clean_value),
+                // Visual transform/effect properties
+                "transform" | "-webkit-transform" => styles.transform = Some(clean_value),
+                "transform-origin" | "-webkit-transform-origin" => {
+                    styles.transform_origin = Some(clean_value)
+                }
+                "filter" | "-webkit-filter" => styles.filter = Some(clean_value),
+                "backdrop-filter" | "-webkit-backdrop-filter" => {
+                    styles.backdrop_filter = Some(clean_value)
+                }
+                "animation" | "-webkit-animation" => styles.animation = Some(clean_value),
+                "animation-name" | "-webkit-animation-name" => {
+                    styles.animation_name = Some(clean_value)
+                }
+                "animation-duration" | "-webkit-animation-duration" => {
+                    styles.animation_duration = Some(clean_value)
+                }
+                "transition" | "-webkit-transition" => styles.transition = Some(clean_value),
+                "clip-path" | "-webkit-clip-path" => styles.clip_path = Some(clean_value),
+                "mask" | "-webkit-mask" => styles.mask = Some(clean_value),
+                "mix-blend-mode" => styles.mix_blend_mode = Some(clean_value),
+                "object-fit" => styles.object_fit = Some(clean_value),
+                "object-position" => styles.object_position = Some(clean_value),
+                "box-shadow" | "-webkit-box-shadow" => styles.box_shadow = Some(clean_value),
+                "text-shadow" => styles.text_shadow = Some(clean_value),
+                "outline" => styles.outline = Some(clean_value),
+                "overflow-x" => styles.overflow_x = Some(clean_value),
+                "overflow-y" => styles.overflow_y = Some(clean_value),
+                "text-overflow" => styles.text_overflow = Some(clean_value),
+                "word-break" => styles.word_break = Some(clean_value),
+                "overflow-wrap" | "word-wrap" => styles.overflow_wrap = Some(clean_value),
+                "vertical-align" => styles.vertical_align = Some(clean_value),
+                "content" => styles.content = Some(clean_value),
+                "pointer-events" => styles.pointer_events = Some(clean_value),
+                "user-select" | "-webkit-user-select" | "-moz-user-select" => {
+                    styles.user_select = Some(clean_value)
+                }
+                "appearance" | "-webkit-appearance" | "-moz-appearance" => {
+                    styles.appearance = Some(clean_value)
+                }
+                "will-change" => styles.will_change = Some(clean_value),
+                "contain" => styles.contain = Some(clean_value),
+                "container-type" => styles.container_type = Some(clean_value),
+                "aspect-ratio" => styles.aspect_ratio = Some(clean_value),
+                "justify-self" => styles.justify_self = Some(clean_value),
+                "place-items" => styles.place_items = Some(clean_value),
+                "place-content" => styles.place_content = Some(clean_value),
+                "row-gap" => styles.row_gap = Some(clean_value),
+                "column-count" => styles.column_count = Some(clean_value),
+                "direction" => styles.direction = Some(clean_value),
+                "writing-mode" => styles.writing_mode = Some(clean_value),
+                // Logical properties → map to physical equivalents
+                "inline-size" => styles.width = Some(clean_value),
+                "block-size" => styles.height = Some(clean_value),
+                "min-inline-size" => styles.min_width = Some(clean_value),
+                "min-block-size" => styles.min_height = Some(clean_value),
+                "max-inline-size" => styles.max_width = Some(clean_value),
+                "max-block-size" => styles.max_height = Some(clean_value),
+                "margin-inline-start" | "margin-inline" => {
+                    let mut margin = styles.margin.clone().unwrap_or_default();
+                    margin.left = clean_value;
+                    styles.margin = Some(margin);
+                }
+                "margin-inline-end" => {
+                    let mut margin = styles.margin.clone().unwrap_or_default();
+                    margin.right = clean_value;
+                    styles.margin = Some(margin);
+                }
+                "margin-block-start" | "margin-block" => {
+                    let mut margin = styles.margin.clone().unwrap_or_default();
+                    margin.top = clean_value;
+                    styles.margin = Some(margin);
+                }
+                "margin-block-end" => {
+                    let mut margin = styles.margin.clone().unwrap_or_default();
+                    margin.bottom = clean_value;
+                    styles.margin = Some(margin);
+                }
+                "padding-inline-start" | "padding-inline" => {
+                    let mut padding = styles.padding.clone().unwrap_or_default();
+                    padding.left = clean_value;
+                    styles.padding = Some(padding);
+                }
+                "padding-inline-end" => {
+                    let mut padding = styles.padding.clone().unwrap_or_default();
+                    padding.right = clean_value;
+                    styles.padding = Some(padding);
+                }
+                "padding-block-start" | "padding-block" => {
+                    let mut padding = styles.padding.clone().unwrap_or_default();
+                    padding.top = clean_value;
+                    styles.padding = Some(padding);
+                }
+                "padding-block-end" => {
+                    let mut padding = styles.padding.clone().unwrap_or_default();
+                    padding.bottom = clean_value;
+                    styles.padding = Some(padding);
+                }
+                "border-inline-start" => {
+                    styles.border_left = Some(Self::parse_border_shorthand(&clean_value));
+                }
+                "border-inline-end" => {
+                    styles.border_right = Some(Self::parse_border_shorthand(&clean_value));
+                }
+                "border-block-start" => {
+                    styles.border_top = Some(Self::parse_border_shorthand(&clean_value));
+                }
+                "border-block-end" => {
+                    styles.border_bottom = Some(Self::parse_border_shorthand(&clean_value));
+                }
+                "inset-inline-start" | "inset" => {
+                    styles.other.insert("left".to_string(), clean_value);
+                }
+                "inset-inline-end" => {
+                    styles.other.insert("right".to_string(), clean_value);
+                }
+                "inset-block-start" => {
+                    styles.other.insert("top".to_string(), clean_value);
+                }
+                "inset-block-end" => {
+                    styles.other.insert("bottom".to_string(), clean_value);
+                }
                 _ => {
                     styles.other.insert(prop.clone(), clean_value);
                 }

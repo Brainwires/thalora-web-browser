@@ -29,6 +29,20 @@ pub enum SourceExpression {
 pub struct CspPolicy {
     pub script_src: Vec<SourceExpression>,
     pub default_src: Vec<SourceExpression>,
+    pub style_src: Vec<SourceExpression>,
+    pub img_src: Vec<SourceExpression>,
+    pub connect_src: Vec<SourceExpression>,
+    pub font_src: Vec<SourceExpression>,
+    pub frame_src: Vec<SourceExpression>,
+    pub media_src: Vec<SourceExpression>,
+    pub object_src: Vec<SourceExpression>,
+    pub worker_src: Vec<SourceExpression>,
+    pub child_src: Vec<SourceExpression>,
+    pub base_uri: Vec<SourceExpression>,
+    pub form_action: Vec<SourceExpression>,
+    pub frame_ancestors: Vec<SourceExpression>,
+    /// report-uri / report-to endpoint
+    pub report_uri: Option<String>,
 }
 
 impl CspPolicy {
@@ -54,7 +68,32 @@ impl CspPolicy {
             match name {
                 "script-src" => policy.script_src = sources,
                 "default-src" => policy.default_src = sources,
-                // Other directives (style-src, img-src, etc.) can be added later
+                "style-src" => policy.style_src = sources,
+                "img-src" => policy.img_src = sources,
+                "connect-src" => policy.connect_src = sources,
+                "font-src" => policy.font_src = sources,
+                "frame-src" => policy.frame_src = sources,
+                "media-src" => policy.media_src = sources,
+                "object-src" => policy.object_src = sources,
+                "worker-src" => policy.worker_src = sources,
+                "child-src" => policy.child_src = sources,
+                "base-uri" => policy.base_uri = sources,
+                "form-action" => policy.form_action = sources,
+                "frame-ancestors" => policy.frame_ancestors = sources,
+                "report-uri" => {
+                    // report-uri takes a URI, not source expressions
+                    let uri = directive.strip_prefix("report-uri").unwrap_or("").trim();
+                    if !uri.is_empty() {
+                        policy.report_uri = Some(uri.to_string());
+                    }
+                }
+                "report-to" => {
+                    // report-to takes a group name, store as report_uri for now
+                    let group = directive.strip_prefix("report-to").unwrap_or("").trim();
+                    if !group.is_empty() && policy.report_uri.is_none() {
+                        policy.report_uri = Some(group.to_string());
+                    }
+                }
                 _ => {}
             }
         }
@@ -166,9 +205,112 @@ impl CspPolicy {
         sources.iter().any(|s| matches!(s, SourceExpression::UnsafeEval))
     }
 
+    /// Check if a URL is allowed by a specific directive, falling back to default-src.
+    fn allows_url(&self, directive: &[SourceExpression], url: &str, page_url: Option<&str>) -> bool {
+        let sources = if !directive.is_empty() {
+            directive
+        } else if !self.default_src.is_empty() {
+            &self.default_src
+        } else {
+            return true; // No policy = allow all
+        };
+
+        for source in sources {
+            match source {
+                SourceExpression::None => return false,
+                SourceExpression::OriginSelf => {
+                    if let Some(page) = page_url {
+                        if same_origin(page, url) {
+                            return true;
+                        }
+                    }
+                }
+                SourceExpression::Url(pattern) => {
+                    if url_matches_pattern(url, pattern) {
+                        return true;
+                    }
+                }
+                SourceExpression::UnsafeInline => continue,
+                SourceExpression::UnsafeEval => continue,
+                _ => continue,
+            }
+        }
+
+        false
+    }
+
+    /// Check if a style resource URL is allowed.
+    pub fn allows_style(&self, url: &str, page_url: Option<&str>) -> bool {
+        self.allows_url(&self.style_src, url, page_url)
+    }
+
+    /// Check if an image URL is allowed.
+    pub fn allows_image(&self, url: &str, page_url: Option<&str>) -> bool {
+        self.allows_url(&self.img_src, url, page_url)
+    }
+
+    /// Check if a connect (fetch/XHR/WebSocket) URL is allowed.
+    pub fn allows_connect(&self, url: &str, page_url: Option<&str>) -> bool {
+        self.allows_url(&self.connect_src, url, page_url)
+    }
+
+    /// Check if a font URL is allowed.
+    pub fn allows_font(&self, url: &str, page_url: Option<&str>) -> bool {
+        self.allows_url(&self.font_src, url, page_url)
+    }
+
+    /// Check if a frame URL is allowed.
+    pub fn allows_frame(&self, url: &str, page_url: Option<&str>) -> bool {
+        // frame-src falls back to child-src, then default-src
+        let sources = if !self.frame_src.is_empty() {
+            &self.frame_src
+        } else if !self.child_src.is_empty() {
+            &self.child_src
+        } else {
+            &self.default_src
+        };
+        self.allows_url(sources, url, page_url)
+    }
+
+    /// Check if a worker URL is allowed.
+    pub fn allows_worker(&self, url: &str, page_url: Option<&str>) -> bool {
+        // worker-src falls back to child-src, then script-src, then default-src
+        let sources = if !self.worker_src.is_empty() {
+            &self.worker_src
+        } else if !self.child_src.is_empty() {
+            &self.child_src
+        } else if !self.script_src.is_empty() {
+            &self.script_src
+        } else {
+            &self.default_src
+        };
+        self.allows_url(sources, url, page_url)
+    }
+
+    /// Check if an inline style is allowed.
+    pub fn allows_inline_style(&self) -> bool {
+        let sources = if !self.style_src.is_empty() {
+            &self.style_src
+        } else if !self.default_src.is_empty() {
+            &self.default_src
+        } else {
+            return true;
+        };
+        sources
+            .iter()
+            .any(|s| matches!(s, SourceExpression::UnsafeInline))
+    }
+
     /// Returns true if any CSP policy is set.
     pub fn has_policy(&self) -> bool {
-        !self.script_src.is_empty() || !self.default_src.is_empty()
+        !self.script_src.is_empty()
+            || !self.default_src.is_empty()
+            || !self.style_src.is_empty()
+            || !self.connect_src.is_empty()
+            || !self.img_src.is_empty()
+            || !self.font_src.is_empty()
+            || !self.frame_src.is_empty()
+            || !self.worker_src.is_empty()
     }
 }
 
