@@ -25,9 +25,7 @@ const STEPS: &[Step] = &[
     Step {
         key: "clippy",
         name: "Clippy",
-        cmd: &[
-            "cargo", "clippy", "--workspace", "--", "-D", "warnings",
-        ],
+        cmd: &["cargo", "clippy", "--workspace", "--", "-D", "warnings"],
     },
     Step {
         key: "test",

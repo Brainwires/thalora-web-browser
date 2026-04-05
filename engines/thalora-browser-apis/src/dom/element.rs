@@ -2688,7 +2688,11 @@ fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
 
 // --- Layout geometry property getters ---
 
-fn get_offset_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_offset_width(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetWidth getter called on non-object")
     })?;
@@ -2699,7 +2703,11 @@ fn get_offset_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
     }
 }
 
-fn get_offset_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_offset_height(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("offsetHeight getter called on non-object")
     })?;
@@ -2732,7 +2740,11 @@ fn get_offset_top(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> 
     }
 }
 
-fn get_client_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_client_width(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientWidth getter called on non-object")
     })?;
@@ -2743,7 +2755,11 @@ fn get_client_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
     }
 }
 
-fn get_client_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_client_height(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("clientHeight getter called on non-object")
     })?;
@@ -2754,7 +2770,11 @@ fn get_client_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) 
     }
 }
 
-fn get_scroll_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_scroll_width(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("scrollWidth getter called on non-object")
     })?;
@@ -2765,7 +2785,11 @@ fn get_scroll_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -
     }
 }
 
-fn get_scroll_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_scroll_height(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("scrollHeight getter called on non-object")
     })?;
@@ -2779,6 +2803,10 @@ fn get_scroll_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) 
 /// `Element.prototype.shadowRoot` getter - returns null by default.
 /// This is overridden to the actual ShadowRoot object when attachShadow({mode: 'open'})
 /// is called (via defineProperty), and stays null for closed mode per spec.
-fn get_shadow_root_property(_this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
+fn get_shadow_root_property(
+    _this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
     Ok(JsValue::null())
 }

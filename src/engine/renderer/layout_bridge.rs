@@ -50,10 +50,7 @@ fn flatten_children(
         let count = tag_counts.entry(tag_lower.clone()).or_insert(0);
         *count += 1;
 
-        let child_path = format!(
-            "{}>{}:nth-child({})",
-            parent_path, tag_lower, *count
-        );
+        let child_path = format!("{}>{}:nth-child({})", parent_path, tag_lower, *count);
         map.insert(child_path.clone(), element_to_rect(child));
         flatten_children(map, child, &child_path);
     }

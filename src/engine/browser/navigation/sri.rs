@@ -64,7 +64,10 @@ mod tests {
     #[test]
     fn test_sri_sha256_mismatch() {
         let content = b"alert('Hello, world.');";
-        assert!(!verify_integrity(content, "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
+        assert!(!verify_integrity(
+            content,
+            "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        ));
     }
 
     #[test]

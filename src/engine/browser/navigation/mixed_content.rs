@@ -78,7 +78,11 @@ mod tests {
     #[test]
     fn test_https_page_http_script_blocked() {
         assert_eq!(
-            should_block_mixed_content("https://example.com", "http://cdn.example.com/script.js", ResourceType::Script),
+            should_block_mixed_content(
+                "https://example.com",
+                "http://cdn.example.com/script.js",
+                ResourceType::Script
+            ),
             MixedContentResult::Block
         );
     }
@@ -86,7 +90,11 @@ mod tests {
     #[test]
     fn test_https_page_https_script_allowed() {
         assert_eq!(
-            should_block_mixed_content("https://example.com", "https://cdn.example.com/script.js", ResourceType::Script),
+            should_block_mixed_content(
+                "https://example.com",
+                "https://cdn.example.com/script.js",
+                ResourceType::Script
+            ),
             MixedContentResult::Allow
         );
     }
@@ -95,7 +103,11 @@ mod tests {
     fn test_http_page_http_script_allowed() {
         // No mixed content on HTTP pages
         assert_eq!(
-            should_block_mixed_content("http://example.com", "http://cdn.example.com/script.js", ResourceType::Script),
+            should_block_mixed_content(
+                "http://example.com",
+                "http://cdn.example.com/script.js",
+                ResourceType::Script
+            ),
             MixedContentResult::Allow
         );
     }
@@ -103,7 +115,11 @@ mod tests {
     #[test]
     fn test_https_page_http_stylesheet_blocked() {
         assert_eq!(
-            should_block_mixed_content("https://example.com", "http://cdn.example.com/style.css", ResourceType::Stylesheet),
+            should_block_mixed_content(
+                "https://example.com",
+                "http://cdn.example.com/style.css",
+                ResourceType::Stylesheet
+            ),
             MixedContentResult::Block
         );
     }
@@ -111,7 +127,11 @@ mod tests {
     #[test]
     fn test_https_page_http_image_blocked() {
         assert_eq!(
-            should_block_mixed_content("https://example.com", "http://cdn.example.com/image.png", ResourceType::Image),
+            should_block_mixed_content(
+                "https://example.com",
+                "http://cdn.example.com/image.png",
+                ResourceType::Image
+            ),
             MixedContentResult::Block
         );
     }
@@ -119,7 +139,11 @@ mod tests {
     #[test]
     fn test_https_page_data_url_allowed() {
         assert_eq!(
-            should_block_mixed_content("https://example.com", "data:text/html,<h1>Hello</h1>", ResourceType::Iframe),
+            should_block_mixed_content(
+                "https://example.com",
+                "data:text/html,<h1>Hello</h1>",
+                ResourceType::Iframe
+            ),
             MixedContentResult::Allow
         );
     }
@@ -134,17 +158,11 @@ mod tests {
 
     #[test]
     fn test_upgrade_already_https() {
-        assert_eq!(
-            upgrade_url_to_https("https://example.com/style.css"),
-            None
-        );
+        assert_eq!(upgrade_url_to_https("https://example.com/style.css"), None);
     }
 
     #[test]
     fn test_upgrade_data_url() {
-        assert_eq!(
-            upgrade_url_to_https("data:text/html,hello"),
-            None
-        );
+        assert_eq!(upgrade_url_to_https("data:text/html,hello"), None);
     }
 }

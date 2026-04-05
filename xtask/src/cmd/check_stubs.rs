@@ -12,7 +12,10 @@ const SKIP_DIRS: &[&str] = &["target", ".git", "node_modules", "test-results", "
 /// Patterns that panic at runtime - always errors
 const HARD_BLOCKERS: &[(&str, &str)] = &[
     ("todo!(", "todo!() macro - panics at runtime"),
-    ("unimplemented!(", "unimplemented!() macro - panics at runtime"),
+    (
+        "unimplemented!(",
+        "unimplemented!() macro - panics at runtime",
+    ),
 ];
 
 /// Comment markers - warnings (errors with --strict)
@@ -24,9 +27,7 @@ const SOFT_MARKERS: &[(&str, &str)] = &[
 ];
 
 /// Files to skip (self-references, intentional marker collections)
-const SKIP_FILES: &[&str] = &[
-    "xtask/src/cmd/check_stubs.rs",
-];
+const SKIP_FILES: &[&str] = &["xtask/src/cmd/check_stubs.rs"];
 
 struct Finding {
     path: String,
@@ -150,14 +151,26 @@ pub fn run(args: &[String]) -> ExitCode {
     if !hard.is_empty() {
         println!("\nERRORS - hard blockers ({} found):", hard.len());
         for f in &hard {
-            println!("  {}:{}: {} [{}]", f.path, f.line_num, truncate(&f.line, 80), f.reason);
+            println!(
+                "  {}:{}: {} [{}]",
+                f.path,
+                f.line_num,
+                truncate(&f.line, 80),
+                f.reason
+            );
         }
     }
 
     if !soft.is_empty() {
         println!("\nWARNINGS - comment markers ({} found):", soft.len());
         for f in &soft {
-            println!("  {}:{}: {} [{}]", f.path, f.line_num, truncate(&f.line, 80), f.reason);
+            println!(
+                "  {}:{}: {} [{}]",
+                f.path,
+                f.line_num,
+                truncate(&f.line, 80),
+                f.reason
+            );
         }
     }
 
@@ -171,7 +184,11 @@ pub fn run(args: &[String]) -> ExitCode {
     if has_errors {
         println!(
             "\nFAILED: {} error(s), {} warning(s)",
-            if strict { hard.len() + soft.len() } else { hard.len() },
+            if strict {
+                hard.len() + soft.len()
+            } else {
+                hard.len()
+            },
             if strict { 0 } else { soft.len() }
         );
         ExitCode::FAILURE

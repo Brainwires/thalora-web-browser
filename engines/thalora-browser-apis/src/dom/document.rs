@@ -104,14 +104,12 @@ impl IntrinsicObject for Document {
             .name(js_string!("get activeElement"))
             .build();
 
-        let adopted_style_sheets_getter =
-            BuiltInBuilder::callable(realm, get_adopted_style_sheets)
-                .name(js_string!("get adoptedStyleSheets"))
-                .build();
-        let adopted_style_sheets_setter =
-            BuiltInBuilder::callable(realm, set_adopted_style_sheets)
-                .name(js_string!("set adoptedStyleSheets"))
-                .build();
+        let adopted_style_sheets_getter = BuiltInBuilder::callable(realm, get_adopted_style_sheets)
+            .name(js_string!("get adoptedStyleSheets"))
+            .build();
+        let adopted_style_sheets_setter = BuiltInBuilder::callable(realm, set_adopted_style_sheets)
+            .name(js_string!("set adoptedStyleSheets"))
+            .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Document -> Node -> EventTarget
@@ -982,7 +980,9 @@ fn query_selector(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     let layout_rects = document.layout_rects.lock().unwrap().clone();
 
     // Use real DOM implementation with scraper library
-    if let Some(element) = create_real_element_from_html(context, &selector_str, &html_content, &layout_rects)? {
+    if let Some(element) =
+        create_real_element_from_html(context, &selector_str, &html_content, &layout_rects)?
+    {
         return Ok(element.into());
     }
 
@@ -1043,7 +1043,9 @@ fn create_real_element_from_html(
             if !layout_rects.is_empty() {
                 let css_path = css_path_for_scraper_element(&element_ref);
                 if let Some(rect) = layout_rects.get(&css_path) {
-                    if let Some(element_data) = element_obj.downcast_ref::<crate::dom::element::ElementData>() {
+                    if let Some(element_data) =
+                        element_obj.downcast_ref::<crate::dom::element::ElementData>()
+                    {
                         element_data.set_bounding_rect(rect.x, rect.y, rect.width, rect.height);
                     }
                 }
@@ -3247,11 +3249,8 @@ fn get_adopted_style_sheets(
     })?;
 
     let sheets = document.adopted_style_sheets.lock().unwrap();
-    let array = boa_engine::builtins::array::Array::array_create(
-        sheets.len() as u64,
-        None,
-        context,
-    )?;
+    let array =
+        boa_engine::builtins::array::Array::array_create(sheets.len() as u64, None, context)?;
     for (i, sheet) in sheets.iter().enumerate() {
         array.set(i as u32, sheet.clone(), false, context)?;
     }
@@ -3325,7 +3324,11 @@ fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
         };
 
         // Root element (html) doesn't get nth-child
-        if el.parent().and_then(|p| scraper::ElementRef::wrap(p)).is_none() {
+        if el
+            .parent()
+            .and_then(|p| scraper::ElementRef::wrap(p))
+            .is_none()
+        {
             parts.push(tag);
         } else {
             parts.push(format!("{}:nth-child({})", tag, nth));

@@ -40,7 +40,6 @@ mod real_fs_warning {
     }
 }
 
-use bincode;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 #[allow(dead_code)]
@@ -344,8 +343,7 @@ impl VfsInstance {
             entries.push((k.clone(), v.clone()));
         }
         let persist = VfsPersist { entries };
-        let bytes =
-            bincode::serialize(&persist).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let bytes = bincode::serialize(&persist).map_err(io::Error::other)?;
         let tmp = self.file_path.with_extension("tmp");
         stdfs::write(&tmp, &bytes)?;
         stdfs::rename(&tmp, &self.file_path)?;
@@ -439,8 +437,7 @@ impl VfsInstance {
             entries.push((k.clone(), v.clone()));
         }
         let persist = VfsPersist { entries };
-        let plaintext =
-            bincode::serialize(&persist).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let plaintext = bincode::serialize(&persist).map_err(io::Error::other)?;
 
         // Generate a random 96-bit nonce
         let mut nonce_bytes = [0u8; 12];
@@ -455,7 +452,7 @@ impl VfsInstance {
         // Encrypt the data
         let ciphertext = cipher
             .encrypt(nonce, plaintext.as_slice())
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| io::Error::other(e.to_string()))?;
 
         // Write file format: [12-byte nonce][ciphertext with auth tag]
         let mut encrypted_bytes = Vec::with_capacity(12 + ciphertext.len());
@@ -561,8 +558,10 @@ pub mod fs {
 pub mod fs {
     use super::*;
 
+    type FileMap = Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>;
+
     #[allow(dead_code)]
-    fn map_for_current() -> Option<Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>> {
+    fn map_for_current() -> Option<FileMap> {
         if let Some(vfs) = get_current_vfs() {
             return Some(vfs.as_map());
         }
@@ -639,6 +638,10 @@ pub mod fs {
     impl Metadata {
         pub fn len(&self) -> u64 {
             self.len
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.len == 0
         }
 
         pub fn is_dir(&self) -> bool {
@@ -986,6 +989,7 @@ impl Write for File {
 }
 
 #[cfg(not(feature = "real_fs"))]
+#[derive(Default)]
 pub struct OpenOptions {
     read: bool,
     write: bool,
@@ -996,12 +1000,7 @@ pub struct OpenOptions {
 #[cfg(not(feature = "real_fs"))]
 impl OpenOptions {
     pub fn new() -> Self {
-        Self {
-            read: false,
-            write: false,
-            create: false,
-            truncate: false,
-        }
+        Self::default()
     }
 
     pub fn read(&mut self, v: bool) -> &mut Self {
@@ -1027,10 +1026,10 @@ impl OpenOptions {
         if self.create && !map.contains_key(&p) {
             map.insert(p.clone(), Vec::new());
         }
-        if self.truncate {
-            if let Some(entry) = map.get_mut(&p) {
-                entry.clear();
-            }
+        if self.truncate
+            && let Some(entry) = map.get_mut(&p)
+        {
+            entry.clear();
         }
         if map.contains_key(&p) {
             Ok(File { path: p, pos: 0 })

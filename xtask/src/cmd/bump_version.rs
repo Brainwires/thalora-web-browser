@@ -65,11 +65,9 @@ pub fn run(args: &[String]) -> ExitCode {
     // Step 1: Update root Cargo.toml
     println!("\n[1/4] Updating root Cargo.toml");
     if let Some(new_content) = update_cargo_toml_version(&root_content, &old_version, new_version) {
-        if !dry_run {
-            if let Err(e) = std::fs::write(&root_toml_path, &new_content) {
-                eprintln!("  Failed to write root Cargo.toml: {}", e);
-                return ExitCode::FAILURE;
-            }
+        if !dry_run && let Err(e) = std::fs::write(&root_toml_path, &new_content) {
+            eprintln!("  Failed to write root Cargo.toml: {}", e);
+            return ExitCode::FAILURE;
         }
         println!("  updated root Cargo.toml");
         updated_count += 1;
@@ -101,11 +99,9 @@ pub fn run(args: &[String]) -> ExitCode {
 
         if let Some(new_content) = update_cargo_toml_version(&content, &old_version, new_version) {
             let rel = path.strip_prefix(&root).unwrap_or(path);
-            if !dry_run {
-                if let Err(e) = std::fs::write(path, &new_content) {
-                    eprintln!("  Failed to write {}: {}", rel.display(), e);
-                    continue;
-                }
+            if !dry_run && let Err(e) = std::fs::write(path, &new_content) {
+                eprintln!("  Failed to write {}: {}", rel.display(), e);
+                continue;
             }
             println!("  updated {}", rel.display());
             updated_count += 1;
@@ -143,11 +139,9 @@ pub fn run(args: &[String]) -> ExitCode {
         if content.contains(&old_pattern) {
             let new_content = content.replace(&old_pattern, &new_pattern);
             let rel = path.strip_prefix(&root).unwrap_or(path);
-            if !dry_run {
-                if let Err(e) = std::fs::write(path, &new_content) {
-                    eprintln!("  Failed to write {}: {}", rel.display(), e);
-                    continue;
-                }
+            if !dry_run && let Err(e) = std::fs::write(path, &new_content) {
+                eprintln!("  Failed to write {}: {}", rel.display(), e);
+                continue;
             }
             println!("  updated {}", rel.display());
             updated_count += 1;
@@ -167,11 +161,9 @@ pub fn run(args: &[String]) -> ExitCode {
         };
 
         if let Some(new_content) = update_changelog(&content, new_version) {
-            if !dry_run {
-                if let Err(e) = std::fs::write(&changelog_path, &new_content) {
-                    eprintln!("  Failed to write CHANGELOG.md: {}", e);
-                    return ExitCode::FAILURE;
-                }
+            if !dry_run && let Err(e) = std::fs::write(&changelog_path, &new_content) {
+                eprintln!("  Failed to write CHANGELOG.md: {}", e);
+                return ExitCode::FAILURE;
             }
             println!("  stamped CHANGELOG.md with [{}]", new_version);
             updated_count += 1;
@@ -183,7 +175,11 @@ pub fn run(args: &[String]) -> ExitCode {
     println!(
         "\nDone! {} file(s) updated.{}",
         updated_count,
-        if dry_run { " (dry run - no files written)" } else { "" }
+        if dry_run {
+            " (dry run - no files written)"
+        } else {
+            ""
+        }
     );
     ExitCode::SUCCESS
 }
@@ -223,9 +219,7 @@ fn chrono_lite_today() -> String {
         .args(["+%Y-%m-%d"])
         .output();
     match output {
-        Ok(o) if o.status.success() => {
-            String::from_utf8_lossy(&o.stdout).trim().to_string()
-        }
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
         _ => "YYYY-MM-DD".to_string(),
     }
 }

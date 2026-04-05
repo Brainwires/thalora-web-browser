@@ -8,37 +8,62 @@
 //! and are in the SVG namespace (http://www.w3.org/2000/svg).
 
 use boa_engine::{
-    Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
-    builtins::BuiltInBuilder,
-    js_string,
+    Context, JsResult, NativeFunction, js_string,
     object::{FunctionObjectBuilder, JsObject},
     value::JsValue,
-    NativeFunction,
 };
-use boa_gc::{Finalize, Trace};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 /// SVG namespace URI
 pub const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
 
 /// SVG element tag names that should be recognized as SVG elements
 pub const SVG_ELEMENT_TAGS: &[&str] = &[
-    "svg", "g", "defs", "symbol", "use",
+    "svg",
+    "g",
+    "defs",
+    "symbol",
+    "use",
     // Shape elements
-    "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
+    "path",
+    "rect",
+    "circle",
+    "ellipse",
+    "line",
+    "polyline",
+    "polygon",
     // Text elements
-    "text", "tspan", "textPath",
+    "text",
+    "tspan",
+    "textPath",
     // Structural elements
-    "clipPath", "mask", "pattern", "marker",
+    "clipPath",
+    "mask",
+    "pattern",
+    "marker",
     // Gradient elements
-    "linearGradient", "radialGradient", "stop",
+    "linearGradient",
+    "radialGradient",
+    "stop",
     // Filter elements
-    "filter", "feBlend", "feColorMatrix", "feGaussianBlur", "feOffset",
-    "feMerge", "feMergeNode", "feFlood", "feComposite",
+    "filter",
+    "feBlend",
+    "feColorMatrix",
+    "feGaussianBlur",
+    "feOffset",
+    "feMerge",
+    "feMergeNode",
+    "feFlood",
+    "feComposite",
     // Other
-    "foreignObject", "image", "title", "desc", "metadata",
-    "animate", "animateTransform", "animateMotion", "set",
+    "foreignObject",
+    "image",
+    "title",
+    "desc",
+    "metadata",
+    "animate",
+    "animateTransform",
+    "animateMotion",
+    "set",
 ];
 
 /// Check if a tag name is an SVG element
@@ -107,12 +132,7 @@ fn svg_svg_element_constructor(
         false,
         context,
     )?;
-    element.set(
-        js_string!("tagName"),
-        js_string!("svg"),
-        false,
-        context,
-    )?;
+    element.set(js_string!("tagName"), js_string!("svg"), false, context)?;
 
     // SVGSVGElement-specific properties
     // viewBox returns an SVGAnimatedRect (simplified as object with baseVal)

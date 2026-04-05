@@ -3,8 +3,8 @@
 //! Verifies that getBoundingClientRect() and offset/client properties
 //! return real values computed by the taffy layout engine.
 
-use thalora::engine::renderer::{compute_page_layout, flatten_layout_to_rects};
 use thalora::engine::renderer::layout_bridge::css_path_for_element;
+use thalora::engine::renderer::{compute_page_layout, flatten_layout_to_rects};
 
 #[test]
 fn test_flatten_layout_produces_rects() {
@@ -16,7 +16,11 @@ fn test_flatten_layout_produces_rects() {
     assert!(!rects.is_empty(), "Layout rects should not be empty");
 
     // Check that the "html" root element exists
-    assert!(rects.contains_key("html"), "Should have rect for html root. Keys: {:?}", rects.keys().collect::<Vec<_>>());
+    assert!(
+        rects.contains_key("html"),
+        "Should have rect for html root. Keys: {:?}",
+        rects.keys().collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -38,7 +42,10 @@ fn test_css_path_matches_layout_path() {
     let path2 = css_path_for_element(&p_elements[1]);
 
     // The paths should be different
-    assert_ne!(path1, path2, "Two different <p> elements should have different paths");
+    assert_ne!(
+        path1, path2,
+        "Two different <p> elements should have different paths"
+    );
 
     // Print available keys for debugging
     eprintln!("Layout rect keys: {:?}", rects.keys().collect::<Vec<_>>());
@@ -53,19 +60,29 @@ fn test_div_with_explicit_dimensions() {
     let rects = flatten_layout_to_rects(&layout);
 
     // Find the div in the rects - should be body's first child div
-    let div_rect = rects.iter()
+    let div_rect = rects
+        .iter()
         .find(|(k, _)| k.ends_with("div:nth-child(1)") || k.ends_with(">div:nth-child(1)"))
         .map(|(_, v)| v);
 
     if let Some(rect) = div_rect {
         // The div should have approximately the dimensions we set
-        assert!(rect.width >= 299.0 && rect.width <= 301.0,
-            "div width should be ~300px, got {}", rect.width);
-        assert!(rect.height >= 149.0 && rect.height <= 151.0,
-            "div height should be ~150px, got {}", rect.height);
+        assert!(
+            rect.width >= 299.0 && rect.width <= 301.0,
+            "div width should be ~300px, got {}",
+            rect.width
+        );
+        assert!(
+            rect.height >= 149.0 && rect.height <= 151.0,
+            "div height should be ~150px, got {}",
+            rect.height
+        );
     } else {
         // Print available keys for debugging
-        eprintln!("Available rect keys: {:?}", rects.keys().collect::<Vec<_>>());
+        eprintln!(
+            "Available rect keys: {:?}",
+            rects.keys().collect::<Vec<_>>()
+        );
         panic!("Could not find div rect in layout results");
     }
 }
@@ -81,10 +98,17 @@ fn test_nested_elements_have_positions() {
     let rects = flatten_layout_to_rects(&layout);
 
     // There should be multiple rects
-    assert!(rects.len() >= 3, "Should have at least 3 rects (html, body, outer div, inner div), got {}", rects.len());
+    assert!(
+        rects.len() >= 3,
+        "Should have at least 3 rects (html, body, outer div, inner div), got {}",
+        rects.len()
+    );
 
     // Print all keys and values for debugging
     for (key, rect) in &rects {
-        eprintln!("  {} => ({}, {}, {}x{})", key, rect.x, rect.y, rect.width, rect.height);
+        eprintln!(
+            "  {} => ({}, {}, {}x{})",
+            key, rect.x, rect.y, rect.width, rect.height
+        );
     }
 }

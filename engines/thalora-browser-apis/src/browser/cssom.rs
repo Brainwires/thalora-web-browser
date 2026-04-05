@@ -449,9 +449,9 @@ fn css_style_sheet_insert_rule(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("insertRule called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("insertRule called on non-object"))?;
 
     let rule_text = args
         .get_or_undefined(0)
@@ -475,7 +475,12 @@ fn css_style_sheet_insert_rule(
                 .with_message("insertRule index out of bounds")
                 .into());
         }
-        data.rules.insert(index, CSSRuleEntry { css_text: rule_text.clone() });
+        data.rules.insert(
+            index,
+            CSSRuleEntry {
+                css_text: rule_text.clone(),
+            },
+        );
     }
 
     // Update cssRules array
@@ -490,9 +495,9 @@ fn css_style_sheet_delete_rule(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("deleteRule called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("deleteRule called on non-object"))?;
 
     let index = args.get_or_undefined(0).to_u32(context)? as usize;
 
@@ -522,7 +527,12 @@ fn css_style_sheet_replace(
 
     // Return a resolved Promise with the stylesheet
     let promise = boa_engine::builtins::promise::Promise::promise_resolve(
-        &context.intrinsics().constructors().promise().constructor().into(),
+        &context
+            .intrinsics()
+            .constructors()
+            .promise()
+            .constructor()
+            .into(),
         this.clone(),
         context,
     )?;
@@ -535,9 +545,9 @@ fn css_style_sheet_replace_sync(
     args: &[JsValue],
     context: &mut Context,
 ) -> JsResult<JsValue> {
-    let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ().with_message("replaceSync called on non-object")
-    })?;
+    let this_obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("replaceSync called on non-object"))?;
 
     let css_text = args
         .get_or_undefined(0)
@@ -570,17 +580,24 @@ fn rebuild_css_rules_array(sheet_obj: &JsObject, context: &mut Context) -> JsRes
         return Ok(());
     };
 
-    let css_rules = boa_engine::builtins::array::Array::array_create(
-        rules.len() as u64,
-        None,
-        context,
-    )?;
+    let css_rules =
+        boa_engine::builtins::array::Array::array_create(rules.len() as u64, None, context)?;
 
     for (i, rule) in rules.iter().enumerate() {
         let rule_obj = JsObject::with_object_proto(context.intrinsics());
-        rule_obj.set(js_string!("cssText"), js_string!(rule.css_text.clone()), false, context)?;
+        rule_obj.set(
+            js_string!("cssText"),
+            js_string!(rule.css_text.clone()),
+            false,
+            context,
+        )?;
         rule_obj.set(js_string!("type"), 1, false, context)?; // CSSRule.STYLE_RULE
-        rule_obj.set(js_string!("parentStyleSheet"), sheet_obj.clone(), false, context)?;
+        rule_obj.set(
+            js_string!("parentStyleSheet"),
+            sheet_obj.clone(),
+            false,
+            context,
+        )?;
         css_rules.set(i as u32, rule_obj, false, context)?;
     }
 
