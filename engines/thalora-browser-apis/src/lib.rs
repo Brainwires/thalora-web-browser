@@ -1118,6 +1118,14 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         context,
     )?;
 
+    // CSSStyleSheet constructor (constructable stylesheets)
+    browser::cssom::register_css_style_sheet(context)?;
+
+    // SVG DOM element types
+    dom::svg::register_svg_globals(context)?;
+
+    // FetchEvent is already registered as an intrinsic via events::fetch_event
+
     // getComputedStyle global function
     let get_computed_style_fn = browser::cssom::create_get_computed_style_function(context)?;
     global_object.set(

@@ -32,6 +32,7 @@ pub mod nodelist;
 pub mod range;
 pub mod selection;
 pub mod shadow;
+pub mod svg;
 pub mod text;
 pub mod treewalker;
 

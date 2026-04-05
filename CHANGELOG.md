@@ -15,10 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`::part()` pseudo-element** — Shadow DOM CSS scoping now supports the `::part(name)` selector for styling elements with `part` attributes inside shadow trees (respects shadow boundary)
 - **`element.shadowRoot` default accessor** — returns `null` per spec when `attachShadow()` has not been called (previously returned `undefined`)
 - **MutationObserver notification dispatch** — added `notify_attribute_mutation()` and `notify_child_list_mutation()` functions with thread-local observer registry and `subtree: true` support via parent-chain walking
+- **CSSStyleSheet constructor** — constructable stylesheets with `insertRule()`, `deleteRule()`, `replace()`, `replaceSync()`, and `cssRules` property per CSSOM spec
+- **`document.adoptedStyleSheets`** — getter/setter for applying constructable stylesheets to the document
+- **SVG DOM support** — SVG child elements (path, rect, circle, g, etc.) are now preserved in the DOM tree instead of being skipped; `querySelector('svg path')` works correctly
+- **SVGElement / SVGSVGElement** global constructors with SVG namespace and viewBox property
+- **Service Worker fetch interception wiring** — `navigator.serviceWorker.register()` now registers a fetch handler in the global SW registry, enabling fetch interception via `FetchEvent` dispatch for matching URL scopes
 
 ### Changed
 - **SRI verification** extracted from `javascript.rs` into shared `sri.rs` module, reused for both scripts and stylesheets
 - **Stylesheet fetching** now checks mixed content policy before fetching and verifies SRI integrity after fetching
+- **SVG elements in page_layout.rs** no longer return early; SVG dimensions are still extracted but children are recursed into for proper DOM tree construction
 
 ## [0.2.0] - 2026-03-28
 

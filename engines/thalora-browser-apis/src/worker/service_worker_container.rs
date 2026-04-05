@@ -180,6 +180,32 @@ impl ServiceWorkerContainer {
             }
         }
 
+        // Register a fetch handler for this service worker scope.
+        // When a fetch is intercepted, it will execute the SW script and dispatch
+        // FetchEvent. For now, we register a stub handler that marks the scope
+        // as having an active SW — actual script execution happens in
+        // sw_fetch_intercept::dispatch_fetch_event_to_sw which checks for
+        // onfetch / addEventListener('fetch') handlers on the global scope.
+        crate::fetch::sw_fetch_intercept::register_sw_fetch_handler(
+            scope_url.clone(),
+            crate::fetch::sw_fetch_intercept::ServiceWorkerFetchHandler {
+                scope: scope_url.clone(),
+                has_fetch_handler: true,
+                dispatch_fn: std::sync::Arc::new(std::sync::Mutex::new(Box::new(
+                    move |url, method, headers, context| {
+                        crate::fetch::sw_fetch_intercept::dispatch_fetch_event_to_sw(
+                            url, method, headers, "", context,
+                        )
+                    },
+                ))),
+            },
+        );
+
+        eprintln!(
+            "ServiceWorker: Registered fetch handler for scope '{}'",
+            scope_url
+        );
+
         // Create ServiceWorkerRegistration object
         let registration_obj = Self::create_registration_object(&scope_url, &script_url, context)?;
 

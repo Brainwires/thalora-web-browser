@@ -104,6 +104,15 @@ impl IntrinsicObject for Document {
             .name(js_string!("get activeElement"))
             .build();
 
+        let adopted_style_sheets_getter =
+            BuiltInBuilder::callable(realm, get_adopted_style_sheets)
+                .name(js_string!("get adoptedStyleSheets"))
+                .build();
+        let adopted_style_sheets_setter =
+            BuiltInBuilder::callable(realm, set_adopted_style_sheets)
+                .name(js_string!("set adoptedStyleSheets"))
+                .build();
+
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Document -> Node -> EventTarget
             .inherits(Some(realm.intrinsics().constructors().node().prototype()))
@@ -215,6 +224,12 @@ impl IntrinsicObject for Document {
                 None,
                 Attribute::CONFIGURABLE,
             )
+            .accessor(
+                js_string!("adoptedStyleSheets"),
+                Some(adopted_style_sheets_getter),
+                Some(adopted_style_sheets_setter),
+                Attribute::CONFIGURABLE,
+            )
             .method(create_element, js_string!("createElement"), 1)
             .method(create_text_node, js_string!("createTextNode"), 1)
             .method(
@@ -266,7 +281,7 @@ impl BuiltInObject for Document {
 
 impl BuiltInConstructor for Document {
     const CONSTRUCTOR_ARGUMENTS: usize = 0;
-    const PROTOTYPE_STORAGE_SLOTS: usize = 58; // Accessors and methods on prototype (+2 for write/writeln)
+    const PROTOTYPE_STORAGE_SLOTS: usize = 60; // Accessors and methods on prototype (+2 for adoptedStyleSheets)
     const CONSTRUCTOR_STORAGE_SLOTS: usize = 0;
 
     const STANDARD_CONSTRUCTOR: fn(&StandardConstructors) -> &StandardConstructor =
@@ -320,6 +335,9 @@ pub struct DocumentData {
     /// Cached layout geometry data keyed by CSS selector path
     #[unsafe_ignore_trace]
     layout_rects: Arc<Mutex<HashMap<String, LayoutRect>>>,
+    /// Adopted stylesheets (CSSStyleSheet objects)
+    #[unsafe_ignore_trace]
+    adopted_style_sheets: Arc<Mutex<Vec<JsObject>>>,
 }
 
 /// Cached layout rectangle for an element, computed by the layout engine
@@ -364,6 +382,7 @@ impl DocumentData {
             event_listeners: Arc::new(Mutex::new(HashMap::new())),
             html_content: Arc::new(Mutex::new("".to_string())),
             layout_rects: Arc::new(Mutex::new(HashMap::new())),
+            adopted_style_sheets: Arc::new(Mutex::new(Vec::new())),
         };
 
         // Set up DOM sync bridge - connect Element changes to Document updates
@@ -3211,6 +3230,68 @@ fn get_active_element(
         document.add_element("body".to_string(), body_element.clone());
         Ok(body_element.into())
     }
+}
+
+/// `Document.prototype.adoptedStyleSheets` getter
+fn get_adopted_style_sheets(
+    this: &JsValue,
+    _args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("adoptedStyleSheets getter called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("adoptedStyleSheets getter called on non-Document")
+    })?;
+
+    let sheets = document.adopted_style_sheets.lock().unwrap();
+    let array = boa_engine::builtins::array::Array::array_create(
+        sheets.len() as u64,
+        None,
+        context,
+    )?;
+    for (i, sheet) in sheets.iter().enumerate() {
+        array.set(i as u32, sheet.clone(), false, context)?;
+    }
+    Ok(array.into())
+}
+
+/// `Document.prototype.adoptedStyleSheets` setter
+fn set_adopted_style_sheets(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("adoptedStyleSheets setter called on non-object")
+    })?;
+
+    let document = this_obj.downcast_ref::<DocumentData>().ok_or_else(|| {
+        JsNativeError::typ().with_message("adoptedStyleSheets setter called on non-Document")
+    })?;
+
+    let value = args.get_or_undefined(0);
+
+    // Accept an array of CSSStyleSheet objects
+    let mut new_sheets = Vec::new();
+    if let Some(arr) = value.as_object() {
+        if let Ok(length_val) = arr.get(js_string!("length"), context) {
+            let length = length_val.to_u32(context).unwrap_or(0);
+            for i in 0..length {
+                if let Ok(item) = arr.get(i, context) {
+                    if let Some(sheet_obj) = item.as_object() {
+                        new_sheets.push(sheet_obj.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    *document.adopted_style_sheets.lock().unwrap() = new_sheets;
+
+    Ok(JsValue::undefined())
 }
 
 /// Compute a unique CSS selector path for a scraper ElementRef.

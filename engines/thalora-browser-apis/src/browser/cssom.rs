@@ -300,6 +300,298 @@ fn item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsV
     Ok(js_string!("").into())
 }
 
+// =============================================================================
+// CSSStyleSheet
+// =============================================================================
+
+/// Internal data for CSSStyleSheet instances
+#[derive(Debug, Trace, Finalize, JsData)]
+pub struct CSSStyleSheetData {
+    #[unsafe_ignore_trace]
+    rules: Vec<CSSRuleEntry>,
+    #[unsafe_ignore_trace]
+    disabled: bool,
+    #[unsafe_ignore_trace]
+    media: String,
+}
+
+/// A single CSS rule entry
+#[derive(Debug, Clone)]
+struct CSSRuleEntry {
+    css_text: String,
+}
+
+impl CSSStyleSheetData {
+    fn new() -> Self {
+        Self {
+            rules: Vec::new(),
+            disabled: false,
+            media: String::new(),
+        }
+    }
+}
+
+/// Create the CSSStyleSheet constructor and register it globally
+pub fn register_css_style_sheet(context: &mut Context) -> JsResult<()> {
+    let constructor = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(css_style_sheet_constructor),
+    )
+    .name(js_string!("CSSStyleSheet"))
+    .length(0)
+    .build();
+
+    // Add prototype methods
+    let prototype = JsObject::with_object_proto(context.intrinsics());
+
+    let insert_rule_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(css_style_sheet_insert_rule),
+    )
+    .name(js_string!("insertRule"))
+    .length(1)
+    .build();
+    prototype.set(js_string!("insertRule"), insert_rule_fn, false, context)?;
+
+    let delete_rule_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(css_style_sheet_delete_rule),
+    )
+    .name(js_string!("deleteRule"))
+    .length(1)
+    .build();
+    prototype.set(js_string!("deleteRule"), delete_rule_fn, false, context)?;
+
+    let replace_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(css_style_sheet_replace),
+    )
+    .name(js_string!("replace"))
+    .length(1)
+    .build();
+    prototype.set(js_string!("replace"), replace_fn, false, context)?;
+
+    let replace_sync_fn = FunctionObjectBuilder::new(
+        context.realm(),
+        NativeFunction::from_fn_ptr(css_style_sheet_replace_sync),
+    )
+    .name(js_string!("replaceSync"))
+    .length(1)
+    .build();
+    prototype.set(js_string!("replaceSync"), replace_sync_fn, false, context)?;
+
+    constructor.set(js_string!("prototype"), prototype, false, context)?;
+
+    let global = context.global_object();
+    global.set(js_string!("CSSStyleSheet"), constructor, false, context)?;
+
+    Ok(())
+}
+
+fn css_style_sheet_constructor(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let mut sheet_data = CSSStyleSheetData::new();
+
+    // Parse optional init dictionary: { media, disabled }
+    if let Some(options) = args.first().and_then(|a| a.as_object()) {
+        if let Ok(media_val) = options.get(js_string!("media"), context) {
+            if !media_val.is_undefined() {
+                sheet_data.media = media_val.to_string(context)?.to_std_string_escaped();
+            }
+        }
+        if let Ok(disabled_val) = options.get(js_string!("disabled"), context) {
+            sheet_data.disabled = disabled_val.to_boolean();
+        }
+    }
+
+    let typed_obj = JsObject::from_proto_and_data_with_shared_shape(
+        context.root_shape(),
+        context.intrinsics().constructors().object().prototype(),
+        sheet_data,
+    );
+    let obj = typed_obj.upcast();
+
+    // Set cssRules as a getter-like array (initially empty)
+    let css_rules = boa_engine::builtins::array::Array::array_create(0, None, context)?;
+    obj.set(js_string!("cssRules"), css_rules, false, context)?;
+
+    // Set type property
+    obj.set(js_string!("type"), js_string!("text/css"), false, context)?;
+
+    // Set disabled property
+    obj.set(js_string!("disabled"), false, false, context)?;
+
+    // Copy prototype methods to instance
+    let global = context.global_object();
+    if let Ok(ctor) = global.get(js_string!("CSSStyleSheet"), context) {
+        if let Some(ctor_obj) = ctor.as_object() {
+            if let Ok(proto) = ctor_obj.get(js_string!("prototype"), context) {
+                if let Some(proto_obj) = proto.as_object() {
+                    for method_name in ["insertRule", "deleteRule", "replace", "replaceSync"] {
+                        if let Ok(method) = proto_obj.get(js_string!(method_name), context) {
+                            obj.set(js_string!(method_name), method, false, context)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(obj.into())
+}
+
+/// `CSSStyleSheet.prototype.insertRule(rule, index)`
+fn css_style_sheet_insert_rule(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("insertRule called on non-object")
+    })?;
+
+    let rule_text = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+
+    let index = if args.len() > 1 {
+        args[1].to_u32(context)? as usize
+    } else {
+        // Default: insert at end
+        if let Some(data) = this_obj.downcast_ref::<CSSStyleSheetData>() {
+            data.rules.len()
+        } else {
+            0
+        }
+    };
+
+    if let Some(mut data) = this_obj.downcast_mut::<CSSStyleSheetData>() {
+        if index > data.rules.len() {
+            return Err(JsNativeError::range()
+                .with_message("insertRule index out of bounds")
+                .into());
+        }
+        data.rules.insert(index, CSSRuleEntry { css_text: rule_text.clone() });
+    }
+
+    // Update cssRules array
+    rebuild_css_rules_array(&this_obj, context)?;
+
+    Ok(JsValue::from(index as u32))
+}
+
+/// `CSSStyleSheet.prototype.deleteRule(index)`
+fn css_style_sheet_delete_rule(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("deleteRule called on non-object")
+    })?;
+
+    let index = args.get_or_undefined(0).to_u32(context)? as usize;
+
+    if let Some(mut data) = this_obj.downcast_mut::<CSSStyleSheetData>() {
+        if index >= data.rules.len() {
+            return Err(JsNativeError::range()
+                .with_message("deleteRule index out of bounds")
+                .into());
+        }
+        data.rules.remove(index);
+    }
+
+    rebuild_css_rules_array(&this_obj, context)?;
+
+    Ok(JsValue::undefined())
+}
+
+/// `CSSStyleSheet.prototype.replace(text)` - async replacement (returns Promise)
+fn css_style_sheet_replace(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    // replace() is async per spec but we implement it synchronously
+    // and return a resolved Promise
+    css_style_sheet_replace_sync(this, args, context)?;
+
+    // Return a resolved Promise with the stylesheet
+    let promise = boa_engine::builtins::promise::Promise::promise_resolve(
+        &context.intrinsics().constructors().promise().constructor().into(),
+        this.clone(),
+        context,
+    )?;
+    Ok(promise.into())
+}
+
+/// `CSSStyleSheet.prototype.replaceSync(text)` - synchronous replacement
+fn css_style_sheet_replace_sync(
+    this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> JsResult<JsValue> {
+    let this_obj = this.as_object().ok_or_else(|| {
+        JsNativeError::typ().with_message("replaceSync called on non-object")
+    })?;
+
+    let css_text = args
+        .get_or_undefined(0)
+        .to_string(context)?
+        .to_std_string_escaped();
+
+    if let Some(mut data) = this_obj.downcast_mut::<CSSStyleSheetData>() {
+        data.rules.clear();
+        // Simple rule splitting by closing brace
+        for rule in css_text.split('}') {
+            let trimmed = rule.trim();
+            if !trimmed.is_empty() {
+                data.rules.push(CSSRuleEntry {
+                    css_text: format!("{}}}", trimmed),
+                });
+            }
+        }
+    }
+
+    rebuild_css_rules_array(&this_obj, context)?;
+
+    Ok(JsValue::undefined())
+}
+
+/// Rebuild the cssRules array property from internal rule data
+fn rebuild_css_rules_array(sheet_obj: &JsObject, context: &mut Context) -> JsResult<()> {
+    let rules = if let Some(data) = sheet_obj.downcast_ref::<CSSStyleSheetData>() {
+        data.rules.clone()
+    } else {
+        return Ok(());
+    };
+
+    let css_rules = boa_engine::builtins::array::Array::array_create(
+        rules.len() as u64,
+        None,
+        context,
+    )?;
+
+    for (i, rule) in rules.iter().enumerate() {
+        let rule_obj = JsObject::with_object_proto(context.intrinsics());
+        rule_obj.set(js_string!("cssText"), js_string!(rule.css_text.clone()), false, context)?;
+        rule_obj.set(js_string!("type"), 1, false, context)?; // CSSRule.STYLE_RULE
+        rule_obj.set(js_string!("parentStyleSheet"), sheet_obj.clone(), false, context)?;
+        css_rules.set(i as u32, rule_obj, false, context)?;
+    }
+
+    // Add length property
+    css_rules.set(js_string!("length"), rules.len() as u32, false, context)?;
+
+    sheet_obj.set(js_string!("cssRules"), css_rules, false, context)?;
+
+    Ok(())
+}
+
 /// Create the getComputedStyle global function
 pub fn create_get_computed_style_function(context: &mut Context) -> JsResult<JsValue> {
     let func = FunctionObjectBuilder::new(

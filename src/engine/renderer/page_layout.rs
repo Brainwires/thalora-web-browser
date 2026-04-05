@@ -1189,30 +1189,17 @@ fn build_styled_element_from_dom(
         };
     }
 
-    // Inline SVG: extract dimensions but don't recurse into SVG children
-    // (path, rect, circle, g, etc. aren't HTML elements we can render).
-    // Create a sized placeholder that C# renders as a Panel.
+    // Inline SVG: extract dimensions and recurse into SVG children
+    // so that querySelector('svg path') etc. work for DOM access.
     if tag == "svg" {
         let (w, h) = extract_svg_dimensions(el);
-        let mut svg_styles = computed_to_resolved(&styles);
-        if svg_styles.width.is_none() {
-            svg_styles.width = Some(format!("{}px", w));
+        if styles.width.is_none() {
+            styles.width = Some(format!("{}px", w));
         }
-        if svg_styles.height.is_none() {
-            svg_styles.height = Some(format!("{}px", h));
+        if styles.height.is_none() {
+            styles.height = Some(format!("{}px", h));
         }
-        return StyledElement {
-            id: elem_id,
-            tag,
-            text_content: None,
-            img_src: None,
-            img_alt: None,
-            link_href: None,
-            attributes: None,
-            styles: svg_styles,
-            hover_styles: None,
-            children: Vec::new(),
-        };
+        // Fall through to normal child processing below
     }
 
     // Audio element: create a placeholder with source URL extracted from <source> children.
