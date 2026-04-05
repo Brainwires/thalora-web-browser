@@ -300,6 +300,8 @@ impl CssProcessor {
                         }
                     }
                     "cursor" => styles.cursor = Some(value),
+                    "counter-reset" => styles.counter_reset = Some(value),
+                    "counter-increment" => styles.counter_increment = Some(value),
                     "grid-template-columns" => styles.grid_template_columns = Some(value),
                     "grid-template-rows" => styles.grid_template_rows = Some(value),
                     "grid-template-areas" => styles.grid_template_areas = Some(value),

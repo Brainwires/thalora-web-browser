@@ -883,8 +883,29 @@ impl HTMLFormElement {
                 return Ok(JsValue::from(true));
             }
 
-            // Would iterate through elements and check each one's validity
-            // For now, return true (all valid)
+            // Iterate through all form elements and check validity
+            let elements = form.elements_by_index.lock().unwrap().clone();
+            for element in &elements {
+                // Try each form control type
+                if let Some(input) = element.downcast_ref::<HTMLInputElement>() {
+                    if !input.check_validity_state().is_valid() {
+                        return Ok(JsValue::from(false));
+                    }
+                } else if let Some(select) = element.downcast_ref::<HTMLSelectElement>() {
+                    let required = *select.required.lock().unwrap();
+                    let selected_index = *select.selected_index.lock().unwrap();
+                    if required && selected_index < 0 {
+                        return Ok(JsValue::from(false));
+                    }
+                } else if let Some(textarea) = element.downcast_ref::<HTMLTextAreaElement>() {
+                    let required = *textarea.required.lock().unwrap();
+                    let value = textarea.value.lock().unwrap();
+                    if required && value.is_empty() {
+                        return Ok(JsValue::from(false));
+                    }
+                }
+            }
+
             return Ok(JsValue::from(true));
         }
 
@@ -894,23 +915,12 @@ impl HTMLFormElement {
     /// HTMLFormElement.reportValidity() method
     fn report_validity(
         this: &JsValue,
-        _args: &[JsValue],
-        _context: &mut Context,
+        args: &[JsValue],
+        context: &mut Context,
     ) -> JsResult<JsValue> {
-        let this_obj = this.as_object().ok_or_else(|| {
-            JsNativeError::typ().with_message("HTMLFormElement.reportValidity called on non-object")
-        })?;
-
-        if let Some(form) = this_obj.downcast_ref::<HTMLFormElement>() {
-            if *form.no_validate.lock().unwrap() {
-                return Ok(JsValue::from(true));
-            }
-
-            // Would show validation UI and return validity
-            return Ok(JsValue::from(true));
-        }
-
-        Ok(JsValue::from(true))
+        // In a headless browser, reportValidity behaves the same as checkValidity
+        // (no UI to show validation messages)
+        Self::check_validity(this, args, context)
     }
 
     /// HTMLFormElement.requestSubmit() method
@@ -1271,6 +1281,10 @@ impl IntrinsicObject for HTMLInputElement {
         let maxlength_setter = BuiltInBuilder::callable(realm, input_maxlength_setter)
             .name(js_string!("set maxLength"))
             .build();
+        let validation_message_getter =
+            BuiltInBuilder::callable(realm, input_validation_message_getter)
+                .name(js_string!("get validationMessage"))
+                .build();
 
         BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
@@ -1337,6 +1351,12 @@ impl IntrinsicObject for HTMLInputElement {
                 js_string!("maxLength"),
                 Some(maxlength_getter),
                 Some(maxlength_setter),
+                Attribute::CONFIGURABLE,
+            )
+            .accessor(
+                js_string!("validationMessage"),
+                Some(validation_message_getter),
+                None,
                 Attribute::CONFIGURABLE,
             )
             .method(Self::check_validity, js_string!("checkValidity"), 0)
@@ -1751,6 +1771,51 @@ fn input_maxlength_setter(
         *input.max_length.lock().unwrap() = value;
     }
     Ok(JsValue::undefined())
+}
+
+fn input_validation_message_getter(
+    this: &JsValue,
+    _args: &[JsValue],
+    _context: &mut Context,
+) -> JsResult<JsValue> {
+    let obj = this
+        .as_object()
+        .ok_or_else(|| JsNativeError::typ().with_message("invalid this"))?;
+    if let Some(input) = obj.downcast_ref::<HTMLInputElement>() {
+        let custom_msg = input.custom_validity_message.lock().unwrap().clone();
+        if !custom_msg.is_empty() {
+            return Ok(JsValue::from(js_string!(custom_msg)));
+        }
+        // If there's no custom message, check built-in validity and return appropriate message
+        let validity = input.check_validity_state();
+        if !validity.is_valid() {
+            if validity.value_missing {
+                return Ok(JsValue::from(js_string!("Please fill out this field.")));
+            }
+            if validity.type_mismatch {
+                let input_type = input.input_type.lock().unwrap().clone();
+                match input_type.as_str() {
+                    "email" => return Ok(JsValue::from(js_string!("Please include an '@' in the email address."))),
+                    "url" => return Ok(JsValue::from(js_string!("Please enter a URL."))),
+                    _ => return Ok(JsValue::from(js_string!("Invalid value."))),
+                }
+            }
+            if validity.pattern_mismatch {
+                return Ok(JsValue::from(js_string!("Please match the requested format.")));
+            }
+            if validity.too_short {
+                return Ok(JsValue::from(js_string!("Value is too short.")));
+            }
+            if validity.too_long {
+                return Ok(JsValue::from(js_string!("Value is too long.")));
+            }
+            if validity.bad_input {
+                return Ok(JsValue::from(js_string!("Please enter a valid value.")));
+            }
+            return Ok(JsValue::from(js_string!("Invalid value.")));
+        }
+    }
+    Ok(JsValue::from(js_string!("")))
 }
 
 impl HTMLInputElement {

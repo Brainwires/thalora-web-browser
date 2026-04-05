@@ -108,6 +108,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     events::hash_change_event::HashChangeEvent::init(&realm);
     events::pop_state_event::PopStateEvent::init(&realm);
     events::close_event::CloseEvent::init(&realm);
+    events::pointer_event::PointerEvent::init(&realm);
+    events::touch_event::TouchEvent::init(&realm);
     events::message_event::MessageEvent::init(&realm);
     events::abort_signal::AbortSignal::init(&realm);
 
@@ -426,6 +428,26 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         events::close_event::CloseEvent::NAME,
         PropertyDescriptor::builder()
             .value(events::close_event::CloseEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::pointer_event::PointerEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::pointer_event::PointerEvent::get(context.intrinsics()))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    global_object.define_property_or_throw(
+        events::touch_event::TouchEvent::NAME,
+        PropertyDescriptor::builder()
+            .value(events::touch_event::TouchEvent::get(context.intrinsics()))
             .writable(true)
             .enumerable(false)
             .configurable(true),

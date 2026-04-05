@@ -481,6 +481,8 @@ impl CssProcessor {
                 "column-count" => styles.column_count = Some(clean_value),
                 "direction" => styles.direction = Some(clean_value),
                 "writing-mode" => styles.writing_mode = Some(clean_value),
+                "counter-reset" => styles.counter_reset = Some(clean_value),
+                "counter-increment" => styles.counter_increment = Some(clean_value),
                 // Logical properties → map to physical equivalents
                 "inline-size" => styles.width = Some(clean_value),
                 "block-size" => styles.height = Some(clean_value),

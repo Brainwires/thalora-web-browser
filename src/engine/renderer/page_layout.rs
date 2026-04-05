@@ -11,6 +11,296 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use super::css::{BorderStyles, BoxModel, ComputedStyles, CssProcessor};
+
+/// CSS counter state machine for `counter-reset`, `counter-increment`, and `counter()`.
+#[derive(Debug, Clone, Default)]
+struct CounterState {
+    /// Current counter values: name → value
+    counters: HashMap<String, Vec<i32>>,
+}
+
+impl CounterState {
+    /// Process `counter-reset` property (e.g., "section 0", "item", "section 0 item 0")
+    fn apply_reset(&mut self, value: &str) {
+        let tokens: Vec<&str> = value.split_whitespace().collect();
+        let mut i = 0;
+        while i < tokens.len() {
+            let name = tokens[i];
+            let init_val = if i + 1 < tokens.len() {
+                tokens[i + 1].parse::<i32>().unwrap_or(0)
+            } else {
+                0
+            };
+            // Check if next token was consumed as a number
+            if i + 1 < tokens.len() && tokens[i + 1].parse::<i32>().is_ok() {
+                i += 2;
+            } else {
+                i += 1;
+            }
+            // Push a new counter scope
+            self.counters.entry(name.to_string()).or_default().push(init_val);
+        }
+    }
+
+    /// Process `counter-increment` property (e.g., "section", "item 2")
+    fn apply_increment(&mut self, value: &str) {
+        let tokens: Vec<&str> = value.split_whitespace().collect();
+        let mut i = 0;
+        while i < tokens.len() {
+            let name = tokens[i];
+            let inc = if i + 1 < tokens.len() {
+                tokens[i + 1].parse::<i32>().unwrap_or(1)
+            } else {
+                1
+            };
+            if i + 1 < tokens.len() && tokens[i + 1].parse::<i32>().is_ok() {
+                i += 2;
+            } else {
+                i += 1;
+            }
+            // Increment the innermost counter with this name
+            if let Some(stack) = self.counters.get_mut(name) {
+                if let Some(last) = stack.last_mut() {
+                    *last += inc;
+                }
+            } else {
+                // Auto-create at document level per spec
+                self.counters.entry(name.to_string()).or_default().push(inc);
+            }
+        }
+    }
+
+    /// Get current value of a counter
+    fn get(&self, name: &str) -> i32 {
+        self.counters
+            .get(name)
+            .and_then(|stack| stack.last().copied())
+            .unwrap_or(0)
+    }
+
+    /// Get all values of a counter (for `counters()` function with separator)
+    fn get_all(&self, name: &str) -> Vec<i32> {
+        self.counters.get(name).cloned().unwrap_or_default()
+    }
+
+    /// Resolve `counter()` and `counters()` references in a CSS content value.
+    /// Handles: `counter(name)`, `counter(name, list-style)`, `counters(name, separator)`
+    fn resolve_content(&self, content: &str) -> String {
+        let mut result = content.to_string();
+
+        // Resolve counter(name) and counter(name, style)
+        while let Some(start) = result.find("counter(") {
+            let after = start + 8;
+            if let Some(rel_end) = result[after..].find(')') {
+                let end = after + rel_end;
+                let inner = &result[after..end];
+                let parts: Vec<&str> = inner.splitn(2, ',').map(|s| s.trim()).collect();
+                let name = parts[0];
+                let val = self.get(name);
+                let formatted = if parts.len() > 1 {
+                    format_counter_value(val, parts[1])
+                } else {
+                    val.to_string()
+                };
+                result = format!("{}{}{}", &result[..start], formatted, &result[end + 1..]);
+            } else {
+                break;
+            }
+        }
+
+        // Resolve counters(name, separator) and counters(name, separator, style)
+        while let Some(start) = result.find("counters(") {
+            let after = start + 9;
+            if let Some(rel_end) = result[after..].find(')') {
+                let end = after + rel_end;
+                let inner = &result[after..end];
+                let parts: Vec<&str> = inner.splitn(3, ',').map(|s| s.trim()).collect();
+                if parts.len() >= 2 {
+                    let name = parts[0];
+                    let separator = parts[1].trim_matches('"').trim_matches('\'');
+                    let style = parts.get(2).map(|s| s.trim()).unwrap_or("decimal");
+                    let values = self.get_all(name);
+                    let formatted: Vec<String> = values
+                        .iter()
+                        .map(|v| format_counter_value(*v, style))
+                        .collect();
+                    let joined = formatted.join(separator);
+                    result = format!("{}{}{}", &result[..start], joined, &result[end + 1..]);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        result
+    }
+
+    /// Pop counter scopes that were pushed by counter-reset in this element
+    fn pop_reset(&mut self, value: &str) {
+        let tokens: Vec<&str> = value.split_whitespace().collect();
+        let mut i = 0;
+        while i < tokens.len() {
+            let name = tokens[i];
+            if i + 1 < tokens.len() && tokens[i + 1].parse::<i32>().is_ok() {
+                i += 2;
+            } else {
+                i += 1;
+            }
+            if let Some(stack) = self.counters.get_mut(name) {
+                stack.pop();
+                if stack.is_empty() {
+                    self.counters.remove(name);
+                }
+            }
+        }
+    }
+}
+
+/// Format a counter value according to a list-style-type
+fn format_counter_value(val: i32, style: &str) -> String {
+    match style {
+        "decimal" | "" => val.to_string(),
+        "decimal-leading-zero" => format!("{:02}", val),
+        "lower-alpha" | "lower-latin" => {
+            if val >= 1 && val <= 26 {
+                char::from(b'a' + (val - 1) as u8).to_string()
+            } else {
+                val.to_string()
+            }
+        }
+        "upper-alpha" | "upper-latin" => {
+            if val >= 1 && val <= 26 {
+                char::from(b'A' + (val - 1) as u8).to_string()
+            } else {
+                val.to_string()
+            }
+        }
+        "lower-roman" => to_roman(val, false),
+        "upper-roman" => to_roman(val, true),
+        "disc" => "\u{2022}".to_string(), // •
+        "circle" => "\u{25CB}".to_string(), // ○
+        "square" => "\u{25A0}".to_string(), // ■
+        "none" => String::new(),
+        _ => val.to_string(),
+    }
+}
+
+/// Convert an integer to Roman numerals
+fn to_roman(mut val: i32, upper: bool) -> String {
+    if val <= 0 || val > 3999 {
+        return val.to_string();
+    }
+    let numerals = [
+        (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
+        (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
+        (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+    ];
+    let mut result = String::new();
+    for &(value, numeral) in &numerals {
+        while val >= value {
+            result.push_str(numeral);
+            val -= value;
+        }
+    }
+    if upper { result.to_uppercase() } else { result }
+}
+
+/// Resolve CSS `content` property value to plain text.
+/// Handles: quoted strings, `counter()`, `counters()`, `attr()`, and concatenation.
+fn resolve_css_content(content: &str, counter_state: &CounterState, el: Option<&scraper::node::Element>) -> Option<String> {
+    let content = content.trim();
+    if content == "none" || content == "normal" || content.is_empty() {
+        return None;
+    }
+
+    let mut result = String::new();
+    let mut chars = content.char_indices().peekable();
+
+    while let Some(&(i, c)) = chars.peek() {
+        if c == '"' || c == '\'' {
+            // Quoted string
+            let quote = c;
+            chars.next();
+            while let Some(&(_, ch)) = chars.peek() {
+                chars.next();
+                if ch == quote {
+                    break;
+                }
+                if ch == '\\' {
+                    // Escape
+                    if let Some(&(_, esc)) = chars.peek() {
+                        chars.next();
+                        result.push(esc);
+                    }
+                } else {
+                    result.push(ch);
+                }
+            }
+        } else if c == 'c' && content[i..].starts_with("counter(") {
+            // counter() — find matching paren
+            let start = i;
+            let after = i + 8;
+            if let Some(rel_end) = content[after..].find(')') {
+                let end = after + rel_end;
+                let fragment = &content[start..end + 1];
+                result.push_str(&counter_state.resolve_content(fragment));
+                // Advance past
+                while let Some(&(j, _)) = chars.peek() {
+                    if j > end {
+                        break;
+                    }
+                    chars.next();
+                }
+                continue;
+            }
+            chars.next();
+        } else if c == 'c' && content[i..].starts_with("counters(") {
+            let start = i;
+            let after = i + 9;
+            if let Some(rel_end) = content[after..].find(')') {
+                let end = after + rel_end;
+                let fragment = &content[start..end + 1];
+                result.push_str(&counter_state.resolve_content(fragment));
+                while let Some(&(j, _)) = chars.peek() {
+                    if j > end {
+                        break;
+                    }
+                    chars.next();
+                }
+                continue;
+            }
+            chars.next();
+        } else if c == 'a' && content[i..].starts_with("attr(") {
+            let after = i + 5;
+            if let Some(rel_end) = content[after..].find(')') {
+                let end = after + rel_end;
+                let attr_name = content[after..end].trim();
+                if let Some(el) = el {
+                    if let Some(val) = el.attr(attr_name) {
+                        result.push_str(val);
+                    }
+                }
+                while let Some(&(j, _)) = chars.peek() {
+                    if j > end {
+                        break;
+                    }
+                    chars.next();
+                }
+                continue;
+            }
+            chars.next();
+        } else if c == ' ' {
+            // Skip whitespace between content parts
+            chars.next();
+        } else {
+            chars.next();
+        }
+    }
+
+    if result.is_empty() { None } else { Some(result) }
+}
 use super::layout::{
     BoxModelSides, ElementLayout, LayoutElement, LayoutEngine, LayoutResult, parse_px_value,
 };
@@ -522,6 +812,7 @@ pub fn compute_styled_tree_with_css(
     let root_node = document.root_element();
     let mut id_counter: u32 = 0;
     let mut element_selectors: HashMap<String, String> = HashMap::new();
+    let mut counter_state = CounterState::default();
     let root = build_styled_element_from_dom(
         &root_node,
         &css_processor,
@@ -530,6 +821,7 @@ pub fn compute_styled_tree_with_css(
         None,
         &mut element_selectors,
         0,
+        &mut counter_state,
     );
     eprintln!(
         "[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)",
@@ -604,6 +896,7 @@ fn build_styled_element_from_dom(
     parent_styles: Option<&ComputedStyles>,
     element_selectors: &mut HashMap<String, String>,
     depth: u32,
+    counter_state: &mut CounterState,
 ) -> StyledElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
@@ -860,6 +1153,15 @@ fn build_styled_element_from_dom(
         }
     }
 
+    // CSS Counters: apply counter-reset and counter-increment
+    let counter_reset_value = styles.counter_reset.clone();
+    if let Some(ref cr) = counter_reset_value {
+        counter_state.apply_reset(cr);
+    }
+    if let Some(ref ci) = styles.counter_increment {
+        counter_state.apply_increment(ci);
+    }
+
     // White-space mode for text collapsing
     let ws = styles
         .white_space
@@ -1019,6 +1321,7 @@ fn build_styled_element_from_dom(
                         Some(&styles),
                         element_selectors,
                         depth + 1,
+                        counter_state,
                     );
 
                     // display:none is now handled inside build_styled_element_from_dom
@@ -1036,6 +1339,42 @@ fn build_styled_element_from_dom(
             }
             _ => {}
         }
+    }
+
+    // Generate ::before pseudo-element if content is set
+    if let Some(ref content_val) = styles.content {
+        if let Some(text) = resolve_css_content(content_val, counter_state, Some(el)) {
+            let before_id = format!("pb{}", *id_counter);
+            *id_counter += 1;
+            let before_styles = ResolvedStyles {
+                display: Some("inline".to_string()),
+                font_size: styles.font_size.clone(),
+                font_family: styles.font_family.clone(),
+                font_weight: styles.font_weight.clone(),
+                color: styles.color.clone(),
+                ..ResolvedStyles::default()
+            };
+            children.insert(
+                0,
+                StyledElement {
+                    id: before_id,
+                    tag: "::before".to_string(),
+                    text_content: Some(text),
+                    img_src: None,
+                    img_alt: None,
+                    link_href: None,
+                    attributes: None,
+                    styles: before_styles,
+                    hover_styles: None,
+                    children: Vec::new(),
+                },
+            );
+        }
+    }
+
+    // Pop counter-reset scopes when leaving this element
+    if let Some(ref cr) = counter_reset_value {
+        counter_state.pop_reset(cr);
     }
 
     // Convert ComputedStyles → ResolvedStyles

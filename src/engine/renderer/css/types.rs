@@ -192,6 +192,10 @@ pub struct ComputedStyles {
     pub direction: Option<String>,
     /// CSS writing-mode
     pub writing_mode: Option<String>,
+    /// CSS counter-reset (e.g., "section 0", "item")
+    pub counter_reset: Option<String>,
+    /// CSS counter-increment (e.g., "section", "item 2")
+    pub counter_increment: Option<String>,
 
     /// All other properties as key-value pairs
     #[serde(flatten)]

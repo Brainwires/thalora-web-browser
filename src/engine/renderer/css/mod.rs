@@ -261,6 +261,8 @@ impl CssProcessor {
             "justify-self" => styles.justify_self,
             "direction" => styles.direction,
             "writing-mode" => styles.writing_mode,
+            "counter-reset" => styles.counter_reset,
+            "counter-increment" => styles.counter_increment,
             _ => styles.other.get(property).cloned(),
         }
     }
