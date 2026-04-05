@@ -1017,6 +1017,7 @@ pub fn compute_styled_tree_with_css(
         &mut element_selectors,
         0,
         &mut counter_state,
+        doc_mode,
     );
     eprintln!(
         "[TIMING] DOM tree walk (build_styled_element_from_dom): {}ms ({} elements)",
@@ -1526,6 +1527,7 @@ fn build_styled_element_from_dom(
                         element_selectors,
                         depth + 1,
                         counter_state,
+                        doc_mode,
                     );
 
                     // display:none is now handled inside build_styled_element_from_dom
@@ -1800,6 +1802,7 @@ pub fn compute_page_layout_with_css(
     external_css: &[String],
 ) -> Result<LayoutResult> {
     let document = Html::parse_document(html);
+    let doc_mode = detect_document_mode(&document);
 
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
     let mut css_processor = CssProcessor::new_with_viewport_and_height(viewport_w, viewport_h);
@@ -1838,6 +1841,7 @@ pub fn compute_page_layout_with_css(
         viewport_w,
         viewport_w as f64,
         None, // no parent styles for root
+        doc_mode,
     );
 
     // Step 2.5: Ensure html and body span the full viewport (CSS spec behavior)
@@ -1941,6 +1945,7 @@ fn build_layout_tree_from_dom(
     viewport_w: f32,
     available_width: f64,
     parent_styles: Option<&ComputedStyles>,
+    doc_mode: DocumentMode,
 ) -> LayoutElement {
     let el = element_ref.value();
     let tag = el.name().to_lowercase();
@@ -2322,6 +2327,7 @@ fn build_layout_tree_from_dom(
                     viewport_w,
                     child_available_width,
                     Some(&styles),
+                    doc_mode,
                 );
 
                 if child_layout.styles.display.as_deref() != Some("none")
