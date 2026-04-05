@@ -132,11 +132,8 @@ impl BuiltInConstructor for TouchEvent {
 
         let event_type = type_arg.to_string(context)?;
 
-        let proto = get_prototype_from_constructor(
-            new_target,
-            StandardConstructors::touch_event,
-            context,
-        )?;
+        let proto =
+            get_prototype_from_constructor(new_target, StandardConstructors::touch_event, context)?;
 
         let (touches, target_touches, changed_touches, alt_key, meta_key, ctrl_key, shift_key) =
             if !event_init_dict.is_undefined() {
@@ -176,12 +173,36 @@ impl BuiltInConstructor for TouchEvent {
                         .ok()
                         .map(|v| v.to_boolean())
                         .unwrap_or(false);
-                    (touches, target_touches, changed_touches, alt_key, meta_key, ctrl_key, shift_key)
+                    (
+                        touches,
+                        target_touches,
+                        changed_touches,
+                        alt_key,
+                        meta_key,
+                        ctrl_key,
+                        shift_key,
+                    )
                 } else {
-                    (JsValue::undefined(), JsValue::undefined(), JsValue::undefined(), false, false, false, false)
+                    (
+                        JsValue::undefined(),
+                        JsValue::undefined(),
+                        JsValue::undefined(),
+                        false,
+                        false,
+                        false,
+                        false,
+                    )
                 }
             } else {
-                (JsValue::undefined(), JsValue::undefined(), JsValue::undefined(), false, false, false, false)
+                (
+                    JsValue::undefined(),
+                    JsValue::undefined(),
+                    JsValue::undefined(),
+                    false,
+                    false,
+                    false,
+                    false,
+                )
             };
 
         let touch_event_data = TouchEventData::new(
@@ -212,12 +233,7 @@ impl BuiltInConstructor for TouchEvent {
         touch_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
         touch_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         touch_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        touch_event_generic.set(
-            js_string!("currentTarget"),
-            JsValue::null(),
-            false,
-            context,
-        )?;
+        touch_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
         touch_event_generic.set(
             js_string!("timeStamp"),
             context.clock().now().millis_since_epoch(),
@@ -300,12 +316,10 @@ fn get_touches(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
         JsNativeError::typ().with_message("TouchEvent.prototype.touches called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("TouchEvent.prototype.touches called on non-TouchEvent object")
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.touches called on non-TouchEvent object")
+    })?;
 
     Ok(data.touches.clone())
 }
@@ -316,16 +330,13 @@ fn get_target_touches(
     _context: &mut Context,
 ) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("TouchEvent.prototype.targetTouches called on non-object")
+        JsNativeError::typ().with_message("TouchEvent.prototype.targetTouches called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("TouchEvent.prototype.targetTouches called on non-TouchEvent object")
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.targetTouches called on non-TouchEvent object")
+    })?;
 
     Ok(data.target_touches.clone())
 }
@@ -340,13 +351,10 @@ fn get_changed_touches(
             .with_message("TouchEvent.prototype.changedTouches called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ().with_message(
-                "TouchEvent.prototype.changedTouches called on non-TouchEvent object",
-            )
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.changedTouches called on non-TouchEvent object")
+    })?;
 
     Ok(data.changed_touches.clone())
 }
@@ -356,12 +364,10 @@ fn get_alt_key(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
         JsNativeError::typ().with_message("TouchEvent.prototype.altKey called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("TouchEvent.prototype.altKey called on non-TouchEvent object")
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.altKey called on non-TouchEvent object")
+    })?;
 
     Ok(JsValue::from(data.alt_key))
 }
@@ -371,12 +377,10 @@ fn get_meta_key(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
         JsNativeError::typ().with_message("TouchEvent.prototype.metaKey called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("TouchEvent.prototype.metaKey called on non-TouchEvent object")
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.metaKey called on non-TouchEvent object")
+    })?;
 
     Ok(JsValue::from(data.meta_key))
 }
@@ -386,31 +390,23 @@ fn get_ctrl_key(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
         JsNativeError::typ().with_message("TouchEvent.prototype.ctrlKey called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("TouchEvent.prototype.ctrlKey called on non-TouchEvent object")
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.ctrlKey called on non-TouchEvent object")
+    })?;
 
     Ok(JsValue::from(data.ctrl_key))
 }
 
-fn get_shift_key(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_shift_key(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("TouchEvent.prototype.shiftKey called on non-object")
     })?;
 
-    let data = this_obj
-        .downcast_ref::<TouchEventData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("TouchEvent.prototype.shiftKey called on non-TouchEvent object")
-        })?;
+    let data = this_obj.downcast_ref::<TouchEventData>().ok_or_else(|| {
+        JsNativeError::typ()
+            .with_message("TouchEvent.prototype.shiftKey called on non-TouchEvent object")
+    })?;
 
     Ok(JsValue::from(data.shift_key))
 }

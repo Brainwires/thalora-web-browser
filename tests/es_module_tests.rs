@@ -17,7 +17,11 @@ async fn test_inline_module_basic() {
             "https://example.com/test.mjs",
         )
         .await;
-    assert!(result.is_ok(), "Module should parse and evaluate: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Module should parse and evaluate: {:?}",
+        result.err()
+    );
 }
 
 #[tokio::test]
@@ -35,7 +39,11 @@ async fn test_module_export_import_syntax() {
             "https://example.com/lib.mjs",
         )
         .await;
-    assert!(result.is_ok(), "Module with exports should parse: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Module with exports should parse: {:?}",
+        result.err()
+    );
 }
 
 #[tokio::test]
@@ -55,14 +63,21 @@ async fn test_module_strict_mode() {
             "https://example.com/strict.mjs",
         )
         .await;
-    assert!(result.is_ok(), "Strict mode module should work: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Strict mode module should work: {:?}",
+        result.err()
+    );
 }
 
 #[tokio::test]
 async fn test_module_base_url_update() {
     let browser = HeadlessWebBrowser::new();
     // Set base URL and verify it updates the module loader
-    browser.lock().unwrap().set_module_base_url("https://myapp.com/app/");
+    browser
+        .lock()
+        .unwrap()
+        .set_module_base_url("https://myapp.com/app/");
 
     // Module should be parseable (we're testing the URL update doesn't crash)
     let result = browser
@@ -73,7 +88,11 @@ async fn test_module_base_url_update() {
             "https://myapp.com/app/main.mjs",
         )
         .await;
-    assert!(result.is_ok(), "Module after base URL update should work: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Module after base URL update should work: {:?}",
+        result.err()
+    );
 }
 
 #[tokio::test]

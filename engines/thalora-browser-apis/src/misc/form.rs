@@ -1795,13 +1795,19 @@ fn input_validation_message_getter(
             if validity.type_mismatch {
                 let input_type = input.input_type.lock().unwrap().clone();
                 match input_type.as_str() {
-                    "email" => return Ok(JsValue::from(js_string!("Please include an '@' in the email address."))),
+                    "email" => {
+                        return Ok(JsValue::from(js_string!(
+                            "Please include an '@' in the email address."
+                        )));
+                    }
                     "url" => return Ok(JsValue::from(js_string!("Please enter a URL."))),
                     _ => return Ok(JsValue::from(js_string!("Invalid value."))),
                 }
             }
             if validity.pattern_mismatch {
-                return Ok(JsValue::from(js_string!("Please match the requested format.")));
+                return Ok(JsValue::from(js_string!(
+                    "Please match the requested format."
+                )));
             }
             if validity.too_short {
                 return Ok(JsValue::from(js_string!("Value is too short.")));

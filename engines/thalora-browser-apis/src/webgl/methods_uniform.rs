@@ -2,13 +2,9 @@
 //!
 //! Uniform variable and vertex attribute operations.
 
-use boa_engine::{
-    Context, JsArgs, JsObject, JsValue, NativeFunction, js_string,
-};
+use boa_engine::{Context, JsArgs, JsObject, JsValue, NativeFunction, js_string};
 
-use super::context::{
-    MAX_VERTEX_ATTRIBS, get_location_id,
-};
+use super::context::{MAX_VERTEX_ATTRIBS, get_location_id};
 use super::state::WebGLConstants;
 use crate::with_webgl_context;
 

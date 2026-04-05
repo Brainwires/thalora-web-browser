@@ -29,8 +29,7 @@ use std::{
 };
 use tokio::sync::Mutex as TokioMutex;
 use webrtc::data_channel::{
-    DataChannel as WebRTCDataChannel,
-    RTCDataChannelMessage as DataChannelMessage,
+    DataChannel as WebRTCDataChannel, RTCDataChannelMessage as DataChannelMessage,
     RTCDataChannelState,
 };
 

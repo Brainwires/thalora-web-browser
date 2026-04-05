@@ -340,7 +340,12 @@ impl CssProcessor {
                             styles.grid_column = Some(clean_value);
                         }
                     } else {
-                        let start = existing.split('/').next().unwrap_or("auto").trim().to_string();
+                        let start = existing
+                            .split('/')
+                            .next()
+                            .unwrap_or("auto")
+                            .trim()
+                            .to_string();
                         styles.grid_column = Some(format!("{} / {}", start, clean_value));
                     }
                 }
@@ -353,7 +358,12 @@ impl CssProcessor {
                             styles.grid_row = Some(clean_value);
                         }
                     } else {
-                        let start = existing.split('/').next().unwrap_or("auto").trim().to_string();
+                        let start = existing
+                            .split('/')
+                            .next()
+                            .unwrap_or("auto")
+                            .trim()
+                            .to_string();
                         styles.grid_row = Some(format!("{} / {}", start, clean_value));
                     }
                 }

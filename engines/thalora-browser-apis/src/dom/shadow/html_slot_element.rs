@@ -41,7 +41,10 @@ impl HTMLSlotElementData {
 
     /// Get the slot name
     pub fn get_name(&self) -> String {
-        self.name.try_borrow().map(|g| g.clone()).unwrap_or_default()
+        self.name
+            .try_borrow()
+            .map(|g| g.clone())
+            .unwrap_or_default()
     }
 
     /// Set the slot name
@@ -53,13 +56,20 @@ impl HTMLSlotElementData {
 
     /// Get assigned nodes (for slotAssignment: manual)
     pub fn get_assigned_nodes(&self) -> Vec<JsObject> {
-        self.assigned_nodes.try_borrow().map(|g| g.clone()).unwrap_or_default()
+        self.assigned_nodes
+            .try_borrow()
+            .map(|g| g.clone())
+            .unwrap_or_default()
     }
 
     /// Assign nodes manually (for slotAssignment: manual)
     /// This fires a slotchange event after updating the assigned nodes
     pub fn assign_nodes(&self, nodes: Vec<JsObject>) {
-        let old_nodes = self.assigned_nodes.try_borrow().map(|g| g.clone()).unwrap_or_default();
+        let old_nodes = self
+            .assigned_nodes
+            .try_borrow()
+            .map(|g| g.clone())
+            .unwrap_or_default();
         if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
             *guard = nodes.clone();
         }
@@ -80,7 +90,12 @@ impl HTMLSlotElementData {
 
     /// Assign a single node to this slot (manual slot assignment)
     pub fn assign_node(&self, node: JsObject) {
-        if self.manual_slot_assignment.try_borrow().map(|g| *g).unwrap_or(false) {
+        if self
+            .manual_slot_assignment
+            .try_borrow()
+            .map(|g| *g)
+            .unwrap_or(false)
+        {
             if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
                 guard.push(node);
             }
@@ -161,7 +176,12 @@ impl HTMLSlotElementData {
         // Implementation of "assign slottables" algorithm
         // https://dom.spec.whatwg.org/#assign-slottables
 
-        let slottables = if self.manual_slot_assignment.try_borrow().map(|g| *g).unwrap_or(false) {
+        let slottables = if self
+            .manual_slot_assignment
+            .try_borrow()
+            .map(|g| *g)
+            .unwrap_or(false)
+        {
             // For manual slot assignment, use explicitly assigned nodes
             self.get_assigned_nodes()
         } else {

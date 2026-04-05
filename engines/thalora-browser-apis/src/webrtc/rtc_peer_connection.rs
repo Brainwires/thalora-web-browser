@@ -23,13 +23,10 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 use webrtc::peer_connection::{
-    RTCConfigurationBuilder, RTCIceServer,
-    RTCPeerConnectionState, RTCSignalingState as WebRTCSignalingState,
-    RTCIceConnectionState as WebRTCIceConnectionState,
-    RTCIceGatheringState as WebRTCIceGatheringState,
-    RTCSessionDescription,
-    RTCIceCandidateInit,
-    PeerConnection, PeerConnectionBuilder, PeerConnectionEventHandler,
+    PeerConnection, PeerConnectionBuilder, PeerConnectionEventHandler, RTCConfigurationBuilder,
+    RTCIceCandidateInit, RTCIceConnectionState as WebRTCIceConnectionState,
+    RTCIceGatheringState as WebRTCIceGatheringState, RTCIceServer, RTCPeerConnectionState,
+    RTCSessionDescription, RTCSignalingState as WebRTCSignalingState,
 };
 
 /// RTCPeerConnection states according to WHATWG specification
@@ -516,11 +513,7 @@ impl BuiltInConstructor for RTCPeerConnectionBuiltin {
 
 impl RTCPeerConnectionBuiltin {
     /// Create an offer using real SDP generation
-    fn create_offer(
-        this: &JsValue,
-        _args: &[JsValue],
-        context: &mut Context,
-    ) -> JsResult<JsValue> {
+    fn create_offer(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
         if let Some(object) = this.as_object() {
             if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
                 if let Some(ref pc) = rtc_pc.data.peer_connection {
@@ -655,8 +648,10 @@ impl RTCPeerConnectionBuiltin {
                         "answer" => RTCSessionDescription::answer(sdp_str),
                         "pranswer" => RTCSessionDescription::pranswer(sdp_str),
                         _ => RTCSessionDescription::offer(sdp_str),
-                    }.map_err(|e| JsNativeError::error()
-                        .with_message(format!("Invalid SDP: {}", e)))?;
+                    }
+                    .map_err(|e| {
+                        JsNativeError::error().with_message(format!("Invalid SDP: {}", e))
+                    })?;
 
                     if let Some(ref pc) = rtc_pc.data.peer_connection {
                         let pc = Arc::clone(pc);
@@ -708,8 +703,10 @@ impl RTCPeerConnectionBuiltin {
                         "answer" => RTCSessionDescription::answer(sdp_str),
                         "pranswer" => RTCSessionDescription::pranswer(sdp_str),
                         _ => RTCSessionDescription::offer(sdp_str),
-                    }.map_err(|e| JsNativeError::error()
-                        .with_message(format!("Invalid SDP: {}", e)))?;
+                    }
+                    .map_err(|e| {
+                        JsNativeError::error().with_message(format!("Invalid SDP: {}", e))
+                    })?;
 
                     if let Some(ref pc) = rtc_pc.data.peer_connection {
                         let pc = Arc::clone(pc);
@@ -751,8 +748,7 @@ impl RTCPeerConnectionBuiltin {
                 let candidate_arg = args.get_or_undefined(0);
                 if let Some(candidate_obj) = candidate_arg.as_object() {
                     let candidate_val = candidate_obj.get(js_string!("candidate"), context)?;
-                    let candidate_str =
-                        candidate_val.to_string(context)?.to_std_string_escaped();
+                    let candidate_str = candidate_val.to_string(context)?.to_std_string_escaped();
 
                     let sdp_mid = candidate_obj
                         .get(js_string!("sdpMid"), context)
@@ -783,8 +779,7 @@ impl RTCPeerConnectionBuiltin {
                         let pc = Arc::clone(pc);
                         let runtime = Arc::clone(rtc_pc.data.runtime());
 
-                        if let Err(e) =
-                            runtime.block_on(async { pc.add_ice_candidate(init).await })
+                        if let Err(e) = runtime.block_on(async { pc.add_ice_candidate(init).await })
                         {
                             return Err(JsNativeError::error()
                                 .with_message(format!("addIceCandidate failed: {}", e))
@@ -814,8 +809,7 @@ impl RTCPeerConnectionBuiltin {
                     let pc = Arc::clone(pc);
                     let runtime = Arc::clone(rtc_pc.data.runtime());
 
-                    match runtime
-                        .block_on(async { pc.create_data_channel(&label_str, None).await })
+                    match runtime.block_on(async { pc.create_data_channel(&label_str, None).await })
                     {
                         Ok(_dc) => {
                             let data_channel_obj = JsObject::default(context.intrinsics());

@@ -338,8 +338,12 @@ impl StructuredClone {
             }
 
             // Check for Blob-like objects
-            let has_size = obj.has_property(js_string!("size"), context).unwrap_or(false);
-            let has_type = obj.has_property(js_string!("type"), context).unwrap_or(false);
+            let has_size = obj
+                .has_property(js_string!("size"), context)
+                .unwrap_or(false);
+            let has_type = obj
+                .has_property(js_string!("type"), context)
+                .unwrap_or(false);
             if has_size && has_type {
                 let content_type = obj
                     .get(js_string!("type"), context)
@@ -347,7 +351,9 @@ impl StructuredClone {
                     .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
                     .unwrap_or_default();
                 // Check if it has a "name" property (File extends Blob)
-                let has_name = obj.has_property(js_string!("name"), context).unwrap_or(false);
+                let has_name = obj
+                    .has_property(js_string!("name"), context)
+                    .unwrap_or(false);
                 let has_last_modified = obj
                     .has_property(js_string!("lastModified"), context)
                     .unwrap_or(false);
@@ -378,9 +384,15 @@ impl StructuredClone {
             }
 
             // Check for ImageData-like objects (width, height, data)
-            let has_width = obj.has_property(js_string!("width"), context).unwrap_or(false);
-            let has_height = obj.has_property(js_string!("height"), context).unwrap_or(false);
-            let has_data = obj.has_property(js_string!("data"), context).unwrap_or(false);
+            let has_width = obj
+                .has_property(js_string!("width"), context)
+                .unwrap_or(false);
+            let has_height = obj
+                .has_property(js_string!("height"), context)
+                .unwrap_or(false);
+            let has_data = obj
+                .has_property(js_string!("data"), context)
+                .unwrap_or(false);
             if has_width && has_height && has_data {
                 let width = obj
                     .get(js_string!("width"), context)
@@ -811,12 +823,7 @@ impl StructuredClone {
             } => {
                 // Create an Error object with the preserved name, message, and stack
                 let err_obj = JsObject::with_object_proto(context.intrinsics());
-                err_obj.set(
-                    js_string!("name"),
-                    js_string!(name.clone()),
-                    false,
-                    context,
-                )?;
+                err_obj.set(js_string!("name"), js_string!(name.clone()), false, context)?;
                 err_obj.set(
                     js_string!("message"),
                     js_string!(message.clone()),
@@ -833,10 +840,7 @@ impl StructuredClone {
                 }
                 Ok(err_obj.into())
             }
-            StructuredCloneValue::Blob {
-                data,
-                content_type,
-            } => {
+            StructuredCloneValue::Blob { data, content_type } => {
                 let blob_obj = JsObject::with_object_proto(context.intrinsics());
                 blob_obj.set(
                     js_string!("size"),
@@ -859,12 +863,7 @@ impl StructuredClone {
                 last_modified,
             } => {
                 let file_obj = JsObject::with_object_proto(context.intrinsics());
-                file_obj.set(
-                    js_string!("name"),
-                    js_string!(name.clone()),
-                    false,
-                    context,
-                )?;
+                file_obj.set(js_string!("name"), js_string!(name.clone()), false, context)?;
                 file_obj.set(
                     js_string!("size"),
                     JsValue::from(data.len() as f64),
@@ -891,18 +890,8 @@ impl StructuredClone {
                 data,
             } => {
                 let img_obj = JsObject::with_object_proto(context.intrinsics());
-                img_obj.set(
-                    js_string!("width"),
-                    JsValue::from(*width),
-                    false,
-                    context,
-                )?;
-                img_obj.set(
-                    js_string!("height"),
-                    JsValue::from(*height),
-                    false,
-                    context,
-                )?;
+                img_obj.set(js_string!("width"), JsValue::from(*width), false, context)?;
+                img_obj.set(js_string!("height"), JsValue::from(*height), false, context)?;
                 // Create the pixel data as an ArrayBuffer
                 let aligned = AlignedVec::from_iter(64, data.iter().copied());
                 let buffer = JsArrayBuffer::from_byte_block(aligned, context)?;

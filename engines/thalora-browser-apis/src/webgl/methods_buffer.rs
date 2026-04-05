@@ -3,8 +3,7 @@
 //! Buffer creation and manipulation operations.
 
 use boa_engine::{
-    Context, JsArgs, JsObject, JsValue, NativeFunction, js_string,
-    object::builtins::JsArrayBuffer,
+    Context, JsArgs, JsObject, JsValue, NativeFunction, js_string, object::builtins::JsArrayBuffer,
 };
 
 use super::buffer::WebGLBuffer;

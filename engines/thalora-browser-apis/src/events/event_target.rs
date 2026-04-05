@@ -198,7 +198,10 @@ impl EventTargetData {
 
         // Extract event type
         let event_type = if let Ok(type_prop) = event.get(js_string!("type"), context) {
-            type_prop.to_string(context).map(|s| s.to_std_string_escaped()).unwrap_or_default()
+            type_prop
+                .to_string(context)
+                .map(|s| s.to_std_string_escaped())
+                .unwrap_or_default()
         } else {
             return Ok(true);
         };
@@ -252,7 +255,12 @@ impl EventTargetData {
 
             // Fire capture listeners on this node
             if let Some(target_data) = node.downcast_ref::<EventTargetData>() {
-                target_data.fire_listeners(event, &event_type, &EventPhase::CapturingPhase, context)?;
+                target_data.fire_listeners(
+                    event,
+                    &event_type,
+                    &EventPhase::CapturingPhase,
+                    context,
+                )?;
             }
 
             // Check stopPropagation
@@ -264,7 +272,8 @@ impl EventTargetData {
         }
 
         // === TARGET PHASE ===
-        let stopped = event.downcast_ref::<EventData>()
+        let stopped = event
+            .downcast_ref::<EventData>()
             .map(|d| d.should_stop_propagation())
             .unwrap_or(false);
 
@@ -282,7 +291,8 @@ impl EventTargetData {
 
         // === BUBBLE PHASE: target parent → root ===
         if bubbles {
-            let stopped = event.downcast_ref::<EventData>()
+            let stopped = event
+                .downcast_ref::<EventData>()
                 .map(|d| d.should_stop_propagation())
                 .unwrap_or(false);
 
@@ -297,7 +307,12 @@ impl EventTargetData {
                     let _ = event.set(js_string!("eventPhase"), JsValue::from(3), false, context);
 
                     if let Some(target_data) = node.downcast_ref::<EventTargetData>() {
-                        target_data.fire_listeners(event, &event_type, &EventPhase::BubblingPhase, context)?;
+                        target_data.fire_listeners(
+                            event,
+                            &event_type,
+                            &EventPhase::BubblingPhase,
+                            context,
+                        )?;
                     }
 
                     if let Some(ed) = event.downcast_ref::<EventData>() {

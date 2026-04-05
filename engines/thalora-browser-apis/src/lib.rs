@@ -451,7 +451,9 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     global_object.define_property_or_throw(
         events::pointer_event::PointerEvent::NAME,
         PropertyDescriptor::builder()
-            .value(events::pointer_event::PointerEvent::get(context.intrinsics()))
+            .value(events::pointer_event::PointerEvent::get(
+                context.intrinsics(),
+            ))
             .writable(true)
             .enumerable(false)
             .configurable(true),

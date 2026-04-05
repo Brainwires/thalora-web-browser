@@ -202,11 +202,18 @@ impl CspPolicy {
         if sources.is_empty() {
             return true;
         }
-        sources.iter().any(|s| matches!(s, SourceExpression::UnsafeEval))
+        sources
+            .iter()
+            .any(|s| matches!(s, SourceExpression::UnsafeEval))
     }
 
     /// Check if a URL is allowed by a specific directive, falling back to default-src.
-    fn allows_url(&self, directive: &[SourceExpression], url: &str, page_url: Option<&str>) -> bool {
+    fn allows_url(
+        &self,
+        directive: &[SourceExpression],
+        url: &str,
+        page_url: Option<&str>,
+    ) -> bool {
         let sources = if !directive.is_empty() {
             directive
         } else if !self.default_src.is_empty() {
@@ -328,15 +335,24 @@ fn parse_source_expression(token: &str) -> Option<SourceExpression> {
         }
         _ if token.starts_with("'sha256-") && token.ends_with('\'') => {
             let hash = &token[8..token.len() - 1];
-            Some(SourceExpression::Hash("sha256".to_string(), hash.to_string()))
+            Some(SourceExpression::Hash(
+                "sha256".to_string(),
+                hash.to_string(),
+            ))
         }
         _ if token.starts_with("'sha384-") && token.ends_with('\'') => {
             let hash = &token[8..token.len() - 1];
-            Some(SourceExpression::Hash("sha384".to_string(), hash.to_string()))
+            Some(SourceExpression::Hash(
+                "sha384".to_string(),
+                hash.to_string(),
+            ))
         }
         _ if token.starts_with("'sha512-") && token.ends_with('\'') => {
             let hash = &token[8..token.len() - 1];
-            Some(SourceExpression::Hash("sha512".to_string(), hash.to_string()))
+            Some(SourceExpression::Hash(
+                "sha512".to_string(),
+                hash.to_string(),
+            ))
         }
         _ => {
             // Treat as URL pattern
@@ -382,9 +398,7 @@ fn url_matches_pattern(url: &str, pattern: &str) -> bool {
     }
 
     // Exact host or host+path match
-    if let (Ok(url_parsed), Ok(pattern_parsed)) =
-        (url::Url::parse(url), url::Url::parse(pattern))
-    {
+    if let (Ok(url_parsed), Ok(pattern_parsed)) = (url::Url::parse(url), url::Url::parse(pattern)) {
         return url_parsed.scheme() == pattern_parsed.scheme()
             && url_parsed.host_str() == pattern_parsed.host_str()
             && url_parsed.port_or_known_default() == pattern_parsed.port_or_known_default();
@@ -437,9 +451,7 @@ impl PermissionsPolicy {
                 Vec::new()
             } else {
                 // Parse (self "https://example.com" ...) format
-                let inner = allowlist_str
-                    .trim_start_matches('(')
-                    .trim_end_matches(')');
+                let inner = allowlist_str.trim_start_matches('(').trim_end_matches(')');
                 inner
                     .split_whitespace()
                     .map(|s| s.trim_matches('"').trim_matches('\'').to_string())
@@ -602,14 +614,8 @@ mod tests {
     #[test]
     fn test_allows_external_url_pattern() {
         let policy = CspPolicy::parse("script-src https://cdn.example.com");
-        assert!(policy.allows_external_script(
-            "https://cdn.example.com/lib.js",
-            None
-        ));
-        assert!(!policy.allows_external_script(
-            "https://evil.com/lib.js",
-            None
-        ));
+        assert!(policy.allows_external_script("https://cdn.example.com/lib.js", None));
+        assert!(!policy.allows_external_script("https://evil.com/lib.js", None));
     }
 
     #[test]
@@ -636,7 +642,10 @@ mod tests {
 
     #[test]
     fn test_same_origin() {
-        assert!(same_origin("https://example.com/a", "https://example.com/b"));
+        assert!(same_origin(
+            "https://example.com/a",
+            "https://example.com/b"
+        ));
         assert!(!same_origin("https://example.com", "https://other.com"));
         assert!(!same_origin("http://example.com", "https://example.com"));
     }

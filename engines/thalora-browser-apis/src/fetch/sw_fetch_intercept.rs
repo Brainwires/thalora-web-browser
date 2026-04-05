@@ -32,7 +32,12 @@ pub struct ServiceWorkerFetchHandler {
     pub dispatch_fn: Arc<
         Mutex<
             Box<
-                dyn Fn(&str, &str, &HashMap<String, String>, &mut Context) -> JsResult<Option<JsValue>>
+                dyn Fn(
+                        &str,
+                        &str,
+                        &HashMap<String, String>,
+                        &mut Context,
+                    ) -> JsResult<Option<JsValue>>
                     + Send,
             >,
         >,
@@ -87,8 +92,7 @@ pub fn try_sw_fetch_intercept(
 
     let dispatch_fn = {
         let registry = get_registry().lock().map_err(|_| {
-            boa_engine::JsNativeError::error()
-                .with_message("Failed to lock SW fetch registry")
+            boa_engine::JsNativeError::error().with_message("Failed to lock SW fetch registry")
         })?;
         match registry.get(&scope) {
             Some(handler) => handler.dispatch_fn.clone(),
@@ -97,8 +101,7 @@ pub fn try_sw_fetch_intercept(
     };
 
     let dispatch = dispatch_fn.lock().map_err(|_| {
-        boa_engine::JsNativeError::error()
-            .with_message("Failed to lock SW fetch dispatch function")
+        boa_engine::JsNativeError::error().with_message("Failed to lock SW fetch dispatch function")
     })?;
 
     dispatch(url, method, headers, context)
@@ -115,9 +118,8 @@ pub fn dispatch_fetch_event_to_sw(
     context: &mut Context,
 ) -> JsResult<Option<JsValue>> {
     // Create the FetchEvent
-    let fetch_event = crate::events::fetch_event::create_fetch_event(
-        url, method, headers, client_id, context,
-    )?;
+    let fetch_event =
+        crate::events::fetch_event::create_fetch_event(url, method, headers, client_id, context)?;
 
     let global = context.global_object();
 
@@ -150,5 +152,7 @@ pub fn dispatch_fetch_event_to_sw(
     }
 
     // Check if respondWith was called on the event
-    Ok(crate::events::fetch_event::get_fetch_event_response(&fetch_event))
+    Ok(crate::events::fetch_event::get_fetch_event_response(
+        &fetch_event,
+    ))
 }

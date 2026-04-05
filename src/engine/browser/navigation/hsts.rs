@@ -173,7 +173,10 @@ mod tests {
     #[test]
     fn parse_header_with_include_subdomains() {
         let mut store = HstsStore::new();
-        store.parse_header("example.com", "max-age=31536000; includeSubDomains; preload");
+        store.parse_header(
+            "example.com",
+            "max-age=31536000; includeSubDomains; preload",
+        );
         let entry = store.entries.get("example.com").unwrap();
         assert_eq!(entry.max_age, Duration::from_secs(31536000));
         assert!(entry.include_subdomains);
@@ -202,20 +205,31 @@ mod tests {
         let mut store = HstsStore::new();
         store.parse_header("secure.example.com", "max-age=3600");
         let result = store.should_upgrade("http://secure.example.com/path?q=1");
-        assert_eq!(result, Some("https://secure.example.com/path?q=1".to_string()));
+        assert_eq!(
+            result,
+            Some("https://secure.example.com/path?q=1".to_string())
+        );
     }
 
     #[test]
     fn should_not_upgrade_https() {
         let mut store = HstsStore::new();
         store.parse_header("secure.example.com", "max-age=3600");
-        assert!(store.should_upgrade("https://secure.example.com/").is_none());
+        assert!(
+            store
+                .should_upgrade("https://secure.example.com/")
+                .is_none()
+        );
     }
 
     #[test]
     fn should_not_upgrade_unknown_domain() {
         let store = HstsStore::new();
-        assert!(store.should_upgrade("http://unknown.example.com/").is_none());
+        assert!(
+            store
+                .should_upgrade("http://unknown.example.com/")
+                .is_none()
+        );
     }
 
     #[test]
@@ -259,8 +273,14 @@ mod tests {
 
     #[test]
     fn extract_domain_works() {
-        assert_eq!(extract_domain("http://example.com/path"), Some("example.com".to_string()));
-        assert_eq!(extract_domain("https://Example.COM:8080/"), Some("example.com".to_string()));
+        assert_eq!(
+            extract_domain("http://example.com/path"),
+            Some("example.com".to_string())
+        );
+        assert_eq!(
+            extract_domain("https://Example.COM:8080/"),
+            Some("example.com".to_string())
+        );
         assert_eq!(extract_domain("ftp://nope"), None);
     }
 }

@@ -129,8 +129,7 @@ impl HTMLDialogElementData {
 
 fn get_open(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("HTMLDialogElement.prototype.open called on non-object")
+        JsNativeError::typ().with_message("HTMLDialogElement.prototype.open called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<HTMLDialogElementData>() {
@@ -142,8 +141,7 @@ fn get_open(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResu
 
 fn set_open(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("HTMLDialogElement.prototype.open called on non-object")
+        JsNativeError::typ().with_message("HTMLDialogElement.prototype.open called on non-object")
     })?;
 
     let open = args.get_or_undefined(0).to_boolean();
@@ -172,11 +170,7 @@ fn get_return_value(
     }
 }
 
-fn set_return_value(
-    this: &JsValue,
-    args: &[JsValue],
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn set_return_value(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ()
             .with_message("HTMLDialogElement.prototype.returnValue called on non-object")
@@ -196,8 +190,7 @@ fn set_return_value(
 
 fn show(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("HTMLDialogElement.prototype.show called on non-object")
+        JsNativeError::typ().with_message("HTMLDialogElement.prototype.show called on non-object")
     })?;
 
     if let Some(mut data) = this_obj.downcast_mut::<HTMLDialogElementData>() {
@@ -224,8 +217,7 @@ fn show_modal(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 
 fn close(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("HTMLDialogElement.prototype.close called on non-object")
+        JsNativeError::typ().with_message("HTMLDialogElement.prototype.close called on non-object")
     })?;
 
     if let Some(mut data) = this_obj.downcast_mut::<HTMLDialogElementData>() {

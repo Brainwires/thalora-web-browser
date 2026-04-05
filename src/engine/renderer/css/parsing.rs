@@ -1,4 +1,6 @@
-use super::types::{BorderStyles, BoxModel, ComputedStyles, CssProcessor, FontFaceEntry, ParsedRule};
+use super::types::{
+    BorderStyles, BoxModel, ComputedStyles, CssProcessor, FontFaceEntry, ParsedRule,
+};
 use anyhow::{Context, Result};
 use lightningcss::declaration::DeclarationBlock;
 use lightningcss::properties::Property;
@@ -320,7 +322,12 @@ impl CssProcessor {
                                 styles.grid_column = Some(value);
                             }
                         } else {
-                            let start = existing.split('/').next().unwrap_or("auto").trim().to_string();
+                            let start = existing
+                                .split('/')
+                                .next()
+                                .unwrap_or("auto")
+                                .trim()
+                                .to_string();
                             styles.grid_column = Some(format!("{} / {}", start, value));
                         }
                     }
@@ -333,7 +340,12 @@ impl CssProcessor {
                                 styles.grid_row = Some(value);
                             }
                         } else {
-                            let start = existing.split('/').next().unwrap_or("auto").trim().to_string();
+                            let start = existing
+                                .split('/')
+                                .next()
+                                .unwrap_or("auto")
+                                .trim()
+                                .to_string();
                             styles.grid_row = Some(format!("{} / {}", start, value));
                         }
                     }
@@ -656,7 +668,9 @@ impl CssProcessor {
                     let source_order = self.source_order_counter;
                     self.source_order_counter += 1;
 
-                    let layer = self.current_layer.as_ref()
+                    let layer = self
+                        .current_layer
+                        .as_ref()
                         .and_then(|name| self.layer_order.get(name).copied());
 
                     self.rules.push(ParsedRule {
@@ -778,9 +792,7 @@ impl CssProcessor {
                             lightningcss::rules::font_face::FontFaceProperty::Source(sources) => {
                                 let parts: Vec<String> = sources
                                     .iter()
-                                    .filter_map(|s| {
-                                        s.to_css_string(PrinterOptions::default()).ok()
-                                    })
+                                    .filter_map(|s| s.to_css_string(PrinterOptions::default()).ok())
                                     .collect();
                                 src = parts.join(", ");
                             }
@@ -795,9 +807,7 @@ impl CssProcessor {
                             ) => {
                                 let parts: Vec<String> = ranges
                                     .iter()
-                                    .filter_map(|r| {
-                                        r.to_css_string(PrinterOptions::default()).ok()
-                                    })
+                                    .filter_map(|r| r.to_css_string(PrinterOptions::default()).ok())
                                     .collect();
                                 unicode_range = Some(parts.join(", "));
                             }

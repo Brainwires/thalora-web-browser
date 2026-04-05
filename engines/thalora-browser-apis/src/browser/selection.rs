@@ -160,8 +160,6 @@ impl SelectionData {
 
     /// Add range to selection with FrameSelection integration
     fn add_range(&mut self, range: JsValue) -> JsResult<()> {
-        
-
         // Clear existing ranges (Selection API typically supports only one range)
         self.ranges.clear();
         self.ranges.push(range.clone());

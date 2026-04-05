@@ -9,8 +9,8 @@ use std::collections::{HashMap, HashSet};
 fn cascade_cmp(a: &ParsedRule, b: &ParsedRule) -> Ordering {
     // Layer comparison: None (unlayered) > Some (layered)
     match (&a.layer, &b.layer) {
-        (None, Some(_)) => return Ordering::Greater,    // unlayered wins
-        (Some(_), None) => return Ordering::Less,       // layered loses
+        (None, Some(_)) => return Ordering::Greater, // unlayered wins
+        (Some(_), None) => return Ordering::Less,    // layered loses
         (Some(a_layer), Some(b_layer)) => {
             // Within layers: higher index = later-declared = wins
             let layer_cmp = a_layer.cmp(b_layer);
@@ -615,8 +615,7 @@ impl CssProcessor {
                     // If the first alt looks like a simple selector (class, tag, id),
                     // substitute it directly
                     if !first_alt.is_empty() {
-                        result =
-                            format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
+                        result = format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
                         continue;
                     } else {
                         // Empty :is() — remove it
@@ -636,8 +635,7 @@ impl CssProcessor {
                     let inner = &result[start + 7..end].trim().to_string();
                     let first_alt = inner.split(',').next().unwrap_or("").trim();
                     if !first_alt.is_empty() {
-                        result =
-                            format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
+                        result = format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
                         continue;
                     } else {
                         result = format!("{}{}", &result[..start], &result[end + 1..]);
@@ -895,8 +893,8 @@ impl CssProcessor {
                     }
                     false
                 }
-                "first-child" | "last-child" | "only-child" | "first-of-type"
-                | "last-of-type" | "only-of-type" => {
+                "first-child" | "last-child" | "only-child" | "first-of-type" | "last-of-type"
+                | "only-of-type" => {
                     // Structural pseudo-classes — these should ideally be handled by
                     // scraper's selector matching. If we got here, scraper couldn't
                     // parse the full selector. Try matching just the base.

@@ -7,11 +7,7 @@ use thalora::HeadlessWebBrowser;
 async fn test_sri_function_accessible() {
     // Verify that the browser can execute scripts (basic sanity)
     let browser = HeadlessWebBrowser::new();
-    let result = browser
-        .lock()
-        .unwrap()
-        .execute_javascript("1 + 1")
-        .await;
+    let result = browser.lock().unwrap().execute_javascript("1 + 1").await;
     assert!(result.is_ok());
 }
 

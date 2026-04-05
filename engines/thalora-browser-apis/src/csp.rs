@@ -45,8 +45,7 @@ pub enum CspSource {
 }
 
 /// Global CSP state, set by the main crate before JS execution.
-static CSP_STATE: LazyLock<Mutex<CspState>> =
-    LazyLock::new(|| Mutex::new(CspState::default()));
+static CSP_STATE: LazyLock<Mutex<CspState>> = LazyLock::new(|| Mutex::new(CspState::default()));
 
 /// Set the current CSP policy state. Called by the main crate before JS execution.
 pub fn set_csp_state(state: CspState) {
@@ -73,7 +72,12 @@ pub fn csp_allows_connect(url: &str) -> bool {
         return true;
     }
 
-    allows_url(&guard.connect_src, &guard.default_src, url, guard.page_url.as_deref())
+    allows_url(
+        &guard.connect_src,
+        &guard.default_src,
+        url,
+        guard.page_url.as_deref(),
+    )
 }
 
 /// Check if eval() / new Function() is allowed by CSP.
@@ -101,7 +105,12 @@ pub fn csp_allows_image(url: &str) -> bool {
         return true;
     }
 
-    allows_url(&guard.img_src, &guard.default_src, url, guard.page_url.as_deref())
+    allows_url(
+        &guard.img_src,
+        &guard.default_src,
+        url,
+        guard.page_url.as_deref(),
+    )
 }
 
 /// Check if inline styles are allowed by style-src.
@@ -200,9 +209,7 @@ fn url_matches_pattern(url: &str, pattern: &str) -> bool {
     }
 
     // Exact host or host+path match
-    if let (Ok(url_parsed), Ok(pattern_parsed)) =
-        (url::Url::parse(url), url::Url::parse(pattern))
-    {
+    if let (Ok(url_parsed), Ok(pattern_parsed)) = (url::Url::parse(url), url::Url::parse(pattern)) {
         return url_parsed.scheme() == pattern_parsed.scheme()
             && url_parsed.host_str() == pattern_parsed.host_str()
             && url_parsed.port_or_known_default() == pattern_parsed.port_or_known_default();

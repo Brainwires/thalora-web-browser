@@ -985,10 +985,18 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // eval is blocked for AI-injected scripts
-        assert!(validator.validate("eval('1+1')", SecurityContext::AiInjected).is_err());
+        assert!(
+            validator
+                .validate("eval('1+1')", SecurityContext::AiInjected)
+                .is_err()
+        );
 
         // eval is allowed for page scripts (Webpack, GTM, analytics use it)
-        assert!(validator.validate("eval('1+1')", SecurityContext::PageScript).is_ok());
+        assert!(
+            validator
+                .validate("eval('1+1')", SecurityContext::PageScript)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -996,8 +1004,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Function() blocked for AI, allowed for page
-        assert!(validator.validate("new Function('return 1')()", SecurityContext::AiInjected).is_err());
-        assert!(validator.validate("new Function('return 1')()", SecurityContext::PageScript).is_ok());
+        assert!(
+            validator
+                .validate("new Function('return 1')()", SecurityContext::AiInjected)
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate("new Function('return 1')()", SecurityContext::PageScript)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -1005,8 +1021,22 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // document.write blocked for AI, allowed for page
-        assert!(validator.validate("document.write('<p>Hello</p>')", SecurityContext::AiInjected).is_err());
-        assert!(validator.validate("document.write('<p>Hello</p>')", SecurityContext::PageScript).is_ok());
+        assert!(
+            validator
+                .validate(
+                    "document.write('<p>Hello</p>')",
+                    SecurityContext::AiInjected
+                )
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate(
+                    "document.write('<p>Hello</p>')",
+                    SecurityContext::PageScript
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -1014,8 +1044,22 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // WebAssembly blocked for AI, allowed for page
-        assert!(validator.validate("WebAssembly.instantiate(buffer)", SecurityContext::AiInjected).is_err());
-        assert!(validator.validate("WebAssembly.instantiate(buffer)", SecurityContext::PageScript).is_ok());
+        assert!(
+            validator
+                .validate(
+                    "WebAssembly.instantiate(buffer)",
+                    SecurityContext::AiInjected
+                )
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate(
+                    "WebAssembly.instantiate(buffer)",
+                    SecurityContext::PageScript
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -1023,8 +1067,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Prototype pollution blocked for BOTH contexts
-        assert!(validator.validate("obj.__proto__ = {}", SecurityContext::PageScript).is_err());
-        assert!(validator.validate("obj['__proto__'] = {}", SecurityContext::PageScript).is_err());
+        assert!(
+            validator
+                .validate("obj.__proto__ = {}", SecurityContext::PageScript)
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate("obj['__proto__'] = {}", SecurityContext::PageScript)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1032,8 +1084,16 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // Node.js APIs blocked for BOTH contexts
-        assert!(validator.validate("require('fs')", SecurityContext::PageScript).is_err());
-        assert!(validator.validate("process.exit()", SecurityContext::PageScript).is_err());
+        assert!(
+            validator
+                .validate("require('fs')", SecurityContext::PageScript)
+                .is_err()
+        );
+        assert!(
+            validator
+                .validate("process.exit()", SecurityContext::PageScript)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1041,7 +1101,14 @@ mod tests {
         let validator = JavaScriptSecurityValidator::new();
 
         // constructor.constructor blocked for BOTH contexts
-        assert!(validator.validate("obj.constructor.constructor('code')()", SecurityContext::PageScript).is_err());
+        assert!(
+            validator
+                .validate(
+                    "obj.constructor.constructor('code')()",
+                    SecurityContext::PageScript
+                )
+                .is_err()
+        );
     }
 
     #[test]
@@ -1050,11 +1117,27 @@ mod tests {
 
         // Convenience method should use PageScript context
         assert!(validator.is_safe_page_javascript("eval('1+1')").is_ok());
-        assert!(validator.is_safe_page_javascript("new Function('return 1')()").is_ok());
-        assert!(validator.is_safe_page_javascript("document.write('<p>hi</p>')").is_ok());
+        assert!(
+            validator
+                .is_safe_page_javascript("new Function('return 1')()")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .is_safe_page_javascript("document.write('<p>hi</p>')")
+                .is_ok()
+        );
 
         // But still block dangerous patterns
-        assert!(validator.is_safe_page_javascript("obj.__proto__ = {}").is_err());
-        assert!(validator.is_safe_page_javascript("require('child_process')").is_err());
+        assert!(
+            validator
+                .is_safe_page_javascript("obj.__proto__ = {}")
+                .is_err()
+        );
+        assert!(
+            validator
+                .is_safe_page_javascript("require('child_process')")
+                .is_err()
+        );
     }
 }

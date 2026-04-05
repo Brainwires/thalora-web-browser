@@ -34,15 +34,13 @@ impl IntrinsicObject for FetchEvent {
             .name(js_string!("get clientId"))
             .build();
 
-        let resulting_client_id_getter =
-            BuiltInBuilder::callable(realm, get_resulting_client_id)
-                .name(js_string!("get resultingClientId"))
-                .build();
+        let resulting_client_id_getter = BuiltInBuilder::callable(realm, get_resulting_client_id)
+            .name(js_string!("get resultingClientId"))
+            .build();
 
-        let replaces_client_id_getter =
-            BuiltInBuilder::callable(realm, get_replaces_client_id)
-                .name(js_string!("get replacesClientId"))
-                .build();
+        let replaces_client_id_getter = BuiltInBuilder::callable(realm, get_replaces_client_id)
+            .name(js_string!("get replacesClientId"))
+            .build();
 
         let handled_getter = BuiltInBuilder::callable(realm, get_handled)
             .name(js_string!("get handled"))
@@ -145,16 +143,14 @@ impl BuiltInConstructor for FetchEvent {
                 // Get resultingClientId
                 if let Ok(rcid_val) = init_obj.get(js_string!("resultingClientId"), context) {
                     if !rcid_val.is_undefined() {
-                        resulting_client_id =
-                            rcid_val.to_string(context)?.to_std_string_escaped();
+                        resulting_client_id = rcid_val.to_string(context)?.to_std_string_escaped();
                     }
                 }
 
                 // Get replacesClientId
                 if let Ok(rpcid_val) = init_obj.get(js_string!("replacesClientId"), context) {
                     if !rpcid_val.is_undefined() {
-                        replaces_client_id =
-                            rpcid_val.to_string(context)?.to_std_string_escaped();
+                        replaces_client_id = rpcid_val.to_string(context)?.to_std_string_escaped();
                     }
                 }
             }
@@ -184,12 +180,7 @@ impl BuiltInConstructor for FetchEvent {
         fetch_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
         fetch_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         fetch_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        fetch_event_generic.set(
-            js_string!("currentTarget"),
-            JsValue::null(),
-            false,
-            context,
-        )?;
+        fetch_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
         fetch_event_generic.set(
             js_string!("timeStamp"),
             context.clock().now().millis_since_epoch(),
@@ -313,9 +304,8 @@ fn get_resulting_client_id(
     })?;
 
     let fetch_event = this_obj.downcast_ref::<FetchEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message(
-            "FetchEvent.prototype.resultingClientId called on non-FetchEvent object",
-        )
+        JsNativeError::typ()
+            .with_message("FetchEvent.prototype.resultingClientId called on non-FetchEvent object")
     })?;
 
     Ok(js_string!(fetch_event.resulting_client_id.clone()).into())
@@ -333,9 +323,8 @@ fn get_replaces_client_id(
     })?;
 
     let fetch_event = this_obj.downcast_ref::<FetchEventData>().ok_or_else(|| {
-        JsNativeError::typ().with_message(
-            "FetchEvent.prototype.replacesClientId called on non-FetchEvent object",
-        )
+        JsNativeError::typ()
+            .with_message("FetchEvent.prototype.replacesClientId called on non-FetchEvent object")
     })?;
 
     Ok(js_string!(fetch_event.replaces_client_id.clone()).into())
@@ -363,14 +352,9 @@ fn get_handled(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
 }
 
 /// `FetchEvent.prototype.respondWith(response)` - provide a response for this fetch
-fn respond_with(
-    this: &JsValue,
-    args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn respond_with(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("FetchEvent.prototype.respondWith called on non-object")
+        JsNativeError::typ().with_message("FetchEvent.prototype.respondWith called on non-object")
     })?;
 
     let fetch_event = this_obj.downcast_ref::<FetchEventData>().ok_or_else(|| {
@@ -395,14 +379,9 @@ fn respond_with(
 }
 
 /// `FetchEvent.prototype.waitUntil(promise)` - extend the event lifetime
-fn wait_until(
-    this: &JsValue,
-    args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn wait_until(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("FetchEvent.prototype.waitUntil called on non-object")
+        JsNativeError::typ().with_message("FetchEvent.prototype.waitUntil called on non-object")
     })?;
 
     let fetch_event = this_obj.downcast_ref::<FetchEventData>().ok_or_else(|| {
@@ -439,24 +418,14 @@ pub fn create_fetch_event(
 ) -> JsResult<JsObject> {
     // Create a Request-like object
     let request_obj = JsObject::with_object_proto(context.intrinsics());
-    request_obj.set(
-        js_string!("url"),
-        js_string!(request_url),
-        false,
-        context,
-    )?;
+    request_obj.set(js_string!("url"), js_string!(request_url), false, context)?;
     request_obj.set(
         js_string!("method"),
         js_string!(request_method),
         false,
         context,
     )?;
-    request_obj.set(
-        js_string!("mode"),
-        js_string!("navigate"),
-        false,
-        context,
-    )?;
+    request_obj.set(js_string!("mode"), js_string!("navigate"), false, context)?;
     request_obj.set(
         js_string!("credentials"),
         js_string!("same-origin"),
@@ -469,12 +438,7 @@ pub fn create_fetch_event(
         false,
         context,
     )?;
-    request_obj.set(
-        js_string!("redirect"),
-        js_string!("follow"),
-        false,
-        context,
-    )?;
+    request_obj.set(js_string!("redirect"), js_string!("follow"), false, context)?;
     request_obj.set(
         js_string!("referrer"),
         js_string!("about:client"),
@@ -485,7 +449,12 @@ pub fn create_fetch_event(
     // Create headers object on the request
     let headers_obj = JsObject::with_object_proto(context.intrinsics());
     for (key, value) in request_headers {
-        headers_obj.set(js_string!(key.as_str()), js_string!(value.as_str()), false, context)?;
+        headers_obj.set(
+            js_string!(key.as_str()),
+            js_string!(value.as_str()),
+            false,
+            context,
+        )?;
     }
 
     // Add headers.get() method using NativeFunction::from_closure
@@ -516,10 +485,12 @@ pub fn create_fetch_event(
     let req_method = request_method.to_string();
     let req_headers = request_headers.clone();
     // SAFETY: Captured values are plain String/HashMap, no GC-traced values
-    let clone_fn = unsafe { boa_engine::NativeFunction::from_closure(move |_this, _args, context| {
-        let cloned = create_fetch_event_request(&req_url, &req_method, &req_headers, context)?;
-        Ok(cloned.into())
-    }) };
+    let clone_fn = unsafe {
+        boa_engine::NativeFunction::from_closure(move |_this, _args, context| {
+            let cloned = create_fetch_event_request(&req_url, &req_method, &req_headers, context)?;
+            Ok(cloned.into())
+        })
+    };
     request_obj.set(
         js_string!("clone"),
         clone_fn.to_js_function(context.realm()),
@@ -588,7 +559,12 @@ fn create_fetch_event_request(
 
     let headers_obj = JsObject::with_object_proto(context.intrinsics());
     for (key, value) in headers {
-        headers_obj.set(js_string!(key.as_str()), js_string!(value.as_str()), false, context)?;
+        headers_obj.set(
+            js_string!(key.as_str()),
+            js_string!(value.as_str()),
+            false,
+            context,
+        )?;
     }
     request_obj.set(js_string!("headers"), headers_obj, false, context)?;
 

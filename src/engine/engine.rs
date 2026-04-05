@@ -1,12 +1,10 @@
+use crate::engine::browser::module_loader::HttpModuleLoader;
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
-use thalora_browser_apis::boa_engine::{
-    Context, JsValue, Source, js_string,
-};
-use crate::engine::browser::module_loader::HttpModuleLoader;
+use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string};
 use tokio::sync::Mutex;
 
 use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;

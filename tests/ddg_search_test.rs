@@ -17,11 +17,18 @@ async fn test_duckduckgo_search_via_url() {
     let content = result.unwrap();
 
     eprintln!("DDG search results: {} bytes", content.len());
-    assert!(content.len() > 5000, "Search results too short: {} bytes", content.len());
+    assert!(
+        content.len() > 5000,
+        "Search results too short: {} bytes",
+        content.len()
+    );
 
     // Verify search results contain relevant content
     let content_lower = content.to_lowercase();
-    assert!(content_lower.contains("rust"), "Search results should mention 'rust'");
+    assert!(
+        content_lower.contains("rust"),
+        "Search results should mention 'rust'"
+    );
 }
 
 #[tokio::test]
@@ -40,7 +47,10 @@ async fn test_duckduckgo_form_submit() {
     let submit = guard.submit_form("form", form_data).await;
     match &submit {
         Ok(response) => {
-            eprintln!("Form submit success: {}, message: {}", response.success, response.message);
+            eprintln!(
+                "Form submit success: {}, message: {}",
+                response.success, response.message
+            );
             if let Some(ref content) = response.new_content {
                 eprintln!("New content: {} bytes", content.len());
             }
@@ -71,7 +81,10 @@ async fn test_duckduckgo_type_into_search() {
 
     match &type_result {
         Ok(response) => {
-            eprintln!("Type success: {}, message: {}", response.success, response.message);
+            eprintln!(
+                "Type success: {}, message: {}",
+                response.success, response.message
+            );
         }
         Err(e) => {
             eprintln!("Type error (may need JS context): {}", e);

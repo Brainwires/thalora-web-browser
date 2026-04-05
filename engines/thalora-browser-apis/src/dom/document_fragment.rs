@@ -164,13 +164,14 @@ impl DocumentFragmentData {
         })?;
 
         let value = {
-            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(
-                || {
-                    JsNativeError::typ().with_message(
+            let fragment_data =
+                this_obj
+                    .downcast_ref::<DocumentFragmentData>()
+                    .ok_or_else(|| {
+                        JsNativeError::typ().with_message(
                         "DocumentFragment.childElementCount called on non-DocumentFragment object",
                     )
-                },
-            )?;
+                    })?;
             fragment_data.get_child_element_count()
         };
         Ok(JsValue::from(value))
@@ -188,13 +189,14 @@ impl DocumentFragmentData {
         })?;
 
         let value = {
-            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(
-                || {
-                    JsNativeError::typ().with_message(
+            let fragment_data =
+                this_obj
+                    .downcast_ref::<DocumentFragmentData>()
+                    .ok_or_else(|| {
+                        JsNativeError::typ().with_message(
                         "DocumentFragment.firstElementChild called on non-DocumentFragment object",
                     )
-                },
-            )?;
+                    })?;
             fragment_data.get_first_element_child()
         };
         match value {
@@ -215,13 +217,14 @@ impl DocumentFragmentData {
         })?;
 
         let value = {
-            let fragment_data = this_obj.downcast_ref::<DocumentFragmentData>().ok_or_else(
-                || {
-                    JsNativeError::typ().with_message(
+            let fragment_data =
+                this_obj
+                    .downcast_ref::<DocumentFragmentData>()
+                    .ok_or_else(|| {
+                        JsNativeError::typ().with_message(
                         "DocumentFragment.lastElementChild called on non-DocumentFragment object",
                     )
-                },
-            )?;
+                    })?;
             fragment_data.get_last_element_child()
         };
         match value {

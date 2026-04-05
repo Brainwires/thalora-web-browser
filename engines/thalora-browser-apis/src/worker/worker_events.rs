@@ -4,10 +4,8 @@
 //! Implements event handler properties and event dispatching
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, js_string,
-    object::JsObject,
-    property::PropertyDescriptorBuilder,
-    value::JsValue,
+    Context, JsArgs, JsNativeError, JsResult, js_string, object::JsObject,
+    property::PropertyDescriptorBuilder, value::JsValue,
 };
 use boa_gc::{Finalize, Trace};
 use std::collections::HashMap;

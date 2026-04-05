@@ -6,10 +6,8 @@
 //! https://html.spec.whatwg.org/multipage/custom-elements.html#customelementregistry
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string,
-    object::ObjectInitializer,
-    property::Attribute,
-    value::JsValue,
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string, object::ObjectInitializer,
+    property::Attribute, value::JsValue,
 };
 use std::collections::HashMap;
 use std::sync::RwLock;

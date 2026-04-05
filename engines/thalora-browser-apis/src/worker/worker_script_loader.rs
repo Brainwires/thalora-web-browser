@@ -2,17 +2,12 @@
 //!
 //! Handles fetching, parsing, and executing JavaScript files in isolated Worker contexts
 
-use crate::misc::structured_clone::{
-    StructuredCloneValue, TransferList, structured_clone,
-};
+use crate::misc::structured_clone::{StructuredCloneValue, TransferList, structured_clone};
 use crate::worker::{
     worker_error::error_helpers,
     worker_global_scope::{MessageSource, WorkerGlobalScope, WorkerGlobalScopeType, WorkerMessage},
 };
-use boa_engine::{
-    Context, JsResult, JsValue, Source, module::Module,
-    object::JsObject,
-};
+use boa_engine::{Context, JsResult, JsValue, Source, module::Module, object::JsObject};
 use std::sync::{Arc, Mutex};
 use url::Url;
 

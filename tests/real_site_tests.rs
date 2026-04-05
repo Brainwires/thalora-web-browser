@@ -111,7 +111,11 @@ async fn test_load_site_with_csp_github() {
     let mut guard = browser.lock().unwrap();
 
     let result = guard.navigate_to("https://github.com/about").await;
-    assert!(result.is_ok(), "GitHub (CSP-heavy) failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "GitHub (CSP-heavy) failed: {:?}",
+        result.err()
+    );
     let content = result.unwrap();
     assert!(content.len() > 1000, "GitHub about page too short");
     eprintln!("github.com/about (CSP): {} bytes", content.len());
@@ -133,10 +137,18 @@ async fn test_js_execution_after_navigation() {
     let mut guard = browser.lock().unwrap();
 
     let nav_result = guard.navigate_to("https://example.com").await;
-    assert!(nav_result.is_ok(), "Navigation failed: {:?}", nav_result.err());
+    assert!(
+        nav_result.is_ok(),
+        "Navigation failed: {:?}",
+        nav_result.err()
+    );
 
     // Execute JS on the loaded page
     let js_result = guard.execute_javascript("document.title").await;
-    assert!(js_result.is_ok(), "JS execution after nav failed: {:?}", js_result.err());
+    assert!(
+        js_result.is_ok(),
+        "JS execution after nav failed: {:?}",
+        js_result.err()
+    );
     eprintln!("example.com title: {}", js_result.unwrap());
 }

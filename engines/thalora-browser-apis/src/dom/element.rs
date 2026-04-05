@@ -2049,7 +2049,9 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     })?;
 
     // Use spec-compliant 3-phase dispatch via EventTargetData
-    if let Some(target_data) = this_obj.downcast_ref::<crate::events::event_target::EventTargetData>() {
+    if let Some(target_data) =
+        this_obj.downcast_ref::<crate::events::event_target::EventTargetData>()
+    {
         let result = target_data.dispatch_event(&event_obj, &this_obj, context)?;
         Ok(JsValue::from(result))
     } else {

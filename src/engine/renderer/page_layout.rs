@@ -185,7 +185,10 @@ impl CounterState {
                 i += 1;
             }
             // Push a new counter scope
-            self.counters.entry(name.to_string()).or_default().push(init_val);
+            self.counters
+                .entry(name.to_string())
+                .or_default()
+                .push(init_val);
         }
     }
 
@@ -326,7 +329,7 @@ fn format_counter_value(val: i32, style: &str) -> String {
         }
         "lower-roman" => to_roman(val, false),
         "upper-roman" => to_roman(val, true),
-        "disc" => "\u{2022}".to_string(), // •
+        "disc" => "\u{2022}".to_string(),   // •
         "circle" => "\u{25CB}".to_string(), // ○
         "square" => "\u{25A0}".to_string(), // ■
         "none" => String::new(),
@@ -340,9 +343,19 @@ fn to_roman(mut val: i32, upper: bool) -> String {
         return val.to_string();
     }
     let numerals = [
-        (1000, "m"), (900, "cm"), (500, "d"), (400, "cd"),
-        (100, "c"), (90, "xc"), (50, "l"), (40, "xl"),
-        (10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"),
+        (1000, "m"),
+        (900, "cm"),
+        (500, "d"),
+        (400, "cd"),
+        (100, "c"),
+        (90, "xc"),
+        (50, "l"),
+        (40, "xl"),
+        (10, "x"),
+        (9, "ix"),
+        (5, "v"),
+        (4, "iv"),
+        (1, "i"),
     ];
     let mut result = String::new();
     for &(value, numeral) in &numerals {
@@ -356,7 +369,11 @@ fn to_roman(mut val: i32, upper: bool) -> String {
 
 /// Resolve CSS `content` property value to plain text.
 /// Handles: quoted strings, `counter()`, `counters()`, `attr()`, and concatenation.
-fn resolve_css_content(content: &str, counter_state: &CounterState, el: Option<&scraper::node::Element>) -> Option<String> {
+fn resolve_css_content(
+    content: &str,
+    counter_state: &CounterState,
+    el: Option<&scraper::node::Element>,
+) -> Option<String> {
     let content = content.trim();
     if content == "none" || content == "normal" || content.is_empty() {
         return None;
@@ -446,7 +463,11 @@ fn resolve_css_content(content: &str, counter_state: &CounterState, el: Option<&
         }
     }
 
-    if result.is_empty() { None } else { Some(result) }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 use super::layout::{
     BoxModelSides, ElementLayout, LayoutElement, LayoutEngine, LayoutResult, parse_px_value,
@@ -982,7 +1003,9 @@ pub fn compute_styled_tree_with_css(
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
             if !csp_allows_inline {
-                eprintln!("🔒 CSP: Inline <style> block blocked by style-src (missing 'unsafe-inline')");
+                eprintln!(
+                    "🔒 CSP: Inline <style> block blocked by style-src (missing 'unsafe-inline')"
+                );
                 continue;
             }
             style_block_count += 1;
@@ -1822,7 +1845,9 @@ pub fn compute_page_layout_with_css(
         let css_text: String = style_el.text().collect();
         if !css_text.trim().is_empty() {
             if !csp_allows_inline_legacy {
-                eprintln!("🔒 CSP: Inline <style> block blocked by style-src (missing 'unsafe-inline')");
+                eprintln!(
+                    "🔒 CSP: Inline <style> block blocked by style-src (missing 'unsafe-inline')"
+                );
                 continue;
             }
             // lightningcss may fail on malformed CSS — log and skip

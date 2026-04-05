@@ -252,13 +252,16 @@ impl CssProcessor {
     pub(crate) fn evaluate_supports_condition(&self, condition: &SupportsCondition) -> bool {
         match condition {
             SupportsCondition::Not(inner) => !self.evaluate_supports_condition(inner),
-            SupportsCondition::And(conditions) => {
-                conditions.iter().all(|c| self.evaluate_supports_condition(c))
-            }
-            SupportsCondition::Or(conditions) => {
-                conditions.iter().any(|c| self.evaluate_supports_condition(c))
-            }
-            SupportsCondition::Declaration { property_id: _, value: _ } => {
+            SupportsCondition::And(conditions) => conditions
+                .iter()
+                .all(|c| self.evaluate_supports_condition(c)),
+            SupportsCondition::Or(conditions) => conditions
+                .iter()
+                .any(|c| self.evaluate_supports_condition(c)),
+            SupportsCondition::Declaration {
+                property_id: _,
+                value: _,
+            } => {
                 // If lightningcss parsed this declaration successfully, we "support" it.
                 // The mere presence of a Declaration variant means it was parseable.
                 true

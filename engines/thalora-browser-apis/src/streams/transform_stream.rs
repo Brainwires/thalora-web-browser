@@ -9,9 +9,7 @@
 use super::{readable_stream::ReadableStream, writable_stream::WritableStream};
 use boa_engine::{
     Context, JsArgs, JsData, JsNativeError, JsResult, JsString,
-    builtins::{
-        BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject,
-    },
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::{JsObject, internal_methods::get_prototype_from_constructor},

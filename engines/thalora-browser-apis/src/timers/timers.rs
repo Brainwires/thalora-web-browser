@@ -5,9 +5,7 @@
 //!
 //! This implements the complete Timer interface with basic synchronous scheduling
 
-use boa_engine::{
-    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string,
-};
+use boa_engine::{Context, JsArgs, JsResult, JsValue, NativeFunction, js_string};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

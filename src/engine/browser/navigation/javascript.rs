@@ -101,8 +101,10 @@ impl super::super::HeadlessWebBrowser {
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
         if let Some(ref csp) = csp_header {
-            eprintln!("🔒 CSP: Content-Security-Policy header found: {}",
-                if csp.len() > 100 { &csp[..100] } else { csp });
+            eprintln!(
+                "🔒 CSP: Content-Security-Policy header found: {}",
+                if csp.len() > 100 { &csp[..100] } else { csp }
+            );
             self.csp_policy = Some(super::csp::CspPolicy::parse(csp));
         } else {
             self.csp_policy = None;
@@ -118,10 +120,7 @@ impl super::super::HeadlessWebBrowser {
             .get("strict-transport-security")
             .and_then(|v| v.to_str().ok())
         {
-            if let Some(domain) = response
-                .url()
-                .host_str()
-            {
+            if let Some(domain) = response.url().host_str() {
                 eprintln!("🔒 HSTS: Storing policy for {}: {}", domain, hsts_value);
                 self.hsts_store.parse_header(domain, hsts_value);
             }
@@ -359,7 +358,10 @@ impl super::super::HeadlessWebBrowser {
         if !only_deferred {
             let mut async_scripts: Vec<(String, Option<String>)> = Vec::new(); // (url, integrity)
             for script_element in document.select(&script_selector) {
-                let script_type = script_element.value().attr("type").unwrap_or("text/javascript");
+                let script_type = script_element
+                    .value()
+                    .attr("type")
+                    .unwrap_or("text/javascript");
                 let is_rocket_loader = script_type.ends_with("-text/javascript");
                 let is_js = is_rocket_loader
                     || script_type == "text/javascript"
@@ -373,7 +375,10 @@ impl super::super::HeadlessWebBrowser {
                 if is_async && !is_defer {
                     if let Some(src) = script_element.value().attr("src") {
                         if let Ok(url) = self.resolve_script_url(&base_url, src) {
-                            let integrity = script_element.value().attr("integrity").map(|s| s.to_string());
+                            let integrity = script_element
+                                .value()
+                                .attr("integrity")
+                                .map(|s| s.to_string());
                             async_scripts.push((url, integrity));
                         }
                     }
@@ -416,7 +421,10 @@ impl super::super::HeadlessWebBrowser {
                                 && !verify_integrity(content.as_bytes(), integrity_value)
                             {
                                 scripts_failed += 1;
-                                eprintln!("🔒 SRI: Async script integrity check FAILED for {}", url);
+                                eprintln!(
+                                    "🔒 SRI: Async script integrity check FAILED for {}",
+                                    url
+                                );
                                 continue;
                             }
                         }
@@ -481,20 +489,29 @@ impl super::super::HeadlessWebBrowser {
                                 }
                                 Err(e) => {
                                     scripts_failed += 1;
-                                    eprintln!("⚠️  WARNING: External module execution failed: {}", e);
+                                    eprintln!(
+                                        "⚠️  WARNING: External module execution failed: {}",
+                                        e
+                                    );
                                 }
                             }
                         }
                         Err(e) => {
                             scripts_failed += 1;
-                            eprintln!("⚠️  WARNING: Failed to fetch external module {}: {}", src, e);
+                            eprintln!(
+                                "⚠️  WARNING: Failed to fetch external module {}: {}",
+                                src, e
+                            );
                         }
                     }
                 } else {
                     // Inline module
                     let module_source: String = script_element.text().collect();
                     if !module_source.trim().is_empty() {
-                        eprintln!("🔍 DEBUG: Executing inline module ({} chars)", module_source.len());
+                        eprintln!(
+                            "🔍 DEBUG: Executing inline module ({} chars)",
+                            module_source.len()
+                        );
                         match self.execute_module(&module_source, &base_url).await {
                             Ok(_) => {
                                 scripts_executed += 1;
@@ -566,10 +583,7 @@ impl super::super::HeadlessWebBrowser {
                         // SRI: Verify integrity hash if attribute is present
                         if let Some(integrity_value) = integrity {
                             if !integrity_value.is_empty()
-                                && !verify_integrity(
-                                    script_content.as_bytes(),
-                                    integrity_value,
-                                )
+                                && !verify_integrity(script_content.as_bytes(), integrity_value)
                             {
                                 scripts_failed += 1;
                                 eprintln!(
@@ -1015,7 +1029,9 @@ impl super::super::HeadlessWebBrowser {
         if let Some(ref csp) = self.csp_policy {
             if !csp.allows_style(url, self.current_url.as_deref()) {
                 eprintln!("🔒 CSP: External stylesheet blocked by style-src: {}", url);
-                return Err(anyhow!("Stylesheet blocked by Content-Security-Policy style-src"));
+                return Err(anyhow!(
+                    "Stylesheet blocked by Content-Security-Policy style-src"
+                ));
             }
         }
 

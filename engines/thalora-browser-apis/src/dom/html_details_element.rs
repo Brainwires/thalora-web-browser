@@ -84,7 +84,12 @@ impl BuiltInConstructor for HTMLDetailsElement {
 
         // Set Element interface properties
         details_generic.set(js_string!("tagName"), js_string!("DETAILS"), false, context)?;
-        details_generic.set(js_string!("nodeName"), js_string!("DETAILS"), false, context)?;
+        details_generic.set(
+            js_string!("nodeName"),
+            js_string!("DETAILS"),
+            false,
+            context,
+        )?;
         details_generic.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
 
         Ok(details_generic.into())
@@ -106,8 +111,7 @@ impl HTMLDetailsElementData {
 
 fn get_open(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("HTMLDetailsElement.prototype.open called on non-object")
+        JsNativeError::typ().with_message("HTMLDetailsElement.prototype.open called on non-object")
     })?;
 
     if let Some(data) = this_obj.downcast_ref::<HTMLDetailsElementData>() {
@@ -119,8 +123,7 @@ fn get_open(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResu
 
 fn set_open(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("HTMLDetailsElement.prototype.open called on non-object")
+        JsNativeError::typ().with_message("HTMLDetailsElement.prototype.open called on non-object")
     })?;
 
     let open = args.get_or_undefined(0).to_boolean();

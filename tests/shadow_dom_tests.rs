@@ -22,7 +22,11 @@ async fn test_attach_shadow_open_mode() {
         .await;
     assert!(result.is_ok(), "attachShadow should not crash");
     let val = result.unwrap();
-    assert!(val.contains("ok"), "Shadow root should be created, got: {}", val);
+    assert!(
+        val.contains("ok"),
+        "Shadow root should be created, got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -95,7 +99,10 @@ async fn test_shadow_root_host_property() {
             "#,
         )
         .await;
-    assert!(result.is_ok(), "Getting shadow host should not crash (no BorrowMutError)");
+    assert!(
+        result.is_ok(),
+        "Getting shadow host should not crash (no BorrowMutError)"
+    );
 }
 
 #[tokio::test]
@@ -141,7 +148,10 @@ async fn test_attach_shadow_duplicate_throws() {
             "#,
         )
         .await;
-    assert!(result.is_ok(), "Duplicate attachShadow should throw, not crash");
+    assert!(
+        result.is_ok(),
+        "Duplicate attachShadow should throw, not crash"
+    );
     let val = result.unwrap();
     assert!(
         val.contains("correctly_threw") || val.contains("already"),
@@ -181,5 +191,8 @@ async fn test_shadow_dom_no_borrow_panic() {
             "#,
         )
         .await;
-    assert!(result.is_ok(), "Rapid shadow DOM access should not panic with BorrowMutError");
+    assert!(
+        result.is_ok(),
+        "Rapid shadow DOM access should not panic with BorrowMutError"
+    );
 }

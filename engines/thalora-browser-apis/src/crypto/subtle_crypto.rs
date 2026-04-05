@@ -1042,8 +1042,6 @@ impl SubtleCrypto {
     }
 
     fn ecdsa_sign(key: &CryptoKeyData, curve: &str, data: &[u8]) -> JsResult<Vec<u8>> {
-        
-
         let d = match &key.material {
             KeyMaterial::EcPrivate { d, .. } => d.as_ref().as_slice(),
             _ => {

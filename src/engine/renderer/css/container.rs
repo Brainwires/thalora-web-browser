@@ -11,9 +11,13 @@
 //! container dimensions instead of the viewport.
 
 use super::types::CssProcessor;
-use lightningcss::media_query::{MediaFeatureComparison, MediaFeatureValue, Operator, QueryFeature};
-use lightningcss::rules::container::{ContainerCondition, ContainerSizeFeature, ContainerSizeFeatureId};
 use lightningcss::media_query::MediaFeatureName;
+use lightningcss::media_query::{
+    MediaFeatureComparison, MediaFeatureValue, Operator, QueryFeature,
+};
+use lightningcss::rules::container::{
+    ContainerCondition, ContainerSizeFeature, ContainerSizeFeatureId,
+};
 
 impl CssProcessor {
     /// Evaluate a container condition against the current viewport dimensions
@@ -43,16 +47,29 @@ impl CssProcessor {
             ContainerCondition::Feature(feature) => {
                 self.evaluate_container_size_feature(feature, container_width, container_height)
             }
-            ContainerCondition::Not(inner) => {
-                !self.evaluate_container_condition_with_size(inner, container_width, container_height)
-            }
-            ContainerCondition::Operation { operator, conditions } => match operator {
-                Operator::And => conditions
-                    .iter()
-                    .all(|c| self.evaluate_container_condition_with_size(c, container_width, container_height)),
-                Operator::Or => conditions
-                    .iter()
-                    .any(|c| self.evaluate_container_condition_with_size(c, container_width, container_height)),
+            ContainerCondition::Not(inner) => !self.evaluate_container_condition_with_size(
+                inner,
+                container_width,
+                container_height,
+            ),
+            ContainerCondition::Operation {
+                operator,
+                conditions,
+            } => match operator {
+                Operator::And => conditions.iter().all(|c| {
+                    self.evaluate_container_condition_with_size(
+                        c,
+                        container_width,
+                        container_height,
+                    )
+                }),
+                Operator::Or => conditions.iter().any(|c| {
+                    self.evaluate_container_condition_with_size(
+                        c,
+                        container_width,
+                        container_height,
+                    )
+                }),
             },
             ContainerCondition::Style(_) => {
                 // Style queries (e.g., `@container style(--theme: dark)`) are not
@@ -100,7 +117,12 @@ impl CssProcessor {
                     }
                 } else {
                     // Non-length value (e.g., orientation: landscape) — handle below
-                    self.evaluate_container_non_length(feature_id, value, container_width, container_height)
+                    self.evaluate_container_non_length(
+                        feature_id,
+                        value,
+                        container_width,
+                        container_height,
+                    )
                 }
             }
             QueryFeature::Boolean { name } => {
@@ -118,7 +140,11 @@ impl CssProcessor {
                     _ => true,
                 }
             }
-            QueryFeature::Range { name, operator, value } => {
+            QueryFeature::Range {
+                name,
+                operator,
+                value,
+            } => {
                 let feature_id = match name {
                     MediaFeatureName::Standard(id) => id,
                     _ => return true,
@@ -148,7 +174,11 @@ impl CssProcessor {
 
                 let start_ok = if let Some(start_val) = self.extract_length_px(start) {
                     // Interval: start_val <op> dimension, so we flip the comparison
-                    self.compare_values(dimension, Self::flip_comparison(*start_operator), start_val)
+                    self.compare_values(
+                        dimension,
+                        Self::flip_comparison(*start_operator),
+                        start_val,
+                    )
                 } else {
                     true
                 };
@@ -269,9 +299,9 @@ impl CssProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lightningcss::rules::CssRule;
     use lightningcss::rules::container::ContainerCondition;
     use lightningcss::stylesheet::{ParserOptions, StyleSheet};
-    use lightningcss::rules::CssRule;
 
     /// Helper: parse a `@container (...)` rule and return the condition
     fn parse_container_condition(css: &str) -> ContainerCondition<'static> {
@@ -283,7 +313,10 @@ mod tests {
 
         for rule in &stylesheet.rules.0 {
             if let CssRule::Container(container_rule) = rule {
-                return container_rule.condition.clone().expect("test @container should have a condition");
+                return container_rule
+                    .condition
+                    .clone()
+                    .expect("test @container should have a condition");
             }
         }
         panic!("No @container rule found in: {}", css);

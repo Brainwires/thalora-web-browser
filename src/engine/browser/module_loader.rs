@@ -13,11 +13,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use thalora_browser_apis::boa_engine::{
-    Context, JsError, JsNativeError, JsResult, JsString,
-    js_string,
+    Context, JsError, JsNativeError, JsResult, JsString, Source, js_string,
     module::{Module, ModuleLoader, ModuleRequest, Referrer},
     object::JsObject,
-    Source,
 };
 
 /// HTTP-based module loader that fetches ES modules from URLs.
@@ -47,8 +45,13 @@ impl HttpModuleLoader {
     }
 
     /// Resolve a module specifier to an absolute URL (public for testing).
-    pub fn resolve_url_pub(&self, specifier: &str, referrer_path: Option<&Path>) -> Result<String, String> {
-        self.resolve_url(specifier, referrer_path).map_err(|e| format!("{}", e))
+    pub fn resolve_url_pub(
+        &self,
+        specifier: &str,
+        referrer_path: Option<&Path>,
+    ) -> Result<String, String> {
+        self.resolve_url(specifier, referrer_path)
+            .map_err(|e| format!("{}", e))
     }
 
     /// Resolve a module specifier to an absolute URL.
@@ -78,8 +81,7 @@ impl HttpModuleLoader {
         // Relative specifier (./foo, ../bar)
         if specifier.starts_with("./") || specifier.starts_with("../") {
             let base = url::Url::parse(&base_str).map_err(|e| {
-                JsNativeError::typ()
-                    .with_message(format!("Invalid base URL '{}': {}", base_str, e))
+                JsNativeError::typ().with_message(format!("Invalid base URL '{}': {}", base_str, e))
             })?;
             let resolved = base.join(specifier).map_err(|e| {
                 JsNativeError::typ()
@@ -91,8 +93,7 @@ impl HttpModuleLoader {
         // Root-relative specifier (/foo/bar.js)
         if specifier.starts_with('/') {
             let base = url::Url::parse(&base_str).map_err(|e| {
-                JsNativeError::typ()
-                    .with_message(format!("Invalid base URL '{}': {}", base_str, e))
+                JsNativeError::typ().with_message(format!("Invalid base URL '{}': {}", base_str, e))
             })?;
             let origin = base.origin().unicode_serialization();
             return Ok(format!("{}{}", origin, specifier));
@@ -150,8 +151,10 @@ impl ModuleLoader for HttpModuleLoader {
             }
 
             response.text().map_err(|e| {
-                JsNativeError::typ()
-                    .with_message(format!("Failed to read module body '{}': {}", resolved_url, e))
+                JsNativeError::typ().with_message(format!(
+                    "Failed to read module body '{}': {}",
+                    resolved_url, e
+                ))
             })?
         };
 
@@ -167,8 +170,10 @@ impl ModuleLoader for HttpModuleLoader {
             // JSON module
             let json_str = JsString::from(source_text.as_str());
             Module::parse_json(json_str, &mut context.borrow_mut()).map_err(|e| {
-                JsNativeError::syntax()
-                    .with_message(format!("JSON module parse error for '{}': {}", resolved_url, e))
+                JsNativeError::syntax().with_message(format!(
+                    "JSON module parse error for '{}': {}",
+                    resolved_url, e
+                ))
             })?
         } else {
             // JavaScript module — use URL-as-PathBuf for referrer resolution
@@ -197,7 +202,12 @@ impl ModuleLoader for HttpModuleLoader {
         // Set import.meta.url to the module's resolved URL
         if let Some(path) = module.path() {
             let url = path.to_string_lossy().to_string();
-            let _ = import_meta.set(js_string!("url"), JsString::from(url.as_str()), false, context);
+            let _ = import_meta.set(
+                js_string!("url"),
+                JsString::from(url.as_str()),
+                false,
+                context,
+            );
         }
     }
 }

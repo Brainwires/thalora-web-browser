@@ -26,7 +26,11 @@ async fn test_event_target_set_during_dispatch() {
         .await;
     assert!(result.is_ok(), "dispatchEvent should not crash");
     let val = result.unwrap();
-    assert!(val.contains("target_set"), "event.target should be set during dispatch, got: {}", val);
+    assert!(
+        val.contains("target_set"),
+        "event.target should be set during dispatch, got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -51,7 +55,11 @@ async fn test_event_phase_at_target() {
         .await;
     assert!(result.is_ok());
     let val = result.unwrap();
-    assert!(val.contains("phase=2"), "Should be AT_TARGET (2), got: {}", val);
+    assert!(
+        val.contains("phase=2"),
+        "Should be AT_TARGET (2), got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -80,7 +88,11 @@ async fn test_stop_immediate_propagation() {
         .await;
     assert!(result.is_ok());
     let val = result.unwrap();
-    assert!(val.contains("calls=1"), "stopImmediatePropagation should prevent second listener, got: {}", val);
+    assert!(
+        val.contains("calls=1"),
+        "stopImmediatePropagation should prevent second listener, got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -104,7 +116,11 @@ async fn test_prevent_default_returns_false() {
         .await;
     assert!(result.is_ok());
     let val = result.unwrap();
-    assert!(val.contains("result=false"), "preventDefault should make dispatchEvent return false, got: {}", val);
+    assert!(
+        val.contains("result=false"),
+        "preventDefault should make dispatchEvent return false, got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -128,7 +144,11 @@ async fn test_once_listener_removed_after_fire() {
         .await;
     assert!(result.is_ok());
     let val = result.unwrap();
-    assert!(val.contains("calls=1"), "once listener should fire exactly once, got: {}", val);
+    assert!(
+        val.contains("calls=1"),
+        "once listener should fire exactly once, got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -154,8 +174,11 @@ async fn test_capture_vs_bubble_listeners() {
     assert!(result.is_ok());
     let val = result.unwrap();
     // At target phase, all listeners fire in registration order
-    assert!(val.contains("bubble") && val.contains("capture"),
-        "Both capture and bubble listeners should fire at target, got: {}", val);
+    assert!(
+        val.contains("bubble") && val.contains("capture"),
+        "Both capture and bubble listeners should fire at target, got: {}",
+        val
+    );
 }
 
 #[tokio::test]
@@ -179,5 +202,9 @@ async fn test_non_bubbling_event() {
         .await;
     assert!(result.is_ok());
     let val = result.unwrap();
-    assert!(val.contains("called=true"), "Non-bubbling event should still fire on target, got: {}", val);
+    assert!(
+        val.contains("called=true"),
+        "Non-bubbling event should still fire on target, got: {}",
+        val
+    );
 }

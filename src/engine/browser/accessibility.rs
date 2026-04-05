@@ -6,7 +6,7 @@
 //! - Accessible Name Computation: https://www.w3.org/TR/accname-1.2/
 
 use scraper::{ElementRef, Html, Selector};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 
 /// Compute the implicit ARIA role for an HTML element based on its tag and attributes.
@@ -25,9 +25,7 @@ fn implicit_role(tag: &str, attrs: &HashMap<&str, &str>) -> Option<&'static str>
         }
         "form" => Some("form"),
         "search" => Some("search"),
-        "section"
-            if attrs.contains_key("aria-label") || attrs.contains_key("aria-labelledby") =>
-        {
+        "section" if attrs.contains_key("aria-label") || attrs.contains_key("aria-labelledby") => {
             Some("region")
         }
         "article" => Some("article"),
@@ -164,8 +162,8 @@ fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
                 return title.to_string();
             }
         }
-        "a" | "button" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "th" | "caption"
-        | "legend" | "summary" | "option" | "label" | "li" | "td" => {
+        "a" | "button" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "th" | "caption" | "legend"
+        | "summary" | "option" | "label" | "li" | "td" => {
             let text: String = element.text().collect();
             let text = text.trim().to_string();
             if !text.is_empty() {
@@ -369,10 +367,7 @@ mod tests {
 
     #[test]
     fn test_aria_label_override() {
-        let tree = build_accessibility_tree(
-            "<button aria-label='Close dialog'>X</button>",
-            10,
-        );
+        let tree = build_accessibility_tree("<button aria-label='Close dialog'>X</button>", 10);
         let nodes = tree["nodes"].as_array().unwrap();
         let button = nodes.iter().find(|n| n["role"] == "button").unwrap();
         assert_eq!(button["name"], "Close dialog");

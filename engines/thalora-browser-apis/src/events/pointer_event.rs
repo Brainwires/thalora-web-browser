@@ -38,10 +38,9 @@ impl IntrinsicObject for PointerEvent {
             .name(js_string!("get pressure"))
             .build();
 
-        let tangential_pressure_getter =
-            BuiltInBuilder::callable(realm, get_tangential_pressure)
-                .name(js_string!("get tangentialPressure"))
-                .build();
+        let tangential_pressure_getter = BuiltInBuilder::callable(realm, get_tangential_pressure)
+            .name(js_string!("get tangentialPressure"))
+            .build();
 
         let tilt_x_getter = BuiltInBuilder::callable(realm, get_tilt_x)
             .name(js_string!("get tiltX"))
@@ -166,68 +165,89 @@ impl BuiltInConstructor for PointerEvent {
             context,
         )?;
 
-        let (pointer_id, width, height, pressure, tangential_pressure, tilt_x, tilt_y, twist, pointer_type, is_primary) =
-            if !event_init_dict.is_undefined() {
-                if let Some(init_obj) = event_init_dict.as_object() {
-                    let pointer_id = init_obj
-                        .get(js_string!("pointerId"), context)
-                        .ok()
-                        .and_then(|v| v.to_i32(context).ok())
-                        .unwrap_or(0);
-                    let width = init_obj
-                        .get(js_string!("width"), context)
-                        .ok()
-                        .and_then(|v| v.to_number(context).ok())
-                        .unwrap_or(1.0);
-                    let height = init_obj
-                        .get(js_string!("height"), context)
-                        .ok()
-                        .and_then(|v| v.to_number(context).ok())
-                        .unwrap_or(1.0);
-                    let pressure = init_obj
-                        .get(js_string!("pressure"), context)
-                        .ok()
-                        .and_then(|v| v.to_number(context).ok())
-                        .unwrap_or(0.0) as f32;
-                    let tangential_pressure = init_obj
-                        .get(js_string!("tangentialPressure"), context)
-                        .ok()
-                        .and_then(|v| v.to_number(context).ok())
-                        .unwrap_or(0.0) as f32;
-                    let tilt_x = init_obj
-                        .get(js_string!("tiltX"), context)
-                        .ok()
-                        .and_then(|v| v.to_i32(context).ok())
-                        .unwrap_or(0);
-                    let tilt_y = init_obj
-                        .get(js_string!("tiltY"), context)
-                        .ok()
-                        .and_then(|v| v.to_i32(context).ok())
-                        .unwrap_or(0);
-                    let twist = init_obj
-                        .get(js_string!("twist"), context)
-                        .ok()
-                        .and_then(|v| v.to_i32(context).ok())
-                        .unwrap_or(0);
-                    let pointer_type = init_obj
-                        .get(js_string!("pointerType"), context)
-                        .ok()
-                        .map(|v| v.to_string(context).ok())
-                        .flatten()
-                        .map(|s| s.to_std_string_escaped())
-                        .unwrap_or_default();
-                    let is_primary = init_obj
-                        .get(js_string!("isPrimary"), context)
-                        .ok()
-                        .map(|v| v.to_boolean())
-                        .unwrap_or(false);
-                    (pointer_id, width, height, pressure, tangential_pressure, tilt_x, tilt_y, twist, pointer_type, is_primary)
-                } else {
-                    (0, 1.0, 1.0, 0.0, 0.0, 0, 0, 0, String::new(), false)
-                }
+        let (
+            pointer_id,
+            width,
+            height,
+            pressure,
+            tangential_pressure,
+            tilt_x,
+            tilt_y,
+            twist,
+            pointer_type,
+            is_primary,
+        ) = if !event_init_dict.is_undefined() {
+            if let Some(init_obj) = event_init_dict.as_object() {
+                let pointer_id = init_obj
+                    .get(js_string!("pointerId"), context)
+                    .ok()
+                    .and_then(|v| v.to_i32(context).ok())
+                    .unwrap_or(0);
+                let width = init_obj
+                    .get(js_string!("width"), context)
+                    .ok()
+                    .and_then(|v| v.to_number(context).ok())
+                    .unwrap_or(1.0);
+                let height = init_obj
+                    .get(js_string!("height"), context)
+                    .ok()
+                    .and_then(|v| v.to_number(context).ok())
+                    .unwrap_or(1.0);
+                let pressure = init_obj
+                    .get(js_string!("pressure"), context)
+                    .ok()
+                    .and_then(|v| v.to_number(context).ok())
+                    .unwrap_or(0.0) as f32;
+                let tangential_pressure = init_obj
+                    .get(js_string!("tangentialPressure"), context)
+                    .ok()
+                    .and_then(|v| v.to_number(context).ok())
+                    .unwrap_or(0.0) as f32;
+                let tilt_x = init_obj
+                    .get(js_string!("tiltX"), context)
+                    .ok()
+                    .and_then(|v| v.to_i32(context).ok())
+                    .unwrap_or(0);
+                let tilt_y = init_obj
+                    .get(js_string!("tiltY"), context)
+                    .ok()
+                    .and_then(|v| v.to_i32(context).ok())
+                    .unwrap_or(0);
+                let twist = init_obj
+                    .get(js_string!("twist"), context)
+                    .ok()
+                    .and_then(|v| v.to_i32(context).ok())
+                    .unwrap_or(0);
+                let pointer_type = init_obj
+                    .get(js_string!("pointerType"), context)
+                    .ok()
+                    .map(|v| v.to_string(context).ok())
+                    .flatten()
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_default();
+                let is_primary = init_obj
+                    .get(js_string!("isPrimary"), context)
+                    .ok()
+                    .map(|v| v.to_boolean())
+                    .unwrap_or(false);
+                (
+                    pointer_id,
+                    width,
+                    height,
+                    pressure,
+                    tangential_pressure,
+                    tilt_x,
+                    tilt_y,
+                    twist,
+                    pointer_type,
+                    is_primary,
+                )
             } else {
                 (0, 1.0, 1.0, 0.0, 0.0, 0, 0, 0, String::new(), false)
-            };
+            }
+        } else {
+            (0, 1.0, 1.0, 0.0, 0.0, 0, 0, 0, String::new(), false)
+        };
 
         let pointer_event_data = PointerEventData::new(
             event_type.to_std_string_escaped(),
@@ -260,12 +280,7 @@ impl BuiltInConstructor for PointerEvent {
         pointer_event_generic.set(js_string!("eventPhase"), 0, false, context)?;
         pointer_event_generic.set(js_string!("isTrusted"), false, false, context)?;
         pointer_event_generic.set(js_string!("target"), JsValue::null(), false, context)?;
-        pointer_event_generic.set(
-            js_string!("currentTarget"),
-            JsValue::null(),
-            false,
-            context,
-        )?;
+        pointer_event_generic.set(js_string!("currentTarget"), JsValue::null(), false, context)?;
         pointer_event_generic.set(
             js_string!("timeStamp"),
             context.clock().now().millis_since_epoch(),
@@ -355,14 +370,9 @@ impl PointerEventData {
     }
 }
 
-fn get_pointer_id(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_pointer_id(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("PointerEvent.prototype.pointerId called on non-object")
+        JsNativeError::typ().with_message("PointerEvent.prototype.pointerId called on non-object")
     })?;
 
     let data = this_obj.downcast_ref::<PointerEventData>().ok_or_else(|| {
@@ -476,8 +486,7 @@ fn get_pointer_type(
     _context: &mut Context,
 ) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("PointerEvent.prototype.pointerType called on non-object")
+        JsNativeError::typ().with_message("PointerEvent.prototype.pointerType called on non-object")
     })?;
 
     let data = this_obj.downcast_ref::<PointerEventData>().ok_or_else(|| {
@@ -488,14 +497,9 @@ fn get_pointer_type(
     Ok(js_string!(data.pointer_type.clone()).into())
 }
 
-fn get_is_primary(
-    this: &JsValue,
-    _args: &[JsValue],
-    _context: &mut Context,
-) -> JsResult<JsValue> {
+fn get_is_primary(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     let this_obj = this.as_object().ok_or_else(|| {
-        JsNativeError::typ()
-            .with_message("PointerEvent.prototype.isPrimary called on non-object")
+        JsNativeError::typ().with_message("PointerEvent.prototype.isPrimary called on non-object")
     })?;
 
     let data = this_obj.downcast_ref::<PointerEventData>().ok_or_else(|| {

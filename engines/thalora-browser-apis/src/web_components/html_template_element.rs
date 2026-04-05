@@ -7,11 +7,8 @@
 //! https://html.spec.whatwg.org/multipage/scripting.html#the-template-element
 
 use boa_engine::{
-    Context, JsArgs, JsNativeError, JsResult, NativeFunction,
-    js_string,
-    object::{
-        FunctionObjectBuilder, ObjectInitializer,
-    },
+    Context, JsArgs, JsNativeError, JsResult, NativeFunction, js_string,
+    object::{FunctionObjectBuilder, ObjectInitializer},
     property::Attribute,
     value::JsValue,
 };

@@ -11,9 +11,7 @@ use boa_engine::{
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     job::NativeAsyncJob,
     js_string,
-    object::{
-        JsObject, builtins::JsPromise, internal_methods::get_prototype_from_constructor,
-    },
+    object::{JsObject, builtins::JsPromise, internal_methods::get_prototype_from_constructor},
     property::Attribute,
     realm::Realm,
     value::JsValue,
@@ -75,10 +73,7 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
 
     // CSP: Check connect-src before making the request
     if !crate::csp::csp_allows_connect(&url_string) {
-        eprintln!(
-            "🔒 CSP: fetch() blocked by connect-src: {}",
-            url_string
-        );
+        eprintln!("🔒 CSP: fetch() blocked by connect-src: {}", url_string);
         return Err(JsNativeError::typ()
             .with_message(format!(
                 "Refused to connect to '{}' because it violates the following Content Security Policy directive: \"connect-src\"",
@@ -108,9 +103,12 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     // Service Worker fetch interception:
     // Before making a network request, check if an active service worker controls
     // this URL. If so, dispatch a FetchEvent and use the response if respondWith() was called.
-    if let Ok(Some(sw_response)) =
-        crate::fetch::sw_fetch_intercept::try_sw_fetch_intercept(&url_string, &method, &headers, context)
-    {
+    if let Ok(Some(sw_response)) = crate::fetch::sw_fetch_intercept::try_sw_fetch_intercept(
+        &url_string,
+        &method,
+        &headers,
+        context,
+    ) {
         // The service worker provided a response via respondWith()
         return Ok(JsPromise::resolve(sw_response, context)?.into());
     }
@@ -432,10 +430,7 @@ struct FetchInit {
     credentials: String,
 }
 
-fn parse_fetch_init(
-    init: &JsValue,
-    context: &mut Context,
-) -> JsResult<FetchInit> {
+fn parse_fetch_init(init: &JsValue, context: &mut Context) -> JsResult<FetchInit> {
     let init_obj = init
         .as_object()
         .ok_or_else(|| JsNativeError::typ().with_message("fetch init must be an object"))?;
@@ -521,7 +516,13 @@ fn parse_fetch_init(
         "same-origin".to_string()
     };
 
-    Ok(FetchInit { method, headers, body, mode, credentials })
+    Ok(FetchInit {
+        method,
+        headers,
+        body,
+        mode,
+        credentials,
+    })
 }
 
 /// Check if a request is a CORS "simple request" that doesn't need preflight.
@@ -532,7 +533,12 @@ fn is_cors_simple_request(method: &str, headers: &HashMap<String, String>) -> bo
     }
 
     // CORS-safelisted headers (case-insensitive check)
-    let safelisted = ["accept", "accept-language", "content-language", "content-type"];
+    let safelisted = [
+        "accept",
+        "accept-language",
+        "content-language",
+        "content-type",
+    ];
     let simple_content_types = [
         "application/x-www-form-urlencoded",
         "multipart/form-data",
@@ -549,7 +555,10 @@ fn is_cors_simple_request(method: &str, headers: &HashMap<String, String>) -> bo
         }
         if key_lower == "content-type" {
             let ct_lower = value.to_lowercase();
-            if !simple_content_types.iter().any(|&t| ct_lower.starts_with(t)) {
+            if !simple_content_types
+                .iter()
+                .any(|&t| ct_lower.starts_with(t))
+            {
                 return false;
             }
         }
@@ -564,7 +573,9 @@ fn same_origin(url_a: &str, url_b: &str) -> bool {
         let p = url::Url::parse(u).ok()?;
         let scheme = p.scheme().to_string();
         let host = p.host_str()?.to_string();
-        let port = p.port_or_known_default().unwrap_or(if scheme == "https" { 443 } else { 80 });
+        let port = p
+            .port_or_known_default()
+            .unwrap_or(if scheme == "https" { 443 } else { 80 });
         Some((scheme, host, port))
     };
     match (parse(url_a), parse(url_b)) {

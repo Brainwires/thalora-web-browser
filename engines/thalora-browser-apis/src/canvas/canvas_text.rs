@@ -23,11 +23,9 @@ static FONT_DB: LazyLock<Database> = LazyLock::new(|| {
     // Also load bundled fonts from the project's fonts directories
     let candidates = [
         // Shared fonts directory used by both Rust and C# GUI (development builds)
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../src/gui/fonts"),
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../src/gui/fonts"),
         // Legacy path for backwards compatibility
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../fonts"),
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fonts"),
         // Relative to executable (installed/deployed)
         std::env::current_exe()
             .ok()

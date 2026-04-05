@@ -451,8 +451,10 @@ impl LayoutEngine {
             let parts: Vec<&str> = ga.split('/').map(|s| s.trim()).collect();
             match parts.len() {
                 4 => {
-                    taffy_style.grid_row = parse_grid_placement(&format!("{} / {}", parts[0], parts[2]));
-                    taffy_style.grid_column = parse_grid_placement(&format!("{} / {}", parts[1], parts[3]));
+                    taffy_style.grid_row =
+                        parse_grid_placement(&format!("{} / {}", parts[0], parts[2]));
+                    taffy_style.grid_column =
+                        parse_grid_placement(&format!("{} / {}", parts[1], parts[3]));
                 }
                 2 => {
                     taffy_style.grid_row = parse_grid_placement(parts[0]);
@@ -767,7 +769,10 @@ fn parse_grid_track_list(
                 let repetition = match count_str {
                     "auto-fill" => Some(GridTrackRepetition::AutoFill),
                     "auto-fit" => Some(GridTrackRepetition::AutoFit),
-                    _ => count_str.parse::<u16>().ok().map(GridTrackRepetition::Count),
+                    _ => count_str
+                        .parse::<u16>()
+                        .ok()
+                        .map(GridTrackRepetition::Count),
                 };
 
                 if let Some(rep) = repetition {
@@ -820,10 +825,7 @@ fn parse_grid_track_list(
         } else if c == ' ' || c == '\t' {
             // End of a simple token
             let token = value[token_start..i].trim();
-            if !token.is_empty()
-                && !token.starts_with("repeat(")
-                && !token.starts_with("minmax(")
-            {
+            if !token.is_empty() && !token.starts_with("repeat(") && !token.starts_with("minmax(") {
                 result.push(TrackSizingFunction::Single(parse_single_track(
                     token,
                     font_size_px,

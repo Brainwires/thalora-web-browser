@@ -207,10 +207,7 @@ impl BuiltInConstructor for WebSocket {
 
         // CSP: Check connect-src before opening the WebSocket
         if !crate::csp::csp_allows_connect(&url_str) {
-            eprintln!(
-                "🔒 CSP: WebSocket blocked by connect-src: {}",
-                url_str
-            );
+            eprintln!("🔒 CSP: WebSocket blocked by connect-src: {}", url_str);
             return Err(JsNativeError::typ()
                 .with_message(format!(
                     "Refused to connect to '{}' because it violates the following Content Security Policy directive: \"connect-src\"",

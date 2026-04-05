@@ -56,7 +56,9 @@ impl RustRenderer {
         use thalora_browser_apis::boa_engine::Source;
 
         if !thalora_browser_apis::csp::csp_allows_eval() {
-            eprintln!("🔒 CSP: Installing eval/Function blocking overrides (unsafe-eval not allowed)");
+            eprintln!(
+                "🔒 CSP: Installing eval/Function blocking overrides (unsafe-eval not allowed)"
+            );
             if let Some(ctx) = &mut self.js_context {
                 let override_code = r#"
                     (function() {

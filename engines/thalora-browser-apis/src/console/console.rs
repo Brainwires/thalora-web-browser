@@ -6,8 +6,7 @@
 //! This implements the complete Console interface for debugging and logging
 
 use boa_engine::{
-    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string,
-    object::ObjectInitializer,
+    Context, JsArgs, JsResult, JsValue, NativeFunction, js_string, object::ObjectInitializer,
 };
 use once_cell::sync::Lazy;
 use std::collections::HashMap;

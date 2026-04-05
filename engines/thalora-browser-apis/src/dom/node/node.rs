@@ -1587,15 +1587,20 @@ impl NodeData {
                                         return Ok(js_string!("http://www.w3.org/2000/svg").into());
                                     }
                                     "math" => {
-                                        return Ok(
-                                            js_string!("http://www.w3.org/1998/Math/MathML").into()
-                                        );
+                                        return Ok(js_string!(
+                                            "http://www.w3.org/1998/Math/MathML"
+                                        )
+                                        .into());
                                     }
                                     "xlink" => {
-                                        return Ok(js_string!("http://www.w3.org/1999/xlink").into());
+                                        return Ok(
+                                            js_string!("http://www.w3.org/1999/xlink").into()
+                                        );
                                     }
                                     "xhtml" => {
-                                        return Ok(js_string!("http://www.w3.org/1999/xhtml").into());
+                                        return Ok(
+                                            js_string!("http://www.w3.org/1999/xhtml").into()
+                                        );
                                     }
                                     _ => {}
                                 }

@@ -269,7 +269,9 @@ impl RustRenderer {
     ) -> Result<String> {
         // Page script security check (relaxed — allows eval/Function/document.write/WASM)
         if !self.is_safe_page_javascript(js_code) {
-            return Err(anyhow!("Page script contains dangerous code (prototype pollution or Node.js APIs)"));
+            return Err(anyhow!(
+                "Page script contains dangerous code (prototype pollution or Node.js APIs)"
+            ));
         }
 
         let source = Source::from_bytes(js_code);
@@ -339,7 +341,9 @@ impl RustRenderer {
     /// Update the HTTP module loader's base URL for relative import resolution.
     pub fn set_module_base_url(&mut self, url: &str) {
         if let Some(ctx) = &self.js_context {
-            if let Some(loader) = ctx.downcast_module_loader::<crate::engine::browser::module_loader::HttpModuleLoader>() {
+            if let Some(loader) = ctx
+                .downcast_module_loader::<crate::engine::browser::module_loader::HttpModuleLoader>()
+            {
                 loader.set_base_url(url);
             }
         }

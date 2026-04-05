@@ -452,8 +452,6 @@ impl DocumentData {
     /// Add form metadata that can be used when creating form elements in JavaScript
     fn add_form_metadata(&self, form_id: String, inputs: Vec<(String, String, String)>) {
         // Create an HTMLFormElement with proper elements collection
-        
-        
 
         // For now, store the metadata - we'll need a context to create the actual objects
         // This processing happens at document level so all forms are known before JavaScript queries them
@@ -1898,9 +1896,7 @@ fn document_write(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
     if let Some(wrapper_obj) = wrapper.as_object() {
         // Set tag name to SPAN (lightweight inline container)
-        if let Some(element_data) =
-            wrapper_obj.downcast_ref::<crate::dom::element::ElementData>()
-        {
+        if let Some(element_data) = wrapper_obj.downcast_ref::<crate::dom::element::ElementData>() {
             element_data.set_tag_name("SPAN".to_string());
             // Set the innerHTML to the written content
             element_data.set_inner_html(content);
@@ -1916,10 +1912,13 @@ fn document_write(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 
         // Append to body's children via the document's element registry
         // Store under a unique key so multiple writes don't overwrite each other
-        let write_key = format!("__docwrite_{}", std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0));
+        let write_key = format!(
+            "__docwrite_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        );
         document.add_element(write_key, wrapper_obj.clone());
     }
 
@@ -1927,11 +1926,7 @@ fn document_write(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
 }
 
 /// `document.writeln(...)` — Same as document.write() but appends a newline.
-fn document_writeln(
-    this: &JsValue,
-    args: &[JsValue],
-    context: &mut Context,
-) -> JsResult<JsValue> {
+fn document_writeln(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
     // writeln is identical to write but appends "\n" — in DOM terms,
     // the newline has no visual effect (HTML collapses whitespace)
     document_write(this, args, context)

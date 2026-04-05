@@ -8,9 +8,7 @@
 //! - Network errors
 
 use crate::worker::worker_events::{WorkerEvent, dispatch_worker_event};
-use boa_engine::{
-    Context, JsNativeError, JsObject, JsResult, JsValue, js_string,
-};
+use boa_engine::{Context, JsNativeError, JsObject, JsResult, JsValue, js_string};
 
 /// Types of worker errors according to WHATWG specification
 #[derive(Debug, Clone, PartialEq, Eq)]

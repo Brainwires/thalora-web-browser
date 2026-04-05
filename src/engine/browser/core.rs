@@ -403,9 +403,9 @@ impl HeadlessWebBrowser {
                         if same_origin {
                             Some(current_url.clone())
                         } else {
-                            url::Url::parse(current_url)
-                                .ok()
-                                .map(|u| format!("{}://{}/", u.scheme(), u.host_str().unwrap_or("")))
+                            url::Url::parse(current_url).ok().map(|u| {
+                                format!("{}://{}/", u.scheme(), u.host_str().unwrap_or(""))
+                            })
                         }
                     }
                 }

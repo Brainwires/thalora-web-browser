@@ -8,9 +8,7 @@
 use crate::streams::readable_stream::StreamState;
 use boa_engine::{
     Context, JsData, JsNativeError, JsResult, JsString,
-    builtins::{
-        BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject,
-    },
+    builtins::{BuiltInBuilder, BuiltInConstructor, BuiltInObject, IntrinsicObject},
     context::intrinsics::{Intrinsics, StandardConstructor, StandardConstructors},
     js_string,
     object::JsObject,
