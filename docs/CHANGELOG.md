@@ -5,6 +5,102 @@ All notable changes to the Thalora Web Browser will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-04-04 - Web Standards Compliance Release
+
+### Overview
+
+Major push toward web platform standards compliance. Addressed 12+ gaps identified in a comprehensive audit of W3C, WHATWG, and ECMA standards coverage. 46 new tests added across all features.
+
+### Added
+
+#### Security Context for Page Scripts
+- `SecurityContext` enum (`PageScript` vs `AiInjected`) in JavaScript security validator
+- Page-loaded scripts from `<script>` tags now allow `eval()`, `Function()`, `document.write()`, and `WebAssembly` — standard browser behavior needed by Webpack, Google Tag Manager, and analytics libraries
+- AI-injected scripts retain full restrictive security policy
+- Prototype pollution, constructor chains, and Node.js APIs blocked in both contexts
+
+#### Event Propagation (DOM Events Spec)
+- Spec-compliant 3-phase event dispatch: capture → target → bubble
+- Builds event path by walking `parentNode` from target to root
+- Sets `event.target`, `event.currentTarget`, `event.eventPhase` at each step
+- Enforces `stopPropagation()` and `stopImmediatePropagation()`
+- `once` listeners properly removed after firing
+- `Element.prototype.dispatchEvent` delegates to propagation-aware dispatch
+
+#### Subresource Integrity (SRI)
+- `verify_integrity()` supporting SHA-256, SHA-384, and SHA-512 hash verification
+- External scripts with `integrity` attribute verified before execution
+- Mismatched hashes block script execution with security logging
+
+#### Content Security Policy (CSP)
+- Full CSP header parser (`csp.rs`) supporting `script-src` and `default-src` directives
+- Source expressions: `'self'`, `'unsafe-inline'`, `'unsafe-eval'`, `'nonce-<value>'`, `'sha256-<hash>'`, `'strict-dynamic'`, `'none'`, URL patterns, wildcard subdomains (`*.example.com`)
+- Inline scripts blocked unless matching nonce or `'unsafe-inline'`
+- External scripts blocked unless URL matches allowed sources
+- CSP parsed from HTTP response headers during navigation
+
+#### CORS Preflight
+- `Request.mode` (`cors`, `no-cors`, `same-origin`) and `Request.credentials` (`omit`, `same-origin`, `include`) support
+- OPTIONS preflight sent for non-simple cross-origin CORS requests
+- `Access-Control-Request-Method` and `Access-Control-Request-Headers` included in preflight
+- `is_cors_simple_request()` helper per Fetch spec (simple methods + CORS-safelisted headers)
+- Response type: `"opaque"` for no-cors, `"cors"` for ACAO header, `"basic"` default
+- `response.type`, `response.redirected`, `response.bodyUsed` properties added
+
+#### Accessibility Tree + MCP Tool
+- New `accessibility.rs` module: implicit ARIA role mapping for 40+ HTML elements per WAI-ARIA and HTML-AAM specs
+- Accessible name computation per Accname spec: `aria-label` > `aria-labelledby` > `alt` > `label[for]` > `placeholder` > `textContent`
+- Heading levels, element states (disabled, checked, expanded, pressed, required, readonly)
+- Explicit `role="..."` attribute overrides, `aria-hidden` exclusion
+- New `get_accessibility_tree` MCP tool (always enabled) returns JSON tree of semantic roles and names
+
+#### Web Animations API
+- Replaced `Element.animate()` mock with functional state machine
+- Correct `playState` transitions: `idle` → `running` → `paused` → `finished`
+- `finished` Promise resolves on completion, rejects on `cancel()`
+- `currentTime` tracks elapsed time, responds to `pause()`/`play()`
+- `finish` event fires via `addEventListener`
+- `reverse()` negates `playbackRate`
+- `setTimeout`-based auto-finish after duration
+
+#### Browser API Polyfills
+- `window.requestIdleCallback` / `cancelIdleCallback` with `IdleDeadline` shape (React concurrent mode)
+- `navigator.sendBeacon` as fire-and-forget POST via fetch (analytics on page unload)
+
+#### CSS & Layout
+- `float` and `clear` properties parsed into `ComputedStyles`
+- Expanded `display` mapping: `inline`, `inline-block`, `inline-flex`, `inline-grid`, `table`, `table-row`, `table-cell`, `list-item`
+
+### Fixed
+
+#### Shadow DOM BorrowMutError Crashes
+- Replaced all `GcRefCell` `borrow_mut()`/`borrow()` calls in `ShadowRootData` and `HTMLSlotElementData` with `try_borrow_mut()`/`try_borrow()` to prevent panics from re-entrant access
+- Web components (Lit, Shoelace, GitHub elements, Salesforce Lightning) no longer crash the engine
+- Un-skipped `test_shadow_dom_apis()` — now runs real JS shadow DOM tests
+
+### Changed
+
+#### WebRTC Migration to Brainwires Fork
+- Migrated from `webrtc 0.10/0.11` (6 crates) to Brainwires fork `0.20.0-alpha.1` with 95%+ W3C compliance
+- Real SDP offer/answer generation via `PeerConnectionBuilder` + `PeerConnectionEventHandler`
+- Real signaling: `setLocalDescription()`, `setRemoteDescription()`, `addIceCandidate()`
+- Real data channel creation via `createDataChannel()`
+- Sans-I/O protocol core with async-friendly API
+
+#### Dependency Upgrades
+- `sha2`: 0.10 → 0.11
+- `digest`: added 0.11
+- `base64`: added 0.22
+- `zeroize`: 1.7 → 1.8
+- `async-trait`: added 0.1
+- `webrtc`: 0.10/0.11 → 0.20.0-alpha.1 (Brainwires fork)
+
+### Known Limitations
+- ES Module HTTP resolution not yet implemented (`<script type="module">` and `import()` are recognized but use `IdleModuleLoader`)
+- Float positioning in page layout engine is parsed but not yet applied (CSS values stored, layout post-processing pending)
+- CSP enforcement limited to `script-src` directive; `style-src`, `img-src`, etc. are future work
+- CORS preflight failures are non-fatal (headless browser compatibility)
+
 ## [0.2.0] - 2025-11-07 - Security Hardening Release
 
 ### 🔒 Security Fixes (BREAKING CHANGES)
