@@ -7,8 +7,8 @@ use crate::engine::browser::{FormAnalyzer, FormInfo};
 use crate::engine::renderer::RustRenderer;
 use anyhow::Result;
 use reqwest::header::{
-    ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, HeaderMap, HeaderValue, UPGRADE_INSECURE_REQUESTS,
-    USER_AGENT,
+    ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, HeaderMap, HeaderValue, REFERER,
+    UPGRADE_INSECURE_REQUESTS, USER_AGENT,
 };
 use reqwest_cookie_store::CookieStoreMutex;
 use std::collections::HashMap;
@@ -44,6 +44,10 @@ pub struct HeadlessWebBrowser {
     pub(super) permissions_policy: Option<super::navigation::csp::PermissionsPolicy>,
     /// HSTS store for upgrading HTTP to HTTPS
     pub(super) hsts_store: super::navigation::hsts::HstsStore,
+    /// Referrer-Policy for the current page (e.g., "strict-origin-when-cross-origin")
+    pub(super) referrer_policy: Option<String>,
+    /// X-Content-Type-Options nosniff flag for the current page
+    pub(super) nosniff: bool,
 }
 
 impl HeadlessWebBrowser {
@@ -113,6 +117,8 @@ impl HeadlessWebBrowser {
             csp_policy: None,
             permissions_policy: None,
             hsts_store: super::navigation::hsts::HstsStore::new(),
+            referrer_policy: None,
+            nosniff: false,
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));
@@ -335,6 +341,83 @@ impl HeadlessWebBrowser {
 
         // Add TE header for Firefox (important fingerprint!)
         headers.insert("te", HeaderValue::from_static("trailers"));
+
+        // Apply Referrer-Policy when setting Referer header
+        if let Some(ref current_url) = self.current_url {
+            let referer = match self.referrer_policy.as_deref() {
+                Some("no-referrer") => None,
+                Some("origin") => {
+                    // Send only the origin (scheme + host + port)
+                    url::Url::parse(current_url)
+                        .ok()
+                        .map(|u| format!("{}://{}/", u.scheme(), u.host_str().unwrap_or("")))
+                }
+                Some("same-origin") => {
+                    // Only send referrer for same-origin requests
+                    let same_origin = url::Url::parse(current_url)
+                        .ok()
+                        .and_then(|curr| {
+                            url::Url::parse(url).ok().map(|target| {
+                                curr.scheme() == target.scheme()
+                                    && curr.host_str() == target.host_str()
+                            })
+                        })
+                        .unwrap_or(false);
+                    if same_origin {
+                        Some(current_url.clone())
+                    } else {
+                        None
+                    }
+                }
+                Some("strict-origin") => {
+                    // Send origin only, and only if HTTPS->HTTPS (not HTTPS->HTTP)
+                    let is_downgrade = current_url.starts_with("https://")
+                        && url.starts_with("http://")
+                        && !url.starts_with("https://");
+                    if is_downgrade {
+                        None
+                    } else {
+                        url::Url::parse(current_url)
+                            .ok()
+                            .map(|u| format!("{}://{}/", u.scheme(), u.host_str().unwrap_or("")))
+                    }
+                }
+                Some("strict-origin-when-cross-origin") | None => {
+                    // Default policy: full URL for same-origin, origin for cross-origin,
+                    // nothing for HTTPS→HTTP downgrade
+                    let is_downgrade = current_url.starts_with("https://")
+                        && url.starts_with("http://")
+                        && !url.starts_with("https://");
+                    if is_downgrade {
+                        None
+                    } else {
+                        let same_origin = url::Url::parse(current_url)
+                            .ok()
+                            .and_then(|curr| {
+                                url::Url::parse(url).ok().map(|target| {
+                                    curr.scheme() == target.scheme()
+                                        && curr.host_str() == target.host_str()
+                                })
+                            })
+                            .unwrap_or(false);
+                        if same_origin {
+                            Some(current_url.clone())
+                        } else {
+                            url::Url::parse(current_url)
+                                .ok()
+                                .map(|u| format!("{}://{}/", u.scheme(), u.host_str().unwrap_or("")))
+                        }
+                    }
+                }
+                _ => Some(current_url.clone()), // unsafe-url or unknown: send full URL
+            };
+
+            if let Some(ref referer_value) = referer {
+                if let Ok(hv) = HeaderValue::from_str(referer_value) {
+                    headers.insert(REFERER, hv);
+                }
+            }
+        }
 
         headers
     }

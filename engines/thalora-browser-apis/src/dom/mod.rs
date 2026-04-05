@@ -9,6 +9,8 @@ pub mod dom_parser;
 pub mod domtokenlist;
 pub mod element;
 pub mod html_element;
+pub mod html_details_element;
+pub mod html_dialog_element;
 pub mod html_script_element;
 
 // Native-only implementations using reqwest

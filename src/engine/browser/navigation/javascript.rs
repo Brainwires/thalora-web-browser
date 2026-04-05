@@ -142,6 +142,21 @@ impl super::super::HeadlessWebBrowser {
             self.permissions_policy = None;
         }
 
+        // Extract Referrer-Policy header
+        self.referrer_policy = response
+            .headers()
+            .get("referrer-policy")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
+        // Extract X-Content-Type-Options header
+        self.nosniff = response
+            .headers()
+            .get("x-content-type-options")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.eq_ignore_ascii_case("nosniff"))
+            .unwrap_or(false);
+
         let content = response.text().await?;
 
         // Store the current content and URL

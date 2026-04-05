@@ -131,6 +131,8 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     dom::image_bitmap::ImageBitmap::init(&realm);
     dom::html_element::HTMLElement::init(&realm);
     dom::html_script_element::HTMLScriptElement::init(&realm);
+    dom::html_dialog_element::HTMLDialogElement::init(&realm);
+    dom::html_details_element::HTMLDetailsElement::init(&realm);
     dom::dom_parser::DOMParser::init(&realm);
 
     // Initialize Canvas APIs
@@ -1009,6 +1011,32 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         dom::html_script_element::HTMLScriptElement::NAME,
         PropertyDescriptor::builder()
             .value(dom::html_script_element::HTMLScriptElement::get(
+                context.intrinsics(),
+            ))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // HTMLDialogElement constructor
+    global_object.define_property_or_throw(
+        dom::html_dialog_element::HTMLDialogElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_dialog_element::HTMLDialogElement::get(
+                context.intrinsics(),
+            ))
+            .writable(true)
+            .enumerable(false)
+            .configurable(true),
+        context,
+    )?;
+
+    // HTMLDetailsElement constructor
+    global_object.define_property_or_throw(
+        dom::html_details_element::HTMLDetailsElement::NAME,
+        PropertyDescriptor::builder()
+            .value(dom::html_details_element::HTMLDetailsElement::get(
                 context.intrinsics(),
             ))
             .writable(true)

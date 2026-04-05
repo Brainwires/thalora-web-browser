@@ -540,6 +540,82 @@ impl CssProcessor {
                 "border-block-end" => {
                     styles.border_bottom = Some(Self::parse_border_shorthand(&clean_value));
                 }
+                "border-inline-start-width" => {
+                    let mut b = styles.border_left.clone().unwrap_or_default();
+                    b.width = clean_value;
+                    styles.border_left = Some(b);
+                }
+                "border-inline-end-width" => {
+                    let mut b = styles.border_right.clone().unwrap_or_default();
+                    b.width = clean_value;
+                    styles.border_right = Some(b);
+                }
+                "border-inline-start-style" => {
+                    let mut b = styles.border_left.clone().unwrap_or_default();
+                    b.style = clean_value;
+                    styles.border_left = Some(b);
+                }
+                "border-inline-end-style" => {
+                    let mut b = styles.border_right.clone().unwrap_or_default();
+                    b.style = clean_value;
+                    styles.border_right = Some(b);
+                }
+                "border-inline-start-color" => {
+                    let mut b = styles.border_left.clone().unwrap_or_default();
+                    b.color = clean_value;
+                    styles.border_left = Some(b);
+                }
+                "border-inline-end-color" => {
+                    let mut b = styles.border_right.clone().unwrap_or_default();
+                    b.color = clean_value;
+                    styles.border_right = Some(b);
+                }
+                "border-block-start-width" => {
+                    let mut b = styles.border_top.clone().unwrap_or_default();
+                    b.width = clean_value;
+                    styles.border_top = Some(b);
+                }
+                "border-block-end-width" => {
+                    let mut b = styles.border_bottom.clone().unwrap_or_default();
+                    b.width = clean_value;
+                    styles.border_bottom = Some(b);
+                }
+                "border-block-start-style" => {
+                    let mut b = styles.border_top.clone().unwrap_or_default();
+                    b.style = clean_value;
+                    styles.border_top = Some(b);
+                }
+                "border-block-end-style" => {
+                    let mut b = styles.border_bottom.clone().unwrap_or_default();
+                    b.style = clean_value;
+                    styles.border_bottom = Some(b);
+                }
+                "border-block-start-color" => {
+                    let mut b = styles.border_top.clone().unwrap_or_default();
+                    b.color = clean_value;
+                    styles.border_top = Some(b);
+                }
+                "border-block-end-color" => {
+                    let mut b = styles.border_bottom.clone().unwrap_or_default();
+                    b.color = clean_value;
+                    styles.border_bottom = Some(b);
+                }
+                "border-inline-width" => {
+                    let mut bl = styles.border_left.clone().unwrap_or_default();
+                    bl.width = clean_value.clone();
+                    styles.border_left = Some(bl);
+                    let mut br = styles.border_right.clone().unwrap_or_default();
+                    br.width = clean_value;
+                    styles.border_right = Some(br);
+                }
+                "border-block-width" => {
+                    let mut bt = styles.border_top.clone().unwrap_or_default();
+                    bt.width = clean_value.clone();
+                    styles.border_top = Some(bt);
+                    let mut bb = styles.border_bottom.clone().unwrap_or_default();
+                    bb.width = clean_value;
+                    styles.border_bottom = Some(bb);
+                }
                 "inset-inline-start" | "inset" => {
                     styles.other.insert("left".to_string(), clean_value);
                 }
