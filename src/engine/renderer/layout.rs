@@ -397,6 +397,77 @@ impl LayoutEngine {
             };
         }
 
+        // Row gap (separate from column gap)
+        if let Some(ref row_gap) = styles.row_gap {
+            let rg = parse_length_percentage(row_gap, font_size_px, vw, vh);
+            taffy_style.gap.height = rg;
+        }
+
+        // Grid template columns
+        if let Some(ref gtc) = styles.grid_template_columns {
+            taffy_style.grid_template_columns = parse_grid_track_list(gtc, font_size_px, vw, vh);
+        }
+
+        // Grid template rows
+        if let Some(ref gtr) = styles.grid_template_rows {
+            taffy_style.grid_template_rows = parse_grid_track_list(gtr, font_size_px, vw, vh);
+        }
+
+        // Grid auto flow
+        if let Some(ref gaf) = styles.grid_auto_flow {
+            taffy_style.grid_auto_flow = match gaf.as_str() {
+                "row" => GridAutoFlow::Row,
+                "column" => GridAutoFlow::Column,
+                "row dense" | "dense" => GridAutoFlow::RowDense,
+                "column dense" => GridAutoFlow::ColumnDense,
+                _ => GridAutoFlow::Row,
+            };
+        }
+
+        // Grid auto rows
+        if let Some(ref gar) = styles.grid_auto_rows {
+            taffy_style.grid_auto_rows = parse_grid_auto_tracks(gar, font_size_px, vw, vh);
+        }
+
+        // Grid auto columns
+        if let Some(ref gac) = styles.grid_auto_columns {
+            taffy_style.grid_auto_columns = parse_grid_auto_tracks(gac, font_size_px, vw, vh);
+        }
+
+        // Grid column placement (child)
+        if let Some(ref gc) = styles.grid_column {
+            taffy_style.grid_column = parse_grid_placement(gc);
+        }
+
+        // Grid row placement (child)
+        if let Some(ref gr) = styles.grid_row {
+            taffy_style.grid_row = parse_grid_placement(gr);
+        }
+
+        // Grid area → resolve to grid_column + grid_row if it's a named area
+        // (Named areas are handled via grid-template-areas; here we handle
+        // numeric area shorthands like "1 / 2 / 3 / 4" = row-start / col-start / row-end / col-end)
+        if let Some(ref ga) = styles.grid_area {
+            let parts: Vec<&str> = ga.split('/').map(|s| s.trim()).collect();
+            match parts.len() {
+                4 => {
+                    taffy_style.grid_row = parse_grid_placement(&format!("{} / {}", parts[0], parts[2]));
+                    taffy_style.grid_column = parse_grid_placement(&format!("{} / {}", parts[1], parts[3]));
+                }
+                2 => {
+                    taffy_style.grid_row = parse_grid_placement(parts[0]);
+                    taffy_style.grid_column = parse_grid_placement(parts[1]);
+                }
+                1 => {
+                    // Single value: same start line for both axes
+                    let placement = parse_grid_placement(parts[0]);
+                    taffy_style.grid_row = placement;
+                    taffy_style.grid_column = parse_grid_placement(parts[0]);
+                }
+                _ => {}
+            }
+        }
+
         // Margin
         if let Some(ref margin) = styles.margin {
             taffy_style.margin = Rect {
@@ -527,6 +598,336 @@ fn parse_length_percentage_auto(
     }
 
     LengthPercentageAuto::Length(0.0)
+}
+
+/// Parse a single grid track sizing value (e.g., "1fr", "200px", "auto", "min-content", "max-content")
+fn parse_single_track(
+    value: &str,
+    font_size_px: f32,
+    vw: f32,
+    vh: f32,
+) -> NonRepeatedTrackSizingFunction {
+    let value = value.trim();
+
+    if value == "auto" {
+        return NonRepeatedTrackSizingFunction {
+            min: MinTrackSizingFunction::Auto,
+            max: MaxTrackSizingFunction::Auto,
+        };
+    }
+    if value == "min-content" {
+        return NonRepeatedTrackSizingFunction {
+            min: MinTrackSizingFunction::MinContent,
+            max: MaxTrackSizingFunction::MinContent,
+        };
+    }
+    if value == "max-content" {
+        return NonRepeatedTrackSizingFunction {
+            min: MinTrackSizingFunction::MaxContent,
+            max: MaxTrackSizingFunction::MaxContent,
+        };
+    }
+    if value.ends_with("fr") {
+        if let Ok(fr) = value.trim_end_matches("fr").parse::<f32>() {
+            return NonRepeatedTrackSizingFunction {
+                min: MinTrackSizingFunction::Auto,
+                max: MaxTrackSizingFunction::Fraction(fr),
+            };
+        }
+    }
+    if value.ends_with('%') {
+        if let Ok(pct) = value.trim_end_matches('%').parse::<f32>() {
+            let lp = LengthPercentage::Percent(pct / 100.0);
+            return NonRepeatedTrackSizingFunction {
+                min: MinTrackSizingFunction::Fixed(lp),
+                max: MaxTrackSizingFunction::Fixed(lp),
+            };
+        }
+    }
+
+    // Try as a length (px, em, rem, etc.)
+    if let Some(px) = resolve_css_length_vp(value, font_size_px as f64, vw, vh) {
+        let lp = LengthPercentage::Length(px as f32);
+        return NonRepeatedTrackSizingFunction {
+            min: MinTrackSizingFunction::Fixed(lp),
+            max: MaxTrackSizingFunction::Fixed(lp),
+        };
+    }
+
+    // Fallback to auto
+    NonRepeatedTrackSizingFunction {
+        min: MinTrackSizingFunction::Auto,
+        max: MaxTrackSizingFunction::Auto,
+    }
+}
+
+/// Parse a minmax() function like "minmax(0, 1fr)" or "minmax(200px, auto)"
+fn parse_minmax(
+    inner: &str,
+    font_size_px: f32,
+    vw: f32,
+    vh: f32,
+) -> NonRepeatedTrackSizingFunction {
+    let parts: Vec<&str> = inner.splitn(2, ',').map(|s| s.trim()).collect();
+    if parts.len() != 2 {
+        return parse_single_track(inner, font_size_px, vw, vh);
+    }
+
+    let min_val = parts[0];
+    let max_val = parts[1];
+
+    let min = if min_val == "auto" {
+        MinTrackSizingFunction::Auto
+    } else if min_val == "min-content" {
+        MinTrackSizingFunction::MinContent
+    } else if min_val == "max-content" {
+        MinTrackSizingFunction::MaxContent
+    } else if min_val == "0" {
+        MinTrackSizingFunction::Fixed(LengthPercentage::Length(0.0))
+    } else if min_val.ends_with('%') {
+        min_val
+            .trim_end_matches('%')
+            .parse::<f32>()
+            .map(|p| MinTrackSizingFunction::Fixed(LengthPercentage::Percent(p / 100.0)))
+            .unwrap_or(MinTrackSizingFunction::Auto)
+    } else {
+        resolve_css_length_vp(min_val, font_size_px as f64, vw, vh)
+            .map(|px| MinTrackSizingFunction::Fixed(LengthPercentage::Length(px as f32)))
+            .unwrap_or(MinTrackSizingFunction::Auto)
+    };
+
+    let max = if max_val == "auto" {
+        MaxTrackSizingFunction::Auto
+    } else if max_val == "min-content" {
+        MaxTrackSizingFunction::MinContent
+    } else if max_val == "max-content" {
+        MaxTrackSizingFunction::MaxContent
+    } else if max_val.ends_with("fr") {
+        max_val
+            .trim_end_matches("fr")
+            .parse::<f32>()
+            .map(MaxTrackSizingFunction::Fraction)
+            .unwrap_or(MaxTrackSizingFunction::Auto)
+    } else if max_val.ends_with('%') {
+        max_val
+            .trim_end_matches('%')
+            .parse::<f32>()
+            .map(|p| MaxTrackSizingFunction::Fixed(LengthPercentage::Percent(p / 100.0)))
+            .unwrap_or(MaxTrackSizingFunction::Auto)
+    } else {
+        resolve_css_length_vp(max_val, font_size_px as f64, vw, vh)
+            .map(|px| MaxTrackSizingFunction::Fixed(LengthPercentage::Length(px as f32)))
+            .unwrap_or(MaxTrackSizingFunction::Auto)
+    };
+
+    NonRepeatedTrackSizingFunction { min, max }
+}
+
+/// Parse a CSS grid track list like "1fr 200px auto" or "repeat(3, 1fr)" or "200px minmax(0,1fr) 200px"
+fn parse_grid_track_list(
+    value: &str,
+    font_size_px: f32,
+    vw: f32,
+    vh: f32,
+) -> Vec<TrackSizingFunction> {
+    let value = value.trim();
+    if value.is_empty() || value == "none" {
+        return Vec::new();
+    }
+
+    let mut result = Vec::new();
+    let mut chars = value.char_indices().peekable();
+    let mut token_start = 0;
+
+    while let Some(&(i, c)) = chars.peek() {
+        if c == 'r' && value[i..].starts_with("repeat(") {
+            // Parse repeat(count, track-list)
+            let open = i + 7; // after "repeat("
+            // Find matching close paren
+            let mut depth = 1;
+            let mut close = open;
+            for (j, ch) in value[open..].char_indices() {
+                match ch {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            close = open + j;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let inner = &value[open..close];
+            if let Some(comma_pos) = inner.find(',') {
+                let count_str = inner[..comma_pos].trim();
+                let tracks_str = inner[comma_pos + 1..].trim();
+
+                let repetition = match count_str {
+                    "auto-fill" => Some(GridTrackRepetition::AutoFill),
+                    "auto-fit" => Some(GridTrackRepetition::AutoFit),
+                    _ => count_str.parse::<u16>().ok().map(GridTrackRepetition::Count),
+                };
+
+                if let Some(rep) = repetition {
+                    let inner_tracks = parse_grid_auto_tracks(tracks_str, font_size_px, vw, vh);
+                    result.push(TrackSizingFunction::Repeat(rep, inner_tracks.into()));
+                }
+            }
+            // Advance past repeat(...)
+            token_start = close + 1;
+            while let Some(&(j, _)) = chars.peek() {
+                if j > close {
+                    break;
+                }
+                chars.next();
+            }
+            continue;
+        } else if c == 'm' && value[i..].starts_with("minmax(") {
+            // Parse minmax(min, max)
+            let open = i + 7;
+            let mut depth = 1;
+            let mut close = open;
+            for (j, ch) in value[open..].char_indices() {
+                match ch {
+                    '(' => depth += 1,
+                    ')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            close = open + j;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let inner = &value[open..close];
+            result.push(TrackSizingFunction::Single(parse_minmax(
+                inner,
+                font_size_px,
+                vw,
+                vh,
+            )));
+            token_start = close + 1;
+            while let Some(&(j, _)) = chars.peek() {
+                if j > close {
+                    break;
+                }
+                chars.next();
+            }
+            continue;
+        } else if c == ' ' || c == '\t' {
+            // End of a simple token
+            let token = value[token_start..i].trim();
+            if !token.is_empty()
+                && !token.starts_with("repeat(")
+                && !token.starts_with("minmax(")
+            {
+                result.push(TrackSizingFunction::Single(parse_single_track(
+                    token,
+                    font_size_px,
+                    vw,
+                    vh,
+                )));
+            }
+            token_start = i + 1;
+        }
+
+        chars.next();
+    }
+
+    // Handle last token
+    let token = value[token_start..].trim();
+    if !token.is_empty() {
+        result.push(TrackSizingFunction::Single(parse_single_track(
+            token,
+            font_size_px,
+            vw,
+            vh,
+        )));
+    }
+
+    result
+}
+
+/// Parse grid auto track sizing (for grid-auto-rows / grid-auto-columns)
+/// These are simpler: just space-separated NonRepeatedTrackSizingFunction values
+fn parse_grid_auto_tracks(
+    value: &str,
+    font_size_px: f32,
+    vw: f32,
+    vh: f32,
+) -> Vec<NonRepeatedTrackSizingFunction> {
+    let value = value.trim();
+    if value.is_empty() || value == "auto" {
+        return Vec::new();
+    }
+
+    // Handle minmax() as a single token
+    if value.starts_with("minmax(") && value.ends_with(')') {
+        let inner = &value[7..value.len() - 1];
+        return vec![parse_minmax(inner, font_size_px, vw, vh)];
+    }
+
+    value
+        .split_whitespace()
+        .map(|token| parse_single_track(token, font_size_px, vw, vh))
+        .collect()
+}
+
+/// Parse a grid placement value like "1 / 3", "span 2", "auto", "1"
+fn parse_grid_placement(value: &str) -> Line<GridPlacement> {
+    let value = value.trim();
+
+    if value == "auto" || value.is_empty() {
+        return Line {
+            start: GridPlacement::Auto,
+            end: GridPlacement::Auto,
+        };
+    }
+
+    // Split on "/"
+    let parts: Vec<&str> = value.split('/').map(|s| s.trim()).collect();
+
+    let parse_one = |s: &str| -> GridPlacement {
+        let s = s.trim();
+        if s == "auto" || s.is_empty() {
+            return GridPlacement::Auto;
+        }
+        if s.starts_with("span") {
+            let num_str = s.trim_start_matches("span").trim();
+            if let Ok(n) = num_str.parse::<u16>() {
+                return GridPlacement::Span(n);
+            }
+            return GridPlacement::Span(1);
+        }
+        if let Ok(n) = s.parse::<i16>() {
+            if n != 0 {
+                return GridPlacement::Line(n.into());
+            }
+        }
+        // Named grid line — taffy doesn't support named lines, treat as auto
+        GridPlacement::Auto
+    };
+
+    match parts.len() {
+        1 => {
+            let start = parse_one(parts[0]);
+            Line {
+                start,
+                end: GridPlacement::Auto,
+            }
+        }
+        2 => Line {
+            start: parse_one(parts[0]),
+            end: parse_one(parts[1]),
+        },
+        _ => Line {
+            start: GridPlacement::Auto,
+            end: GridPlacement::Auto,
+        },
+    }
 }
 
 impl LayoutEngine {
