@@ -654,11 +654,15 @@ impl CssProcessor {
                     let source_order = self.source_order_counter;
                     self.source_order_counter += 1;
 
+                    let layer = self.current_layer.as_ref()
+                        .and_then(|name| self.layer_order.get(name).copied());
+
                     self.rules.push(ParsedRule {
                         selector: selector_str,
                         specificity,
                         declarations,
                         source_order,
+                        layer,
                     });
                 }
                 CssRule::Media(media_rule) => {

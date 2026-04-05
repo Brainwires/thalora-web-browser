@@ -1,5 +1,30 @@
 use super::types::{CompiledRule, ComputedStyles, CssProcessor, ParsedRule, RuleIndex};
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+
+/// Compare two ParsedRules for cascade ordering.
+/// CSS Cascade 5 order: layered styles < unlayered styles.
+/// Within layered: earlier-declared layers < later-declared layers.
+/// Within same layer (or both unlayered): specificity, then source order.
+fn cascade_cmp(a: &ParsedRule, b: &ParsedRule) -> Ordering {
+    // Layer comparison: None (unlayered) > Some (layered)
+    match (&a.layer, &b.layer) {
+        (None, Some(_)) => return Ordering::Greater,    // unlayered wins
+        (Some(_), None) => return Ordering::Less,       // layered loses
+        (Some(a_layer), Some(b_layer)) => {
+            // Within layers: higher index = later-declared = wins
+            let layer_cmp = a_layer.cmp(b_layer);
+            if layer_cmp != Ordering::Equal {
+                return layer_cmp;
+            }
+        }
+        (None, None) => {} // both unlayered, fall through
+    }
+    // Same layer or both unlayered: specificity then source order
+    a.specificity
+        .cmp(&b.specificity)
+        .then(a.source_order.cmp(&b.source_order))
+}
 
 impl CssProcessor {
     // ── Section 1: Selector compilation & indexing ───────────────────────
@@ -264,12 +289,8 @@ impl CssProcessor {
             .filter(|rule| self.selector_applies(&rule.selector, selector))
             .collect();
 
-        // Sort by specificity then source order (lower first, so higher specificity overrides)
-        matching_rules.sort_by(|a, b| {
-            a.specificity
-                .cmp(&b.specificity)
-                .then(a.source_order.cmp(&b.source_order))
-        });
+        // Sort by cascade layer, then specificity, then source order
+        matching_rules.sort_by(|a, b| cascade_cmp(a, b));
 
         // Apply declarations in order
         for rule in matching_rules {
@@ -356,11 +377,7 @@ impl CssProcessor {
             }
 
             // Sort by specificity then source order
-            matching_rules.sort_by(|a, b| {
-                a.0.specificity
-                    .cmp(&b.0.specificity)
-                    .then(a.0.source_order.cmp(&b.0.source_order))
-            });
+            matching_rules.sort_by(|a, b| cascade_cmp(a.0, b.0));
 
             for (rule, _) in &matching_rules {
                 self.apply_declarations(&mut styles, &rule.declarations);
@@ -407,11 +424,7 @@ impl CssProcessor {
             }
         }
 
-        matching_rules.sort_by(|a, b| {
-            a.0.specificity
-                .cmp(&b.0.specificity)
-                .then(a.0.source_order.cmp(&b.0.source_order))
-        });
+        matching_rules.sort_by(|a, b| cascade_cmp(a.0, b.0));
 
         for (rule, _) in &matching_rules {
             self.apply_declarations(&mut styles, &rule.declarations);
@@ -475,11 +488,7 @@ impl CssProcessor {
                 }
             }
 
-            matching_rules.sort_by(|a, b| {
-                a.specificity
-                    .cmp(&b.specificity)
-                    .then(a.source_order.cmp(&b.source_order))
-            });
+            matching_rules.sort_by(|a, b| cascade_cmp(a, b));
 
             for rule in &matching_rules {
                 self.apply_declarations(&mut styles, &rule.declarations);
@@ -520,11 +529,7 @@ impl CssProcessor {
             }
         }
 
-        matching_rules.sort_by(|a, b| {
-            a.specificity
-                .cmp(&b.specificity)
-                .then(a.source_order.cmp(&b.source_order))
-        });
+        matching_rules.sort_by(|a, b| cascade_cmp(a, b));
 
         for rule in &matching_rules {
             self.apply_declarations(&mut styles, &rule.declarations);

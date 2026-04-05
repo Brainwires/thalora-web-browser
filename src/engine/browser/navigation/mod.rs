@@ -11,6 +11,7 @@ mod cookies;
 mod core;
 pub(crate) mod csp;
 mod forms;
+pub mod hsts;
 mod javascript;
 mod state;
 

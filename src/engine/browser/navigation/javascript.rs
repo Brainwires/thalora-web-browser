@@ -64,6 +64,15 @@ impl super::super::HeadlessWebBrowser {
         // Block access to private IPs, localhost, and cloud metadata endpoints
         SsrfProtection::new().is_safe_url(url)?;
 
+        // HSTS: upgrade http:// to https:// if policy requires it
+        let url = if let Some(upgraded) = self.hsts_store.should_upgrade(url) {
+            eprintln!("🔒 HSTS: Upgrading {} -> {}", url, upgraded);
+            upgraded
+        } else {
+            url.to_string()
+        };
+        let url = url.as_str();
+
         // Dispatch pageswap event before navigation
         self.dispatch_pageswap_event(url).await?;
 
@@ -97,6 +106,21 @@ impl super::super::HeadlessWebBrowser {
             self.csp_policy = Some(super::csp::CspPolicy::parse(csp));
         } else {
             self.csp_policy = None;
+        }
+
+        // Extract and parse Strict-Transport-Security (HSTS) header
+        if let Some(hsts_value) = response
+            .headers()
+            .get("strict-transport-security")
+            .and_then(|v| v.to_str().ok())
+        {
+            if let Some(domain) = response
+                .url()
+                .host_str()
+            {
+                eprintln!("🔒 HSTS: Storing policy for {}: {}", domain, hsts_value);
+                self.hsts_store.parse_header(domain, hsts_value);
+            }
         }
 
         // Extract and parse Permissions-Policy header (or legacy Feature-Policy)

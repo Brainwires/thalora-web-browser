@@ -141,11 +141,20 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                 match preflight.send().await {
                     Ok(preflight_resp) => {
                         let status = preflight_resp.status().as_u16();
+                        let strict_cors = std::env::var("THALORA_STRICT_CORS")
+                            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                            .unwrap_or(true);
+
                         if status < 200 || status >= 300 {
                             eprintln!("⚠️  CORS preflight returned status {}", status);
-                            // Preflight failed — log warning but continue.
-                            // A strict browser would reject here, but in headless
-                            // mode we allow the request for compatibility.
+                            if strict_cors {
+                                return Err(JsNativeError::typ()
+                                    .with_message(format!(
+                                        "Failed to fetch: CORS preflight returned status {}",
+                                        status
+                                    ))
+                                    .into());
+                            }
                         }
 
                         // Validate Access-Control-Allow-Methods
@@ -164,6 +173,14 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                                 "⚠️  CORS: method {} not in Access-Control-Allow-Methods: {}",
                                 method, allowed_methods
                             );
+                            if strict_cors {
+                                return Err(JsNativeError::typ()
+                                    .with_message(format!(
+                                        "Failed to fetch: method {} not allowed by CORS",
+                                        method
+                                    ))
+                                    .into());
+                            }
                         }
 
                         // Validate Access-Control-Allow-Headers
@@ -186,6 +203,14 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                                     "⚠️  CORS: custom headers {:?} not all in Access-Control-Allow-Headers: {}",
                                     custom_headers, allowed_headers
                                 );
+                                if strict_cors {
+                                    return Err(JsNativeError::typ()
+                                        .with_message(
+                                            "Failed to fetch: headers not allowed by CORS"
+                                                .to_string(),
+                                        )
+                                        .into());
+                                }
                             }
                         }
 
@@ -213,6 +238,17 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                     }
                     Err(e) => {
                         eprintln!("⚠️  CORS preflight request failed: {}", e);
+                        let strict_cors = std::env::var("THALORA_STRICT_CORS")
+                            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                            .unwrap_or(true);
+                        if strict_cors {
+                            return Err(JsNativeError::typ()
+                                .with_message(format!(
+                                    "Failed to fetch: CORS preflight failed: {}",
+                                    e
+                                ))
+                                .into());
+                        }
                     }
                 }
             }

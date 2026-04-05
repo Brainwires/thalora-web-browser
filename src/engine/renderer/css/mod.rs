@@ -33,6 +33,9 @@ impl CssProcessor {
             rule_index: None,
             keyframes: HashMap::new(),
             font_faces: Vec::new(),
+            layer_order: HashMap::new(),
+            layer_order_counter: 0,
+            current_layer: None,
         }
     }
 
@@ -49,6 +52,9 @@ impl CssProcessor {
             rule_index: None,
             keyframes: HashMap::new(),
             font_faces: Vec::new(),
+            layer_order: HashMap::new(),
+            layer_order_counter: 0,
+            current_layer: None,
         }
     }
 

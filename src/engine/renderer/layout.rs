@@ -1186,6 +1186,27 @@ pub fn resolve_css_length_vp(
             .map(|n| n * vmax / 100.0);
     }
 
+    // Dynamic viewport units (svw/svh/dvw/dvh/lvw/lvh) — in headless mode,
+    // small/dynamic/large viewports are all equivalent to the regular viewport.
+    if v.ends_with("svw") || v.ends_with("dvw") || v.ends_with("lvw") {
+        if viewport_w <= 0.0 {
+            return None;
+        }
+        return v[..v.len() - 3]
+            .parse::<f64>()
+            .ok()
+            .map(|n| n * viewport_w as f64 / 100.0);
+    }
+    if v.ends_with("svh") || v.ends_with("dvh") || v.ends_with("lvh") {
+        if viewport_h <= 0.0 {
+            return None;
+        }
+        return v[..v.len() - 3]
+            .parse::<f64>()
+            .ok()
+            .map(|n| n * viewport_h as f64 / 100.0);
+    }
+
     if v.ends_with("vw") {
         if viewport_w <= 0.0 {
             return None;

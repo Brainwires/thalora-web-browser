@@ -42,6 +42,8 @@ pub struct HeadlessWebBrowser {
     pub(super) csp_policy: Option<super::navigation::csp::CspPolicy>,
     /// Parsed Permissions-Policy for the current page
     pub(super) permissions_policy: Option<super::navigation::csp::PermissionsPolicy>,
+    /// HSTS store for upgrading HTTP to HTTPS
+    pub(super) hsts_store: super::navigation::hsts::HstsStore,
 }
 
 impl HeadlessWebBrowser {
@@ -110,6 +112,7 @@ impl HeadlessWebBrowser {
             history_events: Arc::new(Mutex::new(Vec::new())),
             csp_policy: None,
             permissions_policy: None,
+            hsts_store: super::navigation::hsts::HstsStore::new(),
         };
 
         let browser_arc = Arc::new(Mutex::new(browser));

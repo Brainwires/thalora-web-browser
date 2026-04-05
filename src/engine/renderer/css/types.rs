@@ -227,6 +227,9 @@ pub struct ParsedRule {
     /// Source order index for tie-breaking specificity
     #[serde(default)]
     pub source_order: usize,
+    /// Cascade layer index (None = unlayered, higher index = later-declared layer)
+    #[serde(default)]
+    pub layer: Option<usize>,
 }
 
 /// A pre-compiled CSS rule: selector already parsed into scraper::Selector for fast matching.
@@ -290,6 +293,12 @@ pub struct CssProcessor {
     pub(crate) keyframes: HashMap<String, Vec<(String, HashMap<String, String>)>>,
     /// Known @font-face declarations: font-family → src URL(s) and descriptors
     pub(crate) font_faces: Vec<FontFaceEntry>,
+    /// Cascade layer declaration order: layer name → order index
+    pub(crate) layer_order: HashMap<String, usize>,
+    /// Counter for assigning layer order indices
+    pub(crate) layer_order_counter: usize,
+    /// Currently active layer name during parsing (None = unlayered)
+    pub(crate) current_layer: Option<String>,
 }
 
 /// A parsed @font-face rule entry
