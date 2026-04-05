@@ -1,4 +1,4 @@
 [submodule "engines/boa"]
 	path = engines/boa
-	url = https://github.com/nightness/boa-whatwg.git
+	url = https://github.com/Brainwires/thalora-boa-engine.git
 	branch = main
