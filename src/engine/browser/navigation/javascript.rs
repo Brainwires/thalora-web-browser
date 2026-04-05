@@ -966,6 +966,14 @@ impl super::super::HeadlessWebBrowser {
         // SECURITY: Validate stylesheet URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
+        // CSP: Check if style-src allows this external stylesheet
+        if let Some(ref csp) = self.csp_policy {
+            if !csp.allows_style(url, self.current_url.as_deref()) {
+                eprintln!("🔒 CSP: External stylesheet blocked by style-src: {}", url);
+                return Err(anyhow!("Stylesheet blocked by Content-Security-Policy style-src"));
+            }
+        }
+
         eprintln!("🔍 DEBUG: CACHE MISS (stylesheet): {}", url);
         let response = self
             .client
