@@ -500,7 +500,10 @@ fn test_all_categories_disabled() {
     assert!(
         tools.len() <= 1,
         "Should have at most accessibility tools when all categories are disabled, got: {:?}",
-        tools.iter().filter_map(|t| t.get("name")).collect::<Vec<_>>()
+        tools
+            .iter()
+            .filter_map(|t| t.get("name"))
+            .collect::<Vec<_>>()
     );
 
     eprintln!(

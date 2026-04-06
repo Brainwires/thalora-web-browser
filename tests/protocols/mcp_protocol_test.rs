@@ -41,10 +41,7 @@ fn test_mcp_initialization() {
         "thalora-mcp-server"
     );
     // Version comes from Cargo.toml, just verify it's present
-    assert!(
-        server_info.get("version").is_some(),
-        "Should have version"
-    );
+    assert!(server_info.get("version").is_some(), "Should have version");
 }
 
 #[test]
