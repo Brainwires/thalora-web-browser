@@ -36,7 +36,10 @@ public sealed class GuiProcessManager : IAsyncDisposable
     private volatile GuiState _state = GuiState.WaitingForGui;
     private bool _disposed;
 
-    private const int MaxConsecutiveFailures = 3;
+    // Allow up to 30 seconds of unresponsiveness before marking the GUI as unhealthy.
+    // Large pages (GitHub, Wikipedia) can take 10–20s to build their control trees even
+    // on background threads; we want health checks to survive that window.
+    private const int MaxConsecutiveFailures = 15;
     private const int HealthCheckIntervalMs = 2000;
 
     public GuiProcessManager()

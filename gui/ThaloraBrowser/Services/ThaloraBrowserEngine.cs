@@ -10,6 +10,10 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
 {
     private IntPtr _instance;
     private bool _disposed;
+    // Serializes all native engine calls — the Rust engine is not thread-safe.
+    // ComputeStyledTreeAsync (thread pool) and PollHistoryEvents (200ms timer) can
+    // overlap; this lock ensures only one native call runs at a time.
+    private readonly SemaphoreSlim _engineLock = new(1, 1);
 
     public ThaloraBrowserEngine()
     {
@@ -28,6 +32,7 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
         var tcs = new TaskCompletionSource<string?>();
         var thread = new Thread(() =>
         {
+            _engineLock.Wait();
             try
             {
                 ThrowIfDisposed();
@@ -37,6 +42,10 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
             catch (Exception ex)
             {
                 tcs.SetException(ex);
+            }
+            finally
+            {
+                _engineLock.Release();
             }
         }, 8 * 1024 * 1024); // 8MB stack for Boa JS parser + scraper HTML parsing
         thread.IsBackground = true;
@@ -48,53 +57,78 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
     /// Get the current URL.
     /// </summary>
     public Task<string?> GetCurrentUrlAsync()
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_get_current_url(_instance);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_get_current_url(_instance);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Get the current page HTML content.
     /// </summary>
     public Task<string?> GetPageHtmlAsync()
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_get_page_html(_instance);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_get_page_html(_instance);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Go back in navigation history.
     /// </summary>
     public Task<bool> GoBackAsync()
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            return ThaloraNative.thalora_go_back(_instance) == 0;
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                return ThaloraNative.thalora_go_back(_instance) == 0;
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Go forward in navigation history.
     /// </summary>
     public Task<bool> GoForwardAsync()
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            return ThaloraNative.thalora_go_forward(_instance) == 0;
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                return ThaloraNative.thalora_go_forward(_instance) == 0;
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Reload the current page and return the new HTML.
     /// </summary>
     public Task<string?> ReloadAsync()
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_reload(_instance);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_reload(_instance);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
@@ -125,63 +159,93 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
     /// Execute JavaScript code and return the result.
     /// </summary>
     public Task<string?> ExecuteJavaScriptAsync(string code)
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_execute_js(_instance, code);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_execute_js(_instance, code);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Click an element identified by CSS selector.
     /// </summary>
     public Task<bool> ClickElementAsync(string selector)
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            return ThaloraNative.thalora_click_element(_instance, selector) == 0;
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                return ThaloraNative.thalora_click_element(_instance, selector) == 0;
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Type text into an element identified by CSS selector.
     /// </summary>
     public Task<bool> TypeTextAsync(string selector, string text, bool clearFirst = true)
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            return ThaloraNative.thalora_type_text(_instance, selector, text, clearFirst ? 1 : 0) == 0;
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                return ThaloraNative.thalora_type_text(_instance, selector, text, clearFirst ? 1 : 0) == 0;
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Submit a form with optional JSON field data.
     /// </summary>
     public Task<bool> SubmitFormAsync(string formSelector, string? jsonData = null)
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            return ThaloraNative.thalora_submit_form(_instance, formSelector, jsonData) == 0;
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                return ThaloraNative.thalora_submit_form(_instance, formSelector, jsonData) == 0;
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Get the current page title.
     /// </summary>
     public Task<string?> GetPageTitleAsync()
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_get_page_title(_instance);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_get_page_title(_instance);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
     /// Compute the page layout on the Rust side and return it as JSON (old pipeline).
     /// </summary>
     public Task<string?> ComputeLayoutAsync(float viewportW, float viewportH)
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_compute_layout(_instance, viewportW, viewportH);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_compute_layout(_instance, viewportW, viewportH);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
@@ -189,11 +253,16 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
     /// Returns CSS-resolved elements without positions — C# handles layout via Avalonia controls.
     /// </summary>
     public Task<string?> ComputeStyledTreeAsync(float viewportW, float viewportH)
-        => Task.Run(() =>
+        => Task.Run(async () =>
         {
-            ThrowIfDisposed();
-            var ptr = ThaloraNative.thalora_compute_styled_tree(_instance, viewportW, viewportH);
-            return ConsumeRustString(ptr);
+            await _engineLock.WaitAsync();
+            try
+            {
+                ThrowIfDisposed();
+                var ptr = ThaloraNative.thalora_compute_styled_tree(_instance, viewportW, viewportH);
+                return ConsumeRustString(ptr);
+            }
+            finally { _engineLock.Release(); }
         });
 
     /// <summary>
@@ -203,8 +272,15 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
     public string? PollHistoryEvents()
     {
         if (_disposed) return null;
-        var ptr = ThaloraNative.thalora_poll_history_events(_instance);
-        return ConsumeRustString(ptr);
+        // Non-blocking: skip this poll cycle if the engine is busy with navigation or rendering.
+        if (!_engineLock.Wait(0)) return null;
+        try
+        {
+            if (_disposed) return null;
+            var ptr = ThaloraNative.thalora_poll_history_events(_instance);
+            return ConsumeRustString(ptr);
+        }
+        finally { _engineLock.Release(); }
     }
 
     /// <summary>
@@ -259,5 +335,7 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
             ThaloraNative.thalora_destroy(_instance);
             _instance = IntPtr.Zero;
         }
+
+        _engineLock.Dispose();
     }
 }

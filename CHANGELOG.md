@@ -18,8 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **App deadlock on window close** — `BrowserControlServer.Dispose()` called `_listenTask.Wait()` on the UI thread while in-flight HTTP handlers were blocked on `Dispatcher.UIThread.InvokeAsync()`. Fixed by removing the blocking `.Wait()`.
 - **`async void` use-after-free on close** — `WebContentControl.OnHtmlContentChanged()` could resume after window teardown. Fixed with `_disposed` flag checked after every `await`.
 - **Engine destroyed during in-flight FFI call** — `BrowserTabViewModel.Dispose()` destroyed the engine immediately. Fixed by delaying disposal 150 ms via `Task.Delay`.
+- **Concurrent native engine access crash** — `ComputeStyledTreeAsync` (thread pool) and `PollHistoryEvents` (200ms timer) both called into the Rust engine simultaneously after `IsLoading` returned to false. The engine is not thread-safe. Fixed by adding a `SemaphoreSlim(1,1)` to `ThaloraBrowserEngine` that serializes all `thalora_*` FFI calls; `PollHistoryEvents` uses non-blocking `Wait(0)` to skip cycles when the engine is busy.
+- **UI thread blocked by large control-tree builds** — `BuildFromJson` on GitHub's 641 KB styled tree took 10–20 s synchronously on the UI thread, starving the Dispatcher and making health checks appear to time out. Fixed by running `BuildFromJson` on a background thread via `Task.Run` (Avalonia 11 permits creating detached controls off the UI thread) with a `_disposed` guard after the await.
 - **Data URI images failed to load** — `ImageCache` attempted HTTP GET on `data:` URIs. Fixed by detecting the scheme and decoding base64 directly.
 - **Timing diagnostics always printed** — render timing logs were unconditional. Moved behind `#if DEBUG`.
+- **GUI marked unresponsive too aggressively** — `MaxConsecutiveFailures` was 3 (6s), far too short for pages that need 10–20s of background work. Raised to 15 (30s) so normal large-page loads don't trip the unresponsive state.
 
 ### Added
 - **`cargo xtask gui-screenshot [URL]`** — build, launch, capture PNG screenshot. Options: `--out`, `--port`, `--delay`, `--no-build`, `--no-kill`.
