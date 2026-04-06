@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Boa GC underflow panic** — `dec_ref_count()` in `boa_gc` had no guard against decrementing a zero ref count, causing `attempt to subtract with overflow` panics on complex pages (Wikipedia, Twitter, etc.). Fixed by saturating at zero.
+- **Boa debug assertions disabled in dev** — `debug_assert!` macros in `boa_gc`, `boa_engine`, `boa_parser` etc. were firing as panics on real-world JS (GitHub React bundle, Wikipedia MediaWiki scripts). Added `debug-assertions = false` per-package under `[profile.dev.package."boa_*"]` in `Cargo.toml`, matching Boa's own release behavior.
+- **SVG logo invisible** — inline `<svg>` elements with `display: inline` (CSS default) were routed to `AddInlineContent` which had no SVG handler, silently dropping them. Fixed by moving `"svg"` into `AlwaysBlockTags` and checking that set before the display override in `IsInlineElement`.
+- **Submit buttons / form controls inside inline spans dropped** — `<input type="submit">` nested inside `<span>` fell through `AddInlineContent`'s `default` handler producing an empty `Span`. Fixed by adding explicit `input`/`button`/`select`/`textarea` cases to `AddInlineContent` that delegate to `BuildControl` wrapped in `InlineUIContainer`.
+- **Form controls inheriting Avalonia Dark theme** — `TextBox`, `Button`, `CheckBox`, `ComboBox`, `RadioButton` defaulted to dark FluentTheme colors when CSS provided no `background-color`. Fixed by setting web-standard defaults (`Background = Brushes.White`, `Foreground = Brushes.Black`) on all form controls.
+- **Image `MaxWidth` not propagating to Border wrapper** — when `border-radius` was present, the `<img>` was wrapped in a `Border` that didn't inherit `MaxWidth`, allowing it to stretch full-width. Fixed by copying sizing constraints from image to wrapper.
+- **Text vertically misaligned in flex rows** — `SelectableTextBlock` defaulted to `VerticalAlignment.Top`, causing text to appear at the cell top edge instead of centered. Fixed by setting `VerticalAlignment = VerticalAlignment.Center` in `BuildInlineContent`.
+- **App deadlock on window close** — `BrowserControlServer.Dispose()` called `_listenTask.Wait()` on the UI thread while in-flight HTTP handlers were blocked on `Dispatcher.UIThread.InvokeAsync()`. Fixed by removing the blocking `.Wait()`.
+- **`async void` use-after-free on close** — `WebContentControl.OnHtmlContentChanged()` could resume after window teardown. Fixed with `_disposed` flag checked after every `await`.
+- **Engine destroyed during in-flight FFI call** — `BrowserTabViewModel.Dispose()` destroyed the engine immediately. Fixed by delaying disposal 150 ms via `Task.Delay`.
+- **Data URI images failed to load** — `ImageCache` attempted HTTP GET on `data:` URIs. Fixed by detecting the scheme and decoding base64 directly.
+- **Timing diagnostics always printed** — render timing logs were unconditional. Moved behind `#if DEBUG`.
+
+### Added
+- **`cargo xtask gui-screenshot [URL]`** — build, launch, capture PNG screenshot. Options: `--out`, `--port`, `--delay`, `--no-build`, `--no-kill`.
+- **`cargo xtask gui-compare [URL]`** — screenshot + open side-by-side with `--ref` reference image.
+
+### Removed
+- **Dead old rendering pipeline** — deleted `HtmlRenderer.cs`, `PaintContext.cs`, `LayoutBox.cs`, `CssComputedStyle.cs`, `StyleResolver.cs`, `TextLayout.cs`, `LayoutEngine.cs`, `HitTester.cs`.
+
 ### Changed
 - **Structured logging** — replaced all `eprintln!` debug output in MCP tool dispatch, browser session management, CDP event emission, and HTTP transport with `tracing` macros (`debug!`/`info!`/`warn!`), eliminating `format!()` allocations on the hot path when debug level is filtered out
 - **Tracing `EnvFilter`** — tracing subscriber now respects `RUST_LOG` env var for log-level control (default: `info`; silent mode: `warn`)
