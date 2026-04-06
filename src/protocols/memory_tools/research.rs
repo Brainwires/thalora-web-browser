@@ -51,7 +51,7 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     let sources = args
         .get("sources")
@@ -61,7 +61,7 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     let tags = args
         .get("tags")
@@ -71,7 +71,7 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     let confidence_score = args
         .get("confidence_score")
@@ -86,7 +86,7 @@ pub async fn handle_store_research(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     let research_entry = ResearchEntry {
         topic: topic.to_string(),

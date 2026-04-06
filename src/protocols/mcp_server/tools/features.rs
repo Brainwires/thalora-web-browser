@@ -1,7 +1,6 @@
 use std::env;
 
 /// Feature flag management for tool availability
-
 /// Check if the BrainClaw preset is active.
 ///
 /// `THALORA_PRESET=brainclaw` enables scraping, search, sessions, and CDP in one shot
@@ -9,7 +8,7 @@ use std::env;
 /// and registers agent-friendly alias tools.
 pub(crate) fn is_brainclaw_preset() -> bool {
     env::var("THALORA_PRESET")
-        .map(|v| v.to_ascii_lowercase() == "brainclaw")
+        .map(|v| v.eq_ignore_ascii_case("brainclaw"))
         .unwrap_or(false)
 }
 

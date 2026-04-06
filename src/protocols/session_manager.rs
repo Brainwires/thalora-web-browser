@@ -223,8 +223,8 @@ impl SessionManager {
             .await
             .context("Failed to read response from socket")?;
 
-        let response: BrowserResponse = serde_json::from_str(&response_line.trim())
-            .context("Failed to deserialize response")?;
+        let response: BrowserResponse =
+            serde_json::from_str(response_line.trim()).context("Failed to deserialize response")?;
 
         debug!(
             "Received response from session {}: {:?}",

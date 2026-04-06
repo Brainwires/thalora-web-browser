@@ -69,7 +69,7 @@ pub async fn handle_store_bookmark(args: Value, ai_memory: &mut AiMemoryHeap) ->
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     match ai_memory.store_bookmark(key, url, title, description, content_preview, tags) {
         Ok(_) => McpResponse::success(serde_json::json!({

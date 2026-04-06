@@ -21,7 +21,7 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     // Create temporary browser for stateless search with error context
     eprintln!("🦆 DuckDuckGo: Creating temporary browser instance...");
     let temp_browser =
-        match std::panic::catch_unwind(|| crate::engine::browser::HeadlessWebBrowser::new()) {
+        match std::panic::catch_unwind(crate::engine::browser::HeadlessWebBrowser::new) {
             Ok(browser) => browser,
             Err(panic_payload) => {
                 let panic_msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {
@@ -39,17 +39,17 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
     // Navigate with JavaScript support
     eprintln!("🦆 DuckDuckGo: Acquiring browser lock for navigation...");
-    {
+    tokio::task::block_in_place(|| {
         let mut browser = temp_browser.lock().map_err(|e| {
             anyhow::anyhow!("Failed to acquire browser lock: mutex poisoned ({})", e)
         })?;
         eprintln!("🦆 DuckDuckGo: Navigating to search URL...");
-        browser
-            .navigate_to_with_options(&search_url, true)
-            .await
-            .context("Failed to navigate to DuckDuckGo search URL")?;
+        let result = tokio::runtime::Handle::current()
+            .block_on(browser.navigate_to_with_options(&search_url, true))
+            .context("Failed to navigate to DuckDuckGo search URL");
         eprintln!("🦆 DuckDuckGo: Navigation completed");
-    }
+        result
+    })?;
 
     // Get the rendered content
     eprintln!("🦆 DuckDuckGo: Acquiring browser lock for content extraction...");
@@ -134,7 +134,7 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
 
     // Create temporary browser for stateless search
     let temp_browser =
-        match std::panic::catch_unwind(|| crate::engine::browser::HeadlessWebBrowser::new()) {
+        match std::panic::catch_unwind(crate::engine::browser::HeadlessWebBrowser::new) {
             Ok(browser) => browser,
             Err(panic_payload) => {
                 let panic_msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {
@@ -149,15 +149,14 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
         };
 
     // Navigate with JavaScript support
-    {
+    tokio::task::block_in_place(|| {
         let mut browser = temp_browser.lock().map_err(|e| {
             anyhow::anyhow!("Failed to acquire browser lock: mutex poisoned ({})", e)
         })?;
-        browser
-            .navigate_to_with_options(&search_url, true)
-            .await
-            .context("Failed to navigate to DuckDuckGo image search URL")?;
-    }
+        tokio::runtime::Handle::current()
+            .block_on(browser.navigate_to_with_options(&search_url, true))
+            .context("Failed to navigate to DuckDuckGo image search URL")
+    })?;
 
     // Get the rendered content
     let html = {
@@ -254,50 +253,50 @@ pub fn parse_image_results(
     }
 
     // If we didn't find any images in structured elements, try to find any img tags
-    if results.is_empty() {
-        if let Ok(selector) = Selector::parse("img") {
-            for element in document.select(&selector) {
-                if results.len() >= num_results {
-                    break;
-                }
-
-                let image_url = element
-                    .value()
-                    .attr("src")
-                    .or_else(|| element.value().attr("data-src"))
-                    .unwrap_or("");
-
-                // Skip small images and tracking pixels
-                if image_url.is_empty()
-                    || !image_url.starts_with("http")
-                    || image_url.contains("1x1")
-                    || image_url.contains("pixel")
-                    || image_url.contains("tracking")
-                {
-                    continue;
-                }
-
-                let title = element
-                    .value()
-                    .attr("alt")
-                    .or_else(|| element.value().attr("title"))
-                    .unwrap_or("")
-                    .to_string();
-
-                results.push(ImageSearchResult {
-                    title: if title.is_empty() {
-                        format!("Image {}", results.len() + 1)
-                    } else {
-                        title
-                    },
-                    image_url: image_url.to_string(),
-                    thumbnail_url: Some(image_url.to_string()),
-                    source_url: String::new(),
-                    width: None,
-                    height: None,
-                    position: results.len() + 1,
-                });
+    if results.is_empty()
+        && let Ok(selector) = Selector::parse("img")
+    {
+        for element in document.select(&selector) {
+            if results.len() >= num_results {
+                break;
             }
+
+            let image_url = element
+                .value()
+                .attr("src")
+                .or_else(|| element.value().attr("data-src"))
+                .unwrap_or("");
+
+            // Skip small images and tracking pixels
+            if image_url.is_empty()
+                || !image_url.starts_with("http")
+                || image_url.contains("1x1")
+                || image_url.contains("pixel")
+                || image_url.contains("tracking")
+            {
+                continue;
+            }
+
+            let title = element
+                .value()
+                .attr("alt")
+                .or_else(|| element.value().attr("title"))
+                .unwrap_or("")
+                .to_string();
+
+            results.push(ImageSearchResult {
+                title: if title.is_empty() {
+                    format!("Image {}", results.len() + 1)
+                } else {
+                    title
+                },
+                image_url: image_url.to_string(),
+                thumbnail_url: Some(image_url.to_string()),
+                source_url: String::new(),
+                width: None,
+                height: None,
+                position: results.len() + 1,
+            });
         }
     }
 

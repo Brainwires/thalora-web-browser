@@ -20,6 +20,12 @@ pub struct BreakpointInfo {
     pub condition: Option<String>,
 }
 
+impl Default for DebuggerDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DebuggerDomain {
     pub fn new() -> Self {
         Self {

@@ -27,7 +27,7 @@ pub async fn handle_start_session(args: Value, ai_memory: &mut AiMemoryHeap) -> 
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     match ai_memory.start_session(session_id, description, objectives) {
         Ok(_) => McpResponse::success(serde_json::json!({

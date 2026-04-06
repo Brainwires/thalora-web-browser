@@ -203,7 +203,7 @@ impl McpServer {
             if should_persist {
                 // SECURITY: Use encrypted persistence for session data at rest
                 let key = vfs::derive_session_key(session_id);
-                if let Err(e) = vfs_instance.persist_encrypted(&*key) {
+                if let Err(e) = vfs_instance.persist_encrypted(&key) {
                     drop(set_current_vfs(prev_vfs));
                     return McpResponse::error(
                         -32001,
@@ -212,19 +212,17 @@ impl McpServer {
                 }
             }
             // for session VFS we keep the backing instance in `self.session_vfs` until explicit removal
-        } else {
-            if should_persist {
-                // Ephemeral VFS uses unencrypted persistence (no session context)
-                if let Err(e) = vfs_instance.persist() {
-                    drop(set_current_vfs(prev_vfs));
-                    return McpResponse::error(
-                        -32002,
-                        format!("Failed to persist ephemeral VFS: {}", e),
-                    );
-                }
-            } else {
-                drop(vfs_instance.delete_backing_file());
+        } else if should_persist {
+            // Ephemeral VFS uses unencrypted persistence (no session context)
+            if let Err(e) = vfs_instance.persist() {
+                drop(set_current_vfs(prev_vfs));
+                return McpResponse::error(
+                    -32002,
+                    format!("Failed to persist ephemeral VFS: {}", e),
+                );
             }
+        } else {
+            drop(vfs_instance.delete_backing_file());
         }
 
         // Restore previous VFS (if any)

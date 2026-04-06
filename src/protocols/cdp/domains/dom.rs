@@ -11,6 +11,12 @@ pub struct DomDomain {
     next_node_id: i32,
 }
 
+impl Default for DomDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DomDomain {
     pub fn new() -> Self {
         Self {

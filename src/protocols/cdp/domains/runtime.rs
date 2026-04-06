@@ -26,6 +26,12 @@ pub struct ExecutionContext {
     pub aux_data: Option<Value>,
 }
 
+impl Default for RuntimeDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuntimeDomain {
     pub fn new() -> Self {
         Self {

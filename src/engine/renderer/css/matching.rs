@@ -185,7 +185,7 @@ impl CssProcessor {
     fn extract_key_tag(selector: &str) -> Option<String> {
         // Get the last simple selector (after the last combinator: space, >, +, ~)
         let last = selector
-            .rsplit(|c: char| c == ' ' || c == '>' || c == '+' || c == '~')
+            .rsplit([' ', '>', '+', '~'])
             .next()
             .unwrap_or(selector)
             .trim();
@@ -193,9 +193,7 @@ impl CssProcessor {
             return None;
         }
         // Extract tag name: everything before first '.', '#', ':', '['
-        let tag_end = last
-            .find(|c: char| c == '.' || c == '#' || c == ':' || c == '[')
-            .unwrap_or(last.len());
+        let tag_end = last.find(['.', '#', ':', '[']).unwrap_or(last.len());
         let tag = &last[..tag_end];
         if tag.is_empty() || tag == "*" {
             None
@@ -213,7 +211,7 @@ impl CssProcessor {
     ///   "h1"           → None
     fn extract_key_id(selector: &str) -> Option<String> {
         let last = selector
-            .rsplit(|c: char| c == ' ' || c == '>' || c == '+' || c == '~')
+            .rsplit([' ', '>', '+', '~'])
             .next()
             .unwrap_or(selector)
             .trim();
@@ -225,7 +223,7 @@ impl CssProcessor {
             let after_hash = &last[hash_pos + 1..];
             // ID ends at next '.', '#', ':', '['
             let id_end = after_hash
-                .find(|c: char| c == '.' || c == '#' || c == ':' || c == '[')
+                .find(['.', '#', ':', '['])
                 .unwrap_or(after_hash.len());
             let id = &after_hash[..id_end];
             if !id.is_empty() {
@@ -245,7 +243,7 @@ impl CssProcessor {
     ///   "h1"                → None
     fn extract_key_class(selector: &str) -> Option<String> {
         let last = selector
-            .rsplit(|c: char| c == ' ' || c == '>' || c == '+' || c == '~')
+            .rsplit([' ', '>', '+', '~'])
             .next()
             .unwrap_or(selector)
             .trim();
@@ -257,7 +255,7 @@ impl CssProcessor {
             let after_dot = &last[dot_pos + 1..];
             // Class name ends at next '.', '#', ':', '['
             let class_end = after_dot
-                .find(|c: char| c == '.' || c == '#' || c == ':' || c == '[')
+                .find(['.', '#', ':', '['])
                 .unwrap_or(after_dot.len());
             let class = &after_dot[..class_end];
             if !class.is_empty() {
@@ -353,20 +351,20 @@ impl CssProcessor {
 
                 let mut matched = false;
                 for (i, compiled_sel) in compiled.compiled_selectors.iter().enumerate() {
-                    if let Some(sel) = compiled_sel {
-                        if sel.matches(element) {
-                            matched = true;
-                            break;
-                        }
+                    if let Some(sel) = compiled_sel
+                        && sel.matches(element)
+                    {
+                        matched = true;
+                        break;
                     } else {
                         // Fallback: selector failed to compile, try pseudo-class fallback
                         let raw_selectors: Vec<&str> =
                             rule.selector.split(',').map(|s| s.trim()).collect();
-                        if let Some(raw_sel) = raw_selectors.get(i) {
-                            if Self::matches_pseudo_class_fallback(raw_sel, &tag_name, el) {
-                                matched = true;
-                                break;
-                            }
+                        if let Some(raw_sel) = raw_selectors.get(i)
+                            && Self::matches_pseudo_class_fallback(raw_sel, &tag_name, el)
+                        {
+                            matched = true;
+                            break;
                         }
                     }
                 }
@@ -410,16 +408,14 @@ impl CssProcessor {
                 };
                 let sel_slow = Self::preprocess_modern_pseudos(&sel_slow);
                 let sel_slow = sel_slow.as_str();
-                if let Ok(parsed_selector) = scraper::Selector::parse(sel_slow) {
-                    if parsed_selector.matches(element) {
-                        matching_rules.push((rule, false));
-                        break;
-                    }
-                } else {
-                    if Self::matches_pseudo_class_fallback(raw_selector, &tag_name, el) {
-                        matching_rules.push((rule, false));
-                        break;
-                    }
+                if let Ok(parsed_selector) = scraper::Selector::parse(sel_slow)
+                    && parsed_selector.matches(element)
+                {
+                    matching_rules.push((rule, false));
+                    break;
+                } else if Self::matches_pseudo_class_fallback(raw_selector, &tag_name, el) {
+                    matching_rules.push((rule, false));
+                    break;
                 }
             }
         }
@@ -463,11 +459,11 @@ impl CssProcessor {
                     }
 
                     // Use pre-compiled hover base selector
-                    if let Some(Some(base_sel)) = compiled.hover_base_selectors.get(i) {
-                        if base_sel.matches(element) {
-                            matched = true;
-                            break;
-                        }
+                    if let Some(Some(base_sel)) = compiled.hover_base_selectors.get(i)
+                        && base_sel.matches(element)
+                    {
+                        matched = true;
+                        break;
                     } else if let Some(None) = compiled.hover_base_selectors.get(i) {
                         // Base selector was empty (bare ":hover") or failed to compile
                         let base = Self::strip_hover_pseudo(raw_sel);
@@ -513,11 +509,11 @@ impl CssProcessor {
                     matching_rules.push(rule);
                     break;
                 }
-                if let Ok(parsed_selector) = scraper::Selector::parse(&base_selector) {
-                    if parsed_selector.matches(element) {
-                        matching_rules.push(rule);
-                        break;
-                    }
+                if let Ok(parsed_selector) = scraper::Selector::parse(&base_selector)
+                    && parsed_selector.matches(element)
+                {
+                    matching_rules.push(rule);
+                    break;
                 } else {
                     let el = element.value();
                     let tag_name = el.name().to_lowercase();
@@ -563,21 +559,17 @@ impl CssProcessor {
     fn strip_hover_pseudo(selector: &str) -> String {
         let mut result = selector.to_string();
         // Remove ":hover" occurrences (not "::hover")
-        loop {
-            if let Some(pos) = result.find(":hover") {
-                // Ensure it's not "::hover"
-                if pos > 0 && result.as_bytes()[pos - 1] == b':' {
-                    break;
-                }
-                let after = pos + 6;
-                // Make sure it's ":hover" and not ":hover-something"
-                if after < result.len() && result.as_bytes()[after].is_ascii_alphanumeric() {
-                    break;
-                }
-                result = format!("{}{}", &result[..pos], &result[after..]);
-            } else {
+        while let Some(pos) = result.find(":hover") {
+            // Ensure it's not "::hover"
+            if pos > 0 && result.as_bytes()[pos - 1] == b':' {
                 break;
             }
+            let after = pos + 6;
+            // Make sure it's ":hover" and not ":hover-something"
+            if after < result.len() && result.as_bytes()[after].is_ascii_alphanumeric() {
+                break;
+            }
+            result = format!("{}{}", &result[..pos], &result[after..]);
         }
         result.trim().to_string()
     }
@@ -596,32 +588,32 @@ impl CssProcessor {
 
         // Process :has(...) — strip entirely (best-effort: match base selector)
         loop {
-            if let Some(start) = result.find(":has(") {
-                if let Some(end) = Self::find_matching_paren(&result, start + 4) {
-                    result = format!("{}{}", &result[..start], &result[end + 1..]);
-                    continue;
-                }
+            if let Some(start) = result.find(":has(")
+                && let Some(end) = Self::find_matching_paren(&result, start + 4)
+            {
+                result = format!("{}{}", &result[..start], &result[end + 1..]);
+                continue;
             }
             break;
         }
 
         // Process :is(...) — replace with the contained selector
         loop {
-            if let Some(start) = result.find(":is(") {
-                if let Some(end) = Self::find_matching_paren(&result, start + 3) {
-                    let inner = &result[start + 4..end].trim().to_string();
-                    // Use the first selector alternative from the list
-                    let first_alt = inner.split(',').next().unwrap_or("").trim();
-                    // If the first alt looks like a simple selector (class, tag, id),
-                    // substitute it directly
-                    if !first_alt.is_empty() {
-                        result = format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
-                        continue;
-                    } else {
-                        // Empty :is() — remove it
-                        result = format!("{}{}", &result[..start], &result[end + 1..]);
-                        continue;
-                    }
+            if let Some(start) = result.find(":is(")
+                && let Some(end) = Self::find_matching_paren(&result, start + 3)
+            {
+                let inner = &result[start + 4..end].trim().to_string();
+                // Use the first selector alternative from the list
+                let first_alt = inner.split(',').next().unwrap_or("").trim();
+                // If the first alt looks like a simple selector (class, tag, id),
+                // substitute it directly
+                if !first_alt.is_empty() {
+                    result = format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
+                    continue;
+                } else {
+                    // Empty :is() — remove it
+                    result = format!("{}{}", &result[..start], &result[end + 1..]);
+                    continue;
                 }
             }
             break;
@@ -630,17 +622,17 @@ impl CssProcessor {
         // Process :where(...) — same as :is() but zero specificity (we don't track that
         // difference yet, but at least the rules won't be dropped)
         loop {
-            if let Some(start) = result.find(":where(") {
-                if let Some(end) = Self::find_matching_paren(&result, start + 6) {
-                    let inner = &result[start + 7..end].trim().to_string();
-                    let first_alt = inner.split(',').next().unwrap_or("").trim();
-                    if !first_alt.is_empty() {
-                        result = format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
-                        continue;
-                    } else {
-                        result = format!("{}{}", &result[..start], &result[end + 1..]);
-                        continue;
-                    }
+            if let Some(start) = result.find(":where(")
+                && let Some(end) = Self::find_matching_paren(&result, start + 6)
+            {
+                let inner = &result[start + 7..end].trim().to_string();
+                let first_alt = inner.split(',').next().unwrap_or("").trim();
+                if !first_alt.is_empty() {
+                    result = format!("{}{}{}", &result[..start], first_alt, &result[end + 1..]);
+                    continue;
+                } else {
+                    result = format!("{}{}", &result[..start], &result[end + 1..]);
+                    continue;
                 }
             }
             break;
@@ -661,8 +653,8 @@ impl CssProcessor {
             return None;
         }
         let mut depth = 1;
-        for i in (open_pos + 1)..bytes.len() {
-            match bytes[i] {
+        for (i, &byte) in bytes.iter().enumerate().skip(open_pos + 1) {
+            match byte {
                 b'(' => depth += 1,
                 b')' => {
                     depth -= 1;
@@ -712,10 +704,7 @@ impl CssProcessor {
                 && !part.starts_with(':')
             {
                 // It's an element selector
-                let elem_part = part
-                    .split(|c| c == '#' || c == '.' || c == '[' || c == ':')
-                    .next()
-                    .unwrap_or("");
+                let elem_part = part.split(['#', '.', '[', ':']).next().unwrap_or("");
                 if !elem_part.is_empty() && elem_part != "*" {
                     elements += 1;
                 }
@@ -1041,10 +1030,7 @@ impl CssProcessor {
             }
 
             // Check element match (e.g., "div" matches "div.container")
-            let elem = target
-                .split(|c| c == '.' || c == '#' || c == '[')
-                .next()
-                .unwrap_or("");
+            let elem = target.split(['.', '#', '[']).next().unwrap_or("");
             if selector == elem {
                 return true;
             }

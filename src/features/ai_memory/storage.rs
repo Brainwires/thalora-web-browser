@@ -1,3 +1,4 @@
+use super::CredentialInfo;
 use super::crypto::{decrypt_password, encrypt_password};
 use super::types::*;
 use anyhow::Result;
@@ -70,7 +71,7 @@ pub(super) fn store_credentials(
 pub(super) fn get_credentials(
     memory_data: &mut MemoryData,
     key: &str,
-) -> Result<Option<(String, String, String, HashMap<String, String>)>> {
+) -> Result<Option<CredentialInfo>> {
     if let Some(cred) = memory_data.credentials.get(key) {
         let encrypted_password = cred.encrypted_password.clone();
         let password = decrypt_password(&encrypted_password)?;

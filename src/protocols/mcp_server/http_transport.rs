@@ -9,8 +9,6 @@
 //! The spec permits returning `Content-Type: application/json` directly for non-streaming
 //! tools, which covers all of Thalora's current tool set.
 
-#![cfg(feature = "http-transport")]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 

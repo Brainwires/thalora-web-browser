@@ -200,10 +200,10 @@ impl ReadabilityExtractor {
         let mut content_html = best_element.html();
 
         // Try to expand to include sibling content that might be part of the article
-        if let Some(parent) = best_element.parent() {
-            if let Some(parent_element) = ElementRef::wrap(parent) {
-                content_html = Self::expand_content_area(&parent_element, best_element)?;
-            }
+        if let Some(parent) = best_element.parent()
+            && let Some(parent_element) = ElementRef::wrap(parent)
+        {
+            content_html = Self::expand_content_area(&parent_element, best_element)?;
         }
 
         Ok(content_html)
@@ -216,10 +216,10 @@ impl ReadabilityExtractor {
 
         // Collect elements that seem to be part of the same content
         for child in parent.children() {
-            if let Some(child_element) = ElementRef::wrap(child) {
-                if Self::is_related_content(&child_element, original) {
-                    expanded_elements.push(child_element.html());
-                }
+            if let Some(child_element) = ElementRef::wrap(child)
+                && Self::is_related_content(&child_element, original)
+            {
+                expanded_elements.push(child_element.html());
             }
         }
 

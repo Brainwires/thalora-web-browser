@@ -14,6 +14,7 @@ pub mod renderer;
 
 // Engine module - requires core (uses tokio::sync::Mutex)
 #[cfg(feature = "core")]
+#[allow(clippy::module_inception)]
 pub mod engine;
 
 // WASM engine stub

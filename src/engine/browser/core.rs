@@ -12,6 +12,7 @@ use reqwest::header::{
 };
 use reqwest_cookie_store::CookieStoreMutex;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -51,13 +52,13 @@ pub struct HeadlessWebBrowser {
 }
 
 impl HeadlessWebBrowser {
-    pub fn new() -> Arc<Mutex<Self>> {
+    pub fn new() -> Rc<Mutex<Self>> {
         Self::new_with_engine(crate::engine::engine_trait::EngineType::Boa)
     }
 
     pub fn new_with_engine(
         engine_type: crate::engine::engine_trait::EngineType,
-    ) -> Arc<Mutex<Self>> {
+    ) -> Rc<Mutex<Self>> {
         // Create shared cookie store for cookie management
         let cookie_store = Arc::new(CookieStoreMutex::new(
             reqwest_cookie_store::CookieStore::default(),
@@ -121,16 +122,16 @@ impl HeadlessWebBrowser {
             nosniff: false,
         };
 
-        let browser_arc = Arc::new(Mutex::new(browser));
+        let browser_rc = Rc::new(Mutex::new(browser));
 
         // Setup history API with reference to browser
-        let _ = Self::setup_history_api(browser_arc.clone());
+        let _ = Self::setup_history_api(browser_rc.clone());
 
-        browser_arc
+        browser_rc
     }
 
-    pub fn setup_history_api(browser_arc: Arc<Mutex<Self>>) -> Result<()> {
-        if let Ok(mut browser) = browser_arc.try_lock() {
+    pub fn setup_history_api(browser_rc: Rc<Mutex<Self>>) -> Result<()> {
+        if let Ok(mut browser) = browser_rc.try_lock() {
             // Extract the events handle while we hold the lock, then pass it
             // directly to the renderer — avoids deadlock from re-locking browser_arc.
             let events_handle = browser.history_events.clone();
@@ -317,12 +318,7 @@ impl HeadlessWebBrowser {
         );
 
         // Proper fetch metadata for Chrome
-        if url.starts_with("https://www.google.com") {
-            headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
-            headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
-            headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
-            headers.insert("sec-fetch-user", HeaderValue::from_static("?1"));
-        } else if url.starts_with("https://www.bing.com") {
+        if url.starts_with("https://www.google.com") || url.starts_with("https://www.bing.com") {
             headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
             headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
             headers.insert("sec-fetch-site", HeaderValue::from_static("none"));
@@ -412,10 +408,10 @@ impl HeadlessWebBrowser {
                 _ => Some(current_url.clone()), // unsafe-url or unknown: send full URL
             };
 
-            if let Some(ref referer_value) = referer {
-                if let Ok(hv) = HeaderValue::from_str(referer_value) {
-                    headers.insert(REFERER, hv);
-                }
+            if let Some(ref referer_value) = referer
+                && let Ok(hv) = HeaderValue::from_str(referer_value)
+            {
+                headers.insert(REFERER, hv);
             }
         }
 

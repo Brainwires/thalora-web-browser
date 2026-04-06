@@ -24,14 +24,16 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
 
     // Navigate using the browser's full navigation system which includes stealth features
     // Google requires JavaScript execution to display search results
-    {
+    tokio::task::block_in_place(|| {
         let mut browser = temp_browser
             .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser
-            .navigate_to_with_js_option(&search_url, true, true)
-            .await?;
-    }
+        tokio::runtime::Handle::current().block_on(browser.navigate_to_with_js_option(
+            &search_url,
+            true,
+            true,
+        ))
+    })?;
     eprintln!("🔍 DEBUG: Navigation completed, getting content");
 
     let html = {
@@ -66,60 +68,60 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
         // Instead of failing, let's try to follow the redirect or parse what we can
 
         // Try to extract the redirect URL and follow it
-        if let Some(start) = html.find("http-equiv=\"refresh\"") {
-            if let Some(content_start) = html[..start].rfind("content=\"") {
-                let content_part = &html[content_start + 9..];
-                if let Some(url_start) = content_part.find("url=") {
-                    let url_part = &content_part[url_start + 4..];
-                    if let Some(url_end) = url_part.find("\"") {
-                        let redirect_url = &url_part[..url_end];
-                        eprintln!("🔍 DEBUG: Found redirect URL: {}", redirect_url);
+        if let Some(start) = html.find("http-equiv=\"refresh\"")
+            && let Some(content_start) = html[..start].rfind("content=\"")
+        {
+            let content_part = &html[content_start + 9..];
+            if let Some(url_start) = content_part.find("url=") {
+                let url_part = &content_part[url_start + 4..];
+                if let Some(url_end) = url_part.find("\"") {
+                    let redirect_url = &url_part[..url_end];
+                    eprintln!("🔍 DEBUG: Found redirect URL: {}", redirect_url);
 
-                        // Make a new request to the redirect URL
-                        let full_redirect_url = if redirect_url.starts_with("/") {
-                            format!("https://www.google.com{}", redirect_url)
+                    // Make a new request to the redirect URL
+                    let full_redirect_url = if redirect_url.starts_with("/") {
+                        format!("https://www.google.com{}", redirect_url)
+                    } else {
+                        redirect_url.to_string()
+                    };
+
+                    eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
+
+                    // Reuse the existing browser to follow the redirect (avoid IndexedDB lock conflict)
+                    tokio::task::block_in_place(|| {
+                        let mut browser = temp_browser.lock().map_err(|_| {
+                            anyhow::anyhow!("Failed to acquire browser lock for redirect")
+                        })?;
+                        tokio::runtime::Handle::current().block_on(
+                            browser.navigate_to_with_js_option(&full_redirect_url, true, true),
+                        )
+                    })?;
+
+                    let redirect_html = {
+                        let browser = temp_browser.lock().map_err(|_| {
+                            anyhow::anyhow!("Failed to acquire browser lock for redirect")
+                        })?;
+                        browser.get_current_content()
+                    };
+
+                    eprintln!(
+                        "🔍 DEBUG: Redirect response length: {} chars",
+                        redirect_html.len()
+                    );
+                    eprintln!(
+                        "🔍 DEBUG: Redirect response preview: {}",
+                        if redirect_html.len() > 500 {
+                            &redirect_html[..500]
                         } else {
-                            redirect_url.to_string()
-                        };
-
-                        eprintln!("🔍 DEBUG: Following redirect to: {}", full_redirect_url);
-
-                        // Reuse the existing browser to follow the redirect (avoid IndexedDB lock conflict)
-                        {
-                            let mut browser = temp_browser.lock().map_err(|_| {
-                                anyhow::anyhow!("Failed to acquire browser lock for redirect")
-                            })?;
-                            browser
-                                .navigate_to_with_js_option(&full_redirect_url, true, true)
-                                .await?;
+                            &redirect_html
                         }
+                    );
 
-                        let redirect_html = {
-                            let browser = temp_browser.lock().map_err(|_| {
-                                anyhow::anyhow!("Failed to acquire browser lock for redirect")
-                            })?;
-                            browser.get_current_content()
-                        };
+                    // Explicitly drop browser to ensure cleanup
+                    drop(temp_browser);
 
-                        eprintln!(
-                            "🔍 DEBUG: Redirect response length: {} chars",
-                            redirect_html.len()
-                        );
-                        eprintln!(
-                            "🔍 DEBUG: Redirect response preview: {}",
-                            if redirect_html.len() > 500 {
-                                &redirect_html[..500]
-                            } else {
-                                &redirect_html
-                            }
-                        );
-
-                        // Explicitly drop browser to ensure cleanup
-                        drop(temp_browser);
-
-                        // Parse the redirect response instead
-                        return parse_results(&redirect_html, query, num_results);
-                    }
+                    // Parse the redirect response instead
+                    return parse_results(&redirect_html, query, num_results);
                 }
             }
         }
@@ -204,14 +206,13 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                 let snippet = extract_generic_snippet(&element, &snippet_selectors);
 
                 // Clean up Google redirect URLs
-                if url.starts_with("/url?q=") {
-                    if let Some(actual_url) = url.strip_prefix("/url?q=") {
-                        if let Some(clean_url) = actual_url.split('&').next() {
-                            url = urlencoding::decode(clean_url)
-                                .unwrap_or_default()
-                                .to_string();
-                        }
-                    }
+                if url.starts_with("/url?q=")
+                    && let Some(actual_url) = url.strip_prefix("/url?q=")
+                    && let Some(clean_url) = actual_url.split('&').next()
+                {
+                    url = urlencoding::decode(clean_url)
+                        .unwrap_or_default()
+                        .to_string();
                 }
 
                 // Make relative URLs absolute
@@ -264,14 +265,16 @@ pub async fn image_search(query: &str, num_results: usize) -> Result<ImageSearch
 
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
-    {
+    tokio::task::block_in_place(|| {
         let mut browser = temp_browser
             .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser
-            .navigate_to_with_js_option(&search_url, true, true)
-            .await?;
-    }
+        tokio::runtime::Handle::current().block_on(browser.navigate_to_with_js_option(
+            &search_url,
+            true,
+            true,
+        ))
+    })?;
 
     let html = {
         let browser = temp_browser

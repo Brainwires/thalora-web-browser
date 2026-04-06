@@ -29,6 +29,12 @@ pub struct FormAnalyzer {
     base_url: Option<String>,
 }
 
+impl Default for FormAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FormAnalyzer {
     pub fn new() -> Self {
         Self { base_url: None }

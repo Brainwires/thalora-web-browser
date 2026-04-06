@@ -9,6 +9,12 @@ pub struct PerformanceDomain {
     enabled: bool,
 }
 
+impl Default for PerformanceDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PerformanceDomain {
     pub fn new() -> Self {
         Self { enabled: false }

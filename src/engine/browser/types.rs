@@ -4,18 +4,13 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 /// Controls whether artificial anti-bot delays are applied during navigation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NavigationMode {
     /// GUI mode: no artificial delays, fastest possible navigation.
     Interactive,
     /// MCP/headless mode: human-like random delays for anti-bot evasion.
+    #[default]
     Stealth,
-}
-
-impl Default for NavigationMode {
-    fn default() -> Self {
-        NavigationMode::Stealth
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,19 +62,10 @@ pub struct InteractionResponse {
     pub new_content: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BrowserStorage {
     pub local_storage: HashMap<String, String>,
     pub session_storage: HashMap<String, String>,
-}
-
-impl Default for BrowserStorage {
-    fn default() -> Self {
-        Self {
-            local_storage: HashMap::new(),
-            session_storage: HashMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -214,6 +200,11 @@ impl ResourceCache {
     /// Number of cached entries.
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+
+    /// Returns true if the cache is empty.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 }
 

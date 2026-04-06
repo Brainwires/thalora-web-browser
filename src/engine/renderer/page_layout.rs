@@ -10,6 +10,14 @@ use scraper::{ElementRef, Html, Node, Selector};
 use std::collections::HashMap;
 use std::time::Instant;
 
+/// Mutable state threaded through the recursive DOM walk in
+/// `build_styled_element_from_dom`.
+struct DomWalkState<'a> {
+    id_counter: &'a mut u32,
+    element_selectors: &'a mut HashMap<String, String>,
+    counter_state: &'a mut CounterState,
+}
+
 /// Document compatibility mode per HTML5 spec §13.2.3.3.
 /// Determined by inspecting the DOCTYPE declaration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,10 +217,10 @@ impl CounterState {
                 i += 1;
             }
             // Increment the innermost counter with this name
-            if let Some(stack) = self.counters.get_mut(name) {
-                if let Some(last) = stack.last_mut() {
-                    *last += inc;
-                }
+            if let Some(stack) = self.counters.get_mut(name)
+                && let Some(last) = stack.last_mut()
+            {
+                *last += inc;
             } else {
                 // Auto-create at document level per spec
                 self.counters.entry(name.to_string()).or_default().push(inc);
@@ -314,14 +322,14 @@ fn format_counter_value(val: i32, style: &str) -> String {
         "decimal" | "" => val.to_string(),
         "decimal-leading-zero" => format!("{:02}", val),
         "lower-alpha" | "lower-latin" => {
-            if val >= 1 && val <= 26 {
+            if (1..=26).contains(&val) {
                 char::from(b'a' + (val - 1) as u8).to_string()
             } else {
                 val.to_string()
             }
         }
         "upper-alpha" | "upper-latin" => {
-            if val >= 1 && val <= 26 {
+            if (1..=26).contains(&val) {
                 char::from(b'A' + (val - 1) as u8).to_string()
             } else {
                 val.to_string()
@@ -441,10 +449,10 @@ fn resolve_css_content(
             if let Some(rel_end) = content[after..].find(')') {
                 let end = after + rel_end;
                 let attr_name = content[after..end].trim();
-                if let Some(el) = el {
-                    if let Some(val) = el.attr(attr_name) {
-                        result.push_str(val);
-                    }
+                if let Some(el) = el
+                    && let Some(val) = el.attr(attr_name)
+                {
+                    result.push_str(val);
                 }
                 while let Some(&(j, _)) = chars.peek() {
                     if j > end {
@@ -869,10 +877,8 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles, doc_mode: DocumentM
     if doc_mode == DocumentMode::Quirks {
         // In quirks mode, table cells don't inherit font-size from ancestors
         // (they use the initial value of medium/16px instead)
-        if matches!(tag, "td" | "th") {
-            if styles.font_size.is_none() {
-                styles.font_size = Some("16px".to_string());
-            }
+        if matches!(tag, "td" | "th") && styles.font_size.is_none() {
+            styles.font_size = Some("16px".to_string());
         }
 
         // In quirks mode, the default box model is border-box for certain form elements
@@ -891,10 +897,8 @@ fn apply_ua_defaults(tag: &str, styles: &mut ComputedStyles, doc_mode: DocumentM
         }
 
         // In quirks mode, body height fills the viewport by default
-        if tag == "body" {
-            if styles.min_height.is_none() {
-                styles.min_height = Some("100%".to_string());
-            }
+        if tag == "body" && styles.min_height.is_none() {
+            styles.min_height = Some("100%".to_string());
         }
     }
 }
@@ -981,10 +985,10 @@ pub fn compute_styled_tree_with_css(
     let mut css_processor = CssProcessor::new_with_viewport_and_height(viewport_w, viewport_h);
     css_processor.set_html_classes(html_classes);
     for css_text in external_css {
-        if !css_text.trim().is_empty() {
-            if let Err(e) = css_processor.parse(css_text) {
-                eprintln!("[styled_tree] Failed to parse external stylesheet: {}", e);
-            }
+        if !css_text.trim().is_empty()
+            && let Err(e) = css_processor.parse(css_text)
+        {
+            eprintln!("[styled_tree] Failed to parse external stylesheet: {}", e);
         }
     }
     eprintln!(
@@ -1031,15 +1035,18 @@ pub fn compute_styled_tree_with_css(
     let mut id_counter: u32 = 0;
     let mut element_selectors: HashMap<String, String> = HashMap::new();
     let mut counter_state = CounterState::default();
+    let mut walk_state = DomWalkState {
+        id_counter: &mut id_counter,
+        element_selectors: &mut element_selectors,
+        counter_state: &mut counter_state,
+    };
     let root = build_styled_element_from_dom(
         &root_node,
         &css_processor,
-        &mut id_counter,
+        &mut walk_state,
         viewport_w,
         None,
-        &mut element_selectors,
         0,
-        &mut counter_state,
         doc_mode,
     );
     eprintln!(
@@ -1107,15 +1114,14 @@ const HOVER_INTERACTIVE_TAGS: &[&str] = &[
 /// Unlike `build_layout_tree_from_dom` (which flattens inline elements into text runs),
 /// this function keeps every element as a proper node in the tree. This allows the C#
 /// ControlTreeBuilder to style `<a>`, `<strong>`, `<em>`, `<code>`, `<span>` etc. individually.
+#[allow(clippy::only_used_in_recursion)]
 fn build_styled_element_from_dom(
     element_ref: &ElementRef,
     css_processor: &CssProcessor,
-    id_counter: &mut u32,
+    state: &mut DomWalkState<'_>,
     viewport_w: f32,
     parent_styles: Option<&ComputedStyles>,
-    element_selectors: &mut HashMap<String, String>,
     depth: u32,
-    counter_state: &mut CounterState,
     doc_mode: DocumentMode,
 ) -> StyledElement {
     let el = element_ref.value();
@@ -1125,8 +1131,8 @@ fn build_styled_element_from_dom(
     let mut styles = css_processor.compute_style_for_element(element_ref);
 
     // Handle inline style attribute — use direct parser (no CssProcessor overhead)
-    let elem_id = format!("e{}", *id_counter);
-    *id_counter += 1;
+    let elem_id = format!("e{}", *state.id_counter);
+    *state.id_counter += 1;
 
     if let Some(inline_style) = el.attr("style") {
         let inline_styles = CssProcessor::parse_inline_style_direct(inline_style);
@@ -1209,13 +1215,12 @@ fn build_styled_element_from_dom(
         // If no src on <audio>, look for <source> children
         if audio_src.is_none() {
             for child_node in element_ref.children() {
-                if let Some(child_el_ref) = ElementRef::wrap(child_node) {
-                    if child_el_ref.value().name().eq_ignore_ascii_case("source") {
-                        if let Some(src) = child_el_ref.value().attr("src") {
-                            audio_src = Some(src.to_string());
-                            break;
-                        }
-                    }
+                if let Some(child_el_ref) = ElementRef::wrap(child_node)
+                    && child_el_ref.value().name().eq_ignore_ascii_case("source")
+                    && let Some(src) = child_el_ref.value().attr("src")
+                {
+                    audio_src = Some(src.to_string());
+                    break;
                 }
             }
         }
@@ -1246,7 +1251,7 @@ fn build_styled_element_from_dom(
     let hover_styles = if HOVER_INTERACTIVE_TAGS.contains(&tag.as_str())
         || el
             .attr("class")
-            .map_or(false, |c| c.contains("btn") || c.contains("button"))
+            .is_some_and(|c| c.contains("btn") || c.contains("button"))
     {
         let hover_computed = css_processor.compute_hover_style_for_element(element_ref);
         let hover_resolved = computed_to_resolved(&hover_computed);
@@ -1261,7 +1266,9 @@ fn build_styled_element_from_dom(
 
     // Build a unique CSS selector for this element (for JS event dispatch)
     let css_selector = build_element_selector(element_ref);
-    element_selectors.insert(elem_id.clone(), css_selector);
+    state
+        .element_selectors
+        .insert(elem_id.clone(), css_selector);
 
     // Extract HTML attributes
     let link_href = if tag == "a" {
@@ -1356,25 +1363,25 @@ fn build_styled_element_from_dom(
 
     // Capture width/height attributes for img if not set by CSS
     if tag == "img" {
-        if styles.width.is_none() {
-            if let Some(w) = el.attr("width") {
-                styles.width = Some(format!("{}px", w));
-            }
+        if styles.width.is_none()
+            && let Some(w) = el.attr("width")
+        {
+            styles.width = Some(format!("{}px", w));
         }
-        if styles.height.is_none() {
-            if let Some(h) = el.attr("height") {
-                styles.height = Some(format!("{}px", h));
-            }
+        if styles.height.is_none()
+            && let Some(h) = el.attr("height")
+        {
+            styles.height = Some(format!("{}px", h));
         }
     }
 
     // CSS Counters: apply counter-reset and counter-increment
     let counter_reset_value = styles.counter_reset.clone();
     if let Some(ref cr) = counter_reset_value {
-        counter_state.apply_reset(cr);
+        state.counter_state.apply_reset(cr);
     }
     if let Some(ref ci) = styles.counter_increment {
-        counter_state.apply_increment(ci);
+        state.counter_state.apply_increment(ci);
     }
 
     // White-space mode for text collapsing
@@ -1388,8 +1395,8 @@ fn build_styled_element_from_dom(
 
     for child_node in element_ref.children() {
         // Stop processing if we've hit the element cap
-        if *id_counter >= MAX_ELEMENT_COUNT {
-            if *id_counter == MAX_ELEMENT_COUNT {
+        if *state.id_counter >= MAX_ELEMENT_COUNT {
+            if *state.id_counter == MAX_ELEMENT_COUNT {
                 eprintln!(
                     "[DIAG] Hit MAX_ELEMENT_COUNT={} during tree walk, truncating remaining children",
                     MAX_ELEMENT_COUNT
@@ -1487,8 +1494,8 @@ fn build_styled_element_from_dom(
                 }
 
                 // Create a #text StyledElement
-                let text_id = format!("t{}", *id_counter);
-                *id_counter += 1;
+                let text_id = format!("t{}", *state.id_counter);
+                *state.id_counter += 1;
 
                 // Inherit text-related styles from parent
                 let text_resolved = ResolvedStyles {
@@ -1531,12 +1538,10 @@ fn build_styled_element_from_dom(
                     let child_styled = build_styled_element_from_dom(
                         &child_el_ref,
                         css_processor,
-                        id_counter,
+                        state,
                         viewport_w,
                         Some(&styles),
-                        element_selectors,
                         depth + 1,
-                        counter_state,
                         doc_mode,
                     );
 
@@ -1558,39 +1563,39 @@ fn build_styled_element_from_dom(
     }
 
     // Generate ::before pseudo-element if content is set
-    if let Some(ref content_val) = styles.content {
-        if let Some(text) = resolve_css_content(content_val, counter_state, Some(el)) {
-            let before_id = format!("pb{}", *id_counter);
-            *id_counter += 1;
-            let before_styles = ResolvedStyles {
-                display: Some("inline".to_string()),
-                font_size: styles.font_size.clone(),
-                font_family: styles.font_family.clone(),
-                font_weight: styles.font_weight.clone(),
-                color: styles.color.clone(),
-                ..ResolvedStyles::default()
-            };
-            children.insert(
-                0,
-                StyledElement {
-                    id: before_id,
-                    tag: "::before".to_string(),
-                    text_content: Some(text),
-                    img_src: None,
-                    img_alt: None,
-                    link_href: None,
-                    attributes: None,
-                    styles: before_styles,
-                    hover_styles: None,
-                    children: Vec::new(),
-                },
-            );
-        }
+    if let Some(ref content_val) = styles.content
+        && let Some(text) = resolve_css_content(content_val, state.counter_state, Some(el))
+    {
+        let before_id = format!("pb{}", *state.id_counter);
+        *state.id_counter += 1;
+        let before_styles = ResolvedStyles {
+            display: Some("inline".to_string()),
+            font_size: styles.font_size.clone(),
+            font_family: styles.font_family.clone(),
+            font_weight: styles.font_weight.clone(),
+            color: styles.color.clone(),
+            ..ResolvedStyles::default()
+        };
+        children.insert(
+            0,
+            StyledElement {
+                id: before_id,
+                tag: "::before".to_string(),
+                text_content: Some(text),
+                img_src: None,
+                img_alt: None,
+                link_href: None,
+                attributes: None,
+                styles: before_styles,
+                hover_styles: None,
+                children: Vec::new(),
+            },
+        );
     }
 
     // Pop counter-reset scopes when leaving this element
     if let Some(ref cr) = counter_reset_value {
-        counter_state.pop_reset(cr);
+        state.counter_state.pop_reset(cr);
     }
 
     // Convert ComputedStyles → ResolvedStyles
@@ -1772,7 +1777,7 @@ fn convert_to_styled_element(element: &LayoutElement) -> StyledElement {
     let children: Vec<StyledElement> = element
         .children
         .iter()
-        .map(|child| convert_to_styled_element(child))
+        .map(convert_to_styled_element)
         .collect();
 
     StyledElement {
@@ -1817,10 +1822,10 @@ pub fn compute_page_layout_with_css(
     // Step 1: Parse external stylesheets FIRST (lower source-order precedence)
     let mut css_processor = CssProcessor::new_with_viewport_and_height(viewport_w, viewport_h);
     for css_text in external_css {
-        if !css_text.trim().is_empty() {
-            if let Err(e) = css_processor.parse(css_text) {
-                eprintln!("[page_layout] Failed to parse external stylesheet: {}", e);
-            }
+        if !css_text.trim().is_empty()
+            && let Err(e) = css_processor.parse(css_text)
+        {
+            eprintln!("[page_layout] Failed to parse external stylesheet: {}", e);
         }
     }
 
@@ -2010,15 +2015,15 @@ fn build_layout_tree_from_dom(
                 .insert("__img_alt".to_string(), alt.to_string());
         }
         // Capture width/height attributes if not set by CSS
-        if styles.width.is_none() {
-            if let Some(w) = el.attr("width") {
-                styles.width = Some(format!("{}px", w));
-            }
+        if styles.width.is_none()
+            && let Some(w) = el.attr("width")
+        {
+            styles.width = Some(format!("{}px", w));
         }
-        if styles.height.is_none() {
-            if let Some(h) = el.attr("height") {
-                styles.height = Some(format!("{}px", h));
-            }
+        if styles.height.is_none()
+            && let Some(h) = el.attr("height")
+        {
+            styles.height = Some(format!("{}px", h));
         }
     }
 
@@ -2065,29 +2070,27 @@ fn build_layout_tree_from_dom(
         // Only subtract padding when width is auto (filling parent).
         // Explicit widths are content-box (taffy default) — they already
         // represent the content area, so padding is NOT subtracted.
-        if !has_explicit_width {
-            if let Some(ref padding) = styles.padding {
-                let fs = styles
-                    .font_size
-                    .as_ref()
-                    .and_then(|s| super::layout::resolve_css_length(s, 16.0))
-                    .unwrap_or(16.0);
-                let pl = super::layout::resolve_css_length_vp(
-                    &padding.left,
-                    fs,
-                    viewport_w,
-                    viewport_w * 9.0 / 16.0,
-                )
-                .unwrap_or(0.0);
-                let pr = super::layout::resolve_css_length_vp(
-                    &padding.right,
-                    fs,
-                    viewport_w,
-                    viewport_w * 9.0 / 16.0,
-                )
-                .unwrap_or(0.0);
-                w -= pl + pr;
-            }
+        if !has_explicit_width && let Some(ref padding) = styles.padding {
+            let fs = styles
+                .font_size
+                .as_ref()
+                .and_then(|s| super::layout::resolve_css_length(s, 16.0))
+                .unwrap_or(16.0);
+            let pl = super::layout::resolve_css_length_vp(
+                &padding.left,
+                fs,
+                viewport_w,
+                viewport_w * 9.0 / 16.0,
+            )
+            .unwrap_or(0.0);
+            let pr = super::layout::resolve_css_length_vp(
+                &padding.right,
+                fs,
+                viewport_w,
+                viewport_w * 9.0 / 16.0,
+            )
+            .unwrap_or(0.0);
+            w -= pl + pr;
         }
         w.max(50.0)
     };
@@ -2255,16 +2258,18 @@ fn build_layout_tree_from_dom(
         let text_id = format!("t{}", *id_counter);
         *id_counter += 1;
 
-        let mut text_styles = ComputedStyles::default();
-        text_styles.font_size = styles.font_size.clone();
-        text_styles.font_family = styles.font_family.clone();
-        text_styles.font_weight = styles.font_weight.clone();
-        text_styles.color = styles.color.clone();
-        text_styles.font_style = styles.font_style.clone();
-        text_styles.line_height = styles.line_height.clone();
-        text_styles.white_space = styles.white_space.clone();
-        text_styles.min_height = Some(format!("{}px", buffered_height));
-        text_styles.display = Some("block".to_string());
+        let mut text_styles = ComputedStyles {
+            font_size: styles.font_size.clone(),
+            font_family: styles.font_family.clone(),
+            font_weight: styles.font_weight.clone(),
+            color: styles.color.clone(),
+            font_style: styles.font_style.clone(),
+            line_height: styles.line_height.clone(),
+            white_space: styles.white_space.clone(),
+            min_height: Some(format!("{}px", buffered_height)),
+            display: Some("block".to_string()),
+            ..Default::default()
+        };
         text_styles
             .other
             .insert("__text_content".to_string(), combined_text.to_string());
@@ -3060,14 +3065,14 @@ mod tests {
             el: &StyledElement,
             results: &mut Vec<(String, Option<String>, Option<String>)>,
         ) {
-            if let Some(ref text) = el.text_content {
-                if !text.trim().is_empty() {
-                    results.push((
-                        text.clone(),
-                        el.styles.color.clone(),
-                        el.styles.background_color.clone(),
-                    ));
-                }
+            if let Some(ref text) = el.text_content
+                && !text.trim().is_empty()
+            {
+                results.push((
+                    text.clone(),
+                    el.styles.color.clone(),
+                    el.styles.background_color.clone(),
+                ));
             }
             for child in &el.children {
                 find_text_elements(child, results);
@@ -3125,14 +3130,14 @@ mod tests {
             el: &StyledElement,
             results: &mut Vec<(String, Option<String>, Option<String>)>,
         ) {
-            if let Some(ref text) = el.text_content {
-                if !text.trim().is_empty() {
-                    results.push((
-                        text.clone(),
-                        el.styles.color.clone(),
-                        el.styles.background_color.clone(),
-                    ));
-                }
+            if let Some(ref text) = el.text_content
+                && !text.trim().is_empty()
+            {
+                results.push((
+                    text.clone(),
+                    el.styles.color.clone(),
+                    el.styles.background_color.clone(),
+                ));
             }
             for child in &el.children {
                 find_text_elements(child, results);

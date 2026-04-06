@@ -37,6 +37,12 @@ use thalora_browser_apis::boa_engine::Context;
 /// Modern Web APIs implementation for headless browser
 pub struct WebApis;
 
+impl Default for WebApis {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebApis {
     pub fn new() -> Self {
         Self

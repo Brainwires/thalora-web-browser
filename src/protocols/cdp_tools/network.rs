@@ -105,11 +105,7 @@ impl NetworkTools {
         let command = CdpCommand {
             id: 13,
             method: "Network.getCookies".to_string(),
-            params: if let Some(urls) = urls {
-                Some(serde_json::json!({ "urls": urls }))
-            } else {
-                None
-            },
+            params: urls.map(|urls| serde_json::json!({ "urls": urls })),
             session_id: None,
         };
 

@@ -5,7 +5,8 @@
 
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::sync::Mutex;
 
 use crate::engine::HeadlessWebBrowser;
 use crate::engine::browser::types::NavigationMode;
@@ -15,7 +16,7 @@ use crate::engine::browser::types::NavigationMode;
 /// (who have no async runtime) can call blocking functions.
 pub struct ThalorInstance {
     pub(crate) runtime: tokio::runtime::Runtime,
-    pub(crate) browser: Arc<Mutex<HeadlessWebBrowser>>,
+    pub(crate) browser: Rc<Mutex<HeadlessWebBrowser>>,
     pub(crate) last_error: Mutex<Option<String>>,
 }
 
@@ -50,6 +51,62 @@ pub(crate) unsafe fn c_str_to_rust<'a>(ptr: *const c_char) -> Option<&'a str> {
     if ptr.is_null() {
         return None;
     }
+    unsafe { CStr::from_ptr(ptr) }.to_str().ok()
+}
+
+/// Helper: safely convert a `*mut ThalorInstance` to `Option<&ThalorInstance>`.
+/// Returns `None` if the pointer is null.
+pub(crate) fn instance_ref(ptr: *mut ThalorInstance) -> Option<&'static ThalorInstance> {
+    if ptr.is_null() {
+        None
+    } else {
+        // Safety: caller guarantees the pointer was produced by `thalora_init`
+        // and has not been destroyed yet.
+        Some(unsafe { &*ptr })
+    }
+}
+
+/// Helper: safely convert a `*const ThalorInstance` to `Option<&ThalorInstance>`.
+/// Returns `None` if the pointer is null.
+pub(crate) fn instance_ref_const(ptr: *const ThalorInstance) -> Option<&'static ThalorInstance> {
+    if ptr.is_null() {
+        None
+    } else {
+        // Safety: caller guarantees the pointer was produced by `thalora_init`
+        // and has not been destroyed yet.
+        Some(unsafe { &*ptr })
+    }
+}
+
+/// Helper: reclaim a boxed `ThalorInstance` from a raw pointer.
+/// Returns `None` if the pointer is null.
+pub(crate) fn instance_into_box(ptr: *mut ThalorInstance) -> Option<Box<ThalorInstance>> {
+    if ptr.is_null() {
+        None
+    } else {
+        // Safety: pointer was created by `Box::into_raw` in `thalora_init`.
+        Some(unsafe { Box::from_raw(ptr) })
+    }
+}
+
+/// Helper: reclaim a `CString` from a raw `*mut c_char` pointer.
+/// Returns `None` if the pointer is null.
+pub(crate) fn reclaim_c_string(ptr: *mut c_char) -> Option<CString> {
+    if ptr.is_null() {
+        None
+    } else {
+        // Safety: pointer was created by `CString::into_raw`.
+        Some(unsafe { CString::from_raw(ptr) })
+    }
+}
+
+/// Helper: convert a C string pointer to a Rust &str (safe wrapper).
+/// Returns None if the pointer is null or not valid UTF-8.
+pub(crate) fn c_str_to_rust_safe<'a>(ptr: *const c_char) -> Option<&'a str> {
+    if ptr.is_null() {
+        return None;
+    }
+    // Safety: caller guarantees the pointer is valid and null-terminated.
     unsafe { CStr::from_ptr(ptr) }.to_str().ok()
 }
 
@@ -96,13 +153,8 @@ pub extern "C" fn thalora_init() -> *mut ThalorInstance {
 /// Passing a null pointer is a no-op.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_destroy(instance: *mut ThalorInstance) {
-    if instance.is_null() {
-        return;
-    }
-    // Safety: we created this pointer in thalora_init via Box::into_raw
-    unsafe {
-        let _ = Box::from_raw(instance);
-    }
+    // Reclaim the boxed instance (no-op if null)
+    let _ = instance_into_box(instance);
 }
 
 /// Get the last error message from the instance.
@@ -112,10 +164,10 @@ pub extern "C" fn thalora_destroy(instance: *mut ThalorInstance) {
 /// call on this instance. The caller must NOT free this string.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_last_error(instance: *const ThalorInstance) -> *const c_char {
-    if instance.is_null() {
-        return ptr::null();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref_const(instance) {
+        Some(i) => i,
+        None => return ptr::null(),
+    };
     if let Ok(err) = inst.last_error.lock() {
         match err.as_ref() {
             Some(msg) => {
@@ -140,11 +192,6 @@ pub extern "C" fn thalora_last_error(instance: *const ThalorInstance) -> *const 
 /// must be freed with this function. Passing null is a no-op.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_free_string(ptr: *mut c_char) {
-    if ptr.is_null() {
-        return;
-    }
-    // Safety: this pointer was created by CString::into_raw in rust_string_to_c
-    unsafe {
-        let _ = CString::from_raw(ptr);
-    }
+    // Reclaim the CString (no-op if null)
+    let _ = reclaim_c_string(ptr);
 }

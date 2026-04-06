@@ -487,7 +487,6 @@ impl CssProcessor {
                 "justify-self" => styles.justify_self = Some(clean_value),
                 "place-items" => styles.place_items = Some(clean_value),
                 "place-content" => styles.place_content = Some(clean_value),
-                "row-gap" => styles.row_gap = Some(clean_value),
                 "column-count" => styles.column_count = Some(clean_value),
                 "direction" => styles.direction = Some(clean_value),
                 "writing-mode" => styles.writing_mode = Some(clean_value),

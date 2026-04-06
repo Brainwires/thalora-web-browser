@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// A keyframe stop: (stop name e.g. "from"/"to"/"50%", property declarations)
+pub(crate) type KeyframeStops = Vec<(String, HashMap<String, String>)>;
+
 /// Computed CSS styles for an element
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComputedStyles {
@@ -296,7 +299,7 @@ pub struct CssProcessor {
     /// Indexed rule lookup for O(1) candidate selection per element
     pub(crate) rule_index: Option<RuleIndex>,
     /// Known @keyframes: name → serialized CSS declarations per stop (e.g., "from", "to", "50%")
-    pub(crate) keyframes: HashMap<String, Vec<(String, HashMap<String, String>)>>,
+    pub(crate) keyframes: HashMap<String, KeyframeStops>,
     /// Known @font-face declarations: font-family → src URL(s) and descriptors
     pub(crate) font_faces: Vec<FontFaceEntry>,
     /// Cascade layer declaration order: layer name → order index

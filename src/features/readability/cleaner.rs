@@ -228,10 +228,10 @@ impl HtmlCleaner {
         let mut tag_start = format!("<{}", tag_name);
 
         // Only preserve certain attributes
-        if let Some(id) = element.value().attr("id") {
-            if !self.is_unwanted_attribute_value(id) {
-                tag_start.push_str(&format!(" id=\"{}\"", id));
-            }
+        if let Some(id) = element.value().attr("id")
+            && !self.is_unwanted_attribute_value(id)
+        {
+            tag_start.push_str(&format!(" id=\"{}\"", id));
         }
 
         if let Some(class) = element.value().attr("class") {
@@ -242,10 +242,10 @@ impl HtmlCleaner {
         }
 
         // Preserve href for links
-        if tag_name == "a" {
-            if let Some(href) = element.value().attr("href") {
-                tag_start.push_str(&format!(" href=\"{}\"", href));
-            }
+        if tag_name == "a"
+            && let Some(href) = element.value().attr("href")
+        {
+            tag_start.push_str(&format!(" href=\"{}\"", href));
         }
 
         // Preserve src and alt for images
@@ -291,31 +291,31 @@ impl HtmlCleaner {
         }
 
         // Check if element has unwanted class or ID
-        if let Some(id) = element.value().attr("id") {
-            if self.is_unwanted_attribute_value(id) {
-                return true;
-            }
+        if let Some(id) = element.value().attr("id")
+            && self.is_unwanted_attribute_value(id)
+        {
+            return true;
         }
 
-        if let Some(class) = element.value().attr("class") {
-            if self.is_unwanted_attribute_value(class) {
-                return true;
-            }
+        if let Some(class) = element.value().attr("class")
+            && self.is_unwanted_attribute_value(class)
+        {
+            return true;
         }
 
         // Remove elements with very high link density (likely navigation)
         let total_text = element.text().collect::<String>();
-        if !total_text.is_empty() {
-            if let Ok(link_selector) = Selector::parse("a") {
-                let link_text: String = element
-                    .select(&link_selector)
-                    .map(|link| link.text().collect::<String>())
-                    .collect();
+        if !total_text.is_empty()
+            && let Ok(link_selector) = Selector::parse("a")
+        {
+            let link_text: String = element
+                .select(&link_selector)
+                .map(|link| link.text().collect::<String>())
+                .collect();
 
-                let link_density = link_text.len() as f32 / total_text.len() as f32;
-                if link_density > 0.8 && total_text.len() > 50 {
-                    return true;
-                }
+            let link_density = link_text.len() as f32 / total_text.len() as f32;
+            if link_density > 0.8 && total_text.len() > 50 {
+                return true;
             }
         }
 
@@ -442,25 +442,24 @@ impl HtmlCleaner {
         preserved_html.push_str("<!DOCTYPE html><html><head>");
 
         // Preserve title
-        if let Ok(title_selector) = Selector::parse("title") {
-            if let Some(title) = document.select(&title_selector).next() {
-                preserved_html.push_str(&format!(
-                    "<title>{}</title>",
-                    title.text().collect::<String>()
-                ));
-            }
+        if let Ok(title_selector) = Selector::parse("title")
+            && let Some(title) = document.select(&title_selector).next()
+        {
+            preserved_html.push_str(&format!(
+                "<title>{}</title>",
+                title.text().collect::<String>()
+            ));
         }
 
         // Preserve meta description
-        if let Ok(meta_selector) = Selector::parse(r#"meta[name="description"]"#) {
-            if let Some(meta) = document.select(&meta_selector).next() {
-                if let Some(content) = meta.value().attr("content") {
-                    preserved_html.push_str(&format!(
-                        r#"<meta name="description" content="{}">"#,
-                        content
-                    ));
-                }
-            }
+        if let Ok(meta_selector) = Selector::parse(r#"meta[name="description"]"#)
+            && let Some(meta) = document.select(&meta_selector).next()
+            && let Some(content) = meta.value().attr("content")
+        {
+            preserved_html.push_str(&format!(
+                r#"<meta name="description" content="{}">"#,
+                content
+            ));
         }
 
         preserved_html.push_str("</head><body>");
@@ -469,10 +468,10 @@ impl HtmlCleaner {
         let cleaned_content = self.clean(html)?;
         let body_document = Html::parse_document(&cleaned_content);
 
-        if let Ok(body_selector) = Selector::parse("body") {
-            if let Some(body) = body_document.select(&body_selector).next() {
-                preserved_html.push_str(&body.inner_html());
-            }
+        if let Ok(body_selector) = Selector::parse("body")
+            && let Some(body) = body_document.select(&body_selector).next()
+        {
+            preserved_html.push_str(&body.inner_html());
         }
 
         preserved_html.push_str("</body></html>");

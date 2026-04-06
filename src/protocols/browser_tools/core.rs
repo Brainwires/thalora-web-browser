@@ -1,30 +1,32 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::sync::Mutex;
 
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::browser_tools::session::BrowserSession;
 
+/// Shared handle to a browser instance (single-threaded, !Send).
+pub type BrowserHandle = Rc<Mutex<HeadlessWebBrowser>>;
+
+/// Map of session ID to (browser handle, session metadata).
+pub(super) type SessionMap = HashMap<String, (BrowserHandle, BrowserSession)>;
+
 #[allow(dead_code)]
 pub struct BrowserTools {
-    pub(super) sessions:
-        Arc<Mutex<HashMap<String, (Arc<Mutex<HeadlessWebBrowser>>, BrowserSession)>>>,
+    pub(super) sessions: Rc<Mutex<SessionMap>>,
     pub(super) persistent_session_path: Option<PathBuf>,
 }
 
 impl BrowserTools {
     pub fn new() -> Self {
         Self {
-            sessions: Arc::new(Mutex::new(HashMap::new())),
+            sessions: Rc::new(Mutex::new(HashMap::new())),
             persistent_session_path: None,
         }
     }
 
-    pub fn get_or_create_session(
-        &self,
-        session_id: &str,
-        persistent: bool,
-    ) -> Arc<Mutex<HeadlessWebBrowser>> {
+    pub fn get_or_create_session(&self, session_id: &str, persistent: bool) -> BrowserHandle {
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
@@ -55,13 +57,11 @@ impl BrowserTools {
             let session = BrowserSession::new(session_id.to_string(), persistent);
 
             // Set persistent data path for session storage
-            if persistent {
-                if let Ok(mut browser_guard) = browser.lock() {
-                    browser_guard
-                        .get_storage_mut()
-                        .session_storage
-                        .insert("_session_id".to_string(), session_id.to_string());
-                }
+            if persistent && let Ok(mut browser_guard) = browser.try_lock() {
+                browser_guard
+                    .get_storage_mut()
+                    .session_storage
+                    .insert("_session_id".to_string(), session_id.to_string());
             }
 
             sessions.insert(session_id.to_string(), (browser.clone(), session));
@@ -81,7 +81,7 @@ impl BrowserTools {
 
     /// Get browser from an existing session without creating a new one
     /// Returns None if the session doesn't exist
-    pub fn get_session_browser(&self, session_id: &str) -> Option<Arc<Mutex<HeadlessWebBrowser>>> {
+    pub fn get_session_browser(&self, session_id: &str) -> Option<BrowserHandle> {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some((browser, session)) = sessions.get_mut(session_id) {
             session.update_last_accessed();
@@ -157,16 +157,15 @@ impl Default for BrowserTools {
 impl Drop for BrowserTools {
     fn drop(&mut self) {
         eprintln!("🧹 BrowserTools shutting down, closing all sessions");
-        if let Ok(mut sessions) = self.sessions.lock() {
-            let session_ids: Vec<String> = sessions.keys().cloned().collect();
-            eprintln!("🧹 Closing {} active session(s)", session_ids.len());
+        let mut sessions = self.sessions.lock().unwrap();
+        let session_ids: Vec<String> = sessions.keys().cloned().collect();
+        eprintln!("🧹 Closing {} active session(s)", session_ids.len());
 
-            for session_id in session_ids {
-                if let Some((browser, _)) = sessions.remove(&session_id) {
-                    drop(browser);
-                }
+        for session_id in session_ids {
+            if let Some((browser, _)) = sessions.remove(&session_id) {
+                drop(browser);
             }
-            sessions.clear();
         }
+        sessions.clear();
     }
 }

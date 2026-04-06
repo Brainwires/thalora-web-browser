@@ -2,7 +2,7 @@ use crate::protocols::browser_tools::BrowserTools;
 use crate::protocols::cdp::CdpServer;
 use crate::protocols::mcp::McpResponse;
 use serde_json::Value;
-use std::sync::Arc;
+use std::rc::Rc;
 
 mod debugger;
 mod dom;
@@ -26,14 +26,20 @@ pub struct CdpTools {
     page: PageTools,
 }
 
+impl Default for CdpTools {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CdpTools {
     /// Create a new CdpTools with its own BrowserTools instance (standalone mode)
     pub fn new() -> Self {
-        Self::with_browser_tools(Arc::new(BrowserTools::new()))
+        Self::with_browser_tools(Rc::new(BrowserTools::new()))
     }
 
     /// Create a new CdpTools sharing an existing BrowserTools instance
-    pub fn with_browser_tools(browser_tools: Arc<BrowserTools>) -> Self {
+    pub fn with_browser_tools(browser_tools: Rc<BrowserTools>) -> Self {
         Self {
             runtime: RuntimeTools::new(browser_tools),
             debugger: DebuggerTools::new(),

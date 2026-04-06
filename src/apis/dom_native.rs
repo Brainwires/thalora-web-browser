@@ -413,15 +413,15 @@ pub fn setup_native_dom_globals(context: &mut Context) -> Result<()> {
                         .build();
 
                 // If width/height arguments provided, set them
-                if let Some(width_arg) = args.get(0) {
-                    if let Some(width) = width_arg.as_number() {
-                        img_obj.set(js_string!("width"), width as i32, false, context)?;
-                    }
+                if let Some(width_arg) = args.first()
+                    && let Some(width) = width_arg.as_number()
+                {
+                    img_obj.set(js_string!("width"), width as i32, false, context)?;
                 }
-                if let Some(height_arg) = args.get(1) {
-                    if let Some(height) = height_arg.as_number() {
-                        img_obj.set(js_string!("height"), height as i32, false, context)?;
-                    }
+                if let Some(height_arg) = args.get(1)
+                    && let Some(height) = height_arg.as_number()
+                {
+                    img_obj.set(js_string!("height"), height as i32, false, context)?;
                 }
 
                 Ok(JsValue::from(img_obj))

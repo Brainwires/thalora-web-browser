@@ -36,17 +36,17 @@ fn matches_research_criteria(entry: &ResearchEntry, criteria: &MemorySearchCrite
     }
 
     // Tag matching
-    if let Some(tags) = &criteria.tags {
-        if !tags.iter().any(|tag| entry.tags.contains(tag)) {
-            return false;
-        }
+    if let Some(tags) = &criteria.tags
+        && !tags.iter().any(|tag| entry.tags.contains(tag))
+    {
+        return false;
     }
 
     // Date range matching
-    if let Some((start, end)) = &criteria.date_range {
-        if entry.created_at < *start || entry.created_at > *end {
-            return false;
-        }
+    if let Some((start, end)) = &criteria.date_range
+        && (entry.created_at < *start || entry.created_at > *end)
+    {
+        return false;
     }
 
     true
@@ -99,17 +99,17 @@ fn matches_bookmark_criteria(entry: &BookmarkEntry, criteria: &MemorySearchCrite
     }
 
     // Tag matching
-    if let Some(tags) = &criteria.tags {
-        if !tags.iter().any(|tag| entry.tags.contains(tag)) {
-            return false;
-        }
+    if let Some(tags) = &criteria.tags
+        && !tags.iter().any(|tag| entry.tags.contains(tag))
+    {
+        return false;
     }
 
     // Date range matching
-    if let Some((start, end)) = &criteria.date_range {
-        if entry.created_at < *start || entry.created_at > *end {
-            return false;
-        }
+    if let Some((start, end)) = &criteria.date_range
+        && (entry.created_at < *start || entry.created_at > *end)
+    {
+        return false;
     }
 
     true
@@ -147,24 +147,24 @@ fn matches_note_criteria(entry: &NoteEntry, criteria: &MemorySearchCriteria) -> 
     }
 
     // Category matching
-    if let Some(category) = &criteria.category {
-        if entry.category != *category {
-            return false;
-        }
+    if let Some(category) = &criteria.category
+        && entry.category != *category
+    {
+        return false;
     }
 
     // Tag matching
-    if let Some(tags) = &criteria.tags {
-        if !tags.iter().any(|tag| entry.tags.contains(tag)) {
-            return false;
-        }
+    if let Some(tags) = &criteria.tags
+        && !tags.iter().any(|tag| entry.tags.contains(tag))
+    {
+        return false;
     }
 
     // Date range matching
-    if let Some((start, end)) = &criteria.date_range {
-        if entry.created_at < *start || entry.created_at > *end {
-            return false;
-        }
+    if let Some((start, end)) = &criteria.date_range
+        && (entry.created_at < *start || entry.created_at > *end)
+    {
+        return false;
     }
 
     true

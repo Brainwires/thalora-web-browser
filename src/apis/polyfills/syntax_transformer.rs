@@ -3,6 +3,12 @@ use anyhow::Result;
 /// Advanced syntax transformer for ES2022 features
 pub struct SyntaxTransformer;
 
+impl Default for SyntaxTransformer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SyntaxTransformer {
     pub fn new() -> Self {
         Self

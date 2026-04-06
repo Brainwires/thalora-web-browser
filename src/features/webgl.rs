@@ -18,6 +18,12 @@ pub struct WebGLContext {
     pub parameters: HashMap<String, JsValue>,
 }
 
+impl Default for WebGLManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebGLManager {
     pub fn new() -> Self {
         Self {
@@ -61,7 +67,7 @@ impl WebGLManager {
     fn create_2d_context(
         context: &mut Context,
     ) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
-        let ctx_2d = JsObject::default(&context.intrinsics());
+        let ctx_2d = JsObject::default(context.intrinsics());
 
         // Basic 2D context methods
         ctx_2d.set(
@@ -110,7 +116,7 @@ impl WebGLManager {
         context: &mut Context,
         is_webgl2: bool,
     ) -> Result<JsValue, thalora_browser_apis::boa_engine::JsError> {
-        let gl_context = JsObject::default(&context.intrinsics());
+        let gl_context = JsObject::default(context.intrinsics());
 
         // WebGL constants (subset of most commonly used)
         gl_context.set(
@@ -149,7 +155,7 @@ impl WebGLManager {
         // Core WebGL methods
         let create_shader_fn = unsafe {
             NativeFunction::from_closure(|_, _args, _context| {
-                let shader_obj = JsObject::default(&_context.intrinsics());
+                let shader_obj = JsObject::default(_context.intrinsics());
                 Ok(JsValue::from(shader_obj))
             })
         };
@@ -162,7 +168,7 @@ impl WebGLManager {
 
         let create_program_fn = unsafe {
             NativeFunction::from_closure(|_, _args, _context| {
-                let program_obj = JsObject::default(&_context.intrinsics());
+                let program_obj = JsObject::default(_context.intrinsics());
                 Ok(JsValue::from(program_obj))
             })
         };
@@ -175,7 +181,7 @@ impl WebGLManager {
 
         let create_buffer_fn = unsafe {
             NativeFunction::from_closure(|_, _args, _context| {
-                let buffer_obj = JsObject::default(&_context.intrinsics());
+                let buffer_obj = JsObject::default(_context.intrinsics());
                 Ok(JsValue::from(buffer_obj))
             })
         };
@@ -323,7 +329,7 @@ impl WebGLManager {
 
         let get_supported_extensions_fn = unsafe {
             NativeFunction::from_closure(|_, _args, ctx| {
-                let extensions = vec![
+                let extensions = [
                     "ANGLE_instanced_arrays",
                     "EXT_blend_minmax",
                     "EXT_color_buffer_half_float",
@@ -331,7 +337,7 @@ impl WebGLManager {
                     "WEBGL_lose_context",
                 ];
 
-                let array = JsObject::default(&ctx.intrinsics());
+                let array = JsObject::default(ctx.intrinsics());
                 array.set(
                     js_string!("length"),
                     JsValue::from(extensions.len()),
@@ -364,7 +370,7 @@ impl WebGLManager {
                 match ext_name.as_str() {
                     "WEBGL_debug_renderer_info" => {
                         // MOCK: Hardcoded GL constants for debugging extension
-                        let ext_obj = JsObject::default(&ctx.intrinsics());
+                        let ext_obj = JsObject::default(ctx.intrinsics());
                         ext_obj.set(
                             js_string!("UNMASKED_VENDOR_WEBGL"),
                             JsValue::from(37445),
@@ -381,7 +387,7 @@ impl WebGLManager {
                     }
                     "WEBGL_lose_context" => {
                         // MOCK: Fake context loss extension - no real GPU interaction
-                        let ext_obj = JsObject::default(&ctx.intrinsics());
+                        let ext_obj = JsObject::default(ctx.intrinsics());
                         let lose_context_fn =
                             NativeFunction::from_closure(|_, _, _| Ok(JsValue::undefined())); // MOCK: No-op function
                         ext_obj.set(
@@ -406,7 +412,7 @@ impl WebGLManager {
         // Texture methods
         let create_texture_fn = unsafe {
             NativeFunction::from_closure(|_, _args, _ctx| {
-                let texture_obj = JsObject::default(&_ctx.intrinsics());
+                let texture_obj = JsObject::default(_ctx.intrinsics());
                 Ok(JsValue::from(texture_obj))
             })
         };
@@ -421,7 +427,7 @@ impl WebGLManager {
         if is_webgl2 {
             let create_vertex_array_fn = unsafe {
                 NativeFunction::from_closure(|_, _args, _context| {
-                    let vao_obj = JsObject::default(&_context.intrinsics());
+                    let vao_obj = JsObject::default(_context.intrinsics());
                     Ok(JsValue::from(vao_obj))
                 })
             };
@@ -449,7 +455,7 @@ impl WebGLManager {
     /// Get realistic WebGL renderer info for fingerprinting
     pub fn get_webgl_renderer_info() -> (String, String) {
         // Realistic renderer strings that match actual Chrome browsers
-        let renderers = vec![
+        let renderers = [
             ("ANGLE (Apple, Apple M1, OpenGL 4.1)", "Google Inc. (Apple)"),
             (
                 "ANGLE (Intel, Intel(R) UHD Graphics 630, OpenGL 4.1)",

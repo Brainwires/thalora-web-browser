@@ -5,7 +5,7 @@ use scraper::{ElementRef, Html, Selector};
 use serde::{Deserialize, Serialize};
 
 /// Metadata extracted from the content
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ContentMetadata {
     pub title: Option<String>,
     pub author: Option<String>,
@@ -17,75 +17,47 @@ pub struct ContentMetadata {
     pub description: Option<String>,
 }
 
-impl Default for ContentMetadata {
-    fn default() -> Self {
-        Self {
-            title: None,
-            author: None,
-            publication_date: None,
-            word_count: 0,
-            reading_time_minutes: 0,
-            main_image: None,
-            tags: Vec::new(),
-            description: None,
-        }
-    }
-}
-
 /// Extract metadata from the HTML document
 pub(super) fn extract_metadata(html: &Html, base_url: &str) -> Result<ContentMetadata> {
-    let mut metadata = ContentMetadata::default();
-
-    // Extract title
-    metadata.title = extract_title(html);
-
-    // Extract author
-    metadata.author = extract_author(html);
-
-    // Extract publication date
-    metadata.publication_date = extract_publication_date(html);
-
-    // Extract main image
-    metadata.main_image = extract_main_image(html, base_url);
-
-    // Extract description
-    metadata.description = extract_description(html);
-
-    // Extract tags/keywords
-    metadata.tags = extract_tags(html);
-
-    Ok(metadata)
+    Ok(ContentMetadata {
+        title: extract_title(html),
+        author: extract_author(html),
+        publication_date: extract_publication_date(html),
+        main_image: extract_main_image(html, base_url),
+        description: extract_description(html),
+        tags: extract_tags(html),
+        ..Default::default()
+    })
 }
 
 /// Extract title from various sources
 pub(super) fn extract_title(html: &Html) -> Option<String> {
     // Try h1 first
-    if let Ok(h1_selector) = Selector::parse("h1") {
-        if let Some(h1) = html.select(&h1_selector).next() {
-            let title = get_text_content(&h1);
-            if !title.is_empty() && title.len() > 10 && title.len() < 200 {
-                return Some(title);
-            }
+    if let Ok(h1_selector) = Selector::parse("h1")
+        && let Some(h1) = html.select(&h1_selector).next()
+    {
+        let title = get_text_content(&h1);
+        if !title.is_empty() && title.len() > 10 && title.len() < 200 {
+            return Some(title);
         }
     }
 
     // Try title tag
-    if let Ok(title_selector) = Selector::parse("title") {
-        if let Some(title_elem) = html.select(&title_selector).next() {
-            let title = get_text_content(&title_elem);
-            if !title.is_empty() {
-                return Some(title);
-            }
+    if let Ok(title_selector) = Selector::parse("title")
+        && let Some(title_elem) = html.select(&title_selector).next()
+    {
+        let title = get_text_content(&title_elem);
+        if !title.is_empty() {
+            return Some(title);
         }
     }
 
     // Try Open Graph title
-    if let Ok(og_title_selector) = Selector::parse(r#"meta[property="og:title"]"#) {
-        if let Some(og_title) = html.select(&og_title_selector).next() {
-            if let Some(content) = og_title.value().attr("content") {
-                return Some(content.to_string());
-            }
-        }
+    if let Ok(og_title_selector) = Selector::parse(r#"meta[property="og:title"]"#)
+        && let Some(og_title) = html.select(&og_title_selector).next()
+        && let Some(content) = og_title.value().attr("content")
+    {
+        return Some(content.to_string());
     }
 
     None
@@ -103,15 +75,15 @@ pub(super) fn extract_author(html: &Html) -> Option<String> {
     ];
 
     for selector_str in &author_selectors {
-        if let Ok(selector) = Selector::parse(selector_str) {
-            if let Some(element) = html.select(&selector).next() {
-                if let Some(content) = element.value().attr("content") {
-                    return Some(content.to_string());
-                } else {
-                    let text = get_text_content(&element);
-                    if !text.is_empty() && text.len() < 100 {
-                        return Some(text);
-                    }
+        if let Ok(selector) = Selector::parse(selector_str)
+            && let Some(element) = html.select(&selector).next()
+        {
+            if let Some(content) = element.value().attr("content") {
+                return Some(content.to_string());
+            } else {
+                let text = get_text_content(&element);
+                if !text.is_empty() && text.len() < 100 {
+                    return Some(text);
                 }
             }
         }
@@ -131,13 +103,13 @@ pub(super) fn extract_publication_date(html: &Html) -> Option<String> {
     ];
 
     for selector_str in &date_selectors {
-        if let Ok(selector) = Selector::parse(selector_str) {
-            if let Some(element) = html.select(&selector).next() {
-                if let Some(datetime) = element.value().attr("datetime") {
-                    return Some(datetime.to_string());
-                } else if let Some(content) = element.value().attr("content") {
-                    return Some(content.to_string());
-                }
+        if let Ok(selector) = Selector::parse(selector_str)
+            && let Some(element) = html.select(&selector).next()
+        {
+            if let Some(datetime) = element.value().attr("datetime") {
+                return Some(datetime.to_string());
+            } else if let Some(content) = element.value().attr("content") {
+                return Some(content.to_string());
             }
         }
     }
@@ -148,32 +120,29 @@ pub(super) fn extract_publication_date(html: &Html) -> Option<String> {
 /// Extract main image
 pub(super) fn extract_main_image(html: &Html, base_url: &str) -> Option<String> {
     // Try Open Graph image first
-    if let Ok(og_image_selector) = Selector::parse(r#"meta[property="og:image"]"#) {
-        if let Some(og_image) = html.select(&og_image_selector).next() {
-            if let Some(content) = og_image.value().attr("content") {
-                if let Ok(url) = super::resolve_url(content, base_url) {
-                    return Some(url);
-                }
-            }
-        }
+    if let Ok(og_image_selector) = Selector::parse(r#"meta[property="og:image"]"#)
+        && let Some(og_image) = html.select(&og_image_selector).next()
+        && let Some(content) = og_image.value().attr("content")
+        && let Ok(url) = super::resolve_url(content, base_url)
+    {
+        return Some(url);
     }
 
     // Try first significant image in content
     if let Ok(img_selector) = Selector::parse("img") {
         for img in html.select(&img_selector) {
-            if let Some(src) = img.value().attr("src") {
-                if let Ok(url) = super::resolve_url(src, base_url) {
-                    // Basic size filtering to avoid icons
-                    if let Some(width) = img.value().attr("width") {
-                        if let Ok(w) = width.parse::<u32>() {
-                            if w >= 200 {
-                                return Some(url);
-                            }
-                        }
-                    } else {
-                        // No explicit width, assume it might be main image
-                        return Some(url);
-                    }
+            if let Some(src) = img.value().attr("src")
+                && let Ok(url) = super::resolve_url(src, base_url)
+            {
+                // Basic size filtering to avoid icons
+                if let Some(width) = img.value().attr("width")
+                    && let Ok(w) = width.parse::<u32>()
+                    && w >= 200
+                {
+                    return Some(url);
+                } else {
+                    // No explicit width, assume it might be main image
+                    return Some(url);
                 }
             }
         }
@@ -185,21 +154,19 @@ pub(super) fn extract_main_image(html: &Html, base_url: &str) -> Option<String> 
 /// Extract description/summary
 pub(super) fn extract_description(html: &Html) -> Option<String> {
     // Try meta description
-    if let Ok(desc_selector) = Selector::parse(r#"meta[name="description"]"#) {
-        if let Some(desc) = html.select(&desc_selector).next() {
-            if let Some(content) = desc.value().attr("content") {
-                return Some(content.to_string());
-            }
-        }
+    if let Ok(desc_selector) = Selector::parse(r#"meta[name="description"]"#)
+        && let Some(desc) = html.select(&desc_selector).next()
+        && let Some(content) = desc.value().attr("content")
+    {
+        return Some(content.to_string());
     }
 
     // Try Open Graph description
-    if let Ok(og_desc_selector) = Selector::parse(r#"meta[property="og:description"]"#) {
-        if let Some(og_desc) = html.select(&og_desc_selector).next() {
-            if let Some(content) = og_desc.value().attr("content") {
-                return Some(content.to_string());
-            }
-        }
+    if let Ok(og_desc_selector) = Selector::parse(r#"meta[property="og:description"]"#)
+        && let Some(og_desc) = html.select(&og_desc_selector).next()
+        && let Some(content) = og_desc.value().attr("content")
+    {
+        return Some(content.to_string());
     }
 
     None
@@ -210,12 +177,11 @@ pub(super) fn extract_tags(html: &Html) -> Vec<String> {
     let mut tags = Vec::new();
 
     // Try meta keywords
-    if let Ok(keywords_selector) = Selector::parse(r#"meta[name="keywords"]"#) {
-        if let Some(keywords) = html.select(&keywords_selector).next() {
-            if let Some(content) = keywords.value().attr("content") {
-                tags.extend(content.split(',').map(|s| s.trim().to_string()));
-            }
-        }
+    if let Ok(keywords_selector) = Selector::parse(r#"meta[name="keywords"]"#)
+        && let Some(keywords) = html.select(&keywords_selector).next()
+        && let Some(content) = keywords.value().attr("content")
+    {
+        tags.extend(content.split(',').map(|s| s.trim().to_string()));
     }
 
     // Try article tags

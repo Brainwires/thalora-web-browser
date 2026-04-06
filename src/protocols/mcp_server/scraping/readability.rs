@@ -52,21 +52,23 @@ impl McpServer {
 
             // Navigate to URL
             {
-                let mut browser = match temp_browser.lock() {
-                    Ok(b) => b,
-                    Err(_) => {
-                        return McpResponse::error(
-                            -1,
-                            "Failed to acquire browser lock".to_string(),
-                        );
-                    }
-                };
+                let nav_result = tokio::task::block_in_place(|| {
+                    let mut browser = match temp_browser.lock() {
+                        Ok(b) => b,
+                        Err(_) => {
+                            return Err("Failed to acquire browser lock".to_string());
+                        }
+                    };
 
-                match browser.navigate_to_with_options(url_str, wait_for_js).await {
-                    Ok(_) => {}
-                    Err(e) => {
-                        return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e));
+                    match tokio::runtime::Handle::current()
+                        .block_on(browser.navigate_to_with_options(url_str, wait_for_js))
+                    {
+                        Ok(_) => Ok(()),
+                        Err(e) => Err(format!("Failed to navigate to URL: {}", e)),
                     }
+                });
+                if let Err(e) = nav_result {
+                    return McpResponse::error(-1, e);
                 }
             }
 

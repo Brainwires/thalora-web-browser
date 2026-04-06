@@ -57,18 +57,18 @@ impl WebScraper {
 
         if let Ok(selector) = Selector::parse("a[href]") {
             for element in document.select(&selector) {
-                if let Some(href) = element.value().attr("href") {
-                    if let Ok(url) = self.resolve_url(base_url, href) {
-                        let text = element
-                            .text()
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                            .trim()
-                            .to_string();
-                        let title = element.value().attr("title").map(|s| s.to_string());
+                if let Some(href) = element.value().attr("href")
+                    && let Ok(url) = self.resolve_url(base_url, href)
+                {
+                    let text = element
+                        .text()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                        .trim()
+                        .to_string();
+                    let title = element.value().attr("title").map(|s| s.to_string());
 
-                        links.push(Link { url, text, title });
-                    }
+                    links.push(Link { url, text, title });
                 }
             }
         }
@@ -81,23 +81,23 @@ impl WebScraper {
 
         if let Ok(selector) = Selector::parse("img[src]") {
             for element in document.select(&selector) {
-                if let Some(src) = element.value().attr("src") {
-                    if let Ok(url) = self.resolve_url(base_url, src) {
-                        // CSP: Check img-src before including the image
-                        if !thalora_browser_apis::csp::csp_allows_image(&url) {
-                            eprintln!("🔒 CSP: Image blocked by img-src: {}", url);
-                            continue;
-                        }
-
-                        let alt = element.value().attr("alt").map(|s| s.to_string());
-                        let title = element.value().attr("title").map(|s| s.to_string());
-
-                        images.push(Image {
-                            src: url,
-                            alt,
-                            title,
-                        });
+                if let Some(src) = element.value().attr("src")
+                    && let Ok(url) = self.resolve_url(base_url, src)
+                {
+                    // CSP: Check img-src before including the image
+                    if !thalora_browser_apis::csp::csp_allows_image(&url) {
+                        eprintln!("🔒 CSP: Image blocked by img-src: {}", url);
+                        continue;
                     }
+
+                    let alt = element.value().attr("alt").map(|s| s.to_string());
+                    let title = element.value().attr("title").map(|s| s.to_string());
+
+                    images.push(Image {
+                        src: url,
+                        alt,
+                        title,
+                    });
                 }
             }
         }
@@ -129,12 +129,11 @@ impl WebScraper {
         }
 
         // Extract canonical URL
-        if let Ok(canonical_selector) = Selector::parse(r#"link[rel="canonical"]"#) {
-            if let Some(element) = document.select(&canonical_selector).next() {
-                if let Some(href) = element.value().attr("href") {
-                    metadata.insert("canonical".to_string(), href.to_string());
-                }
-            }
+        if let Ok(canonical_selector) = Selector::parse(r#"link[rel="canonical"]"#)
+            && let Some(element) = document.select(&canonical_selector).next()
+            && let Some(href) = element.value().attr("href")
+        {
+            metadata.insert("canonical".to_string(), href.to_string());
         }
 
         Ok(metadata)
@@ -144,10 +143,10 @@ impl WebScraper {
         // Remove script and style elements
         let mut content = String::new();
 
-        if let Ok(body_selector) = Selector::parse("body") {
-            if let Some(body) = document.select(&body_selector).next() {
-                content = body.text().collect::<Vec<_>>().join(" ");
-            }
+        if let Ok(body_selector) = Selector::parse("body")
+            && let Some(body) = document.select(&body_selector).next()
+        {
+            content = body.text().collect::<Vec<_>>().join(" ");
         }
 
         if content.is_empty() {

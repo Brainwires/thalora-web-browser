@@ -14,49 +14,22 @@ pub struct SsrfProtection {
 
 impl SsrfProtection {
     pub fn new() -> Self {
-        let mut blocked_networks = Vec::new();
-
-        // IPv4 private/reserved ranges
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(127, 0, 0, 0), 8).unwrap(),
-        )); // 127.0.0.0/8 - Loopback
-
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 0), 8).unwrap(),
-        )); // 10.0.0.0/8 - Private
-
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(172, 16, 0, 0), 12).unwrap(),
-        )); // 172.16.0.0/12 - Private
-
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(192, 168, 0, 0), 16).unwrap(),
-        )); // 192.168.0.0/16 - Private
-
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(169, 254, 0, 0), 16).unwrap(),
-        )); // 169.254.0.0/16 - Link-local
-
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 8).unwrap(),
-        )); // 0.0.0.0/8 - Current network
-
-        blocked_networks.push(IpNetwork::V4(
-            Ipv4Network::new(Ipv4Addr::new(224, 0, 0, 0), 4).unwrap(),
-        )); // 224.0.0.0/4 - Multicast
-
-        // IPv6 private/reserved ranges
-        blocked_networks.push(IpNetwork::V6(
-            Ipv6Network::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 128).unwrap(),
-        )); // ::1/128 - Loopback
-
-        blocked_networks.push(IpNetwork::V6(
-            Ipv6Network::new(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 0), 7).unwrap(),
-        )); // fc00::/7 - Unique local addresses
-
-        blocked_networks.push(IpNetwork::V6(
-            Ipv6Network::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10).unwrap(),
-        )); // fe80::/10 - Link-local
+        let blocked_networks = vec![
+            // IPv4 private/reserved ranges
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(127, 0, 0, 0), 8).unwrap()), // 127.0.0.0/8 - Loopback
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 0), 8).unwrap()), // 10.0.0.0/8 - Private
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(172, 16, 0, 0), 12).unwrap()), // 172.16.0.0/12 - Private
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(192, 168, 0, 0), 16).unwrap()), // 192.168.0.0/16 - Private
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(169, 254, 0, 0), 16).unwrap()), // 169.254.0.0/16 - Link-local
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), 8).unwrap()), // 0.0.0.0/8 - Current network
+            IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(224, 0, 0, 0), 4).unwrap()), // 224.0.0.0/4 - Multicast
+            // IPv6 private/reserved ranges
+            IpNetwork::V6(Ipv6Network::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 128).unwrap()), // ::1/128 - Loopback
+            IpNetwork::V6(Ipv6Network::new(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 0), 7).unwrap()), // fc00::/7 - Unique local addresses
+            IpNetwork::V6(
+                Ipv6Network::new(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 0), 10).unwrap(),
+            ), // fe80::/10 - Link-local
+        ];
 
         Self {
             blocked_networks,

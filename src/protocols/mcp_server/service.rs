@@ -1,5 +1,3 @@
-#![cfg(feature = "http-transport")]
-
 use std::cell::RefCell;
 
 use rmcp::{
@@ -16,15 +14,16 @@ use crate::protocols::mcp_server::core::McpServer;
 
 /// rmcp `ServerHandler` wrapper for `McpServer`.
 ///
-/// `RefCell` provides interior mutability so rmcp's `&self` trait methods can
-/// drive `McpServer`'s `&mut self` internals.  This is safe because rmcp's
+/// `RefCell<Option<McpServer>>` provides interior mutability so rmcp's `&self`
+/// trait methods can drive `McpServer`'s `&mut self` internals without holding
+/// a `RefCell` borrow across `.await` points.  This is safe because rmcp's
 /// `"local"` feature uses `spawn_local`, which guarantees serial execution —
 /// only one call runs at a time per session instance.
-pub struct McpServerService(RefCell<McpServer>);
+pub struct McpServerService(RefCell<Option<McpServer>>);
 
 impl McpServerService {
     pub fn new(server: McpServer) -> Self {
-        Self(RefCell::new(server))
+        Self(RefCell::new(Some(server)))
     }
 
     pub fn with_engine(config: EngineConfig) -> Self {
@@ -45,7 +44,12 @@ impl ServerHandler for McpServerService {
         _request: Option<PaginatedRequestParams>,
         _ctx: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        let defs = self.0.borrow().get_tool_definitions();
+        let defs = self
+            .0
+            .borrow()
+            .as_ref()
+            .expect("McpServer taken")
+            .get_tool_definitions();
         let tools = defs
             .into_iter()
             .filter_map(|v| serde_json::from_value(v).ok())
@@ -63,7 +67,10 @@ impl ServerHandler for McpServerService {
             .arguments
             .map(serde_json::Value::Object)
             .unwrap_or_default();
-        let result = self.0.borrow_mut().call_tool(name, arguments).await;
+        // Take the server out so the RefCell borrow is not held across await.
+        let mut server = self.0.borrow_mut().take().expect("McpServer taken");
+        let result = server.call_tool(name, arguments).await;
+        *self.0.borrow_mut() = Some(server);
         Ok(result.into())
     }
 }

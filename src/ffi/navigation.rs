@@ -8,7 +8,9 @@ use std::panic;
 use std::ptr;
 use std::time::Instant;
 
-use super::instance::{ThalorInstance, c_str_to_rust, rust_string_to_c};
+use super::instance::{
+    ThalorInstance, c_str_to_rust_safe, instance_ref, instance_ref_const, rust_string_to_c,
+};
 use crate::engine::browser::types::NavigationMode;
 
 /// Navigate to a URL. Returns the page HTML as a C string, or null on error.
@@ -18,13 +20,13 @@ pub extern "C" fn thalora_navigate(
     instance: *mut ThalorInstance,
     url: *const c_char,
 ) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
-    let url_str = match unsafe { c_str_to_rust(url) } {
+    let url_str = match c_str_to_rust_safe(url) {
         Some(s) => s,
         None => {
             inst.set_error("Invalid or null URL string".into());
@@ -35,15 +37,16 @@ pub extern "C" fn thalora_navigate(
     // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
     // (undefined behavior). thalora_compute_styled_tree already does this.
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        inst.runtime.block_on(async {
-            let mut browser = inst
-                .browser
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-            browser
-                .navigate_to_with_js_option(url_str, true, true)
-                .await
-        })
+        match inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+        {
+            Ok(mut browser) => inst
+                .runtime
+                .block_on(browser.navigate_to_with_js_option(url_str, true, true)),
+            Err(e) => Err(e),
+        }
     }));
 
     match result {
@@ -64,10 +67,10 @@ pub extern "C" fn thalora_navigate(
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_get_current_url(instance: *mut ThalorInstance) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
     let browser = match inst.browser.lock() {
@@ -88,10 +91,10 @@ pub extern "C" fn thalora_get_current_url(instance: *mut ThalorInstance) -> *mut
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_get_page_html(instance: *mut ThalorInstance) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
     let browser = match inst.browser.lock() {
@@ -114,21 +117,22 @@ pub extern "C" fn thalora_get_page_html(instance: *mut ThalorInstance) -> *mut c
 /// Returns 0 on success, -1 on error (check `thalora_last_error`).
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
-    if instance.is_null() {
-        return -1;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
     inst.clear_error();
 
     // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        inst.runtime.block_on(async {
-            let mut browser = inst
-                .browser
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-            browser.go_back().await
-        })
+        match inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+        {
+            Ok(mut browser) => inst.runtime.block_on(browser.go_back()),
+            Err(e) => Err(e),
+        }
     }));
 
     match result {
@@ -153,21 +157,22 @@ pub extern "C" fn thalora_go_back(instance: *mut ThalorInstance) -> i32 {
 /// Returns 0 on success, -1 on error (check `thalora_last_error`).
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
-    if instance.is_null() {
-        return -1;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
     inst.clear_error();
 
     // Wrap in catch_unwind to prevent Rust panics from crossing the FFI boundary
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        inst.runtime.block_on(async {
-            let mut browser = inst
-                .browser
-                .lock()
-                .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-            browser.go_forward().await
-        })
+        match inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+        {
+            Ok(mut browser) => inst.runtime.block_on(browser.go_forward()),
+            Err(e) => Err(e),
+        }
     }));
 
     match result {
@@ -192,19 +197,20 @@ pub extern "C" fn thalora_go_forward(instance: *mut ThalorInstance) -> i32 {
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_reload(instance: *mut ThalorInstance) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst
-            .browser
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.reload().await
-    });
+    let result = match inst
+        .browser
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+    {
+        Ok(mut browser) => inst.runtime.block_on(browser.reload()),
+        Err(e) => Err(e),
+    };
 
     match result {
         Ok(html) => rust_string_to_c(html),
@@ -219,10 +225,10 @@ pub extern "C" fn thalora_reload(instance: *mut ThalorInstance) -> *mut c_char {
 /// Returns 1 if true, 0 if false.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_can_go_back(instance: *const ThalorInstance) -> i32 {
-    if instance.is_null() {
-        return 0;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref_const(instance) {
+        Some(i) => i,
+        None => return 0,
+    };
 
     match inst.browser.lock() {
         Ok(browser) => {
@@ -240,10 +246,10 @@ pub extern "C" fn thalora_can_go_back(instance: *const ThalorInstance) -> i32 {
 /// Returns 1 if true, 0 if false.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_can_go_forward(instance: *const ThalorInstance) -> i32 {
-    if instance.is_null() {
-        return 0;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref_const(instance) {
+        Some(i) => i,
+        None => return 0,
+    };
 
     match inst.browser.lock() {
         Ok(browser) => {
@@ -269,10 +275,10 @@ pub extern "C" fn thalora_compute_layout(
     viewport_w: f32,
     viewport_h: f32,
 ) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
     let browser = match inst.browser.lock() {
@@ -321,10 +327,10 @@ pub extern "C" fn thalora_compute_styled_tree(
     viewport_w: f32,
     viewport_h: f32,
 ) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
     let ffi_start = Instant::now();
@@ -415,10 +421,10 @@ pub extern "C" fn thalora_compute_styled_tree(
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_poll_history_events(instance: *mut ThalorInstance) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
 
     let events = match inst.browser.lock() {
         Ok(browser) => browser.drain_history_events(),
@@ -441,10 +447,10 @@ pub extern "C" fn thalora_poll_history_events(instance: *mut ThalorInstance) -> 
 /// Returns 0 on success, -1 on error.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_set_navigation_mode(instance: *mut ThalorInstance, mode: i32) -> i32 {
-    if instance.is_null() {
-        return -1;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
     inst.clear_error();
 
     let nav_mode = match mode {

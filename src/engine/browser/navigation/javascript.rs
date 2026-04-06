@@ -88,11 +88,10 @@ impl super::super::HeadlessWebBrowser {
             .headers()
             .get("strict-transport-security")
             .and_then(|v| v.to_str().ok())
+            && let Some(domain) = response.url().host_str()
         {
-            if let Some(domain) = response.url().host_str() {
-                eprintln!("🔒 HSTS: Storing policy for {}: {}", domain, hsts_value);
-                self.hsts_store.parse_header(domain, hsts_value);
-            }
+            eprintln!("🔒 HSTS: Storing policy for {}: {}", domain, hsts_value);
+            self.hsts_store.parse_header(domain, hsts_value);
         }
 
         // Extract and parse Permissions-Policy header (or legacy Feature-Policy)
@@ -341,16 +340,16 @@ impl super::super::HeadlessWebBrowser {
                 }
                 let is_async = script_element.value().attr("async").is_some();
                 let is_defer = script_element.value().attr("defer").is_some();
-                if is_async && !is_defer {
-                    if let Some(src) = script_element.value().attr("src") {
-                        if let Ok(url) = self.resolve_script_url(&base_url, src) {
-                            let integrity = script_element
-                                .value()
-                                .attr("integrity")
-                                .map(|s| s.to_string());
-                            async_scripts.push((url, integrity));
-                        }
-                    }
+                if is_async
+                    && !is_defer
+                    && let Some(src) = script_element.value().attr("src")
+                    && let Ok(url) = self.resolve_script_url(&base_url, src)
+                {
+                    let integrity = script_element
+                        .value()
+                        .attr("integrity")
+                        .map(|s| s.to_string());
+                    async_scripts.push((url, integrity));
                 }
             }
 
@@ -385,17 +384,13 @@ impl super::super::HeadlessWebBrowser {
                 for (i, result) in results.into_iter().enumerate() {
                     if let Some((url, content)) = result {
                         // SRI check
-                        if let Some(ref integrity_value) = async_scripts[i].1 {
-                            if !integrity_value.is_empty()
-                                && !verify_integrity(content.as_bytes(), integrity_value)
-                            {
-                                scripts_failed += 1;
-                                eprintln!(
-                                    "🔒 SRI: Async script integrity check FAILED for {}",
-                                    url
-                                );
-                                continue;
-                            }
+                        if let Some(ref integrity_value) = async_scripts[i].1
+                            && !integrity_value.is_empty()
+                            && !verify_integrity(content.as_bytes(), integrity_value)
+                        {
+                            scripts_failed += 1;
+                            eprintln!("🔒 SRI: Async script integrity check FAILED for {}", url);
+                            continue;
                         }
                         external_scripts_fetched += 1;
                         match self.execute_page_javascript(&content).await {
@@ -529,15 +524,15 @@ impl super::super::HeadlessWebBrowser {
                 eprintln!("🔍 DEBUG: Fetching external script from: {}", script_url);
 
                 // CSP: Check if this external script URL is allowed
-                if let Some(ref csp) = self.csp_policy {
-                    if !csp.allows_external_script(&script_url, self.current_url.as_deref()) {
-                        scripts_failed += 1;
-                        eprintln!(
-                            "🔒 CSP: External script blocked by Content-Security-Policy: {}",
-                            script_url
-                        );
-                        continue;
-                    }
+                if let Some(ref csp) = self.csp_policy
+                    && !csp.allows_external_script(&script_url, self.current_url.as_deref())
+                {
+                    scripts_failed += 1;
+                    eprintln!(
+                        "🔒 CSP: External script blocked by Content-Security-Policy: {}",
+                        script_url
+                    );
+                    continue;
                 }
 
                 // Fetch the external script
@@ -901,13 +896,13 @@ impl super::super::HeadlessWebBrowser {
         // Update document HTML in the renderer if available.
         // Non-fatal: the page content is already loaded; a renderer update failure
         // shouldn't abort navigation.
-        if let Some(ref mut renderer) = self.renderer {
-            if let Err(e) = renderer.update_document_html(&content) {
-                eprintln!(
-                    "WARNING: Failed to update document HTML (navigate_internal): {} (continuing)",
-                    e
-                );
-            }
+        if let Some(ref mut renderer) = self.renderer
+            && let Err(e) = renderer.update_document_html(&content)
+        {
+            eprintln!(
+                "WARNING: Failed to update document HTML (navigate_internal): {} (continuing)",
+                e
+            );
         }
 
         // Analyze forms for target="_blank" detection
@@ -984,24 +979,24 @@ impl super::super::HeadlessWebBrowser {
     /// This function validates URLs to prevent SSRF attacks via stylesheet loading.
     pub(super) async fn fetch_external_stylesheet(&mut self, url: &str) -> Result<String> {
         // Check cache first (unless bypass_cache is set for reload)
-        if !self.bypass_cache {
-            if let Some(cached) = self.resource_cache.get(url) {
-                eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
-                return Ok(cached.content.clone());
-            }
+        if !self.bypass_cache
+            && let Some(cached) = self.resource_cache.get(url)
+        {
+            eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
+            return Ok(cached.content.clone());
         }
 
         // SECURITY: Validate stylesheet URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
         // CSP: Check if style-src allows this external stylesheet
-        if let Some(ref csp) = self.csp_policy {
-            if !csp.allows_style(url, self.current_url.as_deref()) {
-                eprintln!("🔒 CSP: External stylesheet blocked by style-src: {}", url);
-                return Err(anyhow!(
-                    "Stylesheet blocked by Content-Security-Policy style-src"
-                ));
-            }
+        if let Some(ref csp) = self.csp_policy
+            && !csp.allows_style(url, self.current_url.as_deref())
+        {
+            eprintln!("🔒 CSP: External stylesheet blocked by style-src: {}", url);
+            return Err(anyhow!(
+                "Stylesheet blocked by Content-Security-Policy style-src"
+            ));
         }
 
         eprintln!("🔍 DEBUG: CACHE MISS (stylesheet): {}", url);
@@ -1104,12 +1099,12 @@ impl super::super::HeadlessWebBrowser {
         let mut uncached: Vec<(usize, String)> = Vec::new();
 
         for (i, url) in stylesheet_urls.iter().enumerate() {
-            if !self.bypass_cache {
-                if let Some(cached) = self.resource_cache.get(url) {
-                    eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
-                    cached_results.insert(i, cached.content.clone());
-                    continue;
-                }
+            if !self.bypass_cache
+                && let Some(cached) = self.resource_cache.get(url)
+            {
+                eprintln!("🔍 DEBUG: CACHE HIT (stylesheet): {}", url);
+                cached_results.insert(i, cached.content.clone());
+                continue;
             }
             uncached.push((i, url.clone()));
         }
@@ -1159,14 +1154,14 @@ impl super::super::HeadlessWebBrowser {
                 match result {
                     Ok((fetched_url, content)) => {
                         // SRI verification for stylesheets with integrity attribute
-                        if let Some(integrity) = integrity_map.get(&fetched_url) {
-                            if !super::sri::verify_integrity(content.as_bytes(), integrity) {
-                                eprintln!(
-                                    "🔒 BLOCKED: SRI integrity check failed for stylesheet {}",
-                                    fetched_url
-                                );
-                                continue;
-                            }
+                        if let Some(integrity) = integrity_map.get(&fetched_url)
+                            && !super::sri::verify_integrity(content.as_bytes(), integrity)
+                        {
+                            eprintln!(
+                                "🔒 BLOCKED: SRI integrity check failed for stylesheet {}",
+                                fetched_url
+                            );
+                            continue;
                         }
 
                         eprintln!(
@@ -1206,11 +1201,11 @@ impl super::super::HeadlessWebBrowser {
     /// This function validates URLs to prevent SSRF attacks via script loading.
     pub(super) async fn fetch_external_script(&mut self, url: &str) -> Result<String> {
         // Check cache first (unless bypass_cache is set for reload)
-        if !self.bypass_cache {
-            if let Some(cached) = self.resource_cache.get(url) {
-                eprintln!("🔍 DEBUG: CACHE HIT (script): {}", url);
-                return Ok(cached.content.clone());
-            }
+        if !self.bypass_cache
+            && let Some(cached) = self.resource_cache.get(url)
+        {
+            eprintln!("🔍 DEBUG: CACHE HIT (script): {}", url);
+            return Ok(cached.content.clone());
         }
 
         // SECURITY: Validate script URL to prevent SSRF attacks

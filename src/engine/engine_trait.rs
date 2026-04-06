@@ -115,10 +115,10 @@ impl EngineFactory {
     /// Get the default engine type (can be overridden by THALORA_TEST_ENGINE env var)
     pub fn default_engine() -> EngineType {
         // Check for test engine override via environment variable
-        if let Ok(engine_str) = std::env::var("THALORA_TEST_ENGINE") {
-            if let Ok(engine_type) = engine_str.parse::<EngineType>() {
-                return engine_type;
-            }
+        if let Ok(engine_str) = std::env::var("THALORA_TEST_ENGINE")
+            && let Ok(engine_type) = engine_str.parse::<EngineType>()
+        {
+            return engine_type;
         }
         EngineType::Boa
     }

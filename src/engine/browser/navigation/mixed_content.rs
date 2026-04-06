@@ -55,11 +55,8 @@ pub fn should_block_mixed_content(
 /// Used when `upgrade-insecure-requests` CSP directive is present.
 /// Returns the upgraded URL, or None if the URL can't be upgraded.
 pub fn upgrade_url_to_https(url: &str) -> Option<String> {
-    if url.starts_with("http://") {
-        Some(format!("https://{}", &url[7..]))
-    } else {
-        None
-    }
+    url.strip_prefix("http://")
+        .map(|rest| format!("https://{}", rest))
 }
 
 /// Result of mixed content check

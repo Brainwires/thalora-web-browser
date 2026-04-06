@@ -98,7 +98,7 @@ fn extract_single_table(table: &ElementRef) -> Option<Value> {
         // Skip entirely empty rows
         if !cells
             .iter()
-            .all(|c| c.as_str().map_or(true, |s| s.is_empty()))
+            .all(|c| c.as_str().is_none_or(|s| s.is_empty()))
         {
             rows.push(Value::Array(cells));
         }
@@ -107,10 +107,10 @@ fn extract_single_table(table: &ElementRef) -> Option<Value> {
     table_data["rows"] = Value::Array(rows);
 
     // Only include tables with meaningful content
-    if table_data["rows"].as_array().map_or(true, |r| r.is_empty())
+    if table_data["rows"].as_array().is_none_or(|r| r.is_empty())
         && table_data["headers"]
             .as_array()
-            .map_or(true, |h| h.is_empty())
+            .is_none_or(|h| h.is_empty())
     {
         return None;
     }
@@ -124,10 +124,10 @@ fn is_direct_child_of_table(element: &ElementRef, table: &ElementRef) -> bool {
     let table_id = table.id();
     let mut current = element.parent();
     while let Some(node) = current {
-        if let Some(el) = ElementRef::wrap(node) {
-            if el.value().name() == "table" {
-                return el.id() == table_id;
-            }
+        if let Some(el) = ElementRef::wrap(node)
+            && el.value().name() == "table"
+        {
+            return el.id() == table_id;
         }
         current = node.parent();
     }

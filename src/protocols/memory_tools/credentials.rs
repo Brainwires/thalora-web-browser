@@ -63,7 +63,7 @@ pub async fn handle_store_credentials(args: Value, ai_memory: &mut AiMemoryHeap)
                 .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
                 .collect()
         })
-        .unwrap_or_else(HashMap::new);
+        .unwrap_or_default();
 
     match ai_memory.store_credentials(key, service, username, password, additional_data) {
         Ok(_) => McpResponse::success(serde_json::json!({

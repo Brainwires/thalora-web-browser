@@ -23,12 +23,11 @@ impl BrowserTools {
         if let Err(e) = limit_input_length(form_selector, MAX_SELECTOR_LENGTH, "Form selector") {
             return McpResponse::error(-32602, format!("Input validation failed: {}", e));
         }
-        if let Some(btn_sel) = submit_button_selector {
-            if let Err(e) =
+        if let Some(btn_sel) = submit_button_selector
+            && let Err(e) =
                 limit_input_length(btn_sel, MAX_SELECTOR_LENGTH, "Submit button selector")
-            {
-                return McpResponse::error(-32602, format!("Input validation failed: {}", e));
-            }
+        {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
         }
         if let Err(e) = sanitize_session_id(session_id) {
             return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
@@ -38,90 +37,86 @@ impl BrowserTools {
         let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
 
         {
-            let lock_res = browser.lock();
-            match lock_res {
-                Ok(browser_guard) => {
-                    // Find forms that match the selector and open new windows
-                    let new_window_forms: Vec<_> = browser_guard
-                        .get_new_window_forms()
-                        .into_iter()
-                        .cloned()
-                        .collect();
+            if let Ok(browser_guard) = browser.lock() {
+                // Find forms that match the selector and open new windows
+                let new_window_forms: Vec<_> = browser_guard
+                    .get_new_window_forms()
+                    .into_iter()
+                    .cloned()
+                    .collect();
 
-                    let matching_form = new_window_forms.iter().find(|form| {
+                let matching_form = new_window_forms.iter().find(|form| {
                         // Check if the form selector matches
                         form.selector == form_selector ||
                         form.selector.contains(form_selector) ||
                         // If submit button selector provided, check if it matches
-                        submit_button_selector.map_or(false, |btn_sel| {
+                        submit_button_selector.is_some_and(|btn_sel| {
                             form.submit_buttons.iter().any(|btn| btn == btn_sel || btn.contains(btn_sel))
                         })
                     });
 
-                    if let Some(form_info) = matching_form {
-                        if let Some(ref predicted_url) = form_info.predicted_url {
-                            // Create predictive session for the form submission
-                            let predictive_session_id = format!(
-                                "predictive_{}_{}",
-                                session_id,
-                                std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_millis()
-                            );
+                if let Some(form_info) = matching_form {
+                    if let Some(ref predicted_url) = form_info.predicted_url {
+                        // Create predictive session for the form submission
+                        let predictive_session_id = format!(
+                            "predictive_{}_{}",
+                            session_id,
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis()
+                        );
 
-                            eprintln!(
-                                "🔍 DEBUG: Creating predictive session for form preparation: {}",
-                                predictive_session_id
-                            );
+                        eprintln!(
+                            "🔍 DEBUG: Creating predictive session for form preparation: {}",
+                            predictive_session_id
+                        );
 
-                            // Create the predictive session
-                            let _predictive_browser =
-                                self.get_or_create_session(&predictive_session_id, false);
+                        // Create the predictive session
+                        let _predictive_browser =
+                            self.get_or_create_session(&predictive_session_id, false);
 
-                            response = McpResponse::success(json!({
-                                "success": true,
-                                "message": format!("Predictive session created for form that opens new window"),
-                                "form_info": {
-                                    "selector": form_info.selector,
-                                    "action": form_info.action,
-                                    "target": form_info.target,
-                                    "method": form_info.method,
-                                    "predicted_url": predicted_url,
-                                    "submit_buttons": form_info.submit_buttons
-                                },
-                                "predictive_session_id": predictive_session_id,
-                                "ready_for_submission": true
-                            }));
-                        } else {
-                            response = McpResponse::error(
-                                -1,
-                                "Form found but no predicted URL available".to_string(),
-                            );
-                        }
+                        response = McpResponse::success(json!({
+                            "success": true,
+                            "message": format!("Predictive session created for form that opens new window"),
+                            "form_info": {
+                                "selector": form_info.selector,
+                                "action": form_info.action,
+                                "target": form_info.target,
+                                "method": form_info.method,
+                                "predicted_url": predicted_url,
+                                "submit_buttons": form_info.submit_buttons
+                            },
+                            "predictive_session_id": predictive_session_id,
+                            "ready_for_submission": true
+                        }));
                     } else {
-                        // Check if any form matches the selector but doesn't open new windows
-                        let all_forms = browser_guard.get_analyzed_forms();
-                        let form_exists = all_forms.iter().any(|form| {
-                            form.selector == form_selector || form.selector.contains(form_selector)
-                        });
+                        response = McpResponse::error(
+                            -1,
+                            "Form found but no predicted URL available".to_string(),
+                        );
+                    }
+                } else {
+                    // Check if any form matches the selector but doesn't open new windows
+                    let all_forms = browser_guard.get_analyzed_forms();
+                    let form_exists = all_forms.iter().any(|form| {
+                        form.selector == form_selector || form.selector.contains(form_selector)
+                    });
 
-                        if form_exists {
-                            response = McpResponse::success(json!({
-                                "success": true,
-                                "message": "Form found but does not open new windows",
-                                "predictive_session_needed": false,
-                                "form_opens_new_window": false
-                            }));
-                        } else {
-                            response = McpResponse::error(
-                                -1,
-                                format!("No form found matching selector: {}", form_selector),
-                            );
-                        }
+                    if form_exists {
+                        response = McpResponse::success(json!({
+                            "success": true,
+                            "message": "Form found but does not open new windows",
+                            "predictive_session_needed": false,
+                            "form_opens_new_window": false
+                        }));
+                    } else {
+                        response = McpResponse::error(
+                            -1,
+                            format!("No form found matching selector: {}", form_selector),
+                        );
                     }
                 }
-                Err(_) => {}
             }
         }
         response

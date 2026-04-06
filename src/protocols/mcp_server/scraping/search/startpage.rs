@@ -15,12 +15,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     // Create temporary browser for stateless search
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
-    {
+    tokio::task::block_in_place(|| {
         let mut browser = temp_browser
             .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_options(&search_url, true).await?;
-    }
+        tokio::runtime::Handle::current()
+            .block_on(browser.navigate_to_with_options(&search_url, true))
+    })?;
 
     let html = {
         let browser = temp_browser

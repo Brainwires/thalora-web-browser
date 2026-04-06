@@ -26,7 +26,7 @@ pub fn extract(html: &str) -> Vec<Value> {
                             if let Some(element) = node.value().as_element() {
                                 if element.name() != "ul" && element.name() != "ol" {
                                     text.push_str(
-                                        &scraper::ElementRef::wrap(node)
+                                        scraper::ElementRef::wrap(node)
                                             .unwrap()
                                             .text()
                                             .collect::<Vec<_>>()

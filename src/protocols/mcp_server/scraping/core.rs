@@ -28,15 +28,15 @@ impl McpServer {
         }
 
         // SECURITY: Validate input lengths to prevent DoS attacks
-        if let Some(url_str) = url {
-            if let Err(e) = limit_input_length(url_str, MAX_URL_LENGTH, "URL") {
-                return McpResponse::error(-32602, format!("Input validation failed: {}", e));
-            }
+        if let Some(url_str) = url
+            && let Err(e) = limit_input_length(url_str, MAX_URL_LENGTH, "URL")
+        {
+            return McpResponse::error(-32602, format!("Input validation failed: {}", e));
         }
-        if let Some(sid) = session_id {
-            if let Err(e) = sanitize_session_id(sid) {
-                return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
-            }
+        if let Some(sid) = session_id
+            && let Err(e) = sanitize_session_id(sid)
+        {
+            return McpResponse::error(-32602, format!("Session ID validation failed: {}", e));
         }
 
         // Session & Navigation options
@@ -142,29 +142,34 @@ impl McpServer {
             // Navigate to URL
             {
                 eprintln!("🔍 SNAPSHOT: Acquiring browser lock for navigation");
-                let mut browser = match temp_browser.lock() {
-                    Ok(b) => {
-                        eprintln!("🔍 SNAPSHOT: Browser lock acquired");
-                        b
-                    }
-                    Err(_) => {
-                        eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock");
-                        return McpResponse::error(
-                            -1,
-                            "Failed to acquire browser lock".to_string(),
-                        );
-                    }
-                };
+                let nav_result = tokio::task::block_in_place(|| {
+                    let mut browser = match temp_browser.lock() {
+                        Ok(b) => {
+                            eprintln!("🔍 SNAPSHOT: Browser lock acquired");
+                            b
+                        }
+                        Err(_) => {
+                            eprintln!("🔍 SNAPSHOT: Failed to acquire browser lock");
+                            return Err("Failed to acquire browser lock".to_string());
+                        }
+                    };
 
-                eprintln!("🔍 SNAPSHOT: Calling navigate_to_with_options");
-                match browser.navigate_to_with_options(url_str, wait_for_js).await {
-                    Ok(_) => {
-                        eprintln!("🔍 SNAPSHOT: Navigation successful");
+                    eprintln!("🔍 SNAPSHOT: Calling navigate_to_with_options");
+                    match tokio::runtime::Handle::current()
+                        .block_on(browser.navigate_to_with_options(url_str, wait_for_js))
+                    {
+                        Ok(_) => {
+                            eprintln!("🔍 SNAPSHOT: Navigation successful");
+                            Ok(())
+                        }
+                        Err(e) => {
+                            eprintln!("🔍 SNAPSHOT: Navigation failed: {}", e);
+                            Err(format!("Failed to navigate to URL: {}", e))
+                        }
                     }
-                    Err(e) => {
-                        eprintln!("🔍 SNAPSHOT: Navigation failed: {}", e);
-                        return McpResponse::error(-1, format!("Failed to navigate to URL: {}", e));
-                    }
+                });
+                if let Err(e) = nav_result {
+                    return McpResponse::error(-1, e);
                 }
             }
 
@@ -347,7 +352,7 @@ impl McpServer {
             };
 
             for content_type in &types_to_extract {
-                match content_type.as_ref() {
+                match *content_type {
                     "tables" => {
                         let tables = extraction::extract_tables(&html_content);
                         structured["tables"] = Value::Array(tables);
@@ -607,18 +612,18 @@ impl McpServer {
 
         // Include page title/description from metadata if available
         if let Some(meta) = metadata {
-            if let Some(title) = meta.get("title").and_then(|v| v.as_str()) {
-                if !title.is_empty() {
-                    match format {
-                        "markdown" => parts.push(format!("# {}\n", title)),
-                        _ => parts.push(format!("{}\n", title)),
-                    }
+            if let Some(title) = meta.get("title").and_then(|v| v.as_str())
+                && !title.is_empty()
+            {
+                match format {
+                    "markdown" => parts.push(format!("# {}\n", title)),
+                    _ => parts.push(format!("{}\n", title)),
                 }
             }
-            if let Some(desc) = meta.get("description").and_then(|v| v.as_str()) {
-                if !desc.is_empty() {
-                    parts.push(format!("{}\n", desc));
-                }
+            if let Some(desc) = meta.get("description").and_then(|v| v.as_str())
+                && !desc.is_empty()
+            {
+                parts.push(format!("{}\n", desc));
             }
         }
 
@@ -666,12 +671,12 @@ impl McpServer {
 
                 if !table_lines.is_empty() {
                     // Add caption if present
-                    if let Some(caption) = table.get("caption").and_then(|v| v.as_str()) {
-                        if !caption.is_empty() {
-                            match format {
-                                "markdown" => parts.push(format!("**{}**\n", caption)),
-                                _ => parts.push(format!("{}\n", caption)),
-                            }
+                    if let Some(caption) = table.get("caption").and_then(|v| v.as_str())
+                        && !caption.is_empty()
+                    {
+                        match format {
+                            "markdown" => parts.push(format!("**{}**\n", caption)),
+                            _ => parts.push(format!("{}\n", caption)),
                         }
                     }
                     parts.push(table_lines.join("\n"));
@@ -686,19 +691,19 @@ impl McpServer {
                 if let Some(items) = list.get("items").and_then(|v| v.as_array()) {
                     let mut list_lines: Vec<String> = Vec::new();
                     for item in items {
-                        if let Some(text) = item.as_str() {
-                            if !text.is_empty() {
-                                match format {
-                                    "markdown" => list_lines.push(format!("- {}", text)),
-                                    _ => list_lines.push(format!("  * {}", text)),
-                                }
+                        if let Some(text) = item.as_str()
+                            && !text.is_empty()
+                        {
+                            match format {
+                                "markdown" => list_lines.push(format!("- {}", text)),
+                                _ => list_lines.push(format!("  * {}", text)),
                             }
-                        } else if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-                            if !text.is_empty() {
-                                match format {
-                                    "markdown" => list_lines.push(format!("- {}", text)),
-                                    _ => list_lines.push(format!("  * {}", text)),
-                                }
+                        } else if let Some(text) = item.get("text").and_then(|v| v.as_str())
+                            && !text.is_empty()
+                        {
+                            match format {
+                                "markdown" => list_lines.push(format!("- {}", text)),
+                                _ => list_lines.push(format!("  * {}", text)),
                             }
                         }
                     }
@@ -729,15 +734,15 @@ impl McpServer {
 
         // Tier 1: Truncate links and images
         if let Some(basic) = result.get_mut("basic") {
-            if let Some(links) = basic.get_mut("links").and_then(|v| v.as_array_mut()) {
-                if links.len() > 20 {
-                    links.truncate(20);
-                }
+            if let Some(links) = basic.get_mut("links").and_then(|v| v.as_array_mut())
+                && links.len() > 20
+            {
+                links.truncate(20);
             }
-            if let Some(images) = basic.get_mut("images").and_then(|v| v.as_array_mut()) {
-                if images.len() > 10 {
-                    images.truncate(10);
-                }
+            if let Some(images) = basic.get_mut("images").and_then(|v| v.as_array_mut())
+                && images.len() > 10
+            {
+                images.truncate(10);
             }
         }
 
@@ -752,17 +757,17 @@ impl McpServer {
         }
 
         // Tier 2: Truncate tables
-        if let Some(structured) = result.get_mut("structured") {
-            if let Some(tables) = structured.get_mut("tables").and_then(|v| v.as_array_mut()) {
-                if tables.len() > 10 {
-                    tables.truncate(10);
-                }
-                for table in tables.iter_mut() {
-                    if let Some(rows) = table.get_mut("rows").and_then(|v| v.as_array_mut()) {
-                        if rows.len() > 50 {
-                            rows.truncate(50);
-                        }
-                    }
+        if let Some(structured) = result.get_mut("structured")
+            && let Some(tables) = structured.get_mut("tables").and_then(|v| v.as_array_mut())
+        {
+            if tables.len() > 10 {
+                tables.truncate(10);
+            }
+            for table in tables.iter_mut() {
+                if let Some(rows) = table.get_mut("rows").and_then(|v| v.as_array_mut())
+                    && rows.len() > 50
+                {
+                    rows.truncate(50);
                 }
             }
         }
@@ -778,18 +783,17 @@ impl McpServer {
         }
 
         // Tier 3: Truncate readable content at paragraph/sentence boundary
-        if let Some(readable) = result.get_mut("readable") {
-            if let Some(content) = readable
+        if let Some(readable) = result.get_mut("readable")
+            && let Some(content) = readable
                 .get_mut("content")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
-            {
-                let target_len = max_size / 2; // Use roughly half the budget for readable content
-                if content.len() > target_len {
-                    let truncated = Self::truncate_at_boundary(&content, target_len);
-                    readable["content"] = Value::String(truncated);
-                    readable["content_truncated"] = Value::Bool(true);
-                }
+        {
+            let target_len = max_size / 2; // Use roughly half the budget for readable content
+            if content.len() > target_len {
+                let truncated = Self::truncate_at_boundary(&content, target_len);
+                readable["content"] = Value::String(truncated);
+                readable["content_truncated"] = Value::Bool(true);
             }
         }
 
@@ -810,26 +814,26 @@ impl McpServer {
         let search_region = &text[..max_len];
 
         // Try to find a paragraph break (double newline)
-        if let Some(pos) = search_region.rfind("\n\n") {
-            if pos > max_len / 2 {
-                return format!("{}...", &text[..pos]);
-            }
+        if let Some(pos) = search_region.rfind("\n\n")
+            && pos > max_len / 2
+        {
+            return format!("{}...", &text[..pos]);
         }
 
         // Try to find a sentence break
         for delimiter in &[". ", ".\n", "! ", "? "] {
-            if let Some(pos) = search_region.rfind(delimiter) {
-                if pos > max_len / 2 {
-                    return format!("{}...", &text[..pos + delimiter.len() - 1]);
-                }
+            if let Some(pos) = search_region.rfind(delimiter)
+                && pos > max_len / 2
+            {
+                return format!("{}...", &text[..pos + delimiter.len() - 1]);
             }
         }
 
         // Fall back to a newline
-        if let Some(pos) = search_region.rfind('\n') {
-            if pos > max_len / 3 {
-                return format!("{}...", &text[..pos]);
-            }
+        if let Some(pos) = search_region.rfind('\n')
+            && pos > max_len / 3
+        {
+            return format!("{}...", &text[..pos]);
         }
 
         // Last resort: truncate at max_len

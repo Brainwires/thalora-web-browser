@@ -15,6 +15,12 @@ pub struct PageDomain {
     screencast_frame_counter: i32,
 }
 
+impl Default for PageDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PageDomain {
     pub fn new() -> Self {
         Self {

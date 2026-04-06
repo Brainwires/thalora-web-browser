@@ -212,12 +212,12 @@ pub(super) mod processing {
         // This ensures our script runs BEFORE any other scripts load
         if html.contains("<html>") {
             // Find the position right after <html> tag
-            if let Some(pos) = html.find(">") {
-                if html[..pos + 1].to_lowercase().contains("<html") {
-                    // Insert right after the <html> opening tag
-                    let (before, after) = html.split_at(pos + 1);
-                    return format!("{}{}{}", before, proxy_script, after);
-                }
+            if let Some(pos) = html.find(">")
+                && html[..pos + 1].to_lowercase().contains("<html")
+            {
+                // Insert right after the <html> opening tag
+                let (before, after) = html.split_at(pos + 1);
+                return format!("{}{}{}", before, proxy_script, after);
             }
             // Fallback: replace <html> tag
             html.replace("<html>", &format!("<html>{}", proxy_script))
@@ -281,11 +281,10 @@ impl CommandHandler {
                         .get("navigated")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false)
+                        && let Some(url) = data.get("url").and_then(|v| v.as_str())
                     {
-                        if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
-                            self.refresh_client_content(client_id, session_id).await?;
-                            info!("Navigated back to: {}", url);
-                        }
+                        self.refresh_client_content(client_id, session_id).await?;
+                        info!("Navigated back to: {}", url);
                     } else {
                         debug!("Cannot go back - at beginning of history");
                     }
@@ -303,11 +302,10 @@ impl CommandHandler {
                         .get("navigated")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false)
+                        && let Some(url) = data.get("url").and_then(|v| v.as_str())
                     {
-                        if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
-                            self.refresh_client_content(client_id, session_id).await?;
-                            info!("Navigated forward to: {}", url);
-                        }
+                        self.refresh_client_content(client_id, session_id).await?;
+                        info!("Navigated forward to: {}", url);
                     } else {
                         debug!("Cannot go forward - at end of history");
                     }
@@ -400,20 +398,20 @@ impl CommandHandler {
             .await?;
 
         // Send HTML update (which will set loading=false on client)
-        if let BrowserResponse::Success { data } = content_response {
-            if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                let processed_html = processing::process_html(html, url);
+        if let BrowserResponse::Success { data } = content_response
+            && let Some(html) = data.get("content").and_then(|v| v.as_str())
+        {
+            let processed_html = processing::process_html(html, url);
 
-                self.client_registry.send_to_client(
-                    client_id,
-                    DisplayMessage::HtmlUpdate {
-                        html: processed_html,
-                        url: url.to_string(),
-                        title: None,
-                        timestamp: current_timestamp(),
-                    },
-                )?;
-            }
+            self.client_registry.send_to_client(
+                client_id,
+                DisplayMessage::HtmlUpdate {
+                    html: processed_html,
+                    url: url.to_string(),
+                    title: None,
+                    timestamp: current_timestamp(),
+                },
+            )?;
         }
 
         Ok(())
@@ -541,26 +539,26 @@ impl CommandHandler {
             .send_command(session_id, BrowserCommand::GetContent)
             .await?;
 
-        if let BrowserResponse::Success { data } = response {
-            if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                let url = data
-                    .get("url")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+        if let BrowserResponse::Success { data } = response
+            && let Some(html) = data.get("content").and_then(|v| v.as_str())
+        {
+            let url = data
+                .get("url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
 
-                let processed_html = processing::process_html(html, &url);
+            let processed_html = processing::process_html(html, &url);
 
-                self.client_registry.send_to_client(
-                    client_id,
-                    DisplayMessage::HtmlUpdate {
-                        html: processed_html,
-                        url,
-                        title: None,
-                        timestamp: current_timestamp(),
-                    },
-                )?;
-            }
+            self.client_registry.send_to_client(
+                client_id,
+                DisplayMessage::HtmlUpdate {
+                    html: processed_html,
+                    url,
+                    title: None,
+                    timestamp: current_timestamp(),
+                },
+            )?;
         }
 
         Ok(())

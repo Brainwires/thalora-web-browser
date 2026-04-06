@@ -1,19 +1,18 @@
 use crate::engine::browser::module_loader::HttpModuleLoader;
 use anyhow::{Result, anyhow};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::time::Instant;
 use thalora_browser_apis::boa_engine::{Context, JsValue, Source, js_string};
-use tokio::sync::Mutex;
 
 use crate::apis::polyfills::syntax_transformer::SyntaxTransformer;
 
 #[allow(dead_code)]
 pub struct JavaScriptEngine {
     context: Context,
-    timers: Arc<Mutex<HashMap<u32, TimerHandle>>>,
-    next_timer_id: Arc<Mutex<u32>>,
+    timers: Rc<RefCell<HashMap<u32, TimerHandle>>>,
+    next_timer_id: Rc<RefCell<u32>>,
     promises: Vec<thalora_browser_apis::boa_engine::JsObject>,
     start_time: Instant,
     syntax_transformer: SyntaxTransformer,
@@ -34,8 +33,8 @@ impl JavaScriptEngine {
             .module_loader(Rc::new(HttpModuleLoader::new("about:blank")))
             .build()
             .map_err(|e| anyhow!("failed to build JS context: {}", e))?;
-        let timers = Arc::new(Mutex::new(HashMap::new()));
-        let next_timer_id = Arc::new(Mutex::new(1));
+        let timers = Rc::new(RefCell::new(HashMap::new()));
+        let next_timer_id = Rc::new(RefCell::new(1));
 
         // Initialize all browser APIs (console, DOM, events, etc.)
         thalora_browser_apis::initialize_browser_apis(&mut context)

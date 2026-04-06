@@ -9,6 +9,12 @@ pub struct ConsoleDomain {
     enabled: bool,
 }
 
+impl Default for ConsoleDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConsoleDomain {
     pub fn new() -> Self {
         Self { enabled: false }

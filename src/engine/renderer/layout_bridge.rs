@@ -128,12 +128,12 @@ pub fn css_path_for_element(element_ref: &scraper::ElementRef) -> String {
         let nth = if let Some(parent) = el.parent() {
             let mut count = 0u32;
             for sibling in parent.children() {
-                if let Some(sibling_el) = scraper::ElementRef::wrap(sibling) {
-                    if sibling_el.value().name().eq_ignore_ascii_case(&tag) {
-                        count += 1;
-                        if sibling_el == el {
-                            break;
-                        }
+                if let Some(sibling_el) = scraper::ElementRef::wrap(sibling)
+                    && sibling_el.value().name().eq_ignore_ascii_case(&tag)
+                {
+                    count += 1;
+                    if sibling_el == el {
+                        break;
                     }
                 }
             }
@@ -143,17 +143,13 @@ pub fn css_path_for_element(element_ref: &scraper::ElementRef) -> String {
         };
 
         // Root element (html) doesn't get nth-child
-        if el
-            .parent()
-            .and_then(|p| scraper::ElementRef::wrap(p))
-            .is_none()
-        {
+        if el.parent().and_then(scraper::ElementRef::wrap).is_none() {
             parts.push(tag);
         } else {
             parts.push(format!("{}:nth-child({})", tag, nth));
         }
 
-        current = el.parent().and_then(|p| scraper::ElementRef::wrap(p));
+        current = el.parent().and_then(scraper::ElementRef::wrap);
     }
 
     parts.reverse();

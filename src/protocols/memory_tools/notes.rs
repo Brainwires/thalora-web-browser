@@ -55,7 +55,7 @@ pub async fn handle_store_note(args: Value, ai_memory: &mut AiMemoryHeap) -> Mcp
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect()
         })
-        .unwrap_or_else(Vec::new);
+        .unwrap_or_default();
 
     let priority = args
         .get("priority")

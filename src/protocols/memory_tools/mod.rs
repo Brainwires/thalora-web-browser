@@ -20,6 +20,12 @@ pub use sessions::*;
 
 pub struct MemoryTools {}
 
+impl Default for MemoryTools {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryTools {
     pub fn new() -> Self {
         Self {}
@@ -83,10 +89,10 @@ impl MemoryTools {
             .map(|l| l as usize);
 
         // SECURITY: Validate query length if provided
-        if let Some(q) = query {
-            if let Err(e) = limit_input_length(q, MAX_QUERY_LENGTH, "Search query") {
-                return McpResponse::error(-1, format!("Input validation failed: {}", e));
-            }
+        if let Some(q) = query
+            && let Err(e) = limit_input_length(q, MAX_QUERY_LENGTH, "Search query")
+        {
+            return McpResponse::error(-1, format!("Input validation failed: {}", e));
         }
 
         let criteria = MemorySearchCriteria {

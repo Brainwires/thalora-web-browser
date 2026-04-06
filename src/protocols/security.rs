@@ -151,13 +151,13 @@ pub fn validate_url_for_navigation(url: &str) -> Result<()> {
     }
 
     // Parse IP address if it looks like one
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if !is_public_ip(&ip) {
-            return Err(anyhow!(
-                "Access to private/internal IP address {} is blocked",
-                ip
-            ));
-        }
+    if let Ok(ip) = host.parse::<std::net::IpAddr>()
+        && !is_public_ip(&ip)
+    {
+        return Err(anyhow!(
+            "Access to private/internal IP address {} is blocked",
+            ip
+        ));
     }
 
     // Block potential DNS rebinding with numeric-looking hosts

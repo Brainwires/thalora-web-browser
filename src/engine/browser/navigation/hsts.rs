@@ -59,10 +59,10 @@ impl HstsStore {
 
             if lower.starts_with("max-age") {
                 // Extract the value after '='
-                if let Some(val) = lower.split('=').nth(1) {
-                    if let Ok(seconds) = val.trim().parse::<u64>() {
-                        max_age = Some(seconds);
-                    }
+                if let Some(val) = lower.split('=').nth(1)
+                    && let Ok(seconds) = val.trim().parse::<u64>()
+                {
+                    max_age = Some(seconds);
                 }
             } else if lower == "includesubdomains" {
                 include_subdomains = true;
@@ -113,20 +113,21 @@ impl HstsStore {
         let domain = domain.to_ascii_lowercase();
 
         // Exact match.
-        if let Some(entry) = self.entries.get(&domain) {
-            if !Self::is_expired(entry) {
-                return true;
-            }
+        if let Some(entry) = self.entries.get(&domain)
+            && !Self::is_expired(entry)
+        {
+            return true;
         }
 
         // Walk parent domains to check includeSubDomains.
         let mut remaining = domain.as_str();
         while let Some(dot_pos) = remaining.find('.') {
             remaining = &remaining[dot_pos + 1..];
-            if let Some(entry) = self.entries.get(remaining) {
-                if entry.include_subdomains && !Self::is_expired(entry) {
-                    return true;
-                }
+            if let Some(entry) = self.entries.get(remaining)
+                && entry.include_subdomains
+                && !Self::is_expired(entry)
+            {
+                return true;
             }
         }
 
@@ -146,9 +147,7 @@ fn extract_domain(url: &str) -> Option<String> {
     };
 
     // Take everything before the first '/' or '?' or '#' or ':'
-    let host = after_scheme
-        .split(|c: char| c == '/' || c == '?' || c == '#' || c == ':')
-        .next()?;
+    let host = after_scheme.split(['/', '?', '#', ':']).next()?;
 
     if host.is_empty() {
         None

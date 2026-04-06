@@ -3,15 +3,15 @@ use crate::protocols::cdp::{CdpCommand, CdpMessage, CdpServer};
 use crate::protocols::mcp::McpResponse;
 use crate::protocols::security::{MAX_JS_CODE_LENGTH, limit_input_length, sanitize_session_id};
 use serde_json::Value;
-use std::sync::Arc;
+use std::rc::Rc;
 
 /// Runtime domain - Script evaluation, exceptions, and runtime events
 pub struct RuntimeTools {
-    pub(super) browser_tools: Arc<BrowserTools>,
+    pub(super) browser_tools: Rc<BrowserTools>,
 }
 
 impl RuntimeTools {
-    pub fn new(browser_tools: Arc<BrowserTools>) -> Self {
+    pub fn new(browser_tools: Rc<BrowserTools>) -> Self {
         Self { browser_tools }
     }
 
@@ -86,31 +86,33 @@ impl RuntimeTools {
         let lock_res = browser.lock();
         match lock_res {
             Ok(mut browser_guard) => {
-                match browser_guard.execute_javascript(expression).await {
-                    Ok(js_result) => {
-                        // Try to parse as different types
-                        if js_result == "true" || js_result == "false" {
-                            response = McpResponse::success(serde_json::json!({
-                                "type": "text",
-                                "text": format!("JavaScript result (boolean): {}", js_result)
-                            }));
-                        } else if let Ok(num) = js_result.parse::<f64>() {
-                            response = McpResponse::success(serde_json::json!({
-                                "type": "text",
-                                "text": format!("JavaScript result (number): {}", num)
-                            }));
-                        } else {
-                            response = McpResponse::success(serde_json::json!({
-                                "type": "text",
-                                "text": format!("JavaScript result: {}", js_result)
-                            }));
+                let handle = tokio::runtime::Handle::current();
+                response = tokio::task::block_in_place(|| {
+                    match handle.block_on(browser_guard.execute_javascript(expression)) {
+                        Ok(js_result) => {
+                            // Try to parse as different types
+                            if js_result == "true" || js_result == "false" {
+                                McpResponse::success(serde_json::json!({
+                                    "type": "text",
+                                    "text": format!("JavaScript result (boolean): {}", js_result)
+                                }))
+                            } else if let Ok(num) = js_result.parse::<f64>() {
+                                McpResponse::success(serde_json::json!({
+                                    "type": "text",
+                                    "text": format!("JavaScript result (number): {}", num)
+                                }))
+                            } else {
+                                McpResponse::success(serde_json::json!({
+                                    "type": "text",
+                                    "text": format!("JavaScript result: {}", js_result)
+                                }))
+                            }
+                        }
+                        Err(e) => {
+                            McpResponse::error(-1, format!("JavaScript execution error: {}", e))
                         }
                     }
-                    Err(e) => {
-                        response =
-                            McpResponse::error(-1, format!("JavaScript execution error: {}", e));
-                    }
-                }
+                });
             }
             Err(_) => {
                 // If session browser fails, try CDP server as fallback

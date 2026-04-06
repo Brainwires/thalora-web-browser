@@ -340,12 +340,11 @@ impl RustRenderer {
 
     /// Update the HTTP module loader's base URL for relative import resolution.
     pub fn set_module_base_url(&mut self, url: &str) {
-        if let Some(ctx) = &self.js_context {
-            if let Some(loader) = ctx
+        if let Some(ctx) = &self.js_context
+            && let Some(loader) = ctx
                 .downcast_module_loader::<crate::engine::browser::module_loader::HttpModuleLoader>()
-            {
-                loader.set_base_url(url);
-            }
+        {
+            loader.set_base_url(url);
         }
     }
 }

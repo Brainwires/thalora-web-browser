@@ -16,25 +16,24 @@ pub fn extract(html: &str) -> Value {
     // Extract title
     if let Ok(title_selector) = Selector::parse(
         "title, h1, .title, .article-title, [property='og:title'], [name='twitter:title']",
-    ) {
-        if let Some(title_element) = document.select(&title_selector).next() {
-            let title = if title_element.value().name() == "meta" {
-                title_element
-                    .value()
-                    .attr("content")
-                    .unwrap_or("")
-                    .to_string()
-            } else {
-                title_element
-                    .text()
-                    .collect::<Vec<_>>()
-                    .join(" ")
-                    .trim()
-                    .to_string()
-            };
-            if !title.is_empty() {
-                metadata["title"] = Value::String(title);
-            }
+    ) && let Some(title_element) = document.select(&title_selector).next()
+    {
+        let title = if title_element.value().name() == "meta" {
+            title_element
+                .value()
+                .attr("content")
+                .unwrap_or("")
+                .to_string()
+        } else {
+            title_element
+                .text()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string()
+        };
+        if !title.is_empty() {
+            metadata["title"] = Value::String(title);
         }
     }
 
@@ -50,26 +49,26 @@ pub fn extract(html: &str) -> Value {
     ];
 
     for selector_str in &author_selectors {
-        if let Ok(selector) = Selector::parse(selector_str) {
-            if let Some(author_element) = document.select(&selector).next() {
-                let author = if author_element.value().name() == "meta" {
-                    author_element
-                        .value()
-                        .attr("content")
-                        .unwrap_or("")
-                        .to_string()
-                } else {
-                    author_element
-                        .text()
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                        .trim()
-                        .to_string()
-                };
-                if !author.is_empty() {
-                    metadata["author"] = Value::String(author);
-                    break;
-                }
+        if let Ok(selector) = Selector::parse(selector_str)
+            && let Some(author_element) = document.select(&selector).next()
+        {
+            let author = if author_element.value().name() == "meta" {
+                author_element
+                    .value()
+                    .attr("content")
+                    .unwrap_or("")
+                    .to_string()
+            } else {
+                author_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string()
+            };
+            if !author.is_empty() {
+                metadata["author"] = Value::String(author);
+                break;
             }
         }
     }
@@ -87,24 +86,24 @@ pub fn extract(html: &str) -> Value {
     ];
 
     for selector_str in &date_selectors {
-        if let Ok(selector) = Selector::parse(selector_str) {
-            if let Some(date_element) = document.select(&selector).next() {
-                let date = if let Some(datetime) = date_element.value().attr("datetime") {
-                    datetime.to_string()
-                } else if let Some(content) = date_element.value().attr("content") {
-                    content.to_string()
-                } else {
-                    date_element
-                        .text()
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                        .trim()
-                        .to_string()
-                };
-                if !date.is_empty() {
-                    metadata["publish_date"] = Value::String(date);
-                    break;
-                }
+        if let Ok(selector) = Selector::parse(selector_str)
+            && let Some(date_element) = document.select(&selector).next()
+        {
+            let date = if let Some(datetime) = date_element.value().attr("datetime") {
+                datetime.to_string()
+            } else if let Some(content) = date_element.value().attr("content") {
+                content.to_string()
+            } else {
+                date_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string()
+            };
+            if !date.is_empty() {
+                metadata["publish_date"] = Value::String(date);
+                break;
             }
         }
     }
@@ -169,37 +168,36 @@ pub fn extract(html: &str) -> Value {
     ];
 
     for selector_str in &desc_selectors {
-        if let Ok(selector) = Selector::parse(selector_str) {
-            if let Some(desc_element) = document.select(&selector).next() {
-                let description = if desc_element.value().name() == "meta" {
-                    desc_element
-                        .value()
-                        .attr("content")
-                        .unwrap_or("")
-                        .to_string()
-                } else {
-                    desc_element
-                        .text()
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                        .trim()
-                        .to_string()
-                };
-                if !description.is_empty() {
-                    metadata["description"] = Value::String(description);
-                    break;
-                }
+        if let Ok(selector) = Selector::parse(selector_str)
+            && let Some(desc_element) = document.select(&selector).next()
+        {
+            let description = if desc_element.value().name() == "meta" {
+                desc_element
+                    .value()
+                    .attr("content")
+                    .unwrap_or("")
+                    .to_string()
+            } else {
+                desc_element
+                    .text()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+                    .trim()
+                    .to_string()
+            };
+            if !description.is_empty() {
+                metadata["description"] = Value::String(description);
+                break;
             }
         }
     }
 
     // Extract canonical URL
-    if let Ok(canonical_selector) = Selector::parse("[rel='canonical']") {
-        if let Some(canonical_element) = document.select(&canonical_selector).next() {
-            if let Some(href) = canonical_element.value().attr("href") {
-                metadata["canonical_url"] = Value::String(href.to_string());
-            }
-        }
+    if let Ok(canonical_selector) = Selector::parse("[rel='canonical']")
+        && let Some(canonical_element) = document.select(&canonical_selector).next()
+        && let Some(href) = canonical_element.value().attr("href")
+    {
+        metadata["canonical_url"] = Value::String(href.to_string());
     }
 
     metadata

@@ -41,15 +41,15 @@ pub(super) fn to_structured(html: &Html, base_url: &str) -> Result<String> {
                     }));
                 }
                 "img" => {
-                    if let Some(src) = element.value().attr("src") {
-                        if let Ok(resolved_url) = super::resolve_url(src, base_url) {
-                            sections.push(serde_json::json!({
-                                "type": "image",
-                                "src": resolved_url,
-                                "alt": element.value().attr("alt").unwrap_or(""),
-                                "title": element.value().attr("title").unwrap_or("")
-                            }));
-                        }
+                    if let Some(src) = element.value().attr("src")
+                        && let Ok(resolved_url) = super::resolve_url(src, base_url)
+                    {
+                        sections.push(serde_json::json!({
+                            "type": "image",
+                            "src": resolved_url,
+                            "alt": element.value().attr("alt").unwrap_or(""),
+                            "title": element.value().attr("title").unwrap_or("")
+                        }));
                     }
                 }
                 _ => {}
@@ -135,12 +135,12 @@ pub(super) fn process_element_tree(
         }
         "ul" => {
             for child in element.children() {
-                if let Some(child_element) = ElementRef::wrap(child) {
-                    if child_element.value().name() == "li" {
-                        let content = process_paragraph(&child_element, base_url)?;
-                        if !content.trim().is_empty() {
-                            output.push_str(&format!("- {}\n", content));
-                        }
+                if let Some(child_element) = ElementRef::wrap(child)
+                    && child_element.value().name() == "li"
+                {
+                    let content = process_paragraph(&child_element, base_url)?;
+                    if !content.trim().is_empty() {
+                        output.push_str(&format!("- {}\n", content));
                     }
                 }
             }
@@ -149,13 +149,13 @@ pub(super) fn process_element_tree(
         "ol" => {
             let mut counter = 1;
             for child in element.children() {
-                if let Some(child_element) = ElementRef::wrap(child) {
-                    if child_element.value().name() == "li" {
-                        let content = process_paragraph(&child_element, base_url)?;
-                        if !content.trim().is_empty() {
-                            output.push_str(&format!("{}. {}\n", counter, content));
-                            counter += 1;
-                        }
+                if let Some(child_element) = ElementRef::wrap(child)
+                    && child_element.value().name() == "li"
+                {
+                    let content = process_paragraph(&child_element, base_url)?;
+                    if !content.trim().is_empty() {
+                        output.push_str(&format!("{}. {}\n", counter, content));
+                        counter += 1;
                     }
                 }
             }
@@ -199,9 +199,9 @@ fn process_inline_content(element: &ElementRef, output: &mut String, base_url: &
                     output.push_str("**");
                 }
                 "em" | "i" => {
-                    output.push_str("*");
+                    output.push('*');
                     process_inline_content(&child_element, output, base_url)?;
-                    output.push_str("*");
+                    output.push('*');
                 }
                 "code" => {
                     output.push('`');

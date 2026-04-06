@@ -116,28 +116,27 @@ impl ServiceWorkerManager {
     fn load_persistent_data(&mut self) -> Result<()> {
         // Load registrations
         let registrations_file = self.storage_dir.join("registrations.json");
-        if let Ok(data) = fs::read_to_string(&registrations_file) {
-            if let Ok(registrations) =
+        if let Ok(data) = fs::read_to_string(&registrations_file)
+            && let Ok(registrations) =
                 serde_json::from_str::<HashMap<String, ServiceWorkerRegistration>>(&data)
-            {
-                *self.registrations.lock().unwrap() = registrations;
-            }
+        {
+            *self.registrations.lock().unwrap() = registrations;
         }
 
         // Load workers
         let workers_file = self.storage_dir.join("workers.json");
-        if let Ok(data) = fs::read_to_string(&workers_file) {
-            if let Ok(workers) = serde_json::from_str::<HashMap<String, ServiceWorker>>(&data) {
-                *self.active_workers.lock().unwrap() = workers;
-            }
+        if let Ok(data) = fs::read_to_string(&workers_file)
+            && let Ok(workers) = serde_json::from_str::<HashMap<String, ServiceWorker>>(&data)
+        {
+            *self.active_workers.lock().unwrap() = workers;
         }
 
         // Load cache storage
         let cache_file = self.storage_dir.join("cache.json");
-        if let Ok(data) = fs::read_to_string(&cache_file) {
-            if let Ok(cache) = serde_json::from_str::<HashMap<String, CacheStorage>>(&data) {
-                *self.cache_storage.lock().unwrap() = cache;
-            }
+        if let Ok(data) = fs::read_to_string(&cache_file)
+            && let Ok(cache) = serde_json::from_str::<HashMap<String, CacheStorage>>(&data)
+        {
+            *self.cache_storage.lock().unwrap() = cache;
         }
 
         Ok(())
@@ -211,7 +210,7 @@ impl ServiceWorkerManager {
             .get(js_string!("navigator"), context)?;
 
         if let Some(nav_obj) = navigator_obj.as_object() {
-            let service_worker_obj = JsObject::default(&context.intrinsics());
+            let service_worker_obj = JsObject::default(context.intrinsics());
 
             // navigator.serviceWorker.register()
             let register_fn = unsafe {
@@ -271,8 +270,8 @@ impl ServiceWorkerManager {
                         }
 
                         // Return Promise-like object
-                        let promise_obj = JsObject::default(&context.intrinsics());
-                        let registration_obj = JsObject::default(&context.intrinsics());
+                        let promise_obj = JsObject::default(context.intrinsics());
+                        let registration_obj = JsObject::default(context.intrinsics());
                         registration_obj.set(
                             js_string!("scope"),
                             JsValue::from(js_string!(scope)),
@@ -316,12 +315,12 @@ impl ServiceWorkerManager {
             )?;
 
             // navigator.serviceWorker.ready (Promise)
-            let ready_promise = JsObject::default(&context.intrinsics());
+            let ready_promise = JsObject::default(context.intrinsics());
             let ready_then_fn = unsafe {
                 NativeFunction::from_closure(|_, args, _context| {
                     if !args.is_empty() && args[0].is_callable() {
                         let callback = args[0].as_callable().unwrap();
-                        let registration_obj = JsObject::default(&_context.intrinsics());
+                        let registration_obj = JsObject::default(_context.intrinsics());
                         registration_obj.set(
                             js_string!("scope"),
                             JsValue::from(js_string!("/")),
@@ -375,7 +374,7 @@ impl ServiceWorkerManager {
         &self,
         context: &mut Context,
     ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
-        let caches_obj = JsObject::default(&context.intrinsics());
+        let caches_obj = JsObject::default(context.intrinsics());
 
         // caches.open(cacheName)
         let cache_storage_clone = Arc::clone(&self.cache_storage);
@@ -408,7 +407,7 @@ impl ServiceWorkerManager {
                 }
 
                 // Return Cache object
-                let cache_obj = JsObject::default(&context.intrinsics());
+                let cache_obj = JsObject::default(context.intrinsics());
 
                 // cache.add(request)
                 let cache_storage_add = Arc::clone(&cache_storage_clone);
@@ -454,49 +453,48 @@ impl ServiceWorkerManager {
                         let url = args[0].to_string(context)?.to_std_string_escaped();
 
                         let caches = cache_storage_match.lock().unwrap();
-                        if let Some(cache) = caches.get(&cache_name_match) {
-                            if let Some(entry) = cache.entries.get(&url) {
-                                // Return Response object
-                                let response_obj = JsObject::default(&context.intrinsics());
-                                response_obj.set(
-                                    js_string!("status"),
-                                    JsValue::from(entry.status),
-                                    false,
-                                    context,
-                                )?;
-                                response_obj.set(
-                                    js_string!("ok"),
-                                    JsValue::from(entry.status >= 200 && entry.status < 300),
-                                    false,
-                                    context,
-                                )?;
+                        if let Some(cache) = caches.get(&cache_name_match)
+                            && let Some(entry) = cache.entries.get(&url)
+                        {
+                            // Return Response object
+                            let response_obj = JsObject::default(context.intrinsics());
+                            response_obj.set(
+                                js_string!("status"),
+                                JsValue::from(entry.status),
+                                false,
+                                context,
+                            )?;
+                            response_obj.set(
+                                js_string!("ok"),
+                                JsValue::from(entry.status >= 200 && entry.status < 300),
+                                false,
+                                context,
+                            )?;
 
-                                let promise_obj = JsObject::default(&context.intrinsics());
-                                let then_fn =
-                                    NativeFunction::from_closure(move |_, args, _context| {
-                                        if !args.is_empty() && args[0].is_callable() {
-                                            let callback = args[0].as_callable().unwrap();
-                                            callback.call(
-                                                &JsValue::undefined(),
-                                                &[JsValue::from(response_obj.clone())],
-                                                _context,
-                                            )?;
-                                        }
-                                        Ok(JsValue::undefined())
-                                    });
-                                promise_obj.set(
-                                    js_string!("then"),
-                                    JsValue::from(then_fn.to_js_function(context.realm())),
-                                    false,
-                                    context,
-                                )?;
-                                return Ok(JsValue::from(promise_obj));
-                            }
+                            let promise_obj = JsObject::default(context.intrinsics());
+                            let then_fn = NativeFunction::from_closure(move |_, args, _context| {
+                                if !args.is_empty() && args[0].is_callable() {
+                                    let callback = args[0].as_callable().unwrap();
+                                    callback.call(
+                                        &JsValue::undefined(),
+                                        &[JsValue::from(response_obj.clone())],
+                                        _context,
+                                    )?;
+                                }
+                                Ok(JsValue::undefined())
+                            });
+                            promise_obj.set(
+                                js_string!("then"),
+                                JsValue::from(then_fn.to_js_function(context.realm())),
+                                false,
+                                context,
+                            )?;
+                            return Ok(JsValue::from(promise_obj));
                         }
                     }
 
                     // Return undefined for cache miss
-                    let promise_obj = JsObject::default(&context.intrinsics());
+                    let promise_obj = JsObject::default(context.intrinsics());
                     let then_fn = NativeFunction::from_closure(move |_, args, _context| {
                         if !args.is_empty() && args[0].is_callable() {
                             let callback = args[0].as_callable().unwrap();
@@ -523,7 +521,7 @@ impl ServiceWorkerManager {
                     context,
                 )?;
 
-                let promise_obj = JsObject::default(&context.intrinsics());
+                let promise_obj = JsObject::default(context.intrinsics());
                 let then_fn = NativeFunction::from_closure(move |_, args, _context| {
                     if !args.is_empty() && args[0].is_callable() {
                         let callback = args[0].as_callable().unwrap();
@@ -565,14 +563,14 @@ impl ServiceWorkerManager {
         context: &mut Context,
     ) -> Result<(), thalora_browser_apis::boa_engine::JsError> {
         // Setup PushManager
-        let push_manager_obj = JsObject::default(&context.intrinsics());
+        let push_manager_obj = JsObject::default(context.intrinsics());
 
         // pushManager.subscribe()
         let push_subscriptions_clone = Arc::clone(&self.push_subscriptions);
         let subscribe_fn = unsafe {
             NativeFunction::from_closure(move |_, _args, context| {
                 // MOCK: Creates fake push subscription with hardcoded FCM endpoint
-                let subscription_obj = JsObject::default(&context.intrinsics());
+                let subscription_obj = JsObject::default(context.intrinsics());
                 subscription_obj.set(
                     js_string!("endpoint"),
                     JsValue::from(js_string!(
@@ -582,7 +580,7 @@ impl ServiceWorkerManager {
                     context,
                 )?;
 
-                let keys_obj = JsObject::default(&context.intrinsics());
+                let keys_obj = JsObject::default(context.intrinsics());
                 keys_obj.set(
                     js_string!("p256dh"),
                     JsValue::from(js_string!("mock-p256dh-key")), // MOCK key
@@ -618,7 +616,7 @@ impl ServiceWorkerManager {
                     });
                 }
 
-                let promise_obj = JsObject::default(&context.intrinsics());
+                let promise_obj = JsObject::default(context.intrinsics());
                 let then_fn = NativeFunction::from_closure(move |_, args, _context| {
                     if !args.is_empty() && args[0].is_callable() {
                         let callback = args[0].as_callable().unwrap();

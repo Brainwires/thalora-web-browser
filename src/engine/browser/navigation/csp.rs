@@ -61,9 +61,8 @@ impl CspPolicy {
                 continue;
             };
 
-            let sources: Vec<SourceExpression> = parts
-                .filter_map(|token| parse_source_expression(token))
-                .collect();
+            let sources: Vec<SourceExpression> =
+                parts.filter_map(parse_source_expression).collect();
 
             match name {
                 "script-src" => policy.script_src = sources,
@@ -127,19 +126,18 @@ impl CspPolicy {
             match source {
                 SourceExpression::UnsafeInline => return true,
                 SourceExpression::Nonce(expected_nonce) => {
-                    if let Some(nonce) = nonce {
-                        if nonce == expected_nonce {
-                            return true;
-                        }
+                    if let Some(nonce) = nonce
+                        && nonce == expected_nonce
+                    {
+                        return true;
                     }
                 }
                 SourceExpression::Hash(algo, expected_hash) => {
-                    if algo == "sha256" {
-                        if let Some(hash) = content_hash {
-                            if hash == expected_hash {
-                                return true;
-                            }
-                        }
+                    if algo == "sha256"
+                        && let Some(hash) = content_hash
+                        && hash == expected_hash
+                    {
+                        return true;
                     }
                 }
                 SourceExpression::None => return false,
@@ -168,10 +166,10 @@ impl CspPolicy {
             match source {
                 SourceExpression::None => return false,
                 SourceExpression::OriginSelf => {
-                    if let Some(page) = page_url {
-                        if same_origin(page, script_url) {
-                            return true;
-                        }
+                    if let Some(page) = page_url
+                        && same_origin(page, script_url)
+                    {
+                        return true;
                     }
                 }
                 SourceExpression::Url(pattern) => {
@@ -226,10 +224,10 @@ impl CspPolicy {
             match source {
                 SourceExpression::None => return false,
                 SourceExpression::OriginSelf => {
-                    if let Some(page) = page_url {
-                        if same_origin(page, url) {
-                            return true;
-                        }
+                    if let Some(page) = page_url
+                        && same_origin(page, url)
+                    {
+                        return true;
                     }
                 }
                 SourceExpression::Url(pattern) => {
@@ -389,10 +387,10 @@ fn url_matches_pattern(url: &str, pattern: &str) -> bool {
     // Wildcard subdomain (e.g., "*.example.com")
     if pattern.starts_with("*.") {
         let domain_suffix = &pattern[1..]; // ".example.com"
-        if let Ok(parsed) = url::Url::parse(url) {
-            if let Some(host) = parsed.host_str() {
-                return host.ends_with(domain_suffix) || host == &domain_suffix[1..];
-            }
+        if let Ok(parsed) = url::Url::parse(url)
+            && let Some(host) = parsed.host_str()
+        {
+            return host.ends_with(domain_suffix) || host == &domain_suffix[1..];
         }
         return false;
     }

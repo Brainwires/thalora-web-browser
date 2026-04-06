@@ -35,7 +35,7 @@ impl Origin {
     }
 
     /// Get the canonical origin string (scheme://host:port)
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         if let Some(port) = self.port {
             format!("{}://{}:{}", self.scheme, self.host, port)
         } else {
@@ -56,7 +56,11 @@ impl Origin {
 
 impl fmt::Display for Origin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        if let Some(port) = self.port {
+            write!(f, "{}://{}:{}", self.scheme, self.host, port)
+        } else {
+            write!(f, "{}://{}", self.scheme, self.host)
+        }
     }
 }
 

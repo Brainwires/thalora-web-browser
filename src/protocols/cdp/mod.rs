@@ -73,6 +73,12 @@ pub trait CdpDomain {
     fn get_events(&mut self) -> Vec<CdpEvent>;
 }
 
+impl Default for CdpServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CdpServer {
     pub fn new() -> Self {
         let (event_sender, _) = broadcast::channel(1000);

@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use vfs::fs;
 
+/// Credential tuple: (service, username, decrypted password, extra metadata).
+pub type CredentialInfo = (String, String, String, HashMap<String, String>);
+
 // Module declarations
 mod crypto;
 mod search;
@@ -165,10 +168,7 @@ impl AiMemoryHeap {
     }
 
     /// Get credentials (password will be decrypted)
-    pub fn get_credentials(
-        &mut self,
-        key: &str,
-    ) -> Result<Option<(String, String, String, HashMap<String, String>)>> {
+    pub fn get_credentials(&mut self, key: &str) -> Result<Option<CredentialInfo>> {
         let result = storage::get_credentials(&mut self.memory_data, key)?;
         if result.is_some() {
             self.save()?; // Save updated last_used timestamp

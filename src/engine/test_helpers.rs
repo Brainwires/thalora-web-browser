@@ -14,7 +14,6 @@ use anyhow::Result;
 /// # Run tests with V8
 /// THALORA_TEST_ENGINE=v8 cargo test
 /// ```
-
 /// Create a JavaScript engine using the configured test engine
 /// Respects THALORA_TEST_ENGINE environment variable
 pub fn create_test_engine() -> Result<Box<dyn ThaloraBrowserEngine>> {

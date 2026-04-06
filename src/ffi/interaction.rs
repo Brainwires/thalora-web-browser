@@ -6,7 +6,7 @@
 use std::ffi::c_char;
 use std::ptr;
 
-use super::instance::{ThalorInstance, c_str_to_rust, rust_string_to_c};
+use super::instance::{ThalorInstance, c_str_to_rust_safe, instance_ref, rust_string_to_c};
 
 /// Execute JavaScript code in the browser context.
 /// Returns the result as a C string, or null on error.
@@ -16,13 +16,13 @@ pub extern "C" fn thalora_execute_js(
     instance: *mut ThalorInstance,
     code: *const c_char,
 ) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
-    let code_str = match unsafe { c_str_to_rust(code) } {
+    let code_str = match c_str_to_rust_safe(code) {
         Some(s) => s.to_owned(),
         None => {
             inst.set_error("Invalid or null JavaScript code string".into());
@@ -30,13 +30,14 @@ pub extern "C" fn thalora_execute_js(
         }
     };
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst
-            .browser
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.execute_javascript(&code_str).await
-    });
+    let result = match inst
+        .browser
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+    {
+        Ok(mut browser) => inst.runtime.block_on(browser.execute_javascript(&code_str)),
+        Err(e) => Err(e),
+    };
 
     match result {
         Ok(output) => rust_string_to_c(output),
@@ -54,13 +55,13 @@ pub extern "C" fn thalora_click_element(
     instance: *mut ThalorInstance,
     selector: *const c_char,
 ) -> i32 {
-    if instance.is_null() {
-        return -1;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
     inst.clear_error();
 
-    let sel_str = match unsafe { c_str_to_rust(selector) } {
+    let sel_str = match c_str_to_rust_safe(selector) {
         Some(s) => s.to_owned(),
         None => {
             inst.set_error("Invalid or null selector string".into());
@@ -68,13 +69,14 @@ pub extern "C" fn thalora_click_element(
         }
     };
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst
-            .browser
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser.click_element(&sel_str).await
-    });
+    let result = match inst
+        .browser
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+    {
+        Ok(mut browser) => inst.runtime.block_on(browser.click_element(&sel_str)),
+        Err(e) => Err(e),
+    };
 
     match result {
         Ok(response) => {
@@ -101,13 +103,13 @@ pub extern "C" fn thalora_type_text(
     text: *const c_char,
     clear_first: i32,
 ) -> i32 {
-    if instance.is_null() {
-        return -1;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
     inst.clear_error();
 
-    let sel_str = match unsafe { c_str_to_rust(selector) } {
+    let sel_str = match c_str_to_rust_safe(selector) {
         Some(s) => s.to_owned(),
         None => {
             inst.set_error("Invalid or null selector string".into());
@@ -115,7 +117,7 @@ pub extern "C" fn thalora_type_text(
         }
     };
 
-    let text_str = match unsafe { c_str_to_rust(text) } {
+    let text_str = match c_str_to_rust_safe(text) {
         Some(s) => s.to_owned(),
         None => {
             inst.set_error("Invalid or null text string".into());
@@ -125,15 +127,16 @@ pub extern "C" fn thalora_type_text(
 
     let clear = clear_first != 0;
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst
-            .browser
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-        browser
-            .type_text_into_element(&sel_str, &text_str, clear)
-            .await
-    });
+    let result = match inst
+        .browser
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+    {
+        Ok(mut browser) => inst
+            .runtime
+            .block_on(browser.type_text_into_element(&sel_str, &text_str, clear)),
+        Err(e) => Err(e),
+    };
 
     match result {
         Ok(response) => {
@@ -160,13 +163,13 @@ pub extern "C" fn thalora_submit_form(
     form_selector: *const c_char,
     json_data: *const c_char,
 ) -> i32 {
-    if instance.is_null() {
-        return -1;
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
     inst.clear_error();
 
-    let sel_str = match unsafe { c_str_to_rust(form_selector) } {
+    let sel_str = match c_str_to_rust_safe(form_selector) {
         Some(s) => s.to_owned(),
         None => {
             inst.set_error("Invalid or null form selector string".into());
@@ -176,32 +179,45 @@ pub extern "C" fn thalora_submit_form(
 
     // Parse optional JSON data into field name→value pairs
     let field_data: Option<std::collections::HashMap<String, String>> =
-        unsafe { c_str_to_rust(json_data) }
-            .and_then(|json_str| serde_json::from_str(json_str).ok());
+        c_str_to_rust_safe(json_data).and_then(|json_str| serde_json::from_str(json_str).ok());
 
-    let result = inst.runtime.block_on(async {
-        let mut browser = inst
-            .browser
-            .lock()
-            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+    let result = match inst
+        .browser
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+    {
+        Ok(mut browser) => {
+            // First fill in any form data if provided
+            let mut fill_result = Ok(());
+            if let Some(fields) = &field_data {
+                for (name, value) in fields {
+                    let field_selector = format!("{} [name=\"{}\"]", sel_str, name);
+                    if let Err(e) = inst.runtime.block_on(browser.type_text_into_element(
+                        &field_selector,
+                        value,
+                        true,
+                    )) {
+                        fill_result = Err(e);
+                        break;
+                    }
+                }
+            }
 
-        // First fill in any form data if provided
-        if let Some(fields) = &field_data {
-            for (name, value) in fields {
-                let field_selector = format!("{} [name=\"{}\"]", sel_str, name);
-                browser
-                    .type_text_into_element(&field_selector, value, true)
-                    .await?;
+            match fill_result {
+                Ok(()) => {
+                    // Then click the submit button within the form
+                    let submit_selector = format!(
+                        "{} [type=\"submit\"], {} button[type=\"submit\"], {} button:not([type])",
+                        sel_str, sel_str, sel_str
+                    );
+                    inst.runtime
+                        .block_on(browser.click_element(&submit_selector))
+                }
+                Err(e) => Err(e),
             }
         }
-
-        // Then click the submit button within the form
-        let submit_selector = format!(
-            "{} [type=\"submit\"], {} button[type=\"submit\"], {} button:not([type])",
-            sel_str, sel_str, sel_str
-        );
-        browser.click_element(&submit_selector).await
-    });
+        Err(e) => Err(e),
+    };
 
     match result {
         Ok(response) => {
@@ -223,10 +239,10 @@ pub extern "C" fn thalora_submit_form(
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_get_page_title(instance: *mut ThalorInstance) -> *mut c_char {
-    if instance.is_null() {
-        return ptr::null_mut();
-    }
-    let inst = unsafe { &*instance };
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
     inst.clear_error();
 
     let browser = match inst.browser.lock() {

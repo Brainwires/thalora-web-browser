@@ -491,29 +491,29 @@ impl LayoutEngine {
         }
 
         // Border
-        if let Some(ref border) = styles.border {
-            if let Some(w) = resolve_css_length_vp(&border.width, font_size_px as f64, vw, vh) {
-                let w = w as f32;
-                taffy_style.border = Rect {
-                    left: LengthPercentage::Length(w),
-                    right: LengthPercentage::Length(w),
-                    top: LengthPercentage::Length(w),
-                    bottom: LengthPercentage::Length(w),
-                };
-            }
+        if let Some(ref border) = styles.border
+            && let Some(w) = resolve_css_length_vp(&border.width, font_size_px as f64, vw, vh)
+        {
+            let w = w as f32;
+            taffy_style.border = Rect {
+                left: LengthPercentage::Length(w),
+                right: LengthPercentage::Length(w),
+                top: LengthPercentage::Length(w),
+                bottom: LengthPercentage::Length(w),
+            };
         }
 
         // Check for additional flex properties
-        if let Some(ref flex_grow) = styles.flex_grow {
-            if let Ok(val) = flex_grow.parse::<f32>() {
-                taffy_style.flex_grow = val;
-            }
+        if let Some(ref flex_grow) = styles.flex_grow
+            && let Ok(val) = flex_grow.parse::<f32>()
+        {
+            taffy_style.flex_grow = val;
         }
 
-        if let Some(ref flex_shrink) = styles.flex_shrink {
-            if let Ok(val) = flex_shrink.parse::<f32>() {
-                taffy_style.flex_shrink = val;
-            }
+        if let Some(ref flex_shrink) = styles.flex_shrink
+            && let Ok(val) = flex_shrink.parse::<f32>()
+        {
+            taffy_style.flex_shrink = val;
         }
 
         if let Some(ref flex_basis) = styles.flex_basis {
@@ -546,10 +546,10 @@ fn parse_dimension(value: &str, font_size_px: f32, vw: f32, vh: f32) -> Dimensio
         return Dimension::Auto;
     }
 
-    if value.ends_with('%') {
-        if let Ok(pct) = value.trim_end_matches('%').parse::<f32>() {
-            return Dimension::Percent(pct / 100.0);
-        }
+    if value.ends_with('%')
+        && let Ok(pct) = value.trim_end_matches('%').parse::<f32>()
+    {
+        return Dimension::Percent(pct / 100.0);
     }
 
     if let Some(px) = resolve_css_length_vp(value, font_size_px as f64, vw, vh) {
@@ -563,10 +563,10 @@ fn parse_dimension(value: &str, font_size_px: f32, vw: f32, vh: f32) -> Dimensio
 fn parse_length_percentage(value: &str, font_size_px: f32, vw: f32, vh: f32) -> LengthPercentage {
     let value = value.trim();
 
-    if value.ends_with('%') {
-        if let Ok(pct) = value.trim_end_matches('%').parse::<f32>() {
-            return LengthPercentage::Percent(pct / 100.0);
-        }
+    if value.ends_with('%')
+        && let Ok(pct) = value.trim_end_matches('%').parse::<f32>()
+    {
+        return LengthPercentage::Percent(pct / 100.0);
     }
 
     if let Some(px) = resolve_css_length_vp(value, font_size_px as f64, vw, vh) {
@@ -589,10 +589,10 @@ fn parse_length_percentage_auto(
         return LengthPercentageAuto::Auto;
     }
 
-    if value.ends_with('%') {
-        if let Ok(pct) = value.trim_end_matches('%').parse::<f32>() {
-            return LengthPercentageAuto::Percent(pct / 100.0);
-        }
+    if value.ends_with('%')
+        && let Ok(pct) = value.trim_end_matches('%').parse::<f32>()
+    {
+        return LengthPercentageAuto::Percent(pct / 100.0);
     }
 
     if let Some(px) = resolve_css_length_vp(value, font_size_px as f64, vw, vh) {
@@ -629,22 +629,22 @@ fn parse_single_track(
             max: MaxTrackSizingFunction::MaxContent,
         };
     }
-    if value.ends_with("fr") {
-        if let Ok(fr) = value.trim_end_matches("fr").parse::<f32>() {
-            return NonRepeatedTrackSizingFunction {
-                min: MinTrackSizingFunction::Auto,
-                max: MaxTrackSizingFunction::Fraction(fr),
-            };
-        }
+    if value.ends_with("fr")
+        && let Ok(fr) = value.trim_end_matches("fr").parse::<f32>()
+    {
+        return NonRepeatedTrackSizingFunction {
+            min: MinTrackSizingFunction::Auto,
+            max: MaxTrackSizingFunction::Fraction(fr),
+        };
     }
-    if value.ends_with('%') {
-        if let Ok(pct) = value.trim_end_matches('%').parse::<f32>() {
-            let lp = LengthPercentage::Percent(pct / 100.0);
-            return NonRepeatedTrackSizingFunction {
-                min: MinTrackSizingFunction::Fixed(lp),
-                max: MaxTrackSizingFunction::Fixed(lp),
-            };
-        }
+    if value.ends_with('%')
+        && let Ok(pct) = value.trim_end_matches('%').parse::<f32>()
+    {
+        let lp = LengthPercentage::Percent(pct / 100.0);
+        return NonRepeatedTrackSizingFunction {
+            min: MinTrackSizingFunction::Fixed(lp),
+            max: MaxTrackSizingFunction::Fixed(lp),
+        };
     }
 
     // Try as a length (px, em, rem, etc.)
@@ -777,7 +777,7 @@ fn parse_grid_track_list(
 
                 if let Some(rep) = repetition {
                     let inner_tracks = parse_grid_auto_tracks(tracks_str, font_size_px, vw, vh);
-                    result.push(TrackSizingFunction::Repeat(rep, inner_tracks.into()));
+                    result.push(TrackSizingFunction::Repeat(rep, inner_tracks));
                 }
             }
             // Advance past repeat(...)
@@ -904,10 +904,10 @@ fn parse_grid_placement(value: &str) -> Line<GridPlacement> {
             }
             return GridPlacement::Span(1);
         }
-        if let Ok(n) = s.parse::<i16>() {
-            if n != 0 {
-                return GridPlacement::Line(n.into());
-            }
+        if let Ok(n) = s.parse::<i16>()
+            && n != 0
+        {
+            return GridPlacement::Line(n.into());
         }
         // Named grid line — taffy doesn't support named lines, treat as auto
         GridPlacement::Auto
@@ -1117,7 +1117,7 @@ const ROOT_FONT_SIZE: f64 = 16.0;
 /// - `pt` is converted at 1pt = 1.333px
 /// - `vw` is 1% of viewport width, `vh` is 1% of viewport height
 /// - `vmin` is min(vw, vh), `vmax` is max(vw, vh)
-/// Returns None for "auto", "none", empty strings, or unparseable values.
+///   Returns None for "auto", "none", empty strings, or unparseable values.
 ///
 /// When viewport dimensions are not available (0.0), viewport units return None.
 pub fn resolve_css_length(value: &str, font_size_px: f64) -> Option<f64> {

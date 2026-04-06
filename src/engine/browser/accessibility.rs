@@ -99,10 +99,10 @@ fn heading_level(tag: &str) -> Option<u8> {
 /// Compute the accessible name for an element per the Accessible Name Computation spec.
 fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
     // 1. aria-label takes highest priority
-    if let Some(label) = element.value().attr("aria-label") {
-        if !label.trim().is_empty() {
-            return label.trim().to_string();
-        }
+    if let Some(label) = element.value().attr("aria-label")
+        && !label.trim().is_empty()
+    {
+        return label.trim().to_string();
     }
 
     // 2. aria-labelledby — resolve referenced element IDs
@@ -110,13 +110,13 @@ fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
         let mut parts = Vec::new();
         for id in labelledby.split_whitespace() {
             let selector_str = format!("#{}", id);
-            if let Ok(sel) = Selector::parse(&selector_str) {
-                if let Some(referenced) = doc.select(&sel).next() {
-                    let text: String = referenced.text().collect();
-                    let text = text.trim().to_string();
-                    if !text.is_empty() {
-                        parts.push(text);
-                    }
+            if let Ok(sel) = Selector::parse(&selector_str)
+                && let Some(referenced) = doc.select(&sel).next()
+            {
+                let text: String = referenced.text().collect();
+                let text = text.trim().to_string();
+                if !text.is_empty() {
+                    parts.push(text);
                 }
             }
         }
@@ -130,10 +130,10 @@ fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
     // 3. Element-specific fallbacks
     match tag {
         "img" | "area" => {
-            if let Some(alt) = element.value().attr("alt") {
-                if !alt.is_empty() {
-                    return alt.to_string();
-                }
+            if let Some(alt) = element.value().attr("alt")
+                && !alt.is_empty()
+            {
+                return alt.to_string();
             }
             if let Some(title) = element.value().attr("title") {
                 return title.to_string();
@@ -143,20 +143,20 @@ fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
             // Check for associated label
             if let Some(id) = element.value().attr("id") {
                 let label_sel = format!("label[for=\"{}\"]", id);
-                if let Ok(sel) = Selector::parse(&label_sel) {
-                    if let Some(label) = doc.select(&sel).next() {
-                        let text: String = label.text().collect();
-                        let text = text.trim().to_string();
-                        if !text.is_empty() {
-                            return text;
-                        }
+                if let Ok(sel) = Selector::parse(&label_sel)
+                    && let Some(label) = doc.select(&sel).next()
+                {
+                    let text: String = label.text().collect();
+                    let text = text.trim().to_string();
+                    if !text.is_empty() {
+                        return text;
                     }
                 }
             }
-            if let Some(placeholder) = element.value().attr("placeholder") {
-                if !placeholder.is_empty() {
-                    return placeholder.to_string();
-                }
+            if let Some(placeholder) = element.value().attr("placeholder")
+                && !placeholder.is_empty()
+            {
+                return placeholder.to_string();
             }
             if let Some(title) = element.value().attr("title") {
                 return title.to_string();
@@ -178,10 +178,10 @@ fn compute_accessible_name(element: &ElementRef, doc: &Html) -> String {
     }
 
     // 4. title attribute as last resort
-    if let Some(title) = element.value().attr("title") {
-        if !title.is_empty() {
-            return title.to_string();
-        }
+    if let Some(title) = element.value().attr("title")
+        && !title.is_empty()
+    {
+        return title.to_string();
     }
 
     String::new()
@@ -222,7 +222,7 @@ pub fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
         if attrs.get("aria-hidden") == Some(&"true") {
             continue;
         }
-        if attrs.get("hidden").is_some() {
+        if attrs.contains_key("hidden") {
             continue;
         }
 
@@ -243,27 +243,27 @@ pub fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
         }
 
         // Add id if present
-        if let Some(id) = attrs.get("id") {
-            if !id.is_empty() {
-                node["id"] = json!(id);
-            }
+        if let Some(id) = attrs.get("id")
+            && !id.is_empty()
+        {
+            node["id"] = json!(id);
         }
 
         // Add states
         let mut states = Vec::new();
-        if attrs.get("disabled").is_some() {
+        if attrs.contains_key("disabled") {
             states.push("disabled");
         }
-        if attrs.get("required").is_some() {
+        if attrs.contains_key("required") {
             states.push("required");
         }
-        if attrs.get("readonly").is_some() {
+        if attrs.contains_key("readonly") {
             states.push("readonly");
         }
-        if attrs.get("checked").is_some() {
+        if attrs.contains_key("checked") {
             states.push("checked");
         }
-        if attrs.get("selected").is_some() {
+        if attrs.contains_key("selected") {
             states.push("selected");
         }
         if let Some(expanded) = attrs.get("aria-expanded") {
@@ -290,10 +290,10 @@ pub fn build_accessibility_tree(html: &str, max_depth: usize) -> Value {
         }
 
         // Add value for inputs
-        if let Some(value) = attrs.get("value") {
-            if matches!(tag, "input" | "textarea" | "select" | "progress" | "meter") {
-                node["value"] = json!(value);
-            }
+        if let Some(value) = attrs.get("value")
+            && matches!(tag, "input" | "textarea" | "select" | "progress" | "meter")
+        {
+            node["value"] = json!(value);
         }
 
         nodes.push(node);

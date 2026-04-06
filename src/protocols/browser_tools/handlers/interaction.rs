@@ -29,81 +29,72 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-        let mut potential_new_window_info = None;
+        let selector_owned = selector.to_string();
+        let self_ref = self;
+        let session_id_owned = session_id.to_string();
 
-        {
-            let lock_res = browser.lock();
-            match lock_res {
-                Ok(mut browser_guard) => {
-                    // Check if this is a submit button for a form that opens new windows
-                    if let Some(form_info) = browser_guard.find_form_by_submit_button(selector) {
-                        if form_info.opens_new_window {
-                            eprintln!(
-                                "🔍 DEBUG: Click on submit button for new window form detected"
-                            );
-                            eprintln!(
-                                "🔍 DEBUG: Form target: {}, action: {}",
-                                form_info.target, form_info.action
-                            );
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            if let Ok(mut guard) = browser.lock() {
+                let mut potential_new_window_info = None;
 
-                            // Create predictive session for the new window
-                            if let Some(ref predicted_url) = form_info.predicted_url {
-                                let predictive_session_id = format!(
-                                    "predictive_{}_{}",
-                                    session_id,
-                                    std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_millis()
-                                );
+                // Check if this is a submit button for a form that opens new windows
+                if let Some(form_info) = guard.find_form_by_submit_button(&selector_owned)
+                    && form_info.opens_new_window
+                {
+                    eprintln!("🔍 DEBUG: Click on submit button for new window form detected");
+                    eprintln!(
+                        "🔍 DEBUG: Form target: {}, action: {}",
+                        form_info.target, form_info.action
+                    );
 
-                                eprintln!(
-                                    "🔍 DEBUG: Creating predictive session: {} for URL: {}",
-                                    predictive_session_id, predicted_url
-                                );
+                    if let Some(ref predicted_url) = form_info.predicted_url {
+                        let predictive_session_id = format!(
+                            "predictive_{}_{}",
+                            session_id_owned,
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis()
+                        );
 
-                                // Create the predictive session (persistent=false for temporary use)
-                                let _predictive_browser =
-                                    self.get_or_create_session(&predictive_session_id, false);
+                        eprintln!(
+                            "🔍 DEBUG: Creating predictive session: {} for URL: {}",
+                            predictive_session_id, predicted_url
+                        );
 
-                                potential_new_window_info = Some(json!({
-                                    "will_open_new_window": true,
-                                    "predicted_url": predicted_url,
-                                    "predictive_session_id": predictive_session_id,
-                                    "form_target": form_info.target,
-                                    "form_action": form_info.action,
-                                    "form_method": form_info.method
-                                }));
-                            }
-                        }
-                    }
+                        let _predictive_browser =
+                            self_ref.get_or_create_session(&predictive_session_id, false);
 
-                    match browser_guard.click_element(selector).await {
-                        Ok(resp) => {
-                            // Add potential new window info to response
-                            if let Some(new_window_info) = potential_new_window_info {
-                                let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
-                                if let Some(obj) = resp_json.as_object_mut() {
-                                    obj.insert("potential_new_window".to_string(), new_window_info);
-                                }
-                                response = McpResponse::success(resp_json);
-                            } else {
-                                response = McpResponse::success(
-                                    serde_json::to_value(resp).unwrap_or_default(),
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            response =
-                                McpResponse::error(-1, format!("Failed to click element: {}", e))
-                        }
+                        potential_new_window_info = Some(json!({
+                            "will_open_new_window": true,
+                            "predicted_url": predicted_url,
+                            "predictive_session_id": predictive_session_id,
+                            "form_target": form_info.target,
+                            "form_action": form_info.action,
+                            "form_method": form_info.method
+                        }));
                     }
                 }
-                Err(_) => {}
+
+                match rt.block_on(guard.click_element(&selector_owned)) {
+                    Ok(resp) => {
+                        if let Some(new_window_info) = potential_new_window_info {
+                            let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
+                            if let Some(obj) = resp_json.as_object_mut() {
+                                obj.insert("potential_new_window".to_string(), new_window_info);
+                            }
+                            McpResponse::success(resp_json)
+                        } else {
+                            McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
+                        }
+                    }
+                    Err(e) => McpResponse::error(-1, format!("Failed to click element: {}", e)),
+                }
+            } else {
+                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
-        }
-        response
+        })
     }
 
     pub async fn handle_type_text(&self, params: Value) -> McpResponse {
@@ -138,29 +129,26 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-        {
-            let lock_res = browser.lock();
-            match lock_res {
-                Ok(mut browser_guard) => {
-                    // Use the browser's text input functionality
-                    match browser_guard
-                        .type_text_into_element(selector, text, clear_first)
-                        .await
-                    {
-                        Ok(resp) => {
-                            response =
-                                McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
-                        }
-                        Err(e) => {
-                            response = McpResponse::error(-1, format!("Failed to type text: {}", e))
-                        }
+        let selector_owned = selector.to_string();
+        let text_owned = text.to_string();
+
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            if let Ok(mut guard) = browser.lock() {
+                match rt.block_on(guard.type_text_into_element(
+                    &selector_owned,
+                    &text_owned,
+                    clear_first,
+                )) {
+                    Ok(resp) => {
+                        McpResponse::success(serde_json::to_value(resp).unwrap_or_default())
                     }
+                    Err(e) => McpResponse::error(-1, format!("Failed to type text: {}", e)),
                 }
-                Err(_) => {}
+            } else {
+                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
-        }
-        response
+        })
     }
 
     pub async fn handle_fill_form(&self, params: Value) -> McpResponse {
@@ -205,50 +193,46 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
-        let mut potential_new_window_info = None;
+        let form_selector_owned = form_selector.to_string();
 
-        {
-            let lock_res = browser.lock();
-            match lock_res {
-                Ok(mut browser_guard) => {
-                    // Check if this form would open new windows when submitted via click
-                    let matching_form = browser_guard.get_analyzed_forms().iter().find(|form| {
-                        form.selector == form_selector || form.selector.contains(form_selector)
-                    });
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            if let Ok(mut guard) = browser.lock() {
+                let mut potential_new_window_info = None;
 
-                    if let Some(form_info) = matching_form {
-                        if form_info.opens_new_window {
-                            potential_new_window_info = Some(json!({
-                                "form_would_open_new_window": true,
-                                "predicted_url": form_info.predicted_url,
-                                "form_target": form_info.target,
-                                "note": "Form has target='_blank' but programmatic submission bypasses this behavior"
-                            }));
-                        }
-                    }
+                // Check if this form would open new windows when submitted
+                let matching_form = guard.get_analyzed_forms().iter().find(|form| {
+                    form.selector == form_selector_owned
+                        || form.selector.contains(&form_selector_owned)
+                });
 
-                    match browser_guard.submit_form(form_selector, form_map).await {
-                        Ok(resp) => {
-                            // Add potential new window info to response
-                            let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
-                            if let Some(new_window_info) = potential_new_window_info {
-                                if let Some(obj) = resp_json.as_object_mut() {
-                                    obj.insert("potential_new_window".to_string(), new_window_info);
-                                }
-                            }
-                            response = McpResponse::success(resp_json);
-                        }
-                        Err(e) => {
-                            response =
-                                McpResponse::error(-1, format!("Failed to submit form: {}", e))
-                        }
-                    }
+                if let Some(form_info) = matching_form
+                    && form_info.opens_new_window
+                {
+                    potential_new_window_info = Some(json!({
+                        "form_would_open_new_window": true,
+                        "predicted_url": form_info.predicted_url,
+                        "form_target": form_info.target,
+                        "note": "Form has target='_blank' but programmatic submission bypasses this behavior"
+                    }));
                 }
-                Err(_) => {}
+
+                match rt.block_on(guard.submit_form(&form_selector_owned, form_map)) {
+                    Ok(resp) => {
+                        let mut resp_json = serde_json::to_value(&resp).unwrap_or_default();
+                        if let Some(new_window_info) = potential_new_window_info
+                            && let Some(obj) = resp_json.as_object_mut()
+                        {
+                            obj.insert("potential_new_window".to_string(), new_window_info);
+                        }
+                        McpResponse::success(resp_json)
+                    }
+                    Err(e) => McpResponse::error(-1, format!("Failed to submit form: {}", e)),
+                }
+            } else {
+                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
-        }
-        response
+        })
     }
 
     pub async fn handle_wait_for_element(&self, params: Value) -> McpResponse {
@@ -275,34 +259,27 @@ impl BrowserTools {
         }
 
         let browser = self.get_or_create_session(session_id, false);
-        let mut response = McpResponse::error(-1, "Failed to acquire browser lock".to_string());
+        let selector_owned = selector.to_string();
 
-        {
-            let lock_res = browser.lock();
-            match lock_res {
-                Ok(mut browser_guard) => {
-                    match browser_guard.wait_for_element(selector, timeout).await {
-                        Ok(found) => {
-                            response = McpResponse::success(json!({
-                                "found": found,
-                                "selector": selector,
-                                "timeout_ms": timeout,
-                                "message": if found {
-                                    format!("Element found: {}", selector)
-                                } else {
-                                    format!("Element not found after {}ms: {}", timeout, selector)
-                                }
-                            }))
+        tokio::task::block_in_place(|| {
+            let rt = tokio::runtime::Handle::current();
+            if let Ok(mut guard) = browser.lock() {
+                match rt.block_on(guard.wait_for_element(&selector_owned, timeout)) {
+                    Ok(found) => McpResponse::success(json!({
+                        "found": found,
+                        "selector": selector_owned,
+                        "timeout_ms": timeout,
+                        "message": if found {
+                            format!("Element found: {}", selector_owned)
+                        } else {
+                            format!("Element not found after {}ms: {}", timeout, selector_owned)
                         }
-                        Err(e) => {
-                            response =
-                                McpResponse::error(-1, format!("Failed to wait for element: {}", e))
-                        }
-                    }
+                    })),
+                    Err(e) => McpResponse::error(-1, format!("Failed to wait for element: {}", e)),
                 }
-                Err(_) => {}
+            } else {
+                McpResponse::error(-1, "Failed to acquire browser lock".to_string())
             }
-        }
-        response
+        })
     }
 }

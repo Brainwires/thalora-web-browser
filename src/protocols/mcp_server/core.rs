@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 use vfs::VfsInstance;
@@ -28,8 +29,8 @@ pub struct McpServer {
     pub(super) cdp_server: CdpServer,
     pub(super) memory_tools: MemoryTools,
     pub(super) cdp_tools: CdpTools,
-    /// Shared browser tools - wrapped in Arc to share with CdpTools
-    pub(super) browser_tools: Arc<BrowserTools>,
+    /// Shared browser tools - wrapped in Rc to share with CdpTools
+    pub(super) browser_tools: Rc<BrowserTools>,
     pub(super) session_manager: SessionManager,
     /// Optional session-scoped persistent VFS instances. Keyed by session_id.
     pub(super) session_vfs: Arc<Mutex<HashMap<String, Arc<VfsInstance>>>>,
@@ -40,6 +41,12 @@ pub struct McpServer {
     /// WASM debug tools (optional, requires wasm-debug feature + env var)
     #[cfg(feature = "wasm-debug")]
     pub(super) wasm_debug_tools: Option<WasmDebugTools>,
+}
+
+impl Default for McpServer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl McpServer {
@@ -86,7 +93,7 @@ impl McpServer {
         });
 
         // Create shared BrowserTools instance
-        let browser_tools = Arc::new(BrowserTools::new());
+        let browser_tools = Rc::new(BrowserTools::new());
 
         #[cfg(feature = "wasm-debug")]
         let wasm_debug_tools = {
@@ -156,7 +163,7 @@ impl McpServer {
         let key = vfs::derive_session_key(&safe_session_id);
 
         // Try to open existing encrypted file or create new
-        let v = match VfsInstance::open_file_backed_encrypted(&file, &*key) {
+        let v = match VfsInstance::open_file_backed_encrypted(&file, &key) {
             Ok(inst) => Arc::new(inst),
             Err(e) => {
                 // Log decryption failure but create fresh VFS
@@ -179,10 +186,10 @@ impl McpServer {
         let safe_session_id = sanitize_session_id(session_id)?;
 
         let mut guard = self.session_vfs.lock().unwrap();
-        if let Some(v) = guard.remove(&safe_session_id) {
-            if delete_backing {
-                drop(v.delete_backing_file());
-            }
+        if let Some(v) = guard.remove(&safe_session_id)
+            && delete_backing
+        {
+            drop(v.delete_backing_file());
         }
         Ok(())
     }

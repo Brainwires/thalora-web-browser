@@ -63,7 +63,7 @@ impl CssProcessor {
                         styles.margin = Some(Self::parse_shorthand_box(&parts));
                     }
                     "margin-top" | "margin-right" | "margin-bottom" | "margin-left" => {
-                        let m = styles.margin.get_or_insert_with(|| BoxModel::default());
+                        let m = styles.margin.get_or_insert_with(BoxModel::default);
                         match prop.as_str() {
                             "margin-top" => m.top = value,
                             "margin-right" => m.right = value,
@@ -77,7 +77,7 @@ impl CssProcessor {
                         styles.padding = Some(Self::parse_shorthand_box(&parts));
                     }
                     "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
-                        let p = styles.padding.get_or_insert_with(|| BoxModel::default());
+                        let p = styles.padding.get_or_insert_with(BoxModel::default);
                         match prop.as_str() {
                             "padding-top" => p.top = value,
                             "padding-right" => p.right = value,
@@ -520,23 +520,17 @@ impl CssProcessor {
     /// Only handles class and tag requirements on the html element itself.
     fn html_element_matches_selector(&self, selector: &str) -> bool {
         // Parse "html.class1.class2" or "html[attr]" patterns
-        let without_tag = if selector.starts_with("html") {
-            &selector[4..]
+        let without_tag = if let Some(rest) = selector.strip_prefix("html") {
+            rest
         } else {
             selector
         };
 
         // Extract all class requirements (everything after each '.')
         for part in without_tag.split('.') {
-            let class_name = part
-                .split(|c: char| c == ':' || c == '[' || c == '#')
-                .next()
-                .unwrap_or("")
-                .trim();
-            if !class_name.is_empty() {
-                if !self.html_classes.iter().any(|c| c == class_name) {
-                    return false;
-                }
+            let class_name = part.split([':', '[', '#']).next().unwrap_or("").trim();
+            if !class_name.is_empty() && !self.html_classes.iter().any(|c| c == class_name) {
+                return false;
             }
         }
 

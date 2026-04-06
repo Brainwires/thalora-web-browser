@@ -438,7 +438,7 @@ impl BrowserFingerprint {
     }
 
     fn generate_common_screen() -> ScreenInfo {
-        let screens = vec![
+        let screens = [
             (1920, 1080),
             (1366, 768),
             (1440, 900),

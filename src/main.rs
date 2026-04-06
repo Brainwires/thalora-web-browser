@@ -328,7 +328,8 @@ async fn run_browser_session(
     use anyhow::Context;
     use engine::browser::HeadlessWebBrowser;
     use protocols::session_manager::{BrowserCommand, BrowserResponse};
-    use std::sync::{Arc, Mutex};
+    use std::rc::Rc;
+    use std::sync::Mutex;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, split};
     use tokio::net::{UnixListener, UnixStream};
     use tracing::{debug, error, info};
@@ -336,14 +337,14 @@ async fn run_browser_session(
     /// Browser session handler (moved from separate binary)
     struct BrowserSessionHandler {
         session_id: String,
-        browser: Arc<Mutex<HeadlessWebBrowser>>,
+        browser: Rc<Mutex<HeadlessWebBrowser>>,
         persistent: bool,
         engine_config: EngineConfig,
     }
 
     impl BrowserSessionHandler {
         fn new(session_id: String, persistent: bool, engine_config: EngineConfig) -> Self {
-            let browser = HeadlessWebBrowser::new(); // This already returns Arc<Mutex<HeadlessWebBrowser>>
+            let browser = HeadlessWebBrowser::new(); // This already returns Rc<RefCell<HeadlessWebBrowser>>
 
             Self {
                 session_id,
@@ -520,33 +521,57 @@ async fn run_browser_session(
 
         /// Navigate to a URL
         async fn navigate(&self, url: &str) -> Result<String> {
-            let mut browser = self.browser.lock().unwrap();
-            browser.navigate_to(url).await.context("Failed to navigate")
+            let browser = self.browser.clone();
+            let url = url.to_string();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                rt.block_on(guard.navigate_to(&url))
+                    .context("Failed to navigate")
+            })
         }
 
         /// Go back in navigation history
         async fn go_back(&self) -> Result<Option<String>> {
-            let mut browser = self.browser.lock().unwrap();
-            browser.go_back().await.context("Failed to go back")
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                rt.block_on(guard.go_back()).context("Failed to go back")
+            })
         }
 
         /// Go forward in navigation history
         async fn go_forward(&self) -> Result<Option<String>> {
-            let mut browser = self.browser.lock().unwrap();
-            browser.go_forward().await.context("Failed to go forward")
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                rt.block_on(guard.go_forward())
+                    .context("Failed to go forward")
+            })
         }
 
         /// Reload the current page
         async fn reload(&self) -> Result<String> {
-            let mut browser = self.browser.lock().unwrap();
-            browser.reload().await.context("Failed to reload")
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                rt.block_on(guard.reload()).context("Failed to reload")
+            })
         }
 
         /// Execute JavaScript
         async fn execute_javascript(&self, code: &str) -> Result<serde_json::Value> {
-            let mut browser = self.browser.lock().unwrap();
-            let result = browser.execute_javascript(code).await?;
-            Ok(serde_json::json!(result))
+            let browser = self.browser.clone();
+            let code = code.to_string();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                let result = rt.block_on(guard.execute_javascript(&code))?;
+                Ok(serde_json::json!(result))
+            })
         }
 
         /// Get page content
@@ -557,67 +582,79 @@ async fn run_browser_session(
 
         /// Click an element (simplified implementation)
         async fn click_element(&self, selector: &str) -> Result<bool> {
-            // For now, use JavaScript to click elements
             let click_js = format!(
                 "document.querySelector('{}')?.click(); true",
                 selector.replace("'", "\\'")
             );
 
-            let mut browser = self.browser.lock().unwrap();
-            let result = browser.execute_javascript(&click_js).await?;
-            Ok(result.contains("true"))
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                let result = rt.block_on(guard.execute_javascript(&click_js))?;
+                Ok(result.contains("true"))
+            })
         }
 
         /// Fill a form element (simplified implementation)
         async fn fill_element(&self, selector: &str, value: &str) -> Result<bool> {
-            // Use JavaScript to fill form elements
             let fill_js = format!(
                 "var el = document.querySelector('{}'); if(el) {{ el.value = '{}'; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); true }} else {{ false }}",
                 selector.replace("'", "\\'"),
                 value.replace("'", "\\'")
             );
 
-            let mut browser = self.browser.lock().unwrap();
-            let result = browser.execute_javascript(&fill_js).await?;
-            Ok(result.contains("true"))
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                let result = rt.block_on(guard.execute_javascript(&fill_js))?;
+                Ok(result.contains("true"))
+            })
         }
 
         /// Get cookies (simplified implementation)
         async fn get_cookies(&self) -> Result<Vec<String>> {
-            // Use JavaScript to get cookies
-            let mut browser = self.browser.lock().unwrap();
-            let result = browser.execute_javascript("document.cookie").await?;
-
-            // Parse cookie string into individual cookies
-            let cookies: Vec<String> = result
-                .split(';')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            Ok(cookies)
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                let result = rt.block_on(guard.execute_javascript("document.cookie"))?;
+                let cookies: Vec<String> = result
+                    .split(';')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                Ok(cookies)
+            })
         }
 
         /// Set cookies (simplified implementation)
         async fn set_cookies(&self, cookies: Vec<String>) -> Result<usize> {
-            let mut count = 0;
-            let mut browser = self.browser.lock().unwrap();
-
-            for cookie in cookies {
-                let set_cookie_js = format!("document.cookie = '{}'", cookie.replace("'", "\\'"));
-                if browser.execute_javascript(&set_cookie_js).await.is_ok() {
-                    count += 1;
+            let browser = self.browser.clone();
+            tokio::task::block_in_place(|| {
+                let rt = tokio::runtime::Handle::current();
+                let mut guard = browser.lock().unwrap();
+                let mut count = 0;
+                for cookie in cookies {
+                    let set_cookie_js =
+                        format!("document.cookie = '{}'", cookie.replace("'", "\\'"));
+                    if rt
+                        .block_on(guard.execute_javascript(&set_cookie_js))
+                        .is_ok()
+                    {
+                        count += 1;
+                    }
                 }
-            }
-
-            Ok(count)
+                Ok(count)
+            })
         }
     }
 
     /// Handle a single connection from the session manager
     async fn handle_connection(
         stream: UnixStream,
-        handler: Arc<BrowserSessionHandler>,
+        handler: Rc<BrowserSessionHandler>,
     ) -> Result<()> {
         let (reader, writer) = split(stream);
         let mut reader = BufReader::new(reader);
@@ -696,7 +733,7 @@ async fn run_browser_session(
     info!("Persistent: {}", persistent);
 
     // Create session handler
-    let handler = Arc::new(BrowserSessionHandler::new(
+    let handler = Rc::new(BrowserSessionHandler::new(
         session_id.clone(),
         persistent,
         engine_config,

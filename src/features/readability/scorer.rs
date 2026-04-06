@@ -168,8 +168,7 @@ impl ContentScorer {
             + link_density * self.weights.link_density
             + semantic_weight * self.weights.semantic_weight
             + class_weight * self.weights.class_weight)
-            .max(0.0)
-            .min(1.0);
+            .clamp(0.0, 1.0);
 
         let score = ContentScore {
             text_density,
@@ -235,15 +234,15 @@ impl ContentScorer {
             "section" => 0.5,
             "div" => {
                 // Check for content-indicating ID/class
-                if let Some(id) = element.value().attr("id") {
-                    if self.is_content_indicator(id) {
-                        return 0.6;
-                    }
+                if let Some(id) = element.value().attr("id")
+                    && self.is_content_indicator(id)
+                {
+                    return 0.6;
                 }
-                if let Some(class) = element.value().attr("class") {
-                    if self.is_content_indicator(class) {
-                        return 0.6;
-                    }
+                if let Some(class) = element.value().attr("class")
+                    && self.is_content_indicator(class)
+                {
+                    return 0.6;
                 }
                 0.2
             }
@@ -269,7 +268,7 @@ impl ContentScorer {
             weight += self.classify_attribute_value(class);
         }
 
-        weight.max(-1.0).min(1.0)
+        weight.clamp(-1.0, 1.0)
     }
 
     /// Classify an attribute value as positive (content) or negative (not content)
@@ -394,8 +393,7 @@ impl ContentScorer {
             + link_density * self.weights.link_density
             + semantic_weight * self.weights.semantic_weight
             + class_weight * self.weights.class_weight)
-            .max(0.0)
-            .min(1.0);
+            .clamp(0.0, 1.0);
 
         ContentScore {
             text_density,
@@ -408,7 +406,7 @@ impl ContentScorer {
     }
 
     /// Get scoring metrics for analysis
-    pub fn get_metrics<'a>(&mut self, html: &'a Html) -> ScoringMetrics {
+    pub fn get_metrics(&mut self, html: &Html) -> ScoringMetrics {
         let (_, metrics) = self.score_nodes(html);
         metrics
     }

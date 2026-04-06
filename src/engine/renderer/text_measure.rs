@@ -34,13 +34,12 @@ fn load_bundled_fonts(fs: &mut FontSystem) {
             let mut count = 0;
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| {
+                if path.extension().is_some_and(|ext| {
                     ext.eq_ignore_ascii_case("ttf") || ext.eq_ignore_ascii_case("otf")
-                }) {
-                    if let Ok(data) = std::fs::read(&path) {
-                        fs.db_mut().load_font_data(data);
-                        count += 1;
-                    }
+                }) && let Ok(data) = std::fs::read(&path)
+                {
+                    fs.db_mut().load_font_data(data);
+                    count += 1;
                 }
             }
             eprintln!(

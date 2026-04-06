@@ -20,12 +20,13 @@ pub async fn search(query: &str, num_results: usize) -> Result<SearchResults> {
     let temp_browser = crate::engine::browser::HeadlessWebBrowser::new();
 
     // Navigate using the browser's full navigation system which includes stealth features
-    {
+    tokio::task::block_in_place(|| {
         let mut browser = temp_browser
             .lock()
             .map_err(|_| anyhow::anyhow!("Failed to acquire browser lock"))?;
-        browser.navigate_to_with_options(&search_url, true).await?;
-    }
+        tokio::runtime::Handle::current()
+            .block_on(browser.navigate_to_with_options(&search_url, true))
+    })?;
 
     let html = {
         let browser = temp_browser
@@ -121,10 +122,10 @@ pub fn parse_results(html: &str, query: &str, num_results: usize) -> Result<Sear
                             .chars()
                             .take_while(|&c| c != '&')
                             .collect::<String>();
-                        if let Ok(decoded) = general_purpose::STANDARD.decode(&param_value) {
-                            if let Ok(decoded_url) = String::from_utf8(decoded) {
-                                url = decoded_url;
-                            }
+                        if let Ok(decoded) = general_purpose::STANDARD.decode(&param_value)
+                            && let Ok(decoded_url) = String::from_utf8(decoded)
+                        {
+                            url = decoded_url;
                         }
                     }
                 }

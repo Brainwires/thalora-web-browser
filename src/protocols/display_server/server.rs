@@ -108,18 +108,18 @@ impl WebSocketServer {
                             .await?;
 
                         // Send initial HTML
-                        if let BrowserResponse::Success { data } = content_response {
-                            if let Some(html) = data.get("content").and_then(|v| v.as_str()) {
-                                let processed_html = processing::process_html(html, &url);
+                        if let BrowserResponse::Success { data } = content_response
+                            && let Some(html) = data.get("content").and_then(|v| v.as_str())
+                        {
+                            let processed_html = processing::process_html(html, &url);
 
-                                let msg = DisplayMessage::HtmlUpdate {
-                                    html: processed_html,
-                                    url: url.clone(),
-                                    title: None,
-                                    timestamp: current_timestamp(),
-                                };
-                                tx.send(msg)?;
-                            }
+                            let msg = DisplayMessage::HtmlUpdate {
+                                html: processed_html,
+                                url: url.clone(),
+                                title: None,
+                                timestamp: current_timestamp(),
+                            };
+                            tx.send(msg)?;
                         }
 
                         session_id

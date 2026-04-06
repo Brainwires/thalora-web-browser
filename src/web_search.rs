@@ -359,39 +359,38 @@ fn parse_startpage_results(html: &str, query: &str, num_results: usize) -> Resul
 }
 
 fn extract_text(element: &scraper::ElementRef, selector: &str) -> String {
-    if let Ok(sel) = scraper::Selector::parse(selector) {
-        if let Some(el) = element.select(&sel).next() {
-            return el.text().collect::<Vec<_>>().join(" ").trim().to_string();
-        }
+    if let Ok(sel) = scraper::Selector::parse(selector)
+        && let Some(el) = element.select(&sel).next()
+    {
+        return el.text().collect::<Vec<_>>().join(" ").trim().to_string();
     }
     String::new()
 }
 
 fn extract_href(element: &scraper::ElementRef, selector: &str) -> String {
-    if let Ok(sel) = scraper::Selector::parse(selector) {
-        if let Some(el) = element.select(&sel).next() {
-            if let Some(href) = el.value().attr("href") {
-                return href.to_string();
-            }
-        }
+    if let Ok(sel) = scraper::Selector::parse(selector)
+        && let Some(el) = element.select(&sel).next()
+        && let Some(href) = el.value().attr("href")
+    {
+        return href.to_string();
     }
     String::new()
 }
 
 fn clean_duckduckgo_url(url: &str) -> String {
     // DuckDuckGo wraps URLs in redirects
-    if url.starts_with("//duckduckgo.com/l/?uddg=") {
-        if let Some(start) = url.find("uddg=") {
-            let encoded = &url[start + 5..];
-            if let Some(end) = encoded.find('&') {
-                return urlencoding::decode(&encoded[..end])
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|_| url.to_string());
-            }
-            return urlencoding::decode(encoded)
+    if url.starts_with("//duckduckgo.com/l/?uddg=")
+        && let Some(start) = url.find("uddg=")
+    {
+        let encoded = &url[start + 5..];
+        if let Some(end) = encoded.find('&') {
+            return urlencoding::decode(&encoded[..end])
                 .map(|s| s.to_string())
                 .unwrap_or_else(|_| url.to_string());
         }
+        return urlencoding::decode(encoded)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|_| url.to_string());
     }
     url.to_string()
 }

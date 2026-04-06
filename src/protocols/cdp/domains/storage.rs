@@ -10,6 +10,12 @@ pub struct StorageDomain {
     enabled: bool,
 }
 
+impl Default for StorageDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StorageDomain {
     pub fn new() -> Self {
         Self { enabled: false }

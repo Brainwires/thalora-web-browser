@@ -9,6 +9,12 @@ pub struct NetworkDomain {
     enabled: bool,
 }
 
+impl Default for NetworkDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NetworkDomain {
     pub fn new() -> Self {
         Self { enabled: false }

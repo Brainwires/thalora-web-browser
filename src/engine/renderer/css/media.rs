@@ -23,8 +23,8 @@ impl CssProcessor {
         }
 
         // Handle "not" prefix
-        let (negated, query) = if query.starts_with("not ") {
-            (true, &query[4..])
+        let (negated, query) = if let Some(rest) = query.strip_prefix("not ") {
+            (true, rest)
         } else {
             (false, query)
         };
@@ -55,14 +55,14 @@ impl CssProcessor {
 
         // Handle "only screen and (...)", "screen and (...)", or just "(...)"
         // The "only" keyword is for backwards compatibility and should be ignored.
-        let conditions_str = if query.starts_with("only screen and ") {
-            &query[16..]
+        let conditions_str = if let Some(rest) = query.strip_prefix("only screen and ") {
+            rest
         } else if query.starts_with("only screen") {
             return true; // "only screen" with no conditions
-        } else if query.starts_with("screen and ") {
-            &query[11..]
-        } else if query.starts_with("all and ") {
-            &query[8..]
+        } else if let Some(rest) = query.strip_prefix("screen and ") {
+            rest
+        } else if let Some(rest) = query.strip_prefix("all and ") {
+            rest
         } else {
             query
         };
