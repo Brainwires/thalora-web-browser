@@ -407,6 +407,44 @@ Pages that rely heavily on these features (e.g. CSS-based icons via `::before`/`
 - **Multi-step Workflows**: Session persistence
 - **Stealth Collection**: Bot detection evasion
 
+## 🖥 **Desktop GUI**
+
+Thalora includes a native Avalonia desktop browser (`gui/`) for visual testing and development.
+See **[gui/README.md](gui/README.md)** for the full development workflow.
+
+### Quick Start
+
+```bash
+# Start the controller (long-lived daemon, survives GUI crashes)
+dotnet run --project gui/BrowserController -- \
+  --port 9222 \
+  --gui-path gui/ThaloraBrowser \
+  --auto-launch
+
+# Navigate and capture a screenshot
+curl -X POST http://localhost:9222/navigate \
+     -H "Content-Type: application/json" \
+     -d '{"url":"https://www.google.com","timeout_ms":30000}'
+curl "http://localhost:9222/screenshot?delay=500" -o /tmp/capture.png
+```
+
+### Development Loop
+
+```bash
+# After code changes — rebuild and restart in one call
+dotnet build gui/ThaloraBrowser
+curl http://localhost:9222/restart
+```
+
+### Visual Regression Testing
+
+```bash
+cargo xtask gui-compare https://www.google.com --ref /tmp/chrome-google.png
+cargo xtask gui-screenshot https://www.google.com --out /tmp/thalora.png
+```
+
+---
+
 ## 🚀 **Deployment Options**
 
 ### Single Binary Deployment
