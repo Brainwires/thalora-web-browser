@@ -269,11 +269,12 @@ fn set_href(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.href setter called on non-object")
     })?;
+
+    let new_href = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.href setter called on non-URL object")
     })?;
-
-    let new_href = args.get_or_undefined(0).to_string(context)?;
     let new_url = url::Url::parse(&new_href.to_std_string_escaped())
         .map_err(|e| JsNativeError::typ().with_message(format!("Invalid URL: {}", e)))?;
     url_data.inner = new_url;
@@ -305,11 +306,12 @@ fn set_protocol(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.protocol setter called on non-object")
     })?;
+
+    let new_protocol = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.protocol setter called on non-URL object")
     })?;
-
-    let new_protocol = args.get_or_undefined(0).to_string(context)?;
     let mut protocol_str = new_protocol.to_std_string_escaped();
     // Remove trailing colon if present
     if protocol_str.ends_with(':') {
@@ -339,11 +341,12 @@ fn set_host(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.host setter called on non-object")
     })?;
+
+    let new_host = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.host setter called on non-URL object")
     })?;
-
-    let new_host = args.get_or_undefined(0).to_string(context)?;
     let host_str = new_host.to_std_string_escaped();
 
     // Parse host:port format
@@ -374,11 +377,12 @@ fn set_hostname(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.hostname setter called on non-object")
     })?;
+
+    let new_hostname = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.hostname setter called on non-URL object")
     })?;
-
-    let new_hostname = args.get_or_undefined(0).to_string(context)?;
     let _ = url_data
         .inner
         .set_host(Some(&new_hostname.to_std_string_escaped()));
@@ -402,11 +406,12 @@ fn set_port(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.port setter called on non-object")
     })?;
+
+    let new_port = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.port setter called on non-URL object")
     })?;
-
-    let new_port = args.get_or_undefined(0).to_string(context)?;
     let port_str = new_port.to_std_string_escaped();
     if port_str.is_empty() {
         let _ = url_data.inner.set_port(None);
@@ -430,11 +435,12 @@ fn set_pathname(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.pathname setter called on non-object")
     })?;
+
+    let new_pathname = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.pathname setter called on non-URL object")
     })?;
-
-    let new_pathname = args.get_or_undefined(0).to_string(context)?;
     url_data
         .inner
         .set_path(&new_pathname.to_std_string_escaped());
@@ -458,11 +464,12 @@ fn set_search(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.search setter called on non-object")
     })?;
+
+    let new_search = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.search setter called on non-URL object")
     })?;
-
-    let new_search = args.get_or_undefined(0).to_string(context)?;
     let mut search_str = new_search.to_std_string_escaped();
     // Remove leading ? if present
     if search_str.starts_with('?') {
@@ -484,13 +491,16 @@ fn get_search_params(
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.searchParams called on non-object")
     })?;
-    let url_data = this_obj.downcast_ref::<UrlData>().ok_or_else(|| {
-        JsNativeError::typ().with_message("URL.prototype.searchParams called on non-URL object")
-    })?;
 
-    // Create a new URLSearchParams object from the query string
-    let query = url_data.inner.query().unwrap_or("");
-    let params = UrlSearchParamsData::from_query_string(query);
+    // Extract data before any context calls to avoid RefCell double-borrow
+    let params = {
+        let url_data = this_obj.downcast_ref::<UrlData>().ok_or_else(|| {
+            JsNativeError::typ().with_message("URL.prototype.searchParams called on non-URL object")
+        })?;
+        let query = url_data.inner.query().unwrap_or("");
+        UrlSearchParamsData::from_query_string(query)
+        // url_data borrow dropped here
+    };
 
     let prototype = get_prototype_from_constructor(
         &context
@@ -526,11 +536,12 @@ fn set_hash(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.hash setter called on non-object")
     })?;
+
+    let new_hash = args.get_or_undefined(0).to_string(context)?;
+
     let mut url_data = this_obj.downcast_mut::<UrlData>().ok_or_else(|| {
         JsNativeError::typ().with_message("URL.prototype.hash setter called on non-URL object")
     })?;
-
-    let new_hash = args.get_or_undefined(0).to_string(context)?;
     let mut hash_str = new_hash.to_std_string_escaped();
     // Remove leading # if present
     if hash_str.starts_with('#') {
@@ -691,6 +702,11 @@ fn append(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.append called on non-object")
     })?;
+
+    // Extract args before borrowing to avoid RefCell double-borrow if toString() re-enters
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let value = args.get_or_undefined(1).to_string(context)?;
+
     let mut params = this_obj
         .downcast_mut::<UrlSearchParamsData>()
         .ok_or_else(|| {
@@ -698,9 +714,6 @@ fn append(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                 "URLSearchParams.prototype.append called on non-URLSearchParams object",
             )
         })?;
-
-    let name = args.get_or_undefined(0).to_string(context)?;
-    let value = args.get_or_undefined(1).to_string(context)?;
 
     params
         .params
@@ -713,6 +726,10 @@ fn delete_param(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.delete called on non-object")
     })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+
     let mut params = this_obj
         .downcast_mut::<UrlSearchParamsData>()
         .ok_or_else(|| {
@@ -720,9 +737,6 @@ fn delete_param(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
                 "URLSearchParams.prototype.delete called on non-URLSearchParams object",
             )
         })?;
-
-    let name = args.get_or_undefined(0).to_string(context)?;
-    let name_str = name.to_std_string_escaped();
 
     params.params.retain(|(k, _)| k != &name_str);
 
@@ -733,15 +747,16 @@ fn get_param(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.get called on non-object")
     })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+
     let params = this_obj
         .downcast_ref::<UrlSearchParamsData>()
         .ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("URLSearchParams.prototype.get called on non-URLSearchParams object")
         })?;
-
-    let name = args.get_or_undefined(0).to_string(context)?;
-    let name_str = name.to_std_string_escaped();
 
     for (k, v) in &params.params {
         if k == &name_str {
@@ -756,6 +771,10 @@ fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.getAll called on non-object")
     })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+
     let params = this_obj
         .downcast_ref::<UrlSearchParamsData>()
         .ok_or_else(|| {
@@ -763,9 +782,6 @@ fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
                 "URLSearchParams.prototype.getAll called on non-URLSearchParams object",
             )
         })?;
-
-    let name = args.get_or_undefined(0).to_string(context)?;
-    let name_str = name.to_std_string_escaped();
 
     let values: Vec<JsValue> = params
         .params
@@ -783,15 +799,16 @@ fn has_param(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.has called on non-object")
     })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+
     let params = this_obj
         .downcast_ref::<UrlSearchParamsData>()
         .ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("URLSearchParams.prototype.has called on non-URLSearchParams object")
         })?;
-
-    let name = args.get_or_undefined(0).to_string(context)?;
-    let name_str = name.to_std_string_escaped();
 
     let exists = params.params.iter().any(|(k, _)| k == &name_str);
 
@@ -802,17 +819,18 @@ fn set_param(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.set called on non-object")
     })?;
+
+    let name = args.get_or_undefined(0).to_string(context)?;
+    let value = args.get_or_undefined(1).to_string(context)?;
+    let name_str = name.to_std_string_escaped();
+    let value_str = value.to_std_string_escaped();
+
     let mut params = this_obj
         .downcast_mut::<UrlSearchParamsData>()
         .ok_or_else(|| {
             JsNativeError::typ()
                 .with_message("URLSearchParams.prototype.set called on non-URLSearchParams object")
         })?;
-
-    let name = args.get_or_undefined(0).to_string(context)?;
-    let value = args.get_or_undefined(1).to_string(context)?;
-    let name_str = name.to_std_string_escaped();
-    let value_str = value.to_std_string_escaped();
 
     // Remove all existing entries with this name
     params.params.retain(|(k, _)| k != &name_str);
@@ -868,17 +886,20 @@ fn entries(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.entries called on non-object")
     })?;
-    let params = this_obj
-        .downcast_ref::<UrlSearchParamsData>()
-        .ok_or_else(|| {
-            JsNativeError::typ().with_message(
-                "URLSearchParams.prototype.entries called on non-URLSearchParams object",
-            )
-        })?;
 
-    // Create an array of [key, value] pairs
-    let entries: Vec<JsValue> = params
-        .params
+    // Clone params before any context calls to avoid RefCell double-borrow
+    let params_clone = {
+        let params = this_obj
+            .downcast_ref::<UrlSearchParamsData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "URLSearchParams.prototype.entries called on non-URLSearchParams object",
+                )
+            })?;
+        params.params.clone()
+    };
+
+    let entries: Vec<JsValue> = params_clone
         .iter()
         .map(|(k, v)| {
             let pair = boa_engine::object::builtins::JsArray::from_iter(
@@ -901,20 +922,23 @@ fn keys(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<Js
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.keys called on non-object")
     })?;
-    let params = this_obj
-        .downcast_ref::<UrlSearchParamsData>()
-        .ok_or_else(|| {
-            JsNativeError::typ()
-                .with_message("URLSearchParams.prototype.keys called on non-URLSearchParams object")
-        })?;
 
-    let keys: Vec<JsValue> = params
-        .params
-        .iter()
-        .map(|(k, _)| JsString::from(k.as_str()).into())
-        .collect();
+    let keys_data = {
+        let params = this_obj
+            .downcast_ref::<UrlSearchParamsData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "URLSearchParams.prototype.keys called on non-URLSearchParams object",
+                )
+            })?;
+        params
+            .params
+            .iter()
+            .map(|(k, _)| JsString::from(k.as_str()).into())
+            .collect::<Vec<JsValue>>()
+    };
 
-    let array = boa_engine::object::builtins::JsArray::from_iter(keys, context);
+    let array = boa_engine::object::builtins::JsArray::from_iter(keys_data, context);
 
     Ok(array.into())
 }
@@ -923,21 +947,23 @@ fn values(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.values called on non-object")
     })?;
-    let params = this_obj
-        .downcast_ref::<UrlSearchParamsData>()
-        .ok_or_else(|| {
-            JsNativeError::typ().with_message(
-                "URLSearchParams.prototype.values called on non-URLSearchParams object",
-            )
-        })?;
 
-    let values: Vec<JsValue> = params
-        .params
-        .iter()
-        .map(|(_, v)| JsString::from(v.as_str()).into())
-        .collect();
+    let values_data = {
+        let params = this_obj
+            .downcast_ref::<UrlSearchParamsData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "URLSearchParams.prototype.values called on non-URLSearchParams object",
+                )
+            })?;
+        params
+            .params
+            .iter()
+            .map(|(_, v)| JsString::from(v.as_str()).into())
+            .collect::<Vec<JsValue>>()
+    };
 
-    let array = boa_engine::object::builtins::JsArray::from_iter(values, context);
+    let array = boa_engine::object::builtins::JsArray::from_iter(values_data, context);
 
     Ok(array.into())
 }
@@ -946,13 +972,18 @@ fn for_each(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     let this_obj = this.as_object().ok_or_else(|| {
         JsNativeError::typ().with_message("URLSearchParams.prototype.forEach called on non-object")
     })?;
-    let params = this_obj
-        .downcast_ref::<UrlSearchParamsData>()
-        .ok_or_else(|| {
-            JsNativeError::typ().with_message(
-                "URLSearchParams.prototype.forEach called on non-URLSearchParams object",
-            )
-        })?;
+
+    // Clone params before callback execution to avoid RefCell double-borrow
+    let params_clone = {
+        let params = this_obj
+            .downcast_ref::<UrlSearchParamsData>()
+            .ok_or_else(|| {
+                JsNativeError::typ().with_message(
+                    "URLSearchParams.prototype.forEach called on non-URLSearchParams object",
+                )
+            })?;
+        params.params.clone()
+    };
 
     let callback = args.get_or_undefined(0);
     if !callback.is_callable() {
@@ -962,7 +993,6 @@ fn for_each(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
     }
 
     let callback_obj = callback.as_object().unwrap();
-    let params_clone: Vec<(String, String)> = params.params.clone();
 
     for (key, value) in params_clone {
         let args = [

@@ -1,6 +1,10 @@
 // Live integration tests for all search engines
 // These tests make real HTTP requests to search engines
 // Tests run serially to avoid Boa engine concurrent initialization race condition
+//
+// These tests are #[ignore]d by default because they depend on external services
+// and can fail due to rate-limiting, network issues, or complex page changes.
+// Run explicitly with: cargo test --test integration_tests -- --ignored
 
 use serial_test::serial;
 use thalora::protocols::mcp_server::scraping::search;
