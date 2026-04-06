@@ -6,7 +6,7 @@ use serial_test::serial;
 use thalora::protocols::mcp_server::scraping::search;
 
 /// Test DuckDuckGo live search
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_duckduckgo_live_search() {
     eprintln!("Testing DuckDuckGo live search...");
@@ -35,7 +35,7 @@ async fn test_duckduckgo_live_search() {
 }
 
 /// Test Bing live search
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_bing_live_search() {
     eprintln!("Testing Bing live search...");
@@ -58,7 +58,7 @@ async fn test_bing_live_search() {
 }
 
 /// Test Google live search
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_google_live_search() {
     eprintln!("Testing Google live search...");
@@ -81,7 +81,7 @@ async fn test_google_live_search() {
 }
 
 /// Test Startpage live search
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_startpage_live_search() {
     eprintln!("Testing Startpage live search...");
@@ -104,7 +104,7 @@ async fn test_startpage_live_search() {
 }
 
 /// Test DuckDuckGo live image search
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_duckduckgo_live_image_search() {
     eprintln!("Testing DuckDuckGo live image search...");
@@ -127,7 +127,7 @@ async fn test_duckduckgo_live_image_search() {
 }
 
 /// Test Bing live image search
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_bing_live_image_search() {
     eprintln!("Testing Bing live image search...");
@@ -150,7 +150,7 @@ async fn test_bing_live_image_search() {
 }
 
 /// Test unsupported search engine
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_unsupported_search_engine() {
     let result = search::perform_search("test", 5, "yahoo").await;
     assert!(result.is_err(), "Unsupported engine should return error");
@@ -160,7 +160,7 @@ async fn test_unsupported_search_engine() {
 }
 
 /// Test invalid image search engine
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_unsupported_image_search_engine() {
     let result = search::perform_image_search("test", 5, "startpage").await;
     assert!(result.is_err(), "Startpage image search should return error (not supported)");
