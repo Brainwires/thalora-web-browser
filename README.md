@@ -338,6 +338,35 @@ thalora/
     └── google_search_test.rs # Real-world Google integration test
 ```
 
+## ⚠️ **Known Limitations**
+
+### CSS Rendering
+
+Thalora's rendering pipeline resolves CSS in Rust and builds a native Avalonia control tree in C#. Some CSS features are parsed and computed but not yet rendered:
+
+| Category | Unsupported Properties |
+|----------|----------------------|
+| **Visual effects** | `transform`, `filter`, `backdrop-filter`, `box-shadow`, `text-shadow`, `clip-path`, `mask`, `mix-blend-mode` |
+| **Generated content** | `::before` / `::after` pseudo-elements, `content`, `counter-reset`, `counter-increment` |
+| **Animation** | `animation`, `transition`, `will-change` |
+| **Layout (partial)** | `float`, `clear`, `overflow-x/y`, `grid-auto-*`, `grid-column`, `grid-row` |
+| **Typography** | `vertical-align`, `text-overflow`, `word-break`, `writing-mode` |
+
+Pages that rely heavily on these features (e.g. CSS-based icons via `::before`/`::after`, CSS animations, or `transform`-based layouts) may render differently than in a full browser.
+
+### JavaScript
+
+- JavaScript execution uses the [Boa](https://github.com/boa-dev/boa) engine — ES2017–2025 compatible but not V8/SpiderMonkey
+- Complex SPA hydration (React, Vue, Astro) may partially execute; `outerHTML` capture falls back to server HTML when JS output is unavailable
+- `eval()`, `Function()`, `document.write()`, and WebAssembly are blocked by the JS security sandbox
+
+### Images
+
+- SVG images are rasterized via [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia) — complex SVGs with filters or animations may not render correctly
+- Some CDN/media hosts block image requests regardless of User-Agent
+
+---
+
 ## 🔒 **Security & Performance**
 
 ### Security Features

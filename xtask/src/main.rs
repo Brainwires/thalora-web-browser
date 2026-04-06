@@ -13,6 +13,10 @@ fn main() -> ExitCode {
         "check-stubs" => cmd::check_stubs::run(&args[1..]),
         "bump-version" => cmd::bump_version::run(&args[1..]),
 
+        // GUI visual testing tasks
+        "gui-screenshot" => exit_from_result(cmd::gui_screenshot::run(&args[1..])),
+        "gui-compare" => exit_from_result(cmd::gui_compare::run(&args[1..])),
+
         // Existing build/test tasks
         "build-wasm" => exit_from_result(cmd::build_wasm::run()),
         "test-mcp" => exit_from_result(cmd::test_mcp::run(
@@ -45,6 +49,17 @@ fn print_help() {
     println!("  ci [STEPS...]                Run CI pipeline: fmt, check, clippy, test, doc");
     println!("  check-stubs [--strict]       Scan for unfinished code (todo!(), FIXME, etc.)");
     println!("  bump-version <VER> [--dry-run]  Bump version across workspace");
+    println!();
+    println!("GUI VISUAL TESTING:");
+    println!("  gui-screenshot [URL]         Build + launch browser, capture PNG screenshot");
+    println!("    --out PATH                 Output file (default: /tmp/thalora-screenshot.png)");
+    println!("    --port PORT                Control server port (default: 9222)");
+    println!("    --delay MS                 Wait before screenshot in ms (default: 2000)");
+    println!("    --no-build                 Skip dotnet build step");
+    println!("    --no-kill                  Leave browser running after screenshot");
+    println!("  gui-compare [URL]            Screenshot + open side-by-side with reference");
+    println!("    --ref PATH                 Reference image to compare against (e.g. chrome.png)");
+    println!("    --out PATH                 Thalora output path (default: /tmp/thalora-compare.png)");
     println!();
     println!("BUILD & TEST TASKS:");
     println!("  build-wasm       Build WASM targets (bundler, nodejs, web) via wasm-pack");

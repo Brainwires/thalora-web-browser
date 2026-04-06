@@ -1171,6 +1171,7 @@ fn build_styled_element_from_dom(
             img_alt: None,
             link_href: None,
             attributes: None,
+            svg_content: None,
             styles: resolved,
             hover_styles: None,
             children: Vec::new(),
@@ -1189,6 +1190,7 @@ fn build_styled_element_from_dom(
             img_alt: None,
             link_href: None,
             attributes: None,
+            svg_content: None,
             styles: resolved,
             hover_styles: None,
             children: Vec::new(),
@@ -1205,7 +1207,24 @@ fn build_styled_element_from_dom(
         if styles.height.is_none() {
             styles.height = Some(format!("{}px", h));
         }
-        // Fall through to normal child processing below
+        // Serialize the full SVG markup so C# can render it via Svg.Skia.
+        // This is cheaper than walking the SVG subtree and avoids dealing with
+        // SVG-specific elements (path, circle, etc.) in the styled tree walker.
+        let svg_markup = element_ref.html();
+        let resolved = computed_to_resolved(&styles);
+        return StyledElement {
+            id: elem_id,
+            tag,
+            text_content: None,
+            img_src: None,
+            img_alt: el.attr("aria-label").map(|s| s.to_string()),
+            link_href: None,
+            attributes: None,
+            svg_content: Some(svg_markup),
+            styles: resolved,
+            hover_styles: None,
+            children: Vec::new(),
+        };
     }
 
     // Audio element: create a placeholder with source URL extracted from <source> children.
@@ -1240,6 +1259,7 @@ fn build_styled_element_from_dom(
             img_alt: None,
             link_href: None,
             attributes: if attrs.is_empty() { None } else { Some(attrs) },
+            svg_content: None,
             styles: resolved,
             hover_styles: None,
             children: Vec::new(),
@@ -1520,6 +1540,7 @@ fn build_styled_element_from_dom(
                     img_alt: None,
                     link_href: None,
                     attributes: None,
+                    svg_content: None,
                     styles: text_resolved,
                     hover_styles: None,
                     children: Vec::new(),
@@ -1586,6 +1607,7 @@ fn build_styled_element_from_dom(
                 img_alt: None,
                 link_href: None,
                 attributes: None,
+                svg_content: None,
                 styles: before_styles,
                 hover_styles: None,
                 children: Vec::new(),
@@ -1609,6 +1631,7 @@ fn build_styled_element_from_dom(
         img_alt,
         link_href,
         attributes,
+        svg_content: None,
         styles: resolved,
         hover_styles,
         children,
@@ -1749,6 +1772,12 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         grid_template_rows: styles.grid_template_rows.clone(),
         grid_template_areas: styles.grid_template_areas.clone(),
         grid_area: styles.grid_area.clone(),
+
+        // Positioning offsets from the `other` HashMap (not promoted to direct fields)
+        top: styles.other.get("top").cloned(),
+        right: styles.other.get("right").cloned(),
+        bottom: styles.other.get("bottom").cloned(),
+        left: styles.other.get("left").cloned(),
     }
 }
 
@@ -1788,6 +1817,7 @@ fn convert_to_styled_element(element: &LayoutElement) -> StyledElement {
         img_alt,
         link_href,
         attributes: None, // Old pipeline doesn't extract attributes
+        svg_content: None,
         styles: resolved,
         hover_styles: None, // Old pipeline doesn't compute hover styles
         children,

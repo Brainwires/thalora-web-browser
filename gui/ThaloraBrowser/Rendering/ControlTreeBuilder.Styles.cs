@@ -235,7 +235,13 @@ public partial class ControlTreeBuilder
                 return false;
         }
 
-        // Explicit display overrides
+        // Tag-based classification takes priority over display — AlwaysBlockTags
+        // includes tags like "svg" that have inline display by default but require
+        // the BuildControl tag-specific path to render correctly.
+        if (AlwaysBlockTags.Contains(element.Tag))
+            return false;
+
+        // Explicit display overrides (after tag check so svg/etc. aren't redirected)
         if (element.Styles.Display == "block" || element.Styles.Display == "flex"
             || element.Styles.Display == "grid" || element.Styles.Display == "list-item"
             || element.Styles.Display == "table" || element.Styles.Display == "flow-root"
@@ -246,10 +252,6 @@ public partial class ControlTreeBuilder
 
         if (element.Styles.Display == "inline" || element.Styles.Display == "inline-block")
             return true;
-
-        // Tag-based classification
-        if (AlwaysBlockTags.Contains(element.Tag))
-            return false;
 
         return InlineTags.Contains(element.Tag);
     }

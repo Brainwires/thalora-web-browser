@@ -365,6 +365,13 @@ public partial class BrowserTabViewModel : ViewModelBase, IDisposable
         if (_disposed) return;
         _disposed = true;
         StopHistoryPolling();
-        _engine.Dispose();
+        // Delay engine destruction slightly so any in-flight FFI calls can return
+        // before thalora_destroy reclaims the Rust instance (avoids use-after-free).
+        var engine = _engine;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(150);
+            engine.Dispose();
+        });
     }
 }

@@ -89,6 +89,7 @@ public partial class ControlTreeBuilder
         "form", "fieldset", "legend",
         "details", "summary", "dialog",
         "hr", "address",
+        "svg", // SVG is always rendered via BuildControl's svg case (Svg.Skia), never inline
     };
 
     public ControlTreeBuilder(
@@ -110,7 +111,9 @@ public partial class ControlTreeBuilder
     /// </summary>
     public Control? BuildFromJson(string json)
     {
+#if DEBUG
         var swDeserialize = System.Diagnostics.Stopwatch.StartNew();
+#endif
         StyledTreeResult? result;
         try
         {
@@ -121,8 +124,10 @@ public partial class ControlTreeBuilder
             System.Diagnostics.Debug.WriteLine($"[ControlTreeBuilder] JSON parse error: {ex.Message}");
             return CreateErrorControl($"JSON parse error: {ex.Message}");
         }
+#if DEBUG
         swDeserialize.Stop();
         Console.Error.WriteLine($"[TIMING] C# JSON deserialization: {swDeserialize.ElapsedMilliseconds}ms ({json.Length} chars)");
+#endif
 
         if (result?.Root == null)
             return CreateErrorControl("Empty styled tree from Rust");
@@ -137,11 +142,15 @@ public partial class ControlTreeBuilder
         // Store element selectors for JS event dispatch
         ElementSelectors = result.ElementSelectors;
 
+#if DEBUG
         var swBuild = System.Diagnostics.Stopwatch.StartNew();
+#endif
         var control = BuildControl(result.Root, 16.0, 0);
+#if DEBUG
         swBuild.Stop();
         Console.Error.WriteLine($"[TIMING] C# BuildControl (tree construction): {swBuild.ElapsedMilliseconds}ms");
         Console.Error.WriteLine($"[TIMING] C# Total BuildFromJson: {swDeserialize.ElapsedMilliseconds + swBuild.ElapsedMilliseconds}ms");
+#endif
 
         return control;
     }
@@ -171,13 +180,24 @@ public partial class ControlTreeBuilder
             return null;
 
         // position: fixed/absolute elements are out-of-flow overlays.
-        // Without a proper positioning engine we can't position them correctly,
-        // but dropping them entirely loses important content (e.g. site headers).
-        // Render them in normal flow instead — at scroll=0 this is approximately
-        // correct, and elements that should truly be hidden already have
-        // display:none or visibility:hidden.
+        // Without a full positioning engine we can't render them at correct offsets.
+        // Strategy: if the element has any offset (top/right/bottom/left) defined,
+        // hide it — rendering it in normal flow would place it in the wrong position,
+        // which is worse than not showing it. If there are no offsets, fall through
+        // to normal-flow rendering (e.g. position:absolute with no coords is roughly
+        // in-flow anyway and may contain important content like nav bars).
         if (styles.Position == "fixed" || styles.Position == "absolute")
+        {
+            // Only hide if there's a *meaningful* (non-zero) offset — zero offsets like
+            // top:0; left:0; right:0 are used to stretch overlays to fill their parent
+            // and should still render in normal flow. Negative or large values (e.g. -1000px)
+            // indicate genuinely off-screen content that would break layout if rendered.
+            bool hasOffset = IsNonZeroOffset(styles.Top) || IsNonZeroOffset(styles.Right)
+                          || IsNonZeroOffset(styles.Bottom) || IsNonZeroOffset(styles.Left);
+            if (hasOffset)
+                return null;
             styles.Position = null;
+        }
         // sticky elements participate in normal flow — render them normally
         if (styles.Position == "sticky")
             styles.Position = null;
@@ -248,7 +268,9 @@ public partial class ControlTreeBuilder
                 break;
 
             case "svg":
-                // Inline SVG: create a sized placeholder panel
+                // Inline SVG: render via Svg.Skia if markup was serialized by Rust
+                if (!string.IsNullOrEmpty(element.SvgContent))
+                    return BuildInlineSvg(element, fontSize);
                 return BuildInlineSvgPlaceholder(element, fontSize);
 
             case "audio":
@@ -569,5 +591,18 @@ public partial class ControlTreeBuilder
             border.ClipToBounds = true;
 
         return border;
+    }
+
+    /// <summary>
+    /// Returns true if a CSS positioning offset is meaningful (non-zero, non-auto).
+    /// Zero offsets like top:0 or left:0 are used to stretch overlays to fill their
+    /// parent and should not trigger the absolute-element hide logic.
+    /// </summary>
+    private static bool IsNonZeroOffset(string? offset)
+    {
+        if (offset == null) return false;
+        var s = offset.Trim();
+        return s != "0" && s != "0px" && s != "0em" && s != "0rem"
+            && s != "auto" && s != "none" && s != "";
     }
 }

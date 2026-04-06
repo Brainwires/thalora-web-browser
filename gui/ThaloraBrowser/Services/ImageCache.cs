@@ -31,6 +31,29 @@ public sealed class ImageCache : IDisposable
     {
         if (_disposed) return null;
 
+        // Handle data: URIs directly — decode base64 and load as bitmap
+        if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_cache.TryGetValue(url, out var dataEntry))
+                return dataEntry.Image;
+            try
+            {
+                var comma = url.IndexOf(',');
+                if (comma < 0) return null;
+                var base64 = url[(comma + 1)..];
+                var bytes = Convert.FromBase64String(base64);
+                using var ms = new System.IO.MemoryStream(bytes);
+                var bmp = new Bitmap(ms);
+                _cache[url] = new CacheEntry(bmp, DateTime.UtcNow);
+                return bmp;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[ImageCache] Failed to decode data URI: {ex.Message}");
+                return null;
+            }
+        }
+
         // Resolve relative URLs
         var absoluteUrl = ResolveUrl(url, baseUrl);
         if (absoluteUrl == null) return null;
@@ -46,7 +69,11 @@ public sealed class ImageCache : IDisposable
         try
         {
             var response = await _httpClient.GetAsync(absoluteUrl);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.Error.WriteLine($"[ImageCache] HTTP {(int)response.StatusCode} for {absoluteUrl}");
+                return null;
+            }
 
             var stream = await response.Content.ReadAsStreamAsync();
             var bitmap = new Bitmap(stream);
@@ -58,8 +85,9 @@ public sealed class ImageCache : IDisposable
             _cache[absoluteUrl] = new CacheEntry(bitmap, DateTime.UtcNow);
             return bitmap;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.Error.WriteLine($"[ImageCache] Failed to load '{absoluteUrl}': {ex.Message}");
             return null;
         }
     }

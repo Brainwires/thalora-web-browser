@@ -800,20 +800,10 @@ public class BrowserControlServer : IDisposable
         // Close the listener to release the socket and unblock GetContextAsync
         try { _listener.Close(); } catch { /* ignore */ }
 
-        // Wait for the listen loop to finish (with timeout)
-        if (_listenTask != null)
-        {
-            try { _listenTask.Wait(TimeSpan.FromSeconds(2)); } catch { /* ignore */ }
-        }
-
-        // Wait for any in-flight request handlers to complete (with timeout)
-        var pending = _inflightRequests.Where(t => !t.IsCompleted).ToArray();
-        if (pending.Length > 0)
-        {
-            try { Task.WaitAll(pending, TimeSpan.FromSeconds(2)); } catch { /* ignore */ }
-        }
-
-        // Dispose the CTS last
+        // Do NOT block the UI thread waiting for the listen loop or in-flight handlers:
+        // any handler awaiting Dispatcher.UIThread.InvokeAsync() would deadlock since
+        // we are already on the UI thread in ShutdownRequested. They will see _disposed=true
+        // and abort on their next UI dispatch attempt.
         _cts.Dispose();
     }
 }

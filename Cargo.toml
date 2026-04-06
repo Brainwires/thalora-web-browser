@@ -264,6 +264,27 @@ tempfile = "3.24.0"
 tokio-test = "0.4"
 wiremock = "0.6"
 
+[profile.dev.package."boa_gc"]
+debug-assertions = false
+
+[profile.dev.package."boa_engine"]
+debug-assertions = false
+
+[profile.dev.package."boa_runtime"]
+debug-assertions = false
+
+[profile.dev.package."boa_ast"]
+debug-assertions = false
+
+[profile.dev.package."boa_parser"]
+debug-assertions = false
+
+[profile.dev.package."boa_interner"]
+debug-assertions = false
+
+[profile.dev.package."boa_string"]
+debug-assertions = false
+
 [profile.release]
 opt-level = 3
 lto = true

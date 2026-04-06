@@ -56,6 +56,11 @@ pub struct StyledElement {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<HashMap<String, String>>,
 
+    /// Raw SVG markup for inline <svg> elements.
+    /// C# renders this via Svg.Skia rather than walking child elements.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub svg_content: Option<String>,
+
     /// Resolved CSS styles
     pub styles: ResolvedStyles,
 
@@ -228,6 +233,20 @@ pub struct ResolvedStyles {
     /// Grid area name for child placement (e.g., "pageContent", "sidebar")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grid_area: Option<String>,
+
+    // --- Positioning offsets (for position: absolute/fixed/relative) ---
+    /// CSS top offset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<String>,
+    /// CSS right offset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    /// CSS bottom offset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<String>,
+    /// CSS left offset
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<String>,
 }
 
 /// Box model sides with CSS string values (not yet parsed to pixels).

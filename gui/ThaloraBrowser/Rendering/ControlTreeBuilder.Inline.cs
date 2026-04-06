@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Layout;
 using Avalonia.Media;
 using ThaloraBrowser.Services;
 
@@ -18,6 +19,9 @@ public partial class ControlTreeBuilder
     private Control BuildInlineContent(StyledElement element, double fontSize)
     {
         var textBlock = new SelectableTextBlock();
+        // Center vertically so text sits at the middle of its cell in flex/grid rows
+        // (matches CSS default where items stretch and text appears visually centered)
+        textBlock.VerticalAlignment = VerticalAlignment.Center;
         ApplyTextProperties(textBlock, element.Styles, fontSize);
 
         foreach (var child in element.Children)
@@ -177,10 +181,9 @@ public partial class ControlTreeBuilder
                     return;
                 }
 
-                // Text link — add a styled Run directly. This ensures the text participates
-                // in the SelectableTextBlock's text layout and measures correctly.
-                // Span wrapping or InlineUIContainer both cause measurement failures
-                // in certain contexts (horizontal StackPanels, flex items).
+                // Text link — render as Run (participates in text layout) unless the
+                // element has margin or padding, in which case use InlineUIContainer+Border
+                // so the spacing is preserved. (Run has no Margin/Padding support.)
                 var linkText = CollectInlineText(element);
                 if (string.IsNullOrWhiteSpace(linkText))
                     return;
@@ -188,20 +191,66 @@ public partial class ControlTreeBuilder
                 var linkColor = StyleParser.ParseBrush(styles.Color)
                     ?? new SolidColorBrush(Avalonia.Media.Color.FromRgb(0, 81, 195)); // #0051C3
 
-                var linkRun = new Run(linkText);
-                linkRun.Foreground = linkColor;
-                if (styles.FontWeight != null)
-                    linkRun.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
-                if (styles.FontStyle != null)
-                    linkRun.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
-                if (styles.FontFamily != null)
-                    linkRun.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
-                if (styles.FontSize != null)
-                    linkRun.FontSize = fontSize;
-                if (styles.TextDecoration != null && styles.TextDecoration != "none")
-                    linkRun.TextDecorations = TextDecorations.Underline;
+                var margin = StyleParser.ParseBoxSides(styles.Margin, fontSize, fontSize, _viewportWidth, _viewportHeight);
+                var padding = StyleParser.ParseBoxSides(styles.Padding, fontSize, fontSize, _viewportWidth, _viewportHeight);
+                bool hasSpacing = margin != default || padding != default;
 
-                inlines.Add(linkRun);
+                if (hasSpacing)
+                {
+                    // Use InlineUIContainer+Border so margin/padding apply
+                    var linkBlock = new TextBlock
+                    {
+                        Text = linkText,
+                        Foreground = linkColor,
+                        FontSize = fontSize,
+                    };
+                    if (styles.FontWeight != null)
+                        linkBlock.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
+                    if (styles.FontFamily != null)
+                        linkBlock.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                    if (styles.TextDecoration != null && styles.TextDecoration != "none")
+                        linkBlock.TextDecorations = TextDecorations.Underline;
+
+                    var linkBorder = new Border
+                    {
+                        Child = linkBlock,
+                        Margin = margin,
+                        Padding = padding,
+                        Background = Brushes.Transparent,
+                        Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                    };
+
+                    if (!string.IsNullOrEmpty(element.LinkHref))
+                    {
+                        var href2 = element.LinkHref;
+                        linkBorder.PointerPressed += (_, _) =>
+                        {
+                            _onLinkClicked?.Invoke(href2);
+                            DispatchDomEvent("click", element.Id);
+                        };
+                        linkBorder.PointerEntered += (_, _) => _onHoveredLinkChanged?.Invoke(href2);
+                        linkBorder.PointerExited += (_, _) => _onHoveredLinkChanged?.Invoke(null);
+                    }
+
+                    inlines.Add(new InlineUIContainer { Child = linkBorder });
+                }
+                else
+                {
+                    var linkRun = new Run(linkText);
+                    linkRun.Foreground = linkColor;
+                    if (styles.FontWeight != null)
+                        linkRun.FontWeight = StyleParser.ParseFontWeight(styles.FontWeight);
+                    if (styles.FontStyle != null)
+                        linkRun.FontStyle = StyleParser.ParseFontStyle(styles.FontStyle);
+                    if (styles.FontFamily != null)
+                        linkRun.FontFamily = StyleParser.MapToBundledFontFamily(styles.FontFamily);
+                    if (styles.FontSize != null)
+                        linkRun.FontSize = fontSize;
+                    if (styles.TextDecoration != null && styles.TextDecoration != "none")
+                        linkRun.TextDecorations = TextDecorations.Underline;
+
+                    inlines.Add(linkRun);
+                }
 
                 // Register in action registry for programmatic interaction
                 // (click events are dispatched by the parent Border's handler)
@@ -226,6 +275,19 @@ public partial class ControlTreeBuilder
                     });
                 }
 
+                return;
+            }
+
+            case "input":
+            case "button":
+            case "select":
+            case "textarea":
+            {
+                // Form controls can't be rendered as Span/Run — build the real Avalonia
+                // control and embed it as an InlineUIContainer so it appears in line.
+                var formCtrl = BuildControl(element, parentFontSize);
+                if (formCtrl != null)
+                    inlines.Add(new InlineUIContainer { Child = formCtrl });
                 return;
             }
 

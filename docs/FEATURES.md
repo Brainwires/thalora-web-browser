@@ -1,7 +1,3 @@
-https://blog.cloudflare.com/markdown-for-agents/
-
-Editing a queued message needsTh to be distinct from browsing prompt history; keyboard navigation wise.
-
 # Frustration Journal
 
 When the API gets frustrated, it will log the frustration in this journal. This is useful for debugging and improving the API's performance, productivity, and user experience. The journal will include the following information:

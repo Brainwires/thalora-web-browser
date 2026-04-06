@@ -52,6 +52,9 @@ internal class StyledElement
     [JsonPropertyName("attributes")]
     public Dictionary<string, string>? Attributes { get; set; }
 
+    [JsonPropertyName("svg_content")]
+    public string? SvgContent { get; set; }
+
     [JsonPropertyName("styles")]
     public ResolvedStyles Styles { get; set; } = new();
 
@@ -210,6 +213,19 @@ internal class ResolvedStyles
 
     [JsonPropertyName("grid_area")]
     public string? GridArea { get; set; }
+
+    // Positioning offsets (for position: absolute/fixed/relative)
+    [JsonPropertyName("top")]
+    public string? Top { get; set; }
+
+    [JsonPropertyName("right")]
+    public string? Right { get; set; }
+
+    [JsonPropertyName("bottom")]
+    public string? Bottom { get; set; }
+
+    [JsonPropertyName("left")]
+    public string? Left { get; set; }
 }
 
 /// <summary>

@@ -25,6 +25,7 @@ public class WebContentControl : UserControl
     private bool _isRendering;
     private bool _renderPending;
     private bool _hasContent;
+    private bool _disposed;
     private string? _lastRenderedHtml;
     private Dictionary<string, string>? _elementSelectors;
     private ElementActionRegistry? _elementActions;
@@ -166,8 +167,15 @@ public class WebContentControl : UserControl
         }
     }
 
+    protected override void OnUnloaded(Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+        _disposed = true;
+    }
+
     private async void OnHtmlContentChanged()
     {
+        if (_disposed) return;
         if (_isRendering)
         {
             _renderPending = true;
@@ -195,7 +203,9 @@ public class WebContentControl : UserControl
             var viewportW = (float)Math.Max(100, Bounds.Width);
             var viewportH = (float)Math.Max(100, Bounds.Height);
 
+#if DEBUG
             Console.Error.WriteLine($"[WebContentControl] Computing styled tree: {viewportW}x{viewportH}, HTML length: {HtmlContent?.Length ?? 0}");
+#endif
 
             // Show loading indicator for fresh navigations (new HTML content),
             // but not for resize re-renders of the same page.
@@ -206,15 +216,22 @@ public class WebContentControl : UserControl
             _lastRenderedHtml = HtmlContent;
 
             // Get the styled tree from Rust (HTML parsed, CSS resolved, no positions)
+#if DEBUG
             var swTotal = Stopwatch.StartNew();
             var swFfi = Stopwatch.StartNew();
+#endif
             var styledTreeJson = await engine.ComputeStyledTreeAsync(viewportW, viewportH);
+            if (_disposed) return; // window was closed during the FFI call
+#if DEBUG
             swFfi.Stop();
             Console.Error.WriteLine($"[TIMING] C# ComputeStyledTreeAsync (FFI call): {swFfi.ElapsedMilliseconds}ms");
+#endif
 
             if (!string.IsNullOrEmpty(styledTreeJson))
             {
+#if DEBUG
                 Console.Error.WriteLine($"[WebContentControl] Styled tree JSON received: {styledTreeJson.Length} chars");
+#endif
 
                 // Clear stale state before rebuilding — if BuildFromJson throws,
                 // we don't want leftover selectors/actions from the previous page.
@@ -230,12 +247,16 @@ public class WebContentControl : UserControl
                     onDomEvent: (eventType, elementId) => OnDomEvent(eventType, elementId)
                 );
 
+#if DEBUG
                 var swBuild = Stopwatch.StartNew();
+#endif
                 var controlTree = builder.BuildFromJson(styledTreeJson);
+#if DEBUG
                 swBuild.Stop();
                 Console.Error.WriteLine($"[TIMING] C# ControlTreeBuilder.BuildFromJson: {swBuild.ElapsedMilliseconds}ms");
                 swTotal.Stop();
                 Console.Error.WriteLine($"[TIMING] C# Total OnHtmlContentChanged: {swTotal.ElapsedMilliseconds}ms");
+#endif
 
                 // Store element selectors for JS event dispatch
                 _elementSelectors = builder.ElementSelectors;
@@ -327,7 +348,9 @@ public class WebContentControl : UserControl
             }
         }
 
+#if DEBUG
         Console.Error.WriteLine($"[WebContentControl] OnLinkClicked: href='{href}', BaseUrl='{BaseUrl}', resolved='{resolvedUrl}'");
+#endif
 
         if (resolvedUrl != null)
             LinkClicked?.Invoke(this, new LinkClickedEventArgs(resolvedUrl));
