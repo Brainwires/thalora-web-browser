@@ -1,8 +1,7 @@
 //! Comprehensive test suite for Web Locks API
 //! Tests LockManager, Lock, and LockInfo
 
-use crate::boa_engine::string::JsString;
-use crate::boa_engine::{Context, JsValue, Source};
+use crate::boa_engine::{Context, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {

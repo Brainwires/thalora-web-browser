@@ -1,5 +1,5 @@
 use anyhow::Result;
-use thalora::engine::{EngineFactory, EngineType, ThaloraBrowserEngine};
+use thalora::engine::{EngineFactory, EngineType};
 
 #[tokio::test]
 async fn test_boa_engine_creation() -> Result<()> {

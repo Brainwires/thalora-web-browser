@@ -1,7 +1,6 @@
 // Tests for AiMemoryHeap research management
 
 use thalora::features::{AiMemoryHeap, ResearchEntry, MemorySearchCriteria, MemorySortBy};
-use std::collections::HashMap;
 use tempfile::TempDir;
 
 fn create_test_memory() -> (AiMemoryHeap, TempDir) {

@@ -2166,7 +2166,7 @@ pub use boa_macros::js_str;
 
 #[cfg(test)]
 mod test_utils {
-    use boa_engine::{Context, JsResult, JsValue, js_string};
+    use boa_engine::{Context, JsValue};
     use std::fmt;
 
     /// Error kinds for test assertions
@@ -2325,7 +2325,7 @@ mod test_utils {
 }
 #[cfg(test)]
 mod debug_navigator_locks {
-    use crate::{Context, JsString, JsValue, Source};
+    use crate::{Context, Source};
 
     #[test]
     fn debug_locks() {

@@ -20,7 +20,6 @@ mod tests {
         use boa_engine::{
             builtins::{BuiltInObject, IntrinsicObject},
             js_string,
-            property::Attribute,
         };
 
         let mut context = Context::default();

@@ -94,7 +94,7 @@ fn test_parse_bing_alternate_selectors() {
 
     let results = bing::parse_results(html, "test", 10).unwrap();
     // May or may not find results depending on selector matching
-    assert!(results.results.len() >= 0);
+    let _ = results.results.len();
 }
 
 #[test]

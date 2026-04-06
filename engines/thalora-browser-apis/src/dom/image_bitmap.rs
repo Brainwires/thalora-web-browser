@@ -294,7 +294,6 @@ pub fn create_image_bitmap(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use boa_engine::{Context, Source};
 
     #[test]

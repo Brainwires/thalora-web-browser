@@ -22,7 +22,7 @@ fn test_parse_startpage_results() {
     let results = startpage::parse_results(html, "rust", 10).unwrap();
 
     assert_eq!(results.query, "rust");
-    assert!(results.results.len() >= 0); // Depends on selector matching
+    let _ = results.results.len(); // Depends on selector matching
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn test_parse_startpage_with_h2_titles() {
 
     let results = startpage::parse_results(html, "test", 10).unwrap();
 
-    assert!(results.results.len() >= 0);
+    let _ = results.results.len();
 }
 
 #[test]
@@ -111,5 +111,5 @@ fn test_parse_startpage_unicode_content() {
     let results = startpage::parse_results(html, "unicode", 10).unwrap();
 
     // Should handle unicode gracefully
-    assert!(results.results.len() >= 0);
+    let _ = results.results.len();
 }

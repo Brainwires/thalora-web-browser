@@ -540,7 +540,6 @@ fn test_storage_data_types() {
 #[test]
 fn test_storage_persistence() {
     use std::fs;
-    use std::path::PathBuf;
     use std::thread;
 
     // Use thread ID to create unique test path to avoid conflicts with parallel tests
@@ -605,7 +604,6 @@ fn test_storage_persistence() {
 #[test]
 fn test_storage_type_separation_with_persistence() {
     use std::fs;
-    use std::path::PathBuf;
     use std::thread;
 
     // Use thread ID to create unique test paths

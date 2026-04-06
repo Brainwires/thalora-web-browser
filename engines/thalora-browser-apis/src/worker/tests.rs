@@ -1,8 +1,7 @@
 //! Comprehensive test suite for Worker APIs
 //! Tests WorkerGlobalScope, WorkerNavigator, and related worker functionality
 
-use boa_engine::string::JsString;
-use boa_engine::{Context, JsValue, Source};
+use boa_engine::{Context, Source};
 
 // Helper to initialize context with browser APIs
 fn create_test_context() -> Context {

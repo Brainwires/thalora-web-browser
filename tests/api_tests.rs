@@ -121,6 +121,6 @@ mod navigator_plugins_property {
 
 // Worker API tests
 mod worker_basic {
-    use super::*;
+
     include!("apis/workers/web_worker_basic.rs");
 }

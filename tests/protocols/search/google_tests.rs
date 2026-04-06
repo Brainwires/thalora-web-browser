@@ -26,7 +26,7 @@ fn test_parse_google_results() {
     let results = google::parse_results(html, "rust", 10).unwrap();
 
     assert_eq!(results.query, "rust");
-    assert!(results.results.len() >= 0); // Google parsing is complex
+    let _ = results.results.len(); // Google parsing is complex
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn test_parse_google_featured_snippet() {
     let results = google::parse_results(html, "test", 10).unwrap();
 
     // Should handle featured snippets gracefully
-    assert!(results.results.len() >= 0);
+    let _ = results.results.len();
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn test_parse_google_alternate_structure() {
     let results = google::parse_results(html, "test", 10).unwrap();
 
     // May find results with alternate selectors
-    assert!(results.results.len() >= 0);
+    let _ = results.results.len();
 }
 
 #[test]
@@ -137,5 +137,5 @@ fn test_parse_google_with_ads() {
     let results = google::parse_results(html, "test", 10).unwrap();
 
     // Should ideally skip ads, but may include them
-    assert!(results.results.len() >= 0);
+    let _ = results.results.len();
 }

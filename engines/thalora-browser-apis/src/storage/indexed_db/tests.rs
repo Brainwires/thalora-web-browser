@@ -4,7 +4,6 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::*;
     use crate::initialize_browser_apis;
     use boa_engine::{Context, Source};
 
@@ -264,7 +263,6 @@ mod tests {
         use super::super::backend::StorageBackend;
         use super::super::backend::sled_backend::SledBackend;
         use super::super::key::IDBKey;
-        use std::path::PathBuf;
 
         let temp_dir =
             std::env::temp_dir().join(format!("thalora_idb_test_{}", std::process::id()));
@@ -521,7 +519,6 @@ mod tests {
     fn test_index_count() {
         use super::super::backend::StorageBackend;
         use super::super::backend::memory::MemoryBackend;
-        use super::super::key::IDBKey;
 
         let mut backend = MemoryBackend::new();
         backend.open_database("testDB", 1).unwrap();

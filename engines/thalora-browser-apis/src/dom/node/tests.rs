@@ -1,6 +1,6 @@
 //! Node interface unit tests
 
-use crate::{JsNativeErrorKind, JsValue, TestAction, js_string, run_test_actions};
+use crate::{JsNativeErrorKind, JsValue, TestAction, run_test_actions};
 use boa_macros::js_str;
 
 #[test]

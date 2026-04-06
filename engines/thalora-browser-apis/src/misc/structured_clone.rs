@@ -1118,7 +1118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clone_array() {
+    fn test_clone_array() -> Result<(), Box<dyn std::error::Error>> {
         let mut context = Context::default();
 
         let array = JsArray::new(&mut context)?;
@@ -1142,6 +1142,7 @@ mod tests {
         } else {
             panic!("Expected Array");
         }
+        Ok(())
     }
 
     #[test]
@@ -1196,7 +1197,7 @@ mod tests {
     }
 
     #[test]
-    fn test_roundtrip_array() {
+    fn test_roundtrip_array() -> Result<(), Box<dyn std::error::Error>> {
         let mut context = Context::default();
 
         let array = JsArray::new(&mut context)?;
@@ -1210,6 +1211,7 @@ mod tests {
         assert!(restored_obj.is_array());
         let restored_array = JsArray::from_object(restored_obj.clone()).unwrap();
         assert_eq!(restored_array.length(&mut context).unwrap(), 2);
+        Ok(())
     }
 
     #[test]

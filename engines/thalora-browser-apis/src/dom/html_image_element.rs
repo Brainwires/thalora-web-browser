@@ -827,7 +827,6 @@ fn decode(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use boa_engine::{Context, Source};
 
     #[test]

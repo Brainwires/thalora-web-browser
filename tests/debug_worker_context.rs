@@ -51,7 +51,7 @@ fn debug_worker_availability_in_contexts() {
     // Test 3: Check if intrinsics have Worker
     println!("\n📋 Test 3: Intrinsics check");
     let builder_context2 = Context::builder().build().unwrap();
-    let worker_constructor = builder_context2.intrinsics().constructors().worker();
+    let _worker_constructor = builder_context2.intrinsics().constructors().worker();
     println!("   Worker constructor available in intrinsics: true");
 
     // Test 4: Check WebSocket for comparison

@@ -1,3 +1,4 @@
+#![allow(unexpected_cfgs)]
 /// Security audit verification tests
 ///
 /// These tests verify the security fixes implemented in the security audit:

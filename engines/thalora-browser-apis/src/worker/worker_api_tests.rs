@@ -4,9 +4,7 @@
 #[cfg(test)]
 mod worker_api_tests {
     use crate::worker::worker::register_worker_api;
-    use boa_engine::{Context, JsValue, Source, js_string};
-    use std::thread;
-    use std::time::Duration;
+    use boa_engine::{Context, Source};
 
     /// Helper to set up a context with Worker API registered
     fn setup_context() -> Context {

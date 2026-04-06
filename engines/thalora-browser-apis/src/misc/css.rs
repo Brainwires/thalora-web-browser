@@ -72,7 +72,7 @@ impl IntrinsicObject for Css {
             .build();
 
         // Create CSS object
-        BuiltInBuilder::with_intrinsic::<Self>(realm)
+        let _ = BuiltInBuilder::with_intrinsic::<Self>(realm)
             .static_method(supports, js_string!("supports"), 1)
             .static_method(escape, js_string!("escape"), 1)
             .static_method(register_property, js_string!("registerProperty"), 1)

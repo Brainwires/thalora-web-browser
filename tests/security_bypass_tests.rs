@@ -1,10 +1,5 @@
-/// Advanced security bypass tests for JavaScript validator
-/// These tests document known bypass vectors that need addressing
-use std::env;
-
 #[cfg(test)]
 mod bypass_vectors {
-    use super::*;
 
     // NOTE: These tests are EXPECTED TO FAIL with current implementation
     // They document security gaps that should be fixed
@@ -14,7 +9,7 @@ mod bypass_vectors {
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_computed_property_eval_bypass() {
         // This bypass is NOT currently blocked
-        let code = r#"
+        let _code = r#"
             const key = 'e' + 'val';
             window[key]('alert(1)');
         "#;
@@ -26,7 +21,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_computed_property_proto_bypass() {
-        let code = r#"
+        let _code = r#"
             const prop = '__pro' + 'to__';
             obj[prop] = {};
         "#;
@@ -39,7 +34,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_hex_escape_eval_bypass() {
-        let code = r#"window['\x65\x76\x61\x6c']('code');"#;
+        let _code = r#"window['\x65\x76\x61\x6c']('code');"#;
 
         // \x65\x76\x61\x6c decodes to 'eval'
         // Should be blocked but currently isn't
@@ -49,7 +44,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_unicode_escape_proto_bypass() {
-        let code = r#"obj['\u005f\u005fproto\u005f\u005f'] = {};"#;
+        let _code = r#"obj['\u005f\u005fproto\u005f\u005f'] = {};"#;
 
         // Unicode escapes for '__proto__'
         // Should be blocked but currently isn't
@@ -60,7 +55,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_number_constructor_bypass() {
-        let code = r#"(0).constructor.constructor('return alert(1)')();"#;
+        let _code = r#"(0).constructor.constructor('return alert(1)')();"#;
 
         // Number.constructor.constructor === Function
         // Should be blocked but currently isn't
@@ -70,7 +65,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_array_constructor_bypass() {
-        let code = r#"[].constructor.constructor('return alert(1)')();"#;
+        let _code = r#"[].constructor.constructor('return alert(1)')();"#;
 
         // Array.constructor.constructor === Function
         // Should be blocked but currently isn't
@@ -79,7 +74,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_object_constructor_bypass() {
-        let code = r#"({}).constructor.constructor('return alert(1)')();"#;
+        let _code = r#"({}).constructor.constructor('return alert(1)')();"#;
 
         // Object.constructor.constructor === Function
         // Should be blocked but currently isn't
@@ -89,7 +84,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_async_function_constructor_bypass() {
-        let code = r#"
+        let _code = r#"
             AsyncFunction = (async function(){}).constructor;
             AsyncFunction('return alert(1)')();
         "#;
@@ -101,7 +96,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_generator_function_constructor_bypass() {
-        let code = r#"
+        let _code = r#"
             GeneratorFunction = (function*(){}).constructor;
             GeneratorFunction('yield alert(1)')();
         "#;
@@ -114,7 +109,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_reflect_get_bypass() {
-        let code = r#"Reflect.get(window, 'eval')('code');"#;
+        let _code = r#"Reflect.get(window, 'eval')('code');"#;
 
         // Reflect.get can access eval without direct reference
         // Should be blocked but currently isn't
@@ -123,7 +118,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_reflect_apply_bypass() {
-        let code = r#"Reflect.apply(eval, null, ['code']);"#;
+        let _code = r#"Reflect.apply(eval, null, ['code']);"#;
 
         // Reflect.apply can call eval indirectly
         // Should be blocked but currently isn't
@@ -132,7 +127,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_reflect_construct_bypass() {
-        let code = r#"Reflect.construct(Function, ['return 1']);"#;
+        let _code = r#"Reflect.construct(Function, ['return 1']);"#;
 
         // Reflect.construct can create Function instances
         // Should be blocked but currently isn't
@@ -142,7 +137,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_symbol_for_bypass() {
-        let code = r#"
+        let _code = r#"
             const sym = Symbol.for('eval');
             window[sym] = eval;
             window[sym]('code');
@@ -156,7 +151,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_proxy_trap_bypass() {
-        let code = r#"
+        let _code = r#"
             const handler = {
                 get(target, prop) {
                     if (prop === 'safe') return eval;
@@ -175,7 +170,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Potential vulnerability - not yet implemented"]
     fn test_template_literal_code_execution() {
-        let code = r#"
+        let _code = r#"
             const evil = eval;
             evil`return 1`;
         "#;
@@ -188,7 +183,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_property_descriptor_bypass() {
-        let code = r#"
+        let _code = r#"
             const desc = Object.getOwnPropertyDescriptor(window, 'eval');
             desc.value('code');
         "#;
@@ -201,7 +196,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_concat_method_bypass() {
-        let code = r#"
+        let _code = r#"
             const evil = 'e'.concat('v', 'a', 'l');
             window[evil]('code');
         "#;
@@ -213,7 +208,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_template_concat_bypass() {
-        let code = r#"
+        let _code = r#"
             const evil = `${'e'}${'val'}`;
             window[evil]('code');
         "#;
@@ -226,7 +221,7 @@ mod bypass_vectors {
     #[test]
     #[ignore = "Known vulnerability - not yet implemented"]
     fn test_array_join_bypass() {
-        let code = r#"
+        let _code = r#"
             const evil = ['e', 'v', 'a', 'l'].join('');
             window[evil]('code');
         "#;
@@ -239,14 +234,13 @@ mod bypass_vectors {
 /// Mitigation recommendations test suite
 #[cfg(test)]
 mod mitigation_tests {
-    use super::*;
 
     // These tests verify that recommended mitigations work
 
     #[test]
     fn test_block_all_bracket_access_to_globals() {
         // Recommended fix: Block ANY bracket notation on window/globalThis/self
-        let dangerous_patterns = vec![
+        let _dangerous_patterns = vec![
             "window[anything]",
             "globalThis[x]",
             "self[key]",
@@ -262,7 +256,7 @@ mod mitigation_tests {
     #[test]
     fn test_block_escape_sequences_in_brackets() {
         // Recommended fix: Block escape sequences in bracket notation
-        let dangerous_patterns = vec![
+        let _dangerous_patterns = vec![
             r#"window['\x65\x76\x61\x6c']"#,
             r#"obj['\u005f\u005f']"#,
             r#"x['\\x41']"#, // Escaped backslash + escape
@@ -274,7 +268,7 @@ mod mitigation_tests {
     #[test]
     fn test_block_constructor_after_parens_or_brackets() {
         // Recommended fix: Block .constructor after ) or ]
-        let dangerous_patterns = vec![
+        let _dangerous_patterns = vec![
             "(0).constructor",
             "[].constructor",
             "({}).constructor",
@@ -287,7 +281,7 @@ mod mitigation_tests {
     #[test]
     fn test_block_reflect_api() {
         // Recommended fix: Block Reflect.get, Reflect.apply, Reflect.construct
-        let dangerous_patterns = vec![
+        let _dangerous_patterns = vec![
             "Reflect.get(",
             "Reflect.apply(",
             "Reflect.construct(",
@@ -301,7 +295,7 @@ mod mitigation_tests {
     #[test]
     fn test_block_symbol_api() {
         // Recommended fix: Block Symbol.for and Symbol() in security-sensitive contexts
-        let dangerous_patterns = vec!["Symbol.for(", "Symbol(", "Symbol.iterator"];
+        let _dangerous_patterns = vec!["Symbol.for(", "Symbol(", "Symbol.iterator"];
 
         // TODO: Implement this check
     }
@@ -309,13 +303,13 @@ mod mitigation_tests {
     #[test]
     fn test_whitelist_approach_for_brackets() {
         // Alternative approach: Only allow specific safe bracket patterns
-        let safe_patterns = vec![
+        let _safe_patterns = vec![
             "array[0]",      // Numeric index
             "array[i]",      // Variable index
             "obj['length']", // Whitelisted property
         ];
 
-        let unsafe_patterns = vec![
+        let _unsafe_patterns = vec![
             "window[x]",     // Global object
             "obj[computed]", // Computed property
         ];
@@ -327,12 +321,11 @@ mod mitigation_tests {
 /// Integration tests for defense-in-depth
 #[cfg(test)]
 mod defense_in_depth {
-    use super::*;
 
     #[test]
     fn test_multiple_layers_block_attack() {
         // Even if one layer fails, others should catch it
-        let attack = r#"
+        let _attack = r#"
             const e = 'e' + 'val';
             window[e]('alert(1)');
         "#;
@@ -346,7 +339,7 @@ mod defense_in_depth {
 
     #[test]
     fn test_obfuscated_attack_blocked() {
-        let attack = r#"
+        let _attack = r#"
             const a = 'e';
             const b = 'val';
             const c = a + b;

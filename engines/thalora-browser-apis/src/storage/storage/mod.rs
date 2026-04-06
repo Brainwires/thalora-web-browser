@@ -269,7 +269,7 @@ impl Storage {
     /// Sets an item in storage.
     #[cfg(test)]
     pub fn set_item_internal(&self, key: String, value: String) -> JsResult<()> {
-        let old_value = {
+        let _old_value = {
             let data = self.data.read().unwrap();
             data.get(&key).cloned()
         };

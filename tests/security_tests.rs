@@ -122,7 +122,6 @@ mod javascript_security {
 }
 
 mod origin_isolation {
-    use std::collections::HashMap;
 
     /// Test 11: Storage is isolated by origin
     #[test]
@@ -262,8 +261,6 @@ mod path_security {
     fn test_socket_paths_randomized() {
         // Old implementation: /tmp/thalora_sessions/{session_id}.sock (predictable)
         // New implementation should use random paths or secure permissions
-
-        use std::path::PathBuf;
 
         let session_id = "test_session";
         let old_path = format!("/tmp/thalora_sessions/{}.sock", session_id);
