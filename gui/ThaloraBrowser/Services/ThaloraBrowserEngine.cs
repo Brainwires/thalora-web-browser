@@ -15,6 +15,12 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
     // overlap; this lock ensures only one native call runs at a time.
     private readonly SemaphoreSlim _engineLock = new(1, 1);
 
+    // Cached navigation capability — updated inside the lock after each mutating FFI call.
+    // CanGoBack / CanGoForward must NOT call FFI directly because they're read from the UI
+    // thread and can race with navigate operations on background threads.
+    private volatile bool _canGoBackCached;
+    private volatile bool _canGoForwardCached;
+
     public ThaloraBrowserEngine()
     {
         _instance = ThaloraNative.thalora_init();
@@ -37,6 +43,7 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
             {
                 ThrowIfDisposed();
                 var ptr = ThaloraNative.thalora_navigate(_instance, url);
+                RefreshNavCache();
                 tcs.SetResult(ConsumeRustString(ptr));
             }
             catch (Exception ex)
@@ -95,7 +102,9 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
             try
             {
                 ThrowIfDisposed();
-                return ThaloraNative.thalora_go_back(_instance) == 0;
+                var ok = ThaloraNative.thalora_go_back(_instance) == 0;
+                RefreshNavCache();
+                return ok;
             }
             finally { _engineLock.Release(); }
         });
@@ -110,7 +119,9 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
             try
             {
                 ThrowIfDisposed();
-                return ThaloraNative.thalora_go_forward(_instance) == 0;
+                var ok = ThaloraNative.thalora_go_forward(_instance) == 0;
+                RefreshNavCache();
+                return ok;
             }
             finally { _engineLock.Release(); }
         });
@@ -126,33 +137,30 @@ public sealed class ThaloraBrowserEngine : IThaloraBrowserEngine
             {
                 ThrowIfDisposed();
                 var ptr = ThaloraNative.thalora_reload(_instance);
+                RefreshNavCache();
                 return ConsumeRustString(ptr);
             }
             finally { _engineLock.Release(); }
         });
 
     /// <summary>
-    /// Check if the browser can go back in history.
+    /// Whether the browser can navigate back. Reads a cached value — safe to call from any thread.
+    /// Cache is refreshed inside the engine lock after each navigate/back/forward/reload.
     /// </summary>
-    public bool CanGoBack
-    {
-        get
-        {
-            if (_disposed) return false;
-            return ThaloraNative.thalora_can_go_back(_instance) == 1;
-        }
-    }
+    public bool CanGoBack => _canGoBackCached;
 
     /// <summary>
-    /// Check if the browser can go forward in history.
+    /// Whether the browser can navigate forward. Reads a cached value — safe to call from any thread.
     /// </summary>
-    public bool CanGoForward
+    public bool CanGoForward => _canGoForwardCached;
+
+    /// <summary>
+    /// Refresh CanGoBack/CanGoForward cache. Must be called while holding _engineLock.
+    /// </summary>
+    private void RefreshNavCache()
     {
-        get
-        {
-            if (_disposed) return false;
-            return ThaloraNative.thalora_can_go_forward(_instance) == 1;
-        }
+        _canGoBackCached = ThaloraNative.thalora_can_go_back(_instance) == 1;
+        _canGoForwardCached = ThaloraNative.thalora_can_go_forward(_instance) == 1;
     }
 
     /// <summary>

@@ -5,6 +5,7 @@ use std::error::Error;
 use tokio::time::{Duration, sleep};
 
 use crate::engine::browser::types::NavigationMode;
+use crate::engine::renderer::RustRenderer;
 use crate::engine::security::SsrfProtection;
 
 /// Re-export SRI verification from shared module
@@ -42,8 +43,25 @@ impl super::super::HeadlessWebBrowser {
         };
         let url = url.as_str();
 
-        // Dispatch pageswap event before navigation
-        self.dispatch_pageswap_event(url).await?;
+        // Reset the Boa JS context before navigation.
+        //
+        // WHY LEAK: Each `NavigateAsync` call creates a NEW OS thread. The Boa GC uses
+        // thread-local storage (`BOA_GC`). Objects allocated by the OLD renderer were
+        // created on a different OS thread (T_prev). When the old renderer is dropped on
+        // the NEW thread (T_curr), `Gc<T>::drop()` runs finalizers on T_curr. Those
+        // finalizers can create new GC objects that hold pointers to T_prev's orphaned
+        // `GcBox` allocations. The next GC collection on T_curr follows those pointers
+        // and crashes (SIGSEGV in `trace_fn`).
+        //
+        // `mem::forget` skips the Drop entirely, so no finalizers run, no contamination
+        // of T_curr's GC state, and the new renderer starts with a pristine GC.
+        // The leaked Boa objects are ~5–15 MB per navigation and are bounded per-session.
+        if let Some(old_renderer) = self.renderer.take() {
+            eprintln!("🔍 DEBUG: Leaking old JS context to avoid cross-thread GC corruption");
+            std::mem::forget(old_renderer);
+        }
+        self.renderer = Some(RustRenderer::new());
+        eprintln!("🔍 DEBUG: Fresh JS context ready for navigation");
 
         // Get browser-specific headers for stealth
         let headers = self.create_standard_browser_headers(url);
@@ -870,8 +888,12 @@ impl super::super::HeadlessWebBrowser {
         // SECURITY: Validate URL to prevent SSRF attacks
         SsrfProtection::new().is_safe_url(url)?;
 
-        // Dispatch pageswap event before navigation
-        self.dispatch_pageswap_event(url).await?;
+        // Reset Boa context — same leak-to-avoid-cross-thread-GC-corruption reasoning
+        // as in navigate_to_with_js_option.
+        if let Some(old_renderer) = self.renderer.take() {
+            std::mem::forget(old_renderer);
+        }
+        self.renderer = Some(RustRenderer::new());
 
         // Get browser-specific headers for stealth
         let headers = self.create_standard_browser_headers(url);
