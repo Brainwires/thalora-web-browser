@@ -42,12 +42,12 @@ mod real_fs_warning {
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-#[allow(dead_code)]
 use std::collections::HashMap;
 use std::fs as stdfs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 // Encryption imports for session data at rest
@@ -285,20 +285,124 @@ pub fn validate_path(path: &Path) -> io::Result<PathBuf> {
     })
 }
 
+// =============================================================================
+// VFS ENTRY TYPE
+// =============================================================================
+
+/// Current Unix timestamp in milliseconds.
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_millis() as u64
+}
+
+/// A single entry in the virtual filesystem.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VfsEntry {
+    pub data: Vec<u8>,
+    pub is_dir: bool,
+    pub created: u64,
+    pub modified: u64,
+    pub accessed: u64,
+}
+
+impl VfsEntry {
+    /// Create a new file entry with the given data and current timestamps.
+    fn new_file(data: Vec<u8>) -> Self {
+        let now = now_millis();
+        Self {
+            data,
+            is_dir: false,
+            created: now,
+            modified: now,
+            accessed: now,
+        }
+    }
+
+    /// Create a new directory entry with current timestamps.
+    fn new_dir() -> Self {
+        let now = now_millis();
+        Self {
+            data: Vec::new(),
+            is_dir: true,
+            created: now,
+            modified: now,
+            accessed: now,
+        }
+    }
+}
+
+/// Type alias for the underlying VFS map.
+type VfsMap = HashMap<PathBuf, VfsEntry>;
+
+// =============================================================================
+// VFS STORAGE
+// =============================================================================
+
 #[cfg(not(feature = "real_fs"))]
-static IN_MEM_FILES: Lazy<Mutex<HashMap<PathBuf, Vec<u8>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static IN_MEM_FILES: Lazy<Arc<Mutex<VfsMap>>> = Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
+
+// =============================================================================
+// VFS PERSISTENCE
+// =============================================================================
+
+/// Serialization format version 1 (legacy: raw bytes).
+#[derive(Serialize, Deserialize)]
+struct VfsPersistV1 {
+    entries: Vec<(PathBuf, Vec<u8>)>,
+}
+
+/// Serialization format version 2 (VfsEntry with metadata).
+#[derive(Serialize, Deserialize)]
+struct VfsPersistV2 {
+    version: u8,
+    entries: Vec<(PathBuf, VfsEntry)>,
+}
+
+/// Serialize a VfsMap to bytes using the v2 format.
+fn serialize_vfs_map(map: &VfsMap) -> io::Result<Vec<u8>> {
+    let entries: Vec<(PathBuf, VfsEntry)> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    let persist = VfsPersistV2 { version: 2, entries };
+    bincode::serialize(&persist).map_err(io::Error::other)
+}
+
+/// Deserialize bytes into a VfsMap, supporting both v1 and v2 formats.
+fn deserialize_vfs_map(bytes: &[u8]) -> io::Result<VfsMap> {
+    // Try v2 first
+    if let Ok(v2) = bincode::deserialize::<VfsPersistV2>(bytes)
+        && v2.version == 2 {
+            let mut map = HashMap::new();
+            for (k, v) in v2.entries {
+                map.insert(k, v);
+            }
+            return Ok(map);
+        }
+    // Fall back to v1
+    let v1: VfsPersistV1 =
+        bincode::deserialize(bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut map = HashMap::new();
+    for (k, v) in v1.entries {
+        map.insert(k, VfsEntry::new_file(v));
+    }
+    Ok(map)
+}
+
+// =============================================================================
+// VFS INSTANCE
+// =============================================================================
 
 /// File-backed VFS instance persisted in a single binary file.
 #[derive(Debug, Clone)]
 pub struct VfsInstance {
     file_path: PathBuf,
-    map: Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct VfsPersist {
-    entries: Vec<(PathBuf, Vec<u8>)>,
+    map: Arc<Mutex<VfsMap>>,
+    /// Maximum total bytes stored across all entries (None = unlimited).
+    quota: Option<u64>,
+    /// Maximum size of a single file in bytes (None = unlimited).
+    max_file_size: Option<u64>,
+    /// Maximum number of entries (files + directories) (None = unlimited).
+    max_files: Option<u64>,
 }
 
 impl VfsInstance {
@@ -307,20 +411,21 @@ impl VfsInstance {
         let p = path.as_ref().to_path_buf();
         if p.exists() {
             let bytes = stdfs::read(&p)?;
-            let persist: VfsPersist = bincode::deserialize(&bytes)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            let mut map = HashMap::new();
-            for (k, v) in persist.entries.into_iter() {
-                map.insert(k, v);
-            }
+            let map = deserialize_vfs_map(&bytes)?;
             Ok(Self {
                 file_path: p,
                 map: Arc::new(Mutex::new(map)),
+                quota: None,
+                max_file_size: None,
+                max_files: None,
             })
         } else {
             Ok(Self {
                 file_path: p,
                 map: Arc::new(Mutex::new(HashMap::new())),
+                quota: None,
+                max_file_size: None,
+                max_files: None,
             })
         }
     }
@@ -332,18 +437,16 @@ impl VfsInstance {
         Ok(Self {
             file_path: file,
             map: Arc::new(Mutex::new(HashMap::new())),
+            quota: None,
+            max_file_size: None,
+            max_files: None,
         })
     }
 
     /// Persist current in-memory map to disk atomically.
     pub fn persist(&self) -> io::Result<()> {
         let map = self.map.lock().unwrap();
-        let mut entries = Vec::new();
-        for (k, v) in map.iter() {
-            entries.push((k.clone(), v.clone()));
-        }
-        let persist = VfsPersist { entries };
-        let bytes = bincode::serialize(&persist).map_err(io::Error::other)?;
+        let bytes = serialize_vfs_map(&map)?;
         let tmp = self.file_path.with_extension("tmp");
         stdfs::write(&tmp, &bytes)?;
         stdfs::rename(&tmp, &self.file_path)?;
@@ -358,13 +461,41 @@ impl VfsInstance {
         Ok(())
     }
 
-    pub fn as_map(&self) -> Arc<Mutex<HashMap<PathBuf, Vec<u8>>>> {
+    pub fn as_map(&self) -> Arc<Mutex<VfsMap>> {
         self.map.clone()
     }
 
     /// Return the backing file path for this VFS instance.
     pub fn backing_path(&self) -> PathBuf {
         self.file_path.clone()
+    }
+
+    // --- Quota API ---
+
+    /// Get current total data usage in bytes.
+    pub fn usage(&self) -> u64 {
+        let map = self.map.lock().unwrap();
+        map.values().map(|e| e.data.len() as u64).sum()
+    }
+
+    /// Get the configured quota (None = unlimited).
+    pub fn quota(&self) -> Option<u64> {
+        self.quota
+    }
+
+    /// Set the total storage quota in bytes. Pass `None` for unlimited.
+    pub fn set_quota(&mut self, bytes: Option<u64>) {
+        self.quota = bytes;
+    }
+
+    /// Set the maximum single file size in bytes. Pass `None` for unlimited.
+    pub fn set_max_file_size(&mut self, bytes: Option<u64>) {
+        self.max_file_size = bytes;
+    }
+
+    /// Set the maximum number of entries. Pass `None` for unlimited.
+    pub fn set_max_files(&mut self, count: Option<u64>) {
+        self.max_files = count;
     }
 
     // === ENCRYPTED PERSISTENCE METHODS ===
@@ -404,22 +535,22 @@ impl VfsInstance {
                 )
             })?;
 
-            // Deserialize the VFS data
-            let persist: VfsPersist = bincode::deserialize(&plaintext)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-            let mut map = HashMap::new();
-            for (k, v) in persist.entries.into_iter() {
-                map.insert(k, v);
-            }
+            // Deserialize the VFS data (supports both v1 and v2)
+            let map = deserialize_vfs_map(&plaintext)?;
             Ok(Self {
                 file_path: p,
                 map: Arc::new(Mutex::new(map)),
+                quota: None,
+                max_file_size: None,
+                max_files: None,
             })
         } else {
             Ok(Self {
                 file_path: p,
                 map: Arc::new(Mutex::new(HashMap::new())),
+                quota: None,
+                max_file_size: None,
+                max_files: None,
             })
         }
     }
@@ -432,12 +563,7 @@ impl VfsInstance {
     /// A random 96-bit nonce is generated for each persist operation.
     pub fn persist_encrypted(&self, key: &[u8; 32]) -> io::Result<()> {
         let map = self.map.lock().unwrap();
-        let mut entries = Vec::new();
-        for (k, v) in map.iter() {
-            entries.push((k.clone(), v.clone()));
-        }
-        let persist = VfsPersist { entries };
-        let plaintext = bincode::serialize(&persist).map_err(io::Error::other)?;
+        let plaintext = serialize_vfs_map(&map)?;
 
         // Generate a random 96-bit nonce
         let mut nonce_bytes = [0u8; 12];
@@ -467,6 +593,10 @@ impl VfsInstance {
     }
 }
 
+// =============================================================================
+// GLOBAL VFS INSTANCE
+// =============================================================================
+
 // Global current VFS instance (optional)
 static CURRENT_VFS: Lazy<Mutex<Option<Arc<VfsInstance>>>> = Lazy::new(|| Mutex::new(None));
 
@@ -482,6 +612,59 @@ pub fn get_current_vfs() -> Option<Arc<VfsInstance>> {
     let cur = CURRENT_VFS.lock().unwrap();
     cur.clone()
 }
+
+// =============================================================================
+// QUOTA ENFORCEMENT HELPERS
+// =============================================================================
+
+#[cfg(not(feature = "real_fs"))]
+fn quota_error(msg: &str) -> io::Error {
+    io::Error::other(msg)
+}
+
+/// Check quota constraints before writing `new_data_len` bytes to `path` in `map`.
+/// `vfs` is the current VfsInstance (if any) providing quota settings.
+#[cfg(not(feature = "real_fs"))]
+fn check_quota(
+    map: &VfsMap,
+    path: &Path,
+    new_data_len: u64,
+    vfs: Option<&VfsInstance>,
+) -> io::Result<()> {
+    let vfs = match vfs {
+        Some(v) => v,
+        None => return Ok(()), // No VFS instance = no quota (global fallback)
+    };
+
+    // Check max_file_size
+    if let Some(max) = vfs.max_file_size
+        && new_data_len > max {
+            return Err(quota_error("file size exceeds maximum allowed"));
+        }
+
+    // Check max_files (only if this is a new entry)
+    if let Some(max) = vfs.max_files
+        && !map.contains_key(path) && map.len() as u64 >= max {
+            return Err(quota_error("maximum number of files exceeded"));
+        }
+
+    // Check total quota
+    if let Some(quota) = vfs.quota {
+        let current_usage: u64 = map.values().map(|e| e.data.len() as u64).sum();
+        // Subtract the existing entry size if overwriting
+        let existing = map.get(path).map(|e| e.data.len() as u64).unwrap_or(0);
+        let new_total = current_usage - existing + new_data_len;
+        if new_total > quota {
+            return Err(quota_error("storage quota exceeded"));
+        }
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// REAL FS MODULE (acknowledged variant for testing)
+// =============================================================================
 
 // real_fs feature intentionally causes compile error (see top of file)
 // real_fs_acknowledged is the acknowledged variant for testing
@@ -554,85 +737,289 @@ pub mod fs {
     }
 }
 
+// =============================================================================
+// IN-MEMORY FS MODULE
+// =============================================================================
+
 #[cfg(not(feature = "real_fs_acknowledged"))]
 pub mod fs {
     use super::*;
 
-    type FileMap = Arc<Mutex<HashMap<PathBuf, Vec<u8>>>>;
-
-    #[allow(dead_code)]
-    fn map_for_current() -> Option<FileMap> {
+    /// Return the active VFS map: from the current VfsInstance if set, otherwise the global fallback.
+    pub(crate) fn active_map() -> Arc<Mutex<VfsMap>> {
         if let Some(vfs) = get_current_vfs() {
-            return Some(vfs.as_map());
+            vfs.as_map()
+        } else {
+            Arc::clone(&IN_MEM_FILES)
         }
-        Some(Arc::new(Mutex::new(IN_MEM_FILES.lock().unwrap().clone())))
     }
 
+    /// Ensure all ancestor directories of `path` exist as explicit directory entries.
+    pub(crate) fn ensure_parent_dirs(map: &mut VfsMap, path: &Path) {
+        if let Some(parent) = path.parent() {
+            let mut ancestors = Vec::new();
+            let mut cur = parent;
+            loop {
+                // Stop at root or if directory already exists
+                if cur.as_os_str().is_empty() || cur.as_os_str() == "/" {
+                    break;
+                }
+                if map.get(cur).is_some_and(|e| e.is_dir) {
+                    break;
+                }
+                ancestors.push(cur.to_path_buf());
+                match cur.parent() {
+                    Some(p) => cur = p,
+                    None => break,
+                }
+            }
+            for dir_path in ancestors.into_iter().rev() {
+                map.entry(dir_path).or_insert_with(VfsEntry::new_dir);
+            }
+        }
+    }
+
+    /// Check if `path` is a directory — either an explicit dir entry, or has descendants.
+    fn is_dir_in_map(map: &VfsMap, p: &Path) -> bool {
+        if let Some(entry) = map.get(p) {
+            return entry.is_dir;
+        }
+        // Check for implicit directory (has descendants)
+        map.keys().any(|k| {
+            if let Some(normalized_k) = normalize_path(k) {
+                normalized_k.starts_with(p) && normalized_k != p
+            } else {
+                false
+            }
+        })
+    }
+
+    // --- Directory operations ---
+
     pub fn create_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
-        // Validate path to prevent traversal attacks
-        let _p = validate_path(path.as_ref())?;
-        // Directories are implicit in in-memory VFS.
+        let p = validate_path(path.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        // Create the target and all ancestors
+        ensure_parent_dirs(&mut map, &p.join("_placeholder"));
+        map.entry(p).or_insert_with(VfsEntry::new_dir);
         Ok(())
     }
 
-    pub fn read_to_string<P: AsRef<Path>>(path: P) -> io::Result<String> {
-        // Validate and normalize path to prevent traversal attacks
+    pub fn create_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
         let p = validate_path(path.as_ref())?;
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let map = map_arc.lock().unwrap();
-            match map.get(&p) {
-                Some(bytes) => Ok(String::from_utf8_lossy(bytes).to_string()),
-                None => Err(io::Error::new(io::ErrorKind::NotFound, "file not found")),
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        // Check parent exists
+        if let Some(parent) = p.parent()
+            && !parent.as_os_str().is_empty()
+                && parent.as_os_str() != "/"
+                && !is_dir_in_map(&map, parent)
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "parent directory does not exist",
+                ));
             }
-        } else {
-            let map = IN_MEM_FILES.lock().unwrap();
-            match map.get(&p) {
-                Some(bytes) => Ok(String::from_utf8_lossy(bytes).to_string()),
-                None => Err(io::Error::new(io::ErrorKind::NotFound, "file not found")),
+        if map.contains_key(&p) {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "path already exists",
+            ));
+        }
+        map.insert(p, VfsEntry::new_dir());
+        Ok(())
+    }
+
+    pub fn remove_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
+        let p = validate_path(path.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        match map.get(&p) {
+            Some(entry) if entry.is_dir => {}
+            Some(_) => {
+                return Err(io::Error::other("not a directory"));
             }
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "directory not found",
+                ));
+            }
+        }
+        // Check if directory has children
+        let has_children = map.keys().any(|k| k != &p && k.starts_with(&p));
+        if has_children {
+            return Err(io::Error::other(
+                "directory not empty",
+            ));
+        }
+        map.remove(&p);
+        Ok(())
+    }
+
+    pub fn remove_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
+        let p = validate_path(path.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        // Collect all keys that are the path itself or descendants
+        let to_remove: Vec<PathBuf> = map
+            .keys()
+            .filter(|k| *k == &p || k.starts_with(&p))
+            .cloned()
+            .collect();
+        if to_remove.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "path not found"));
+        }
+        for k in to_remove {
+            map.remove(&k);
+        }
+        Ok(())
+    }
+
+    // --- File read/write operations ---
+
+    pub fn read_to_string<P: AsRef<Path>>(path: P) -> io::Result<String> {
+        let p = validate_path(path.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        match map.get_mut(&p) {
+            Some(entry) if !entry.is_dir => {
+                entry.accessed = now_millis();
+                Ok(String::from_utf8_lossy(&entry.data).to_string())
+            }
+            Some(_) => Err(io::Error::other("is a directory")),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "file not found")),
         }
     }
 
     pub fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) -> io::Result<()> {
-        // Validate and normalize path to prevent traversal attacks
         let p = validate_path(path.as_ref())?;
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let mut map = map_arc.lock().unwrap();
-            map.insert(p, contents.as_ref().to_vec());
-            Ok(())
+        let data = contents.as_ref().to_vec();
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+
+        // Quota check
+        let vfs = get_current_vfs();
+        check_quota(&map, &p, data.len() as u64, vfs.as_deref())?;
+
+        // Auto-create parent directories
+        ensure_parent_dirs(&mut map, &p);
+
+        let now = now_millis();
+        if let Some(entry) = map.get_mut(&p) {
+            if entry.is_dir {
+                return Err(io::Error::other("is a directory"));
+            }
+            entry.data = data;
+            entry.modified = now;
+            entry.accessed = now;
         } else {
-            let mut map = IN_MEM_FILES.lock().unwrap();
-            map.insert(p, contents.as_ref().to_vec());
-            Ok(())
+            map.insert(p, VfsEntry::new_file(data));
         }
+        Ok(())
     }
 
     pub fn read<P: AsRef<Path>>(path: P) -> io::Result<Vec<u8>> {
-        // Validate and normalize path to prevent traversal attacks
         let p = validate_path(path.as_ref())?;
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let map = map_arc.lock().unwrap();
-            match map.get(&p) {
-                Some(bytes) => Ok(bytes.clone()),
-                None => Err(io::Error::new(io::ErrorKind::NotFound, "file not found")),
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        match map.get_mut(&p) {
+            Some(entry) if !entry.is_dir => {
+                entry.accessed = now_millis();
+                Ok(entry.data.clone())
             }
-        } else {
-            let map = IN_MEM_FILES.lock().unwrap();
-            match map.get(&p) {
-                Some(bytes) => Ok(bytes.clone()),
-                None => Err(io::Error::new(io::ErrorKind::NotFound, "file not found")),
-            }
+            Some(_) => Err(io::Error::other("is a directory")),
+            None => Err(io::Error::new(io::ErrorKind::NotFound, "file not found")),
         }
     }
 
-    /// A minimal metadata representation for in-memory VFS
+    // --- File management operations ---
+
+    pub fn remove_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
+        let p = validate_path(path.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        match map.get(&p) {
+            Some(entry) if entry.is_dir => {
+                return Err(io::Error::other("is a directory"));
+            }
+            None => {
+                return Err(io::Error::new(io::ErrorKind::NotFound, "file not found"));
+            }
+            _ => {}
+        }
+        map.remove(&p);
+        Ok(())
+    }
+
+    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<u64> {
+        let fromp = validate_path(from.as_ref())?;
+        let top = validate_path(to.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+        let source = map
+            .get(&fromp)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "source file not found"))?;
+        if source.is_dir {
+            return Err(io::Error::other("cannot copy a directory"));
+        }
+        let data = source.data.clone();
+        let len = data.len() as u64;
+
+        // Quota check
+        let vfs = get_current_vfs();
+        check_quota(&map, &top, len, vfs.as_deref())?;
+
+        ensure_parent_dirs(&mut map, &top);
+        map.insert(top, VfsEntry::new_file(data));
+        Ok(len)
+    }
+
+    pub fn rename<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<()> {
+        let fromp = validate_path(from.as_ref())?;
+        let top = validate_path(to.as_ref())?;
+        let map_arc = active_map();
+        let mut map = map_arc.lock().unwrap();
+
+        if !map.contains_key(&fromp) && !is_dir_in_map(&map, &fromp) {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "source not found"));
+        }
+
+        // Collect all entries to rename (the entry itself + descendants for directories)
+        let to_rename: Vec<(PathBuf, VfsEntry)> = map
+            .iter()
+            .filter(|(k, _)| *k == &fromp || k.starts_with(&fromp))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        ensure_parent_dirs(&mut map, &top);
+
+        for (old_path, entry) in &to_rename {
+            map.remove(old_path);
+            let relative = old_path
+                .strip_prefix(&fromp)
+                .unwrap_or(Path::new(""));
+            let new_path = if relative.as_os_str().is_empty() {
+                top.clone()
+            } else {
+                top.join(relative)
+            };
+            map.insert(new_path, entry.clone());
+        }
+        Ok(())
+    }
+
+    // --- Metadata ---
+
+    /// A metadata representation for in-memory VFS with timestamps.
     #[derive(Debug, Clone)]
     pub struct Metadata {
         is_dir: bool,
         len: u64,
+        created_ms: u64,
+        modified_ms: u64,
+        accessed_ms: u64,
     }
 
     impl Metadata {
@@ -647,120 +1034,67 @@ pub mod fs {
         pub fn is_dir(&self) -> bool {
             self.is_dir
         }
-    }
 
-    pub fn remove_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
-        // Validate and normalize path to prevent traversal attacks
-        let p = validate_path(path.as_ref())?;
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let mut map = map_arc.lock().unwrap();
-            map.remove(&p);
-            Ok(())
-        } else {
-            let mut map = IN_MEM_FILES.lock().unwrap();
-            map.remove(&p);
-            Ok(())
+        pub fn is_file(&self) -> bool {
+            !self.is_dir
         }
-    }
 
-    pub fn copy<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<u64> {
-        // Validate and normalize paths to prevent traversal attacks
-        let fromp = validate_path(from.as_ref())?;
-        let top = validate_path(to.as_ref())?;
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let mut map = map_arc.lock().unwrap();
-            if let Some(bytes) = map.get(&fromp).cloned() {
-                let len = bytes.len() as u64;
-                map.insert(top, bytes);
-                Ok(len)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "source file not found",
-                ))
-            }
-        } else {
-            let mut map = IN_MEM_FILES.lock().unwrap();
-            if let Some(bytes) = map.get(&fromp).cloned() {
-                let len = bytes.len() as u64;
-                map.insert(top, bytes);
-                Ok(len)
-            } else {
-                Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "source file not found",
-                ))
-            }
+        pub fn created(&self) -> io::Result<SystemTime> {
+            Ok(UNIX_EPOCH + Duration::from_millis(self.created_ms))
+        }
+
+        pub fn modified(&self) -> io::Result<SystemTime> {
+            Ok(UNIX_EPOCH + Duration::from_millis(self.modified_ms))
+        }
+
+        pub fn accessed(&self) -> io::Result<SystemTime> {
+            Ok(UNIX_EPOCH + Duration::from_millis(self.accessed_ms))
         }
     }
 
     pub fn metadata<P: AsRef<Path>>(path: P) -> io::Result<Metadata> {
-        // Validate and normalize path to prevent traversal attacks
         let p = validate_path(path.as_ref())?;
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let map = map_arc.lock().unwrap();
-            if let Some(bytes) = map.get(&p) {
-                Ok(Metadata {
-                    is_dir: false,
-                    len: bytes.len() as u64,
-                })
-            } else {
-                // Check if any file is a descendant -> treat as dir
-                // SECURITY: Use normalized path for comparison
-                let is_dir = map.keys().any(|k| {
-                    // Normalize stored paths for safe comparison
-                    if let Some(normalized_k) = normalize_path(k) {
-                        normalized_k.starts_with(&p)
-                    } else {
-                        false
-                    }
-                });
-                if is_dir {
-                    Ok(Metadata {
-                        is_dir: true,
-                        len: 0,
-                    })
-                } else {
-                    Err(io::Error::new(io::ErrorKind::NotFound, "path not found"))
-                }
-            }
+        let map_arc = active_map();
+        let map = map_arc.lock().unwrap();
+        if let Some(entry) = map.get(&p) {
+            Ok(Metadata {
+                is_dir: entry.is_dir,
+                len: entry.data.len() as u64,
+                created_ms: entry.created,
+                modified_ms: entry.modified,
+                accessed_ms: entry.accessed,
+            })
         } else {
-            let map = IN_MEM_FILES.lock().unwrap();
-            if let Some(bytes) = map.get(&p) {
+            // Check if any file is a descendant -> treat as implicit dir
+            // SECURITY: Use normalized path for comparison
+            let is_dir = map.keys().any(|k| {
+                if let Some(normalized_k) = normalize_path(k) {
+                    normalized_k.starts_with(&p) && normalized_k != p
+                } else {
+                    false
+                }
+            });
+            if is_dir {
+                let now = now_millis();
                 Ok(Metadata {
-                    is_dir: false,
-                    len: bytes.len() as u64,
+                    is_dir: true,
+                    len: 0,
+                    created_ms: now,
+                    modified_ms: now,
+                    accessed_ms: now,
                 })
             } else {
-                // SECURITY: Use normalized path for comparison
-                let is_dir = map.keys().any(|k| {
-                    if let Some(normalized_k) = normalize_path(k) {
-                        normalized_k.starts_with(&p)
-                    } else {
-                        false
-                    }
-                });
-                if is_dir {
-                    Ok(Metadata {
-                        is_dir: true,
-                        len: 0,
-                    })
-                } else {
-                    Err(io::Error::new(io::ErrorKind::NotFound, "path not found"))
-                }
+                Err(io::Error::new(io::ErrorKind::NotFound, "path not found"))
             }
         }
     }
+
+    // --- Directory listing ---
 
     /// Directory entry for in-memory VFS
     #[derive(Debug, Clone)]
     pub struct DirEntry {
         path: PathBuf,
-        is_dir: bool,
-        len: u64,
     }
 
     impl DirEntry {
@@ -769,10 +1103,14 @@ pub mod fs {
         }
 
         pub fn metadata(&self) -> io::Result<Metadata> {
-            Ok(Metadata {
-                is_dir: self.is_dir,
-                len: self.len,
-            })
+            super::fs::metadata(&self.path)
+        }
+
+        pub fn file_name(&self) -> std::ffi::OsString {
+            self.path
+                .file_name()
+                .unwrap_or(self.path.as_os_str())
+                .to_os_string()
         }
     }
 
@@ -796,67 +1134,38 @@ pub mod fs {
         }
     }
 
-    /// List immediate children (files and directories) of `path` within the in-memory VFS
+    /// List immediate children (files and directories) of `path` within the in-memory VFS.
     pub fn read_dir<P: AsRef<Path>>(path: P) -> io::Result<ReadDir> {
-        // Validate and normalize path to prevent traversal attacks
         let root = validate_path(path.as_ref())?;
-        use std::collections::HashMap as StdMap;
-        let mut children: StdMap<PathBuf, (bool, u64)> = StdMap::new();
+        let map_arc = active_map();
+        let map = map_arc.lock().unwrap();
 
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let map = map_arc.lock().unwrap();
-            for (file_path, bytes) in map.iter() {
-                // SECURITY: Normalize file paths before comparison
-                let normalized_path = match normalize_path(file_path) {
-                    Some(p) => p,
-                    None => continue, // Skip malformed paths
-                };
-                if let Ok(relative) = normalized_path.strip_prefix(&root) {
-                    let mut comps = relative.components();
-                    if let Some(first) = comps.next() {
-                        let child = root.join(first.as_os_str());
-                        if comps.next().is_some() {
-                            // there are further components -> it's a directory
-                            children.entry(child).or_insert((true, 0));
-                        } else {
-                            // immediate file
-                            children.entry(child).or_insert((false, bytes.len() as u64));
-                        }
-                    }
-                }
-            }
-        } else {
-            let map = IN_MEM_FILES.lock().unwrap();
-            for (file_path, bytes) in map.iter() {
-                // SECURITY: Normalize file paths before comparison
-                let normalized_path = match normalize_path(file_path) {
-                    Some(p) => p,
-                    None => continue, // Skip malformed paths
-                };
-                if let Ok(relative) = normalized_path.strip_prefix(&root) {
-                    let mut comps = relative.components();
-                    if let Some(first) = comps.next() {
-                        let child = root.join(first.as_os_str());
-                        if comps.next().is_some() {
-                            // there are further components -> it's a directory
-                            children.entry(child).or_insert((true, 0));
-                        } else {
-                            // immediate file
-                            children.entry(child).or_insert((false, bytes.len() as u64));
-                        }
-                    }
+        use std::collections::HashSet;
+        let mut children: HashSet<PathBuf> = HashSet::new();
+
+        for file_path in map.keys() {
+            // SECURITY: Normalize file paths before comparison
+            let normalized_path = match normalize_path(file_path) {
+                Some(p) => p,
+                None => continue, // Skip malformed paths
+            };
+            if let Ok(relative) = normalized_path.strip_prefix(&root) {
+                let mut comps = relative.components();
+                if let Some(first) = comps.next() {
+                    children.insert(root.join(first.as_os_str()));
                 }
             }
         }
 
         let mut entries = Vec::new();
-        for (path, (is_dir, len)) in children.into_iter() {
-            entries.push(DirEntry { path, is_dir, len });
+        for path in children {
+            entries.push(DirEntry { path });
         }
 
         Ok(ReadDir { entries, idx: 0 })
     }
+
+    // --- Existence check ---
 
     pub fn exists<P: AsRef<Path>>(path: P) -> bool {
         // Validate and normalize path; return false for malicious paths
@@ -864,16 +1173,30 @@ pub mod fs {
             Ok(p) => p,
             Err(_) => return false,
         };
-        if let Some(vfs) = get_current_vfs() {
-            let map_arc = vfs.as_map();
-            let map = map_arc.lock().unwrap();
-            map.contains_key(&p)
+        let map_arc = active_map();
+        let map = map_arc.lock().unwrap();
+        // Check for exact match (file or directory entry)
+        if map.contains_key(&p) {
+            return true;
+        }
+        // Check for implicit directory (has descendants)
+        is_dir_in_map(&map, &p)
+    }
+
+    /// Canonicalize a path within the VFS (normalize + verify existence).
+    pub fn canonicalize<P: AsRef<Path>>(path: P) -> io::Result<PathBuf> {
+        let p = validate_path(path.as_ref())?;
+        if exists(&p) {
+            Ok(p)
         } else {
-            let map = IN_MEM_FILES.lock().unwrap();
-            map.contains_key(&p)
+            Err(io::Error::new(io::ErrorKind::NotFound, "path not found"))
         }
     }
 }
+
+// =============================================================================
+// FILE HANDLE API
+// =============================================================================
 
 #[cfg(not(feature = "real_fs"))]
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -882,105 +1205,133 @@ use std::io::{Read, Seek, SeekFrom, Write};
 pub struct File {
     path: PathBuf,
     pos: usize,
+    map: Arc<Mutex<VfsMap>>,
 }
 
 #[cfg(not(feature = "real_fs"))]
 impl File {
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let p = path.as_ref().to_path_buf();
-        let map = IN_MEM_FILES.lock().unwrap();
-        if map.contains_key(&p) {
-            Ok(Self { path: p, pos: 0 })
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
+        let p = validate_path(path.as_ref())?;
+        let map = fs::active_map();
+        {
+            let m = map.lock().unwrap();
+            match m.get(&p) {
+                Some(entry) if !entry.is_dir => {}
+                Some(_) => {
+                    return Err(io::Error::other("is a directory"));
+                }
+                None => {
+                    return Err(io::Error::new(io::ErrorKind::NotFound, "file not found"));
+                }
+            }
         }
+        Ok(Self { path: p, pos: 0, map })
     }
 
     pub fn create<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let p = path.as_ref().to_path_buf();
-        let mut map = IN_MEM_FILES.lock().unwrap();
-        map.insert(p.clone(), Vec::new());
-        Ok(Self { path: p, pos: 0 })
+        let p = validate_path(path.as_ref())?;
+        let map = fs::active_map();
+        {
+            let mut m = map.lock().unwrap();
+            // Quota check for new empty file
+            let vfs = get_current_vfs();
+            check_quota(&m, &p, 0, vfs.as_deref())?;
+            fs::ensure_parent_dirs(&mut m, &p);
+            m.insert(p.clone(), VfsEntry::new_file(Vec::new()));
+        }
+        Ok(Self { path: p, pos: 0, map })
     }
 }
 
 #[cfg(not(feature = "real_fs"))]
 impl Read for File {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let map = IN_MEM_FILES.lock().unwrap();
-        if let Some(bytes) = map.get(&self.path) {
-            let remaining = &bytes[self.pos..];
-            let n = std::cmp::min(remaining.len(), buf.len());
-            buf[..n].copy_from_slice(&remaining[..n]);
-            self.pos += n;
-            Ok(n)
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
-        }
+        let mut map = self.map.lock().unwrap();
+        let entry = map
+            .get_mut(&self.path)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "file not found"))?;
+        let remaining = &entry.data[self.pos..];
+        let n = std::cmp::min(remaining.len(), buf.len());
+        buf[..n].copy_from_slice(&remaining[..n]);
+        self.pos += n;
+        entry.accessed = now_millis();
+        Ok(n)
     }
 }
 
 #[cfg(not(feature = "real_fs"))]
 impl Seek for File {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let map = IN_MEM_FILES.lock().unwrap();
-        if let Some(bytes) = map.get(&self.path) {
-            // SECURITY: Use checked arithmetic to prevent integer overflow (CWE-190)
-            let new = match pos {
-                SeekFrom::Start(off) => i64::try_from(off).map_err(|_| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "seek offset too large")
-                })?,
-                SeekFrom::End(off) => {
-                    let len = i64::try_from(bytes.len()).map_err(|_| {
-                        io::Error::new(io::ErrorKind::InvalidInput, "file too large")
-                    })?;
-                    len.checked_add(off).ok_or_else(|| {
-                        io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
-                    })?
-                }
-                SeekFrom::Current(off) => {
-                    let pos = i64::try_from(self.pos).map_err(|_| {
-                        io::Error::new(io::ErrorKind::InvalidInput, "position too large")
-                    })?;
-                    pos.checked_add(off).ok_or_else(|| {
-                        io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
-                    })?
-                }
-            };
-            if new < 0 {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid seek"));
+        let map = self.map.lock().unwrap();
+        let entry = map
+            .get(&self.path)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "file not found"))?;
+        // SECURITY: Use checked arithmetic to prevent integer overflow (CWE-190)
+        let new = match pos {
+            SeekFrom::Start(off) => i64::try_from(off).map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidInput, "seek offset too large")
+            })?,
+            SeekFrom::End(off) => {
+                let len = i64::try_from(entry.data.len()).map_err(|_| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "file too large")
+                })?;
+                len.checked_add(off).ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
+                })?
             }
-            // SECURITY: Safe conversion since we've verified new >= 0
-            self.pos = usize::try_from(new).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidInput, "seek result too large")
-            })?;
-            Ok(self.pos as u64)
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
+            SeekFrom::Current(off) => {
+                let pos = i64::try_from(self.pos).map_err(|_| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "position too large")
+                })?;
+                pos.checked_add(off).ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "seek overflow")
+                })?
+            }
+        };
+        if new < 0 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid seek"));
         }
+        // SECURITY: Safe conversion since we've verified new >= 0
+        self.pos = usize::try_from(new).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidInput, "seek result too large")
+        })?;
+        Ok(self.pos as u64)
     }
 }
 
 #[cfg(not(feature = "real_fs"))]
 impl Write for File {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut map = IN_MEM_FILES.lock().unwrap();
+        let mut map = self.map.lock().unwrap();
+
+        // Quota check: compute what the new file size would be
+        {
+            let entry = map
+                .get(&self.path)
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "file not found"))?;
+            let end = self.pos + buf.len();
+            let new_len = std::cmp::max(entry.data.len(), end) as u64;
+            let vfs = get_current_vfs();
+            check_quota(&map, &self.path, new_len, vfs.as_deref())?;
+        }
+
         let entry = map
             .get_mut(&self.path)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "file not found"))?;
-        if self.pos >= entry.len() {
-            entry.extend_from_slice(buf);
-            self.pos = entry.len();
-            Ok(buf.len())
+        if self.pos >= entry.data.len() {
+            entry.data.extend_from_slice(buf);
+            self.pos = entry.data.len();
         } else {
             let end = self.pos + buf.len();
-            if end > entry.len() {
-                entry.resize(end, 0);
+            if end > entry.data.len() {
+                entry.data.resize(end, 0);
             }
-            entry[self.pos..end].copy_from_slice(buf);
+            entry.data[self.pos..end].copy_from_slice(buf);
             self.pos = end;
-            Ok(buf.len())
         }
+        entry.modified = now_millis();
+        entry.accessed = now_millis();
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -995,6 +1346,7 @@ pub struct OpenOptions {
     write: bool,
     create: bool,
     truncate: bool,
+    append: bool,
 }
 
 #[cfg(not(feature = "real_fs"))]
@@ -1019,23 +1371,45 @@ impl OpenOptions {
         self.truncate = v;
         self
     }
+    pub fn append(&mut self, v: bool) -> &mut Self {
+        self.append = v;
+        self
+    }
 
     pub fn open<P: AsRef<Path>>(&self, path: P) -> io::Result<File> {
-        let p = path.as_ref().to_path_buf();
-        let mut map = IN_MEM_FILES.lock().unwrap();
-        if self.create && !map.contains_key(&p) {
-            map.insert(p.clone(), Vec::new());
-        }
-        if self.truncate
-            && let Some(entry) = map.get_mut(&p)
+        let p = validate_path(path.as_ref())?;
+        let map_arc = fs::active_map();
+        let initial_pos;
         {
-            entry.clear();
+            let mut map = map_arc.lock().unwrap();
+            if self.create && !map.contains_key(&p) {
+                let vfs = get_current_vfs();
+                check_quota(&map, &p, 0, vfs.as_deref())?;
+                fs::ensure_parent_dirs(&mut map, &p);
+                map.insert(p.clone(), VfsEntry::new_file(Vec::new()));
+            }
+            if self.truncate
+                && let Some(entry) = map.get_mut(&p) {
+                    entry.data.clear();
+                    entry.modified = now_millis();
+                }
+            match map.get(&p) {
+                Some(entry) if entry.is_dir => {
+                    return Err(io::Error::other("is a directory"));
+                }
+                Some(entry) => {
+                    initial_pos = if self.append { entry.data.len() } else { 0 };
+                }
+                None => {
+                    return Err(io::Error::new(io::ErrorKind::NotFound, "file not found"));
+                }
+            }
         }
-        if map.contains_key(&p) {
-            Ok(File { path: p, pos: 0 })
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "file not found"))
-        }
+        Ok(File {
+            path: p,
+            pos: initial_pos,
+            map: map_arc,
+        })
     }
 }
 
