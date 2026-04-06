@@ -1,5 +1,13 @@
 # 🧠 Thalora - Full-Featured Pure Rust Web Browser
 
+[![CI](https://github.com/brainwires/thalora/actions/workflows/ci.yml/badge.svg)](https://github.com/brainwires/thalora/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/thalora.svg)](https://crates.io/crates/thalora)
+[![docs.rs](https://docs.rs/thalora/badge.svg)](https://docs.rs/thalora)
+[![Tests](https://img.shields.io/badge/tests-658%20passing-brightgreen)](#testing)
+[![LOC](https://img.shields.io/badge/lines%20of%20code-209K-blue)](#architecture)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-2024%20edition-orange)](https://www.rust-lang.org/)
+
 **🚀 The most advanced headless web browser designed for AI agents**
 
 A cutting-edge **full-featured web browser** built entirely in Rust, designed specifically for AI model integration via the Model Context Protocol (MCP). Thalora provides complete Chrome 131 compatibility with real JavaScript execution, modern web APIs, and AI memory persistence - all without any Chrome or Chromium dependencies.
