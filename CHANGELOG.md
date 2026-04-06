@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Structured logging** — replaced all `eprintln!` debug output in MCP tool dispatch, browser session management, CDP event emission, and HTTP transport with `tracing` macros (`debug!`/`info!`/`warn!`), eliminating `format!()` allocations on the hot path when debug level is filtered out
+- **Tracing `EnvFilter`** — tracing subscriber now respects `RUST_LOG` env var for log-level control (default: `info`; silent mode: `warn`)
+- **HTTP session limit** — MCP HTTP transport now caps concurrent sessions (default: 64, configurable via `THALORA_MAX_MCP_SESSIONS`); returns HTTP 503 with JSON-RPC error when limit is reached, preventing unbounded OS thread creation
+- **Socket readiness polling** — replaced hardcoded 100ms sleep after browser process spawn with exponential-backoff polling (10ms–200ms steps, 2s max timeout), reducing session creation latency in the common case
+- **CDP event diagnostics** — `CdpServer::emit_event()` now logs dropped events at `debug` level instead of silently discarding send failures
+
 ### Added
 - **CSS layout bridge** — `getBoundingClientRect()`, `offsetWidth/Height/Left/Top`, `clientWidth/Height`, `scrollWidth/Height` now return real values computed by the taffy layout engine instead of zeroes
 - **Layout geometry injection** — `update_document_html()` runs taffy layout and caches geometry on `DocumentData`; elements created via `querySelector` automatically receive their computed bounding rects
