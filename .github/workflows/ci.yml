@@ -73,6 +73,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
       - name: Test workspace
         run: cargo test --workspace -- --test-threads=1
+        env:
+          RUST_MIN_STACK: 16777216
       - name: Test boa engine
         run: cargo test --manifest-path engines/boa/Cargo.toml --workspace -- --test-threads=1
 
