@@ -72,13 +72,7 @@ const STEPS: &[Step] = &[
         commands: &[
             (
                 "workspace",
-                &[
-                    "cargo",
-                    "test",
-                    "--workspace",
-                    "--",
-                    "--test-threads=1",
-                ],
+                &["cargo", "test", "--workspace", "--", "--test-threads=1"],
             ),
             (
                 "boa engine",
@@ -98,10 +92,7 @@ const STEPS: &[Step] = &[
         key: "doc",
         name: "Doc",
         commands: &[
-            (
-                "workspace",
-                &["cargo", "doc", "--workspace", "--no-deps"],
-            ),
+            ("workspace", &["cargo", "doc", "--workspace", "--no-deps"]),
             (
                 "boa engine",
                 &[
