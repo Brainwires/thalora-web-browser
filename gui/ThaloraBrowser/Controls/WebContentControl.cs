@@ -250,10 +250,7 @@ public class WebContentControl : UserControl
 #if DEBUG
                 var swBuild = Stopwatch.StartNew();
 #endif
-                // Build the Avalonia control tree on a background thread.
-                // Avalonia 11 allows creating detached controls off the UI thread, which
-                // keeps the UI responsive during large-tree builds (e.g. GitHub 641KB tree).
-                var controlTree = await Task.Run(() => builder.BuildFromJson(styledTreeJson));
+                var controlTree = builder.BuildFromJson(styledTreeJson);
                 if (_disposed) return; // window closed during tree build
 #if DEBUG
                 swBuild.Stop();
