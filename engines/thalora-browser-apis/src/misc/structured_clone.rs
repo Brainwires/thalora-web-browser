@@ -96,6 +96,12 @@ pub struct TransferList {
     pub objects: Vec<JsObject>,
 }
 
+impl Default for TransferList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TransferList {
     pub fn new() -> Self {
         Self {
@@ -120,22 +126,22 @@ impl TransferList {
             return Ok(transfer_list);
         }
 
-        if let Some(array_obj) = array.as_object() {
-            if array_obj.is_array() {
-                let array = JsArray::from_object(array_obj.clone())?;
-                let length = array.length(context)?;
+        if let Some(array_obj) = array.as_object()
+            && array_obj.is_array()
+        {
+            let array = JsArray::from_object(array_obj.clone())?;
+            let length = array.length(context)?;
 
-                for i in 0..length {
-                    let element = array.get(i, context)?;
-                    if let Some(obj) = element.as_object() {
-                        // Verify the object is actually transferable
-                        if Self::is_transferable_object(&obj) {
-                            transfer_list.add(obj.clone());
-                        } else {
-                            return Err(JsNativeError::typ()
-                                .with_message("Object is not transferable")
-                                .into());
-                        }
+            for i in 0..length {
+                let element = array.get(i, context)?;
+                if let Some(obj) = element.as_object() {
+                    // Verify the object is actually transferable
+                    if Self::is_transferable_object(&obj) {
+                        transfer_list.add(obj.clone());
+                    } else {
+                        return Err(JsNativeError::typ()
+                            .with_message("Object is not transferable")
+                            .into());
                     }
                 }
             }
@@ -281,19 +287,19 @@ impl StructuredClone {
         transfer_list: Option<&TransferList>,
     ) -> JsResult<StructuredCloneValue> {
         // Check if this object is in the transfer list
-        if let Some(transfer_list) = transfer_list {
-            if transfer_list.contains(obj) {
-                return Self::transfer_object(obj, context);
-            }
+        if let Some(transfer_list) = transfer_list
+            && transfer_list.contains(obj)
+        {
+            return Self::transfer_object(obj, context);
         }
 
         // Handle specific object types for cloning (not transferring)
         if obj.is_array() {
             Self::clone_array(obj, context, memory, transfer_list)
         } else if let Some(date_data) = obj.downcast_ref::<Date>() {
-            Self::clone_date(&*date_data, context)
+            Self::clone_date(&date_data, context)
         } else if let Some(regexp_data) = obj.downcast_ref::<RegExp>() {
-            Self::clone_regexp(&*regexp_data, context)
+            Self::clone_regexp(&regexp_data, context)
         } else if JsMap::from_object(obj.clone()).is_ok() {
             Self::clone_map(obj, context, memory, transfer_list)
         } else if JsSet::from_object(obj.clone()).is_ok() {
@@ -302,15 +308,15 @@ impl StructuredClone {
             obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
         {
             // ArrayBuffer that's not being transferred should be cloned
-            Self::clone_array_buffer(&*array_buffer, context)
+            Self::clone_array_buffer(&array_buffer, context)
         } else {
             // Check for Error objects
             let name = obj
                 .get(js_string!("name"), context)
                 .ok()
                 .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()));
-            if let Some(ref err_name) = name {
-                if matches!(
+            if let Some(ref err_name) = name
+                && matches!(
                     err_name.as_str(),
                     "Error"
                         | "TypeError"
@@ -319,22 +325,22 @@ impl StructuredClone {
                         | "ReferenceError"
                         | "EvalError"
                         | "URIError"
-                ) {
-                    let message = obj
-                        .get(js_string!("message"), context)
-                        .ok()
-                        .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
-                        .unwrap_or_default();
-                    let stack = obj
-                        .get(js_string!("stack"), context)
-                        .ok()
-                        .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()));
-                    return Ok(StructuredCloneValue::Error {
-                        name: err_name.clone(),
-                        message,
-                        stack,
-                    });
-                }
+                )
+            {
+                let message = obj
+                    .get(js_string!("message"), context)
+                    .ok()
+                    .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()))
+                    .unwrap_or_default();
+                let stack = obj
+                    .get(js_string!("stack"), context)
+                    .ok()
+                    .and_then(|v| v.as_string().map(|s| s.to_std_string_escaped()));
+                return Ok(StructuredCloneValue::Error {
+                    name: err_name.clone(),
+                    message,
+                    stack,
+                });
             }
 
             // Check for Blob-like objects
@@ -439,51 +445,49 @@ impl StructuredClone {
         if let Some(array_buffer) =
             obj.downcast_ref::<boa_engine::builtins::array_buffer::ArrayBuffer>()
         {
-            return Self::transfer_array_buffer(obj, &*array_buffer, context);
+            return Self::transfer_array_buffer(obj, &array_buffer, context);
         }
 
         // Handle MessagePort transfer
         if let Some(port_data) =
             obj.downcast_ref::<crate::messaging::message_port::MessagePortData>()
         {
-            return Self::transfer_message_port(&*port_data);
+            return Self::transfer_message_port(&port_data);
         }
 
         // Handle OffscreenCanvas transfer (stub - check for canvas-like object)
-        if let Ok(width) = obj.get(js_string!("width"), context) {
-            if let Ok(height) = obj.get(js_string!("height"), context) {
-                if let Ok(transfer_to) = obj.get(js_string!("transferToImageBitmap"), context) {
-                    if transfer_to.is_callable() {
-                        // This looks like an OffscreenCanvas
-                        let w = width.to_u32(context).unwrap_or(0);
-                        let h = height.to_u32(context).unwrap_or(0);
-                        return Ok(StructuredCloneValue::TransferredOffscreenCanvas {
-                            width: w,
-                            height: h,
-                        });
-                    }
-                }
-            }
+        if let Ok(width) = obj.get(js_string!("width"), context)
+            && let Ok(height) = obj.get(js_string!("height"), context)
+            && let Ok(transfer_to) = obj.get(js_string!("transferToImageBitmap"), context)
+            && transfer_to.is_callable()
+        {
+            // This looks like an OffscreenCanvas
+            let w = width.to_u32(context).unwrap_or(0);
+            let h = height.to_u32(context).unwrap_or(0);
+            return Ok(StructuredCloneValue::TransferredOffscreenCanvas {
+                width: w,
+                height: h,
+            });
         }
 
         // Handle ReadableStream transfer (stub)
-        if let Ok(locked) = obj.get(js_string!("locked"), context) {
-            if let Ok(get_reader) = obj.get(js_string!("getReader"), context) {
-                if !locked.is_undefined() && get_reader.is_callable() {
-                    // This looks like a ReadableStream
-                    return Ok(StructuredCloneValue::TransferredReadableStream { stream_id: 0 });
-                }
-            }
+        if let Ok(locked) = obj.get(js_string!("locked"), context)
+            && let Ok(get_reader) = obj.get(js_string!("getReader"), context)
+            && !locked.is_undefined()
+            && get_reader.is_callable()
+        {
+            // This looks like a ReadableStream
+            return Ok(StructuredCloneValue::TransferredReadableStream { stream_id: 0 });
         }
 
         // Handle WritableStream transfer (stub)
-        if let Ok(locked) = obj.get(js_string!("locked"), context) {
-            if let Ok(get_writer) = obj.get(js_string!("getWriter"), context) {
-                if !locked.is_undefined() && get_writer.is_callable() {
-                    // This looks like a WritableStream
-                    return Ok(StructuredCloneValue::TransferredWritableStream { stream_id: 0 });
-                }
-            }
+        if let Ok(locked) = obj.get(js_string!("locked"), context)
+            && let Ok(get_writer) = obj.get(js_string!("getWriter"), context)
+            && !locked.is_undefined()
+            && get_writer.is_callable()
+        {
+            // This looks like a WritableStream
+            return Ok(StructuredCloneValue::TransferredWritableStream { stream_id: 0 });
         }
 
         Err(JsNativeError::typ()
@@ -625,25 +629,25 @@ impl StructuredClone {
                                 break;
                             }
                             let value = result_obj.get(js_string!("value"), context)?;
-                            if let Some(pair_obj) = value.as_object() {
-                                if pair_obj.is_array() {
-                                    let pair = JsArray::from_object(pair_obj.clone())?;
-                                    let key = pair.get(0, context)?;
-                                    let val = pair.get(1, context)?;
-                                    let cloned_key = Self::internal_structured_clone(
-                                        &key,
-                                        context,
-                                        memory,
-                                        transfer_list,
-                                    )?;
-                                    let cloned_val = Self::internal_structured_clone(
-                                        &val,
-                                        context,
-                                        memory,
-                                        transfer_list,
-                                    )?;
-                                    entries.push((cloned_key, cloned_val));
-                                }
+                            if let Some(pair_obj) = value.as_object()
+                                && pair_obj.is_array()
+                            {
+                                let pair = JsArray::from_object(pair_obj.clone())?;
+                                let key = pair.get(0, context)?;
+                                let val = pair.get(1, context)?;
+                                let cloned_key = Self::internal_structured_clone(
+                                    &key,
+                                    context,
+                                    memory,
+                                    transfer_list,
+                                )?;
+                                let cloned_val = Self::internal_structured_clone(
+                                    &val,
+                                    context,
+                                    memory,
+                                    transfer_list,
+                                )?;
+                                entries.push((cloned_key, cloned_val));
                             }
                         }
                     }

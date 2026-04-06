@@ -201,10 +201,10 @@ impl SlotChangeEventSystem {
 
             // Assign slottables to appropriate slots
             for slottable in &slottables {
-                if let Some(slot) = Self::find_slot_for_slottable(slottable, slots) {
-                    if let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>() {
-                        slot_data.assign_node(slottable.clone());
-                    }
+                if let Some(slot) = Self::find_slot_for_slottable(slottable, slots)
+                    && let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>()
+                {
+                    slot_data.assign_node(slottable.clone());
                 }
             }
         }
@@ -232,10 +232,10 @@ impl SlotChangeEventSystem {
             // assign to default slot (empty name)
             if slot_attribute.is_empty() {
                 for slot in slots {
-                    if let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>() {
-                        if slot_data.get_name().is_empty() {
-                            return Some(slot.clone());
-                        }
+                    if let Some(slot_data) = slot.downcast_ref::<HTMLSlotElementData>()
+                        && slot_data.get_name().is_empty()
+                    {
+                        return Some(slot.clone());
                     }
                 }
             }
@@ -401,7 +401,15 @@ impl SlotAssignmentTracker {
             pending_events: GcRefCell::new(HashSet::new()),
         }
     }
+}
 
+impl Default for SlotAssignmentTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SlotAssignmentTracker {
     /// Update assignments and track changes
     pub fn update_assignment(&self, slot: &JsObject, new_assignment: Vec<JsObject>) -> bool {
         let mut assignments = self.previous_assignments.borrow_mut();

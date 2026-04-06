@@ -314,7 +314,7 @@ impl Console {
     /// Format console arguments into a string
     fn format_args(args: &[JsValue]) -> String {
         args.iter()
-            .map(|arg| Self::value_to_string(arg))
+            .map(Self::value_to_string)
             .collect::<Vec<_>>()
             .join(" ")
     }

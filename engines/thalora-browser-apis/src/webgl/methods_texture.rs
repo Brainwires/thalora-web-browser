@@ -151,8 +151,9 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
                 let unit = state.active_texture - WebGLConstants::TEXTURE0;
                 if target == WebGLConstants::TEXTURE_2D {
                     state.texture_bindings_2d.get(&unit).copied()
-                } else if target >= WebGLConstants::TEXTURE_CUBE_MAP_POSITIVE_X
-                    && target <= WebGLConstants::TEXTURE_CUBE_MAP_NEGATIVE_Z
+                } else if (WebGLConstants::TEXTURE_CUBE_MAP_POSITIVE_X
+                    ..=WebGLConstants::TEXTURE_CUBE_MAP_NEGATIVE_Z)
+                    .contains(&target)
                 {
                     state.texture_bindings_cube.get(&unit).copied()
                 } else {
@@ -160,33 +161,34 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
                 }
             };
 
-            if let Some(tex_id) = texture_id {
-                if let Some(texture) = data.textures.lock().unwrap().get_mut(&tex_id) {
-                    if target >= WebGLConstants::TEXTURE_CUBE_MAP_POSITIVE_X
-                        && target <= WebGLConstants::TEXTURE_CUBE_MAP_NEGATIVE_Z
-                    {
-                        texture.tex_image_cube_face(
-                            target,
-                            level,
-                            internal_format,
-                            width,
-                            height,
-                            format,
-                            data_type,
-                            pixel_data.as_deref(),
-                        );
-                    } else {
-                        texture.tex_image_2d(
-                            target,
-                            level,
-                            internal_format,
-                            width,
-                            height,
-                            format,
-                            data_type,
-                            pixel_data.as_deref(),
-                        );
-                    }
+            if let Some(tex_id) = texture_id
+                && let Some(texture) = data.textures.lock().unwrap().get_mut(&tex_id)
+            {
+                if (WebGLConstants::TEXTURE_CUBE_MAP_POSITIVE_X
+                    ..=WebGLConstants::TEXTURE_CUBE_MAP_NEGATIVE_Z)
+                    .contains(&target)
+                {
+                    texture.tex_image_cube_face(
+                        target,
+                        level,
+                        internal_format,
+                        width,
+                        height,
+                        format,
+                        data_type,
+                        pixel_data.as_deref(),
+                    );
+                } else {
+                    texture.tex_image_2d(
+                        target,
+                        level,
+                        internal_format,
+                        width,
+                        height,
+                        format,
+                        data_type,
+                        pixel_data.as_deref(),
+                    );
                 }
             }
 
@@ -217,10 +219,10 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
                 }
             };
 
-            if let Some(tex_id) = texture_id {
-                if let Some(texture) = data.textures.lock().unwrap().get_mut(&tex_id) {
-                    texture.tex_parameter(pname, param);
-                }
+            if let Some(tex_id) = texture_id
+                && let Some(texture) = data.textures.lock().unwrap().get_mut(&tex_id)
+            {
+                texture.tex_parameter(pname, param);
             }
 
             Ok(JsValue::undefined())
@@ -248,10 +250,10 @@ pub fn add_texture_methods(obj: &JsObject, context: &mut Context) {
                 }
             };
 
-            if let Some(tex_id) = texture_id {
-                if let Some(texture) = data.textures.lock().unwrap().get_mut(&tex_id) {
-                    texture.generate_mipmap();
-                }
+            if let Some(tex_id) = texture_id
+                && let Some(texture) = data.textures.lock().unwrap().get_mut(&tex_id)
+            {
+                texture.generate_mipmap();
             }
 
             Ok(JsValue::undefined())
@@ -332,10 +334,10 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
 
             let fb_id = data.state.lock().unwrap().bound_framebuffer;
 
-            if let Some(fb_id) = fb_id {
-                if let Some(fb) = data.framebuffers.lock().unwrap().get(&fb_id) {
-                    return Ok(JsValue::from(fb.check_status()));
-                }
+            if let Some(fb_id) = fb_id
+                && let Some(fb) = data.framebuffers.lock().unwrap().get(&fb_id)
+            {
+                return Ok(JsValue::from(fb.check_status()));
             }
 
             // Default framebuffer is always complete
@@ -360,17 +362,18 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
 
             let fb_id = data.state.lock().unwrap().bound_framebuffer;
 
-            if let Some(fb_id) = fb_id {
-                if let Some(fb) = data.framebuffers.lock().unwrap().get_mut(&fb_id) {
-                    let face = if tex_target >= WebGLConstants::TEXTURE_CUBE_MAP_POSITIVE_X
-                        && tex_target <= WebGLConstants::TEXTURE_CUBE_MAP_NEGATIVE_Z
-                    {
-                        Some(tex_target)
-                    } else {
-                        None
-                    };
-                    fb.attach_texture(attachment, texture_id, level, face);
-                }
+            if let Some(fb_id) = fb_id
+                && let Some(fb) = data.framebuffers.lock().unwrap().get_mut(&fb_id)
+            {
+                let face = if (WebGLConstants::TEXTURE_CUBE_MAP_POSITIVE_X
+                    ..=WebGLConstants::TEXTURE_CUBE_MAP_NEGATIVE_Z)
+                    .contains(&tex_target)
+                {
+                    Some(tex_target)
+                } else {
+                    None
+                };
+                fb.attach_texture(attachment, texture_id, level, face);
             }
 
             Ok(JsValue::undefined())
@@ -434,10 +437,10 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
 
             let rb_id = data.state.lock().unwrap().bound_renderbuffer;
 
-            if let Some(rb_id) = rb_id {
-                if let Some(rb) = data.renderbuffers.lock().unwrap().get_mut(&rb_id) {
-                    rb.storage(internal_format, width, height);
-                }
+            if let Some(rb_id) = rb_id
+                && let Some(rb) = data.renderbuffers.lock().unwrap().get_mut(&rb_id)
+            {
+                rb.storage(internal_format, width, height);
             }
 
             Ok(JsValue::undefined())
@@ -460,10 +463,10 @@ pub fn add_framebuffer_methods(obj: &JsObject, context: &mut Context) {
 
             let fb_id = data.state.lock().unwrap().bound_framebuffer;
 
-            if let Some(fb_id) = fb_id {
-                if let Some(fb) = data.framebuffers.lock().unwrap().get_mut(&fb_id) {
-                    fb.attach_renderbuffer(attachment, rb_id);
-                }
+            if let Some(fb_id) = fb_id
+                && let Some(fb) = data.framebuffers.lock().unwrap().get_mut(&fb_id)
+            {
+                fb.attach_renderbuffer(attachment, rb_id);
             }
 
             Ok(JsValue::undefined())

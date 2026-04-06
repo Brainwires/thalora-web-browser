@@ -126,13 +126,13 @@ impl ReadableStreamDefaultReader {
 
         let _reason = args.get_or_undefined(0);
 
-        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>() {
-            if let Some(mut stream_data) = reader_data
+        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>()
+            && let Some(mut stream_data) = reader_data
                 .stream
                 .downcast_mut::<super::readable_stream::ReadableStreamData>(
-            ) {
-                stream_data.state = super::readable_stream::StreamState::Closed;
-            }
+            )
+        {
+            stream_data.state = super::readable_stream::StreamState::Closed;
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
@@ -155,13 +155,13 @@ impl ReadableStreamDefaultReader {
             )
         })?;
 
-        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>() {
-            if let Some(mut stream_data) = reader_data
+        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamDefaultReaderData>()
+            && let Some(mut stream_data) = reader_data
                 .stream
                 .downcast_mut::<super::readable_stream::ReadableStreamData>(
-            ) {
-                stream_data.locked = false;
-            }
+            )
+        {
+            stream_data.locked = false;
         }
 
         Ok(JsValue::undefined())
@@ -295,38 +295,37 @@ impl ReadableStreamBYOBReader {
 
         let _view = args.get_or_undefined(0);
 
-        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>() {
-            if let Some(stream_data) = reader_data
+        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>()
+            && let Some(stream_data) = reader_data
                 .stream
                 .downcast_ref::<super::readable_stream::ReadableStreamData>()
-            {
-                match stream_data.state {
-                    super::readable_stream::StreamState::Closed => {
-                        let result_obj = JsObject::with_object_proto(context.intrinsics());
-                        result_obj.set(js_string!("value"), JsValue::undefined(), true, context)?;
-                        result_obj.set(js_string!("done"), JsValue::from(true), true, context)?;
-                        let promise_constructor =
-                            context.intrinsics().constructors().promise().constructor();
-                        return boa_engine::builtins::promise::Promise::resolve(
-                            &promise_constructor.into(),
-                            &[JsValue::from(result_obj)],
-                            context,
-                        );
-                    }
-                    _ => {
-                        // For BYOB reader, we'd need to handle the view parameter properly
-                        // This is a simplified implementation
-                        let result_obj = JsObject::with_object_proto(context.intrinsics());
-                        result_obj.set(js_string!("value"), _view.clone(), true, context)?;
-                        result_obj.set(js_string!("done"), JsValue::from(false), true, context)?;
-                        let promise_constructor =
-                            context.intrinsics().constructors().promise().constructor();
-                        return boa_engine::builtins::promise::Promise::resolve(
-                            &promise_constructor.into(),
-                            &[JsValue::from(result_obj)],
-                            context,
-                        );
-                    }
+        {
+            match stream_data.state {
+                super::readable_stream::StreamState::Closed => {
+                    let result_obj = JsObject::with_object_proto(context.intrinsics());
+                    result_obj.set(js_string!("value"), JsValue::undefined(), true, context)?;
+                    result_obj.set(js_string!("done"), JsValue::from(true), true, context)?;
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    return boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::from(result_obj)],
+                        context,
+                    );
+                }
+                _ => {
+                    // For BYOB reader, we'd need to handle the view parameter properly
+                    // This is a simplified implementation
+                    let result_obj = JsObject::with_object_proto(context.intrinsics());
+                    result_obj.set(js_string!("value"), _view.clone(), true, context)?;
+                    result_obj.set(js_string!("done"), JsValue::from(false), true, context)?;
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    return boa_engine::builtins::promise::Promise::resolve(
+                        &promise_constructor.into(),
+                        &[JsValue::from(result_obj)],
+                        context,
+                    );
                 }
             }
         }
@@ -348,13 +347,13 @@ impl ReadableStreamBYOBReader {
 
         let _reason = args.get_or_undefined(0);
 
-        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>() {
-            if let Some(mut stream_data) = reader_data
+        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>()
+            && let Some(mut stream_data) = reader_data
                 .stream
                 .downcast_mut::<super::readable_stream::ReadableStreamData>(
-            ) {
-                stream_data.state = super::readable_stream::StreamState::Closed;
-            }
+            )
+        {
+            stream_data.state = super::readable_stream::StreamState::Closed;
         }
 
         let promise_constructor = context.intrinsics().constructors().promise().constructor();
@@ -376,13 +375,13 @@ impl ReadableStreamBYOBReader {
                 .with_message("ReadableStreamBYOBReader.prototype.releaseLock called on non-object")
         })?;
 
-        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>() {
-            if let Some(mut stream_data) = reader_data
+        if let Some(reader_data) = this_obj.downcast_ref::<ReadableStreamBYOBReaderData>()
+            && let Some(mut stream_data) = reader_data
                 .stream
                 .downcast_mut::<super::readable_stream::ReadableStreamData>(
-            ) {
-                stream_data.locked = false;
-            }
+            )
+        {
+            stream_data.locked = false;
         }
 
         Ok(JsValue::undefined())

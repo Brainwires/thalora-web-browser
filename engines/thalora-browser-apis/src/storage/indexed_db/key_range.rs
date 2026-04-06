@@ -81,10 +81,8 @@ impl IDBKeyRange {
                 if key <= lower {
                     return false;
                 }
-            } else {
-                if key < lower {
-                    return false;
-                }
+            } else if key < lower {
+                return false;
             }
         }
 
@@ -94,10 +92,8 @@ impl IDBKeyRange {
                 if key >= upper {
                     return false;
                 }
-            } else {
-                if key > upper {
-                    return false;
-                }
+            } else if key > upper {
+                return false;
             }
         }
 

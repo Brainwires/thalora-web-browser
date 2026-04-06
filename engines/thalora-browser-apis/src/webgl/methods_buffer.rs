@@ -105,28 +105,27 @@ pub fn add_buffer_methods(obj: &JsObject, context: &mut Context) {
                 }
             } else if let Some(obj) = buf_data_arg.as_object() {
                 // Try to get typed array data
-                if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx) {
-                    if let Some(ab) = buffer_prop
+                if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx)
+                    && let Some(ab) = buffer_prop
                         .as_object()
                         .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
-                    {
-                        let byte_offset = obj
-                            .get(js_string!("byteOffset"), ctx)
-                            .ok()
-                            .and_then(|v| v.to_index(ctx).ok())
-                            .unwrap_or(0) as usize;
-                        let byte_length = obj
-                            .get(js_string!("byteLength"), ctx)
-                            .ok()
-                            .and_then(|v| v.to_index(ctx).ok())
-                            .unwrap_or(0) as usize;
+                {
+                    let byte_offset = obj
+                        .get(js_string!("byteOffset"), ctx)
+                        .ok()
+                        .and_then(|v| v.to_index(ctx).ok())
+                        .unwrap_or(0) as usize;
+                    let byte_length = obj
+                        .get(js_string!("byteLength"), ctx)
+                        .ok()
+                        .and_then(|v| v.to_index(ctx).ok())
+                        .unwrap_or(0) as usize;
 
-                        let data_ref = ab.data().expect("ArrayBuffer has no data");
-                        let full_buf: Vec<u8> = (*data_ref).to_vec();
-                        let slice = &full_buf[byte_offset..byte_offset + byte_length];
-                        if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
-                            buffer.set_data(slice, usage);
-                        }
+                    let data_ref = ab.data().expect("ArrayBuffer has no data");
+                    let full_buf: Vec<u8> = (*data_ref).to_vec();
+                    let slice = &full_buf[byte_offset..byte_offset + byte_length];
+                    if let Some(buffer) = data.buffers.lock().unwrap().get_mut(&buffer_id) {
+                        buffer.set_data(slice, usage);
                     }
                 }
             }

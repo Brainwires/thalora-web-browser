@@ -136,10 +136,10 @@ pub fn get_object_id(val: &JsValue, ctx: &mut Context) -> JsResult<u32> {
         return Ok(0);
     }
 
-    if let Some(obj) = val.as_object() {
-        if let Ok(id_val) = obj.get(js_string!("_id"), ctx) {
-            return id_val.to_u32(ctx);
-        }
+    if let Some(obj) = val.as_object()
+        && let Ok(id_val) = obj.get(js_string!("_id"), ctx)
+    {
+        return id_val.to_u32(ctx);
     }
 
     Ok(0)

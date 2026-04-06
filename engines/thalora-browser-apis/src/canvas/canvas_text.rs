@@ -122,10 +122,10 @@ pub fn parse_css_font(font_str: &str) -> ParsedFont {
                 "bolder" => result.weight = 700,
                 "lighter" => result.weight = 300,
                 other => {
-                    if let Ok(w) = other.parse::<u16>() {
-                        if (1..=1000).contains(&w) {
-                            result.weight = w;
-                        }
+                    if let Ok(w) = other.parse::<u16>()
+                        && (1..=1000).contains(&w)
+                    {
+                        result.weight = w;
                     }
                 }
             }
@@ -554,43 +554,42 @@ pub fn render_text(
             if ttf_face
                 .outline_glyph(glyph_id, &mut outline_builder)
                 .is_some()
+                && let Some(glyph_path) = outline_builder.builder.finish()
             {
-                if let Some(glyph_path) = outline_builder.builder.finish() {
-                    // Translate glyph to its position
-                    let glyph_transform = Transform::from_translate(
-                        start_x + glyph_x * h_scale,
-                        start_y - ascender + glyph_y,
-                    );
-                    // Apply h_scale for maxWidth compression
-                    let glyph_transform = if (h_scale - 1.0).abs() > f32::EPSILON {
-                        glyph_transform.post_scale(h_scale, 1.0)
-                    } else {
-                        glyph_transform
-                    };
+                // Translate glyph to its position
+                let glyph_transform = Transform::from_translate(
+                    start_x + glyph_x * h_scale,
+                    start_y - ascender + glyph_y,
+                );
+                // Apply h_scale for maxWidth compression
+                let glyph_transform = if (h_scale - 1.0).abs() > f32::EPSILON {
+                    glyph_transform.post_scale(h_scale, 1.0)
+                } else {
+                    glyph_transform
+                };
 
-                    if let Some(transformed) = glyph_path.transform(glyph_transform) {
-                        // Merge into combined path by iterating segments
-                        for segment in transformed.segments() {
-                            match segment {
-                                tiny_skia::PathSegment::MoveTo(p) => {
-                                    combined.move_to(p.x, p.y);
-                                }
-                                tiny_skia::PathSegment::LineTo(p) => {
-                                    combined.line_to(p.x, p.y);
-                                }
-                                tiny_skia::PathSegment::QuadTo(p1, p) => {
-                                    combined.quad_to(p1.x, p1.y, p.x, p.y);
-                                }
-                                tiny_skia::PathSegment::CubicTo(p1, p2, p) => {
-                                    combined.cubic_to(p1.x, p1.y, p2.x, p2.y, p.x, p.y);
-                                }
-                                tiny_skia::PathSegment::Close => {
-                                    combined.close();
-                                }
+                if let Some(transformed) = glyph_path.transform(glyph_transform) {
+                    // Merge into combined path by iterating segments
+                    for segment in transformed.segments() {
+                        match segment {
+                            tiny_skia::PathSegment::MoveTo(p) => {
+                                combined.move_to(p.x, p.y);
+                            }
+                            tiny_skia::PathSegment::LineTo(p) => {
+                                combined.line_to(p.x, p.y);
+                            }
+                            tiny_skia::PathSegment::QuadTo(p1, p) => {
+                                combined.quad_to(p1.x, p1.y, p.x, p.y);
+                            }
+                            tiny_skia::PathSegment::CubicTo(p1, p2, p) => {
+                                combined.cubic_to(p1.x, p1.y, p2.x, p2.y, p.x, p.y);
+                            }
+                            tiny_skia::PathSegment::Close => {
+                                combined.close();
                             }
                         }
-                        has_glyphs = true;
                     }
+                    has_glyphs = true;
                 }
             }
 
@@ -611,15 +610,14 @@ pub fn render_text(
                 paint.anti_alias = true;
 
                 // Apply global alpha
-                if state.current.global_alpha < 1.0 {
-                    if let super::canvas_state::CanvasStyle::Color(ref c) = state.current.fill_style
+                if state.current.global_alpha < 1.0
+                    && let super::canvas_state::CanvasStyle::Color(ref c) = state.current.fill_style
+                {
+                    let new_alpha = (c.alpha() * state.current.global_alpha).min(1.0);
+                    if let Some(color) =
+                        tiny_skia::Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
                     {
-                        let new_alpha = (c.alpha() * state.current.global_alpha).min(1.0);
-                        if let Some(color) =
-                            tiny_skia::Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
-                        {
-                            paint.set_color(color);
-                        }
+                        paint.set_color(color);
                     }
                 }
 
@@ -635,16 +633,15 @@ pub fn render_text(
                 let mut paint = state.current.stroke_style.to_paint();
                 paint.anti_alias = true;
 
-                if state.current.global_alpha < 1.0 {
-                    if let super::canvas_state::CanvasStyle::Color(ref c) =
+                if state.current.global_alpha < 1.0
+                    && let super::canvas_state::CanvasStyle::Color(ref c) =
                         state.current.stroke_style
+                {
+                    let new_alpha = (c.alpha() * state.current.global_alpha).min(1.0);
+                    if let Some(color) =
+                        tiny_skia::Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
                     {
-                        let new_alpha = (c.alpha() * state.current.global_alpha).min(1.0);
-                        if let Some(color) =
-                            tiny_skia::Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
-                        {
-                            paint.set_color(color);
-                        }
+                        paint.set_color(color);
                     }
                 }
 

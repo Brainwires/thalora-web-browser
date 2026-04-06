@@ -28,9 +28,18 @@ static NODE_ID_COUNTER: AtomicU32 = AtomicU32::new(1);
 /// Global DOM synchronization for updating document HTML content
 pub static GLOBAL_DOM_SYNC: OnceLock<DomSync> = OnceLock::new();
 
+/// Type alias for the document HTML updater callback
+type DocumentHtmlUpdater = Box<dyn Fn(&str) + Send + Sync>;
+
 /// Bridge between Element DOM changes and Document HTML content
 pub struct DomSync {
-    document_html_updater: Mutex<Option<Box<dyn Fn(&str) + Send + Sync>>>,
+    document_html_updater: Mutex<Option<DocumentHtmlUpdater>>,
+}
+
+impl Default for DomSync {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DomSync {
@@ -47,7 +56,6 @@ impl DomSync {
     fn update_document_html(&self, html: &str) {
         if let Some(updater) = self.document_html_updater.lock().unwrap().as_ref() {
             updater(html);
-        } else {
         }
     }
 }
@@ -501,6 +509,12 @@ pub struct DOMRect {
     pub left: f64,
 }
 
+impl Default for CSSStyleDeclaration {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CSSStyleDeclaration {
     pub fn new() -> Self {
         Self {
@@ -580,10 +594,8 @@ impl CSSStyleDeclaration {
 
     fn compute_color_value(&self, value: &str) -> String {
         // Parse and normalize color values
-        if value.starts_with("#") {
-            value.to_string() // Hex color
-        } else if value.starts_with("rgb") {
-            value.to_string() // RGB/RGBA color
+        if value.starts_with("#") || value.starts_with("rgb") {
+            value.to_string() // Hex color or RGB/RGBA color
         } else {
             // Named colors or invalid - normalize to hex
             match value {
@@ -821,7 +833,7 @@ impl ElementData {
         // but then we were overwriting the ENTIRE document with just that element's HTML.
 
         // Get access to the Document's HTML content through the global sync
-        let _dom_sync = GLOBAL_DOM_SYNC.get_or_init(|| DomSync::new());
+        let _dom_sync = GLOBAL_DOM_SYNC.get_or_init(DomSync::new);
 
         // Instead of overwriting the entire document with just this element,
         // we need to tell the document that this specific element has changed.
@@ -1049,15 +1061,15 @@ impl ElementData {
             }
 
             // Update siblings to point to new child
-            if index > 0 {
-                if let Some(prev_data) = children[index - 1].downcast_ref::<ElementData>() {
-                    prev_data.set_next_sibling(Some(new_child.clone()));
-                }
+            if index > 0
+                && let Some(prev_data) = children[index - 1].downcast_ref::<ElementData>()
+            {
+                prev_data.set_next_sibling(Some(new_child.clone()));
             }
-            if index < children.len() - 1 {
-                if let Some(next_data) = children[index + 1].downcast_ref::<ElementData>() {
-                    next_data.set_previous_sibling(Some(new_child.clone()));
-                }
+            if index < children.len() - 1
+                && let Some(next_data) = children[index + 1].downcast_ref::<ElementData>()
+            {
+                next_data.set_previous_sibling(Some(new_child.clone()));
             }
 
             children[index] = new_child;
@@ -1076,10 +1088,10 @@ impl ElementData {
             if JsObject::equals(child, other) {
                 return true;
             }
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                if child_data.contains_node(other) {
-                    return true;
-                }
+            if let Some(child_data) = child.downcast_ref::<ElementData>()
+                && child_data.contains_node(other)
+            {
+                return true;
             }
         }
         false
@@ -1093,10 +1105,10 @@ impl ElementData {
         }
 
         // Check parent
-        if let Some(parent) = self.get_parent_node() {
-            if let Some(parent_data) = parent.downcast_ref::<ElementData>() {
-                return parent_data.find_closest(selector, &parent);
-            }
+        if let Some(parent) = self.get_parent_node()
+            && let Some(parent_data) = parent.downcast_ref::<ElementData>()
+        {
+            return parent_data.find_closest(selector, &parent);
         }
 
         None
@@ -1160,7 +1172,7 @@ impl ElementData {
             .lock()
             .unwrap()
             .entry(event_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(listener);
     }
 
@@ -1227,7 +1239,7 @@ impl ElementData {
                 if listener.is_callable() {
                     let _ = listener.as_callable().unwrap().call(
                         &JsValue::undefined(),
-                        &[event_data.clone()],
+                        std::slice::from_ref(event_data),
                         context,
                     );
                 }
@@ -1287,10 +1299,8 @@ impl ElementData {
     fn parse_length_value(&self, value: &str) -> Option<f64> {
         if let Some(px_value) = value.strip_suffix("px") {
             px_value.parse().ok()
-        } else if let Ok(num) = value.parse::<f64>() {
-            Some(num) // Treat unitless as pixels
         } else {
-            None
+            value.parse::<f64>().ok()
         }
     }
 
@@ -1360,10 +1370,10 @@ impl ElementData {
         // Recursively search children
         let children = self.children.lock().unwrap();
         for child in children.iter() {
-            if let Some(child_data) = child.downcast_ref::<ElementData>() {
-                if let Some(found) = child_data.find_element_by_id(id) {
-                    return Some(found);
-                }
+            if let Some(child_data) = child.downcast_ref::<ElementData>()
+                && let Some(found) = child_data.find_element_by_id(id)
+            {
+                return Some(found);
             }
         }
 
@@ -1373,17 +1383,15 @@ impl ElementData {
     /// CSS selector matching
     pub fn matches_selector(&self, selector: &str) -> bool {
         // Simple selector matching - real implementation would use CSS parser
-        if selector.starts_with('#') {
+        if let Some(id) = selector.strip_prefix('#') {
             // ID selector
-            let id = &selector[1..];
-            return self.get_id() == id;
-        } else if selector.starts_with('.') {
+            self.get_id() == id
+        } else if let Some(class) = selector.strip_prefix('.') {
             // Class selector
-            let class = &selector[1..];
-            return self.get_class_name().split_whitespace().any(|c| c == class);
+            self.get_class_name().split_whitespace().any(|c| c == class)
         } else {
             // Tag selector
-            return self.get_tag_name().to_lowercase() == selector.to_lowercase();
+            self.get_tag_name().to_lowercase() == selector.to_lowercase()
         }
     }
 
@@ -2167,7 +2175,7 @@ fn remove_event_listener(
     let event_type = args.get_or_undefined(0).to_string(context)?;
     let listener = args.get_or_undefined(1);
 
-    element.remove_event_listener(&event_type.to_std_string_escaped(), &listener);
+    element.remove_event_listener(&event_type.to_std_string_escaped(), listener);
     Ok(JsValue::undefined())
 }
 
@@ -2204,7 +2212,7 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
         if !event_type_value.is_undefined() {
             let event_type = event_type_value.to_string(context)?;
             let element = this_obj.downcast_ref::<ElementData>().unwrap();
-            element.dispatch_event(&event_type.to_std_string_escaped(), &event_arg, context)?;
+            element.dispatch_event(&event_type.to_std_string_escaped(), event_arg, context)?;
         }
         Ok(JsValue::from(true))
     }
@@ -2670,12 +2678,11 @@ fn get_child_nodes(this: &JsValue, _args: &[JsValue], context: &mut Context) -> 
     // Add item() method for NodeList compatibility
     let item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
         let index = args.get_or_undefined(0).to_u32(ctx)?;
-        if let Some(arr) = this.as_object() {
-            if let Ok(val) = arr.get(index, ctx) {
-                if !val.is_undefined() {
-                    return Ok(val);
-                }
-            }
+        if let Some(arr) = this.as_object()
+            && let Ok(val) = arr.get(index, ctx)
+            && !val.is_undefined()
+        {
+            return Ok(val);
         }
         Ok(JsValue::null())
     })

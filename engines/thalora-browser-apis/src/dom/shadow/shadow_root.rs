@@ -308,11 +308,7 @@ impl ShadowRootData {
     /// Get related target for focus events (simplified)
     pub fn retarget_related_target(&self, related_target: Option<JsObject>) -> Option<JsObject> {
         // In focus/blur events, related_target also needs retargeting
-        if let Some(rt) = related_target {
-            Some(self.retarget_event(rt))
-        } else {
-            None
-        }
+        related_target.map(|rt| self.retarget_event(rt))
     }
 }
 
@@ -710,7 +706,7 @@ impl IntrinsicObject for ShadowRoot {
             .name(js_string!("set innerHTML"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Properties
             .accessor(
                 js_string!("mode"),
@@ -777,8 +773,8 @@ impl BuiltInConstructor for ShadowRoot {
     ) -> JsResult<JsValue> {
         // ShadowRoot constructor should not be called directly
         // ShadowRoot instances are created through Element.attachShadow()
-        return Err(JsNativeError::typ()
+        Err(JsNativeError::typ()
             .with_message("Illegal constructor")
-            .into());
+            .into())
     }
 }

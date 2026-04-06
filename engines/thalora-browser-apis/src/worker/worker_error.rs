@@ -237,18 +237,18 @@ impl WorkerErrorHandler {
             let global = context.global_object();
 
             // Check for onerror handler on global scope
-            if let Ok(onerror) = global.get(js_string!("onerror"), context) {
-                if let Some(onerror_fn) = onerror.as_callable() {
-                    // Call onerror with (message, filename, lineno, colno, error)
-                    let args = [
-                        JsValue::from(js_string!(error.message.clone())),
-                        JsValue::from(js_string!(error.filename.as_deref().unwrap_or(""))),
-                        JsValue::from(error.lineno.unwrap_or(0)),
-                        JsValue::from(error.colno.unwrap_or(0)),
-                        error_event_for_global.clone(),
-                    ];
-                    let _ = onerror_fn.call(&JsValue::undefined(), &args, context);
-                }
+            if let Ok(onerror) = global.get(js_string!("onerror"), context)
+                && let Some(onerror_fn) = onerror.as_callable()
+            {
+                // Call onerror with (message, filename, lineno, colno, error)
+                let args = [
+                    JsValue::from(js_string!(error.message.clone())),
+                    JsValue::from(js_string!(error.filename.as_deref().unwrap_or(""))),
+                    JsValue::from(error.lineno.unwrap_or(0)),
+                    JsValue::from(error.colno.unwrap_or(0)),
+                    error_event_for_global.clone(),
+                ];
+                let _ = onerror_fn.call(&JsValue::undefined(), &args, context);
             }
 
             eprintln!("Runtime error dispatched to worker and global scope");

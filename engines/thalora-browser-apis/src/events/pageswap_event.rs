@@ -282,27 +282,26 @@ pub fn dispatch_pageswap_event(
     let pageswap_event = create_pageswap_event(context, activation, view_transition)?;
 
     // Get event listeners for 'pageswap' from window
-    if let Ok(listeners_val) = window_obj.get(js_string!("__pageswap_listeners"), context) {
-        if listeners_val.is_object() {
-            if let Some(listeners_obj) = listeners_val.as_object() {
-                // Get the array of listeners
-                if let Ok(length_val) = listeners_obj.get(js_string!("length"), context) {
-                    if let Some(length) = length_val.as_number() {
-                        let len = length as usize;
+    if let Ok(listeners_val) = window_obj.get(js_string!("__pageswap_listeners"), context)
+        && listeners_val.is_object()
+        && let Some(listeners_obj) = listeners_val.as_object()
+    {
+        // Get the array of listeners
+        if let Ok(length_val) = listeners_obj.get(js_string!("length"), context)
+            && let Some(length) = length_val.as_number()
+        {
+            let len = length as usize;
 
-                        // Call each listener
-                        for i in 0..len {
-                            if let Ok(listener) = listeners_obj.get(i, context) {
-                                if listener.is_callable() {
-                                    let _ = listener.as_callable().unwrap().call(
-                                        &window_obj.clone().into(),
-                                        &[pageswap_event.clone()],
-                                        context,
-                                    );
-                                }
-                            }
-                        }
-                    }
+            // Call each listener
+            for i in 0..len {
+                if let Ok(listener) = listeners_obj.get(i, context)
+                    && listener.is_callable()
+                {
+                    let _ = listener.as_callable().unwrap().call(
+                        &window_obj.clone().into(),
+                        std::slice::from_ref(&pageswap_event),
+                        context,
+                    );
                 }
             }
         }

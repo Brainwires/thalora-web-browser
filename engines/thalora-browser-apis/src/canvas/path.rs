@@ -28,6 +28,12 @@ pub struct PathData {
     last_y: f32,
 }
 
+impl Default for PathData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PathData {
     pub fn new() -> Self {
         Self {
@@ -312,6 +318,12 @@ pub struct Path2DData {
     inner: Arc<Mutex<PathData>>,
 }
 
+impl Default for Path2DData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Path2DData {
     pub fn new() -> Self {
         Self {
@@ -419,22 +431,22 @@ fn add_path(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResul
         .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a Path2D"))?;
 
     let path = args.get_or_undefined(0);
-    if let Some(obj) = path.as_object() {
-        if let Some(other_data) = obj.downcast_ref::<Path2DData>() {
-            let other = other_data.get_path_data();
-            // TODO: Apply transform matrix if provided in args[1]
+    if let Some(obj) = path.as_object()
+        && let Some(other_data) = obj.downcast_ref::<Path2DData>()
+    {
+        let other = other_data.get_path_data();
+        // TODO: Apply transform matrix if provided in args[1]
 
-            // For now, we'll just copy the path operations
-            // A full implementation would merge the path builders
-            this_data.with_inner(|_data| {
-                // Copy the other path's builder
-                let other_builder = other.builder;
-                if let Some(path) = other_builder.finish() {
-                    // We can't easily merge paths in tiny-skia, so we'll skip for now
-                    let _ = path;
-                }
-            });
-        }
+        // For now, we'll just copy the path operations
+        // A full implementation would merge the path builders
+        this_data.with_inner(|_data| {
+            // Copy the other path's builder
+            let other_builder = other.builder;
+            if let Some(path) = other_builder.finish() {
+                // We can't easily merge paths in tiny-skia, so we'll skip for now
+                let _ = path;
+            }
+        });
     }
 
     Ok(JsValue::undefined())

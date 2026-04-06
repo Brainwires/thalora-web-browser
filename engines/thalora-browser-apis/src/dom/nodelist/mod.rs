@@ -248,7 +248,7 @@ impl NodeListData {
 
         // Create an array iterator over the indices
         let length = nodelist_data.length();
-        let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
+        let indices: Vec<JsValue> = (0..length).map(JsValue::new).collect();
         let array = boa_engine::builtins::array::Array::array_create(length as u64, None, context)?;
 
         for (i, index) in indices.iter().enumerate() {
@@ -417,7 +417,7 @@ impl NodeList {
         })?;
 
         let length = nodelist_data.length();
-        let indices: Vec<JsValue> = (0..length).map(|i| JsValue::new(i)).collect();
+        let indices: Vec<JsValue> = (0..length).map(JsValue::new).collect();
         let array = boa_engine::builtins::array::Array::array_create(length as u64, None, context)?;
 
         for (i, index) in indices.iter().enumerate() {
@@ -477,7 +477,7 @@ impl IntrinsicObject for NodeList {
             .name(js_string!("get length"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Methods
             .method(Self::item, js_string!("item"), 1)
             .method(Self::for_each, js_string!("forEach"), 1)

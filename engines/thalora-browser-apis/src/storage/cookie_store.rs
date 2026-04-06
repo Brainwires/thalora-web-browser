@@ -101,12 +101,11 @@ impl CookieStore {
 
     /// Load cookie storage from disk
     fn load_cookie_storage(storage_file: &PathBuf) -> CookieStorage {
-        if storage_file.exists() {
-            if let Ok(content) = fs::read_to_string(storage_file) {
-                if let Ok(storage) = serde_json::from_str::<CookieStorage>(&content) {
-                    return storage;
-                }
-            }
+        if storage_file.exists()
+            && let Ok(content) = fs::read_to_string(storage_file)
+            && let Ok(storage) = serde_json::from_str::<CookieStorage>(&content)
+        {
+            return storage;
         }
         CookieStorage {
             cookies: HashMap::new(),
@@ -472,7 +471,7 @@ impl CookieStore {
             (name, value, None, None, false, false, None)
         };
 
-        let domain = domain.unwrap_or_else(|| Self::get_current_domain());
+        let domain = domain.unwrap_or_else(Self::get_current_domain);
 
         let cookie = Cookie {
             name: name.clone(),

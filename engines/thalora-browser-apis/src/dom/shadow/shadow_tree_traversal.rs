@@ -306,7 +306,6 @@ impl ShadowTreeTraversal {
     }
 
     /// Helper methods for node introspection
-
     fn get_parent_node(node: &JsObject) -> Option<JsObject> {
         if let Some(element_data) = node.downcast_ref::<ElementData>() {
             element_data.get_parent_node()
@@ -358,15 +357,13 @@ impl ShadowTreeTraversal {
             }
 
             // Simple class selector
-            if selector.starts_with('.') {
-                let class_selector = &selector[1..];
+            if let Some(class_selector) = selector.strip_prefix('.') {
                 let class_name = element_data.get_class_name();
                 return class_name.split_whitespace().any(|c| c == class_selector);
             }
 
             // Simple ID selector
-            if selector.starts_with('#') {
-                let id_selector = &selector[1..];
+            if let Some(id_selector) = selector.strip_prefix('#') {
                 return element_data.get_id() == id_selector;
             }
         }
@@ -389,17 +386,19 @@ impl ShadowTreeTraversal {
         }
 
         // Handle pseudo-class selectors
-        if trimmed.contains(':') && !trimmed.starts_with(':') {
-            if let Some(pseudo_result) = Self::parse_pseudo_class_selector(trimmed) {
-                return pseudo_result;
-            }
+        if trimmed.contains(':')
+            && !trimmed.starts_with(':')
+            && let Some(pseudo_result) = Self::parse_pseudo_class_selector(trimmed)
+        {
+            return pseudo_result;
         }
 
         // Handle attribute selectors
-        if trimmed.contains('[') && trimmed.contains(']') {
-            if let Some(attr_result) = Self::parse_attribute_selector(trimmed) {
-                return attr_result;
-            }
+        if trimmed.contains('[')
+            && trimmed.contains(']')
+            && let Some(attr_result) = Self::parse_attribute_selector(trimmed)
+        {
+            return attr_result;
         }
 
         // Handle compound selectors (multiple classes, id + class, etc.)
@@ -410,10 +409,10 @@ impl ShadowTreeTraversal {
         // Simple selectors
         if trimmed == "*" {
             ParsedCSSSelector::Universal
-        } else if trimmed.starts_with('#') {
-            ParsedCSSSelector::Id(trimmed[1..].to_string())
-        } else if trimmed.starts_with('.') {
-            ParsedCSSSelector::Class(trimmed[1..].to_string())
+        } else if let Some(stripped) = trimmed.strip_prefix('#') {
+            ParsedCSSSelector::Id(stripped.to_string())
+        } else if let Some(stripped) = trimmed.strip_prefix('.') {
+            ParsedCSSSelector::Class(stripped.to_string())
         } else if Self::is_valid_tag_name(trimmed) {
             ParsedCSSSelector::Element(trimmed.to_string())
         } else {
@@ -476,25 +475,25 @@ impl ShadowTreeTraversal {
 
     /// Parse attribute selectors [attr], [attr=value], [attr~=value], etc.
     fn parse_attribute_selector(selector: &str) -> Option<ParsedCSSSelector> {
-        if let Some(bracket_start) = selector.find('[') {
-            if let Some(bracket_end) = selector.rfind(']') {
-                let base = &selector[..bracket_start];
-                let attr_part = &selector[bracket_start + 1..bracket_end];
+        if let Some(bracket_start) = selector.find('[')
+            && let Some(bracket_end) = selector.rfind(']')
+        {
+            let base = &selector[..bracket_start];
+            let attr_part = &selector[bracket_start + 1..bracket_end];
 
-                let base_selector = if base.is_empty() {
-                    ParsedCSSSelector::Universal
-                } else {
-                    Self::parse_css_selector(base)
-                };
+            let base_selector = if base.is_empty() {
+                ParsedCSSSelector::Universal
+            } else {
+                Self::parse_css_selector(base)
+            };
 
-                // Parse attribute conditions
-                let attr_condition = Self::parse_attribute_condition(attr_part);
+            // Parse attribute conditions
+            let attr_condition = Self::parse_attribute_condition(attr_part);
 
-                return Some(ParsedCSSSelector::Attribute {
-                    base: Box::new(base_selector),
-                    attribute: attr_condition,
-                });
-            }
+            return Some(ParsedCSSSelector::Attribute {
+                base: Box::new(base_selector),
+                attribute: attr_condition,
+            });
         }
 
         None
@@ -572,15 +571,12 @@ impl ShadowTreeTraversal {
                     current.push(ch);
 
                     // Check if we're at the end or next char is a delimiter
-                    if chars
-                        .peek()
-                        .map_or(true, |&next| next == '#' || next == '.')
-                    {
+                    if chars.peek().is_none_or(|&next| next == '#' || next == '.') {
                         // Process current part
-                        if current.starts_with('#') {
-                            parts.push(ParsedCSSSelector::Id(current[1..].to_string()));
-                        } else if current.starts_with('.') {
-                            parts.push(ParsedCSSSelector::Class(current[1..].to_string()));
+                        if let Some(stripped) = current.strip_prefix('#') {
+                            parts.push(ParsedCSSSelector::Id(stripped.to_string()));
+                        } else if let Some(stripped) = current.strip_prefix('.') {
+                            parts.push(ParsedCSSSelector::Class(stripped.to_string()));
                         } else if Self::is_valid_tag_name(&current) {
                             parts.push(ParsedCSSSelector::Element(current.clone()));
                         }
@@ -785,7 +781,7 @@ impl ShadowTreeTraversal {
             let children = Self::get_child_nodes(&parent);
             children
                 .first()
-                .map_or(false, |first| JsObject::equals(first, element))
+                .is_some_and(|first| JsObject::equals(first, element))
         } else {
             false
         }
@@ -796,7 +792,7 @@ impl ShadowTreeTraversal {
             let children = Self::get_child_nodes(&parent);
             children
                 .last()
-                .map_or(false, |last| JsObject::equals(last, element))
+                .is_some_and(|last| JsObject::equals(last, element))
         } else {
             false
         }

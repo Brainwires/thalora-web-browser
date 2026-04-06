@@ -46,6 +46,12 @@ pub struct RangeData {
     common_ancestor_container: Option<JsValue>,
 }
 
+impl Default for RangeData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RangeData {
     pub fn new() -> Self {
         Self {
@@ -137,11 +143,9 @@ impl RangeData {
                 self.end_container = Some(start_node.clone());
                 self.end_offset = self.start_offset;
             }
-        } else {
-            if let Some(end_node) = &self.end_container {
-                self.start_container = Some(end_node.clone());
-                self.start_offset = self.end_offset;
-            }
+        } else if let Some(end_node) = &self.end_container {
+            self.start_container = Some(end_node.clone());
+            self.start_offset = self.end_offset;
         }
 
         self.update_state();
@@ -1088,10 +1092,7 @@ fn intersects_node(this: &JsValue, args: &[JsValue], _: &mut Context) -> JsResul
     {
         start == node
             || end == node
-            || range_data
-                .common_ancestor_container
-                .as_ref()
-                .map_or(false, |ca| ca == node)
+            || (range_data.common_ancestor_container.as_ref() == Some(node))
     } else {
         false
     };

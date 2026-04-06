@@ -117,6 +117,12 @@ pub struct HTMLDialogElementData {
     return_value: String,
 }
 
+impl Default for HTMLDialogElementData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLDialogElementData {
     pub fn new() -> Self {
         Self {

@@ -89,6 +89,12 @@ pub struct AbortSignalData {
     reason: JsValue,
 }
 
+impl Default for AbortSignalData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AbortSignalData {
     pub fn new() -> Self {
         Self {
@@ -219,19 +225,13 @@ fn any_static(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
         if let Ok(length) = signals_obj.get(js_string!("length"), context) {
             let len = length.to_u32(context)?;
             for i in 0..len {
-                if let Ok(signal_val) = signals_obj.get(i, context) {
-                    if let Some(signal_obj) = signal_val.as_object() {
-                        if let Some(signal_data) = signal_obj.downcast_ref::<AbortSignalData>() {
-                            if signal_data.is_aborted() {
-                                // Return an already-aborted signal with the same reason
-                                return Ok(create_aborted_signal(
-                                    signal_data.reason.clone(),
-                                    context,
-                                )?
-                                .into());
-                            }
-                        }
-                    }
+                if let Ok(signal_val) = signals_obj.get(i, context)
+                    && let Some(signal_obj) = signal_val.as_object()
+                    && let Some(signal_data) = signal_obj.downcast_ref::<AbortSignalData>()
+                    && signal_data.is_aborted()
+                {
+                    // Return an already-aborted signal with the same reason
+                    return Ok(create_aborted_signal(signal_data.reason.clone(), context)?.into());
                 }
             }
         }

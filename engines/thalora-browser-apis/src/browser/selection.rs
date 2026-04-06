@@ -533,13 +533,11 @@ fn get_range_at(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
         if let (Some(anchor), Some(focus)) = (
             selection_data.get_anchor_node(),
             selection_data.get_focus_node(),
-        ) {
-            if let Some(mut range_data_ref) =
-                range_generic.downcast_mut::<crate::dom::range::RangeData>()
-            {
-                let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
-                let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
-            }
+        ) && let Some(mut range_data_ref) =
+            range_generic.downcast_mut::<crate::dom::range::RangeData>()
+        {
+            let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
+            let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
         }
 
         Ok(range_generic.into())
@@ -585,13 +583,11 @@ fn get_composed_ranges(
         if let (Some(anchor), Some(focus)) = (
             selection_data.get_anchor_node(),
             selection_data.get_focus_node(),
-        ) {
-            if let Some(mut range_data_ref) =
-                range_generic.downcast_mut::<crate::dom::range::RangeData>()
-            {
-                let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
-                let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
-            }
+        ) && let Some(mut range_data_ref) =
+            range_generic.downcast_mut::<crate::dom::range::RangeData>()
+        {
+            let _ = range_data_ref.set_start(anchor, selection_data.get_anchor_offset());
+            let _ = range_data_ref.set_end(focus, selection_data.get_focus_offset());
         }
 
         composed_ranges.push(range_generic.into());
@@ -599,36 +595,36 @@ fn get_composed_ranges(
         // Enhanced Shadow DOM support
         if !shadow_roots.is_null() && !shadow_roots.is_undefined() {
             // Check if shadow_roots is an array
-            if let Some(shadow_roots_obj) = shadow_roots.as_object() {
-                if shadow_roots_obj.is_array() {
-                    // Process each shadow root for additional ranges
-                    // In a real implementation, this would:
-                    // 1. Traverse each shadow root's DOM tree
-                    // 2. Find intersections with the main selection
-                    // 3. Create Range objects for each shadow tree segment
-                    // 4. Handle slotted content and distribution
+            if let Some(shadow_roots_obj) = shadow_roots.as_object()
+                && shadow_roots_obj.is_array()
+            {
+                // Process each shadow root for additional ranges
+                // In a real implementation, this would:
+                // 1. Traverse each shadow root's DOM tree
+                // 2. Find intersections with the main selection
+                // 3. Create Range objects for each shadow tree segment
+                // 4. Handle slotted content and distribution
 
-                    eprintln!(
-                        "Selection.getComposedRanges: Processing {} shadow roots",
-                        shadow_roots_obj
-                            .get(js_string!("length"), context)?
-                            .to_integer_or_infinity(context)?
-                            .as_integer()
-                            .unwrap_or(0)
+                eprintln!(
+                    "Selection.getComposedRanges: Processing {} shadow roots",
+                    shadow_roots_obj
+                        .get(js_string!("length"), context)?
+                        .to_integer_or_infinity(context)?
+                        .as_integer()
+                        .unwrap_or(0)
+                );
+
+                // For now, we'll create placeholder ranges for demonstration
+                // In reality, these would be computed based on shadow tree analysis
+                for _i in 0..1 {
+                    // Placeholder: one additional range per shadow root
+                    let shadow_range_data = crate::dom::range::RangeData::new();
+                    let shadow_range_obj = JsObject::from_proto_and_data_with_shared_shape(
+                        context.root_shape(),
+                        range_prototype.clone(),
+                        shadow_range_data,
                     );
-
-                    // For now, we'll create placeholder ranges for demonstration
-                    // In reality, these would be computed based on shadow tree analysis
-                    for _i in 0..1 {
-                        // Placeholder: one additional range per shadow root
-                        let shadow_range_data = crate::dom::range::RangeData::new();
-                        let shadow_range_obj = JsObject::from_proto_and_data_with_shared_shape(
-                            context.root_shape(),
-                            range_prototype.clone(),
-                            shadow_range_data,
-                        );
-                        composed_ranges.push(shadow_range_obj.into());
-                    }
+                    composed_ranges.push(shadow_range_obj.into());
                 }
             }
         }

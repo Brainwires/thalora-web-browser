@@ -58,6 +58,12 @@ pub struct SelectionInDOMTree {
     is_directional: bool,
 }
 
+impl Default for SelectionInDOMTree {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SelectionInDOMTree {
     pub fn new() -> Self {
         Self {
@@ -130,6 +136,12 @@ pub struct SelectionOptionsBuilder {
     should_shrink_next_tap: bool,
     is_directional: bool,
     do_not_set_focus: bool,
+}
+
+impl Default for SelectionOptionsBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SelectionOptionsBuilder {

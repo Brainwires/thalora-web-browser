@@ -36,7 +36,7 @@ fn json_stringify(value: &JsValue, context: &mut Context) -> JsResult<String> {
         .as_callable()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON.stringify is not callable"))?;
 
-    let result = stringify_fn.call(&JsValue::undefined(), &[value.clone()], context)?;
+    let result = stringify_fn.call(&JsValue::undefined(), std::slice::from_ref(value), context)?;
     Ok(result.to_string(context)?.to_std_string_escaped())
 }
 
@@ -443,14 +443,12 @@ impl IDBObjectStore {
         })?;
 
         // Parse key range (if provided)
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             // Try to parse as IDBKeyRange
             if let Some(range_obj) = args[0].as_object() {
-                if let Some(range) = range_obj.downcast_ref::<IDBKeyRange>() {
-                    Some(range.clone())
-                } else {
-                    None
-                }
+                range_obj
+                    .downcast_ref::<IDBKeyRange>()
+                    .map(|range| range.clone())
             } else {
                 None
             }
@@ -500,7 +498,7 @@ impl IDBObjectStore {
         })?;
 
         // Parse range and count
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             if let Some(range_obj) = args[0].as_object() {
                 range_obj
                     .downcast_ref::<IDBKeyRange>()
@@ -571,7 +569,7 @@ impl IDBObjectStore {
         })?;
 
         // Parse optional range
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             // Try to parse as key or key range
             if args[0].is_object() {
                 // Check if it's an IDBKeyRange

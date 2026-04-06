@@ -255,11 +255,13 @@ impl CanvasState {
 
     /// Get the current stroke settings
     pub fn get_stroke(&self) -> Stroke {
-        let mut stroke = Stroke::default();
-        stroke.width = self.current.line_width;
-        stroke.line_cap = self.current.line_cap;
-        stroke.line_join = self.current.line_join;
-        stroke.miter_limit = self.current.miter_limit;
+        let mut stroke = Stroke {
+            width: self.current.line_width,
+            line_cap: self.current.line_cap,
+            line_join: self.current.line_join,
+            miter_limit: self.current.miter_limit,
+            ..Stroke::default()
+        };
         if !self.current.line_dash.is_empty() {
             stroke.dash = tiny_skia::StrokeDash::new(
                 self.current.line_dash.clone(),
@@ -383,14 +385,14 @@ impl CanvasState {
             paint.anti_alias = true;
 
             // Apply global alpha
-            if self.current.global_alpha < 1.0 {
-                if let CanvasStyle::Color(ref c) = self.current.stroke_style {
-                    let new_alpha = (c.alpha() * self.current.global_alpha).min(1.0);
-                    paint.set_color(
-                        Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
-                            .unwrap_or(Color::BLACK),
-                    );
-                }
+            if self.current.global_alpha < 1.0
+                && let CanvasStyle::Color(ref c) = self.current.stroke_style
+            {
+                let new_alpha = (c.alpha() * self.current.global_alpha).min(1.0);
+                paint.set_color(
+                    Color::from_rgba(c.red(), c.green(), c.blue(), new_alpha)
+                        .unwrap_or(Color::BLACK),
+                );
             }
 
             let stroke = self.get_stroke();
@@ -502,12 +504,11 @@ impl CanvasState {
                         let pb = (b as u16 * a as u16 / 255) as u8;
 
                         let dest_idx = (dest_y * pixmap_width + dest_x) as usize;
-                        if let Some(pixel) = self.pixmap.pixels_mut().get_mut(dest_idx) {
-                            if let Some(color) =
+                        if let Some(pixel) = self.pixmap.pixels_mut().get_mut(dest_idx)
+                            && let Some(color) =
                                 tiny_skia::PremultipliedColorU8::from_rgba(pr, pg, pb, a)
-                            {
-                                *pixel = color;
-                            }
+                        {
+                            *pixel = color;
                         }
                     }
                 }

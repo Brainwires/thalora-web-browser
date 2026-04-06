@@ -323,10 +323,10 @@ fn get_byte_size(this: &JsValue, _args: &[JsValue], context: &mut Context) -> Js
             let chunk = args.get_or_undefined(0);
 
             // Try to get byteLength property
-            if let Some(chunk_obj) = chunk.as_object() {
-                if let Ok(byte_length) = chunk_obj.get(js_string!("byteLength"), context) {
-                    return byte_length.to_number(context).map(JsValue::from);
-                }
+            if let Some(chunk_obj) = chunk.as_object()
+                && let Ok(byte_length) = chunk_obj.get(js_string!("byteLength"), context)
+            {
+                return byte_length.to_number(context).map(JsValue::from);
             }
 
             // Fallback: convert to string and get byte length

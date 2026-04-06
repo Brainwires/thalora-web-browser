@@ -73,7 +73,7 @@ impl WorkerExecutionContext {
         // Execute script based on worker type
         match self.worker_type.as_str() {
             "module" => self.execute_module_script(&script_content).await,
-            "classic" | _ => self.execute_classic_script(&script_content).await,
+            _ => self.execute_classic_script(&script_content).await,
         }
     }
 
@@ -397,7 +397,7 @@ impl WorkerExecutionContext {
                     source: MessageSource::MainThread,
                 };
 
-                if let Err(_) = sender.send(worker_msg) {
+                if sender.send(worker_msg).is_err() {
                     eprintln!("Failed to send message to worker global scope");
                 } else {
                     eprintln!("Structured cloned message sent to worker global scope");

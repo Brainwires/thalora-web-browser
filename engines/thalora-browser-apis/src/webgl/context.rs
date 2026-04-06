@@ -70,9 +70,11 @@ pub struct WebGLRenderingContextData {
 impl WebGLRenderingContextData {
     /// Create new context data
     pub fn new(width: u32, height: u32) -> Self {
-        let mut state = WebGLState::default();
-        state.viewport = [0, 0, width as i32, height as i32];
-        state.scissor = [0, 0, width as i32, height as i32];
+        let state = WebGLState {
+            viewport: [0, 0, width as i32, height as i32],
+            scissor: [0, 0, width as i32, height as i32],
+            ..WebGLState::default()
+        };
 
         let render_target = vec![0u8; (width * height * 4) as usize];
 
@@ -236,10 +238,10 @@ pub fn get_object_id(val: &JsValue, ctx: &mut Context) -> JsResult<u32> {
         return Ok(0);
     }
 
-    if let Some(obj) = val.as_object() {
-        if let Ok(id_val) = obj.get(js_string!("_id"), ctx) {
-            return id_val.to_u32(ctx);
-        }
+    if let Some(obj) = val.as_object()
+        && let Ok(id_val) = obj.get(js_string!("_id"), ctx)
+    {
+        return id_val.to_u32(ctx);
     }
 
     Ok(0)

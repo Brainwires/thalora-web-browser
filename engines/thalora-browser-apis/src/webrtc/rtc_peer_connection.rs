@@ -514,55 +514,55 @@ impl BuiltInConstructor for RTCPeerConnectionBuiltin {
 impl RTCPeerConnectionBuiltin {
     /// Create an offer using real SDP generation
     fn create_offer(this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                if let Some(ref pc) = rtc_pc.data.peer_connection {
-                    let pc = Arc::clone(pc);
-                    let runtime = Arc::clone(rtc_pc.data.runtime());
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            if let Some(ref pc) = rtc_pc.data.peer_connection {
+                let pc = Arc::clone(pc);
+                let runtime = Arc::clone(rtc_pc.data.runtime());
 
-                    match runtime.block_on(async { pc.create_offer(None).await }) {
-                        Ok(offer) => {
-                            let offer_obj = JsObject::default(context.intrinsics());
-                            offer_obj.set(
-                                js_string!("type"),
-                                JsValue::from(js_string!("offer")),
-                                false,
-                                context,
-                            )?;
-                            offer_obj.set(
-                                js_string!("sdp"),
-                                JsValue::from(js_string!(offer.sdp.as_str())),
-                                false,
-                                context,
-                            )?;
-                            return Ok(offer_obj.into());
-                        }
-                        Err(e) => {
-                            return Err(JsNativeError::error()
-                                .with_message(format!("createOffer failed: {}", e))
-                                .into());
-                        }
+                match runtime.block_on(async { pc.create_offer(None).await }) {
+                    Ok(offer) => {
+                        let offer_obj = JsObject::default(context.intrinsics());
+                        offer_obj.set(
+                            js_string!("type"),
+                            JsValue::from(js_string!("offer")),
+                            false,
+                            context,
+                        )?;
+                        offer_obj.set(
+                            js_string!("sdp"),
+                            JsValue::from(js_string!(offer.sdp.as_str())),
+                            false,
+                            context,
+                        )?;
+                        return Ok(offer_obj.into());
+                    }
+                    Err(e) => {
+                        return Err(JsNativeError::error()
+                            .with_message(format!("createOffer failed: {}", e))
+                            .into());
                     }
                 }
-
-                // Fallback if peer connection not established
-                let offer_obj = JsObject::default(context.intrinsics());
-                offer_obj.set(
-                    js_string!("type"),
-                    JsValue::from(js_string!("offer")),
-                    false,
-                    context,
-                )?;
-                offer_obj.set(
-                    js_string!("sdp"),
-                    JsValue::from(js_string!(
-                        "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n"
-                    )),
-                    false,
-                    context,
-                )?;
-                return Ok(offer_obj.into());
             }
+
+            // Fallback if peer connection not established
+            let offer_obj = JsObject::default(context.intrinsics());
+            offer_obj.set(
+                js_string!("type"),
+                JsValue::from(js_string!("offer")),
+                false,
+                context,
+            )?;
+            offer_obj.set(
+                js_string!("sdp"),
+                JsValue::from(js_string!(
+                    "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n"
+                )),
+                false,
+                context,
+            )?;
+            return Ok(offer_obj.into());
         }
         Ok(JsValue::undefined())
     }
@@ -573,55 +573,55 @@ impl RTCPeerConnectionBuiltin {
         _args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                if let Some(ref pc) = rtc_pc.data.peer_connection {
-                    let pc = Arc::clone(pc);
-                    let runtime = Arc::clone(rtc_pc.data.runtime());
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            if let Some(ref pc) = rtc_pc.data.peer_connection {
+                let pc = Arc::clone(pc);
+                let runtime = Arc::clone(rtc_pc.data.runtime());
 
-                    match runtime.block_on(async { pc.create_answer(None).await }) {
-                        Ok(answer) => {
-                            let answer_obj = JsObject::default(context.intrinsics());
-                            answer_obj.set(
-                                js_string!("type"),
-                                JsValue::from(js_string!("answer")),
-                                false,
-                                context,
-                            )?;
-                            answer_obj.set(
-                                js_string!("sdp"),
-                                JsValue::from(js_string!(answer.sdp.as_str())),
-                                false,
-                                context,
-                            )?;
-                            return Ok(answer_obj.into());
-                        }
-                        Err(e) => {
-                            return Err(JsNativeError::error()
-                                .with_message(format!("createAnswer failed: {}", e))
-                                .into());
-                        }
+                match runtime.block_on(async { pc.create_answer(None).await }) {
+                    Ok(answer) => {
+                        let answer_obj = JsObject::default(context.intrinsics());
+                        answer_obj.set(
+                            js_string!("type"),
+                            JsValue::from(js_string!("answer")),
+                            false,
+                            context,
+                        )?;
+                        answer_obj.set(
+                            js_string!("sdp"),
+                            JsValue::from(js_string!(answer.sdp.as_str())),
+                            false,
+                            context,
+                        )?;
+                        return Ok(answer_obj.into());
+                    }
+                    Err(e) => {
+                        return Err(JsNativeError::error()
+                            .with_message(format!("createAnswer failed: {}", e))
+                            .into());
                     }
                 }
-
-                // Fallback
-                let answer_obj = JsObject::default(context.intrinsics());
-                answer_obj.set(
-                    js_string!("type"),
-                    JsValue::from(js_string!("answer")),
-                    false,
-                    context,
-                )?;
-                answer_obj.set(
-                    js_string!("sdp"),
-                    JsValue::from(js_string!(
-                        "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n"
-                    )),
-                    false,
-                    context,
-                )?;
-                return Ok(answer_obj.into());
             }
+
+            // Fallback
+            let answer_obj = JsObject::default(context.intrinsics());
+            answer_obj.set(
+                js_string!("type"),
+                JsValue::from(js_string!("answer")),
+                false,
+                context,
+            )?;
+            answer_obj.set(
+                js_string!("sdp"),
+                JsValue::from(js_string!(
+                    "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\n"
+                )),
+                false,
+                context,
+            )?;
+            return Ok(answer_obj.into());
         }
         Ok(JsValue::undefined())
     }
@@ -632,52 +632,50 @@ impl RTCPeerConnectionBuiltin {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                // Parse the description from JS
-                let desc = args.get_or_undefined(0);
-                if let Some(desc_obj) = desc.as_object() {
-                    let sdp_type_val = desc_obj.get(js_string!("type"), context)?;
-                    let sdp_val = desc_obj.get(js_string!("sdp"), context)?;
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            // Parse the description from JS
+            let desc = args.get_or_undefined(0);
+            if let Some(desc_obj) = desc.as_object() {
+                let sdp_type_val = desc_obj.get(js_string!("type"), context)?;
+                let sdp_val = desc_obj.get(js_string!("sdp"), context)?;
 
-                    let sdp_type_str = sdp_type_val.to_string(context)?.to_std_string_escaped();
-                    let sdp_str = sdp_val.to_string(context)?.to_std_string_escaped();
+                let sdp_type_str = sdp_type_val.to_string(context)?.to_std_string_escaped();
+                let sdp_str = sdp_val.to_string(context)?.to_std_string_escaped();
 
-                    let session_desc = match sdp_type_str.as_str() {
-                        "offer" => RTCSessionDescription::offer(sdp_str),
-                        "answer" => RTCSessionDescription::answer(sdp_str),
-                        "pranswer" => RTCSessionDescription::pranswer(sdp_str),
-                        _ => RTCSessionDescription::offer(sdp_str),
+                let session_desc = match sdp_type_str.as_str() {
+                    "offer" => RTCSessionDescription::offer(sdp_str),
+                    "answer" => RTCSessionDescription::answer(sdp_str),
+                    "pranswer" => RTCSessionDescription::pranswer(sdp_str),
+                    _ => RTCSessionDescription::offer(sdp_str),
+                }
+                .map_err(|e| JsNativeError::error().with_message(format!("Invalid SDP: {}", e)))?;
+
+                if let Some(ref pc) = rtc_pc.data.peer_connection {
+                    let pc = Arc::clone(pc);
+                    let runtime = Arc::clone(rtc_pc.data.runtime());
+
+                    if let Err(e) =
+                        runtime.block_on(async { pc.set_local_description(session_desc).await })
+                    {
+                        return Err(JsNativeError::error()
+                            .with_message(format!("setLocalDescription failed: {}", e))
+                            .into());
                     }
-                    .map_err(|e| {
-                        JsNativeError::error().with_message(format!("Invalid SDP: {}", e))
-                    })?;
-
-                    if let Some(ref pc) = rtc_pc.data.peer_connection {
-                        let pc = Arc::clone(pc);
-                        let runtime = Arc::clone(rtc_pc.data.runtime());
-
-                        if let Err(e) =
-                            runtime.block_on(async { pc.set_local_description(session_desc).await })
-                        {
-                            return Err(JsNativeError::error()
-                                .with_message(format!("setLocalDescription failed: {}", e))
-                                .into());
-                        }
-                    }
-
-                    // Update signaling state
-                    let new_state = match sdp_type_str.as_str() {
-                        "offer" => RTCSignalingState::HaveLocalOffer,
-                        "answer" => RTCSignalingState::Stable,
-                        "pranswer" => RTCSignalingState::HaveLocalPranswer,
-                        _ => RTCSignalingState::Stable,
-                    };
-                    rtc_pc.data.set_signaling_state(new_state);
                 }
 
-                return Ok(JsValue::undefined());
+                // Update signaling state
+                let new_state = match sdp_type_str.as_str() {
+                    "offer" => RTCSignalingState::HaveLocalOffer,
+                    "answer" => RTCSignalingState::Stable,
+                    "pranswer" => RTCSignalingState::HaveLocalPranswer,
+                    _ => RTCSignalingState::Stable,
+                };
+                rtc_pc.data.set_signaling_state(new_state);
             }
+
+            return Ok(JsValue::undefined());
         }
         Ok(JsValue::undefined())
     }
@@ -688,51 +686,49 @@ impl RTCPeerConnectionBuiltin {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                let desc = args.get_or_undefined(0);
-                if let Some(desc_obj) = desc.as_object() {
-                    let sdp_type_val = desc_obj.get(js_string!("type"), context)?;
-                    let sdp_val = desc_obj.get(js_string!("sdp"), context)?;
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            let desc = args.get_or_undefined(0);
+            if let Some(desc_obj) = desc.as_object() {
+                let sdp_type_val = desc_obj.get(js_string!("type"), context)?;
+                let sdp_val = desc_obj.get(js_string!("sdp"), context)?;
 
-                    let sdp_type_str = sdp_type_val.to_string(context)?.to_std_string_escaped();
-                    let sdp_str = sdp_val.to_string(context)?.to_std_string_escaped();
+                let sdp_type_str = sdp_type_val.to_string(context)?.to_std_string_escaped();
+                let sdp_str = sdp_val.to_string(context)?.to_std_string_escaped();
 
-                    let session_desc = match sdp_type_str.as_str() {
-                        "offer" => RTCSessionDescription::offer(sdp_str),
-                        "answer" => RTCSessionDescription::answer(sdp_str),
-                        "pranswer" => RTCSessionDescription::pranswer(sdp_str),
-                        _ => RTCSessionDescription::offer(sdp_str),
+                let session_desc = match sdp_type_str.as_str() {
+                    "offer" => RTCSessionDescription::offer(sdp_str),
+                    "answer" => RTCSessionDescription::answer(sdp_str),
+                    "pranswer" => RTCSessionDescription::pranswer(sdp_str),
+                    _ => RTCSessionDescription::offer(sdp_str),
+                }
+                .map_err(|e| JsNativeError::error().with_message(format!("Invalid SDP: {}", e)))?;
+
+                if let Some(ref pc) = rtc_pc.data.peer_connection {
+                    let pc = Arc::clone(pc);
+                    let runtime = Arc::clone(rtc_pc.data.runtime());
+
+                    if let Err(e) =
+                        runtime.block_on(async { pc.set_remote_description(session_desc).await })
+                    {
+                        return Err(JsNativeError::error()
+                            .with_message(format!("setRemoteDescription failed: {}", e))
+                            .into());
                     }
-                    .map_err(|e| {
-                        JsNativeError::error().with_message(format!("Invalid SDP: {}", e))
-                    })?;
-
-                    if let Some(ref pc) = rtc_pc.data.peer_connection {
-                        let pc = Arc::clone(pc);
-                        let runtime = Arc::clone(rtc_pc.data.runtime());
-
-                        if let Err(e) = runtime
-                            .block_on(async { pc.set_remote_description(session_desc).await })
-                        {
-                            return Err(JsNativeError::error()
-                                .with_message(format!("setRemoteDescription failed: {}", e))
-                                .into());
-                        }
-                    }
-
-                    // Update signaling state
-                    let new_state = match sdp_type_str.as_str() {
-                        "offer" => RTCSignalingState::HaveRemoteOffer,
-                        "answer" => RTCSignalingState::Stable,
-                        "pranswer" => RTCSignalingState::HaveRemotePranswer,
-                        _ => RTCSignalingState::Stable,
-                    };
-                    rtc_pc.data.set_signaling_state(new_state);
                 }
 
-                return Ok(JsValue::undefined());
+                // Update signaling state
+                let new_state = match sdp_type_str.as_str() {
+                    "offer" => RTCSignalingState::HaveRemoteOffer,
+                    "answer" => RTCSignalingState::Stable,
+                    "pranswer" => RTCSignalingState::HaveRemotePranswer,
+                    _ => RTCSignalingState::Stable,
+                };
+                rtc_pc.data.set_signaling_state(new_state);
             }
+
+            return Ok(JsValue::undefined());
         }
         Ok(JsValue::undefined())
     }
@@ -743,53 +739,52 @@ impl RTCPeerConnectionBuiltin {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                let candidate_arg = args.get_or_undefined(0);
-                if let Some(candidate_obj) = candidate_arg.as_object() {
-                    let candidate_val = candidate_obj.get(js_string!("candidate"), context)?;
-                    let candidate_str = candidate_val.to_string(context)?.to_std_string_escaped();
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            let candidate_arg = args.get_or_undefined(0);
+            if let Some(candidate_obj) = candidate_arg.as_object() {
+                let candidate_val = candidate_obj.get(js_string!("candidate"), context)?;
+                let candidate_str = candidate_val.to_string(context)?.to_std_string_escaped();
 
-                    let sdp_mid = candidate_obj
-                        .get(js_string!("sdpMid"), context)
-                        .ok()
-                        .and_then(|v| {
-                            if v.is_undefined() || v.is_null() {
-                                None
-                            } else {
-                                Some(v.to_string(context).ok()?.to_std_string_escaped())
-                            }
-                        });
-
-                    let sdp_mline_index = candidate_obj
-                        .get(js_string!("sdpMLineIndex"), context)
-                        .ok()
-                        .and_then(|v| v.to_u32(context).ok())
-                        .map(|v| v as u16);
-
-                    let init = RTCIceCandidateInit {
-                        candidate: candidate_str,
-                        sdp_mid,
-                        sdp_mline_index,
-                        username_fragment: None,
-                        url: None,
-                    };
-
-                    if let Some(ref pc) = rtc_pc.data.peer_connection {
-                        let pc = Arc::clone(pc);
-                        let runtime = Arc::clone(rtc_pc.data.runtime());
-
-                        if let Err(e) = runtime.block_on(async { pc.add_ice_candidate(init).await })
-                        {
-                            return Err(JsNativeError::error()
-                                .with_message(format!("addIceCandidate failed: {}", e))
-                                .into());
+                let sdp_mid = candidate_obj
+                    .get(js_string!("sdpMid"), context)
+                    .ok()
+                    .and_then(|v| {
+                        if v.is_undefined() || v.is_null() {
+                            None
+                        } else {
+                            Some(v.to_string(context).ok()?.to_std_string_escaped())
                         }
+                    });
+
+                let sdp_mline_index = candidate_obj
+                    .get(js_string!("sdpMLineIndex"), context)
+                    .ok()
+                    .and_then(|v| v.to_u32(context).ok())
+                    .map(|v| v as u16);
+
+                let init = RTCIceCandidateInit {
+                    candidate: candidate_str,
+                    sdp_mid,
+                    sdp_mline_index,
+                    username_fragment: None,
+                    url: None,
+                };
+
+                if let Some(ref pc) = rtc_pc.data.peer_connection {
+                    let pc = Arc::clone(pc);
+                    let runtime = Arc::clone(rtc_pc.data.runtime());
+
+                    if let Err(e) = runtime.block_on(async { pc.add_ice_candidate(init).await }) {
+                        return Err(JsNativeError::error()
+                            .with_message(format!("addIceCandidate failed: {}", e))
+                            .into());
                     }
                 }
-
-                return Ok(JsValue::undefined());
             }
+
+            return Ok(JsValue::undefined());
         }
         Ok(JsValue::undefined())
     }
@@ -800,74 +795,73 @@ impl RTCPeerConnectionBuiltin {
         args: &[JsValue],
         context: &mut Context,
     ) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                let label = args.get_or_undefined(0).to_string(context)?;
-                let label_str = label.to_std_string_escaped();
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            let label = args.get_or_undefined(0).to_string(context)?;
+            let label_str = label.to_std_string_escaped();
 
-                if let Some(ref pc) = rtc_pc.data.peer_connection {
-                    let pc = Arc::clone(pc);
-                    let runtime = Arc::clone(rtc_pc.data.runtime());
+            if let Some(ref pc) = rtc_pc.data.peer_connection {
+                let pc = Arc::clone(pc);
+                let runtime = Arc::clone(rtc_pc.data.runtime());
 
-                    match runtime.block_on(async { pc.create_data_channel(&label_str, None).await })
-                    {
-                        Ok(_dc) => {
-                            let data_channel_obj = JsObject::default(context.intrinsics());
-                            data_channel_obj.set(
-                                js_string!("label"),
-                                JsValue::from(label),
-                                false,
-                                context,
-                            )?;
-                            data_channel_obj.set(
-                                js_string!("readyState"),
-                                JsValue::from(js_string!("connecting")),
-                                false,
-                                context,
-                            )?;
-                            return Ok(data_channel_obj.into());
-                        }
-                        Err(e) => {
-                            return Err(JsNativeError::error()
-                                .with_message(format!("createDataChannel failed: {}", e))
-                                .into());
-                        }
+                match runtime.block_on(async { pc.create_data_channel(&label_str, None).await }) {
+                    Ok(_dc) => {
+                        let data_channel_obj = JsObject::default(context.intrinsics());
+                        data_channel_obj.set(
+                            js_string!("label"),
+                            JsValue::from(label),
+                            false,
+                            context,
+                        )?;
+                        data_channel_obj.set(
+                            js_string!("readyState"),
+                            JsValue::from(js_string!("connecting")),
+                            false,
+                            context,
+                        )?;
+                        return Ok(data_channel_obj.into());
+                    }
+                    Err(e) => {
+                        return Err(JsNativeError::error()
+                            .with_message(format!("createDataChannel failed: {}", e))
+                            .into());
                     }
                 }
-
-                // Fallback if no real peer connection
-                let data_channel_obj = JsObject::default(context.intrinsics());
-                data_channel_obj.set(js_string!("label"), JsValue::from(label), false, context)?;
-                data_channel_obj.set(
-                    js_string!("readyState"),
-                    JsValue::from(js_string!("connecting")),
-                    false,
-                    context,
-                )?;
-                return Ok(data_channel_obj.into());
             }
+
+            // Fallback if no real peer connection
+            let data_channel_obj = JsObject::default(context.intrinsics());
+            data_channel_obj.set(js_string!("label"), JsValue::from(label), false, context)?;
+            data_channel_obj.set(
+                js_string!("readyState"),
+                JsValue::from(js_string!("connecting")),
+                false,
+                context,
+            )?;
+            return Ok(data_channel_obj.into());
         }
         Ok(JsValue::undefined())
     }
 
     /// Close the peer connection
     fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-                if let Some(ref pc) = rtc_pc.data.peer_connection {
-                    let pc = Arc::clone(pc);
-                    let runtime = Arc::clone(rtc_pc.data.runtime());
-                    let _ = runtime.block_on(async { pc.close().await });
-                }
-
-                rtc_pc
-                    .data
-                    .set_connection_state(RTCPeerConnectionStateEnum::Closed);
-                rtc_pc
-                    .data
-                    .set_ice_connection_state(RTCIceConnectionState::Closed);
-                rtc_pc.data.set_signaling_state(RTCSignalingState::Closed);
+        if let Some(object) = this.as_object()
+            && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+        {
+            if let Some(ref pc) = rtc_pc.data.peer_connection {
+                let pc = Arc::clone(pc);
+                let runtime = Arc::clone(rtc_pc.data.runtime());
+                let _ = runtime.block_on(async { pc.close().await });
             }
+
+            rtc_pc
+                .data
+                .set_connection_state(RTCPeerConnectionStateEnum::Closed);
+            rtc_pc
+                .data
+                .set_ice_connection_state(RTCIceConnectionState::Closed);
+            rtc_pc.data.set_signaling_state(RTCSignalingState::Closed);
         }
         Ok(JsValue::undefined())
     }
@@ -879,10 +873,10 @@ fn get_connection_state(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-            return Ok(rtc_pc.data.connection_state().into());
-        }
+    if let Some(object) = this.as_object()
+        && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+    {
+        return Ok(rtc_pc.data.connection_state().into());
     }
     Ok(JsValue::undefined())
 }
@@ -893,10 +887,10 @@ fn get_ice_connection_state(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-            return Ok(rtc_pc.data.ice_connection_state().into());
-        }
+    if let Some(object) = this.as_object()
+        && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+    {
+        return Ok(rtc_pc.data.ice_connection_state().into());
     }
     Ok(JsValue::undefined())
 }
@@ -907,10 +901,10 @@ fn get_ice_gathering_state(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-            return Ok(rtc_pc.data.ice_gathering_state().into());
-        }
+    if let Some(object) = this.as_object()
+        && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+    {
+        return Ok(rtc_pc.data.ice_gathering_state().into());
     }
     Ok(JsValue::undefined())
 }
@@ -921,10 +915,10 @@ fn get_signaling_state(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>() {
-            return Ok(rtc_pc.data.signaling_state().into());
-        }
+    if let Some(object) = this.as_object()
+        && let Some(rtc_pc) = object.downcast_ref::<RTCPeerConnectionBuiltin>()
+    {
+        return Ok(rtc_pc.data.signaling_state().into());
     }
     Ok(JsValue::undefined())
 }

@@ -154,27 +154,26 @@ fn clipboard_write(_this: &JsValue, args: &[JsValue], context: &mut Context) -> 
         storage.items.clear();
 
         for i in 0..length {
-            if let Ok(item_val) = array_obj.get(i, context) {
-                if let Some(item_obj) = item_val.as_object() {
-                    // Check for _data property (our internal format)
-                    if let Ok(data_obj_val) = item_obj.get(js_string!("_data"), context) {
-                        if let Some(data_obj) = data_obj_val.as_object() {
-                            // Iterate through data object properties
-                            if let Ok(keys) = data_obj.own_property_keys(context) {
-                                for key in keys {
-                                    let key_str = key.to_string();
-                                    if let Ok(value) = data_obj.get(key.clone(), context) {
-                                        let data_str =
-                                            value.to_string(context)?.to_std_string_escaped();
+            if let Ok(item_val) = array_obj.get(i, context)
+                && let Some(item_obj) = item_val.as_object()
+            {
+                // Check for _data property (our internal format)
+                if let Ok(data_obj_val) = item_obj.get(js_string!("_data"), context)
+                    && let Some(data_obj) = data_obj_val.as_object()
+                {
+                    // Iterate through data object properties
+                    if let Ok(keys) = data_obj.own_property_keys(context) {
+                        for key in keys {
+                            let key_str = key.to_string();
+                            if let Ok(value) = data_obj.get(key.clone(), context) {
+                                let data_str = value.to_string(context)?.to_std_string_escaped();
 
-                                        // Update plain text if text/plain
-                                        if key_str == "text/plain" {
-                                            storage.text = data_str.clone();
-                                        }
-
-                                        storage.items.insert(key_str, data_str.into_bytes());
-                                    }
+                                // Update plain text if text/plain
+                                if key_str == "text/plain" {
+                                    storage.text = data_str.clone();
                                 }
+
+                                storage.items.insert(key_str, data_str.into_bytes());
                             }
                         }
                     }
@@ -257,38 +256,33 @@ fn clipboard_item_get_type(
     let data_val = this_obj.get(js_string!("_data"), context)?;
     let promise_constructor = context.intrinsics().constructors().promise().constructor();
 
-    if let Some(data_obj) = data_val.as_object() {
-        if let Ok(value) = data_obj.get(js_string!(mime_type.clone()), context) {
-            if !value.is_undefined() {
-                let value_str = value.to_string(context)?.to_std_string_escaped();
+    if let Some(data_obj) = data_val.as_object()
+        && let Ok(value) = data_obj.get(js_string!(mime_type.clone()), context)
+        && !value.is_undefined()
+    {
+        let value_str = value.to_string(context)?.to_std_string_escaped();
 
-                // Create a Blob-like object
-                let blob = ObjectInitializer::new(context)
-                    .property(js_string!("size"), value_str.len(), Attribute::READONLY)
-                    .property(
-                        js_string!("type"),
-                        js_string!(mime_type),
-                        Attribute::READONLY,
-                    )
-                    .property(
-                        js_string!("_bytes"),
-                        js_string!(value_str.clone()),
-                        Attribute::all(),
-                    )
-                    .function(
-                        NativeFunction::from_fn_ptr(blob_text),
-                        js_string!("text"),
-                        0,
-                    )
-                    .build();
+        // Create a Blob-like object
+        let blob = ObjectInitializer::new(context)
+            .property(js_string!("size"), value_str.len(), Attribute::READONLY)
+            .property(
+                js_string!("type"),
+                js_string!(mime_type),
+                Attribute::READONLY,
+            )
+            .property(
+                js_string!("_bytes"),
+                js_string!(value_str.clone()),
+                Attribute::all(),
+            )
+            .function(
+                NativeFunction::from_fn_ptr(blob_text),
+                js_string!("text"),
+                0,
+            )
+            .build();
 
-                return Promise::resolve(
-                    &promise_constructor.into(),
-                    &[JsValue::from(blob)],
-                    context,
-                );
-            }
-        }
+        return Promise::resolve(&promise_constructor.into(), &[JsValue::from(blob)], context);
     }
 
     // Type not found
@@ -325,20 +319,20 @@ fn clipboard_item_constructor(
     // data should be an object with MIME types as keys
     let mut items: HashMap<String, Vec<u8>> = HashMap::new();
 
-    if let Some(data_obj) = data_arg.as_object() {
-        if let Ok(keys) = data_obj.own_property_keys(context) {
-            for key in keys {
-                let key_str = key.to_string();
-                if let Ok(value) = data_obj.get(key.clone(), context) {
-                    // Convert value to string for storage
-                    let value_str = value.to_string(context)?.to_std_string_escaped();
-                    items.insert(key_str, value_str.into_bytes());
-                }
+    if let Some(data_obj) = data_arg.as_object()
+        && let Ok(keys) = data_obj.own_property_keys(context)
+    {
+        for key in keys {
+            let key_str = key.to_string();
+            if let Ok(value) = data_obj.get(key.clone(), context) {
+                // Convert value to string for storage
+                let value_str = value.to_string(context)?.to_std_string_escaped();
+                items.insert(key_str, value_str.into_bytes());
             }
         }
     }
 
-    create_clipboard_item(&items, context).map(|obj| JsValue::from(obj))
+    create_clipboard_item(&items, context).map(JsValue::from)
 }
 
 /// Create a ClipboardItem constructor function

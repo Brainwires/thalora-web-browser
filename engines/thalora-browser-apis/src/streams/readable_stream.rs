@@ -135,12 +135,12 @@ impl ReadableStream {
 
         let options = args.get_or_undefined(0);
 
-        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>() {
-            if data.locked {
-                return Err(JsNativeError::typ()
-                    .with_message("Stream is already locked")
-                    .into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>()
+            && data.locked
+        {
+            return Err(JsNativeError::typ()
+                .with_message("Stream is already locked")
+                .into());
         }
 
         // Lock the stream
@@ -178,12 +178,12 @@ impl ReadableStream {
         })?;
 
         // Check if stream is locked
-        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>() {
-            if data.locked {
-                return Err(JsNativeError::typ()
-                    .with_message("Cannot pipe a locked stream")
-                    .into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>()
+            && data.locked
+        {
+            return Err(JsNativeError::typ()
+                .with_message("Cannot pipe a locked stream")
+                .into());
         }
 
         let transform = args.get_or_undefined(0);
@@ -225,12 +225,12 @@ impl ReadableStream {
         })?;
 
         // Check if stream is locked
-        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>() {
-            if data.locked {
-                return Err(JsNativeError::typ()
-                    .with_message("Cannot pipe a locked stream")
-                    .into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>()
+            && data.locked
+        {
+            return Err(JsNativeError::typ()
+                .with_message("Cannot pipe a locked stream")
+                .into());
         }
 
         let destination = args.get_or_undefined(0);
@@ -281,7 +281,7 @@ impl ReadableStream {
         // Get a writer from the destination
         let get_writer = dest_obj.get(js_string!("getWriter"), context)?;
         let writer = if let Some(get_writer_fn) = get_writer.as_callable() {
-            get_writer_fn.call(&destination, &[], context)?
+            get_writer_fn.call(destination, &[], context)?
         } else {
             return Err(JsNativeError::typ()
                 .with_message("Destination does not have a getWriter method")
@@ -330,7 +330,7 @@ impl ReadableStream {
                 // No more chunks available, check if stream is closed
                 let is_closed = {
                     let data_opt = this_obj.downcast_ref::<ReadableStreamData>();
-                    data_opt.map_or(true, |d| d.state == StreamState::Closed)
+                    data_opt.is_none_or(|d| d.state == StreamState::Closed)
                 };
                 if is_closed {
                     break;
@@ -405,12 +405,12 @@ impl ReadableStream {
         })?;
 
         // Check if stream is locked
-        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>() {
-            if data.locked {
-                return Err(JsNativeError::typ()
-                    .with_message("Cannot tee a locked stream")
-                    .into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>()
+            && data.locked
+        {
+            return Err(JsNativeError::typ()
+                .with_message("Cannot tee a locked stream")
+                .into());
         }
 
         // Lock the source stream
@@ -498,12 +498,12 @@ impl ReadableStream {
         })?;
 
         // Check if stream is locked
-        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>() {
-            if data.locked {
-                return Err(JsNativeError::typ()
-                    .with_message("Cannot iterate a locked stream")
-                    .into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<ReadableStreamData>()
+            && data.locked
+        {
+            return Err(JsNativeError::typ()
+                .with_message("Cannot iterate a locked stream")
+                .into());
         }
 
         // Create an async iterator object
@@ -638,11 +638,11 @@ fn async_iterator_return(
 
     // Get the stream reference and unlock it
     let stream = this_obj.get(js_string!("_stream"), context)?;
-    if let Some(stream_obj) = stream.as_object() {
-        if let Some(mut data) = stream_obj.downcast_mut::<ReadableStreamData>() {
-            data.locked = false;
-            data.state = StreamState::Closed;
-        }
+    if let Some(stream_obj) = stream.as_object()
+        && let Some(mut data) = stream_obj.downcast_mut::<ReadableStreamData>()
+    {
+        data.locked = false;
+        data.state = StreamState::Closed;
     }
 
     // Return done result

@@ -3,7 +3,8 @@
 //! This module provides WebGL rendering context implementation.
 //! - Native builds use wgpu for GPU access
 //! - WASM builds delegate to the browser's native WebGL
-//! https://www.khronos.org/webgl/
+//!
+//! <https://www.khronos.org/webgl/>
 
 // Shared constants (no native deps)
 pub mod constants;

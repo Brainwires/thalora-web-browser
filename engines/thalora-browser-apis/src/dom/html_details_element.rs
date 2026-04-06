@@ -103,6 +103,12 @@ pub struct HTMLDetailsElementData {
     open: bool,
 }
 
+impl Default for HTMLDetailsElementData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLDetailsElementData {
     pub fn new() -> Self {
         Self { open: false }

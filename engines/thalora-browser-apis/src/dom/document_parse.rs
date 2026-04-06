@@ -109,20 +109,20 @@ fn parse_sanitizer_options(options: &JsValue, context: &mut Context) -> JsResult
 
     if let Some(obj) = options.as_object() {
         // Parse allowElements
-        if let Ok(allow_elements) = obj.get(js_string!("allowElements"), context) {
-            if let Some(_arr) = allow_elements.as_object() {
-                // TODO: Parse array into Vec<String>
-                config.allowed_elements =
-                    Some(vec!["div".to_string(), "p".to_string(), "span".to_string()]);
-            }
+        if let Ok(allow_elements) = obj.get(js_string!("allowElements"), context)
+            && let Some(_arr) = allow_elements.as_object()
+        {
+            // TODO: Parse array into Vec<String>
+            config.allowed_elements =
+                Some(vec!["div".to_string(), "p".to_string(), "span".to_string()]);
         }
 
         // Parse blockElements
-        if let Ok(block_elements) = obj.get(js_string!("blockElements"), context) {
-            if let Some(_arr) = block_elements.as_object() {
-                // TODO: Parse array into Vec<String>
-                config.blocked_elements = Some(vec!["script".to_string(), "iframe".to_string()]);
-            }
+        if let Ok(block_elements) = obj.get(js_string!("blockElements"), context)
+            && let Some(_arr) = block_elements.as_object()
+        {
+            // TODO: Parse array into Vec<String>
+            config.blocked_elements = Some(vec!["script".to_string(), "iframe".to_string()]);
         }
 
         // Parse allowCustomElements
@@ -175,16 +175,16 @@ fn parse_elements(html: &str, config: &SanitizerConfig) -> Vec<ParsedElement> {
 
     for (tag, _pattern) in tag_patterns {
         // Check if element is allowed
-        if let Some(ref allowed) = config.allowed_elements {
-            if !allowed.contains(&tag.to_string()) {
-                continue;
-            }
+        if let Some(ref allowed) = config.allowed_elements
+            && !allowed.contains(&tag.to_string())
+        {
+            continue;
         }
 
-        if let Some(ref blocked) = config.blocked_elements {
-            if blocked.contains(&tag.to_string()) {
-                continue;
-            }
+        if let Some(ref blocked) = config.blocked_elements
+            && blocked.contains(&tag.to_string())
+        {
+            continue;
         }
 
         // Simple count for demo (production would extract actual elements)

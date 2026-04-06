@@ -216,11 +216,12 @@ impl IDBDatabase {
 
         if let Some(opts_obj) = options.as_object() {
             // Get keyPath
-            if let Ok(kp) = opts_obj.get(js_string!("keyPath"), context) {
-                if !kp.is_undefined() && !kp.is_null() {
-                    let kp_str = kp.to_string(context)?;
-                    key_path = Some(kp_str.to_std_string_escaped());
-                }
+            if let Ok(kp) = opts_obj.get(js_string!("keyPath"), context)
+                && !kp.is_undefined()
+                && !kp.is_null()
+            {
+                let kp_str = kp.to_string(context)?;
+                key_path = Some(kp_str.to_std_string_escaped());
             }
 
             // Get autoIncrement
@@ -419,7 +420,7 @@ impl IDBDatabase {
         let mut onabort = db.onabort.lock().unwrap();
 
         if handler.is_callable() {
-            *onabort = handler.as_object().map(|obj| obj.clone());
+            *onabort = handler.as_object();
         } else {
             *onabort = None;
         }
@@ -445,7 +446,7 @@ impl IDBDatabase {
         let mut onerror = db.onerror.lock().unwrap();
 
         if handler.is_callable() {
-            *onerror = handler.as_object().map(|obj| obj.clone());
+            *onerror = handler.as_object();
         } else {
             *onerror = None;
         }
@@ -471,7 +472,7 @@ impl IDBDatabase {
         let mut onversionchange = db.onversionchange.lock().unwrap();
 
         if handler.is_callable() {
-            *onversionchange = handler.as_object().map(|obj| obj.clone());
+            *onversionchange = handler.as_object();
         } else {
             *onversionchange = None;
         }

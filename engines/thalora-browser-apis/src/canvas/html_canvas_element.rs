@@ -222,7 +222,7 @@ impl BuiltInConstructor for HTMLCanvasElement {
 
         // Default dimensions
         let width = args
-            .get(0)
+            .first()
             .and_then(|v| v.to_number(context).ok())
             .map(|n| n as u32)
             .unwrap_or(300);
@@ -248,10 +248,10 @@ impl BuiltInConstructor for HTMLCanvasElement {
 // ============== Property Accessors ==============
 
 fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>() {
-            return Ok(JsValue::from(data.get_width()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>()
+    {
+        return Ok(JsValue::from(data.get_width()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLCanvasElement")
@@ -259,12 +259,12 @@ fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn set_width(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>() {
-            let width = args.get_or_undefined(0).to_number(context)? as u32;
-            data.set_width(width);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>()
+    {
+        let width = args.get_or_undefined(0).to_number(context)? as u32;
+        data.set_width(width);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLCanvasElement")
@@ -272,10 +272,10 @@ fn set_width(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>() {
-            return Ok(JsValue::from(data.get_height()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>()
+    {
+        return Ok(JsValue::from(data.get_height()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLCanvasElement")
@@ -283,12 +283,12 @@ fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 fn set_height(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>() {
-            let height = args.get_or_undefined(0).to_number(context)? as u32;
-            data.set_height(height);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLCanvasElementData>()
+    {
+        let height = args.get_or_undefined(0).to_number(context)? as u32;
+        data.set_height(height);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLCanvasElement")
@@ -371,7 +371,7 @@ fn to_data_url(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
         .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an HTMLCanvasElement"))?;
 
     let mime_type = args
-        .get(0)
+        .first()
         .and_then(|v| v.to_string(context).ok())
         .map(|s| s.to_std_string_escaped())
         .unwrap_or_else(|| "image/png".to_string());

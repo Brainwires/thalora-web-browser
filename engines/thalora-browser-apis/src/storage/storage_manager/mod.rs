@@ -55,7 +55,15 @@ impl StorageManager {
             usage_cache: std::sync::Arc::new(std::sync::RwLock::new(HashMap::new())),
         }
     }
+}
 
+impl Default for StorageManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StorageManager {
     /// Calculate current storage usage across all storage APIs
     fn calculate_storage_usage(&self) -> u64 {
         let mut total_usage = 0u64;
@@ -78,14 +86,16 @@ impl StorageManager {
         let storage_dir = self.get_web_storage_dir();
 
         if storage_dir.exists() {
-            for entry in fs::read_dir(storage_dir).unwrap_or_else(|_| fs::read_dir(".").unwrap()) {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() && path.extension().map_or(false, |ext| ext == "json") {
-                        if let Ok(metadata) = fs::metadata(&path) {
-                            usage += metadata.len();
-                        }
-                    }
+            for entry in fs::read_dir(storage_dir)
+                .unwrap_or_else(|_| fs::read_dir(".").unwrap())
+                .flatten()
+            {
+                let path = entry.path();
+                if path.is_file()
+                    && path.extension().is_some_and(|ext| ext == "json")
+                    && let Ok(metadata) = fs::metadata(&path)
+                {
+                    usage += metadata.len();
                 }
             }
         }
@@ -99,14 +109,15 @@ impl StorageManager {
         let idb_dir = self.get_indexeddb_dir();
 
         if idb_dir.exists() {
-            for entry in fs::read_dir(idb_dir).unwrap_or_else(|_| fs::read_dir(".").unwrap()) {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if path.is_file() {
-                        if let Ok(metadata) = fs::metadata(&path) {
-                            usage += metadata.len();
-                        }
-                    }
+            for entry in fs::read_dir(idb_dir)
+                .unwrap_or_else(|_| fs::read_dir(".").unwrap())
+                .flatten()
+            {
+                let path = entry.path();
+                if path.is_file()
+                    && let Ok(metadata) = fs::metadata(&path)
+                {
+                    usage += metadata.len();
                 }
             }
         }

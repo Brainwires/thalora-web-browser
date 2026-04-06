@@ -510,7 +510,7 @@ fn escape(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         }
 
         // Non-printable ASCII or special characters that need escaping
-        if c >= '\x01' && c <= '\x1F'
+        if ('\x01'..='\x1F').contains(&c)
             || c == '\x7F'
             || c == '!'
             || c == '"'
@@ -597,14 +597,14 @@ fn register_property(
 ) -> JsResult<JsValue> {
     let definition = args.get_or_undefined(0);
 
-    if let Some(obj) = definition.as_object() {
-        if let Ok(name) = obj.get(js_string!("name"), context) {
-            let name_str = name.to_string(context)?;
-            eprintln!(
-                "CSS custom property registered: {}",
-                name_str.to_std_string_escaped()
-            );
-        }
+    if let Some(obj) = definition.as_object()
+        && let Ok(name) = obj.get(js_string!("name"), context)
+    {
+        let name_str = name.to_string(context)?;
+        eprintln!(
+            "CSS custom property registered: {}",
+            name_str.to_std_string_escaped()
+        );
     }
 
     Ok(JsValue::undefined())

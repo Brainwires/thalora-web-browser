@@ -70,7 +70,15 @@ impl EventTargetData {
             listeners: GcRefCell::new(HashMap::new()),
         }
     }
+}
 
+impl Default for EventTargetData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EventTargetData {
     /// Add an event listener
     pub fn add_event_listener(
         &self,
@@ -88,7 +96,7 @@ impl EventTargetData {
         self.listeners
             .borrow_mut()
             .entry(event_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(listener);
     }
 
@@ -154,23 +162,23 @@ impl EventTargetData {
             }
 
             // Check stopImmediatePropagation on the EventData
-            if let Some(event_data) = event.downcast_ref::<super::event::EventData>() {
-                if event_data.should_stop_immediate_propagation() {
-                    stop_immediate = true;
-                    break;
-                }
+            if let Some(event_data) = event.downcast_ref::<super::event::EventData>()
+                && event_data.should_stop_immediate_propagation()
+            {
+                stop_immediate = true;
+                break;
             }
         }
 
         // Remove "once" listeners
         if !once_indices.is_empty() {
             once_indices.reverse();
-            if let Ok(mut map) = self.listeners.try_borrow_mut() {
-                if let Some(listeners) = map.get_mut(event_type) {
-                    for index in once_indices {
-                        if index < listeners.len() {
-                            listeners.remove(index);
-                        }
+            if let Ok(mut map) = self.listeners.try_borrow_mut()
+                && let Some(listeners) = map.get_mut(event_type)
+            {
+                for index in once_indices {
+                    if index < listeners.len() {
+                        listeners.remove(index);
                     }
                 }
             }
@@ -264,10 +272,10 @@ impl EventTargetData {
             }
 
             // Check stopPropagation
-            if let Some(ed) = event.downcast_ref::<EventData>() {
-                if ed.should_stop_propagation() {
-                    break;
-                }
+            if let Some(ed) = event.downcast_ref::<EventData>()
+                && ed.should_stop_propagation()
+            {
+                break;
             }
         }
 
@@ -315,10 +323,10 @@ impl EventTargetData {
                         )?;
                     }
 
-                    if let Some(ed) = event.downcast_ref::<EventData>() {
-                        if ed.should_stop_propagation() {
-                            break;
-                        }
+                    if let Some(ed) = event.downcast_ref::<EventData>()
+                        && ed.should_stop_propagation()
+                    {
+                        break;
                     }
                 }
             }
@@ -452,7 +460,7 @@ impl EventTarget {
             false
         };
 
-        target_data.remove_event_listener(&event_type, &callback, capture);
+        target_data.remove_event_listener(&event_type, callback, capture);
         Ok(JsValue::undefined())
     }
 
@@ -485,7 +493,7 @@ impl EventTarget {
 
 impl IntrinsicObject for EventTarget {
     fn init(realm: &Realm) {
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Core EventTarget methods
             .method(Self::add_event_listener, js_string!("addEventListener"), 2)
             .method(

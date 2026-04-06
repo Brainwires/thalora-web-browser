@@ -106,48 +106,47 @@ impl BuiltInConstructor for IntersectionObserver {
 
         if let Some(options_obj) = options.as_object() {
             // Parse root option
-            if let Ok(root) = options_obj.get(js_string!("root"), context) {
-                if !root.is_null_or_undefined() {
-                    config.root = root.as_object();
-                }
+            if let Ok(root) = options_obj.get(js_string!("root"), context)
+                && !root.is_null_or_undefined()
+            {
+                config.root = root.as_object();
             }
 
             // Parse rootMargin option
-            if let Ok(root_margin) = options_obj.get(js_string!("rootMargin"), context) {
-                if !root_margin.is_undefined() {
-                    config.root_margin = root_margin
-                        .to_string(context)
-                        .map(|s| s.to_std_string_escaped())
-                        .unwrap_or_else(|_| "0px".to_string());
-                }
+            if let Ok(root_margin) = options_obj.get(js_string!("rootMargin"), context)
+                && !root_margin.is_undefined()
+            {
+                config.root_margin = root_margin
+                    .to_string(context)
+                    .map(|s| s.to_std_string_escaped())
+                    .unwrap_or_else(|_| "0px".to_string());
             }
 
             // Parse threshold option
-            if let Ok(threshold) = options_obj.get(js_string!("threshold"), context) {
-                if !threshold.is_undefined() {
-                    if let Some(threshold_array) = threshold.as_object() {
-                        // Try to parse as array
-                        let mut thresholds = Vec::new();
-                        if let Ok(length_val) = threshold_array.get(js_string!("length"), context) {
-                            let length = length_val.to_u32(context).unwrap_or(0);
-                            for i in 0..length {
-                                if let Ok(item) = threshold_array.get(i, context) {
-                                    if let Ok(num) = item.to_number(context) {
-                                        thresholds.push(num);
-                                    }
-                                }
+            if let Ok(threshold) = options_obj.get(js_string!("threshold"), context)
+                && !threshold.is_undefined()
+            {
+                if let Some(threshold_array) = threshold.as_object() {
+                    // Try to parse as array
+                    let mut thresholds = Vec::new();
+                    if let Ok(length_val) = threshold_array.get(js_string!("length"), context) {
+                        let length = length_val.to_u32(context).unwrap_or(0);
+                        for i in 0..length {
+                            if let Ok(item) = threshold_array.get(i, context)
+                                && let Ok(num) = item.to_number(context)
+                            {
+                                thresholds.push(num);
                             }
                         }
-                        if !thresholds.is_empty() {
-                            // Sort thresholds as per spec
-                            thresholds.sort_by(|a, b| {
-                                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
-                            });
-                            config.threshold = thresholds;
-                        }
-                    } else if let Ok(threshold_num) = threshold.to_number(context) {
-                        config.threshold = vec![threshold_num];
                     }
+                    if !thresholds.is_empty() {
+                        // Sort thresholds as per spec
+                        thresholds
+                            .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                        config.threshold = thresholds;
+                    }
+                } else if let Ok(threshold_num) = threshold.to_number(context) {
+                    config.threshold = vec![threshold_num];
                 }
             }
         }

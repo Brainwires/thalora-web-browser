@@ -146,41 +146,37 @@ pub fn add_draw_methods(obj: &JsObject, context: &mut Context) {
             let target_width = data.width as i32;
             let target_height = data.height as i32;
 
-            if let Some(obj) = pixels_arg.as_object() {
-                if let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx) {
-                    if let Some(ab) = buffer_prop
-                        .as_object()
-                        .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
-                    {
-                        let byte_offset = obj
-                            .get(js_string!("byteOffset"), ctx)
-                            .ok()
-                            .and_then(|v| v.to_index(ctx).ok())
-                            .unwrap_or(0) as usize;
+            if let Some(obj) = pixels_arg.as_object()
+                && let Ok(buffer_prop) = obj.get(js_string!("buffer"), ctx)
+                && let Some(ab) = buffer_prop
+                    .as_object()
+                    .and_then(|o| JsArrayBuffer::from_object(o.clone()).ok())
+            {
+                let byte_offset = obj
+                    .get(js_string!("byteOffset"), ctx)
+                    .ok()
+                    .and_then(|v| v.to_index(ctx).ok())
+                    .unwrap_or(0) as usize;
 
-                        // Copy pixel data
-                        let data_slice = ab.data();
-                        if let Some(data_guard) = data_slice {
-                            let mut dst: Vec<u8> = (*data_guard).to_vec();
-                            for row in 0..height {
-                                let src_y = target_height - 1 - (y + row); // Flip Y
-                                if src_y < 0 || src_y >= target_height {
-                                    continue;
-                                }
-                                for col in 0..width {
-                                    let src_x = x + col;
-                                    if src_x < 0 || src_x >= target_width {
-                                        continue;
-                                    }
-                                    let src_idx = ((src_y * target_width + src_x) * 4) as usize;
-                                    let dst_idx = byte_offset + ((row * width + col) * 4) as usize;
-                                    if src_idx + 4 <= render_target.len()
-                                        && dst_idx + 4 <= dst.len()
-                                    {
-                                        dst[dst_idx..dst_idx + 4]
-                                            .copy_from_slice(&render_target[src_idx..src_idx + 4]);
-                                    }
-                                }
+                // Copy pixel data
+                let data_slice = ab.data();
+                if let Some(data_guard) = data_slice {
+                    let mut dst: Vec<u8> = (*data_guard).to_vec();
+                    for row in 0..height {
+                        let src_y = target_height - 1 - (y + row); // Flip Y
+                        if src_y < 0 || src_y >= target_height {
+                            continue;
+                        }
+                        for col in 0..width {
+                            let src_x = x + col;
+                            if src_x < 0 || src_x >= target_width {
+                                continue;
+                            }
+                            let src_idx = ((src_y * target_width + src_x) * 4) as usize;
+                            let dst_idx = byte_offset + ((row * width + col) * 4) as usize;
+                            if src_idx + 4 <= render_target.len() && dst_idx + 4 <= dst.len() {
+                                dst[dst_idx..dst_idx + 4]
+                                    .copy_from_slice(&render_target[src_idx..src_idx + 4]);
                             }
                         }
                     }

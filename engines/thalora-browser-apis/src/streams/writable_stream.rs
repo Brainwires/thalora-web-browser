@@ -114,7 +114,7 @@ impl WritableStream {
             data.write_queue.clear();
 
             // Call abort callback on underlying sink
-            let _ = data.call_abort(&reason, context);
+            let _ = data.call_abort(reason, context);
 
             // Update stream state to errored
             data.state = StreamState::Errored;
@@ -187,12 +187,12 @@ impl WritableStream {
                 .with_message("WritableStream.prototype.getWriter called on non-object")
         })?;
 
-        if let Some(data) = this_obj.downcast_ref::<WritableStreamData>() {
-            if data.locked {
-                return Err(JsNativeError::typ()
-                    .with_message("Stream is already locked")
-                    .into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<WritableStreamData>()
+            && data.locked
+        {
+            return Err(JsNativeError::typ()
+                .with_message("Stream is already locked")
+                .into());
         }
 
         // Lock the stream
@@ -296,10 +296,10 @@ impl WritableStreamDefaultWriter {
 
         let _reason = args.get_or_undefined(0);
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>() {
-                stream_data.state = StreamState::Errored;
-            }
+        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>()
+            && let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>()
+        {
+            stream_data.state = StreamState::Errored;
         }
 
         {
@@ -319,19 +319,19 @@ impl WritableStreamDefaultWriter {
                 .with_message("WritableStreamDefaultWriter.prototype.close called on non-object")
         })?;
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>() {
-                if stream_data.state != StreamState::Writable {
-                    return Err(JsNativeError::typ()
-                        .with_message("Stream is not in writable state")
-                        .into());
-                }
-                stream_data.state = StreamState::Closing;
-
-                // Process queued writes
-                stream_data.process_queue(context)?;
-                stream_data.state = StreamState::Closed;
+        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>()
+            && let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>()
+        {
+            if stream_data.state != StreamState::Writable {
+                return Err(JsNativeError::typ()
+                    .with_message("Stream is not in writable state")
+                    .into());
             }
+            stream_data.state = StreamState::Closing;
+
+            // Process queued writes
+            stream_data.process_queue(context)?;
+            stream_data.state = StreamState::Closed;
         }
 
         {
@@ -353,20 +353,20 @@ impl WritableStreamDefaultWriter {
 
         let chunk = args.get_or_undefined(0);
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>() {
-                if stream_data.state != StreamState::Writable {
-                    return Err(JsNativeError::typ()
-                        .with_message("Stream is not in writable state")
-                        .into());
-                }
-
-                // Add chunk to write queue
-                stream_data.write_queue.push_back(chunk.clone());
-
-                // Process the queue
-                stream_data.process_queue(context)?;
+        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>()
+            && let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>()
+        {
+            if stream_data.state != StreamState::Writable {
+                return Err(JsNativeError::typ()
+                    .with_message("Stream is not in writable state")
+                    .into());
             }
+
+            // Add chunk to write queue
+            stream_data.write_queue.push_back(chunk.clone());
+
+            // Process the queue
+            stream_data.process_queue(context)?;
         }
 
         {
@@ -391,10 +391,10 @@ impl WritableStreamDefaultWriter {
             )
         })?;
 
-        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>() {
-            if let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>() {
-                stream_data.locked = false;
-            }
+        if let Some(writer_data) = this_obj.downcast_ref::<WritableStreamDefaultWriterData>()
+            && let Some(mut stream_data) = writer_data.stream.downcast_mut::<WritableStreamData>()
+        {
+            stream_data.locked = false;
         }
 
         Ok(JsValue::undefined())
@@ -584,23 +584,23 @@ impl WritableStreamData {
 
         while let Some(chunk) = self.write_queue.pop_front() {
             // Call the underlying sink's write method if available
-            if let Some(ref write_val) = write_fn {
-                if let Some(write_callable) = write_val.as_callable() {
-                    // Create a controller-like object for the write callback
-                    let controller = boa_engine::object::ObjectInitializer::new(context).build();
+            if let Some(ref write_val) = write_fn
+                && let Some(write_callable) = write_val.as_callable()
+            {
+                // Create a controller-like object for the write callback
+                let controller = boa_engine::object::ObjectInitializer::new(context).build();
 
-                    // Call write(chunk, controller)
-                    let result = write_callable.call(
-                        &self.underlying_sink,
-                        &[chunk, controller.into()],
-                        context,
-                    );
+                // Call write(chunk, controller)
+                let result = write_callable.call(
+                    &self.underlying_sink,
+                    &[chunk, controller.into()],
+                    context,
+                );
 
-                    if let Err(e) = result {
-                        eprintln!("WritableStream: write callback error: {:?}", e);
-                        self.state = StreamState::Errored;
-                        return Err(e);
-                    }
+                if let Err(e) = result {
+                    eprintln!("WritableStream: write callback error: {:?}", e);
+                    self.state = StreamState::Errored;
+                    return Err(e);
                 }
             }
             // If no write method, chunks are just consumed (discarded)
@@ -610,37 +610,34 @@ impl WritableStreamData {
 
     /// Call the underlying sink's start method
     pub fn call_start(&self, context: &mut Context) -> JsResult<()> {
-        if let Some(sink_obj) = self.underlying_sink.as_object() {
-            if let Ok(start_val) = sink_obj.get(js_string!("start"), context) {
-                if let Some(start_callable) = start_val.as_callable() {
-                    let controller = boa_engine::object::ObjectInitializer::new(context).build();
-                    start_callable.call(&self.underlying_sink, &[controller.into()], context)?;
-                }
-            }
+        if let Some(sink_obj) = self.underlying_sink.as_object()
+            && let Ok(start_val) = sink_obj.get(js_string!("start"), context)
+            && let Some(start_callable) = start_val.as_callable()
+        {
+            let controller = boa_engine::object::ObjectInitializer::new(context).build();
+            start_callable.call(&self.underlying_sink, &[controller.into()], context)?;
         }
         Ok(())
     }
 
     /// Call the underlying sink's close method
     pub fn call_close(&self, context: &mut Context) -> JsResult<()> {
-        if let Some(sink_obj) = self.underlying_sink.as_object() {
-            if let Ok(close_val) = sink_obj.get(js_string!("close"), context) {
-                if let Some(close_callable) = close_val.as_callable() {
-                    close_callable.call(&self.underlying_sink, &[], context)?;
-                }
-            }
+        if let Some(sink_obj) = self.underlying_sink.as_object()
+            && let Ok(close_val) = sink_obj.get(js_string!("close"), context)
+            && let Some(close_callable) = close_val.as_callable()
+        {
+            close_callable.call(&self.underlying_sink, &[], context)?;
         }
         Ok(())
     }
 
     /// Call the underlying sink's abort method
     pub fn call_abort(&self, reason: &JsValue, context: &mut Context) -> JsResult<()> {
-        if let Some(sink_obj) = self.underlying_sink.as_object() {
-            if let Ok(abort_val) = sink_obj.get(js_string!("abort"), context) {
-                if let Some(abort_callable) = abort_val.as_callable() {
-                    abort_callable.call(&self.underlying_sink, &[reason.clone()], context)?;
-                }
-            }
+        if let Some(sink_obj) = self.underlying_sink.as_object()
+            && let Ok(abort_val) = sink_obj.get(js_string!("abort"), context)
+            && let Some(abort_callable) = abort_val.as_callable()
+        {
+            abort_callable.call(&self.underlying_sink, std::slice::from_ref(reason), context)?;
         }
         Ok(())
     }

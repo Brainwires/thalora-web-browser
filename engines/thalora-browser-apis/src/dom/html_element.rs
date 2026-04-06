@@ -125,6 +125,12 @@ pub struct HTMLElementData {
     hidden: bool,
 }
 
+impl Default for HTMLElementData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLElementData {
     pub fn new() -> Self {
         Self {

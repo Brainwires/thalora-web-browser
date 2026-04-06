@@ -334,11 +334,11 @@ impl IDBTransaction {
 
         // Trigger oncomplete event
         let handler = txn.oncomplete.lock().unwrap();
-        if let Some(callback) = handler.as_ref() {
-            if callback.is_callable() {
-                let event = Self::create_event("complete", context)?;
-                callback.call(&JsValue::undefined(), &[event], context)?;
-            }
+        if let Some(callback) = handler.as_ref()
+            && callback.is_callable()
+        {
+            let event = Self::create_event("complete", context)?;
+            callback.call(&JsValue::undefined(), &[event], context)?;
         }
 
         Ok(JsValue::undefined())
@@ -364,11 +364,11 @@ impl IDBTransaction {
 
         // Trigger onabort event
         let handler = txn.onabort.lock().unwrap();
-        if let Some(callback) = handler.as_ref() {
-            if callback.is_callable() {
-                let event = Self::create_event("abort", context)?;
-                callback.call(&JsValue::undefined(), &[event], context)?;
-            }
+        if let Some(callback) = handler.as_ref()
+            && callback.is_callable()
+        {
+            let event = Self::create_event("abort", context)?;
+            callback.call(&JsValue::undefined(), &[event], context)?;
         }
 
         Ok(JsValue::undefined())
@@ -404,7 +404,7 @@ impl IDBTransaction {
         let mut onabort = txn.onabort.lock().unwrap();
 
         if handler.is_callable() {
-            *onabort = handler.as_object().map(|obj| obj.clone());
+            *onabort = handler.as_object();
         } else {
             *onabort = None;
         }
@@ -430,7 +430,7 @@ impl IDBTransaction {
         let mut oncomplete = txn.oncomplete.lock().unwrap();
 
         if handler.is_callable() {
-            *oncomplete = handler.as_object().map(|obj| obj.clone());
+            *oncomplete = handler.as_object();
         } else {
             *oncomplete = None;
         }
@@ -456,7 +456,7 @@ impl IDBTransaction {
         let mut onerror = txn.onerror.lock().unwrap();
 
         if handler.is_callable() {
-            *onerror = handler.as_object().map(|obj| obj.clone());
+            *onerror = handler.as_object();
         } else {
             *onerror = None;
         }

@@ -104,6 +104,12 @@ pub struct CSSStyleDeclarationData {
     properties: HashMap<String, (String, bool)>, // (value, important)
 }
 
+impl Default for CSSStyleDeclarationData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CSSStyleDeclarationData {
     pub fn new() -> Self {
         Self {
@@ -195,10 +201,10 @@ fn get_property_value(
         .to_string(context)?
         .to_std_string_escaped();
 
-    if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
-        if let Some((value, _)) = data.properties.get(&property) {
-            return Ok(js_string!(value.clone()).into());
-        }
+    if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>()
+        && let Some((value, _)) = data.properties.get(&property)
+    {
+        return Ok(js_string!(value.clone()).into());
     }
 
     Ok(js_string!("").into())
@@ -220,8 +226,7 @@ fn set_property(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRe
         .to_std_string_escaped();
     let priority = args
         .get(2)
-        .map(|p| p.to_string(context).ok())
-        .flatten()
+        .and_then(|p| p.to_string(context).ok())
         .map(|s| s.to_std_string_escaped())
         .unwrap_or_default();
 
@@ -249,10 +254,10 @@ fn remove_property(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
         .to_string(context)?
         .to_std_string_escaped();
 
-    if let Some(mut data) = this_obj.downcast_mut::<CSSStyleDeclarationData>() {
-        if let Some((old_value, _)) = data.properties.remove(&property) {
-            return Ok(js_string!(old_value).into());
-        }
+    if let Some(mut data) = this_obj.downcast_mut::<CSSStyleDeclarationData>()
+        && let Some((old_value, _)) = data.properties.remove(&property)
+    {
+        return Ok(js_string!(old_value).into());
     }
 
     Ok(js_string!("").into())
@@ -273,12 +278,11 @@ fn get_property_priority(
         .to_string(context)?
         .to_std_string_escaped();
 
-    if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
-        if let Some((_, important)) = data.properties.get(&property) {
-            if *important {
-                return Ok(js_string!("important").into());
-            }
-        }
+    if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>()
+        && let Some((_, important)) = data.properties.get(&property)
+        && *important
+    {
+        return Ok(js_string!("important").into());
     }
 
     Ok(js_string!("").into())
@@ -291,10 +295,10 @@ fn item(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsV
 
     let index = args.get_or_undefined(0).to_u32(context)? as usize;
 
-    if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>() {
-        if let Some(name) = data.properties.keys().nth(index) {
-            return Ok(js_string!(name.clone()).into());
-        }
+    if let Some(data) = this_obj.downcast_ref::<CSSStyleDeclarationData>()
+        && let Some(name) = data.properties.keys().nth(index)
+    {
+        return Ok(js_string!(name.clone()).into());
     }
 
     Ok(js_string!("").into())
@@ -397,10 +401,10 @@ fn css_style_sheet_constructor(
 
     // Parse optional init dictionary: { media, disabled }
     if let Some(options) = args.first().and_then(|a| a.as_object()) {
-        if let Ok(media_val) = options.get(js_string!("media"), context) {
-            if !media_val.is_undefined() {
-                sheet_data.media = media_val.to_string(context)?.to_std_string_escaped();
-            }
+        if let Ok(media_val) = options.get(js_string!("media"), context)
+            && !media_val.is_undefined()
+        {
+            sheet_data.media = media_val.to_string(context)?.to_std_string_escaped();
         }
         if let Ok(disabled_val) = options.get(js_string!("disabled"), context) {
             sheet_data.disabled = disabled_val.to_boolean();
@@ -426,16 +430,14 @@ fn css_style_sheet_constructor(
 
     // Copy prototype methods to instance
     let global = context.global_object();
-    if let Ok(ctor) = global.get(js_string!("CSSStyleSheet"), context) {
-        if let Some(ctor_obj) = ctor.as_object() {
-            if let Ok(proto) = ctor_obj.get(js_string!("prototype"), context) {
-                if let Some(proto_obj) = proto.as_object() {
-                    for method_name in ["insertRule", "deleteRule", "replace", "replaceSync"] {
-                        if let Ok(method) = proto_obj.get(js_string!(method_name), context) {
-                            obj.set(js_string!(method_name), method, false, context)?;
-                        }
-                    }
-                }
+    if let Ok(ctor) = global.get(js_string!("CSSStyleSheet"), context)
+        && let Some(ctor_obj) = ctor.as_object()
+        && let Ok(proto) = ctor_obj.get(js_string!("prototype"), context)
+        && let Some(proto_obj) = proto.as_object()
+    {
+        for method_name in ["insertRule", "deleteRule", "replace", "replaceSync"] {
+            if let Ok(method) = proto_obj.get(js_string!(method_name), context) {
+                obj.set(js_string!(method_name), method, false, context)?;
             }
         }
     }
@@ -527,12 +529,7 @@ fn css_style_sheet_replace(
 
     // Return a resolved Promise with the stylesheet
     let promise = boa_engine::builtins::promise::Promise::promise_resolve(
-        &context
-            .intrinsics()
-            .constructors()
-            .promise()
-            .constructor()
-            .into(),
+        &context.intrinsics().constructors().promise().constructor(),
         this.clone(),
         context,
     )?;

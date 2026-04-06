@@ -405,29 +405,29 @@ fn extract_bytes(value: &JsValue, context: &mut Context) -> JsResult<Vec<u8>> {
     })?;
 
     // Try to get byteLength to check if it's a buffer-like object
-    if let Ok(byte_length) = obj.get(js_string!("byteLength"), context) {
-        if let Some(len) = byte_length.as_number() {
-            let len = len as usize;
-            let mut bytes = Vec::with_capacity(len);
+    if let Ok(byte_length) = obj.get(js_string!("byteLength"), context)
+        && let Some(len) = byte_length.as_number()
+    {
+        let len = len as usize;
+        let mut bytes = Vec::with_capacity(len);
 
-            // Check if it's a TypedArray by checking for length property
-            if let Ok(typed_length) = obj.get(js_string!("length"), context) {
-                if typed_length.is_number() {
-                    // It's a TypedArray - read indexed values
-                    for i in 0..len {
-                        let val = obj.get(i as u32, context)?;
-                        if let Some(num) = val.as_number() {
-                            bytes.push(num as u8);
-                        }
-                    }
-                    return Ok(bytes);
+        // Check if it's a TypedArray by checking for length property
+        if let Ok(typed_length) = obj.get(js_string!("length"), context)
+            && typed_length.is_number()
+        {
+            // It's a TypedArray - read indexed values
+            for i in 0..len {
+                let val = obj.get(i as u32, context)?;
+                if let Some(num) = val.as_number() {
+                    bytes.push(num as u8);
                 }
             }
-
-            // It's an ArrayBuffer or DataView
-            // For now, return empty as we can't easily read raw bytes
             return Ok(bytes);
         }
+
+        // It's an ArrayBuffer or DataView
+        // For now, return empty as we can't easily read raw bytes
+        return Ok(bytes);
     }
 
     Err(JsNativeError::typ()

@@ -81,6 +81,12 @@ pub struct FormDataData {
     entries: HashMap<String, Vec<String>>,
 }
 
+impl Default for FormDataData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FormDataData {
     pub fn new() -> Self {
         Self {
@@ -140,12 +146,11 @@ fn get(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsVa
         .to_string(context)?
         .to_std_string_escaped();
 
-    if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
-        if let Some(values) = data.entries.get(&name) {
-            if let Some(first) = values.first() {
-                return Ok(js_string!(first.clone()).into());
-            }
-        }
+    if let Some(data) = this_obj.downcast_ref::<FormDataData>()
+        && let Some(values) = data.entries.get(&name)
+        && let Some(first) = values.first()
+    {
+        return Ok(js_string!(first.clone()).into());
     }
 
     Ok(JsValue::null())
@@ -161,14 +166,14 @@ fn get_all(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
         .to_string(context)?
         .to_std_string_escaped();
 
-    if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
-        if let Some(values) = data.entries.get(&name) {
-            let array = boa_engine::object::builtins::JsArray::new(context)?;
-            for value in values {
-                array.push(js_string!(value.clone()), context)?;
-            }
-            return Ok(array.into());
+    if let Some(data) = this_obj.downcast_ref::<FormDataData>()
+        && let Some(values) = data.entries.get(&name)
+    {
+        let array = boa_engine::object::builtins::JsArray::new(context)?;
+        for value in values {
+            array.push(js_string!(value.clone()), context)?;
         }
+        return Ok(array.into());
     }
 
     Ok(boa_engine::object::builtins::JsArray::new(context)?.into())
@@ -279,20 +284,20 @@ fn for_each(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult
             .into());
     }
 
-    if let Some(data) = this_obj.downcast_ref::<FormDataData>() {
-        if let Some(func) = callback.as_callable() {
-            for (key, values) in &data.entries {
-                for value in values {
-                    func.call(
-                        this,
-                        &[
-                            js_string!(value.clone()).into(),
-                            js_string!(key.clone()).into(),
-                            this.clone(),
-                        ],
-                        context,
-                    )?;
-                }
+    if let Some(data) = this_obj.downcast_ref::<FormDataData>()
+        && let Some(func) = callback.as_callable()
+    {
+        for (key, values) in &data.entries {
+            for value in values {
+                func.call(
+                    this,
+                    &[
+                        js_string!(value.clone()).into(),
+                        js_string!(key.clone()).into(),
+                        this.clone(),
+                    ],
+                    context,
+                )?;
             }
         }
     }

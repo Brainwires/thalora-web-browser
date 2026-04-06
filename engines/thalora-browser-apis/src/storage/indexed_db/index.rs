@@ -287,7 +287,7 @@ impl IDBIndex {
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an IDBIndex object"))?;
 
         // Parse optional range
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             if let Some(range_obj) = args[0].as_object() {
                 range_obj
                     .downcast_ref::<IDBKeyRange>()
@@ -361,7 +361,7 @@ impl IDBIndex {
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an IDBIndex object"))?;
 
         // Parse optional range
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             if let Some(range_obj) = args[0].as_object() {
                 range_obj
                     .downcast_ref::<IDBKeyRange>()
@@ -433,7 +433,7 @@ impl IDBIndex {
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an IDBIndex object"))?;
 
         // Parse optional range
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             if let Some(range_obj) = args[0].as_object() {
                 range_obj
                     .downcast_ref::<IDBKeyRange>()
@@ -488,7 +488,7 @@ impl IDBIndex {
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an IDBIndex object"))?;
 
         // Parse optional range
-        let range = if args.len() > 0 && !args[0].is_undefined() {
+        let range = if !args.is_empty() && !args[0].is_undefined() {
             if args[0].is_object() {
                 if let Some(range_obj) = args[0].as_object() {
                     if let Some(range) = range_obj.downcast_ref::<IDBKeyRange>() {

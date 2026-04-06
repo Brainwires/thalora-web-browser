@@ -129,6 +129,12 @@ fn get_filereader_state() -> &'static FileReaderState {
     })
 }
 
+impl Default for FileReaderData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileReaderData {
     pub fn new() -> Self {
         let state = get_filereader_state();
@@ -212,7 +218,7 @@ impl IntrinsicObject for FileReader {
             .name(js_string!("set onabort"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // ReadyState constants
             .static_property(
                 js_string!("EMPTY"),
@@ -662,13 +668,13 @@ impl FileReader {
         let state = get_filereader_state();
         let pending_results = state.pending_results.lock().unwrap();
 
-        if let Some(pending) = pending_results.get(&reader_id) {
-            if let Some(FileReadResult::ArrayBuffer(bytes)) = &pending.result {
-                use boa_engine::object::builtins::{AlignedVec, JsArrayBuffer};
-                let aligned_data = AlignedVec::<u8>::from_iter(0, bytes.iter().copied());
-                let array_buffer = JsArrayBuffer::from_byte_block(aligned_data, context)?;
-                return Ok(Some(array_buffer.into()));
-            }
+        if let Some(pending) = pending_results.get(&reader_id)
+            && let Some(FileReadResult::ArrayBuffer(bytes)) = &pending.result
+        {
+            use boa_engine::object::builtins::{AlignedVec, JsArrayBuffer};
+            let aligned_data = AlignedVec::<u8>::from_iter(0, bytes.iter().copied());
+            let array_buffer = JsArrayBuffer::from_byte_block(aligned_data, context)?;
+            return Ok(Some(array_buffer.into()));
         }
         Ok(None)
     }

@@ -1564,10 +1564,10 @@ impl BuiltInConstructor for InputEvent {
             if let Ok(v) = init_obj.get(js_string!("detail"), context) {
                 data.ui_event.detail = v.to_i32(context)?;
             }
-            if let Ok(v) = init_obj.get(js_string!("data"), context) {
-                if !v.is_null_or_undefined() {
-                    data.data = Some(v.to_string(context)?.to_std_string_escaped());
-                }
+            if let Ok(v) = init_obj.get(js_string!("data"), context)
+                && !v.is_null_or_undefined()
+            {
+                data.data = Some(v.to_string(context)?.to_std_string_escaped());
             }
             if let Ok(v) = init_obj.get(js_string!("inputType"), context) {
                 data.input_type = v.to_string(context)?.to_std_string_escaped();

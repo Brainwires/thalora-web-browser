@@ -85,20 +85,20 @@ fn notification_constructor(
     let mut silent = false;
 
     if let Some(opts_obj) = options.as_object() {
-        if let Ok(body_val) = opts_obj.get(js_string!("body"), context) {
-            if !body_val.is_undefined() {
-                body = body_val.to_string(context)?.to_std_string_escaped();
-            }
+        if let Ok(body_val) = opts_obj.get(js_string!("body"), context)
+            && !body_val.is_undefined()
+        {
+            body = body_val.to_string(context)?.to_std_string_escaped();
         }
-        if let Ok(icon_val) = opts_obj.get(js_string!("icon"), context) {
-            if !icon_val.is_undefined() {
-                icon = icon_val.to_string(context)?.to_std_string_escaped();
-            }
+        if let Ok(icon_val) = opts_obj.get(js_string!("icon"), context)
+            && !icon_val.is_undefined()
+        {
+            icon = icon_val.to_string(context)?.to_std_string_escaped();
         }
-        if let Ok(tag_val) = opts_obj.get(js_string!("tag"), context) {
-            if !tag_val.is_undefined() {
-                tag = tag_val.to_string(context)?.to_std_string_escaped();
-            }
+        if let Ok(tag_val) = opts_obj.get(js_string!("tag"), context)
+            && !tag_val.is_undefined()
+        {
+            tag = tag_val.to_string(context)?.to_std_string_escaped();
         }
         if let Ok(ri_val) = opts_obj.get(js_string!("requireInteraction"), context) {
             require_interaction = ri_val.to_boolean();
@@ -282,28 +282,28 @@ fn notification_close(
     })?;
 
     // Get notification ID
-    if let Ok(id_val) = this_obj.get(js_string!("_id"), context) {
-        if let Some(id) = id_val.as_number() {
-            let id = id as u64;
+    if let Ok(id_val) = this_obj.get(js_string!("_id"), context)
+        && let Some(id) = id_val.as_number()
+    {
+        let id = id as u64;
 
-            // Remove from active notifications
-            {
-                let mut notifications = ACTIVE_NOTIFICATIONS.lock().unwrap();
-                notifications.remove(&id);
-            }
+        // Remove from active notifications
+        {
+            let mut notifications = ACTIVE_NOTIFICATIONS.lock().unwrap();
+            notifications.remove(&id);
+        }
 
-            // Call onclose handler if set
-            if let Ok(onclose) = this_obj.get(js_string!("onclose"), context) {
-                if let Some(func) = onclose.as_callable() {
-                    // Create a simple event object
-                    let event = ObjectInitializer::new(context)
-                        .property(js_string!("type"), js_string!("close"), Attribute::all())
-                        .property(js_string!("target"), this.clone(), Attribute::all())
-                        .build();
+        // Call onclose handler if set
+        if let Ok(onclose) = this_obj.get(js_string!("onclose"), context)
+            && let Some(func) = onclose.as_callable()
+        {
+            // Create a simple event object
+            let event = ObjectInitializer::new(context)
+                .property(js_string!("type"), js_string!("close"), Attribute::all())
+                .property(js_string!("target"), this.clone(), Attribute::all())
+                .build();
 
-                    let _ = func.call(this, &[JsValue::from(event)], context);
-                }
-            }
+            let _ = func.call(this, &[JsValue::from(event)], context);
         }
     }
 

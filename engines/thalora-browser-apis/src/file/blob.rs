@@ -226,7 +226,7 @@ impl IntrinsicObject for Blob {
             .name(js_string!("get type"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::slice, js_string!("slice"), 0)
             .method(Self::stream, js_string!("stream"), 0)
             .method(Self::text, js_string!("text"), 0)
@@ -272,7 +272,7 @@ impl BuiltInConstructor for Blob {
     ) -> JsResult<JsValue> {
         // Handle blob parts array
         let mut data = Vec::new();
-        if let Some(parts) = args.get(0) {
+        if let Some(parts) = args.first() {
             if let Some(array) = parts.as_object() {
                 // Handle array-like object
                 let length_prop = array.get(js_string!("length"), context)?;
@@ -287,7 +287,7 @@ impl BuiltInConstructor for Blob {
                     } else if let Some(part_obj) = part.as_object() {
                         // Check if it's a Blob
                         if let Some(blob_data) = part_obj.downcast_ref::<BlobData>() {
-                            data.extend_from_slice(&blob_data.data());
+                            data.extend_from_slice(blob_data.data());
                         } else {
                             // Convert to string
                             let part_str = part.to_string(context)?;
@@ -310,21 +310,21 @@ impl BuiltInConstructor for Blob {
         let mut mime_type = String::new();
         let mut normalize_endings = false;
 
-        if let Some(options) = args.get(1) {
-            if let Some(options_obj) = options.as_object() {
-                let type_prop = options_obj.get(js_string!("type"), context)?;
-                if !type_prop.is_undefined() {
-                    mime_type = type_prop.to_string(context)?.to_std_string_escaped();
-                }
+        if let Some(options) = args.get(1)
+            && let Some(options_obj) = options.as_object()
+        {
+            let type_prop = options_obj.get(js_string!("type"), context)?;
+            if !type_prop.is_undefined() {
+                mime_type = type_prop.to_string(context)?.to_std_string_escaped();
+            }
 
-                // Handle endings option (normalize line endings)
-                // Per File API spec: "transparent" (default) or "native"
-                let endings_prop = options_obj.get(js_string!("endings"), context)?;
-                if !endings_prop.is_undefined() {
-                    let endings_str = endings_prop.to_string(context)?.to_std_string_escaped();
-                    if endings_str == "native" {
-                        normalize_endings = true;
-                    }
+            // Handle endings option (normalize line endings)
+            // Per File API spec: "transparent" (default) or "native"
+            let endings_prop = options_obj.get(js_string!("endings"), context)?;
+            if !endings_prop.is_undefined() {
+                let endings_str = endings_prop.to_string(context)?.to_std_string_escaped();
+                if endings_str == "native" {
+                    normalize_endings = true;
                 }
             }
         }
@@ -368,7 +368,7 @@ impl Blob {
         let data_len = blob_data.size();
 
         // Parse start parameter
-        let start = if let Some(start_val) = args.get(0) {
+        let start = if let Some(start_val) = args.first() {
             if start_val.is_undefined() {
                 0
             } else {
@@ -513,7 +513,7 @@ impl Blob {
             context.realm(),
             |_this: &JsValue, args: &[JsValue], _ctx: &mut Context| {
                 // Return the size of the chunk for backpressure calculation
-                if let Some(chunk) = args.get(0) {
+                if let Some(chunk) = args.first() {
                     if let Some(chunk_obj) = chunk.as_object() {
                         // For Uint8Array, return its byteLength
                         if let Ok(byte_length) = chunk_obj.get(js_string!("byteLength"), _ctx) {

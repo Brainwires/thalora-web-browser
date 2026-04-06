@@ -18,6 +18,7 @@ use boa_engine::{
 };
 use boa_gc::{Finalize, Trace};
 use reqwest;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use url::Url;
 
@@ -263,7 +264,6 @@ impl XmlHttpRequest {
         // Enqueue async job to perform HTTP request
         context.enqueue_job(
             NativeAsyncJob::new(async move |context| {
-                let context = &mut context.borrow_mut();
                 match Self::perform_request(xhr_obj_clone, method, url, headers, body_text, context)
                     .await
                 {
@@ -385,13 +385,13 @@ impl XmlHttpRequest {
             JsNativeError::typ().with_message("XMLHttpRequest.abort called on non-object")
         })?;
 
-        if let Some(mut xhr_data) = xhr_obj.downcast_mut::<XmlHttpRequestData>() {
-            if xhr_data.ready_state == 1 || xhr_data.ready_state == 2 || xhr_data.ready_state == 3 {
-                xhr_data.ready_state = 4; // DONE
-                xhr_data.status = 0;
-                xhr_data.status_text.clear();
-                xhr_data.response_text.clear();
-            }
+        if let Some(mut xhr_data) = xhr_obj.downcast_mut::<XmlHttpRequestData>()
+            && (xhr_data.ready_state == 1 || xhr_data.ready_state == 2 || xhr_data.ready_state == 3)
+        {
+            xhr_data.ready_state = 4; // DONE
+            xhr_data.status = 0;
+            xhr_data.status_text.clear();
+            xhr_data.response_text.clear();
         }
 
         // Update readyState property
@@ -412,12 +412,12 @@ impl XmlHttpRequest {
         url: String,
         headers: HashMap<String, String>,
         body: Option<String>,
-        context: &mut Context,
+        context: &RefCell<&mut Context>,
     ) -> JsResult<()> {
         // Update state to HEADERS_RECEIVED
-        Self::update_ready_state(&xhr_obj, 2, context)?;
+        Self::update_ready_state(&xhr_obj, 2, *context.borrow_mut())?;
 
-        // Perform HTTP request
+        // Perform HTTP request (no context borrow needed)
         let client = reqwest::Client::new();
         let mut request_builder = client.request(
             reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::GET),
@@ -434,13 +434,15 @@ impl XmlHttpRequest {
             request_builder = request_builder.body(body_content);
         }
 
-        // Execute the request
-        match request_builder.send().await {
+        // Execute the request - collect all async results before borrowing context
+        let send_result = request_builder.send().await;
+
+        match send_result {
             Ok(response) => {
                 // Update state to LOADING
-                Self::update_ready_state(&xhr_obj, 3, context)?;
+                Self::update_ready_state(&xhr_obj, 3, *context.borrow_mut())?;
 
-                // Extract response data
+                // Extract response metadata before awaiting body
                 let status = response.status().as_u16();
                 let status_text = response
                     .status()
@@ -448,7 +450,6 @@ impl XmlHttpRequest {
                     .unwrap_or("")
                     .to_string();
 
-                // Convert headers
                 let mut response_headers = HashMap::new();
                 for (name, value) in response.headers() {
                     if let Ok(value_str) = value.to_str() {
@@ -457,8 +458,13 @@ impl XmlHttpRequest {
                     }
                 }
 
-                // Get response body
-                match response.text().await {
+                // Await body without holding context borrow
+                let body_result = response.text().await;
+
+                // Now borrow context for the sync operations
+                let context = &mut *context.borrow_mut();
+
+                match body_result {
                     Ok(body_text) => {
                         // Update XMLHttpRequest data
                         if let Some(mut xhr_data) = xhr_obj.downcast_mut::<XmlHttpRequestData>() {
@@ -508,6 +514,7 @@ impl XmlHttpRequest {
             }
             Err(e) => {
                 // Handle network error
+                let context = &mut *context.borrow_mut();
                 Self::handle_error(&xhr_obj, &format!("Network error: {}", e), context)?;
             }
         }
@@ -566,10 +573,10 @@ impl XmlHttpRequest {
         handler_name: &str,
         context: &mut Context,
     ) -> JsResult<()> {
-        if let Ok(handler) = xhr_obj.get(js_string!(handler_name), context) {
-            if let Some(handler_fn) = handler.as_callable() {
-                let _ = handler_fn.call(&JsValue::from(xhr_obj.clone()), &[], context);
-            }
+        if let Ok(handler) = xhr_obj.get(js_string!(handler_name), context)
+            && let Some(handler_fn) = handler.as_callable()
+        {
+            let _ = handler_fn.call(&JsValue::from(xhr_obj.clone()), &[], context);
         }
         Ok(())
     }

@@ -85,6 +85,12 @@ pub struct AudioPlayerState {
     error: Option<String>,
 }
 
+impl Default for AudioPlayerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AudioPlayerState {
     pub fn new() -> Self {
         Self {
@@ -180,7 +186,7 @@ impl AudioThread {
 
 /// Global audio thread (lazily initialized)
 static AUDIO_THREAD: once_cell::sync::Lazy<Option<AudioThread>> =
-    once_cell::sync::Lazy::new(|| AudioThread::new());
+    once_cell::sync::Lazy::new(AudioThread::new);
 
 /// Internal data for HTMLAudioElement
 #[derive(Clone, Trace, Finalize, JsData)]
@@ -195,6 +201,12 @@ impl std::fmt::Debug for HTMLAudioElementData {
         f.debug_struct("HTMLAudioElementData")
             .field("state", &self.state)
             .finish()
+    }
+}
+
+impl Default for HTMLAudioElementData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -390,10 +402,10 @@ impl HTMLAudioElementData {
         let mut state = self.state.lock().unwrap();
         state.volume = volume;
 
-        if !state.muted {
-            if let Some(ref audio_thread) = *AUDIO_THREAD {
-                let _ = audio_thread.send(AudioCommand::SetVolume(volume));
-            }
+        if !state.muted
+            && let Some(ref audio_thread) = *AUDIO_THREAD
+        {
+            let _ = audio_thread.send(AudioCommand::SetVolume(volume));
         }
     }
 
@@ -634,11 +646,11 @@ impl BuiltInConstructor for HTMLAudioElement {
         let audio_data = HTMLAudioElementData::new();
 
         // Handle optional source URL argument
-        if let Some(src) = args.get(0) {
-            if !src.is_undefined() {
-                let src_str = src.to_string(context)?.to_std_string_escaped();
-                audio_data.set_src(src_str);
-            }
+        if let Some(src) = args.first()
+            && !src.is_undefined()
+        {
+            let src_str = src.to_string(context)?.to_std_string_escaped();
+            audio_data.set_src(src_str);
         }
 
         let obj = JsObject::from_proto_and_data_with_shared_shape(
@@ -654,10 +666,10 @@ impl BuiltInConstructor for HTMLAudioElement {
 // ============== Property Accessors ==============
 
 fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(js_string!(data.get_src())));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(js_string!(data.get_src())));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -665,15 +677,15 @@ fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 }
 
 fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let src = args
-                .get_or_undefined(0)
-                .to_string(context)?
-                .to_std_string_escaped();
-            data.set_src(src);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let src = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        data.set_src(src);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -681,10 +693,10 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn get_volume(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_volume() as f64));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_volume() as f64));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -692,12 +704,12 @@ fn get_volume(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 fn set_volume(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let volume = args.get_or_undefined(0).to_number(context)? as f32;
-            data.set_volume(volume);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let volume = args.get_or_undefined(0).to_number(context)? as f32;
+        data.set_volume(volume);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -705,10 +717,10 @@ fn set_volume(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResu
 }
 
 fn get_muted(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_muted()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_muted()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -716,12 +728,12 @@ fn get_muted(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn set_muted(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let muted = args.get_or_undefined(0).to_boolean();
-            data.set_muted(muted);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let muted = args.get_or_undefined(0).to_boolean();
+        data.set_muted(muted);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -729,10 +741,10 @@ fn set_muted(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResu
 }
 
 fn get_loop(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_loop()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_loop()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -740,12 +752,12 @@ fn get_loop(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResu
 }
 
 fn set_loop(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let loop_audio = args.get_or_undefined(0).to_boolean();
-            data.set_loop(loop_audio);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let loop_audio = args.get_or_undefined(0).to_boolean();
+        data.set_loop(loop_audio);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -753,10 +765,10 @@ fn set_loop(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResul
 }
 
 fn get_autoplay(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_autoplay()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_autoplay()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -764,12 +776,12 @@ fn get_autoplay(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 }
 
 fn set_autoplay(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let autoplay = args.get_or_undefined(0).to_boolean();
-            data.set_autoplay(autoplay);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let autoplay = args.get_or_undefined(0).to_boolean();
+        data.set_autoplay(autoplay);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -781,10 +793,10 @@ fn get_current_time(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_current_time()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_current_time()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -792,12 +804,12 @@ fn get_current_time(
 }
 
 fn set_current_time(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let time = args.get_or_undefined(0).to_number(context)?;
-            data.set_current_time(time);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let time = args.get_or_undefined(0).to_number(context)?;
+        data.set_current_time(time);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -805,14 +817,14 @@ fn set_current_time(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 }
 
 fn get_duration(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            let duration = data.get_duration();
-            if duration == 0.0 {
-                return Ok(JsValue::from(f64::NAN));
-            }
-            return Ok(JsValue::from(duration));
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        let duration = data.get_duration();
+        if duration == 0.0 {
+            return Ok(JsValue::from(f64::NAN));
         }
+        return Ok(JsValue::from(duration));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -820,10 +832,10 @@ fn get_duration(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 }
 
 fn get_paused(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_paused()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_paused()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -831,10 +843,10 @@ fn get_paused(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 fn get_ended(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_ended()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_ended()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")
@@ -842,10 +854,10 @@ fn get_ended(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLAudioElementData>() {
-            return Ok(JsValue::from(data.get_ready_state()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLAudioElementData>()
+    {
+        return Ok(JsValue::from(data.get_ready_state()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLAudioElement")

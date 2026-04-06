@@ -27,11 +27,9 @@ impl DOMTokenListData {
     }
 
     fn class_name(&self, _context: &mut Context) -> Option<String> {
-        if let Some(ed) = self.element.downcast_ref::<ElementData>() {
-            Some(ed.get_class_name())
-        } else {
-            None
-        }
+        self.element
+            .downcast_ref::<ElementData>()
+            .map(|ed| ed.get_class_name())
     }
 
     fn set_class_name(&self, value: String) {
@@ -48,7 +46,7 @@ pub struct DOMTokenList;
 impl DOMTokenList {
     fn split_tokens(class_name: &str) -> Vec<String> {
         class_name
-            .split(|c: char| matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C'))
+            .split([' ', '\t', '\n', '\r', '\x0C'])
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect()
@@ -173,12 +171,12 @@ impl DOMTokenList {
             tokens.retain(|x| x != &token_std);
             class = Self::join_tokens(&tokens);
             data.set_class_name(class);
-            return Ok(JsValue::new(false));
+            Ok(JsValue::new(false))
         } else {
             tokens.push(token_std);
             class = Self::join_tokens(&tokens);
             data.set_class_name(class);
-            return Ok(JsValue::new(true));
+            Ok(JsValue::new(true))
         }
     }
 
@@ -250,7 +248,7 @@ impl IntrinsicObject for DOMTokenList {
             .name(js_string!("get length"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::contains, js_string!("contains"), 1)
             .method(Self::add, js_string!("add"), 1)
             .method(Self::remove, js_string!("remove"), 1)

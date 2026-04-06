@@ -193,10 +193,10 @@ impl BuiltInConstructor for OffscreenCanvas {
 // ============== Property Accessors ==============
 
 fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<OffscreenCanvasData>() {
-            return Ok(JsValue::from(data.get_width()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<OffscreenCanvasData>()
+    {
+        return Ok(JsValue::from(data.get_width()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an OffscreenCanvas")
@@ -204,12 +204,12 @@ fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn set_width(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<OffscreenCanvasData>() {
-            let width = args.get_or_undefined(0).to_number(context)? as u32;
-            data.set_width(width);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<OffscreenCanvasData>()
+    {
+        let width = args.get_or_undefined(0).to_number(context)? as u32;
+        data.set_width(width);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an OffscreenCanvas")
@@ -217,10 +217,10 @@ fn set_width(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResul
 }
 
 fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<OffscreenCanvasData>() {
-            return Ok(JsValue::from(data.get_height()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<OffscreenCanvasData>()
+    {
+        return Ok(JsValue::from(data.get_height()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an OffscreenCanvas")
@@ -228,12 +228,12 @@ fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 fn set_height(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<OffscreenCanvasData>() {
-            let height = args.get_or_undefined(0).to_number(context)? as u32;
-            data.set_height(height);
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<OffscreenCanvasData>()
+    {
+        let height = args.get_or_undefined(0).to_number(context)? as u32;
+        data.set_height(height);
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an OffscreenCanvas")
@@ -305,31 +305,31 @@ fn convert_to_blob(this: &JsValue, args: &[JsValue], context: &mut Context) -> J
         .ok_or_else(|| JsNativeError::typ().with_message("'this' is not an OffscreenCanvas"))?;
 
     // Get options
-    let _options = args.get(0);
+    let _options = args.first();
 
     // Get the image data and create a promise
     if let Some((_width, _height, _data)) = canvas_data.get_image_data() {
         // Create the pixel data
         let state = canvas_data.state.lock().unwrap();
-        if let Some(ref s) = *state {
-            if let Some(png_data) = s.to_png() {
-                // Create a Uint8Array from the PNG data
-                let typed_array = context.eval(Source::from_bytes(&format!(
-                    "new Uint8Array([{}])",
-                    png_data
-                        .iter()
-                        .map(|b| b.to_string())
-                        .collect::<Vec<_>>()
-                        .join(",")
-                )))?;
+        if let Some(ref s) = *state
+            && let Some(png_data) = s.to_png()
+        {
+            // Create a Uint8Array from the PNG data
+            let typed_array = context.eval(Source::from_bytes(&format!(
+                "new Uint8Array([{}])",
+                png_data
+                    .iter()
+                    .map(|b| b.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )))?;
 
-                // Return a resolved promise with the "blob" (typed array for now)
-                let code = "Promise.resolve";
-                let promise_resolve = context.eval(Source::from_bytes(code))?;
+            // Return a resolved promise with the "blob" (typed array for now)
+            let code = "Promise.resolve";
+            let promise_resolve = context.eval(Source::from_bytes(code))?;
 
-                if let Some(resolve_fn) = promise_resolve.as_callable() {
-                    return resolve_fn.call(&JsValue::undefined(), &[typed_array], context);
-                }
+            if let Some(resolve_fn) = promise_resolve.as_callable() {
+                return resolve_fn.call(&JsValue::undefined(), &[typed_array], context);
             }
         }
     }

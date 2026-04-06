@@ -126,10 +126,10 @@ impl EventSourceData {
     /// Close the connection
     pub fn close(&self) {
         self.set_ready_state(ReadyState::Closed);
-        if let Ok(mut sender) = self.control_sender.lock() {
-            if let Some(sender) = sender.take() {
-                let _ = sender.send(EventSourceControl::Close);
-            }
+        if let Ok(mut sender) = self.control_sender.lock()
+            && let Some(sender) = sender.take()
+        {
+            let _ = sender.send(EventSourceControl::Close);
         }
     }
 }
@@ -318,10 +318,10 @@ impl EventSource {
                 .header("Cache-Control", "no-cache");
 
             // Add Last-Event-ID header if available
-            if let Ok(last_id) = data.last_event_id.lock() {
-                if let Some(ref id) = *last_id {
-                    request_builder = request_builder.header("Last-Event-ID", id);
-                }
+            if let Ok(last_id) = data.last_event_id.lock()
+                && let Some(ref id) = *last_id
+            {
+                request_builder = request_builder.header("Last-Event-ID", id);
             }
 
             // Set credentials if needed
@@ -344,8 +344,9 @@ impl EventSource {
 
                                     // Process the stream
                                     let stream = response.bytes_stream();
-                                    if let Err(_) =
-                                        Self::process_stream(stream, &data, &mut control_rx).await
+                                    if Self::process_stream(stream, &data, &mut control_rx)
+                                        .await
+                                        .is_err()
                                     {
                                         // Stream processing failed
                                         break;
@@ -538,10 +539,10 @@ impl EventSource {
     /// and dispatched during the event loop tick.
     fn dispatch_event(event: &ServerSentEvent, data: &EventSourceData) {
         // Update last event ID if provided
-        if let Some(ref id) = event.id {
-            if let Ok(mut last_id) = data.last_event_id.lock() {
-                *last_id = Some(id.clone());
-            }
+        if let Some(ref id) = event.id
+            && let Ok(mut last_id) = data.last_event_id.lock()
+        {
+            *last_id = Some(id.clone());
         }
 
         // Update reconnection time if specified
@@ -565,10 +566,10 @@ impl EventSource {
 
     /// Close the EventSource connection
     fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-        if let Some(object) = this.as_object() {
-            if let Some(event_source) = object.downcast_ref::<EventSource>() {
-                event_source.data.close();
-            }
+        if let Some(object) = this.as_object()
+            && let Some(event_source) = object.downcast_ref::<EventSource>()
+        {
+            event_source.data.close();
         }
         Ok(JsValue::undefined())
     }
@@ -576,20 +577,20 @@ impl EventSource {
 
 /// Get the URL property of EventSource
 fn get_url(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(event_source) = object.downcast_ref::<EventSource>() {
-            return Ok(JsValue::from(event_source.data.url().clone()));
-        }
+    if let Some(object) = this.as_object()
+        && let Some(event_source) = object.downcast_ref::<EventSource>()
+    {
+        return Ok(JsValue::from(event_source.data.url().clone()));
     }
     Ok(JsValue::undefined())
 }
 
 /// Get the readyState property of EventSource
 fn get_ready_state(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(event_source) = object.downcast_ref::<EventSource>() {
-            return Ok(event_source.data.ready_state().into());
-        }
+    if let Some(object) = this.as_object()
+        && let Some(event_source) = object.downcast_ref::<EventSource>()
+    {
+        return Ok(event_source.data.ready_state().into());
     }
     Ok(JsValue::undefined())
 }
@@ -600,10 +601,10 @@ fn get_with_credentials(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(object) = this.as_object() {
-        if let Some(event_source) = object.downcast_ref::<EventSource>() {
-            return Ok(JsValue::from(event_source.data.with_credentials()));
-        }
+    if let Some(object) = this.as_object()
+        && let Some(event_source) = object.downcast_ref::<EventSource>()
+    {
+        return Ok(JsValue::from(event_source.data.with_credentials()));
     }
     Ok(JsValue::undefined())
 }

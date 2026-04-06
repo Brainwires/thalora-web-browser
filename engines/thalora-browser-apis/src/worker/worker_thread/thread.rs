@@ -318,7 +318,7 @@ impl Drop for WorkerThread {
 
             // Give the thread a short time to terminate gracefully
             if let Some(handle) = self.thread_handle.take() {
-                let _ = std::thread::sleep(Duration::from_millis(100));
+                std::thread::sleep(Duration::from_millis(100));
                 // If it doesn't finish quickly, we just detach and let it terminate
                 let _ = handle.join();
             }

@@ -119,12 +119,12 @@ impl IDBRequest {
     /// Trigger success event
     pub fn trigger_success(&self, context: &mut Context) -> JsResult<()> {
         let handler = self.onsuccess.lock().unwrap();
-        if let Some(callback) = handler.as_ref() {
-            if callback.is_callable() {
-                // Create success event
-                let event = Self::create_event("success", context)?;
-                callback.call(&JsValue::undefined(), &[event], context)?;
-            }
+        if let Some(callback) = handler.as_ref()
+            && callback.is_callable()
+        {
+            // Create success event
+            let event = Self::create_event("success", context)?;
+            callback.call(&JsValue::undefined(), &[event], context)?;
         }
         Ok(())
     }
@@ -132,12 +132,12 @@ impl IDBRequest {
     /// Trigger error event
     pub fn trigger_error(&self, context: &mut Context) -> JsResult<()> {
         let handler = self.onerror.lock().unwrap();
-        if let Some(callback) = handler.as_ref() {
-            if callback.is_callable() {
-                // Create error event
-                let event = Self::create_event("error", context)?;
-                callback.call(&JsValue::undefined(), &[event], context)?;
-            }
+        if let Some(callback) = handler.as_ref()
+            && callback.is_callable()
+        {
+            // Create error event
+            let event = Self::create_event("error", context)?;
+            callback.call(&JsValue::undefined(), &[event], context)?;
         }
         Ok(())
     }
@@ -342,7 +342,7 @@ impl IDBRequest {
         let mut onsuccess = request.onsuccess.lock().unwrap();
 
         if handler.is_callable() {
-            *onsuccess = handler.as_object().map(|obj| obj.clone());
+            *onsuccess = handler.as_object();
         } else {
             *onsuccess = None;
         }
@@ -368,7 +368,7 @@ impl IDBRequest {
         let mut onerror = request.onerror.lock().unwrap();
 
         if handler.is_callable() {
-            *onerror = handler.as_object().map(|obj| obj.clone());
+            *onerror = handler.as_object();
         } else {
             *onerror = None;
         }
@@ -543,31 +543,31 @@ impl IDBOpenDBRequest {
         context: &mut Context,
     ) -> JsResult<()> {
         let handler = self.onupgradeneeded.lock().unwrap();
-        if let Some(callback) = handler.as_ref() {
-            if callback.is_callable() {
-                // Create version change event
-                let event = JsObject::with_object_proto(context.intrinsics());
-                event.set(
-                    js_string!("type"),
-                    JsValue::from(JsString::from("upgradeneeded")),
-                    false,
-                    context,
-                )?;
-                event.set(
-                    js_string!("oldVersion"),
-                    JsValue::from(old_version),
-                    false,
-                    context,
-                )?;
-                event.set(
-                    js_string!("newVersion"),
-                    JsValue::from(new_version),
-                    false,
-                    context,
-                )?;
+        if let Some(callback) = handler.as_ref()
+            && callback.is_callable()
+        {
+            // Create version change event
+            let event = JsObject::with_object_proto(context.intrinsics());
+            event.set(
+                js_string!("type"),
+                JsValue::from(JsString::from("upgradeneeded")),
+                false,
+                context,
+            )?;
+            event.set(
+                js_string!("oldVersion"),
+                JsValue::from(old_version),
+                false,
+                context,
+            )?;
+            event.set(
+                js_string!("newVersion"),
+                JsValue::from(new_version),
+                false,
+                context,
+            )?;
 
-                callback.call(&JsValue::undefined(), &[event.into()], context)?;
-            }
+            callback.call(&JsValue::undefined(), &[event.into()], context)?;
         }
         Ok(())
     }
@@ -590,7 +590,7 @@ impl IDBOpenDBRequest {
         let mut onupgradeneeded = request.onupgradeneeded.lock().unwrap();
 
         if handler.is_callable() {
-            *onupgradeneeded = handler.as_object().map(|obj| obj.clone());
+            *onupgradeneeded = handler.as_object();
         } else {
             *onupgradeneeded = None;
         }

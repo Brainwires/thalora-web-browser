@@ -104,6 +104,12 @@ pub struct VideoPlayerState {
     seeking: bool,
 }
 
+impl Default for VideoPlayerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VideoPlayerState {
     pub fn new() -> Self {
         Self {
@@ -139,6 +145,12 @@ impl VideoPlayerState {
 pub struct HTMLVideoElementData {
     #[unsafe_ignore_trace]
     state: Arc<Mutex<VideoPlayerState>>,
+}
+
+impl Default for HTMLVideoElementData {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HTMLVideoElementData {

@@ -387,7 +387,7 @@ impl DocumentData {
         use crate::dom::element::GLOBAL_DOM_SYNC;
         let html_content_ref = doc_data.html_content.clone();
         GLOBAL_DOM_SYNC
-            .get_or_init(|| crate::dom::element::DomSync::new())
+            .get_or_init(crate::dom::element::DomSync::new)
             .set_updater(Box::new(move |html| {
                 *html_content_ref.lock().unwrap() = html.to_string();
             }));
@@ -535,7 +535,7 @@ impl DocumentData {
             .lock()
             .unwrap()
             .entry(event_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(listener);
     }
 
@@ -1000,189 +1000,172 @@ fn create_real_element_from_html(
     // Use the scraper crate to parse real HTML and find elements
     let document = scraper::Html::parse_document(html_content);
 
-    if let Ok(css_selector) = scraper::Selector::parse(selector) {
-        if let Some(element_ref) = document.select(&css_selector).next() {
-            eprintln!("DEBUG: querySelector creating element using Element constructor");
+    if let Ok(css_selector) = scraper::Selector::parse(selector)
+        && let Some(element_ref) = document.select(&css_selector).next()
+    {
+        eprintln!("DEBUG: querySelector creating element using Element constructor");
 
-            // Actually construct a new Element instance using the Element constructor
-            let element_constructor = context.intrinsics().constructors().element().constructor();
-            let element_obj =
-                element_constructor.construct(&[], Some(&element_constructor), context)?;
+        // Actually construct a new Element instance using the Element constructor
+        let element_constructor = context.intrinsics().constructors().element().constructor();
+        let element_obj =
+            element_constructor.construct(&[], Some(&element_constructor), context)?;
 
-            eprintln!("DEBUG: Element created, checking for dispatchEvent...");
-            if let Ok(dispatch_event) = element_obj.get(js_string!("dispatchEvent"), context) {
-                eprintln!(
-                    "DEBUG: dispatchEvent found on created element: {:?}",
-                    dispatch_event.type_of()
-                );
-            } else {
-                eprintln!("DEBUG: dispatchEvent NOT found on created element!");
-            }
-
-            // Set real properties from the actual HTML element
-            let tag_name = element_ref.value().name().to_uppercase();
-            element_obj.set(
-                js_string!("tagName"),
-                js_string!(tag_name.clone()),
-                false,
-                context,
-            )?;
-            element_obj.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
-
-            // Set real attributes from the HTML
-            for (attr_name, attr_value) in element_ref.value().attrs() {
-                element_obj.set(
-                    js_string!(attr_name),
-                    js_string!(attr_value),
-                    false,
-                    context,
-                )?;
-            }
-
-            // Inject layout geometry from cached layout data
-            if !layout_rects.is_empty() {
-                let css_path = css_path_for_scraper_element(&element_ref);
-                if let Some(rect) = layout_rects.get(&css_path) {
-                    if let Some(element_data) =
-                        element_obj.downcast_ref::<crate::dom::element::ElementData>()
-                    {
-                        element_data.set_bounding_rect(rect.x, rect.y, rect.width, rect.height);
-                    }
-                }
-            }
-
-            // Set text content
-            let text_content: String = element_ref.text().collect();
-            element_obj.set(
-                js_string!("textContent"),
-                js_string!(text_content),
-                false,
-                context,
-            )?;
-
-            // Set innerHTML
-            let inner_html = element_ref.inner_html();
-            element_obj.set(
-                js_string!("innerHTML"),
-                js_string!(inner_html),
-                false,
-                context,
-            )?;
-
-            // Add common DOM methods
-            let focus_fn = context.intrinsics().constructors().function().constructor();
-            element_obj.set(js_string!("focus"), focus_fn, false, context)?;
-
-            let click_fn = context.intrinsics().constructors().function().constructor();
-            element_obj.set(js_string!("click"), click_fn, false, context)?;
-
-            // Add value property for input elements
-            if tag_name == "INPUT" {
-                if let Some(value) = element_ref.value().attr("value") {
-                    element_obj.set(js_string!("value"), js_string!(value), false, context)?;
-                } else {
-                    element_obj.set(js_string!("value"), js_string!(""), false, context)?;
-                }
-
-                // Add name property for input elements (needed for form.elements access)
-                if let Some(name) = element_ref.value().attr("name") {
-                    element_obj.set(js_string!("name"), js_string!(name), false, context)?;
-                }
-            }
-
-            // Add form-specific functionality for FORM elements from HTML
-            if tag_name == "FORM" {
-                // Create elements collection
-                let elements_collection =
-                    context.intrinsics().constructors().object().constructor();
-
-                // Find all input elements within this form using the HTML content
-                let form_selector = scraper::Selector::parse("input").unwrap();
-
-                // Parse the inner HTML of this form to find inputs
-                let form_inner_html = element_ref.inner_html();
-                let form_doc = scraper::Html::parse_fragment(&form_inner_html);
-
-                for input_element in form_doc.select(&form_selector) {
-                    if let Some(input_name) = input_element.value().attr("name") {
-                        // Create input element object
-                        let input_obj = context.intrinsics().constructors().object().constructor();
-
-                        // Add value property
-                        if let Some(input_value) = input_element.value().attr("value") {
-                            input_obj.set(
-                                js_string!("value"),
-                                js_string!(input_value),
-                                false,
-                                context,
-                            )?;
-                        } else {
-                            input_obj.set(js_string!("value"), js_string!(""), false, context)?;
-                        }
-
-                        // Add name property
-                        input_obj.set(
-                            js_string!("name"),
-                            js_string!(input_name),
-                            false,
-                            context,
-                        )?;
-
-                        // Add input type
-                        if let Some(input_type) = input_element.value().attr("type") {
-                            input_obj.set(
-                                js_string!("type"),
-                                js_string!(input_type),
-                                false,
-                                context,
-                            )?;
-                        } else {
-                            input_obj.set(
-                                js_string!("type"),
-                                js_string!("text"),
-                                false,
-                                context,
-                            )?;
-                        }
-
-                        // Add this input to the elements collection by name
-                        elements_collection.set(
-                            js_string!(input_name),
-                            input_obj,
-                            false,
-                            context,
-                        )?;
-                    }
-                }
-
-                // Add elements collection to the form
-                element_obj.set(js_string!("elements"), elements_collection, false, context)?;
-
-                // Add getAttribute method that Google's code needs
-                let get_attribute_func =
-                    BuiltInBuilder::callable(context.realm(), |_this, args, ctx| {
-                        let attr_name = args.get_or_undefined(0).to_string(ctx)?;
-                        let attr_name_str = attr_name.to_std_string_escaped();
-
-                        // Return common attributes that Google checks
-                        match attr_name_str.as_str() {
-                            "data-submitfalse" => Ok(JsValue::null()), // Google checks this
-                            _ => Ok(JsValue::null()),
-                        }
-                    })
-                    .name(js_string!("getAttribute"))
-                    .build();
-
-                element_obj.set(
-                    js_string!("getAttribute"),
-                    get_attribute_func,
-                    false,
-                    context,
-                )?;
-            }
-
-            return Ok(Some(element_obj));
+        eprintln!("DEBUG: Element created, checking for dispatchEvent...");
+        if let Ok(dispatch_event) = element_obj.get(js_string!("dispatchEvent"), context) {
+            eprintln!(
+                "DEBUG: dispatchEvent found on created element: {:?}",
+                dispatch_event.type_of()
+            );
+        } else {
+            eprintln!("DEBUG: dispatchEvent NOT found on created element!");
         }
+
+        // Set real properties from the actual HTML element
+        let tag_name = element_ref.value().name().to_uppercase();
+        element_obj.set(
+            js_string!("tagName"),
+            js_string!(tag_name.clone()),
+            false,
+            context,
+        )?;
+        element_obj.set(js_string!("nodeType"), 1, false, context)?; // ELEMENT_NODE
+
+        // Set real attributes from the HTML
+        for (attr_name, attr_value) in element_ref.value().attrs() {
+            element_obj.set(
+                js_string!(attr_name),
+                js_string!(attr_value),
+                false,
+                context,
+            )?;
+        }
+
+        // Inject layout geometry from cached layout data
+        if !layout_rects.is_empty() {
+            let css_path = css_path_for_scraper_element(&element_ref);
+            if let Some(rect) = layout_rects.get(&css_path)
+                && let Some(element_data) =
+                    element_obj.downcast_ref::<crate::dom::element::ElementData>()
+            {
+                element_data.set_bounding_rect(rect.x, rect.y, rect.width, rect.height);
+            }
+        }
+
+        // Set text content
+        let text_content: String = element_ref.text().collect();
+        element_obj.set(
+            js_string!("textContent"),
+            js_string!(text_content),
+            false,
+            context,
+        )?;
+
+        // Set innerHTML
+        let inner_html = element_ref.inner_html();
+        element_obj.set(
+            js_string!("innerHTML"),
+            js_string!(inner_html),
+            false,
+            context,
+        )?;
+
+        // Add common DOM methods
+        let focus_fn = context.intrinsics().constructors().function().constructor();
+        element_obj.set(js_string!("focus"), focus_fn, false, context)?;
+
+        let click_fn = context.intrinsics().constructors().function().constructor();
+        element_obj.set(js_string!("click"), click_fn, false, context)?;
+
+        // Add value property for input elements
+        if tag_name == "INPUT" {
+            if let Some(value) = element_ref.value().attr("value") {
+                element_obj.set(js_string!("value"), js_string!(value), false, context)?;
+            } else {
+                element_obj.set(js_string!("value"), js_string!(""), false, context)?;
+            }
+
+            // Add name property for input elements (needed for form.elements access)
+            if let Some(name) = element_ref.value().attr("name") {
+                element_obj.set(js_string!("name"), js_string!(name), false, context)?;
+            }
+        }
+
+        // Add form-specific functionality for FORM elements from HTML
+        if tag_name == "FORM" {
+            // Create elements collection
+            let elements_collection = context.intrinsics().constructors().object().constructor();
+
+            // Find all input elements within this form using the HTML content
+            let form_selector = scraper::Selector::parse("input").unwrap();
+
+            // Parse the inner HTML of this form to find inputs
+            let form_inner_html = element_ref.inner_html();
+            let form_doc = scraper::Html::parse_fragment(&form_inner_html);
+
+            for input_element in form_doc.select(&form_selector) {
+                if let Some(input_name) = input_element.value().attr("name") {
+                    // Create input element object
+                    let input_obj = context.intrinsics().constructors().object().constructor();
+
+                    // Add value property
+                    if let Some(input_value) = input_element.value().attr("value") {
+                        input_obj.set(
+                            js_string!("value"),
+                            js_string!(input_value),
+                            false,
+                            context,
+                        )?;
+                    } else {
+                        input_obj.set(js_string!("value"), js_string!(""), false, context)?;
+                    }
+
+                    // Add name property
+                    input_obj.set(js_string!("name"), js_string!(input_name), false, context)?;
+
+                    // Add input type
+                    if let Some(input_type) = input_element.value().attr("type") {
+                        input_obj.set(
+                            js_string!("type"),
+                            js_string!(input_type),
+                            false,
+                            context,
+                        )?;
+                    } else {
+                        input_obj.set(js_string!("type"), js_string!("text"), false, context)?;
+                    }
+
+                    // Add this input to the elements collection by name
+                    elements_collection.set(js_string!(input_name), input_obj, false, context)?;
+                }
+            }
+
+            // Add elements collection to the form
+            element_obj.set(js_string!("elements"), elements_collection, false, context)?;
+
+            // Add getAttribute method that Google's code needs
+            let get_attribute_func =
+                BuiltInBuilder::callable(context.realm(), |_this, args, ctx| {
+                    let attr_name = args.get_or_undefined(0).to_string(ctx)?;
+                    let attr_name_str = attr_name.to_std_string_escaped();
+
+                    // Return common attributes that Google checks
+                    match attr_name_str.as_str() {
+                        "data-submitfalse" => Ok(JsValue::null()), // Google checks this
+                        _ => Ok(JsValue::null()),
+                    }
+                })
+                .name(js_string!("getAttribute"))
+                .build();
+
+            element_obj.set(
+                js_string!("getAttribute"),
+                get_attribute_func,
+                false,
+                context,
+            )?;
+        }
+
+        return Ok(Some(element_obj));
     }
 
     Ok(None)
@@ -1354,22 +1337,21 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     let event = args.get_or_undefined(0);
 
     // Get event type from event object
-    if event.is_object() {
-        if let Some(event_obj) = event.as_object() {
-            if let Ok(type_val) = event_obj.get(js_string!("type"), context) {
-                let event_type = type_val.to_string(context)?;
-                let listeners = document.get_event_listeners(&event_type.to_std_string_escaped());
+    if event.is_object()
+        && let Some(event_obj) = event.as_object()
+        && let Ok(type_val) = event_obj.get(js_string!("type"), context)
+    {
+        let event_type = type_val.to_string(context)?;
+        let listeners = document.get_event_listeners(&event_type.to_std_string_escaped());
 
-                // Call each listener
-                for listener in listeners {
-                    if listener.is_callable() {
-                        let _ = listener.as_callable().unwrap().call(
-                            &this_obj.clone().into(),
-                            &[event.clone()],
-                            context,
-                        );
-                    }
-                }
+        // Call each listener
+        for listener in listeners {
+            if listener.is_callable() {
+                let _ = listener.as_callable().unwrap().call(
+                    &this_obj.clone().into(),
+                    std::slice::from_ref(event),
+                    context,
+                );
             }
         }
     }
@@ -1435,12 +1417,11 @@ fn start_view_transition(
                 .call(&JsValue::undefined(), &[], context)
         {
             // Check if result is a promise
-            if result.is_object() {
-                if let Some(obj) = result.as_object() {
-                    if obj.has_property(js_string!("then"), context)? {
-                        callback_promise = result;
-                    }
-                }
+            if result.is_object()
+                && let Some(obj) = result.as_object()
+                && obj.has_property(js_string!("then"), context)?
+            {
+                callback_promise = result;
             }
         }
     }
@@ -2035,7 +2016,7 @@ fn create_tree_walker(
 
     // Get filter (optional)
     let filter = if args.len() > 2 && !args.get_or_undefined(2).is_null_or_undefined() {
-        args.get_or_undefined(2).as_object().map(|o| o.clone())
+        args.get_or_undefined(2).as_object()
     } else {
         None
     };
@@ -2071,7 +2052,7 @@ fn create_node_iterator(
 
     // Get filter (optional)
     let filter = if args.len() > 2 && !args.get_or_undefined(2).is_null_or_undefined() {
-        args.get_or_undefined(2).as_object().map(|o| o.clone())
+        args.get_or_undefined(2).as_object()
     } else {
         None
     };
@@ -2737,7 +2718,7 @@ fn create_webgl_context(context: &mut Context, is_webgl2: bool) -> JsResult<JsVa
 
     let get_supported_extensions_fn = unsafe {
         NativeFunction::from_closure(|_, _args, context| {
-            let extensions = vec![
+            let extensions = [
                 "WEBKIT_EXT_texture_filter_anisotropic",
                 "EXT_texture_filter_anisotropic",
                 "OES_element_index_uint",
@@ -2809,17 +2790,17 @@ fn get_document_element(
 
             // Populate from stored HTML content so outerHTML has real data
             let html_content = document.get_html_content();
-            if !html_content.is_empty() {
-                if let Ok(sel) = scraper::Selector::parse("html") {
-                    let parsed = scraper::Html::parse_document(&html_content);
-                    if let Some(html_el) = parsed.select(&sel).next() {
-                        // Extract <html> attributes (class, lang, dir, etc.)
-                        for (name, value) in html_el.value().attrs() {
-                            elem_data.set_attribute(name.to_string(), value.to_string());
-                        }
-                        // Set inner_html to the content between <html> and </html>
-                        elem_data.set_inner_html_raw(html_el.inner_html());
+            if !html_content.is_empty()
+                && let Ok(sel) = scraper::Selector::parse("html")
+            {
+                let parsed = scraper::Html::parse_document(&html_content);
+                if let Some(html_el) = parsed.select(&sel).next() {
+                    // Extract <html> attributes (class, lang, dir, etc.)
+                    for (name, value) in html_el.value().attrs() {
+                        elem_data.set_attribute(name.to_string(), value.to_string());
                     }
+                    // Set inner_html to the content between <html> and </html>
+                    elem_data.set_inner_html_raw(html_el.inner_html());
                 }
             }
         }
@@ -3003,12 +2984,11 @@ fn add_html_collection_methods(array: &JsObject, context: &mut Context) -> JsRes
     // Add item() method
     let item_fn = BuiltInBuilder::callable(context.realm(), |this, args, ctx| {
         let index = args.get_or_undefined(0).to_u32(ctx)?;
-        if let Some(arr) = this.as_object() {
-            if let Ok(val) = arr.get(index, ctx) {
-                if !val.is_undefined() {
-                    return Ok(val);
-                }
-            }
+        if let Some(arr) = this.as_object()
+            && let Ok(val) = arr.get(index, ctx)
+            && !val.is_undefined()
+        {
+            return Ok(val);
         }
         Ok(JsValue::null())
     })
@@ -3022,25 +3002,25 @@ fn add_html_collection_methods(array: &JsObject, context: &mut Context) -> JsRes
             .get_or_undefined(0)
             .to_string(ctx)?
             .to_std_string_escaped();
-        if let Some(arr) = this.as_object() {
-            if let Ok(length) = arr.get(js_string!("length"), ctx) {
-                let len = length.to_u32(ctx)?;
-                for i in 0..len {
-                    if let Ok(item) = arr.get(i, ctx) {
-                        if let Some(item_obj) = item.as_object() {
-                            // Check id attribute
-                            if let Ok(id) = item_obj.get(js_string!("id"), ctx) {
-                                if id.to_string(ctx)?.to_std_string_escaped() == name {
-                                    return Ok(item);
-                                }
-                            }
-                            // Check name attribute
-                            if let Ok(elem_name) = item_obj.get(js_string!("name"), ctx) {
-                                if elem_name.to_string(ctx)?.to_std_string_escaped() == name {
-                                    return Ok(item);
-                                }
-                            }
-                        }
+        if let Some(arr) = this.as_object()
+            && let Ok(length) = arr.get(js_string!("length"), ctx)
+        {
+            let len = length.to_u32(ctx)?;
+            for i in 0..len {
+                if let Ok(item) = arr.get(i, ctx)
+                    && let Some(item_obj) = item.as_object()
+                {
+                    // Check id attribute
+                    if let Ok(id) = item_obj.get(js_string!("id"), ctx)
+                        && id.to_string(ctx)?.to_std_string_escaped() == name
+                    {
+                        return Ok(item);
+                    }
+                    // Check name attribute
+                    if let Ok(elem_name) = item_obj.get(js_string!("name"), ctx)
+                        && elem_name.to_string(ctx)?.to_std_string_escaped() == name
+                    {
+                        return Ok(item);
                     }
                 }
             }
@@ -3275,15 +3255,15 @@ fn set_adopted_style_sheets(
 
     // Accept an array of CSSStyleSheet objects
     let mut new_sheets = Vec::new();
-    if let Some(arr) = value.as_object() {
-        if let Ok(length_val) = arr.get(js_string!("length"), context) {
-            let length = length_val.to_u32(context).unwrap_or(0);
-            for i in 0..length {
-                if let Ok(item) = arr.get(i, context) {
-                    if let Some(sheet_obj) = item.as_object() {
-                        new_sheets.push(sheet_obj.clone());
-                    }
-                }
+    if let Some(arr) = value.as_object()
+        && let Ok(length_val) = arr.get(js_string!("length"), context)
+    {
+        let length = length_val.to_u32(context).unwrap_or(0);
+        for i in 0..length {
+            if let Ok(item) = arr.get(i, context)
+                && let Some(sheet_obj) = item.as_object()
+            {
+                new_sheets.push(sheet_obj.clone());
             }
         }
     }
@@ -3309,12 +3289,12 @@ fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
         let nth = if let Some(parent) = el.parent() {
             let mut count = 0u32;
             for sibling in parent.children() {
-                if let Some(sibling_el) = scraper::ElementRef::wrap(sibling) {
-                    if sibling_el.value().name().eq_ignore_ascii_case(&tag) {
-                        count += 1;
-                        if sibling_el == el {
-                            break;
-                        }
+                if let Some(sibling_el) = scraper::ElementRef::wrap(sibling)
+                    && sibling_el.value().name().eq_ignore_ascii_case(&tag)
+                {
+                    count += 1;
+                    if sibling_el == el {
+                        break;
                     }
                 }
             }
@@ -3324,17 +3304,13 @@ fn css_path_for_scraper_element(element_ref: &scraper::ElementRef) -> String {
         };
 
         // Root element (html) doesn't get nth-child
-        if el
-            .parent()
-            .and_then(|p| scraper::ElementRef::wrap(p))
-            .is_none()
-        {
+        if el.parent().and_then(scraper::ElementRef::wrap).is_none() {
             parts.push(tag);
         } else {
             parts.push(format!("{}:nth-child({})", tag, nth));
         }
 
-        current = el.parent().and_then(|p| scraper::ElementRef::wrap(p));
+        current = el.parent().and_then(scraper::ElementRef::wrap);
     }
 
     parts.reverse();

@@ -45,7 +45,15 @@ impl DocumentFragmentData {
             style: std::sync::Arc::new(std::sync::Mutex::new(CSSStyleDeclaration::new())),
         }
     }
+}
 
+impl Default for DocumentFragmentData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DocumentFragmentData {
     /// Get the number of child elements
     pub fn get_child_element_count(&self) -> u32 {
         self.element_children.borrow().len() as u32
@@ -546,7 +554,7 @@ impl IntrinsicObject for DocumentFragment {
             .name(js_string!("get children"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: DocumentFragment -> Node -> EventTarget
             .inherits(Some(realm.intrinsics().constructors().node().prototype()))
             // Methods

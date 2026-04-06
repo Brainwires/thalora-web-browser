@@ -56,6 +56,12 @@ pub struct AudioContextInner {
     suspended_time: f64,
 }
 
+impl Default for AudioContextInner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AudioContextInner {
     pub fn new() -> Self {
         Self {
@@ -87,6 +93,12 @@ impl AudioContextInner {
 pub struct AudioContextData {
     #[unsafe_ignore_trace]
     inner: Arc<Mutex<AudioContextInner>>,
+}
+
+impl Default for AudioContextData {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AudioContextData {

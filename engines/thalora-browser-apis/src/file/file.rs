@@ -95,7 +95,7 @@ impl IntrinsicObject for File {
             .name(js_string!("get type"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: File -> Blob
             .inherits(Some(realm.intrinsics().constructors().blob().prototype()))
             // Inherit Blob methods
@@ -175,7 +175,7 @@ impl BuiltInConstructor for File {
 
         // Handle file bits array (same as Blob constructor)
         let mut data = Vec::new();
-        if let Some(parts) = args.get(0) {
+        if let Some(parts) = args.first() {
             if let Some(array) = parts.as_object() {
                 // Handle array-like object
                 let length_prop = array.get(js_string!("length"), context)?;
@@ -225,28 +225,28 @@ impl BuiltInConstructor for File {
         let mut last_modified = None;
         let mut normalize_endings = false;
 
-        if let Some(options) = args.get(2) {
-            if let Some(options_obj) = options.as_object() {
-                // Extract type
-                let type_prop = options_obj.get(js_string!("type"), context)?;
-                if !type_prop.is_undefined() {
-                    mime_type = type_prop.to_string(context)?.to_std_string_escaped();
-                }
+        if let Some(options) = args.get(2)
+            && let Some(options_obj) = options.as_object()
+        {
+            // Extract type
+            let type_prop = options_obj.get(js_string!("type"), context)?;
+            if !type_prop.is_undefined() {
+                mime_type = type_prop.to_string(context)?.to_std_string_escaped();
+            }
 
-                // Extract lastModified
-                let last_modified_prop = options_obj.get(js_string!("lastModified"), context)?;
-                if !last_modified_prop.is_undefined() {
-                    last_modified = Some(last_modified_prop.to_number(context)? as u64);
-                }
+            // Extract lastModified
+            let last_modified_prop = options_obj.get(js_string!("lastModified"), context)?;
+            if !last_modified_prop.is_undefined() {
+                last_modified = Some(last_modified_prop.to_number(context)? as u64);
+            }
 
-                // Handle endings option (normalize line endings)
-                // Per File API spec: "transparent" (default) or "native"
-                let endings_prop = options_obj.get(js_string!("endings"), context)?;
-                if !endings_prop.is_undefined() {
-                    let endings_str = endings_prop.to_string(context)?.to_std_string_escaped();
-                    if endings_str == "native" {
-                        normalize_endings = true;
-                    }
+            // Handle endings option (normalize line endings)
+            // Per File API spec: "transparent" (default) or "native"
+            let endings_prop = options_obj.get(js_string!("endings"), context)?;
+            if !endings_prop.is_undefined() {
+                let endings_str = endings_prop.to_string(context)?.to_std_string_escaped();
+                if endings_str == "native" {
+                    normalize_endings = true;
                 }
             }
         }
@@ -297,7 +297,7 @@ impl File {
         let data_len = file_data.blob_data.size();
 
         // Parse start parameter
-        let start = if let Some(start_val) = args.get(0) {
+        let start = if let Some(start_val) = args.first() {
             if start_val.is_undefined() {
                 0
             } else {

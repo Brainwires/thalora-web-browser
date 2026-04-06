@@ -379,7 +379,7 @@ impl SubtleCrypto {
         use rsa::{RsaPrivateKey, pkcs8::EncodePrivateKey, traits::PublicKeyParts};
 
         // Validate modulus length
-        if modulus_length < 1024 || modulus_length > 4096 {
+        if !(1024..=4096).contains(&modulus_length) {
             return Err(JsNativeError::typ()
                 .with_message("RSA modulus length must be between 1024 and 4096 bits")
                 .into());
@@ -1441,11 +1441,9 @@ impl SubtleCrypto {
         let exported_bytes = if let Some(exported_obj) = exported.as_object() {
             // If JWK, serialize to JSON
             if format == "jwk" {
-                let json = serde_json::to_vec(&Self::js_object_to_json(&exported_obj, context)?)
-                    .map_err(|e| {
-                        JsNativeError::error().with_message(format!("JSON error: {}", e))
-                    })?;
-                json
+                serde_json::to_vec(&Self::js_object_to_json(&exported_obj, context)?).map_err(
+                    |e| JsNativeError::error().with_message(format!("JSON error: {}", e)),
+                )?
             } else {
                 // ArrayBuffer
                 Self::get_buffer_source(&exported, context)?
@@ -1531,10 +1529,7 @@ impl SubtleCrypto {
         let _source_obj = if buffer_val.is_undefined() {
             obj.clone()
         } else {
-            buffer_val
-                .as_object()
-                .map(|o| o.clone())
-                .unwrap_or_else(|| obj.clone())
+            buffer_val.as_object().unwrap_or_else(|| obj.clone())
         };
 
         // Get byteOffset if present

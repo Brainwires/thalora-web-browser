@@ -8,6 +8,15 @@
 #![allow(dead_code)]
 #![allow(unreachable_pub)]
 #![allow(unused_qualifications)]
+// Boa's JsObject is !Send+!Sync by design (uses Rc internally). We use Arc<Mutex<..>>
+// for shared ownership within a single-threaded Boa context, not for cross-thread sharing.
+#![allow(clippy::arc_with_non_send_sync)]
+// Many modules mirror web spec structure (e.g., dom/node/node.rs)
+#![allow(clippy::module_inception)]
+// Browser API functions often need many parameters to match the web spec signatures
+#![allow(clippy::too_many_arguments)]
+// from_str methods on our types are not std::str::FromStr implementations
+#![allow(clippy::should_implement_trait)]
 
 // Re-export Boa engine types needed for API bindings
 pub use boa_engine;
@@ -1509,7 +1518,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .get(browser::navigator::Navigator::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
-        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .and_then(|proto| proto.as_object())
         .ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("Navigator prototype not found")
         })?;
@@ -1521,7 +1530,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .get(storage::storage_manager::StorageManager::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
-        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .and_then(|proto| proto.as_object())
         .ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("StorageManager prototype not found")
         })?;
@@ -1538,7 +1547,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .get(locks::lock_manager::LockManager::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
-        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .and_then(|proto| proto.as_object())
         .ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("LockManager prototype not found")
         })?;
@@ -1598,12 +1607,11 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
     let navigator_instance: boa_engine::JsValue = navigator_generic.into();
 
     // Now set navigator on the window object (after setting storage and locks)
-    if let Some(window_obj) = window_instance.as_object() {
-        if let Some(window_data) = window_obj.downcast_ref::<browser::window::WindowData>() {
-            if let Some(nav_obj) = navigator_instance.as_object() {
-                window_data.set_navigator(nav_obj.clone());
-            }
-        }
+    if let Some(window_obj) = window_instance.as_object()
+        && let Some(window_data) = window_obj.downcast_ref::<browser::window::WindowData>()
+        && let Some(nav_obj) = navigator_instance.as_object()
+    {
+        window_data.set_navigator(nav_obj.clone());
     }
 
     // Set as global navigator (same object as window.navigator)
@@ -1800,7 +1808,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
          context: &mut boa_engine::Context| {
             // Create a MessageEvent with the data and dispatch it
             let message = args
-                .get(0)
+                .first()
                 .cloned()
                 .unwrap_or(boa_engine::JsValue::undefined());
             let _origin = args.get(1).cloned().unwrap_or(js_string!("*").into());
@@ -1842,7 +1850,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .get(storage::storage::Storage::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
-        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .and_then(|proto| proto.as_object())
         .ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("Storage prototype not found")
         })?;
@@ -1870,7 +1878,7 @@ pub fn initialize_browser_apis(context: &mut boa_engine::Context) -> JsResult<()
         .get(storage::indexed_db::factory::IDBFactory::NAME, context)?
         .as_object()
         .and_then(|ctor| ctor.get(boa_engine::js_string!("prototype"), context).ok())
-        .and_then(|proto| proto.as_object().map(|obj| obj.clone()))
+        .and_then(|proto| proto.as_object())
         .ok_or_else(|| {
             boa_engine::JsNativeError::typ().with_message("IDBFactory prototype not found")
         })?;

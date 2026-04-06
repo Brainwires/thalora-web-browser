@@ -157,6 +157,12 @@ pub struct HTMLScriptElementData {
     text: String,
 }
 
+impl Default for HTMLScriptElementData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLScriptElementData {
     pub fn new() -> Self {
         Self {

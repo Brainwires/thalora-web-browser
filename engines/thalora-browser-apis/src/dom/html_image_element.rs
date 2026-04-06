@@ -86,6 +86,12 @@ pub struct HTMLImageElementData {
     error_message: Arc<Mutex<Option<String>>>,
 }
 
+impl Default for HTMLImageElementData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLImageElementData {
     pub fn new() -> Self {
         Self {
@@ -397,15 +403,15 @@ impl BuiltInConstructor for HTMLImageElement {
         let data = HTMLImageElementData::new();
 
         // Handle optional width/height arguments
-        if let Some(width_arg) = args.get(0) {
-            if let Some(width) = width_arg.as_number() {
-                *data.width.lock().unwrap() = width as u32;
-            }
+        if let Some(width_arg) = args.first()
+            && let Some(width) = width_arg.as_number()
+        {
+            *data.width.lock().unwrap() = width as u32;
         }
-        if let Some(height_arg) = args.get(1) {
-            if let Some(height) = height_arg.as_number() {
-                *data.height.lock().unwrap() = height as u32;
-            }
+        if let Some(height_arg) = args.get(1)
+            && let Some(height) = height_arg.as_number()
+        {
+            *data.height.lock().unwrap() = height as u32;
         }
 
         // Create the object with prototype and data
@@ -419,10 +425,10 @@ impl BuiltInConstructor for HTMLImageElement {
 // ============== Property Accessors ==============
 
 fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(js_string!(data.src.lock().unwrap().clone()).into());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(js_string!(data.src.lock().unwrap().clone()).into());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -430,78 +436,77 @@ fn get_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 }
 
 fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args
-                .get_or_undefined(0)
-                .to_string(context)?
-                .to_std_string_escaped();
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
 
-            // Update the src
-            *data.src.lock().unwrap() = value.clone();
+        // Update the src
+        *data.src.lock().unwrap() = value.clone();
 
-            // Start loading if we have a URL
-            if !value.is_empty() {
-                *data.load_state.lock().unwrap() = ImageLoadState::Loading;
+        // Start loading if we have a URL
+        if !value.is_empty() {
+            *data.load_state.lock().unwrap() = ImageLoadState::Loading;
 
-                // Synchronous loading for now (async will be added with proper event loop integration)
-                // In a real browser, this would use fetch() asynchronously
-                if let Ok(url) = url::Url::parse(&value) {
-                    // Use blocking HTTP client for simplicity
-                    // TODO: Integrate with async event loop for proper onload/onerror events
-                    let client = reqwest::blocking::Client::new();
-                    match client.get(url).send() {
-                        Ok(response) => {
-                            if response.status().is_success() {
-                                match response.bytes() {
-                                    Ok(bytes) => {
-                                        if let Err(e) = data.load_from_bytes(&bytes) {
-                                            eprintln!("Image decode error: {}", e);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                        *data.error_message.lock().unwrap() =
-                                            Some(format!("Failed to read response: {}", e));
+            // Synchronous loading for now (async will be added with proper event loop integration)
+            // In a real browser, this would use fetch() asynchronously
+            if let Ok(url) = url::Url::parse(&value) {
+                // Use blocking HTTP client for simplicity
+                // TODO: Integrate with async event loop for proper onload/onerror events
+                let client = reqwest::blocking::Client::new();
+                match client.get(url).send() {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            match response.bytes() {
+                                Ok(bytes) => {
+                                    if let Err(e) = data.load_from_bytes(&bytes) {
+                                        eprintln!("Image decode error: {}", e);
                                     }
                                 }
-                            } else {
-                                *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                *data.error_message.lock().unwrap() =
-                                    Some(format!("HTTP error: {}", response.status()));
+                                Err(e) => {
+                                    *data.load_state.lock().unwrap() = ImageLoadState::Broken;
+                                    *data.error_message.lock().unwrap() =
+                                        Some(format!("Failed to read response: {}", e));
+                                }
+                            }
+                        } else {
+                            *data.load_state.lock().unwrap() = ImageLoadState::Broken;
+                            *data.error_message.lock().unwrap() =
+                                Some(format!("HTTP error: {}", response.status()));
+                        }
+                    }
+                    Err(e) => {
+                        *data.load_state.lock().unwrap() = ImageLoadState::Broken;
+                        *data.error_message.lock().unwrap() = Some(format!("Network error: {}", e));
+                    }
+                }
+            } else if value.starts_with("data:") {
+                // Handle data URLs
+                if let Some(base64_start) = value.find("base64,") {
+                    let base64_data = &value[base64_start + 7..];
+                    match base64::Engine::decode(
+                        &base64::engine::general_purpose::STANDARD,
+                        base64_data,
+                    ) {
+                        Ok(bytes) => {
+                            if let Err(e) = data.load_from_bytes(&bytes) {
+                                eprintln!("Image decode error from data URL: {}", e);
                             }
                         }
                         Err(e) => {
                             *data.load_state.lock().unwrap() = ImageLoadState::Broken;
                             *data.error_message.lock().unwrap() =
-                                Some(format!("Network error: {}", e));
-                        }
-                    }
-                } else if value.starts_with("data:") {
-                    // Handle data URLs
-                    if let Some(base64_start) = value.find("base64,") {
-                        let base64_data = &value[base64_start + 7..];
-                        match base64::Engine::decode(
-                            &base64::engine::general_purpose::STANDARD,
-                            base64_data,
-                        ) {
-                            Ok(bytes) => {
-                                if let Err(e) = data.load_from_bytes(&bytes) {
-                                    eprintln!("Image decode error from data URL: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                *data.load_state.lock().unwrap() = ImageLoadState::Broken;
-                                *data.error_message.lock().unwrap() =
-                                    Some(format!("Invalid base64: {}", e));
-                            }
+                                Some(format!("Invalid base64: {}", e));
                         }
                     }
                 }
             }
-
-            return Ok(JsValue::undefined());
         }
+
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -509,10 +514,10 @@ fn set_src(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn get_alt(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(js_string!(data.alt.lock().unwrap().clone()).into());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(js_string!(data.alt.lock().unwrap().clone()).into());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -520,15 +525,15 @@ fn get_alt(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResul
 }
 
 fn set_alt(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args
-                .get_or_undefined(0)
-                .to_string(context)?
-                .to_std_string_escaped();
-            *data.alt.lock().unwrap() = value;
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        *data.alt.lock().unwrap() = value;
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -536,10 +541,10 @@ fn set_alt(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<
 }
 
 fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(JsValue::from(*data.width.lock().unwrap()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(JsValue::from(*data.width.lock().unwrap()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -547,13 +552,13 @@ fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn set_width(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            if let Some(value) = args.get(0).and_then(|v| v.as_number()) {
-                *data.width.lock().unwrap() = value as u32;
-            }
-            return Ok(JsValue::undefined());
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        if let Some(value) = args.first().and_then(|v| v.as_number()) {
+            *data.width.lock().unwrap() = value as u32;
         }
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -561,10 +566,10 @@ fn set_width(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResu
 }
 
 fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(JsValue::from(*data.height.lock().unwrap()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(JsValue::from(*data.height.lock().unwrap()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -572,13 +577,13 @@ fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 fn set_height(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            if let Some(value) = args.get(0).and_then(|v| v.as_number()) {
-                *data.height.lock().unwrap() = value as u32;
-            }
-            return Ok(JsValue::undefined());
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        if let Some(value) = args.first().and_then(|v| v.as_number()) {
+            *data.height.lock().unwrap() = value as u32;
         }
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -590,10 +595,10 @@ fn get_natural_width(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(JsValue::from(*data.natural_width.lock().unwrap()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(JsValue::from(*data.natural_width.lock().unwrap()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -605,10 +610,10 @@ fn get_natural_height(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(JsValue::from(*data.natural_height.lock().unwrap()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(JsValue::from(*data.natural_height.lock().unwrap()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -616,13 +621,13 @@ fn get_natural_height(
 }
 
 fn get_complete(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let state = *data.load_state.lock().unwrap();
-            let complete = matches!(state, ImageLoadState::Complete | ImageLoadState::Broken)
-                || data.get_src().is_empty();
-            return Ok(JsValue::from(complete));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        let state = *data.load_state.lock().unwrap();
+        let complete = matches!(state, ImageLoadState::Complete | ImageLoadState::Broken)
+            || data.get_src().is_empty();
+        return Ok(JsValue::from(complete));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -631,15 +636,15 @@ fn get_complete(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 
 fn get_current_src(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
     // currentSrc returns the actual resolved URL being used
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let src = data.src.lock().unwrap().clone();
-            // Only return src if image is complete
-            if *data.load_state.lock().unwrap() == ImageLoadState::Complete {
-                return Ok(js_string!(src).into());
-            }
-            return Ok(js_string!("").into());
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        let src = data.src.lock().unwrap().clone();
+        // Only return src if image is complete
+        if *data.load_state.lock().unwrap() == ImageLoadState::Complete {
+            return Ok(js_string!(src).into());
         }
+        return Ok(js_string!("").into());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -651,13 +656,13 @@ fn get_cross_origin(
     _args: &[JsValue],
     _context: &mut Context,
 ) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            if let Some(ref value) = *data.cross_origin.lock().unwrap() {
-                return Ok(js_string!(value.clone()).into());
-            }
-            return Ok(JsValue::null());
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        if let Some(ref value) = *data.cross_origin.lock().unwrap() {
+            return Ok(js_string!(value.clone()).into());
         }
+        return Ok(JsValue::null());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -665,19 +670,19 @@ fn get_cross_origin(
 }
 
 fn set_cross_origin(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            if args.get_or_undefined(0).is_null() {
-                *data.cross_origin.lock().unwrap() = None;
-            } else {
-                let value = args
-                    .get_or_undefined(0)
-                    .to_string(context)?
-                    .to_std_string_escaped();
-                *data.cross_origin.lock().unwrap() = Some(value);
-            }
-            return Ok(JsValue::undefined());
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        if args.get_or_undefined(0).is_null() {
+            *data.cross_origin.lock().unwrap() = None;
+        } else {
+            let value = args
+                .get_or_undefined(0)
+                .to_string(context)?
+                .to_std_string_escaped();
+            *data.cross_origin.lock().unwrap() = Some(value);
         }
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -685,10 +690,10 @@ fn set_cross_origin(this: &JsValue, args: &[JsValue], context: &mut Context) -> 
 }
 
 fn get_is_map(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(JsValue::from(*data.is_map.lock().unwrap()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(JsValue::from(*data.is_map.lock().unwrap()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -696,11 +701,11 @@ fn get_is_map(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 }
 
 fn set_is_map(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            *data.is_map.lock().unwrap() = args.get_or_undefined(0).to_boolean();
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        *data.is_map.lock().unwrap() = args.get_or_undefined(0).to_boolean();
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -708,10 +713,10 @@ fn set_is_map(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn get_loading(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(js_string!(data.loading.lock().unwrap().clone()).into());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(js_string!(data.loading.lock().unwrap().clone()).into());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -719,20 +724,20 @@ fn get_loading(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsR
 }
 
 fn set_loading(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args
-                .get_or_undefined(0)
-                .to_string(context)?
-                .to_std_string_escaped();
-            // Normalize to valid values: "eager" or "lazy"
-            let normalized = match value.to_lowercase().as_str() {
-                "lazy" => "lazy",
-                _ => "eager",
-            };
-            *data.loading.lock().unwrap() = normalized.to_string();
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        // Normalize to valid values: "eager" or "lazy"
+        let normalized = match value.to_lowercase().as_str() {
+            "lazy" => "lazy",
+            _ => "eager",
+        };
+        *data.loading.lock().unwrap() = normalized.to_string();
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -740,10 +745,10 @@ fn set_loading(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsRes
 }
 
 fn get_decoding(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            return Ok(js_string!(data.decoding.lock().unwrap().clone()).into());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        return Ok(js_string!(data.decoding.lock().unwrap().clone()).into());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")
@@ -751,21 +756,21 @@ fn get_decoding(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> Js
 }
 
 fn set_decoding(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<HTMLImageElementData>() {
-            let value = args
-                .get_or_undefined(0)
-                .to_string(context)?
-                .to_std_string_escaped();
-            // Normalize to valid values: "sync", "async", or "auto"
-            let normalized = match value.to_lowercase().as_str() {
-                "sync" => "sync",
-                "async" => "async",
-                _ => "auto",
-            };
-            *data.decoding.lock().unwrap() = normalized.to_string();
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<HTMLImageElementData>()
+    {
+        let value = args
+            .get_or_undefined(0)
+            .to_string(context)?
+            .to_std_string_escaped();
+        // Normalize to valid values: "sync", "async", or "auto"
+        let normalized = match value.to_lowercase().as_str() {
+            "sync" => "sync",
+            "async" => "async",
+            _ => "auto",
+        };
+        *data.decoding.lock().unwrap() = normalized.to_string();
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an HTMLImageElement")

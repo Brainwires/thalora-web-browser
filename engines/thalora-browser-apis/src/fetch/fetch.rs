@@ -167,7 +167,7 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                             .unwrap_or(true);
 
-                        if status < 200 || status >= 300 {
+                        if !(200..300).contains(&status) {
                             eprintln!("⚠️  CORS preflight returned status {}", status);
                             if strict_cors {
                                 return Err(JsNativeError::typ()
@@ -243,8 +243,8 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                             .and_then(|v| v.to_str().ok())
                             .and_then(|v| v.parse::<u64>().ok())
                             .unwrap_or(5); // Default 5 seconds per spec
-                        if max_age > 0 {
-                            if let Ok(mut cache) = PREFLIGHT_CACHE.lock() {
+                        if max_age > 0
+                            && let Ok(mut cache) = PREFLIGHT_CACHE.lock() {
                                 cache.insert(
                                     cache_key.clone(),
                                     std::time::Instant::now()
@@ -256,7 +256,6 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                                     cache.retain(|_, expiry| *expiry > now);
                                 }
                             }
-                        }
                     }
                     Err(e) => {
                         eprintln!("⚠️  CORS preflight request failed: {}", e);
@@ -293,11 +292,10 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
             // Execute the request
             let response_result = request_builder.send().await;
 
-            let context = &mut context.borrow_mut();
-
-            match response_result {
+            // Extract response metadata and body before borrowing context,
+            // since response.text().await cannot be called while holding a RefCell borrow.
+            let processed = match response_result {
                 Ok(response) => {
-                    // Extract response data
                     let status = response.status().as_u16();
                     let status_text = response
                         .status()
@@ -305,7 +303,6 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                         .unwrap_or("")
                         .to_string();
 
-                    // Convert headers
                     let mut response_headers = HashMap::new();
                     for (name, value) in response.headers() {
                         if let Ok(value_str) = value.to_str() {
@@ -313,7 +310,6 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                         }
                     }
 
-                    // Determine response type based on CORS headers and request mode
                     let has_acao = response_headers.contains_key("access-control-allow-origin");
                     let response_type = if mode == "no-cors" {
                         "opaque"
@@ -323,8 +319,17 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                         "basic"
                     };
 
-                    // Get response body
                     let body_result = response.text().await;
+                    Ok((status, status_text, response_headers, response_type, body_result))
+                }
+                Err(e) => Err(e),
+            };
+
+            let context = &mut context.borrow_mut();
+
+            match processed {
+                Ok((status, status_text, response_headers, response_type, body_result)) => {
+                    let body_result: Result<String, reqwest::Error> = body_result;
                     match body_result {
                         Ok(body_text) => {
                             // Create Response object and resolve the promise
@@ -353,7 +358,7 @@ fn fetch(_this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<J
                             ));
                             drop(response_obj.set(
                                 js_string!("ok"),
-                                JsValue::from(status >= 200 && status < 300),
+                                JsValue::from((200..300).contains(&status)),
                                 false,
                                 context,
                             ));
@@ -768,7 +773,7 @@ impl BuiltInConstructor for Response {
                         }
                     }
                     _ => {
-                        if status >= 200 && status < 300 {
+                        if (200..300).contains(&status) {
                             "OK".to_string()
                         } else {
                             "".to_string()
@@ -955,49 +960,50 @@ impl BuiltInConstructor for Headers {
         let mut headers = HashMap::new();
 
         // Parse init parameter (can be array of [name, value] pairs, object, or another Headers)
-        if !init.is_undefined() && !init.is_null() {
-            if let Some(init_obj) = init.as_object() {
-                // Check if it's a Headers object
-                if let Some(headers_data) = init_obj.downcast_ref::<HeadersData>() {
-                    // Copy headers from existing Headers object
-                    headers = headers_data.headers.clone();
-                } else {
-                    // Check if it's an array of [name, value] pairs
-                    let length_prop = init_obj.get(js_string!("length"), context)?;
-                    if !length_prop.is_undefined() {
-                        // Array-like: iterate and extract [name, value] pairs
-                        let length = length_prop.to_length(context)?;
-                        for i in 0..length {
-                            let pair = init_obj.get(i, context)?;
-                            if let Some(pair_obj) = pair.as_object() {
-                                let pair_len = pair_obj.get(js_string!("length"), context)?;
-                                if let Some(len) = pair_len.to_length(context).ok() {
-                                    if len >= 2 {
-                                        let name = pair_obj
-                                            .get(0, context)?
-                                            .to_string(context)?
-                                            .to_std_string_escaped()
-                                            .to_lowercase();
-                                        let value = pair_obj
-                                            .get(1, context)?
-                                            .to_string(context)?
-                                            .to_std_string_escaped();
-                                        headers.insert(name, value);
-                                    }
-                                }
+        if !init.is_undefined()
+            && !init.is_null()
+            && let Some(init_obj) = init.as_object()
+        {
+            // Check if it's a Headers object
+            if let Some(headers_data) = init_obj.downcast_ref::<HeadersData>() {
+                // Copy headers from existing Headers object
+                headers = headers_data.headers.clone();
+            } else {
+                // Check if it's an array of [name, value] pairs
+                let length_prop = init_obj.get(js_string!("length"), context)?;
+                if !length_prop.is_undefined() {
+                    // Array-like: iterate and extract [name, value] pairs
+                    let length = length_prop.to_length(context)?;
+                    for i in 0..length {
+                        let pair = init_obj.get(i, context)?;
+                        if let Some(pair_obj) = pair.as_object() {
+                            let pair_len = pair_obj.get(js_string!("length"), context)?;
+                            if let Ok(len) = pair_len.to_length(context)
+                                && len >= 2
+                            {
+                                let name = pair_obj
+                                    .get(0, context)?
+                                    .to_string(context)?
+                                    .to_std_string_escaped()
+                                    .to_lowercase();
+                                let value = pair_obj
+                                    .get(1, context)?
+                                    .to_string(context)?
+                                    .to_std_string_escaped();
+                                headers.insert(name, value);
                             }
                         }
-                    } else {
-                        // Regular object: iterate over own properties
-                        let keys = init_obj.own_property_keys(context)?;
-                        for key in keys {
-                            let value = init_obj.get(key.clone(), context)?;
-                            if !value.is_undefined() {
-                                // PropertyKey::to_string() returns a std::string::String
-                                let name = key.to_string().to_lowercase();
-                                let value_str = value.to_string(context)?.to_std_string_escaped();
-                                headers.insert(name, value_str);
-                            }
+                    }
+                } else {
+                    // Regular object: iterate over own properties
+                    let keys = init_obj.own_property_keys(context)?;
+                    for key in keys {
+                        let value = init_obj.get(key.clone(), context)?;
+                        if !value.is_undefined() {
+                            // PropertyKey::to_string() returns a std::string::String
+                            let name = key.to_string().to_lowercase();
+                            let value_str = value.to_string(context)?.to_std_string_escaped();
+                            headers.insert(name, value_str);
                         }
                     }
                 }

@@ -363,13 +363,10 @@ impl TreeWalker {
             }
 
             // Try sibling
-            loop {
-                let sibling = child_obj.get(js_string!(sibling_prop), context)?;
-                if !sibling.is_null() && !sibling.is_undefined() {
-                    child = sibling;
-                    break;
-                }
-
+            let sibling = child_obj.get(js_string!(sibling_prop), context)?;
+            if !sibling.is_null() && !sibling.is_undefined() {
+                child = sibling;
+            } else {
                 // Go up to parent
                 let parent = child_obj.get(js_string!("parentNode"), context)?;
                 if parent.is_null() || parent.is_undefined() {
@@ -386,7 +383,6 @@ impl TreeWalker {
                 }
 
                 child = parent;
-                break;
             }
         }
 
@@ -694,7 +690,7 @@ impl IntrinsicObject for TreeWalker {
             .name(js_string!("set currentNode"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::parent_node, js_string!("parentNode"), 0)
             .method(Self::first_child, js_string!("firstChild"), 0)
             .method(Self::last_child, js_string!("lastChild"), 0)

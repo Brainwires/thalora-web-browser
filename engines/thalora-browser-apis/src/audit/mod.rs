@@ -1486,7 +1486,7 @@ pub fn generate_report(results: &[ApiResult]) -> String {
         .filter(|r| r.priority == Priority::Medium && r.implemented)
         .count();
 
-    report.push_str("\n");
+    report.push('\n');
     report.push_str(
         "╔══════════════════════════════════════════════════════════════════════════════╗\n",
     );
@@ -1549,7 +1549,7 @@ pub fn generate_report(results: &[ApiResult]) -> String {
 
         report.push_str(&format!("\n{:?} ({}/{})\n", category, cat_impl, cat_total));
         report.push_str(&"─".repeat(60));
-        report.push_str("\n");
+        report.push('\n');
 
         // Show implemented
         for result in cat_results.iter().filter(|r| r.implemented) {
@@ -1586,7 +1586,7 @@ pub fn generate_report(results: &[ApiResult]) -> String {
         .collect();
 
     if !missing_critical.is_empty() {
-        report.push_str("\n");
+        report.push('\n');
         report.push_str(
             "╔══════════════════════════════════════════════════════════════════════════════╗\n",
         );
@@ -1611,7 +1611,7 @@ pub fn generate_report(results: &[ApiResult]) -> String {
         .collect();
 
     if !missing_high.is_empty() {
-        report.push_str("\n");
+        report.push('\n');
         report.push_str(
             "═══════════════════════════ MISSING HIGH PRIORITY APIs ═══════════════════════\n",
         );

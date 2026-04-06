@@ -484,7 +484,7 @@ impl IntrinsicObject for Text {
                 .name(js_string!("get assignedSlot"))
                 .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Text -> CharacterData -> Node -> EventTarget
             .inherits(Some(
                 realm

@@ -119,15 +119,13 @@ impl BuiltInConstructor for ErrorEvent {
                 let message = init_obj
                     .get(js_string!("message"), context)
                     .ok()
-                    .map(|v| v.to_string(context).ok())
-                    .flatten()
+                    .and_then(|v| v.to_string(context).ok())
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_default();
                 let filename = init_obj
                     .get(js_string!("filename"), context)
                     .ok()
-                    .map(|v| v.to_string(context).ok())
-                    .flatten()
+                    .and_then(|v| v.to_string(context).ok())
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_default();
                 let lineno = init_obj
@@ -185,24 +183,24 @@ impl BuiltInConstructor for ErrorEvent {
         )?;
 
         // Parse eventInitDict for Event properties
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    error_event_generic.set(
-                        js_string!("bubbles"),
-                        bubbles_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    error_event_generic.set(
-                        js_string!("cancelable"),
-                        cancelable_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                error_event_generic.set(
+                    js_string!("bubbles"),
+                    bubbles_val.to_boolean(),
+                    false,
+                    context,
+                )?;
+            }
+            if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                error_event_generic.set(
+                    js_string!("cancelable"),
+                    cancelable_val.to_boolean(),
+                    false,
+                    context,
+                )?;
             }
         }
 

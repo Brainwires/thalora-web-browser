@@ -89,10 +89,10 @@ pub fn add_query_methods(obj: &JsObject, context: &mut Context) {
             let query_id = get_object_id(args.get_or_undefined(0), ctx)?;
             let _pname = args.get_or_undefined(1).to_u32(ctx)?;
 
-            if let Some(query) = data.queries.lock().unwrap().get(&query_id) {
-                if let Some(result) = query.result {
-                    return Ok(JsValue::from(result as f64));
-                }
+            if let Some(query) = data.queries.lock().unwrap().get(&query_id)
+                && let Some(result) = query.result
+            {
+                return Ok(JsValue::from(result as f64));
             }
             Ok(JsValue::null())
         })
@@ -244,10 +244,10 @@ pub fn add_sync_methods(obj: &JsObject, context: &mut Context) {
             let _flags = args.get_or_undefined(1).to_u32(ctx)?;
             let _timeout = args.get_or_undefined(2).to_number(ctx)?;
 
-            if let Some(sync) = data.syncs.lock().unwrap().get(&sync_id) {
-                if sync.signaled {
-                    return Ok(JsValue::from(WebGL2Constants::ALREADY_SIGNALED));
-                }
+            if let Some(sync) = data.syncs.lock().unwrap().get(&sync_id)
+                && sync.signaled
+            {
+                return Ok(JsValue::from(WebGL2Constants::ALREADY_SIGNALED));
             }
             // For now, always return condition satisfied
             Ok(JsValue::from(WebGL2Constants::CONDITION_SATISFIED))
@@ -276,10 +276,10 @@ pub fn add_sync_methods(obj: &JsObject, context: &mut Context) {
             let sync_id = get_object_id(args.get_or_undefined(0), ctx)?;
             let _pname = args.get_or_undefined(1).to_u32(ctx)?;
 
-            if let Some(sync) = data.syncs.lock().unwrap().get(&sync_id) {
-                if sync.signaled {
-                    return Ok(JsValue::from(1));
-                }
+            if let Some(sync) = data.syncs.lock().unwrap().get(&sync_id)
+                && sync.signaled
+            {
+                return Ok(JsValue::from(1));
             }
             Ok(JsValue::from(0))
         })

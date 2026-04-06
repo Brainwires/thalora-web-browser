@@ -35,7 +35,7 @@ fn json_stringify(value: &JsValue, context: &mut Context) -> JsResult<String> {
         .as_callable()
         .ok_or_else(|| JsNativeError::typ().with_message("JSON.stringify is not callable"))?;
 
-    let result = stringify_fn.call(&JsValue::undefined(), &[value.clone()], context)?;
+    let result = stringify_fn.call(&JsValue::undefined(), std::slice::from_ref(value), context)?;
     Ok(result.to_string(context)?.to_std_string_escaped())
 }
 
@@ -370,7 +370,7 @@ impl IDBCursor {
         }
 
         // Parse optional key
-        let target_key = if args.len() > 0 && !args[0].is_undefined() {
+        let target_key = if !args.is_empty() && !args[0].is_undefined() {
             Some(IDBKey::from_js_value(&args[0], context)?)
         } else {
             None
@@ -440,7 +440,7 @@ impl IDBCursor {
         // For object stores, primary key is the same as key
         // So this just calls continue with the key
         let key_arg = args.get_or_undefined(0);
-        Self::continue_method(this, &[key_arg.clone()], context)
+        Self::continue_method(this, std::slice::from_ref(key_arg), context)
     }
 
     /// cursor.update(value)

@@ -382,14 +382,13 @@ impl Storage {
 
             // Try legacy unencrypted format for migration
             let legacy_path = storage_path.with_extension("json");
-            if legacy_path.exists() {
-                if let Ok(content) = fs::read_to_string(&legacy_path) {
-                    if let Ok(storage_data) = serde_json::from_str::<StorageData>(&content) {
-                        // Delete legacy unencrypted file after reading
-                        let _ = fs::remove_file(&legacy_path);
-                        return storage_data.data;
-                    }
-                }
+            if legacy_path.exists()
+                && let Ok(content) = fs::read_to_string(&legacy_path)
+                && let Ok(storage_data) = serde_json::from_str::<StorageData>(&content)
+            {
+                // Delete legacy unencrypted file after reading
+                let _ = fs::remove_file(&legacy_path);
+                return storage_data.data;
             }
         }
         HashMap::new()

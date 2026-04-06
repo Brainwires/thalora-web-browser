@@ -42,6 +42,12 @@ pub struct WorkerEventHandlers {
     handlers: HashMap<WorkerEventType, Option<JsValue>>,
 }
 
+impl Default for WorkerEventHandlers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorkerEventHandlers {
     pub fn new() -> Self {
         let mut handlers = HashMap::new();
@@ -178,15 +184,15 @@ pub fn dispatch_worker_event(
     context: &mut Context,
 ) -> JsResult<()> {
     // Get the appropriate event handler
-    if let Some(handler) = get_event_handler_for_object(obj, &event.event_type) {
-        if handler.is_callable() {
-            // Create event object
-            let event_obj = create_event_object(&event, context)?;
+    if let Some(handler) = get_event_handler_for_object(obj, &event.event_type)
+        && handler.is_callable()
+    {
+        // Create event object
+        let event_obj = create_event_object(&event, context)?;
 
-            // Call the handler with the event object
-            if let Some(handler_obj) = handler.as_callable() {
-                let _ = handler_obj.call(&JsValue::from(obj.clone()), &[event_obj], context);
-            }
+        // Call the handler with the event object
+        if let Some(handler_obj) = handler.as_callable() {
+            let _ = handler_obj.call(&JsValue::from(obj.clone()), &[event_obj], context);
         }
     }
 

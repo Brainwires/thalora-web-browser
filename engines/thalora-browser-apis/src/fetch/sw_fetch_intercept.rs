@@ -5,7 +5,7 @@
 //! listener or `onfetch` handler, fetch requests are dispatched as FetchEvents to the
 //! service worker before going to the network.
 
-use boa_engine::{Context, JsResult, JsValue, js_string, object::JsObject};
+use boa_engine::{Context, JsResult, JsValue, js_string};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -67,7 +67,7 @@ pub fn find_controlling_sw(url: &str) -> Option<String> {
     for (scope, handler) in registry.iter() {
         if handler.has_fetch_handler && url.starts_with(scope.as_str()) {
             let scope_len = scope.len();
-            if best_match.map_or(true, |(_, len)| scope_len > len) {
+            if best_match.is_none_or(|(_, len)| scope_len > len) {
                 best_match = Some((scope.as_str(), scope_len));
             }
         }
@@ -127,15 +127,16 @@ pub fn dispatch_fetch_event_to_sw(
     let onfetch = global.get(js_string!("onfetch"), context)?;
     let mut handler_called = false;
 
-    if !onfetch.is_null() && !onfetch.is_undefined() {
-        if let Some(handler) = onfetch.as_callable() {
-            handler.call(
-                &global.clone().into(),
-                &[fetch_event.clone().into()],
-                context,
-            )?;
-            handler_called = true;
-        }
+    if !onfetch.is_null()
+        && !onfetch.is_undefined()
+        && let Some(handler) = onfetch.as_callable()
+    {
+        handler.call(
+            &global.clone().into(),
+            &[fetch_event.clone().into()],
+            context,
+        )?;
+        handler_called = true;
     }
 
     // Also try addEventListener-based dispatch

@@ -143,21 +143,23 @@ impl FileSystemPermissions {
 
         // Check if a parent directory has been granted access
         for ((e_origin, e_path, e_mode), entry) in entries.iter() {
-            if e_origin == origin && e_mode == &mode {
-                if normalized_path.starts_with(e_path) && entry.state == PermissionState::Granted {
-                    return PermissionState::Granted;
-                }
+            if e_origin == origin
+                && e_mode == &mode
+                && normalized_path.starts_with(e_path)
+                && entry.state == PermissionState::Granted
+            {
+                return PermissionState::Granted;
             }
         }
 
         // Check if read permission grants read for readwrite request
         if mode == PermissionMode::ReadWrite {
             let read_key = (origin.to_string(), normalized_path, PermissionMode::Read);
-            if let Some(entry) = entries.get(&read_key) {
-                if entry.state == PermissionState::Granted {
-                    // Read permission doesn't automatically grant write
-                    return PermissionState::Denied;
-                }
+            if let Some(entry) = entries.get(&read_key)
+                && entry.state == PermissionState::Granted
+            {
+                // Read permission doesn't automatically grant write
+                return PermissionState::Denied;
             }
         }
 
@@ -403,7 +405,7 @@ impl FileSystemHandle {
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
 
         // Parse permission mode from descriptor
-        let mode = if let Some(descriptor) = args.get(0) {
+        let mode = if let Some(descriptor) = args.first() {
             if let Some(obj) = descriptor.as_object() {
                 if let Ok(mode_val) = obj.get(js_string!("mode"), context) {
                     if let Ok(mode_str) = mode_val.to_string(context) {
@@ -455,7 +457,7 @@ impl FileSystemHandle {
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a FileSystemHandle"))?;
 
         // Parse permission mode from descriptor
-        let mode = if let Some(descriptor) = args.get(0) {
+        let mode = if let Some(descriptor) = args.first() {
             if let Some(obj) = descriptor.as_object() {
                 if let Ok(mode_val) = obj.get(js_string!("mode"), context) {
                     if let Ok(mode_str) = mode_val.to_string(context) {
@@ -709,7 +711,7 @@ impl FileSystemFileHandle {
             .as_object()
             .ok_or_else(|| JsNativeError::typ().with_message("'this' is not a writable stream"))?;
 
-        if let Some(content_arg) = args.get(0) {
+        if let Some(content_arg) = args.first() {
             // Get current pending content
             let current_content = obj.get(js_string!("__pending_content"), context)?;
             let current_str = current_content.to_string(context)?;
@@ -762,7 +764,7 @@ impl FileSystemFileHandle {
 
         // Write the content to VFS
         let file_path = PathBuf::from(path_str);
-        if let Err(_) = vfs::fs::write(&file_path, content_str.as_bytes()) {
+        if vfs::fs::write(&file_path, content_str.as_bytes()).is_err() {
             return Err(JsNativeError::typ()
                 .with_message("Failed to write file")
                 .into());
@@ -1076,9 +1078,9 @@ pub fn show_directory_picker(
 
     // Ensure the directory exists in VFS with some sample files
     // Create sample files in the directory
-    let _ = vfs::fs::write(&dir_path.join("readme.txt"), b"Welcome to the documents directory!\nThis directory contains sample files accessible through the File System API.");
+    let _ = vfs::fs::write(dir_path.join("readme.txt"), b"Welcome to the documents directory!\nThis directory contains sample files accessible through the File System API.");
     let _ = vfs::fs::write(
-        &dir_path.join("notes.txt"),
+        dir_path.join("notes.txt"),
         b"Sample notes file.\nYou can read and write to this file.",
     );
 

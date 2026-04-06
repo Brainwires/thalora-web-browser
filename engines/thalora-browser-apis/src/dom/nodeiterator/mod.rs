@@ -151,10 +151,11 @@ impl NodeIteratorData {
 
         // Try first child - node is already a generic JsObject reference
         let first_child = node.get(js_string!("firstChild"), context)?;
-        if !first_child.is_null() && !first_child.is_undefined() {
-            if let Some(child) = first_child.as_object() {
-                return Ok(Some(child.clone()));
-            }
+        if !first_child.is_null()
+            && !first_child.is_undefined()
+            && let Some(child) = first_child.as_object()
+        {
+            return Ok(Some(child.clone()));
         }
 
         // Try next sibling
@@ -165,10 +166,11 @@ impl NodeIteratorData {
             }
 
             let sibling = current.get(js_string!("nextSibling"), context)?;
-            if !sibling.is_null() && !sibling.is_undefined() {
-                if let Some(sib) = sibling.as_object() {
-                    return Ok(Some(sib.clone()));
-                }
+            if !sibling.is_null()
+                && !sibling.is_undefined()
+                && let Some(sib) = sibling.as_object()
+            {
+                return Ok(Some(sib.clone()));
             }
 
             // Go to parent
@@ -197,19 +199,20 @@ impl NodeIteratorData {
 
         // Try previous sibling's last descendant - node is already a generic JsObject reference
         let sibling = node.get(js_string!("previousSibling"), context)?;
-        if !sibling.is_null() && !sibling.is_undefined() {
-            if let Some(mut sib) = sibling.as_object().map(|o| o.clone()) {
-                // Go to last descendant
-                loop {
-                    let last_child = sib.get(js_string!("lastChild"), context)?;
-                    if last_child.is_null() || last_child.is_undefined() {
-                        return Ok(Some(sib));
-                    }
-                    sib = match last_child.as_object() {
-                        Some(c) => c.clone(),
-                        None => return Ok(Some(sib)),
-                    };
+        if !sibling.is_null()
+            && !sibling.is_undefined()
+            && let Some(mut sib) = sibling.as_object()
+        {
+            // Go to last descendant
+            loop {
+                let last_child = sib.get(js_string!("lastChild"), context)?;
+                if last_child.is_null() || last_child.is_undefined() {
+                    return Ok(Some(sib));
                 }
+                sib = match last_child.as_object() {
+                    Some(c) => c.clone(),
+                    None => return Ok(Some(sib)),
+                };
             }
         }
 
@@ -464,7 +467,7 @@ impl IntrinsicObject for NodeIterator {
                 .name(js_string!("get pointerBeforeReferenceNode"))
                 .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::next_node, js_string!("nextNode"), 0)
             .method(Self::previous_node, js_string!("previousNode"), 0)
             .method(Self::detach, js_string!("detach"), 0)

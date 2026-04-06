@@ -241,24 +241,24 @@ impl BuiltInConstructor for TouchEvent {
             context,
         )?;
 
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    touch_event_generic.set(
-                        js_string!("bubbles"),
-                        bubbles_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    touch_event_generic.set(
-                        js_string!("cancelable"),
-                        cancelable_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                touch_event_generic.set(
+                    js_string!("bubbles"),
+                    bubbles_val.to_boolean(),
+                    false,
+                    context,
+                )?;
+            }
+            if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                touch_event_generic.set(
+                    js_string!("cancelable"),
+                    cancelable_val.to_boolean(),
+                    false,
+                    context,
+                )?;
             }
         }
 

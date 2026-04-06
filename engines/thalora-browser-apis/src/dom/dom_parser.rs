@@ -71,6 +71,12 @@ impl BuiltInConstructor for DOMParser {
 #[derive(Debug, Trace, Finalize, JsData)]
 pub struct DOMParserData {}
 
+impl Default for DOMParserData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DOMParserData {
     pub fn new() -> Self {
         Self {}

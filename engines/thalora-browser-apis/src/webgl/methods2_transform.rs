@@ -79,11 +79,11 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
             with_webgl2_context!(this => _ctx_obj, data);
 
             let tf_id = *data.current_transform_feedback.lock().unwrap();
-            if let Some(tf_id) = tf_id {
-                if let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id) {
-                    tf.active = true;
-                    tf.paused = false;
-                }
+            if let Some(tf_id) = tf_id
+                && let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id)
+            {
+                tf.active = true;
+                tf.paused = false;
             }
             Ok(JsValue::undefined())
         })
@@ -100,10 +100,10 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
             with_webgl2_context!(this => _ctx_obj, data);
 
             let tf_id = *data.current_transform_feedback.lock().unwrap();
-            if let Some(tf_id) = tf_id {
-                if let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id) {
-                    tf.active = false;
-                }
+            if let Some(tf_id) = tf_id
+                && let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id)
+            {
+                tf.active = false;
             }
             Ok(JsValue::undefined())
         })
@@ -120,10 +120,10 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
             with_webgl2_context!(this => _ctx_obj, data);
 
             let tf_id = *data.current_transform_feedback.lock().unwrap();
-            if let Some(tf_id) = tf_id {
-                if let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id) {
-                    tf.paused = true;
-                }
+            if let Some(tf_id) = tf_id
+                && let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id)
+            {
+                tf.paused = true;
             }
             Ok(JsValue::undefined())
         })
@@ -140,10 +140,10 @@ pub fn add_transform_feedback_methods(obj: &JsObject, context: &mut Context) {
             with_webgl2_context!(this => _ctx_obj, data);
 
             let tf_id = *data.current_transform_feedback.lock().unwrap();
-            if let Some(tf_id) = tf_id {
-                if let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id) {
-                    tf.paused = false;
-                }
+            if let Some(tf_id) = tf_id
+                && let Some(tf) = data.transform_feedbacks.lock().unwrap().get_mut(&tf_id)
+            {
+                tf.paused = false;
             }
             Ok(JsValue::undefined())
         })

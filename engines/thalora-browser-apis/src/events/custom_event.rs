@@ -117,32 +117,32 @@ impl BuiltInConstructor for CustomEvent {
         )?;
 
         // Parse eventInitDict for Event properties
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    custom_event_generic.set(
-                        js_string!("bubbles"),
-                        bubbles_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    custom_event_generic.set(
-                        js_string!("cancelable"),
-                        cancelable_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
-                if let Ok(composed_val) = init_obj.get(js_string!("composed"), context) {
-                    custom_event_generic.set(
-                        js_string!("composed"),
-                        composed_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                custom_event_generic.set(
+                    js_string!("bubbles"),
+                    bubbles_val.to_boolean(),
+                    false,
+                    context,
+                )?;
+            }
+            if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                custom_event_generic.set(
+                    js_string!("cancelable"),
+                    cancelable_val.to_boolean(),
+                    false,
+                    context,
+                )?;
+            }
+            if let Ok(composed_val) = init_obj.get(js_string!("composed"), context) {
+                custom_event_generic.set(
+                    js_string!("composed"),
+                    composed_val.to_boolean(),
+                    false,
+                    context,
+                )?;
             }
         }
 

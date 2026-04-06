@@ -124,35 +124,35 @@ impl BuiltInConstructor for FetchEvent {
         let mut resulting_client_id = String::new();
         let mut replaces_client_id = String::new();
 
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                // Get request (required per spec)
-                if let Ok(req_val) = init_obj.get(js_string!("request"), context) {
-                    if req_val.is_object() {
-                        request_obj = req_val.as_object();
-                    }
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            // Get request (required per spec)
+            if let Ok(req_val) = init_obj.get(js_string!("request"), context)
+                && req_val.is_object()
+            {
+                request_obj = req_val.as_object();
+            }
 
-                // Get clientId
-                if let Ok(cid_val) = init_obj.get(js_string!("clientId"), context) {
-                    if !cid_val.is_undefined() {
-                        client_id = cid_val.to_string(context)?.to_std_string_escaped();
-                    }
-                }
+            // Get clientId
+            if let Ok(cid_val) = init_obj.get(js_string!("clientId"), context)
+                && !cid_val.is_undefined()
+            {
+                client_id = cid_val.to_string(context)?.to_std_string_escaped();
+            }
 
-                // Get resultingClientId
-                if let Ok(rcid_val) = init_obj.get(js_string!("resultingClientId"), context) {
-                    if !rcid_val.is_undefined() {
-                        resulting_client_id = rcid_val.to_string(context)?.to_std_string_escaped();
-                    }
-                }
+            // Get resultingClientId
+            if let Ok(rcid_val) = init_obj.get(js_string!("resultingClientId"), context)
+                && !rcid_val.is_undefined()
+            {
+                resulting_client_id = rcid_val.to_string(context)?.to_std_string_escaped();
+            }
 
-                // Get replacesClientId
-                if let Ok(rpcid_val) = init_obj.get(js_string!("replacesClientId"), context) {
-                    if !rpcid_val.is_undefined() {
-                        replaces_client_id = rpcid_val.to_string(context)?.to_std_string_escaped();
-                    }
-                }
+            // Get replacesClientId
+            if let Ok(rpcid_val) = init_obj.get(js_string!("replacesClientId"), context)
+                && !rpcid_val.is_undefined()
+            {
+                replaces_client_id = rpcid_val.to_string(context)?.to_std_string_escaped();
             }
         }
 
@@ -189,24 +189,24 @@ impl BuiltInConstructor for FetchEvent {
         )?;
 
         // Parse bubbles/cancelable from init dict
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    fetch_event_generic.set(
-                        js_string!("bubbles"),
-                        bubbles_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    fetch_event_generic.set(
-                        js_string!("cancelable"),
-                        cancelable_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                fetch_event_generic.set(
+                    js_string!("bubbles"),
+                    bubbles_val.to_boolean(),
+                    false,
+                    context,
+                )?;
+            }
+            if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                fetch_event_generic.set(
+                    js_string!("cancelable"),
+                    cancelable_val.to_boolean(),
+                    false,
+                    context,
+                )?;
             }
         }
 

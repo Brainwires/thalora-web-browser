@@ -167,9 +167,7 @@ impl StorageEvent {
         event_obj
             .set(
                 js_string!("storageArea"),
-                storage_area
-                    .map(|s| JsValue::from(s))
-                    .unwrap_or(JsValue::null()),
+                storage_area.map(JsValue::from).unwrap_or(JsValue::null()),
                 false,
                 context,
             )
@@ -272,34 +270,38 @@ impl BuiltInConstructor for StorageEvent {
         let mut storage_area: Option<JsObject> = None;
 
         if let Some(init_obj) = event_init.as_object() {
-            if let Ok(key_val) = init_obj.get(js_string!("key"), context) {
-                if !key_val.is_null() && !key_val.is_undefined() {
-                    key = Some(key_val.to_string(context)?.to_std_string_escaped());
-                }
+            if let Ok(key_val) = init_obj.get(js_string!("key"), context)
+                && !key_val.is_null()
+                && !key_val.is_undefined()
+            {
+                key = Some(key_val.to_string(context)?.to_std_string_escaped());
             }
 
-            if let Ok(old_val) = init_obj.get(js_string!("oldValue"), context) {
-                if !old_val.is_null() && !old_val.is_undefined() {
-                    old_value = Some(old_val.to_string(context)?.to_std_string_escaped());
-                }
+            if let Ok(old_val) = init_obj.get(js_string!("oldValue"), context)
+                && !old_val.is_null()
+                && !old_val.is_undefined()
+            {
+                old_value = Some(old_val.to_string(context)?.to_std_string_escaped());
             }
 
-            if let Ok(new_val) = init_obj.get(js_string!("newValue"), context) {
-                if !new_val.is_null() && !new_val.is_undefined() {
-                    new_value = Some(new_val.to_string(context)?.to_std_string_escaped());
-                }
+            if let Ok(new_val) = init_obj.get(js_string!("newValue"), context)
+                && !new_val.is_null()
+                && !new_val.is_undefined()
+            {
+                new_value = Some(new_val.to_string(context)?.to_std_string_escaped());
             }
 
-            if let Ok(url_val) = init_obj.get(js_string!("url"), context) {
-                if !url_val.is_null() && !url_val.is_undefined() {
-                    url = url_val.to_string(context)?.to_std_string_escaped();
-                }
+            if let Ok(url_val) = init_obj.get(js_string!("url"), context)
+                && !url_val.is_null()
+                && !url_val.is_undefined()
+            {
+                url = url_val.to_string(context)?.to_std_string_escaped();
             }
 
-            if let Ok(storage_val) = init_obj.get(js_string!("storageArea"), context) {
-                if let Some(storage_obj) = storage_val.as_object() {
-                    storage_area = Some(storage_obj.clone());
-                }
+            if let Ok(storage_val) = init_obj.get(js_string!("storageArea"), context)
+                && let Some(storage_obj) = storage_val.as_object()
+            {
+                storage_area = Some(storage_obj.clone());
             }
         }
 
@@ -421,9 +423,7 @@ impl StorageEvent {
         })?;
 
         let storage_area = storage_event.storage_area.borrow().clone();
-        Ok(storage_area
-            .map(|s| JsValue::from(s))
-            .unwrap_or(JsValue::null()))
+        Ok(storage_area.map(JsValue::from).unwrap_or(JsValue::null()))
     }
 
     /// `StorageEvent.prototype.initStorageEvent(type, bubbles, cancelable, key, oldValue, newValue, url, storageArea)`
@@ -482,7 +482,7 @@ impl StorageEvent {
             if args.get_or_undefined(7).is_null() || args.get_or_undefined(7).is_undefined() {
                 None
             } else {
-                args.get_or_undefined(7).as_object().map(|o| o.clone())
+                args.get_or_undefined(7).as_object()
             };
 
         // Now borrow the object and update fields

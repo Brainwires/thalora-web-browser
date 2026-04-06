@@ -130,22 +130,22 @@ impl ServiceWorkerContainer {
         let mut scope = None;
         let mut update_via_cache = UpdateViaCache::Imports;
 
-        if !options.is_undefined() {
-            if let Some(options_obj) = options.as_object() {
-                // Parse scope
-                if let Ok(scope_val) = options_obj.get(js_string!("scope"), context) {
-                    if !scope_val.is_undefined() {
-                        scope = Some(scope_val.to_string(context)?.to_std_string_escaped());
-                    }
-                }
+        if !options.is_undefined()
+            && let Some(options_obj) = options.as_object()
+        {
+            // Parse scope
+            if let Ok(scope_val) = options_obj.get(js_string!("scope"), context)
+                && !scope_val.is_undefined()
+            {
+                scope = Some(scope_val.to_string(context)?.to_std_string_escaped());
+            }
 
-                // Parse updateViaCache
-                if let Ok(update_val) = options_obj.get(js_string!("updateViaCache"), context) {
-                    if !update_val.is_undefined() {
-                        let update_str = update_val.to_string(context)?.to_std_string_escaped();
-                        update_via_cache = UpdateViaCache::from_str(&update_str);
-                    }
-                }
+            // Parse updateViaCache
+            if let Ok(update_val) = options_obj.get(js_string!("updateViaCache"), context)
+                && !update_val.is_undefined()
+            {
+                let update_str = update_val.to_string(context)?.to_std_string_escaped();
+                update_via_cache = UpdateViaCache::from_str(&update_str);
             }
         }
 
@@ -174,10 +174,10 @@ impl ServiceWorkerContainer {
         };
 
         // Store registration
-        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>() {
-            if let Ok(mut registrations) = data.registrations.try_lock() {
-                registrations.insert(scope_url.clone(), registration);
-            }
+        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>()
+            && let Ok(mut registrations) = data.registrations.try_lock()
+        {
+            registrations.insert(scope_url.clone(), registration);
         }
 
         // Register a fetch handler for this service worker scope.
@@ -242,26 +242,26 @@ impl ServiceWorkerContainer {
         let resolved_url = Self::resolve_url(client_url_str, context)?;
 
         // Find matching registration
-        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>() {
-            if let Ok(registrations) = data.registrations.try_lock() {
-                for (scope, registration) in registrations.iter() {
-                    if resolved_url.starts_with(scope) {
-                        let registration_obj = Self::create_registration_object(
-                            &registration.scope,
-                            &registration.script_url,
-                            context,
-                        )?;
+        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>()
+            && let Ok(registrations) = data.registrations.try_lock()
+        {
+            for (scope, registration) in registrations.iter() {
+                if resolved_url.starts_with(scope) {
+                    let registration_obj = Self::create_registration_object(
+                        &registration.scope,
+                        &registration.script_url,
+                        context,
+                    )?;
 
-                        // Return a Promise that resolves to the registration
-                        let promise_constructor =
-                            context.intrinsics().constructors().promise().constructor();
-                        let promise = boa_engine::builtins::promise::Promise::promise_resolve(
-                            &promise_constructor,
-                            registration_obj.into(),
-                            context,
-                        )?;
-                        return Ok(promise.into());
-                    }
+                    // Return a Promise that resolves to the registration
+                    let promise_constructor =
+                        context.intrinsics().constructors().promise().constructor();
+                    let promise = boa_engine::builtins::promise::Promise::promise_resolve(
+                        &promise_constructor,
+                        registration_obj.into(),
+                        context,
+                    )?;
+                    return Ok(promise.into());
                 }
             }
         }
@@ -289,16 +289,16 @@ impl ServiceWorkerContainer {
 
         let mut registration_objects: Vec<JsValue> = Vec::new();
 
-        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>() {
-            if let Ok(registrations) = data.registrations.try_lock() {
-                for registration in registrations.values() {
-                    let registration_obj = Self::create_registration_object(
-                        &registration.scope,
-                        &registration.script_url,
-                        context,
-                    )?;
-                    registration_objects.push(registration_obj.into());
-                }
+        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>()
+            && let Ok(registrations) = data.registrations.try_lock()
+        {
+            for registration in registrations.values() {
+                let registration_obj = Self::create_registration_object(
+                    &registration.scope,
+                    &registration.script_url,
+                    context,
+                )?;
+                registration_objects.push(registration_obj.into());
             }
         }
 
@@ -340,10 +340,10 @@ impl ServiceWorkerContainer {
                 .with_message("ServiceWorkerContainer.ready getter called on non-object")
         })?;
 
-        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>() {
-            if let Some(ref ready_promise) = data.ready_promise {
-                return Ok(ready_promise.clone().into());
-            }
+        if let Some(data) = this_obj.downcast_ref::<ServiceWorkerContainerData>()
+            && let Some(ref ready_promise) = data.ready_promise
+        {
+            return Ok(ready_promise.clone().into());
         }
 
         // Create ready promise if it doesn't exist - this should resolve when a service worker becomes active
@@ -441,9 +441,7 @@ impl ServiceWorkerContainer {
         Ok(JsValue::undefined())
     }
 
-    /// Helper methods
-
-    /// Resolve a URL relative to the current context
+    /// Helper methods - Resolve a URL relative to the current context
     fn resolve_url(url: &str, _context: &mut Context) -> JsResult<String> {
         // For now, do basic URL validation
         if url.is_empty() {

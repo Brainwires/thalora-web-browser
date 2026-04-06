@@ -167,15 +167,15 @@ impl DeclarativeShadowDOMParser {
         }
 
         let value_part = trimmed[1..].trim_start();
-        if value_part.starts_with('"') {
+        if let Some(stripped) = value_part.strip_prefix('"') {
             // Double-quoted value
-            if let Some(end_quote) = value_part[1..].find('"') {
-                return Some(value_part[1..end_quote + 1].to_string());
+            if let Some(end_quote) = stripped.find('"') {
+                return Some(stripped[..end_quote].to_string());
             }
-        } else if value_part.starts_with('\'') {
+        } else if let Some(stripped) = value_part.strip_prefix('\'') {
             // Single-quoted value
-            if let Some(end_quote) = value_part[1..].find('\'') {
-                return Some(value_part[1..end_quote + 1].to_string());
+            if let Some(end_quote) = stripped.find('\'') {
+                return Some(stripped[..end_quote].to_string());
             }
         } else {
             // Unquoted value - find next space or tag end
@@ -337,11 +337,11 @@ impl DeclarativeShadowDOMParser {
             let absolute_start = search_start + tag_start;
 
             // Skip comments and other non-element tags
-            if content[absolute_start..].starts_with("<!--") {
-                if let Some(comment_end) = content[absolute_start..].find("-->") {
-                    search_start = absolute_start + comment_end + 3;
-                    continue;
-                }
+            if content[absolute_start..].starts_with("<!--")
+                && let Some(comment_end) = content[absolute_start..].find("-->")
+            {
+                search_start = absolute_start + comment_end + 3;
+                continue;
             }
 
             if let Some(tag_end) = content[absolute_start..].find('>') {

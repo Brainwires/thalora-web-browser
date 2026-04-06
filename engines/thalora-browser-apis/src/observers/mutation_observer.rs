@@ -151,40 +151,38 @@ impl MutationObserver {
             }
 
             // Parse attributeFilter option
-            if let Ok(attr_filter) = options_obj.get(js_string!("attributeFilter"), context) {
-                if let Some(filter_obj) = attr_filter.as_object() {
-                    let mut filter_vec = Vec::new();
-                    // Get length of array
-                    if let Ok(length_val) = filter_obj.get(js_string!("length"), context) {
-                        let length = length_val.to_u32(context).unwrap_or(0);
-                        for i in 0..length {
-                            if let Ok(item) = filter_obj.get(i, context) {
-                                if let Ok(s) = item.to_string(context) {
-                                    filter_vec.push(s.to_std_string_escaped());
-                                }
-                            }
+            if let Ok(attr_filter) = options_obj.get(js_string!("attributeFilter"), context)
+                && let Some(filter_obj) = attr_filter.as_object()
+            {
+                let mut filter_vec = Vec::new();
+                // Get length of array
+                if let Ok(length_val) = filter_obj.get(js_string!("length"), context) {
+                    let length = length_val.to_u32(context).unwrap_or(0);
+                    for i in 0..length {
+                        if let Ok(item) = filter_obj.get(i, context)
+                            && let Ok(s) = item.to_string(context)
+                        {
+                            filter_vec.push(s.to_std_string_escaped());
                         }
                     }
-                    if !filter_vec.is_empty() {
-                        config.attribute_filter = Some(filter_vec);
-                    }
+                }
+                if !filter_vec.is_empty() {
+                    config.attribute_filter = Some(filter_vec);
                 }
             }
         }
 
         // Validate configuration per spec
         // If attributeOldValue or attributeFilter is set, attributes is implied true
-        if config.attribute_old_value.unwrap_or(false) || config.attribute_filter.is_some() {
-            if config.attributes.is_none() {
-                config.attributes = Some(true);
-            }
+        if (config.attribute_old_value.unwrap_or(false) || config.attribute_filter.is_some())
+            && config.attributes.is_none()
+        {
+            config.attributes = Some(true);
         }
 
         // If characterDataOldValue is set, characterData is implied true
-        if config.character_data_old_value.unwrap_or(false) {
-            if config.character_data.is_none() {
-                config.character_data = Some(true);
-            }
+        if config.character_data_old_value.unwrap_or(false) && config.character_data.is_none() {
+            config.character_data = Some(true);
         }
 
         // Validate: at least one of childList, attributes, or characterData must be true
@@ -319,7 +317,7 @@ struct ObservationEntry {
 }
 
 /// Configuration for what mutations to observe
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MutationObserverConfig {
     /// Observe changes to the list of child nodes
     pub child_list: bool,
@@ -335,20 +333,6 @@ pub struct MutationObserverConfig {
     pub character_data_old_value: Option<bool>,
     /// Filter for specific attribute names
     pub attribute_filter: Option<Vec<String>>,
-}
-
-impl Default for MutationObserverConfig {
-    fn default() -> Self {
-        Self {
-            child_list: false,
-            attributes: None,
-            character_data: None,
-            subtree: false,
-            attribute_old_value: None,
-            character_data_old_value: None,
-            attribute_filter: None,
-        }
-    }
 }
 
 impl MutationObserverConfig {
@@ -784,7 +768,7 @@ use std::cell::RefCell;
 thread_local! {
     /// Thread-local registry of active observer objects for notification dispatch.
     /// Boa's JsObject is !Send, so we use thread_local instead of a global static.
-    static OBSERVER_REGISTRY: RefCell<Vec<JsObject>> = RefCell::new(Vec::new());
+    static OBSERVER_REGISTRY: RefCell<Vec<JsObject>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Register an observer in the thread-local registry for notification dispatch.
@@ -835,25 +819,23 @@ pub fn notify_attribute_mutation(
                 let mut record_old_value = false;
 
                 // Check direct target match
-                if let Some(config) = observer_data.get_config(&target_id) {
-                    if config.should_observe_attribute(attribute_name) {
-                        should_record = true;
-                        record_old_value = config.attribute_old_value.unwrap_or(false);
-                    }
+                if let Some(config) = observer_data.get_config(&target_id)
+                    && config.should_observe_attribute(attribute_name)
+                {
+                    should_record = true;
+                    record_old_value = config.attribute_old_value.unwrap_or(false);
                 }
 
                 // Check subtree observations
                 if !should_record {
-                    for (_, entry) in &observer_data.observations {
+                    for entry in observer_data.observations.values() {
                         if entry.config.subtree
                             && entry.config.should_observe_attribute(attribute_name)
+                            && is_descendant_of(mutated_node, &entry.target)
                         {
-                            if is_descendant_of(mutated_node, &entry.target) {
-                                should_record = true;
-                                record_old_value =
-                                    entry.config.attribute_old_value.unwrap_or(false);
-                                break;
-                            }
+                            should_record = true;
+                            record_old_value = entry.config.attribute_old_value.unwrap_or(false);
+                            break;
                         }
                     }
                 }
@@ -892,22 +874,22 @@ pub fn notify_child_list_mutation(
             if let Some(mut observer_data) = observer_obj.downcast_mut::<MutationObserverData>() {
                 let mut should_record = false;
 
-                if let Some(config) = observer_data.get_config(&target_id) {
-                    if config.child_list {
-                        should_record = true;
-                    }
+                if let Some(config) = observer_data.get_config(&target_id)
+                    && config.child_list
+                {
+                    should_record = true;
                 }
 
                 // Check subtree observations
                 if !should_record {
-                    for (_, entry) in &observer_data.observations {
-                        if entry.config.subtree && entry.config.child_list {
-                            if is_descendant_of(parent_node, &entry.target)
-                                || std::ptr::eq(parent_node.as_ref(), entry.target.as_ref())
-                            {
-                                should_record = true;
-                                break;
-                            }
+                    for entry in observer_data.observations.values() {
+                        if entry.config.subtree
+                            && entry.config.child_list
+                            && (is_descendant_of(parent_node, &entry.target)
+                                || std::ptr::eq(parent_node.as_ref(), entry.target.as_ref()))
+                        {
+                            should_record = true;
+                            break;
                         }
                     }
                 }

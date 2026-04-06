@@ -98,21 +98,21 @@ impl Worker {
 
         if let Some(obj) = opts.as_object() {
             // Get name
-            if let Ok(name_val) = obj.get(js_string!("name"), context) {
-                if !name_val.is_undefined() {
-                    options.name = Some(name_val.to_string(context)?.to_std_string_escaped());
-                }
+            if let Ok(name_val) = obj.get(js_string!("name"), context)
+                && !name_val.is_undefined()
+            {
+                options.name = Some(name_val.to_string(context)?.to_std_string_escaped());
             }
 
             // Get type
-            if let Ok(type_val) = obj.get(js_string!("type"), context) {
-                if !type_val.is_undefined() {
-                    let type_str = type_val.to_string(context)?.to_std_string_escaped();
-                    options.worker_type = match type_str.as_str() {
-                        "module" => WorkerType::Module,
-                        _ => WorkerType::Classic,
-                    };
-                }
+            if let Ok(type_val) = obj.get(js_string!("type"), context)
+                && !type_val.is_undefined()
+            {
+                let type_str = type_val.to_string(context)?.to_std_string_escaped();
+                options.worker_type = match type_str.as_str() {
+                    "module" => WorkerType::Module,
+                    _ => WorkerType::Classic,
+                };
             }
         }
 
@@ -121,30 +121,30 @@ impl Worker {
 
     /// Poll for events from the worker and dispatch them
     pub fn poll_events(&self, worker_obj: &JsObject, context: &mut Context) -> JsResult<()> {
-        if let Ok(worker_thread_lock) = self.worker_thread.lock() {
-            if let Some(worker_thread) = worker_thread_lock.as_ref() {
-                // Process all pending events
-                while let Some(event) = worker_thread.try_recv_event() {
-                    match event {
-                        WorkerEvent::Message { data } => {
-                            self.dispatch_message_event(worker_obj, data, context)?;
-                        }
-                        WorkerEvent::Error {
-                            message,
-                            filename,
-                            lineno,
-                            colno,
-                        } => {
-                            self.dispatch_error_event(
-                                worker_obj, message, filename, lineno, colno, context,
-                            )?;
-                        }
-                        WorkerEvent::Terminated => {
-                            // Worker terminated
-                        }
-                        _ => {
-                            // Other events (Started, ScriptExecuted, etc.) don't need to be exposed to JS
-                        }
+        if let Ok(worker_thread_lock) = self.worker_thread.lock()
+            && let Some(worker_thread) = worker_thread_lock.as_ref()
+        {
+            // Process all pending events
+            while let Some(event) = worker_thread.try_recv_event() {
+                match event {
+                    WorkerEvent::Message { data } => {
+                        self.dispatch_message_event(worker_obj, data, context)?;
+                    }
+                    WorkerEvent::Error {
+                        message,
+                        filename,
+                        lineno,
+                        colno,
+                    } => {
+                        self.dispatch_error_event(
+                            worker_obj, message, filename, lineno, colno, context,
+                        )?;
+                    }
+                    WorkerEvent::Terminated => {
+                        // Worker terminated
+                    }
+                    _ => {
+                        // Other events (Started, ScriptExecuted, etc.) don't need to be exposed to JS
                     }
                 }
             }
@@ -173,14 +173,14 @@ impl Worker {
         )?;
 
         // Call onmessage handler if set
-        if let Some(handler) = self.onmessage.borrow().as_ref() {
-            if handler.is_callable() {
-                let _ = handler.call(
-                    &JsValue::from(worker_obj.clone()),
-                    &[event.clone().into()],
-                    context,
-                );
-            }
+        if let Some(handler) = self.onmessage.borrow().as_ref()
+            && handler.is_callable()
+        {
+            let _ = handler.call(
+                &JsValue::from(worker_obj.clone()),
+                &[event.clone().into()],
+                context,
+            );
         }
 
         Ok(())
@@ -202,14 +202,14 @@ impl Worker {
             .into_opaque(context);
 
         // Call onerror handler if set
-        if let Some(handler) = self.onerror.borrow().as_ref() {
-            if handler.is_callable() {
-                let _ = handler.call(
-                    &JsValue::from(worker_obj.clone()),
-                    &[error_obj.into()],
-                    context,
-                );
-            }
+        if let Some(handler) = self.onerror.borrow().as_ref()
+            && handler.is_callable()
+        {
+            let _ = handler.call(
+                &JsValue::from(worker_obj.clone()),
+                &[error_obj.into()],
+                context,
+            );
         }
 
         Ok(())
@@ -309,10 +309,10 @@ fn terminate(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
     })?;
 
     // Terminate the worker
-    if let Ok(mut worker_thread_lock) = worker.worker_thread.lock() {
-        if let Some(mut worker_thread) = worker_thread_lock.take() {
-            worker_thread.terminate();
-        }
+    if let Ok(mut worker_thread_lock) = worker.worker_thread.lock()
+        && let Some(mut worker_thread) = worker_thread_lock.take()
+    {
+        worker_thread.terminate();
     }
 
     Ok(JsValue::undefined())
@@ -415,7 +415,7 @@ fn set_onmessage(this: &JsValue, args: &[JsValue], _context: &mut Context) -> Js
 
     let handler = args.get_or_undefined(0);
     if handler.is_callable() {
-        *worker.onmessage.borrow_mut() = handler.as_object().map(|o| o.clone());
+        *worker.onmessage.borrow_mut() = handler.as_object();
     } else if handler.is_null() || handler.is_undefined() {
         *worker.onmessage.borrow_mut() = None;
     }
@@ -449,7 +449,7 @@ fn set_onerror(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsRe
 
     let handler = args.get_or_undefined(0);
     if handler.is_callable() {
-        *worker.onerror.borrow_mut() = handler.as_object().map(|o| o.clone());
+        *worker.onerror.borrow_mut() = handler.as_object();
     } else if handler.is_null() || handler.is_undefined() {
         *worker.onerror.borrow_mut() = None;
     }

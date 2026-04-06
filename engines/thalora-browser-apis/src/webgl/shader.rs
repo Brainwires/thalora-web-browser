@@ -152,9 +152,8 @@ fn preprocess_glsl(source: &str, shader_type: u32) -> String {
     result.push_str(source);
 
     // Convert WebGL 1.0 GLSL to GLSL ES 300 syntax if needed
-    let result = convert_webgl1_to_es300(&result, shader_type);
 
-    result
+    convert_webgl1_to_es300(&result, shader_type)
 }
 
 /// Convert WebGL 1.0 GLSL syntax to GLSL ES 300
@@ -182,7 +181,7 @@ fn convert_webgl1_to_es300(source: &str, shader_type: u32) -> String {
         // Add output variable declaration if gl_FragColor is used
         if !result.contains("out vec4 fragColor") && !result.contains("layout(location = 0) out") {
             // Find the position after precision declarations
-            let insert_pos = result.find("void main").unwrap_or_else(|| result.len());
+            let insert_pos = result.find("void main").unwrap_or(result.len());
             result.insert_str(insert_pos, "out vec4 fragColor;\n");
         }
         result = result.replace("gl_FragColor", "fragColor");
@@ -392,29 +391,29 @@ impl WebGLProgram {
         let mut attr_location = 0u32;
         for entry in &vertex_module.entry_points {
             for arg in &entry.function.arguments {
-                if let Some(binding) = &arg.binding {
-                    if let Some(name) = &arg.name {
-                        let type_info = &vertex_module.types[arg.ty];
-                        let attr_type = naga_type_to_webgl(&type_info.inner);
-                        let size = get_type_size(&type_info.inner);
+                if let Some(binding) = &arg.binding
+                    && let Some(name) = &arg.name
+                {
+                    let type_info = &vertex_module.types[arg.ty];
+                    let attr_type = naga_type_to_webgl(&type_info.inner);
+                    let size = get_type_size(&type_info.inner);
 
-                        // Get location from binding
-                        let location = match binding {
-                            naga::Binding::Location { location, .. } => *location,
-                            _ => attr_location,
-                        };
+                    // Get location from binding
+                    let location = match binding {
+                        naga::Binding::Location { location, .. } => *location,
+                        _ => attr_location,
+                    };
 
-                        self.attributes.insert(
-                            name.clone(),
-                            AttributeInfo {
-                                location,
-                                name: name.clone(),
-                                attr_type,
-                                size,
-                            },
-                        );
-                        attr_location = attr_location.max(location + 1);
-                    }
+                    self.attributes.insert(
+                        name.clone(),
+                        AttributeInfo {
+                            location,
+                            name: name.clone(),
+                            attr_type,
+                            size,
+                        },
+                    );
+                    attr_location = attr_location.max(location + 1);
                 }
             }
         }
@@ -422,49 +421,48 @@ impl WebGLProgram {
         // Extract uniforms
         let mut uniform_binding = 0u32;
         for (_handle, var) in vertex_module.global_variables.iter() {
-            if var.space == naga::AddressSpace::Uniform {
-                if let Some(name) = &var.name {
-                    let type_info = &vertex_module.types[var.ty];
-                    let uniform_type = naga_type_to_webgl(&type_info.inner);
-                    let size = get_type_size(&type_info.inner);
+            if var.space == naga::AddressSpace::Uniform
+                && let Some(name) = &var.name
+            {
+                let type_info = &vertex_module.types[var.ty];
+                let uniform_type = naga_type_to_webgl(&type_info.inner);
+                let size = get_type_size(&type_info.inner);
 
-                    self.uniforms.insert(
-                        name.clone(),
-                        UniformLocation {
-                            id: uniform_binding,
-                            name: name.clone(),
-                            binding: uniform_binding,
-                            uniform_type,
-                            size,
-                        },
-                    );
-                    uniform_binding += 1;
-                }
+                self.uniforms.insert(
+                    name.clone(),
+                    UniformLocation {
+                        id: uniform_binding,
+                        name: name.clone(),
+                        binding: uniform_binding,
+                        uniform_type,
+                        size,
+                    },
+                );
+                uniform_binding += 1;
             }
         }
 
         // Also check fragment shader for uniforms
         for (_handle, var) in fragment_module.global_variables.iter() {
-            if var.space == naga::AddressSpace::Uniform {
-                if let Some(name) = &var.name {
-                    if !self.uniforms.contains_key(name) {
-                        let type_info = &fragment_module.types[var.ty];
-                        let uniform_type = naga_type_to_webgl(&type_info.inner);
-                        let size = get_type_size(&type_info.inner);
+            if var.space == naga::AddressSpace::Uniform
+                && let Some(name) = &var.name
+                && !self.uniforms.contains_key(name)
+            {
+                let type_info = &fragment_module.types[var.ty];
+                let uniform_type = naga_type_to_webgl(&type_info.inner);
+                let size = get_type_size(&type_info.inner);
 
-                        self.uniforms.insert(
-                            name.clone(),
-                            UniformLocation {
-                                id: uniform_binding,
-                                name: name.clone(),
-                                binding: uniform_binding,
-                                uniform_type,
-                                size,
-                            },
-                        );
-                        uniform_binding += 1;
-                    }
-                }
+                self.uniforms.insert(
+                    name.clone(),
+                    UniformLocation {
+                        id: uniform_binding,
+                        name: name.clone(),
+                        binding: uniform_binding,
+                        uniform_type,
+                        size,
+                    },
+                );
+                uniform_binding += 1;
             }
         }
 
@@ -583,27 +581,24 @@ fn naga_type_to_webgl(ty: &naga::TypeInner) -> u32 {
                 WebGLConstants::FLOAT
             }
         },
-        naga::TypeInner::Vector { size, scalar } => {
-            let base = match scalar.kind {
-                naga::ScalarKind::Float => match size {
-                    naga::VectorSize::Bi => WebGLConstants::FLOAT_VEC2,
-                    naga::VectorSize::Tri => WebGLConstants::FLOAT_VEC3,
-                    naga::VectorSize::Quad => WebGLConstants::FLOAT_VEC4,
-                },
-                naga::ScalarKind::Sint => match size {
-                    naga::VectorSize::Bi => WebGLConstants::INT_VEC2,
-                    naga::VectorSize::Tri => WebGLConstants::INT_VEC3,
-                    naga::VectorSize::Quad => WebGLConstants::INT_VEC4,
-                },
-                naga::ScalarKind::Bool => match size {
-                    naga::VectorSize::Bi => WebGLConstants::BOOL_VEC2,
-                    naga::VectorSize::Tri => WebGLConstants::BOOL_VEC3,
-                    naga::VectorSize::Quad => WebGLConstants::BOOL_VEC4,
-                },
-                _ => WebGLConstants::FLOAT_VEC4,
-            };
-            base
-        }
+        naga::TypeInner::Vector { size, scalar } => match scalar.kind {
+            naga::ScalarKind::Float => match size {
+                naga::VectorSize::Bi => WebGLConstants::FLOAT_VEC2,
+                naga::VectorSize::Tri => WebGLConstants::FLOAT_VEC3,
+                naga::VectorSize::Quad => WebGLConstants::FLOAT_VEC4,
+            },
+            naga::ScalarKind::Sint => match size {
+                naga::VectorSize::Bi => WebGLConstants::INT_VEC2,
+                naga::VectorSize::Tri => WebGLConstants::INT_VEC3,
+                naga::VectorSize::Quad => WebGLConstants::INT_VEC4,
+            },
+            naga::ScalarKind::Bool => match size {
+                naga::VectorSize::Bi => WebGLConstants::BOOL_VEC2,
+                naga::VectorSize::Tri => WebGLConstants::BOOL_VEC3,
+                naga::VectorSize::Quad => WebGLConstants::BOOL_VEC4,
+            },
+            _ => WebGLConstants::FLOAT_VEC4,
+        },
         naga::TypeInner::Matrix { columns, rows, .. } => match (columns, rows) {
             (naga::VectorSize::Bi, naga::VectorSize::Bi) => WebGLConstants::FLOAT_MAT2,
             (naga::VectorSize::Tri, naga::VectorSize::Tri) => WebGLConstants::FLOAT_MAT3,

@@ -154,10 +154,10 @@ fn allows_url(
         match source {
             CspSource::None => return false,
             CspSource::OriginSelf => {
-                if let Some(page) = page_url {
-                    if same_origin(page, url) {
-                        return true;
-                    }
+                if let Some(page) = page_url
+                    && same_origin(page, url)
+                {
+                    return true;
                 }
             }
             CspSource::Url(pattern) => {
@@ -200,10 +200,10 @@ fn url_matches_pattern(url: &str, pattern: &str) -> bool {
     // Wildcard subdomain (e.g., "*.example.com")
     if pattern.starts_with("*.") {
         let domain_suffix = &pattern[1..]; // ".example.com"
-        if let Ok(parsed) = url::Url::parse(url) {
-            if let Some(host) = parsed.host_str() {
-                return host.ends_with(domain_suffix) || host == &domain_suffix[1..];
-            }
+        if let Ok(parsed) = url::Url::parse(url)
+            && let Some(host) = parsed.host_str()
+        {
+            return host.ends_with(domain_suffix) || host == &domain_suffix[1..];
         }
         return false;
     }

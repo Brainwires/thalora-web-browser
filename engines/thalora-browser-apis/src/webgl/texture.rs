@@ -282,19 +282,20 @@ impl WebGLTexture {
             });
 
             // Generate mipmap data by simple box filter
-            if let Some(ref base_data) = self.data {
-                if level == 1 && !base_data.is_empty() {
-                    let mip = self.mipmap_levels.last_mut().unwrap();
-                    generate_mipmap_level(
-                        base_data,
-                        self.width,
-                        self.height,
-                        &mut mip.data,
-                        w,
-                        h,
-                        pixel_size,
-                    );
-                }
+            if let Some(ref base_data) = self.data
+                && level == 1
+                && !base_data.is_empty()
+            {
+                let mip = self.mipmap_levels.last_mut().unwrap();
+                generate_mipmap_level(
+                    base_data,
+                    self.width,
+                    self.height,
+                    &mut mip.data,
+                    w,
+                    h,
+                    pixel_size,
+                );
             }
 
             level += 1;

@@ -37,7 +37,15 @@ impl NamedNodeMapData {
             order: Arc::new(Mutex::new(Vec::new())),
         }
     }
+}
 
+impl Default for NamedNodeMapData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NamedNodeMapData {
     /// Create from a HashMap of attributes
     pub fn from_attributes(
         attrs: HashMap<String, String>,
@@ -285,7 +293,7 @@ impl IntrinsicObject for NamedNodeMap {
             .name(js_string!("get length"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::item, js_string!("item"), 1)
             .method(Self::get_named_item, js_string!("getNamedItem"), 1)
             .method(Self::set_named_item, js_string!("setNamedItem"), 1)

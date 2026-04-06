@@ -47,6 +47,12 @@ pub struct ValidityState {
     custom_error: bool,
 }
 
+impl Default for ValidityState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ValidityState {
     pub fn new() -> Self {
         Self {
@@ -419,7 +425,15 @@ impl HTMLFormElement {
             autocomplete: Arc::new(Mutex::new("on".to_string())),
         }
     }
+}
 
+impl Default for HTMLFormElement {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HTMLFormElement {
     /// Add a form control element
     pub fn add_element(&self, name: String, element: JsObject) {
         self.elements.lock().unwrap().insert(name, element.clone());
@@ -1004,10 +1018,10 @@ impl HTMLFormControlsCollection {
         if let Some(collection) = this_obj.downcast_ref::<HTMLFormControlsCollection>() {
             let index = args.get_or_undefined(0).to_number(context)? as usize;
 
-            if let Some(form_data) = collection.form.downcast_ref::<HTMLFormElement>() {
-                if let Some(element) = form_data.get_element_by_index(index) {
-                    return Ok(element.into());
-                }
+            if let Some(form_data) = collection.form.downcast_ref::<HTMLFormElement>()
+                && let Some(element) = form_data.get_element_by_index(index)
+            {
+                return Ok(element.into());
             }
         }
 
@@ -1024,10 +1038,10 @@ impl HTMLFormControlsCollection {
             let name = args.get_or_undefined(0).to_string(context)?;
             let name_str = name.to_std_string_escaped();
 
-            if let Some(form_data) = collection.form.downcast_ref::<HTMLFormElement>() {
-                if let Some(element) = form_data.get_element_by_name(&name_str) {
-                    return Ok(element.into());
-                }
+            if let Some(form_data) = collection.form.downcast_ref::<HTMLFormElement>()
+                && let Some(element) = form_data.get_element_by_name(&name_str)
+            {
+                return Ok(element.into());
             }
         }
 
@@ -1113,6 +1127,12 @@ pub struct HTMLInputElement {
     pub form_no_validate: Arc<Mutex<bool>>,
 }
 
+impl Default for HTMLInputElement {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLInputElement {
     pub fn new() -> Self {
         Self {
@@ -1187,12 +1207,12 @@ impl HTMLInputElement {
         }
 
         // Check pattern
-        if !pattern.is_empty() && !value.is_empty() {
-            if let Ok(re) = regex::Regex::new(&pattern) {
-                if !re.is_match(&value) {
-                    validity.pattern_mismatch = true;
-                }
-            }
+        if !pattern.is_empty()
+            && !value.is_empty()
+            && let Ok(re) = regex::Regex::new(&pattern)
+            && !re.is_match(&value)
+        {
+            validity.pattern_mismatch = true;
         }
 
         // Check length constraints
@@ -1951,6 +1971,12 @@ pub struct HTMLSelectElement {
     pub custom_validity_message: Arc<Mutex<String>>,
 }
 
+impl Default for HTMLSelectElement {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLSelectElement {
     pub fn new() -> Self {
         Self {
@@ -2422,12 +2448,11 @@ impl HTMLSelectElement {
                 .to_std_string_escaped();
             let options = select.options.lock().unwrap();
             for option in options.iter() {
-                if let Ok(option_name) = option.get(js_string!("name"), context) {
-                    if let Some(name_str) = option_name.as_string() {
-                        if name_str.to_std_string_escaped() == name {
-                            return Ok(option.clone().into());
-                        }
-                    }
+                if let Ok(option_name) = option.get(js_string!("name"), context)
+                    && let Some(name_str) = option_name.as_string()
+                    && name_str.to_std_string_escaped() == name
+                {
+                    return Ok(option.clone().into());
                 }
             }
         }
@@ -2471,6 +2496,12 @@ pub struct HTMLTextAreaElement {
     pub wrap: Arc<Mutex<String>>,
     #[unsafe_ignore_trace]
     pub custom_validity_message: Arc<Mutex<String>>,
+}
+
+impl Default for HTMLTextAreaElement {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HTMLTextAreaElement {
@@ -2996,6 +3027,12 @@ pub struct HTMLOptionElement {
     pub index: Arc<Mutex<i32>>,
 }
 
+impl Default for HTMLOptionElement {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HTMLOptionElement {
     pub fn new() -> Self {
         Self {
@@ -3111,18 +3148,18 @@ impl BuiltInConstructor for HTMLOptionElement {
         let option = HTMLOptionElement::new();
 
         // Optional constructor arguments: text, value, defaultSelected, selected
-        if let Some(text_arg) = args.get(0) {
-            if !text_arg.is_undefined() {
-                let text = text_arg.to_string(context)?.to_std_string_escaped();
-                *option.text.lock().unwrap() = text;
-            }
+        if let Some(text_arg) = args.first()
+            && !text_arg.is_undefined()
+        {
+            let text = text_arg.to_string(context)?.to_std_string_escaped();
+            *option.text.lock().unwrap() = text;
         }
 
-        if let Some(value_arg) = args.get(1) {
-            if !value_arg.is_undefined() {
-                let value = value_arg.to_string(context)?.to_std_string_escaped();
-                *option.value.lock().unwrap() = value;
-            }
+        if let Some(value_arg) = args.get(1)
+            && !value_arg.is_undefined()
+        {
+            let value = value_arg.to_string(context)?.to_std_string_escaped();
+            *option.value.lock().unwrap() = value;
         }
 
         if let Some(default_selected_arg) = args.get(2) {

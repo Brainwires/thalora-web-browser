@@ -103,56 +103,51 @@ impl BuiltInConstructor for MessageEvent {
         let message_event_generic = message_event_obj.upcast();
 
         // Parse eventInitDict if provided
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                // Set data property
-                if let Ok(data_val) = init_obj.get(js_string!("data"), context) {
-                    message_event_generic.set(js_string!("data"), data_val, false, context)?;
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            // Set data property
+            if let Ok(data_val) = init_obj.get(js_string!("data"), context) {
+                message_event_generic.set(js_string!("data"), data_val, false, context)?;
+            }
 
-                // Set origin property
-                if let Ok(origin_val) = init_obj.get(js_string!("origin"), context) {
-                    let origin_str = origin_val.to_string(context)?;
-                    message_event_generic.set(js_string!("origin"), origin_str, false, context)?;
-                }
+            // Set origin property
+            if let Ok(origin_val) = init_obj.get(js_string!("origin"), context) {
+                let origin_str = origin_val.to_string(context)?;
+                message_event_generic.set(js_string!("origin"), origin_str, false, context)?;
+            }
 
-                // Set lastEventId property
-                if let Ok(last_event_id_val) = init_obj.get(js_string!("lastEventId"), context) {
-                    let last_event_id_str = last_event_id_val.to_string(context)?;
-                    message_event_generic.set(
-                        js_string!("lastEventId"),
-                        last_event_id_str,
-                        false,
-                        context,
-                    )?;
-                }
+            // Set lastEventId property
+            if let Ok(last_event_id_val) = init_obj.get(js_string!("lastEventId"), context) {
+                let last_event_id_str = last_event_id_val.to_string(context)?;
+                message_event_generic.set(
+                    js_string!("lastEventId"),
+                    last_event_id_str,
+                    false,
+                    context,
+                )?;
+            }
 
-                // Set source property
-                if let Ok(source_val) = init_obj.get(js_string!("source"), context) {
-                    message_event_generic.set(js_string!("source"), source_val, false, context)?;
-                }
+            // Set source property
+            if let Ok(source_val) = init_obj.get(js_string!("source"), context) {
+                message_event_generic.set(js_string!("source"), source_val, false, context)?;
+            }
 
-                // Set ports property
-                if let Ok(ports_val) = init_obj.get(js_string!("ports"), context) {
-                    message_event_generic.set(js_string!("ports"), ports_val, false, context)?;
-                }
+            // Set ports property
+            if let Ok(ports_val) = init_obj.get(js_string!("ports"), context) {
+                message_event_generic.set(js_string!("ports"), ports_val, false, context)?;
+            }
 
-                // Set bubbles property (inherited from Event)
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    let bubbles = bubbles_val.to_boolean();
-                    message_event_generic.set(js_string!("bubbles"), bubbles, false, context)?;
-                }
+            // Set bubbles property (inherited from Event)
+            if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                let bubbles = bubbles_val.to_boolean();
+                message_event_generic.set(js_string!("bubbles"), bubbles, false, context)?;
+            }
 
-                // Set cancelable property (inherited from Event)
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    let cancelable = cancelable_val.to_boolean();
-                    message_event_generic.set(
-                        js_string!("cancelable"),
-                        cancelable,
-                        false,
-                        context,
-                    )?;
-                }
+            // Set cancelable property (inherited from Event)
+            if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                let cancelable = cancelable_val.to_boolean();
+                message_event_generic.set(js_string!("cancelable"), cancelable, false, context)?;
             }
         }
 

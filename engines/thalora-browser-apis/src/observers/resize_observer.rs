@@ -107,20 +107,20 @@ impl ResizeObserver {
         // Parse options (ResizeObserverOptions)
         let mut box_type = ResizeObserverBoxOptions::ContentBox;
 
-        if let Some(options_obj) = options.as_object() {
-            if let Ok(box_option) = options_obj.get(js_string!("box"), context) {
-                let box_str = box_option
-                    .to_string(context)
-                    .map(|s| s.to_std_string_escaped())
-                    .unwrap_or_else(|_| "content-box".to_string());
+        if let Some(options_obj) = options.as_object()
+            && let Ok(box_option) = options_obj.get(js_string!("box"), context)
+        {
+            let box_str = box_option
+                .to_string(context)
+                .map(|s| s.to_std_string_escaped())
+                .unwrap_or_else(|_| "content-box".to_string());
 
-                box_type = match box_str.as_str() {
-                    "border-box" => ResizeObserverBoxOptions::BorderBox,
-                    "content-box" => ResizeObserverBoxOptions::ContentBox,
-                    "device-pixel-content-box" => ResizeObserverBoxOptions::DevicePixelContentBox,
-                    _ => ResizeObserverBoxOptions::ContentBox,
-                };
-            }
+            box_type = match box_str.as_str() {
+                "border-box" => ResizeObserverBoxOptions::BorderBox,
+                "content-box" => ResizeObserverBoxOptions::ContentBox,
+                "device-pixel-content-box" => ResizeObserverBoxOptions::DevicePixelContentBox,
+                _ => ResizeObserverBoxOptions::ContentBox,
+            };
         }
 
         // Update observer data

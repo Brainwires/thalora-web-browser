@@ -1300,10 +1300,10 @@ fn fill(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<Js
         })?;
 
     // Check if first arg is a Path2D
-    if let Some(path_obj) = args.get(0).and_then(|v| v.as_object()) {
-        if let Some(_path_data) = path_obj.downcast_ref::<Path2DData>() {
-            // TODO: Fill the provided path
-        }
+    if let Some(path_obj) = args.first().and_then(|v| v.as_object())
+        && let Some(_path_data) = path_obj.downcast_ref::<Path2DData>()
+    {
+        // TODO: Fill the provided path
     }
 
     ctx_data.with_state(|state| state.fill());
@@ -1322,10 +1322,10 @@ fn stroke(this: &JsValue, args: &[JsValue], _context: &mut Context) -> JsResult<
         })?;
 
     // Check if first arg is a Path2D
-    if let Some(path_obj) = args.get(0).and_then(|v| v.as_object()) {
-        if let Some(_path_data) = path_obj.downcast_ref::<Path2DData>() {
-            // TODO: Stroke the provided path
-        }
+    if let Some(path_obj) = args.first().and_then(|v| v.as_object())
+        && let Some(_path_data) = path_obj.downcast_ref::<Path2DData>()
+    {
+        // TODO: Stroke the provided path
     }
 
     ctx_data.with_state(|state| state.stroke());

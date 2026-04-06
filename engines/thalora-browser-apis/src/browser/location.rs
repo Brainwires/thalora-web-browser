@@ -35,7 +35,15 @@ impl LocationData {
             href: "about:blank".to_string(),
         }
     }
+}
 
+impl Default for LocationData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LocationData {
     /// Create LocationData with specific href
     pub fn with_href(href: String) -> Self {
         Self { href }
@@ -115,7 +123,7 @@ struct ParsedUrl {
 
 impl IntrinsicObject for Location {
     fn init(realm: &Realm) {
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .accessor(
                 js_string!("href"),
                 Some(

@@ -234,15 +234,13 @@ impl ShadowCSSScoping {
             }
 
             // Class selector
-            if selector.starts_with('.') {
-                let class_name = &selector[1..];
+            if let Some(class_name) = selector.strip_prefix('.') {
                 let element_class = element_data.get_class_name();
                 return element_class.split_whitespace().any(|c| c == class_name);
             }
 
             // ID selector
-            if selector.starts_with('#') {
-                let id_selector = &selector[1..];
+            if let Some(id_selector) = selector.strip_prefix('#') {
                 return element_data.get_id() == id_selector;
             }
 
@@ -483,12 +481,10 @@ impl ShadowCSSScoping {
         // Ensure :host selectors are used correctly
         // :host must be at the beginning of compound selectors
 
-        let validated = css_text.to_string();
-
         // This is a simplified validation
         // Production would need full CSS parser
 
-        validated
+        css_text.to_string()
     }
 }
 
@@ -528,12 +524,11 @@ impl ShadowCSSCustomProperties {
             }
 
             // Check host styles
-            if let Some(host) = shadow_data.get_host() {
-                if let Some(host_data) = host.downcast_ref::<ElementData>() {
-                    if let Some(value) = host_data.get_style_property(property_name) {
-                        return Ok(Some(value));
-                    }
-                }
+            if let Some(host) = shadow_data.get_host()
+                && let Some(host_data) = host.downcast_ref::<ElementData>()
+                && let Some(value) = host_data.get_style_property(property_name)
+            {
+                return Ok(Some(value));
             }
         }
 

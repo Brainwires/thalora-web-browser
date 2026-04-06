@@ -783,20 +783,19 @@ impl StorageBackend for SledBackend {
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(&index_key_bytes) {
-                if let Some(range) = range {
-                    if !range.includes(&index_key) {
-                        continue;
-                    }
+                if let Some(range) = range
+                    && !range.includes(&index_key)
+                {
+                    continue;
                 }
 
                 // Get encrypted value from store and decrypt
                 if let Some(encrypted_value) = store_tree
                     .get(&primary_key_bytes)
                     .map_err(|e| format!("Failed to get from store: {}", e))?
+                    && let Ok(decrypted) = encryption::decrypt_value(&encrypted_value)
                 {
-                    if let Ok(decrypted) = encryption::decrypt_value(&encrypted_value) {
-                        results.push(decrypted);
-                    }
+                    results.push(decrypted);
                 }
             }
         }
@@ -831,10 +830,10 @@ impl StorageBackend for SledBackend {
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(&index_key_bytes) {
-                if let Some(range) = range {
-                    if !range.includes(&index_key) {
-                        continue;
-                    }
+                if let Some(range) = range
+                    && !range.includes(&index_key)
+                {
+                    continue;
                 }
 
                 // Parse and add primary key
@@ -868,10 +867,10 @@ impl StorageBackend for SledBackend {
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(&index_key_bytes) {
-                if let Some(range) = range {
-                    if !range.includes(&index_key) {
-                        continue;
-                    }
+                if let Some(range) = range
+                    && !range.includes(&index_key)
+                {
+                    continue;
                 }
 
                 count += 1;

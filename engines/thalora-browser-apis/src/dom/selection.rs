@@ -112,14 +112,14 @@ impl SelectionData {
         self.ranges.push(range.clone());
 
         // Update anchor/focus from the range
-        if let Some(range_data) = range.downcast_ref::<RangeData>() {
-            if self.ranges.len() == 1 {
-                // First range - set anchor from start, focus from end
-                self.anchor_node = range_data.start_container().cloned();
-                self.anchor_offset = range_data.start_offset();
-                self.focus_node = range_data.end_container().cloned();
-                self.focus_offset = range_data.end_offset();
-            }
+        if let Some(range_data) = range.downcast_ref::<RangeData>()
+            && self.ranges.len() == 1
+        {
+            // First range - set anchor from start, focus from end
+            self.anchor_node = range_data.start_container().cloned();
+            self.anchor_offset = range_data.start_offset();
+            self.focus_node = range_data.end_container().cloned();
+            self.focus_offset = range_data.end_offset();
         }
 
         self.update_state();
@@ -220,8 +220,8 @@ impl SelectionData {
     /// Check if the selection contains a node
     pub fn contains_node(&self, node: &JsValue, allow_partial: bool) -> bool {
         // Simplified implementation - check if node is anchor or focus
-        let is_anchor = self.anchor_node.as_ref().map_or(false, |n| n == node);
-        let is_focus = self.focus_node.as_ref().map_or(false, |n| n == node);
+        let is_anchor = self.anchor_node.as_ref() == Some(node);
+        let is_focus = self.focus_node.as_ref() == Some(node);
 
         if allow_partial {
             is_anchor || is_focus

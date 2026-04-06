@@ -196,13 +196,13 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let shader_id = get_object_id(args.get_or_undefined(0), ctx)?;
             let pname = args.get_or_undefined(1).to_u32(ctx)?;
 
-            if let Some(shader) = data.shaders.lock().unwrap().get(&shader_id) {
-                if let Some(param) = shader.get_parameter(pname) {
-                    return match param {
-                        super::shader::ShaderParameter::Int(v) => Ok(JsValue::from(v)),
-                        super::shader::ShaderParameter::Bool(v) => Ok(JsValue::from(v)),
-                    };
-                }
+            if let Some(shader) = data.shaders.lock().unwrap().get(&shader_id)
+                && let Some(param) = shader.get_parameter(pname)
+            {
+                return match param {
+                    super::shader::ShaderParameter::Int(v) => Ok(JsValue::from(v)),
+                    super::shader::ShaderParameter::Bool(v) => Ok(JsValue::from(v)),
+                };
             }
             Ok(JsValue::null())
         })
@@ -295,10 +295,10 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let shader_id = get_object_id(args.get_or_undefined(1), ctx)?;
 
             let shaders = data.shaders.lock().unwrap();
-            if let Some(shader) = shaders.get(&shader_id) {
-                if let Some(program) = data.programs.lock().unwrap().get_mut(&program_id) {
-                    program.attach_shader(shader);
-                }
+            if let Some(shader) = shaders.get(&shader_id)
+                && let Some(program) = data.programs.lock().unwrap().get_mut(&program_id)
+            {
+                program.attach_shader(shader);
             }
             Ok(JsValue::undefined())
         })
@@ -317,10 +317,10 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let shader_id = get_object_id(args.get_or_undefined(1), ctx)?;
 
             let shaders = data.shaders.lock().unwrap();
-            if let Some(shader) = shaders.get(&shader_id) {
-                if let Some(program) = data.programs.lock().unwrap().get_mut(&program_id) {
-                    program.detach_shader(shader);
-                }
+            if let Some(shader) = shaders.get(&shader_id)
+                && let Some(program) = data.programs.lock().unwrap().get_mut(&program_id)
+            {
+                program.detach_shader(shader);
             }
             Ok(JsValue::undefined())
         })
@@ -377,13 +377,13 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let program_id = get_object_id(args.get_or_undefined(0), ctx)?;
             let pname = args.get_or_undefined(1).to_u32(ctx)?;
 
-            if let Some(program) = data.programs.lock().unwrap().get(&program_id) {
-                if let Some(param) = program.get_parameter(pname) {
-                    return match param {
-                        super::shader::ProgramParameter::Int(v) => Ok(JsValue::from(v)),
-                        super::shader::ProgramParameter::Bool(v) => Ok(JsValue::from(v)),
-                    };
-                }
+            if let Some(program) = data.programs.lock().unwrap().get(&program_id)
+                && let Some(param) = program.get_parameter(pname)
+            {
+                return match param {
+                    super::shader::ProgramParameter::Int(v) => Ok(JsValue::from(v)),
+                    super::shader::ProgramParameter::Bool(v) => Ok(JsValue::from(v)),
+                };
             }
             Ok(JsValue::null())
         })
@@ -455,19 +455,18 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let program_id = get_object_id(args.get_or_undefined(0), ctx)?;
             let name = args.get_or_undefined(1).to_string(ctx)?;
 
-            if let Some(program) = data.programs.lock().unwrap().get(&program_id) {
-                if let Some(location) = program.get_uniform_location(&name.to_std_string_escaped())
-                {
-                    let loc_obj = JsObject::with_null_proto();
-                    loc_obj.set(js_string!("_id"), JsValue::from(location.id), false, ctx)?;
-                    loc_obj.set(
-                        js_string!("_program"),
-                        JsValue::from(program_id),
-                        false,
-                        ctx,
-                    )?;
-                    return Ok(loc_obj.into());
-                }
+            if let Some(program) = data.programs.lock().unwrap().get(&program_id)
+                && let Some(location) = program.get_uniform_location(&name.to_std_string_escaped())
+            {
+                let loc_obj = JsObject::with_null_proto();
+                loc_obj.set(js_string!("_id"), JsValue::from(location.id), false, ctx)?;
+                loc_obj.set(
+                    js_string!("_program"),
+                    JsValue::from(program_id),
+                    false,
+                    ctx,
+                )?;
+                return Ok(loc_obj.into());
             }
             Ok(JsValue::null())
         })
@@ -485,10 +484,10 @@ pub fn add_shader_methods(obj: &JsObject, context: &mut Context) {
             let program_id = get_object_id(args.get_or_undefined(0), ctx)?;
             let name = args.get_or_undefined(1).to_string(ctx)?;
 
-            if let Some(program) = data.programs.lock().unwrap().get(&program_id) {
-                if let Some(location) = program.get_attrib_location(&name.to_std_string_escaped()) {
-                    return Ok(JsValue::from(location));
-                }
+            if let Some(program) = data.programs.lock().unwrap().get(&program_id)
+                && let Some(location) = program.get_attrib_location(&name.to_std_string_escaped())
+            {
+                return Ok(JsValue::from(location));
             }
             Ok(JsValue::from(-1))
         })

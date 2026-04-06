@@ -839,10 +839,10 @@ impl NodeData {
         })?;
 
         // Remove child from its current parent if it has one
-        if let Some(old_parent) = child_node.get_parent_node() {
-            if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
-                old_parent_data.remove_child_node(&child_obj);
-            }
+        if let Some(old_parent) = child_node.get_parent_node()
+            && let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>()
+        {
+            old_parent_data.remove_child_node(&child_obj);
         }
 
         // Add child to this node
@@ -850,13 +850,12 @@ impl NodeData {
         child_node.set_parent_node(Some(this_obj.clone()));
 
         // Update sibling links
-        if let Some(last_child) = parent_node.get_last_child() {
-            if !JsObject::equals(&last_child, &child_obj) {
-                if let Some(last_child_data) = last_child.clone().downcast_ref::<NodeData>() {
-                    last_child_data.set_next_sibling(Some(child_obj.clone()));
-                    child_node.set_previous_sibling(Some(last_child));
-                }
-            }
+        if let Some(last_child) = parent_node.get_last_child()
+            && !JsObject::equals(&last_child, &child_obj)
+            && let Some(last_child_data) = last_child.clone().downcast_ref::<NodeData>()
+        {
+            last_child_data.set_next_sibling(Some(child_obj.clone()));
+            child_node.set_previous_sibling(Some(last_child));
         }
 
         Ok(child_obj.into())
@@ -897,16 +896,16 @@ impl NodeData {
         let prev_sibling = child_node.get_previous_sibling();
         let next_sibling = child_node.get_next_sibling();
 
-        if let Some(prev) = &prev_sibling {
-            if let Some(prev_data) = prev.downcast_ref::<NodeData>() {
-                prev_data.set_next_sibling(next_sibling.clone());
-            }
+        if let Some(prev) = &prev_sibling
+            && let Some(prev_data) = prev.downcast_ref::<NodeData>()
+        {
+            prev_data.set_next_sibling(next_sibling.clone());
         }
 
-        if let Some(next) = &next_sibling {
-            if let Some(next_data) = next.downcast_ref::<NodeData>() {
-                next_data.set_previous_sibling(prev_sibling);
-            }
+        if let Some(next) = &next_sibling
+            && let Some(next_data) = next.downcast_ref::<NodeData>()
+        {
+            next_data.set_previous_sibling(prev_sibling);
         }
 
         // Remove from parent's child list
@@ -969,10 +968,10 @@ impl NodeData {
         };
 
         // Remove new node from its current parent if it has one
-        if let Some(old_parent) = new_node_data.get_parent_node() {
-            if let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>() {
-                old_parent_data.remove_child_node(&new_node_obj);
-            }
+        if let Some(old_parent) = new_node_data.get_parent_node()
+            && let Some(old_parent_data) = old_parent.downcast_ref::<NodeData>()
+        {
+            old_parent_data.remove_child_node(&new_node_obj);
         }
 
         // Insert the new node
@@ -1007,7 +1006,7 @@ impl NodeData {
         let old_child = args.get_or_undefined(1);
 
         // First remove the old child
-        Self::remove_child(this, &[old_child.clone()], context)?;
+        Self::remove_child(this, std::slice::from_ref(old_child), context)?;
 
         // Then insert the new child at the same position
         // For simplicity, we'll just append it
@@ -1101,7 +1100,7 @@ impl NodeData {
 
                     // Recursively normalize child nodes
                     if let Some(child_data) = children[i].downcast_ref::<NodeData>() {
-                        Self::normalize_node_data(&*child_data);
+                        Self::normalize_node_data(&child_data);
                     }
                 }
             }
@@ -1112,10 +1111,10 @@ impl NodeData {
         if let Some(start_idx) = text_start_index {
             if merged_text.is_empty() {
                 to_remove.push(start_idx);
-            } else if start_idx < children.len() {
-                if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
-                    first_text_data.set_node_value(Some(merged_text));
-                }
+            } else if start_idx < children.len()
+                && let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>()
+            {
+                first_text_data.set_node_value(Some(merged_text));
             }
         }
 
@@ -1162,7 +1161,7 @@ impl NodeData {
                         text_start_index = None;
                         merged_text.clear();
                     }
-                    Self::normalize_node_data(&*child_data);
+                    Self::normalize_node_data(&child_data);
                 }
             }
         }
@@ -1170,10 +1169,10 @@ impl NodeData {
         if let Some(start_idx) = text_start_index {
             if merged_text.is_empty() {
                 to_remove.push(start_idx);
-            } else if start_idx < children.len() {
-                if let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>() {
-                    first_text_data.set_node_value(Some(merged_text));
-                }
+            } else if start_idx < children.len()
+                && let Some(first_text_data) = children[start_idx].downcast_ref::<NodeData>()
+            {
+                first_text_data.set_node_value(Some(merged_text));
             }
         }
 
@@ -1356,15 +1355,12 @@ impl NodeData {
                         }
                     }
 
-                    match (this_pos, other_pos) {
-                        (Some(t), Some(o)) => {
-                            if t < o {
-                                return Ok(JsValue::from(Self::DOCUMENT_POSITION_FOLLOWING));
-                            } else {
-                                return Ok(JsValue::from(Self::DOCUMENT_POSITION_PRECEDING));
-                            }
+                    if let (Some(t), Some(o)) = (this_pos, other_pos) {
+                        if t < o {
+                            return Ok(JsValue::from(Self::DOCUMENT_POSITION_FOLLOWING));
+                        } else {
+                            return Ok(JsValue::from(Self::DOCUMENT_POSITION_PRECEDING));
                         }
-                        _ => {}
                     }
                 }
             }
@@ -1577,33 +1573,28 @@ impl NodeData {
 
                         // Check if the element itself uses this prefix in its name
                         let node_name = current_node.get_node_name();
-                        if let Some((element_prefix, _)) = node_name.split_once(':') {
-                            if element_prefix == prefix {
-                                // The element uses this prefix - return its namespace
-                                // In a full implementation, this would come from the element's namespaceURI
-                                // For now, infer from common prefixes
-                                match prefix {
-                                    "svg" => {
-                                        return Ok(js_string!("http://www.w3.org/2000/svg").into());
-                                    }
-                                    "math" => {
-                                        return Ok(js_string!(
-                                            "http://www.w3.org/1998/Math/MathML"
-                                        )
-                                        .into());
-                                    }
-                                    "xlink" => {
-                                        return Ok(
-                                            js_string!("http://www.w3.org/1999/xlink").into()
-                                        );
-                                    }
-                                    "xhtml" => {
-                                        return Ok(
-                                            js_string!("http://www.w3.org/1999/xhtml").into()
-                                        );
-                                    }
-                                    _ => {}
+                        if let Some((element_prefix, _)) = node_name.split_once(':')
+                            && element_prefix == prefix
+                        {
+                            // The element uses this prefix - return its namespace
+                            // In a full implementation, this would come from the element's namespaceURI
+                            // For now, infer from common prefixes
+                            match prefix {
+                                "svg" => {
+                                    return Ok(js_string!("http://www.w3.org/2000/svg").into());
                                 }
+                                "math" => {
+                                    return Ok(
+                                        js_string!("http://www.w3.org/1998/Math/MathML").into()
+                                    );
+                                }
+                                "xlink" => {
+                                    return Ok(js_string!("http://www.w3.org/1999/xlink").into());
+                                }
+                                "xhtml" => {
+                                    return Ok(js_string!("http://www.w3.org/1999/xhtml").into());
+                                }
+                                _ => {}
                             }
                         }
 
@@ -1999,7 +1990,7 @@ impl Node {
 
 impl IntrinsicObject for Node {
     fn init(realm: &Realm) {
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Set up prototype chain: Node -> EventTarget
             .inherits(Some(
                 realm.intrinsics().constructors().event_target().prototype(),

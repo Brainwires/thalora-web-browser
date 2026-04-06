@@ -72,27 +72,23 @@ impl IDBKey {
         // Check for Object types
         if let Some(obj) = value.as_object() {
             // Check if it's a Date object by trying to call getTime
-            if let Ok(time_method) = obj.get(js_string!("getTime"), context) {
-                if let Some(callable_obj) = time_method.as_object() {
-                    if callable_obj.is_callable() {
-                        if let Ok(result) = callable_obj.call(value, &[], context) {
-                            if let Some(num) = result.as_number() {
-                                if !num.is_nan() && num.is_finite() {
-                                    return Ok(IDBKey::Date(num));
-                                }
-                            }
-                        }
-                    }
-                }
+            if let Ok(time_method) = obj.get(js_string!("getTime"), context)
+                && let Some(callable_obj) = time_method.as_object()
+                && callable_obj.is_callable()
+                && let Ok(result) = callable_obj.call(value, &[], context)
+                && let Some(num) = result.as_number()
+                && !num.is_nan()
+                && num.is_finite()
+            {
+                return Ok(IDBKey::Date(num));
             }
 
             // Check for ArrayBuffer or typed array (binary key support)
-            if Self::is_buffer_source(&obj, context) {
-                if let Some(bytes) = Self::extract_bytes_from_buffer_source(&obj, context) {
-                    if !bytes.is_empty() {
-                        return Ok(IDBKey::Binary(bytes));
-                    }
-                }
+            if Self::is_buffer_source(&obj, context)
+                && let Some(bytes) = Self::extract_bytes_from_buffer_source(&obj, context)
+                && !bytes.is_empty()
+            {
+                return Ok(IDBKey::Binary(bytes));
             }
 
             // Check for Array
@@ -125,10 +121,10 @@ impl IDBKey {
     /// BufferSource = ArrayBuffer | ArrayBufferView
     fn is_buffer_source(obj: &JsObject, context: &mut Context) -> bool {
         // Check for byteLength property - both ArrayBuffer and typed arrays have this
-        if let Ok(byte_length) = obj.get(js_string!("byteLength"), context) {
-            if byte_length.is_number() {
-                return true;
-            }
+        if let Ok(byte_length) = obj.get(js_string!("byteLength"), context)
+            && byte_length.is_number()
+        {
+            return true;
         }
         false
     }
@@ -180,10 +176,10 @@ impl IDBKey {
             // This is more complex - for now, check if we can downcast to JsArrayBuffer
             use boa_engine::object::builtins::JsArrayBuffer;
 
-            if let Ok(array_buffer) = JsArrayBuffer::from_object(obj.clone()) {
-                if let Some(data) = array_buffer.data() {
-                    return Some(data.to_vec());
-                }
+            if let Ok(array_buffer) = JsArrayBuffer::from_object(obj.clone())
+                && let Some(data) = array_buffer.data()
+            {
+                return Some(data.to_vec());
             }
         }
 

@@ -155,7 +155,7 @@ impl BuiltInConstructor for ServiceWorker {
         let script_url_str = script_url.to_string(context)?.to_std_string_escaped();
 
         // Validate URL
-        if let Err(_) = Url::parse(&script_url_str) {
+        if Url::parse(&script_url_str).is_err() {
             return Err(JsNativeError::typ()
                 .with_message("Invalid ServiceWorker script URL")
                 .into());
@@ -165,17 +165,15 @@ impl BuiltInConstructor for ServiceWorker {
         let options = args.get_or_undefined(1);
         let mut scope = script_url_str.clone();
 
-        if !options.is_undefined() && options.is_object() {
-            if let Some(scope_prop) = options
+        if !options.is_undefined()
+            && options.is_object()
+            && let Ok(scope_prop) = options
                 .as_object()
                 .unwrap()
                 .get(js_string!("scope"), context)
-                .ok()
-            {
-                if !scope_prop.is_undefined() {
-                    scope = scope_prop.to_string(context)?.to_std_string_escaped();
-                }
-            }
+            && !scope_prop.is_undefined()
+        {
+            scope = scope_prop.to_string(context)?.to_std_string_escaped();
         }
 
         // Create the ServiceWorker object
@@ -323,7 +321,7 @@ impl ServiceWorker {
                     ports,
                 };
 
-                if let Err(_) = sender.send(sw_message) {
+                if sender.send(sw_message).is_err() {
                     return Err(JsNativeError::error()
                         .with_message("Failed to send message to service worker")
                         .into());

@@ -181,6 +181,12 @@ pub struct Performance {
 
 impl JsData for Performance {}
 
+impl Default for Performance {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Performance {
     pub fn new() -> Self {
         Self {
@@ -636,7 +642,7 @@ impl Performance {
                 entry.name == name_str
                     && type_filter
                         .as_ref()
-                        .map_or(true, |t| entry.entry_type.as_str() == t)
+                        .is_none_or(|t| entry.entry_type.as_str() == t)
             })
             .map(|entry| Self::entry_to_js_object(entry, context))
             .collect::<JsResult<Vec<_>>>()?;

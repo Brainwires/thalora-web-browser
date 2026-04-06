@@ -34,6 +34,12 @@ pub struct ImageBitmapData {
     closed: Arc<Mutex<bool>>,
 }
 
+impl Default for ImageBitmapData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ImageBitmapData {
     pub fn new() -> Self {
         Self {
@@ -183,10 +189,10 @@ pub fn create_image_bitmap_from_data(
 // ============== Property Accessors ==============
 
 fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<ImageBitmapData>() {
-            return Ok(JsValue::from(data.get_width()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<ImageBitmapData>()
+    {
+        return Ok(JsValue::from(data.get_width()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an ImageBitmap")
@@ -194,10 +200,10 @@ fn get_width(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRes
 }
 
 fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<ImageBitmapData>() {
-            return Ok(JsValue::from(data.get_height()));
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<ImageBitmapData>()
+    {
+        return Ok(JsValue::from(data.get_height()));
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an ImageBitmap")
@@ -207,11 +213,11 @@ fn get_height(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsRe
 // ============== Methods ==============
 
 fn close(this: &JsValue, _args: &[JsValue], _context: &mut Context) -> JsResult<JsValue> {
-    if let Some(obj) = this.as_object() {
-        if let Some(data) = obj.downcast_ref::<ImageBitmapData>() {
-            data.close();
-            return Ok(JsValue::undefined());
-        }
+    if let Some(obj) = this.as_object()
+        && let Some(data) = obj.downcast_ref::<ImageBitmapData>()
+    {
+        data.close();
+        return Ok(JsValue::undefined());
     }
     Err(JsNativeError::typ()
         .with_message("'this' is not an ImageBitmap")

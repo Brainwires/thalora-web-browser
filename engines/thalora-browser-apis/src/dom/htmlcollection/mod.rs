@@ -161,20 +161,18 @@ impl HTMLCollection {
         // Then search through elements for matching id or name attribute
         for element in collection_data.elements() {
             // Try to get id attribute
-            if let Ok(id_val) = element.get(js_string!("id"), context) {
-                if let Ok(id_str) = id_val.to_string(context) {
-                    if id_str.to_std_string_escaped() == name_str {
-                        return Ok(element.into());
-                    }
-                }
+            if let Ok(id_val) = element.get(js_string!("id"), context)
+                && let Ok(id_str) = id_val.to_string(context)
+                && id_str.to_std_string_escaped() == name_str
+            {
+                return Ok(element.into());
             }
             // Try to get name attribute
-            if let Ok(name_val) = element.get(js_string!("name"), context) {
-                if let Ok(elem_name_str) = name_val.to_string(context) {
-                    if elem_name_str.to_std_string_escaped() == name_str {
-                        return Ok(element.into());
-                    }
-                }
+            if let Ok(name_val) = element.get(js_string!("name"), context)
+                && let Ok(elem_name_str) = name_val.to_string(context)
+                && elem_name_str.to_std_string_escaped() == name_str
+            {
+                return Ok(element.into());
             }
         }
 
@@ -188,7 +186,7 @@ impl IntrinsicObject for HTMLCollection {
             .name(js_string!("get length"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Methods
             .method(Self::item, js_string!("item"), 1)
             .method(Self::named_item, js_string!("namedItem"), 1)

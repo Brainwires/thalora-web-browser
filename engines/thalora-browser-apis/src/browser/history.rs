@@ -175,10 +175,10 @@ impl HistoryData {
 
     /// Notify the callback (if set) about a history change.
     fn notify(&self, event_type: &str, url: &str, state_json: Option<&str>, delta: i32) {
-        if let Ok(cb) = self.on_change.lock() {
-            if let Some(ref callback) = *cb {
-                callback(event_type, url, state_json, delta);
-            }
+        if let Ok(cb) = self.on_change.lock()
+            && let Some(ref callback) = *cb
+        {
+            callback(event_type, url, state_json, delta);
         }
     }
 

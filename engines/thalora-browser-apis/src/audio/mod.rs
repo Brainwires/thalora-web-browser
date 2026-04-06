@@ -3,8 +3,9 @@
 //! This module provides audio playback capabilities.
 //! - Native builds use rodio for audio playback
 //! - WASM builds delegate to the browser's native Web Audio API
-//! https://html.spec.whatwg.org/multipage/media.html
-//! https://webaudio.github.io/web-audio-api/
+//!
+//! <https://html.spec.whatwg.org/multipage/media.html>
+//! <https://webaudio.github.io/web-audio-api/>
 
 // Native implementation using rodio
 #[cfg(feature = "native")]

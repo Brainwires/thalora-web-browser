@@ -221,8 +221,7 @@ impl BuiltInConstructor for PointerEvent {
                 let pointer_type = init_obj
                     .get(js_string!("pointerType"), context)
                     .ok()
-                    .map(|v| v.to_string(context).ok())
-                    .flatten()
+                    .and_then(|v| v.to_string(context).ok())
                     .map(|s| s.to_std_string_escaped())
                     .unwrap_or_default();
                 let is_primary = init_obj
@@ -288,24 +287,24 @@ impl BuiltInConstructor for PointerEvent {
             context,
         )?;
 
-        if !event_init_dict.is_undefined() {
-            if let Some(init_obj) = event_init_dict.as_object() {
-                if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
-                    pointer_event_generic.set(
-                        js_string!("bubbles"),
-                        bubbles_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
-                if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
-                    pointer_event_generic.set(
-                        js_string!("cancelable"),
-                        cancelable_val.to_boolean(),
-                        false,
-                        context,
-                    )?;
-                }
+        if !event_init_dict.is_undefined()
+            && let Some(init_obj) = event_init_dict.as_object()
+        {
+            if let Ok(bubbles_val) = init_obj.get(js_string!("bubbles"), context) {
+                pointer_event_generic.set(
+                    js_string!("bubbles"),
+                    bubbles_val.to_boolean(),
+                    false,
+                    context,
+                )?;
+            }
+            if let Ok(cancelable_val) = init_obj.get(js_string!("cancelable"), context) {
+                pointer_event_generic.set(
+                    js_string!("cancelable"),
+                    cancelable_val.to_boolean(),
+                    false,
+                    context,
+                )?;
             }
         }
 

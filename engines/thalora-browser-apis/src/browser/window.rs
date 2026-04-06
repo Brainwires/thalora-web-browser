@@ -273,7 +273,7 @@ impl WindowData {
             .lock()
             .unwrap()
             .entry(event_type)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(listener);
     }
 
@@ -928,22 +928,21 @@ fn dispatch_event(this: &JsValue, args: &[JsValue], context: &mut Context) -> Js
     let event = args.get_or_undefined(0);
 
     // Get event type from event object
-    if event.is_object() {
-        if let Some(event_obj) = event.as_object() {
-            if let Ok(type_val) = event_obj.get(js_string!("type"), context) {
-                let event_type = type_val.to_string(context)?;
-                let listeners = window.get_event_listeners(&event_type.to_std_string_escaped());
+    if event.is_object()
+        && let Some(event_obj) = event.as_object()
+        && let Ok(type_val) = event_obj.get(js_string!("type"), context)
+    {
+        let event_type = type_val.to_string(context)?;
+        let listeners = window.get_event_listeners(&event_type.to_std_string_escaped());
 
-                // Call each listener
-                for listener in listeners {
-                    if listener.is_callable() {
-                        let _ = listener.as_callable().unwrap().call(
-                            &this_obj.clone().into(),
-                            &[event.clone()],
-                            context,
-                        );
-                    }
-                }
+        // Call each listener
+        for listener in listeners {
+            if listener.is_callable() {
+                let _ = listener.as_callable().unwrap().call(
+                    &this_obj.clone().into(),
+                    std::slice::from_ref(event),
+                    context,
+                );
             }
         }
     }
@@ -1217,24 +1216,24 @@ fn extract_pixel_value(feature: &str, property: &str) -> Option<f64> {
         let value_part = value_part.trim();
 
         // Handle px values
-        if value_part.ends_with("px") {
-            if let Ok(value) = value_part[..value_part.len() - 2].trim().parse::<f64>() {
-                return Some(value);
-            }
+        if value_part.ends_with("px")
+            && let Ok(value) = value_part[..value_part.len() - 2].trim().parse::<f64>()
+        {
+            return Some(value);
         }
 
         // Handle em values (assume 16px = 1em)
-        if value_part.ends_with("em") {
-            if let Ok(value) = value_part[..value_part.len() - 2].trim().parse::<f64>() {
-                return Some(value * 16.0);
-            }
+        if value_part.ends_with("em")
+            && let Ok(value) = value_part[..value_part.len() - 2].trim().parse::<f64>()
+        {
+            return Some(value * 16.0);
         }
 
         // Handle rem values (assume 16px = 1rem)
-        if value_part.ends_with("rem") {
-            if let Ok(value) = value_part[..value_part.len() - 3].trim().parse::<f64>() {
-                return Some(value * 16.0);
-            }
+        if value_part.ends_with("rem")
+            && let Ok(value) = value_part[..value_part.len() - 3].trim().parse::<f64>()
+        {
+            return Some(value * 16.0);
         }
 
         // Handle unitless values (assume px)
@@ -1316,7 +1315,7 @@ impl MediaQueryListData {
 
     fn add_event_listener(&self, event_type: String, listener: JsValue) {
         let mut listeners = self.event_listeners.lock().unwrap();
-        let type_listeners = listeners.entry(event_type).or_insert_with(Vec::new);
+        let type_listeners = listeners.entry(event_type).or_default();
         // Don't add duplicate listeners
         if !type_listeners
             .iter()
@@ -1422,10 +1421,10 @@ fn get_screen(_this: &JsValue, _args: &[JsValue], context: &mut Context) -> JsRe
     eprintln!("✅ Creating Screen object for window.screen");
 
     // Check if we already have a screen object in global scope to avoid creating duplicate
-    if let Ok(existing_screen) = context.global_object().get(js_string!("screen"), context) {
-        if !existing_screen.is_undefined() {
-            return Ok(existing_screen);
-        }
+    if let Ok(existing_screen) = context.global_object().get(js_string!("screen"), context)
+        && !existing_screen.is_undefined()
+    {
+        return Ok(existing_screen);
     }
 
     // Create Screen object

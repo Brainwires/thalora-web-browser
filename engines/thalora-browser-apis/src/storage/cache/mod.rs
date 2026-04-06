@@ -170,10 +170,10 @@ impl Cache {
         let mut idx = 0u64;
 
         for url in data.keys() {
-            if let Some(ref filter) = url_filter {
-                if !url.starts_with(filter) {
-                    continue;
-                }
+            if let Some(ref filter) = url_filter
+                && !url.starts_with(filter)
+            {
+                continue;
             }
 
             if let Some(entry) = data.get(&url) {
@@ -370,7 +370,7 @@ impl Cache {
 
 impl IntrinsicObject for Cache {
     fn init(realm: &Realm) {
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::match_request, js_string!("match"), 1)
             .method(Self::match_all, js_string!("matchAll"), 0)
             .method(Self::add, js_string!("add"), 1)
@@ -417,6 +417,12 @@ impl BuiltInConstructor for Cache {
 pub struct CacheStorageData {
     #[unsafe_ignore_trace]
     caches: Arc<Mutex<HashMap<String, JsObject>>>,
+}
+
+impl Default for CacheStorageData {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CacheStorageData {
@@ -593,36 +599,35 @@ impl CacheStorage {
         // Search all caches for a match
         let mut found_response: Option<JsObject> = None;
         for cache_name in data.keys() {
-            if let Some(cache_obj) = data.get(&cache_name) {
-                if let Some(cache_data) = cache_obj.downcast_ref::<CacheData>() {
-                    if let Some(entry) = cache_data.get(&url) {
-                        let response = JsObject::default(context.intrinsics());
-                        response.set(
-                            js_string!("ok"),
-                            JsValue::from(entry.status >= 200 && entry.status < 300),
-                            false,
-                            context,
-                        )?;
-                        response.set(
-                            js_string!("status"),
-                            JsValue::from(entry.status),
-                            false,
-                            context,
-                        )?;
-                        response.set(js_string!("url"), js_string!(entry.url), false, context)?;
+            if let Some(cache_obj) = data.get(&cache_name)
+                && let Some(cache_data) = cache_obj.downcast_ref::<CacheData>()
+                && let Some(entry) = cache_data.get(&url)
+            {
+                let response = JsObject::default(context.intrinsics());
+                response.set(
+                    js_string!("ok"),
+                    JsValue::from(entry.status >= 200 && entry.status < 300),
+                    false,
+                    context,
+                )?;
+                response.set(
+                    js_string!("status"),
+                    JsValue::from(entry.status),
+                    false,
+                    context,
+                )?;
+                response.set(js_string!("url"), js_string!(entry.url), false, context)?;
 
-                        let body_str = String::from_utf8_lossy(&entry.body).to_string();
-                        response.set(js_string!("_body"), js_string!(body_str), false, context)?;
+                let body_str = String::from_utf8_lossy(&entry.body).to_string();
+                response.set(js_string!("_body"), js_string!(body_str), false, context)?;
 
-                        found_response = Some(response);
-                        break;
-                    }
-                }
+                found_response = Some(response);
+                break;
             }
         }
 
         let result = found_response
-            .map(|r| JsValue::from(r))
+            .map(JsValue::from)
             .unwrap_or(JsValue::undefined());
         resolvers
             .resolve
@@ -633,7 +638,7 @@ impl CacheStorage {
 
 impl IntrinsicObject for CacheStorage {
     fn init(realm: &Realm) {
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             .method(Self::open, js_string!("open"), 1)
             .method(Self::has, js_string!("has"), 1)
             .method(Self::delete, js_string!("delete"), 1)

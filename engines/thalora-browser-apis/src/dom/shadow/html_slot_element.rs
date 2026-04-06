@@ -38,7 +38,15 @@ impl HTMLSlotElementData {
             manual_slot_assignment: GcRefCell::new(false),
         }
     }
+}
 
+impl Default for HTMLSlotElementData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HTMLSlotElementData {
     /// Get the slot name
     pub fn get_name(&self) -> String {
         self.name
@@ -95,10 +103,9 @@ impl HTMLSlotElementData {
             .try_borrow()
             .map(|g| *g)
             .unwrap_or(false)
+            && let Ok(mut guard) = self.assigned_nodes.try_borrow_mut()
         {
-            if let Ok(mut guard) = self.assigned_nodes.try_borrow_mut() {
-                guard.push(node);
-            }
+            guard.push(node);
         }
     }
 
@@ -480,7 +487,7 @@ impl IntrinsicObject for HTMLSlotElement {
             .name(js_string!("set name"))
             .build();
 
-        let _constructor = BuiltInBuilder::from_standard_constructor::<Self>(realm)
+        BuiltInBuilder::from_standard_constructor::<Self>(realm)
             // Properties
             .accessor(
                 js_string!("name"),

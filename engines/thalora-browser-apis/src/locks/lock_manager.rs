@@ -47,7 +47,15 @@ impl LockManager {
             held_locks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
+}
 
+impl Default for LockManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LockManager {
     /// `navigator.locks.request(name, callback)`
     /// `navigator.locks.request(name, options, callback)`
     fn request(this: &JsValue, args: &[JsValue], context: &mut Context) -> JsResult<JsValue> {

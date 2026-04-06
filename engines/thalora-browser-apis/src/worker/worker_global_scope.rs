@@ -9,7 +9,7 @@ use crate::misc::structured_clone::{
 use crate::worker::worker_navigator::WorkerNavigator;
 use boa_engine::{
     Context, JsArgs, JsNativeError, JsResult, JsValue, Source,
-    builtins::{BuiltInBuilder, BuiltInObject, IntrinsicObject},
+    builtins::{BuiltInBuilder, IntrinsicObject},
     js_string,
     object::{JsObject, JsPromise},
 };
@@ -285,14 +285,12 @@ impl WorkerGlobalScope {
                 let global = context.global_object();
                 let onconnect = global.get(js_string!("onconnect"), context)?;
 
-                if !onconnect.is_null() && !onconnect.is_undefined() {
-                    if let Some(handler) = onconnect.as_callable() {
-                        let _ = handler.call(
-                            &global.clone().into(),
-                            &[event_obj.clone().into()],
-                            context,
-                        );
-                    }
+                if !onconnect.is_null()
+                    && !onconnect.is_undefined()
+                    && let Some(handler) = onconnect.as_callable()
+                {
+                    let _ =
+                        handler.call(&global.clone().into(), &[event_obj.clone().into()], context);
                 }
 
                 // Also dispatch to addEventListener listeners
@@ -633,15 +631,16 @@ impl WorkerGlobalScope {
                 let onfetch = global.get(js_string!("onfetch"), context)?;
                 let mut handler_called = false;
 
-                if !onfetch.is_null() && !onfetch.is_undefined() {
-                    if let Some(handler) = onfetch.as_callable() {
-                        handler.call(
-                            &global.clone().into(),
-                            &[fetch_event_val.clone()],
-                            context,
-                        )?;
-                        handler_called = true;
-                    }
+                if !onfetch.is_null()
+                    && !onfetch.is_undefined()
+                    && let Some(handler) = onfetch.as_callable()
+                {
+                    handler.call(
+                        &global.clone().into(),
+                        std::slice::from_ref(fetch_event_val),
+                        context,
+                    )?;
+                    handler_called = true;
                 }
 
                 // Also try dispatchEvent for addEventListener-based handlers
@@ -650,7 +649,7 @@ impl WorkerGlobalScope {
                     if let Some(dispatcher) = dispatch_event_val.as_callable() {
                         let _ = dispatcher.call(
                             &global.clone().into(),
-                            &[fetch_event_val.clone()],
+                            std::slice::from_ref(fetch_event_val),
                             context,
                         );
                     }
@@ -1077,22 +1076,21 @@ impl WorkerGlobalScope {
         let message_event = crate::events::message_event::create_message_event(
             deserialized_data,
             origin,
-            None, // source: we could pass the worker object reference here
-            ports.map(|p| JsValue::from(p)), // Convert JsObject to JsValue
+            None,                     // source: we could pass the worker object reference here
+            ports.map(JsValue::from), // Convert JsObject to JsValue
             context,
         )?;
 
         // Call onmessage handler if it exists
-        if let Ok(onmessage) = global.get(js_string!("onmessage"), context) {
-            if onmessage.is_callable() {
-                if let Some(func) = onmessage.as_callable() {
-                    let _ = func.call(
-                        &JsValue::from(global.clone()),
-                        &[JsValue::from(message_event)],
-                        context,
-                    );
-                }
-            }
+        if let Ok(onmessage) = global.get(js_string!("onmessage"), context)
+            && onmessage.is_callable()
+            && let Some(func) = onmessage.as_callable()
+        {
+            let _ = func.call(
+                &JsValue::from(global.clone()),
+                &[JsValue::from(message_event)],
+                context,
+            );
         }
 
         Ok(())
@@ -1114,14 +1112,14 @@ impl WorkerGlobalScope {
         // Try to get the scope ID from the global object
         let global = context.global_object();
 
-        if let Ok(scope_id_val) = global.get(js_string!("__worker_scope_id__"), context) {
-            if let Some(scope_id_num) = scope_id_val.as_number() {
-                let scope_id = scope_id_num as usize;
+        if let Ok(scope_id_val) = global.get(js_string!("__worker_scope_id__"), context)
+            && let Some(scope_id_num) = scope_id_val.as_number()
+        {
+            let scope_id = scope_id_num as usize;
 
-                // Look up the scope in the global registry
-                if let Ok(registry) = get_worker_scope_registry().lock() {
-                    return registry.get(&scope_id).cloned();
-                }
+            // Look up the scope in the global registry
+            if let Ok(registry) = get_worker_scope_registry().lock() {
+                return registry.get(&scope_id).cloned();
             }
         }
 
@@ -1166,9 +1164,12 @@ impl WorkerGlobalScope {
             if let Some(ref event_sender) = global_scope.event_sender {
                 use crate::worker::worker_thread::WorkerEvent;
 
-                if let Err(_) = event_sender.send(WorkerEvent::Message {
-                    data: cloned_message,
-                }) {
+                if event_sender
+                    .send(WorkerEvent::Message {
+                        data: cloned_message,
+                    })
+                    .is_err()
+                {
                     return Err(JsNativeError::error()
                         .with_message("Failed to send message to main thread")
                         .into());

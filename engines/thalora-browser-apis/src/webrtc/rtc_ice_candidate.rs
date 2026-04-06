@@ -324,7 +324,7 @@ impl BuiltInConstructor for RTCIceCandidateBuiltin {
 
             // Create RTCIceCandidateInit
             let candidate_init = RTCIceCandidateInit {
-                candidate: candidate,
+                candidate,
                 sdp_mid,
                 sdp_mline_index: sdp_m_line_index,
                 username_fragment,

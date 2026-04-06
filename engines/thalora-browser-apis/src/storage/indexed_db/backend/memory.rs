@@ -413,10 +413,10 @@ impl StorageBackend for MemoryBackend {
 
         let key_bytes = key.to_bytes();
 
-        if let Some(primary_keys) = index.entries.get(&key_bytes) {
-            if let Some(primary_key_bytes) = primary_keys.first() {
-                return Ok(obj_store.records.get(primary_key_bytes).cloned());
-            }
+        if let Some(primary_keys) = index.entries.get(&key_bytes)
+            && let Some(primary_key_bytes) = primary_keys.first()
+        {
+            return Ok(obj_store.records.get(primary_key_bytes).cloned());
         }
 
         Ok(None)
@@ -439,10 +439,10 @@ impl StorageBackend for MemoryBackend {
 
         let key_bytes = key.to_bytes();
 
-        if let Some(primary_keys) = index.entries.get(&key_bytes) {
-            if let Some(primary_key_bytes) = primary_keys.first() {
-                return IDBKey::from_bytes(primary_key_bytes).map(Some);
-            }
+        if let Some(primary_keys) = index.entries.get(&key_bytes)
+            && let Some(primary_key_bytes) = primary_keys.first()
+        {
+            return IDBKey::from_bytes(primary_key_bytes).map(Some);
         }
 
         Ok(None)
@@ -474,10 +474,10 @@ impl StorageBackend for MemoryBackend {
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(index_key_bytes) {
-                if let Some(range) = range {
-                    if !range.includes(&index_key) {
-                        continue;
-                    }
+                if let Some(range) = range
+                    && !range.includes(&index_key)
+                {
+                    continue;
                 }
 
                 // Get all records for this index key
@@ -522,10 +522,10 @@ impl StorageBackend for MemoryBackend {
 
             // Check if index key is in range
             if let Ok(index_key) = IDBKey::from_bytes(index_key_bytes) {
-                if let Some(range) = range {
-                    if !range.includes(&index_key) {
-                        continue;
-                    }
+                if let Some(range) = range
+                    && !range.includes(&index_key)
+                {
+                    continue;
                 }
 
                 // Add all primary keys for this index key
@@ -563,10 +563,10 @@ impl StorageBackend for MemoryBackend {
 
         for (index_key_bytes, primary_keys) in &index.entries {
             if let Ok(index_key) = IDBKey::from_bytes(index_key_bytes) {
-                if let Some(range) = range {
-                    if !range.includes(&index_key) {
-                        continue;
-                    }
+                if let Some(range) = range
+                    && !range.includes(&index_key)
+                {
+                    continue;
                 }
 
                 count += primary_keys.len() as u32;
