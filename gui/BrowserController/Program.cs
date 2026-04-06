@@ -12,6 +12,9 @@ class Program
     {
         // Parse CLI arguments
         int port = 9290;
+        string? guiPath = null;
+        bool autoLaunch = false;
+        string? initialUrl = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -23,10 +26,33 @@ class Program
             {
                 if (int.TryParse(args[i]["--port=".Length..], out var p)) port = p;
             }
+            else if (args[i] == "--gui-path" && i + 1 < args.Length)
+            {
+                guiPath = args[++i];
+            }
+            else if (args[i].StartsWith("--gui-path="))
+            {
+                guiPath = args[i]["--gui-path=".Length..];
+            }
+            else if (args[i] == "--auto-launch")
+            {
+                autoLaunch = true;
+            }
+            else if (args[i] == "--url" && i + 1 < args.Length)
+            {
+                initialUrl = args[++i];
+            }
+            else if (args[i].StartsWith("--url="))
+            {
+                initialUrl = args[i]["--url=".Length..];
+            }
         }
 
         Console.Error.WriteLine($"[controller] BrowserController starting (port: {port})");
-        Console.Error.WriteLine("[controller] Waiting for GUI to register...");
+        if (guiPath != null)
+            Console.Error.WriteLine($"[controller] GUI path: {guiPath}");
+        if (autoLaunch)
+            Console.Error.WriteLine("[controller] Auto-launch enabled");
 
         // Register signal handlers for graceful shutdown
         Console.CancelKeyPress += (_, e) =>
@@ -48,11 +74,23 @@ class Program
         };
 
         _guiManager = new GuiProcessManager();
+        _guiManager.Configure(port, guiPath, autoLaunch);
+
         _httpServer = new HttpProxyServer(port, _guiManager, GracefulShutdownAsync);
 
         try
         {
             _httpServer.Start();
+
+            if (autoLaunch && guiPath != null)
+            {
+                Console.Error.WriteLine("[controller] Auto-launching GUI...");
+                _guiManager.LaunchGui(initialUrl);
+            }
+            else
+            {
+                Console.Error.WriteLine("[controller] Waiting for GUI to register...");
+            }
 
             // Block until shutdown is requested
             await _shutdownTcs.Task;

@@ -19,12 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`async void` use-after-free on close** — `WebContentControl.OnHtmlContentChanged()` could resume after window teardown. Fixed with `_disposed` flag checked after every `await`.
 - **Engine destroyed during in-flight FFI call** — `BrowserTabViewModel.Dispose()` destroyed the engine immediately. Fixed by delaying disposal 150 ms via `Task.Delay`.
 - **Concurrent native engine access crash** — `ComputeStyledTreeAsync` (thread pool) and `PollHistoryEvents` (200ms timer) both called into the Rust engine simultaneously after `IsLoading` returned to false. The engine is not thread-safe. Fixed by adding a `SemaphoreSlim(1,1)` to `ThaloraBrowserEngine` that serializes all `thalora_*` FFI calls; `PollHistoryEvents` uses non-blocking `Wait(0)` to skip cycles when the engine is busy.
-- **UI thread blocked by large control-tree builds** — `BuildFromJson` on GitHub's 641 KB styled tree took 10–20 s synchronously on the UI thread, starving the Dispatcher and making health checks appear to time out. Fixed by running `BuildFromJson` on a background thread via `Task.Run` (Avalonia 11 permits creating detached controls off the UI thread) with a `_disposed` guard after the await.
 - **Data URI images failed to load** — `ImageCache` attempted HTTP GET on `data:` URIs. Fixed by detecting the scheme and decoding base64 directly.
 - **Timing diagnostics always printed** — render timing logs were unconditional. Moved behind `#if DEBUG`.
+- **Instant crash detection** — `GuiProcessManager` now watches the GUI's OS-level PID via `Process.WaitForExitAsync`. Crash state transitions from ~30 s (health check polling) to <1 s.
 - **GUI marked unresponsive too aggressively** — `MaxConsecutiveFailures` was 3 (6s), far too short for pages that need 10–20s of background work. Raised to 15 (30s) so normal large-page loads don't trip the unresponsive state.
 
 ### Added
+- **`BrowserController --gui-path --auto-launch`** — controller can now spawn and manage `ThaloraBrowser` directly. `--auto-launch` spawns the GUI on startup and re-spawns it automatically after crashes. GUI stdout/stderr is redirected to a timestamped log file in `/tmp` (path visible via `/status → last_log`) for post-crash debugging.
+- **`/launch` and `/restart` endpoints** on `BrowserController` — `GET /restart` kills the current GUI and spawns a fresh one; `GET /launch` spawns if none is running. Both accept an optional POST body `{"url":"..."}` for initial navigation.
 - **`cargo xtask gui-screenshot [URL]`** — build, launch, capture PNG screenshot. Options: `--out`, `--port`, `--delay`, `--no-build`, `--no-kill`.
 - **`cargo xtask gui-compare [URL]`** — screenshot + open side-by-side with `--ref` reference image.
 

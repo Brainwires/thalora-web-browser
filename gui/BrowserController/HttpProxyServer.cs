@@ -149,6 +149,16 @@ public sealed class HttpProxyServer : IAsyncDisposable
             case "/shutdown":
                 await HandleShutdown(response);
                 return;
+
+            case "/launch":
+                // Accept GET or POST (POST body may contain {"url":"..."})
+                await HandleLaunch(request, response);
+                return;
+
+            case "/restart":
+                // Accept GET or POST (POST body may contain {"url":"..."})
+                await HandleRestart(request, response);
+                return;
         }
 
         // Proxied endpoints
@@ -225,6 +235,50 @@ public sealed class HttpProxyServer : IAsyncDisposable
             await Task.Delay(200);
             await _shutdownCallback();
         });
+    }
+
+    private async Task HandleLaunch(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var url = await ParseUrlFromBody(request);
+
+        if (_guiManager.State != GuiProcessManager.GuiState.WaitingForGui)
+        {
+            await RespondJson(response, new
+            {
+                status = "already_running",
+                gui_pid = _guiManager.GuiPid,
+                gui_state = _guiManager.State.ToString().ToLowerInvariant(),
+            });
+            return;
+        }
+
+        _guiManager.LaunchGui(url);
+        await RespondJson(response, new { status = "launched", url });
+    }
+
+    private async Task HandleRestart(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        var url = await ParseUrlFromBody(request);
+
+        // Kill the existing GUI if any, then launch a fresh one
+        _guiManager.KillGui();
+        await Task.Delay(300); // let the OS clean up the port binding
+        _guiManager.LaunchGui(url);
+
+        await RespondJson(response, new { status = "restarting", url });
+    }
+
+    private static async Task<string?> ParseUrlFromBody(HttpListenerRequest request)
+    {
+        if (!request.HasEntityBody) return null;
+        try
+        {
+            var body = await ReadBody(request);
+            if (string.IsNullOrWhiteSpace(body)) return null;
+            var data = JsonSerializer.Deserialize<JsonElement>(body);
+            return data.TryGetProperty("url", out var u) ? u.GetString() : null;
+        }
+        catch { return null; }
     }
 
     // --- Proxy logic ---
