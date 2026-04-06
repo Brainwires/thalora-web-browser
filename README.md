@@ -1,6 +1,6 @@
 # 🧠 Thalora - Full-Featured Pure Rust Web Browser
 
-[![CI](https://github.com/brainwires/thalora/actions/workflows/ci.yml/badge.svg)](https://github.com/brainwires/thalora/actions/workflows/ci.yml)
+[![CI](https://github.com/Brainwires/thalora-web-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Brainwires/thalora-web-browser/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/thalora.svg)](https://crates.io/crates/thalora)
 [![docs.rs](https://docs.rs/thalora/badge.svg)](https://docs.rs/thalora)
 [![Tests](https://img.shields.io/badge/tests-658%20passing-brightgreen)](#testing)
