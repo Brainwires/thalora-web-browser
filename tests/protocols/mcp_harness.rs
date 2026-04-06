@@ -31,6 +31,11 @@ impl Default for McpTestConfig {
         env_vars.insert("THALORA_ENABLE_SCRAPING".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SEARCH".to_string(), "true".to_string());
         env_vars.insert("THALORA_ENABLE_SESSIONS".to_string(), "true".to_string());
+        // AI memory tools require a master password for encryption
+        env_vars.insert(
+            "THALORA_MASTER_PASSWORD".to_string(),
+            "test_master_password_min_32chars_secure".to_string(),
+        );
 
         Self {
             timeout: Duration::from_secs(30),
@@ -111,16 +116,40 @@ impl McpTestHarness {
         })
     }
 
-    /// Initialize the MCP connection
+    /// Initialize the MCP connection using the full MCP protocol handshake
     pub fn initialize(&mut self) -> Result<Value> {
+        // Step 1: Send initialize request with required protocol fields
         let request = json!({
             "jsonrpc": "2.0",
             "id": self.next_id(),
             "method": "initialize",
-            "params": {}
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {
+                    "name": "thalora-test-harness",
+                    "version": "1.0.0"
+                }
+            }
         });
 
-        self.send_request_raw(request)
+        let response = self.send_request_raw(request)?;
+
+        // Step 2: Send initialized notification to complete the handshake
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        });
+
+        let stdin = self
+            .process
+            .stdin
+            .as_mut()
+            .context("Failed to get stdin handle for initialized notification")?;
+        writeln!(stdin, "{}", serde_json::to_string(&notification)?)?;
+        stdin.flush()?;
+
+        Ok(response)
     }
 
     /// Get the list of available tools

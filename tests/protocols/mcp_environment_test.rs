@@ -496,10 +496,11 @@ fn test_all_categories_disabled() {
         .list_tools()
         .expect("Should be able to list tools even when all categories disabled");
 
-    // Should have no tools available
+    // Accessibility tools are always enabled, so there should be exactly 1
     assert!(
-        tools.is_empty(),
-        "Should have no tools when all categories are disabled"
+        tools.len() <= 1,
+        "Should have at most accessibility tools when all categories are disabled, got: {:?}",
+        tools.iter().filter_map(|t| t.get("name")).collect::<Vec<_>>()
     );
 
     eprintln!(

@@ -24,7 +24,7 @@ fn extract_response_text(response: &McpResponse) -> Option<String> {
 }
 
 /// Test that verifies CDP debugging tools work within browser sessions
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_cdp_debugging_within_session() {
     let (mut cdp_tools, mut cdp_server, browser_tools) = create_test_components();
 
@@ -94,7 +94,7 @@ async fn test_cdp_debugging_within_session() {
 }
 
 /// Test debugging workflow: navigation, inspection, and manipulation
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_complete_debugging_workflow() {
     let (mut cdp_tools, mut cdp_server, browser_tools) = create_test_components();
 
@@ -206,7 +206,7 @@ async fn test_complete_debugging_workflow() {
 }
 
 /// Test error debugging scenario: finding and fixing issues
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_error_debugging_scenario() {
     let (mut cdp_tools, mut cdp_server, browser_tools) = create_test_components();
 
@@ -305,7 +305,7 @@ async fn test_error_debugging_scenario() {
 }
 
 /// Test session persistence during debugging operations
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_persistence_during_debugging() {
     let (mut cdp_tools, mut cdp_server, browser_tools) = create_test_components();
 
@@ -376,7 +376,7 @@ async fn test_session_persistence_during_debugging() {
 }
 
 /// Test concurrent debugging sessions
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_concurrent_debugging_sessions() {
     let (mut cdp_tools, mut cdp_server, browser_tools) = create_test_components();
 

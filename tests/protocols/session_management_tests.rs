@@ -32,7 +32,7 @@ fn extract_response_json(response: &McpResponse) -> Option<Value> {
         .and_then(|s| serde_json::from_str(s).ok())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_create() {
     let browser_tools = create_test_browser_tools();
 
@@ -57,7 +57,7 @@ async fn test_session_management_create() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_create_persistent() {
     let browser_tools = create_test_browser_tools();
 
@@ -85,7 +85,7 @@ async fn test_session_management_create_persistent() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_list() {
     let browser_tools = create_test_browser_tools();
 
@@ -116,7 +116,7 @@ async fn test_session_management_list() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_info() {
     let browser_tools = create_test_browser_tools();
 
@@ -148,7 +148,7 @@ async fn test_session_management_info() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_close() {
     let browser_tools = create_test_browser_tools();
 
@@ -181,7 +181,7 @@ async fn test_session_management_close() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_cleanup() {
     let browser_tools = create_test_browser_tools();
 
@@ -205,7 +205,7 @@ async fn test_session_management_cleanup() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_management_invalid_action() {
     let browser_tools = create_test_browser_tools();
 
@@ -231,7 +231,7 @@ async fn test_session_management_invalid_action() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_get_page_content() {
     let browser_tools = create_test_browser_tools();
 
@@ -251,7 +251,7 @@ async fn test_browser_get_page_content() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_get_page_content_with_session() {
     let browser_tools = create_test_browser_tools();
 
@@ -275,7 +275,7 @@ async fn test_browser_get_page_content_with_session() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_navigate_back() {
     let browser_tools = create_test_browser_tools();
 
@@ -295,7 +295,7 @@ async fn test_browser_navigate_back() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_navigate_back_with_session() {
     let browser_tools = create_test_browser_tools();
 
@@ -317,7 +317,7 @@ async fn test_browser_navigate_back_with_session() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_navigate_forward() {
     let browser_tools = create_test_browser_tools();
 
@@ -339,7 +339,7 @@ async fn test_browser_navigate_forward() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_navigate_forward_with_session() {
     let browser_tools = create_test_browser_tools();
 
@@ -364,7 +364,7 @@ async fn test_browser_navigate_forward_with_session() {
 }
 
 /// Integration test that verifies session tools work with browser automation
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_integration_with_browser_tools() {
     let browser_tools = create_test_browser_tools();
 
@@ -447,7 +447,7 @@ async fn test_session_integration_with_browser_tools() {
 }
 
 /// Test session persistence and cleanup functionality
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_persistence_workflow() {
     let browser_tools = create_test_browser_tools();
 
@@ -506,7 +506,7 @@ async fn test_session_persistence_workflow() {
 }
 
 /// Test error handling for session management
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_session_error_handling() {
     let browser_tools = create_test_browser_tools();
 
@@ -574,7 +574,7 @@ async fn test_session_error_handling() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_refresh_page() {
     let browser_tools = create_test_browser_tools();
 
@@ -595,7 +595,7 @@ async fn test_browser_refresh_page() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_browser_navigation_workflow() {
     let browser_tools = create_test_browser_tools();
     let session_id = "navigation_workflow_session";

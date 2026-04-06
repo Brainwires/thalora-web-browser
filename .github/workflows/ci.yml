@@ -71,6 +71,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
+      - name: Build binary for MCP harness tests
+        run: cargo build --bin thalora
       - name: Test workspace
         run: cargo test --workspace -- --test-threads=1
         env:
