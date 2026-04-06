@@ -4,8 +4,8 @@
 /// This enables the user's browser to act as a "display" for the headless Thalora browser.
 ///
 /// Architecture:
-/// ```
-/// User Browser ←→ WebSocket ←→ Display Server ←→ Browser Session
+/// ```text
+/// User Browser <-> WebSocket <-> Display Server <-> Browser Session
 /// ```
 use anyhow::Result;
 use std::net::SocketAddr;
