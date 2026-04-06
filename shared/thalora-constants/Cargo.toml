@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Shared constants for Thalora browser"
 
+[lints]
+workspace = true
+
 [dependencies]

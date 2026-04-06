@@ -2,40 +2,118 @@
 //!
 //! Runs fmt, check, clippy, test, and doc steps sequentially,
 //! reporting pass/fail for each and a summary at the end.
+//! Each step runs for both the main workspace and the boa engine workspace.
 
 use std::process::{Command, ExitCode};
 
 struct Step {
     key: &'static str,
     name: &'static str,
-    cmd: &'static [&'static str],
+    /// Commands to run for this step. Each entry is (description, args).
+    commands: &'static [(&'static str, &'static [&'static str])],
 }
 
 const STEPS: &[Step] = &[
     Step {
         key: "fmt",
         name: "Format",
-        cmd: &["cargo", "fmt", "--all", "--check"],
+        commands: &[
+            ("workspace", &["cargo", "fmt", "--all", "--check"]),
+            (
+                "boa engine",
+                &[
+                    "cargo",
+                    "fmt",
+                    "--all",
+                    "--check",
+                    "--manifest-path",
+                    "engines/boa/Cargo.toml",
+                ],
+            ),
+        ],
     },
     Step {
         key: "check",
         name: "Check",
-        cmd: &["cargo", "check", "--workspace"],
+        commands: &[
+            ("workspace", &["cargo", "check", "--workspace"]),
+            (
+                "boa engine",
+                &[
+                    "cargo",
+                    "check",
+                    "--manifest-path",
+                    "engines/boa/Cargo.toml",
+                    "--workspace",
+                ],
+            ),
+        ],
     },
     Step {
         key: "clippy",
         name: "Clippy",
-        cmd: &["cargo", "clippy", "--workspace", "--", "-D", "warnings"],
+        commands: &[
+            ("workspace", &["cargo", "clippy", "--workspace"]),
+            (
+                "boa engine",
+                &[
+                    "cargo",
+                    "clippy",
+                    "--manifest-path",
+                    "engines/boa/Cargo.toml",
+                    "--workspace",
+                ],
+            ),
+        ],
     },
     Step {
         key: "test",
         name: "Test",
-        cmd: &["cargo", "test", "--workspace", "--", "--test-threads=1"],
+        commands: &[
+            (
+                "workspace",
+                &[
+                    "cargo",
+                    "test",
+                    "--workspace",
+                    "--",
+                    "--test-threads=1",
+                ],
+            ),
+            (
+                "boa engine",
+                &[
+                    "cargo",
+                    "test",
+                    "--manifest-path",
+                    "engines/boa/Cargo.toml",
+                    "--workspace",
+                    "--",
+                    "--test-threads=1",
+                ],
+            ),
+        ],
     },
     Step {
         key: "doc",
         name: "Doc",
-        cmd: &["cargo", "doc", "--workspace", "--no-deps"],
+        commands: &[
+            (
+                "workspace",
+                &["cargo", "doc", "--workspace", "--no-deps"],
+            ),
+            (
+                "boa engine",
+                &[
+                    "cargo",
+                    "doc",
+                    "--manifest-path",
+                    "engines/boa/Cargo.toml",
+                    "--workspace",
+                    "--no-deps",
+                ],
+            ),
+        ],
     },
 ];
 
@@ -71,21 +149,33 @@ pub fn run(args: &[String]) -> ExitCode {
     for (i, step) in steps.iter().enumerate() {
         println!("\n[{}/{}] {} ...", i + 1, total, step.name);
 
-        let status = Command::new(step.cmd[0])
-            .args(&step.cmd[1..])
-            .current_dir(&ws_root)
-            .env("CARGO_TERM_COLOR", "always")
-            .status();
+        let mut step_ok = true;
+        for (desc, cmd) in step.commands {
+            println!("  -> {desc}");
 
-        match status {
-            Ok(s) if s.success() => {
-                println!("[{}/{}] {} ... ok", i + 1, total, step.name);
-                passed.push(step.name);
+            let status = Command::new(cmd[0])
+                .args(&cmd[1..])
+                .current_dir(&ws_root)
+                .env("CARGO_TERM_COLOR", "always")
+                .status();
+
+            match status {
+                Ok(s) if s.success() => {
+                    println!("  -> {desc} ... ok");
+                }
+                _ => {
+                    println!("  -> {desc} ... FAILED");
+                    step_ok = false;
+                }
             }
-            _ => {
-                println!("[{}/{}] {} ... FAILED", i + 1, total, step.name);
-                failed.push(step.name);
-            }
+        }
+
+        if step_ok {
+            println!("[{}/{}] {} ... ok", i + 1, total, step.name);
+            passed.push(step.name);
+        } else {
+            println!("[{}/{}] {} ... FAILED", i + 1, total, step.name);
+            failed.push(step.name);
         }
     }
 
@@ -107,6 +197,8 @@ pub fn run(args: &[String]) -> ExitCode {
 
 pub fn print_help() {
     println!("Run CI pipeline steps (default: all)");
+    println!();
+    println!("Each step runs for both the main workspace and the boa engine workspace.");
     println!();
     println!("USAGE:");
     println!("  cargo xtask ci [STEPS...]");

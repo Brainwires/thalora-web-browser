@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -Dwarnings
 
 jobs:
   check:
@@ -22,7 +21,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
-      - run: cargo check --workspace
+      - name: Check workspace
+        run: cargo check --workspace
+      - name: Check boa engine
+        run: cargo check --manifest-path engines/boa/Cargo.toml --workspace
 
   clippy:
     name: Clippy
@@ -37,7 +39,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
-      - run: cargo clippy --workspace -- -D warnings
+      - name: Clippy workspace
+        run: cargo clippy --workspace
+      - name: Clippy boa engine
+        run: cargo clippy --manifest-path engines/boa/Cargo.toml --workspace
 
   fmt:
     name: Format
@@ -49,7 +54,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --all --check
+      - name: Format workspace
+        run: cargo fmt --all --check
+      - name: Format boa engine
+        run: cargo fmt --all --check --manifest-path engines/boa/Cargo.toml
 
   test:
     name: Test
@@ -62,7 +70,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
-      - run: cargo test --workspace
+      - name: Test workspace
+        run: cargo test --workspace
+      - name: Test boa engine
+        run: cargo test --manifest-path engines/boa/Cargo.toml --workspace
 
   doc:
     name: Documentation
@@ -75,4 +86,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config clang libclang-dev libasound2-dev
-      - run: cargo doc --workspace --no-deps
+      - name: Doc workspace
+        run: cargo doc --workspace --no-deps
+      - name: Doc boa engine
+        run: cargo doc --manifest-path engines/boa/Cargo.toml --workspace --no-deps

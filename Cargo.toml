@@ -10,6 +10,12 @@ members = [
 # [workspace] section and workspace.dependencies remain intact.
 exclude = ["engines/boa"]
 
+[workspace.lints.rust]
+warnings = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+
 [package]
 name = "thalora"
 version = "0.2.0"
@@ -263,6 +269,9 @@ serial_test = "3.2.0"
 tempfile = "3.24.0"
 tokio-test = "0.4"
 wiremock = "0.6"
+
+[lints]
+workspace = true
 
 [profile.release]
 opt-level = 3
