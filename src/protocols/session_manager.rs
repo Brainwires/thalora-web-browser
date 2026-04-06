@@ -159,8 +159,35 @@ impl SessionManager {
 
         sessions.insert(safe_session_id.clone(), (session_info.clone(), child));
 
-        // Wait a moment for the socket to be created
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // Poll for socket readiness with exponential backoff instead of fixed sleep
+        {
+            let socket_path = std::path::Path::new(&session_info.socket_path);
+            let mut delay_ms = 10u64;
+            let max_total_ms = 2000u64;
+            let mut elapsed_ms = 0u64;
+
+            while elapsed_ms < max_total_ms {
+                if socket_path.exists() {
+                    debug!(
+                        session_id = %safe_session_id,
+                        elapsed_ms,
+                        "Socket file appeared"
+                    );
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                elapsed_ms += delay_ms;
+                delay_ms = (delay_ms * 2).min(200);
+            }
+
+            if !socket_path.exists() {
+                warn!(
+                    session_id = %safe_session_id,
+                    timeout_ms = max_total_ms,
+                    "Socket file not found after timeout"
+                );
+            }
+        }
 
         info!("Created new browser session: {}", safe_session_id);
         Ok(session_info)
@@ -334,22 +361,24 @@ impl Drop for SessionManager {
             let mut sessions = sessions.blocking_lock();
             for (session_id, (session_info, mut process)) in sessions.drain() {
                 if let Err(e) = process.kill() {
-                    eprintln!(
-                        "Failed to kill browser process for session {}: {}",
-                        session_id, e
+                    tracing::warn!(
+                        session_id,
+                        error = %e,
+                        "Failed to kill browser process during drop"
                     );
                 }
                 if let Err(e) = std::fs::remove_file(&session_info.socket_path) {
-                    eprintln!(
-                        "Failed to remove socket file {}: {}",
-                        session_info.socket_path, e
+                    tracing::warn!(
+                        path = %session_info.socket_path,
+                        error = %e,
+                        "Failed to remove socket file during drop"
                     );
                 }
             }
 
             // Try to clean up socket directory
             if let Err(e) = std::fs::remove_dir_all(&socket_dir) {
-                eprintln!("Failed to remove socket directory: {}", e);
+                tracing::warn!(error = %e, "Failed to remove socket directory during drop");
             }
         });
     }

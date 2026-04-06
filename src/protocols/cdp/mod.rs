@@ -178,6 +178,8 @@ impl CdpServer {
     }
 
     pub fn emit_event(&self, event: CdpEvent) {
-        drop(self.event_sender.send(event));
+        if let Err(e) = self.event_sender.send(event) {
+            tracing::debug!(method = %e.0.method, "CDP event dropped (no active subscribers)");
+        }
     }
 }

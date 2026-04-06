@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Mutex;
+use tracing::{debug, info};
 
 use crate::engine::browser::HeadlessWebBrowser;
 use crate::protocols::browser_tools::session::BrowserSession;
@@ -30,29 +31,21 @@ impl BrowserTools {
         let mut sessions = self.sessions.lock().unwrap();
 
         if let Some((browser, session)) = sessions.get_mut(session_id) {
-            eprintln!(
-                "🔍 DEBUG: get_or_create_session - FOUND existing session: {}",
-                session_id
-            );
+            debug!(session_id, "Found existing session");
             session.update_last_accessed();
             // Debug browser state
             if let Ok(browser_guard) = browser.try_lock() {
-                eprintln!(
-                    "🔍 DEBUG: get_or_create_session - existing browser content length: {}",
-                    browser_guard.get_current_content().len()
-                );
-                eprintln!(
-                    "🔍 DEBUG: get_or_create_session - existing browser URL: {:?}",
-                    browser_guard.get_current_url()
+                debug!(
+                    session_id,
+                    content_length = browser_guard.get_current_content().len(),
+                    url = ?browser_guard.get_current_url(),
+                    "Existing browser state"
                 );
             }
             // Return existing browser with preserved state
             browser.clone()
         } else {
-            eprintln!(
-                "🔍 DEBUG: get_or_create_session - CREATING new session: {}",
-                session_id
-            );
+            debug!(session_id, "Creating new session");
             let browser = HeadlessWebBrowser::new();
             let session = BrowserSession::new(session_id.to_string(), persistent);
 
@@ -102,7 +95,7 @@ impl BrowserTools {
     pub fn close_session(&self, session_id: &str) -> bool {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some((browser, session)) = sessions.remove(session_id) {
-            eprintln!("🧹 Closing session: {}", session_id);
+            info!(session_id, "Closing session");
             // Explicitly drop browser to trigger cleanup
             drop(browser);
 
@@ -156,10 +149,10 @@ impl Default for BrowserTools {
 
 impl Drop for BrowserTools {
     fn drop(&mut self) {
-        eprintln!("🧹 BrowserTools shutting down, closing all sessions");
+        info!("BrowserTools shutting down, closing all sessions");
         let mut sessions = self.sessions.lock().unwrap();
         let session_ids: Vec<String> = sessions.keys().cloned().collect();
-        eprintln!("🧹 Closing {} active session(s)", session_ids.len());
+        info!(count = session_ids.len(), "Closing active sessions");
 
         for session_id in session_ids {
             if let Some((browser, _)) = sessions.remove(&session_id) {

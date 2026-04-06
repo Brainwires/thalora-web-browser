@@ -4,6 +4,7 @@ use crate::protocols::rate_limiter::RateLimiter;
 use serde_json::Value;
 use std::env;
 use std::sync::Arc;
+use tracing::{debug, info, warn};
 use vfs::{VfsInstance, set_current_vfs};
 
 // Tool definition modules
@@ -46,7 +47,7 @@ impl McpServer {
 
         // Check MCP mode
         let mcp_mode = get_mcp_mode();
-        eprintln!("🔧 Thalora MCP Mode: {}", mcp_mode);
+        info!("Thalora MCP Mode: {}", mcp_mode);
 
         // In minimal mode, only expose basic scraping tools
         if is_minimal_mode() {
@@ -109,19 +110,16 @@ impl McpServer {
     }
 
     pub(crate) async fn call_tool(&mut self, name: String, arguments: Value) -> McpResponse {
-        eprintln!(
-            "🔍 DEBUG: call_tool - Tool: {}, Arguments: {}",
-            name, arguments
-        );
+        debug!(tool = %name, args = %arguments, "call_tool invoked");
 
         // SECURITY: Check rate limit before executing tool (DoS prevention)
         let category = RateLimiter::tool_to_category(&name);
         if let Err(wait_duration) = self.rate_limiter.check(category) {
-            eprintln!(
-                "⚠️ Rate limit exceeded for tool {} (category: {}), retry after {:.1}s",
-                name,
-                category,
-                wait_duration.as_secs_f64()
+            warn!(
+                tool = %name,
+                category = %category,
+                retry_after_secs = wait_duration.as_secs_f64(),
+                "Rate limit exceeded"
             );
             return McpResponse::error(
                 -32029,
@@ -137,7 +135,7 @@ impl McpServer {
         let vfs_instance: Arc<VfsInstance>;
         let prev_vfs: Option<Arc<VfsInstance>>;
         if let Some(session_id) = arguments.get("session_id").and_then(|v| v.as_str()) {
-            eprintln!("🔍 DEBUG: call_tool - Using session_id: {}", session_id);
+            debug!(session_id = %session_id, "Using session VFS");
             // SECURITY: Reuse or create a session VFS with validated session_id
             let v = match self.get_or_create_session_vfs(session_id, None) {
                 Ok(vfs) => vfs,
@@ -164,7 +162,7 @@ impl McpServer {
 
         // Execute the tool with proper error handling, logging, and timeout
         let start_time = std::time::Instant::now();
-        eprintln!("🔧 Starting tool execution: {}", name);
+        debug!(tool = %name, "Starting tool execution");
 
         let resp = match tokio::time::timeout(
             std::time::Duration::from_secs(60),
@@ -174,7 +172,7 @@ impl McpServer {
         {
             Ok(response) => response,
             Err(_) => {
-                eprintln!("⚠️ Tool {} timed out after 60 seconds", name);
+                warn!(tool = %name, "Tool timed out after 60 seconds");
                 McpResponse::error(
                     -32000,
                     format!("Tool '{}' timed out after 60 seconds", name),
@@ -183,11 +181,11 @@ impl McpServer {
         };
 
         let elapsed = start_time.elapsed();
-        eprintln!("🔧 Tool execution completed: {} (took {:?})", name, elapsed);
+        debug!(tool = %name, elapsed = ?elapsed, "Tool execution completed");
 
         // Log if the response indicates an error
         if resp.is_error {
-            eprintln!("⚠️ Tool {} returned error: {:?}", name, resp.content);
+            warn!(tool = %name, "Tool returned error: {:?}", resp.content);
         }
 
         // Lifecycle:

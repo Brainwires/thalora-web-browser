@@ -160,6 +160,10 @@ async fn main() -> Result<()> {
     if std::env::var("THALORA_SILENT").is_err() {
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
             .init();
 
         tracing::info!("Using {} JavaScript engine", engine_config.engine_type);
@@ -172,6 +176,7 @@ async fn main() -> Result<()> {
         // Still configure tracing but silent
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
+            .with_env_filter(tracing_subscriber::EnvFilter::new("warn"))
             .init();
     }
 

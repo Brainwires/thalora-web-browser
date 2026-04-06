@@ -48,6 +48,7 @@ struct SessionHandle {
 struct AppState {
     sessions: Arc<RwLock<HashMap<String, SessionHandle>>>,
     engine_config: EngineConfig,
+    max_sessions: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +147,31 @@ async fn handle_mcp(
 
     // Route / create session
     let (result, new_session_id): (Value, Option<String>) = if is_initialize {
+        // Check session limit before spawning a new thread
+        let current_count = state.sessions.read().len();
+        if current_count >= state.max_sessions {
+            tracing::warn!(
+                current = current_count,
+                max = state.max_sessions,
+                "MCP session limit reached, rejecting new session"
+            );
+            return axum::response::Response::builder()
+                .status(503)
+                .header("Content-Type", "application/json")
+                .body(axum::body::Body::from(
+                    serde_json::to_string(&json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "error": {
+                            "code": -32000,
+                            "message": "Server at maximum session capacity"
+                        }
+                    }))
+                    .unwrap(),
+                ))
+                .unwrap();
+        }
+
         // New session
         let sid = uuid::Uuid::new_v4().to_string();
         let handle = spawn_session(state.engine_config.clone());
@@ -263,9 +289,15 @@ pub async fn run_http_transport(
     host: String,
     port: u16,
 ) -> anyhow::Result<()> {
+    let max_sessions: usize = std::env::var("THALORA_MAX_MCP_SESSIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(64);
+
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
         engine_config,
+        max_sessions,
     };
 
     let app = Router::new()
@@ -275,7 +307,7 @@ pub async fn run_http_transport(
 
     let addr = format!("{host}:{port}");
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    eprintln!("🌐 Thalora HTTP MCP server listening on http://{addr}");
+    tracing::info!("Thalora HTTP MCP server listening on http://{addr}");
     axum::serve(listener, app).await?;
     Ok(())
 }
