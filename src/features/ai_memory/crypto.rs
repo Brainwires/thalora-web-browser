@@ -234,6 +234,7 @@ fn decrypt_password_v2(encrypted: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
 
     fn setup_test_password() {
@@ -248,6 +249,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_encrypt_decrypt_roundtrip() {
         setup_test_password();
 
@@ -259,6 +261,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_encrypt_produces_v2_format() {
         setup_test_password();
 
@@ -274,6 +277,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_encrypt_different_each_time() {
         setup_test_password();
 
@@ -290,6 +294,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_tampered_ciphertext_rejected() {
         setup_test_password();
 
@@ -307,6 +312,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_wrong_master_password_rejected() {
         setup_test_password();
 
@@ -328,6 +334,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_weak_master_password_rejected() {
         // SAFETY: Tests run sequentially with --test-threads=1 or isolated
         unsafe { env::set_var("THALORA_MASTER_PASSWORD", "weak") }; // Less than 32 chars
@@ -340,6 +347,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_legacy_xor_format_rejected() {
         setup_test_password();
 
@@ -352,6 +360,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_master_password_required() {
         // SAFETY: Tests run sequentially with --test-threads=1 or isolated
         unsafe { env::remove_var("THALORA_MASTER_PASSWORD") };
@@ -369,6 +378,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_decrypt_invalid_format() {
         setup_test_password();
 
@@ -397,6 +407,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_unicode_password_support() {
         setup_test_password();
 
