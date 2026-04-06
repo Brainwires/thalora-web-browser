@@ -148,6 +148,7 @@ pub fn run(args: &[String]) -> ExitCode {
                 .args(&cmd[1..])
                 .current_dir(&ws_root)
                 .env("CARGO_TERM_COLOR", "always")
+                .env("RUST_MIN_STACK", "16777216")
                 .status();
 
             match status {
