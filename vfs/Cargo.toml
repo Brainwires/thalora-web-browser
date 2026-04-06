@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 
-[lints]
-workspace = true
-
 [features]
 # By default use an in-memory virtual filesystem. Enable `real_fs` to delegate to `std::fs`.
 default = []
