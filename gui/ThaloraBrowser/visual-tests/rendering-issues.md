@@ -1,58 +1,27 @@
 # Rendering Issues Tracker
 
-## Active Issues
+All issues from the old pipeline have been resolved. The rendering pipeline was completely
+rebuilt in Feb–Apr 2026:
 
-### ISSUE-001: No max-width centering on main content
-- **Severity**: HIGH (layout)
-- **Viewports affected**: ALL
-- **Description**: Content spans full 1280px width instead of being constrained to ~720px centered container
-- **Root cause**: max-width + margin:auto not producing centered layout
-- **Fix location**: src/engine/renderer/layout.rs (margin auto handling), page_layout.rs
-- **Status**: NEW
+- Old pipeline (taffy + cosmic_text + PaintContext manual painting) → **deleted**
+- New pipeline: Rust CSS resolution → StyledElement tree JSON → C# ControlTreeBuilder → Avalonia native controls
 
-### ISSUE-002: No background colors anywhere
-- **Severity**: HIGH (visual)
-- **Viewports affected**: ALL
-- **Description**: Header should be dark/orange, code blocks should have gray backgrounds, etc. Everything is white.
-- **Root cause**: Background colors from CSS not being applied to layout elements
-- **Fix location**: src/engine/renderer/css.rs, page_layout.rs
-- **Status**: NEW
+## Visual Regression Workflow
 
-### ISSUE-003: No images rendering
-- **Severity**: HIGH (content)
-- **Viewports affected**: 01 (hero image), others
-- **Description**: Hero illustration and other images not showing — just blank space or nothing
-- **Root cause**: Image elements may not be in the layout tree, or img_src not flowing through
-- **Fix location**: page_layout.rs (image handling), PaintContext.cs (image painting)
-- **Status**: NEW
+```bash
+# Take a screenshot
+cargo xtask gui-screenshot https://www.google.com --out /tmp/thalora.png
 
-### ISSUE-004: Navigation should be horizontal flex layout
-- **Severity**: MEDIUM (layout)
-- **Viewports affected**: 01
-- **Description**: Top nav items stacked vertically instead of horizontal row
-- **Root cause**: Flexbox layout (display:flex) not producing horizontal arrangement
-- **Fix location**: layout.rs (flex handling in taffy)
-- **Status**: NEW
+# Compare against a Chrome reference
+cargo xtask gui-compare https://www.google.com --ref /tmp/chrome-google.png
+```
 
-### ISSUE-005: Link text should be colored (blue/orange)
-- **Severity**: MEDIUM (visual)
-- **Viewports affected**: ALL
-- **Description**: All links are black; reference shows blue title link, orange category links
-- **Root cause**: Link color from CSS not being resolved or applied
-- **Fix location**: css.rs, page_layout.rs (color resolution)
-- **Status**: NEW
+Reference images live in `gui/ThaloraBrowser/visual-tests/`.
 
-### ISSUE-006: Code blocks missing monospace + background
-- **Severity**: MEDIUM (visual)
-- **Viewports affected**: 02-08
-- **Description**: Code blocks should have gray background, monospace font, proper padding
-- **Root cause**: pre/code elements not getting background-color or proper font styling
-- **Fix location**: page_layout.rs, css.rs
-- **Status**: NEW
+## Known Gaps (Apr 2026)
 
-## Fixed Issues
-
-### ISSUE-000: Text line overlap
-- **Severity**: HIGH (overlap)
-- **Status**: FIXED
-- **Fix**: Eliminated pre-split lines; Avalonia handles all wrapping
+| Area | Details |
+|---|---|
+| SVG rendering | Wikimedia SVGs get 403 — needs proper User-Agent in image fetcher |
+| BuildFromJson blocks UI thread | Large pages (GitHub 641KB tree) freeze UI during tree build; background-thread fix blocked by Avalonia thread affinity |
+| `outerHTML` for complex pages | Boa returns `undefined` for Wiktionary-style pages; fallback to original server HTML |
