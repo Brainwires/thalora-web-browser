@@ -304,7 +304,7 @@ public partial class ControlTreeBuilder
     /// </summary>
     private static bool HasVisibleContent(StyledElement element, int depth = 0)
     {
-        if (depth > 10) return false; // guard against deep recursion
+        if (depth > 60) return false; // guard against deep recursion (GitHub content sits at depth 17+)
 
         // display:none is never visible
         if (element.Styles.Display == "none" || element.Styles.Visibility == "hidden")

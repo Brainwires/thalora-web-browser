@@ -207,12 +207,9 @@ public class WebContentControl : UserControl
             Console.Error.WriteLine($"[WebContentControl] Computing styled tree: {viewportW}x{viewportH}, HTML length: {HtmlContent?.Length ?? 0}");
 #endif
 
-            // Show loading indicator for fresh navigations (new HTML content),
-            // but not for resize re-renders of the same page.
-            // This fires right as the HTML arrives and before the styled tree is built.
-            bool isFreshNavigation = HtmlContent != _lastRenderedHtml;
-            if (isFreshNavigation)
-                ShowLoading();
+            // Track which HTML we last rendered to avoid redundant re-renders on resize.
+            // Do NOT clear existing content here — keep Phase 1 content visible while
+            // Phase 2 JS re-render computes. Clearing creates a blank screen for 30-60s.
             _lastRenderedHtml = HtmlContent;
 
             // Get the styled tree from Rust (HTML parsed, CSS resolved, no positions)
