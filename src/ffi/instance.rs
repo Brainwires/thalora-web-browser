@@ -8,6 +8,9 @@ use std::ptr;
 use std::rc::Rc;
 use std::sync::Mutex;
 
+#[cfg(unix)]
+use libc;
+
 use crate::engine::HeadlessWebBrowser;
 use crate::engine::browser::types::NavigationMode;
 
@@ -111,6 +114,59 @@ pub(crate) fn c_str_to_rust_safe<'a>(ptr: *const c_char) -> Option<&'a str> {
 }
 
 // ---------------------------------------------------------------------------
+// Crash signal handler
+// ---------------------------------------------------------------------------
+
+/// Install Unix signal handlers for SIGSEGV, SIGBUS, and SIGABRT.
+///
+/// When the Boa JS engine crashes (e.g. GC corruption → SIGSEGV), the default
+/// OS behavior is to generate a crash report and show a dialog to the user.
+/// Instead, we handle the signal ourselves: log the signal number and call
+/// `_exit(0)`. Exiting with code 0 prevents macOS CrashReporter from activating,
+/// and the BrowserController's PID-watcher detects the exit and relaunches the GUI.
+///
+/// SAFETY: Signal handlers must only call async-signal-safe functions.
+/// `libc::write` and `libc::_exit` are both async-signal-safe.
+#[cfg(unix)]
+fn install_crash_handlers() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static INSTALLED: AtomicBool = AtomicBool::new(false);
+    if INSTALLED.swap(true, Ordering::SeqCst) {
+        return; // Only install once per process
+    }
+
+    extern "C" fn crash_handler(sig: libc::c_int) {
+        // Write a short message using write() — the only safe I/O in a signal handler.
+        let msg: &[u8] = match sig {
+            libc::SIGSEGV => b"[thalora] Caught SIGSEGV - exiting cleanly\n",
+            libc::SIGBUS  => b"[thalora] Caught SIGBUS - exiting cleanly\n",
+            libc::SIGABRT => b"[thalora] Caught SIGABRT - exiting cleanly\n",
+            _             => b"[thalora] Caught fatal signal - exiting cleanly\n",
+        };
+        unsafe { libc::write(2, msg.as_ptr() as *const libc::c_void, msg.len()); }
+        // Exit with 0 so macOS CrashReporter stays silent.
+        // The BrowserController PID-watcher detects any exit and relaunches.
+        unsafe { libc::_exit(0); }
+    }
+
+    let signals = [libc::SIGSEGV, libc::SIGBUS, libc::SIGABRT];
+    for &sig in &signals {
+        unsafe {
+            let mut sa: libc::sigaction = std::mem::zeroed();
+            sa.sa_sigaction = crash_handler as libc::sighandler_t;
+            libc::sigemptyset(&mut sa.sa_mask);
+            // SA_RESETHAND: restore default after first delivery (prevents infinite loops).
+            // SA_ONSTACK: use alternate signal stack if one is registered (safer for SIGSEGV).
+            sa.sa_flags = libc::SA_RESETHAND | libc::SA_ONSTACK;
+            libc::sigaction(sig, &sa, std::ptr::null_mut());
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn install_crash_handlers() {} // No-op on Windows
+
+// ---------------------------------------------------------------------------
 // Lifecycle FFI functions
 // ---------------------------------------------------------------------------
 
@@ -121,6 +177,10 @@ pub(crate) fn c_str_to_rust_safe<'a>(ptr: *const c_char) -> Option<&'a str> {
 /// Returns null on failure.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_init() -> *mut ThalorInstance {
+    // Install crash signal handlers once per process so SIGSEGV/SIGBUS/SIGABRT
+    // exit cleanly instead of triggering OS crash dialogs.
+    install_crash_handlers();
+
     // Build a multi-threaded tokio runtime for this instance
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -153,8 +213,26 @@ pub extern "C" fn thalora_init() -> *mut ThalorInstance {
 /// Passing a null pointer is a no-op.
 #[unsafe(no_mangle)]
 pub extern "C" fn thalora_destroy(instance: *mut ThalorInstance) {
-    // Reclaim the boxed instance (no-op if null)
-    let _ = instance_into_box(instance);
+    let inst = match instance_into_box(instance) {
+        Some(i) => i,
+        None => return,
+    };
+
+    // Leak the Boa JS renderer before dropping the instance.
+    //
+    // WHY: The renderer (and its Boa GC state) was last used on an 8MB OS thread
+    // created by NavigateAsync or ExecutePageScriptsAsync. thalora_destroy is called
+    // from the C# disposal path (UI thread or finalizer thread). Dropping the renderer
+    // on a different thread causes cross-thread Boa GC corruption → SIGSEGV, which
+    // triggers a crash dialog even as the app is shutting down.
+    //
+    // Leaking is safe here: the process exits immediately after destroy, so the OS
+    // reclaims the memory. The ~5–15MB per navigation is a one-time leak on exit.
+    if let Ok(mut browser) = inst.browser.lock() {
+        browser.leak_renderer();
+    }
+
+    drop(inst);
 }
 
 /// Get the last error message from the instance.

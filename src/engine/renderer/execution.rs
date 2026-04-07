@@ -27,8 +27,10 @@ impl RustRenderer {
     /// Execute JavaScript from page-loaded `<script>` tags (trusted context).
     /// Uses relaxed security that allows eval, Function, document.write, WebAssembly
     /// since these are standard browser features used by real websites.
+    /// Timeout is 1s — scripts that take longer are typically failing Boa execution
+    /// (React bundles, etc.) and would produce no useful output anyway.
     pub fn evaluate_page_javascript(&mut self, js_code: &str) -> Result<String> {
-        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_secs(5))
+        self.evaluate_page_javascript_with_timeout(js_code, Duration::from_secs(1))
     }
 
     /// Execute JavaScript for browser interactions without wrapper interference

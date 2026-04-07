@@ -63,6 +63,96 @@ pub extern "C" fn thalora_navigate(
     }
 }
 
+/// Navigate to a URL without executing JavaScript. Returns the page HTML as a
+/// C string (must be freed with `thalora_free_string`), or null on error.
+///
+/// Use this for the fast first phase of two-phase navigation. Call
+/// `thalora_execute_page_scripts` afterward to run JS in the background while
+/// the static page is already visible.
+#[unsafe(no_mangle)]
+pub extern "C" fn thalora_navigate_static(
+    instance: *mut ThalorInstance,
+    url: *const c_char,
+) -> *mut c_char {
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return ptr::null_mut(),
+    };
+    inst.clear_error();
+
+    let url_str = match c_str_to_rust_safe(url) {
+        Some(s) => s,
+        None => {
+            inst.set_error("Invalid or null URL string".into());
+            return ptr::null_mut();
+        }
+    };
+
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        match inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+        {
+            Ok(mut browser) => inst
+                .runtime
+                .block_on(browser.navigate_to_with_js_option(url_str, true, false)),
+            Err(e) => Err(e),
+        }
+    }));
+
+    match result {
+        Ok(Ok(html)) => rust_string_to_c(html),
+        Ok(Err(e)) => {
+            inst.set_error(format!("Navigation failed: {}", e));
+            ptr::null_mut()
+        }
+        Err(_) => {
+            eprintln!("[ERROR] FFI thalora_navigate_static panicked! Returning null.");
+            inst.set_error("Navigation panicked (internal error)".into());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Execute page scripts on the already-loaded page (Phase 2 of two-phase navigation).
+/// Updates the internal DOM with JS modifications.
+/// Returns 1 if the DOM was modified, 0 if no change, -1 on error.
+#[unsafe(no_mangle)]
+pub extern "C" fn thalora_execute_page_scripts(instance: *mut ThalorInstance) -> i32 {
+    let inst = match instance_ref(instance) {
+        Some(i) => i,
+        None => return -1,
+    };
+    inst.clear_error();
+
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+        match inst
+            .browser
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))
+        {
+            Ok(mut browser) => inst
+                .runtime
+                .block_on(browser.execute_current_page_scripts()),
+            Err(e) => Err(e),
+        }
+    }));
+
+    match result {
+        Ok(Ok(changed)) => if changed { 1 } else { 0 },
+        Ok(Err(e)) => {
+            inst.set_error(format!("Script execution failed: {}", e));
+            -1
+        }
+        Err(_) => {
+            eprintln!("[ERROR] FFI thalora_execute_page_scripts panicked! Returning -1.");
+            inst.set_error("Script execution panicked (internal error)".into());
+            -1
+        }
+    }
+}
+
 /// Get the current URL. Returns a C string or null if no page is loaded.
 /// The caller must free the returned string with `thalora_free_string`.
 #[unsafe(no_mangle)]

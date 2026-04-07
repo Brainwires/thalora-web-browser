@@ -237,8 +237,13 @@ impl super::super::HeadlessWebBrowser {
             .unwrap_or_else(|| url.to_string());
         self.add_to_history(url.to_string(), title);
 
-        // If wait_for_js is enabled, execute page scripts and wait for completion
-        if wait_for_js {
+        // If wait_for_js is enabled, execute page scripts and wait for completion.
+        // Skip entirely if the page has no <script> tags — saves the full JS timeout.
+        let has_scripts = content.contains("<script");
+        if wait_for_js && !has_scripts {
+            eprintln!("🔍 DEBUG: No <script> tags found — skipping JS execution");
+        }
+        if wait_for_js && has_scripts {
             eprintln!("🔍 DEBUG: wait_for_js enabled, executing page scripts");
 
             // CSP: Install eval/Function blocking if 'unsafe-eval' is not allowed
@@ -303,7 +308,7 @@ impl super::super::HeadlessWebBrowser {
                     // Keep original content — JS may not have modified the DOM
                 }
             }
-        } else {
+        } else if !wait_for_js {
             eprintln!("🔍 DEBUG: wait_for_js disabled, ready for direct DOM interaction");
         }
 
@@ -654,7 +659,7 @@ impl super::super::HeadlessWebBrowser {
 
     /// Fire DOMContentLoaded event
     /// This signals that the DOM is fully parsed and deferred scripts should execute
-    pub(super) async fn fire_dom_content_loaded(&mut self) -> Result<()> {
+    pub(crate) async fn fire_dom_content_loaded(&mut self) -> Result<()> {
         let js_code = r#"
         (function() {
             try {
