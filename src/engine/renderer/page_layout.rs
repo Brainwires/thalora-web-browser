@@ -1818,6 +1818,7 @@ fn computed_to_resolved(styles: &ComputedStyles) -> ResolvedStyles {
         z_index: styles.z_index,
         list_style_type: styles.list_style_type.clone(),
         cursor: styles.cursor.clone(),
+        float: styles.float.clone(),
         grid_template_columns: styles.grid_template_columns.clone(),
         grid_template_rows: styles.grid_template_rows.clone(),
         grid_template_areas: styles.grid_template_areas.clone(),

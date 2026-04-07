@@ -25,6 +25,29 @@ public partial class ControlTreeBuilder
             return BuildGridContent(element, fontSize, depth);
         }
 
+        // Float simulation: when block children have float:right or float:left,
+        // arrange them in a two/three-column Grid beside normal-flow content.
+        // This handles common patterns like Wikipedia's infobox (float:right) and TOC (float:left).
+        // Only applies when both floated and normal-flow children coexist.
+        if (!isFlex && !isGrid)
+        {
+            var floatRight = element.Children
+                .Where(c => c.Styles.Float == "right" && c.Styles.Display != "none")
+                .ToList();
+            var floatLeft = element.Children
+                .Where(c => c.Styles.Float == "left" && c.Styles.Display != "none")
+                .ToList();
+            var normalFlow = element.Children
+                .Where(c => c.Styles.Float != "right" && c.Styles.Float != "left"
+                         && c.Styles.Display != "none")
+                .ToList();
+
+            if ((floatRight.Any() || floatLeft.Any()) && normalFlow.Any())
+            {
+                return BuildFloatLayout(element, normalFlow, floatLeft, floatRight, fontSize, depth);
+            }
+        }
+
         // Fix 5: Navigation menu detection — when a <ul>/<ol> has list-style-type:none
         // AND is a direct child of <nav> (or the element itself is <nav> wrapping a list),
         // it's almost certainly a horizontal navigation menu. Many sites rely on CSS rules
@@ -33,6 +56,10 @@ public partial class ControlTreeBuilder
         bool isNavList = !isFlex && !isGrid
             && (element.Tag is "ul" or "ol")
             && styles.ListStyleType == "none";
+
+        // <tr> with display:table-row renders its <td>/<th> children horizontally.
+        // Without this, table cells would stack vertically instead of side-by-side.
+        bool isTableRow = styles.Display == "table-row";
 
         Panel panel;
 
@@ -256,6 +283,14 @@ public partial class ControlTreeBuilder
                     panel.HorizontalAlignment = HorizontalAlignment.Left;
             }
         }
+        else if (isTableRow)
+        {
+            // <tr>: render <td>/<th> children as horizontal columns in a Grid.
+            // Each cell gets an Auto column — cells size to their content width.
+            var grid = new Grid();
+            grid.HorizontalAlignment = HorizontalAlignment.Stretch;
+            panel = grid;
+        }
         else
         {
             panel = new StackPanel { Orientation = Orientation.Vertical };
@@ -291,7 +326,7 @@ public partial class ControlTreeBuilder
         int listItemIndex = 0;
 
         // Track column index for horizontal flex Grid (default row flex without flex-grow)
-        bool isHorizFlexGrid = (isFlex || isNavList) && isRow && panel is Grid && !isWrap;
+        bool isHorizFlexGrid = ((isFlex || isNavList) && isRow && panel is Grid && !isWrap) || isTableRow;
         int flexGridCol = 0;
         var flexGap = isHorizFlexGrid ? Len(styles.Gap, fontSize) : null;
 
@@ -307,7 +342,7 @@ public partial class ControlTreeBuilder
                 && string.IsNullOrWhiteSpace(child.TextContent))
                 continue;
 
-            if (!isFlex && !isNavList && IsInlineElement(child))
+            if (!isFlex && !isNavList && !isTableRow && IsInlineElement(child))
             {
                 inlineBuffer.Add(child);
             }
@@ -411,5 +446,74 @@ public partial class ControlTreeBuilder
         }
 
         return panel;
+    }
+
+    /// <summary>
+    /// Build a float layout: float:left children in left column, normal flow children in
+    /// center column, float:right children in right column. Simulates CSS float behavior
+    /// for common patterns like Wikipedia's infobox (float:right) and TOC (float:left).
+    /// </summary>
+    private Control BuildFloatLayout(
+        StyledElement element,
+        List<StyledElement> normalFlow,
+        List<StyledElement> floatLeft,
+        List<StyledElement> floatRight,
+        double fontSize,
+        int depth)
+    {
+        var outerGrid = new Grid();
+        outerGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        int contentCol = 0;
+
+        // Left float column
+        if (floatLeft.Any())
+        {
+            outerGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            contentCol = 1;
+
+            var leftPanel = new StackPanel { Orientation = Orientation.Vertical };
+            foreach (var fc in floatLeft)
+            {
+                var ctrl = BuildControl(fc, fontSize, depth + 1);
+                if (ctrl != null)
+                    leftPanel.Children.Add(ctrl);
+            }
+            Grid.SetColumn(leftPanel, 0);
+            outerGrid.Children.Add(leftPanel);
+        }
+
+        // Normal flow children in center (Star column — fills remaining space)
+        outerGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+
+        var normalPanel = new StackPanel { Orientation = Orientation.Vertical };
+        foreach (var child in normalFlow)
+        {
+            if (child.Styles.Display == "none") continue;
+            var ctrl = BuildControl(child, fontSize, depth + 1);
+            if (ctrl != null)
+                normalPanel.Children.Add(ctrl);
+        }
+        Grid.SetColumn(normalPanel, contentCol);
+        outerGrid.Children.Add(normalPanel);
+
+        // Right float column
+        if (floatRight.Any())
+        {
+            outerGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            int rightCol = contentCol + 1;
+
+            var rightPanel = new StackPanel { Orientation = Orientation.Vertical };
+            foreach (var fc in floatRight)
+            {
+                var ctrl = BuildControl(fc, fontSize, depth + 1);
+                if (ctrl != null)
+                    rightPanel.Children.Add(ctrl);
+            }
+            Grid.SetColumn(rightPanel, rightCol);
+            outerGrid.Children.Add(rightPanel);
+        }
+
+        return outerGrid;
     }
 }

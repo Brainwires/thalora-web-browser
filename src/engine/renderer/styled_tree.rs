@@ -221,6 +221,9 @@ pub struct ResolvedStyles {
     /// Cursor style
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
+    /// CSS float: left, right, none
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub float: Option<String>,
     /// Grid template columns (e.g., "1fr 3fr", "200px 1fr 200px")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grid_template_columns: Option<String>,
