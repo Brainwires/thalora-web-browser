@@ -16,7 +16,7 @@ public partial class ControlTreeBuilder
     /// Handles grid-template-columns, grid-template-rows, grid-template-areas,
     /// and child grid-area placement.
     /// </summary>
-    private Control BuildGridContent(StyledElement element, double fontSize, int depth)
+    private Control BuildGridContent(StyledElement element, double fontSize, int depth, double availableWidth = 0)
     {
         var styles = element.Styles;
 
@@ -104,7 +104,7 @@ public partial class ControlTreeBuilder
                 seqCol++;
             }
 
-            var childControl = BuildControl(child, fontSize, depth + 1);
+            var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
             if (childControl == null)
             {
                 // Insert an invisible placeholder so the grid cell still occupies space.
@@ -430,4 +430,119 @@ public partial class ControlTreeBuilder
 
         return tokens;
     }
+
+    // ─── CSS Table Layout ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Build an Avalonia Grid approximating a CSS table (display:table).
+    ///
+    /// Algorithm:
+    ///  1. Flatten all display:table-row elements (descending through row-groups).
+    ///  2. Find the maximum column count across all rows.
+    ///  3. Create an Avalonia Grid with that many Auto columns and one Auto row per row.
+    ///  4. Place each cell at its (row, col) with colspan/rowspan if present.
+    ///
+    /// Limitations vs. CSS: column widths are content-sized (no equal-width
+    /// distribution), no border-collapse, no caption support.
+    /// </summary>
+    private Control BuildTableContent(StyledElement element, double fontSize, int depth, double availableWidth = 0)
+    {
+        // Collect all <tr> descendants, descending through thead/tbody/tfoot row-groups
+        var rows = CollectTableRows(element);
+
+        if (rows.Count == 0)
+            return BuildBlockContent(element, fontSize, depth, availableWidth); // fallback
+
+        // Determine column count from the row with the most cells
+        int colCount = rows.Max(r => CountCells(r));
+        if (colCount == 0)
+            return BuildBlockContent(element, fontSize, depth, availableWidth);
+
+        var grid = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+
+        for (int c = 0; c < colCount; c++)
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        for (int r = 0; r < rows.Count; r++)
+            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        for (int rowIdx = 0; rowIdx < rows.Count; rowIdx++)
+        {
+            int colIdx = 0;
+            var rowEl = rows[rowIdx];
+
+            foreach (var cell in rowEl.Children)
+            {
+                if (cell.Styles.Display == "none") continue;
+                if (cell.Styles.Display != "table-cell"
+                    && cell.Tag is not "td" and not "th") continue;
+
+                // Skip to next available column (handles colspan from previous rows)
+                while (colIdx >= colCount)
+                    colIdx++;
+
+                double cellWidth = colCount > 0 && availableWidth > 0 ? availableWidth / colCount : availableWidth;
+                var cellControl = BuildControl(cell, fontSize, depth + 1, cellWidth);
+                if (cellControl == null)
+                {
+                    colIdx++;
+                    continue;
+                }
+
+                // colspan / rowspan from HTML attributes
+                int colspan = 1, rowspan = 1;
+                if (cell.Attributes != null)
+                {
+                    if (cell.Attributes.TryGetValue("colspan", out var cs)
+                        && int.TryParse(cs, out var csVal) && csVal > 1)
+                        colspan = Math.Min(csVal, colCount - colIdx);
+                    if (cell.Attributes.TryGetValue("rowspan", out var rs)
+                        && int.TryParse(rs, out var rsVal) && rsVal > 1)
+                        rowspan = Math.Min(rsVal, rows.Count - rowIdx);
+                }
+
+                Grid.SetRow(cellControl, rowIdx);
+                Grid.SetColumn(cellControl, Math.Min(colIdx, colCount - 1));
+                if (colspan > 1) Grid.SetColumnSpan(cellControl, colspan);
+                if (rowspan > 1) Grid.SetRowSpan(cellControl, rowspan);
+
+                grid.Children.Add(cellControl);
+                colIdx += colspan;
+            }
+        }
+
+        return grid;
+    }
+
+    /// <summary>
+    /// Flatten display:table-row elements from a table element.
+    /// Descends through display:table-row-group (thead/tbody/tfoot) transparently.
+    /// </summary>
+    private static List<StyledElement> CollectTableRows(StyledElement table)
+    {
+        var rows = new List<StyledElement>();
+        foreach (var child in table.Children)
+        {
+            if (child.Styles.Display == "none") continue;
+
+            if (child.Styles.Display == "table-row"
+                || child.Tag is "tr")
+                rows.Add(child);
+            else if (child.Styles.Display is "table-row-group" or "table-header-group" or "table-footer-group"
+                     || child.Tag is "thead" or "tbody" or "tfoot")
+            {
+                // Descend into row groups
+                foreach (var grandchild in child.Children)
+                {
+                    if (grandchild.Styles.Display == "none") continue;
+                    if (grandchild.Styles.Display == "table-row" || grandchild.Tag == "tr")
+                        rows.Add(grandchild);
+                }
+            }
+        }
+        return rows;
+    }
+
+    private static int CountCells(StyledElement row) =>
+        row.Children.Count(c => c.Styles.Display != "none"
+            && (c.Styles.Display == "table-cell" || c.Tag is "td" or "th"));
 }

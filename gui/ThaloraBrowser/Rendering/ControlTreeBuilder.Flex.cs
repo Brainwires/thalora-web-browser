@@ -13,7 +13,7 @@ public partial class ControlTreeBuilder
     /// <summary>
     /// Build a StackPanel (or WrapPanel) containing block-level child controls.
     /// </summary>
-    private Control BuildBlockContent(StyledElement element, double fontSize, int depth = 0)
+    private Control BuildBlockContent(StyledElement element, double fontSize, int depth = 0, double availableWidth = 0)
     {
         var styles = element.Styles;
         bool isFlex = styles.Display == "flex" || styles.Display == "inline-flex";
@@ -22,7 +22,7 @@ public partial class ControlTreeBuilder
         if (isGrid && (!string.IsNullOrEmpty(styles.GridTemplateColumns)
             || !string.IsNullOrEmpty(styles.GridTemplateAreas)))
         {
-            return BuildGridContent(element, fontSize, depth);
+            return BuildGridContent(element, fontSize, depth, availableWidth);
         }
 
         // Float simulation: when block children have float:right or float:left,
@@ -44,7 +44,7 @@ public partial class ControlTreeBuilder
 
             if ((floatRight.Any() || floatLeft.Any()) && normalFlow.Any())
             {
-                return BuildFloatLayout(element, normalFlow, floatLeft, floatRight, fontSize, depth);
+                return BuildFloatLayout(element, normalFlow, floatLeft, floatRight, fontSize, depth, availableWidth);
             }
         }
 
@@ -195,7 +195,7 @@ public partial class ControlTreeBuilder
                             else
                                 grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-                            var childControl = BuildControl(child, fontSize, depth + 1);
+                            var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                             if (childControl != null)
                             {
                                 if (styles.AlignItems == "center")
@@ -233,7 +233,7 @@ public partial class ControlTreeBuilder
                         int col = isAround ? 1 : 0;
                         foreach (var child in visibleChildren)
                         {
-                            var childControl = BuildControl(child, fontSize, depth + 1);
+                            var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                             if (childControl != null)
                             {
                                 if (styles.AlignItems == "center")
@@ -370,7 +370,7 @@ public partial class ControlTreeBuilder
                 }
 
                 // Build block child (or blockified flex item)
-                var childControl = BuildControl(child, fontSize, depth + 1);
+                var childControl = BuildControl(child, fontSize, depth + 1, availableWidth);
                 if (childControl != null)
                 {
                     // For flex-wrap children, override percentage widths to resolve
@@ -492,7 +492,8 @@ public partial class ControlTreeBuilder
         List<StyledElement> floatLeft,
         List<StyledElement> floatRight,
         double fontSize,
-        int depth)
+        int depth,
+        double availableWidth = 0)
     {
         var outerGrid = new Grid();
         outerGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -508,7 +509,7 @@ public partial class ControlTreeBuilder
             var leftPanel = new StackPanel { Orientation = Orientation.Vertical };
             foreach (var fc in floatLeft)
             {
-                var ctrl = BuildControl(fc, fontSize, depth + 1);
+                var ctrl = BuildControl(fc, fontSize, depth + 1, availableWidth);
                 if (ctrl != null)
                     leftPanel.Children.Add(ctrl);
             }
@@ -523,7 +524,7 @@ public partial class ControlTreeBuilder
         foreach (var child in normalFlow)
         {
             if (child.Styles.Display == "none") continue;
-            var ctrl = BuildControl(child, fontSize, depth + 1);
+            var ctrl = BuildControl(child, fontSize, depth + 1, availableWidth);
             if (ctrl != null)
                 normalPanel.Children.Add(ctrl);
         }
@@ -539,7 +540,7 @@ public partial class ControlTreeBuilder
             var rightPanel = new StackPanel { Orientation = Orientation.Vertical };
             foreach (var fc in floatRight)
             {
-                var ctrl = BuildControl(fc, fontSize, depth + 1);
+                var ctrl = BuildControl(fc, fontSize, depth + 1, availableWidth);
                 if (ctrl != null)
                     rightPanel.Children.Add(ctrl);
             }
