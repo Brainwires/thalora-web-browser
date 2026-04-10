@@ -48,14 +48,19 @@ public partial class ControlTreeBuilder
             }
         }
 
-        // Fix 5: Navigation menu detection — when a <ul>/<ol> has list-style-type:none
-        // AND is a direct child of <nav> (or the element itself is <nav> wrapping a list),
-        // it's almost certainly a horizontal navigation menu. Many sites rely on CSS rules
-        // like `.nav-list { display: flex; list-style: none }` that our selector engine
-        // may not match. Detect this pattern and treat as horizontal flex.
+        // Navigation menu detection: horizontal layout for ul/ol with list-style:none.
+        // Only applies when the list is SHORT (≤8 items) — content TOCs like Wikipedia's
+        // have 13+ items and must remain vertical. Nav menus are typically concise.
+        // Also only applies when display is not explicitly set to block, OR when all li
+        // children have float:left (classic CSS horizontal nav pattern: "ul li { float:left }").
+        bool allLisFloatLeft = (element.Tag is "ul" or "ol")
+            && element.Children.Any(c => c.Tag == "li")
+            && element.Children.Where(c => c.Tag == "li").All(c => c.Styles.Float == "left");
         bool isNavList = !isFlex && !isGrid
             && (element.Tag is "ul" or "ol")
-            && styles.ListStyleType == "none";
+            && styles.ListStyleType == "none"
+            && (styles.Display != "block" || allLisFloatLeft)
+            && element.Children.Count(c => c.Tag == "li") <= 8;
 
         // <tr> with display:table-row renders its <td>/<th> children horizontally.
         // Without this, table cells would stack vertically instead of side-by-side.

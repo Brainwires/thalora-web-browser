@@ -282,6 +282,21 @@ public partial class ControlTreeBuilder
         bool hasOnlyInlineChildren = element.Children.Count > 0
             && element.Children.All(c => IsInlineElement(c));
 
+        // Special case: table cells (td/th) or block elements whose only meaningful
+        // content is an image nested inside inline elements (span → a → img).
+        // InlineUIContainer in SelectableTextBlock often fails to render images.
+        // Build the image directly as a block Image control instead.
+        if (hasOnlyInlineChildren && element.Tag is "td" or "th" or "div" or "p")
+        {
+            var singleImg = FindSingleImageElement(element);
+            if (singleImg != null)
+            {
+                var imgControl = BuildImage(singleImg, fontSize);
+                imgControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+                return WrapInBorder(imgControl, styles, fontSize);
+            }
+        }
+
         // Build the appropriate control
         Control content;
         if (specialContent != null)

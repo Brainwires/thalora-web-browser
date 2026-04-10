@@ -179,8 +179,11 @@ public partial class ControlTreeBuilder
     {
         try
         {
-            // SVG images — load via Svg.Skia and convert to Avalonia bitmap
-            if (src.Contains(".svg", StringComparison.OrdinalIgnoreCase))
+            // SVG images — load via Svg.Skia and convert to Avalonia bitmap.
+            // Check extension on the final path component (before any query params),
+            // not a substring match — e.g. ".svg.png" is a PNG, not an SVG.
+            var srcPath = src.Split('?')[0].Split('#')[0];
+            if (srcPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
             {
                 await LoadSvgImageAsync(imageControl, src);
                 return;
